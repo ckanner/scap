@@ -1,0 +1,31 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime and customer data
+data/
+var/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# Build and editor output
+target/
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+.idea/
+.vscode/
+
+# Local delivery packages
+*.bundle
+*.zip

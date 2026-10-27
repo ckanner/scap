@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "project": "scap",
+  "design_date": "2026-10-27",
+  "status": "design-only",
+  "implementation_complete": false,
+  "database_engine": "libsql-sqlite-c-fork-candidate",
+  "server_language": "Rust",
+  "client_language": "TypeScript",
+  "scope": {
+    "postgresql_in_initial_scope": false,
+    "cross_database_transactions": false,
+    "offline_multi_writer": false,
+    "cross_region_synchronous_writes": false
+  },
+  "replication": {
+    "unit": "shared-storage-cell",
+    "voters": 3,
+    "quorum": 2,
+    "failure_domains": 3,
+    "per_database_dedicated_raft_group": false,
+    "payload": "bounded-complete-physical-transaction",
+    "ack_requires": [
+      "durable-quorum",
+      "state-machine-acceptance",
+      "atomic-sql-visibility"
+    ],
+    "write_authority": "cell-state-machine",
+    "etcd_is_write_authority": false
+  },
+  "consistency": {
+    "partition_policy": "CP",
+    "default_read": "quorum-barrier-and-bound-sqlite-snapshot",
+    "without_quorum": "reject-new-strong-reads-and-writes",
+    "automatic_local_write_fallback": false,
+    "unknown_write_auto_replay_without_request_id": false,
+    "identity_fields": [
+      "cell_id",
+      "cell_incarnation",
+      "db_id",
+      "incarnation",
+      "placement_generation",
+      "owner_epoch",
+      "worker_instance_id",
+      "auth_epoch"
+    ],
+    "database_commit_position": "db_seq"
+  },
+  "storage": {
+    "s3_upload": "asynchronous-after-accepted-commit",
+    "archive_publication": "cell-state-machine",
+    "worker_suspend_requires_full_s3_archive": false,
+    "persistent_data_eviction_requires_recovery_proof": true,
+    "raft_purge_requires_recoverable_cell_snapshot": true,
+    "s3_only_dr_entry": "verified-complete-dr-checkpoint"
+  },
+  "targets": {
+    "single_az_acknowledged_write_rpo": 0,
+    "single_az_rpo_validated": false,
+    "region_disaster_rpo": "last-verified-complete-dr-checkpoint",
+    "rto_measured": false
+  },
+  "planned_defaults": {
+    "authorization_positive_cache_seconds": 60,
+    "authorization_cache_sliding_expiry": false,
+    "disk_warning_percent": 70,
+    "disk_throttle_percent": 80,
+    "disk_stop_user_writes_percent": 90,
+    "absolute_reserve_can_trigger_earlier": true,
+    "defaults_validated": false
+  },
+  "gates": {
+    "G0": "engine-sdk-durable-store-feasibility",
+    "G1": "one-reliable-cell",
+    "G2": "multi-database-gateway-auth-control-plane",
+    "G3": "archive-lifecycle-gc-pitr-dr",
+    "G4": "ha-capacity-operations-rollout"
+  }
+}
