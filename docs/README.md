@@ -22,12 +22,14 @@
 - [performance-slo.md](engineering/performance-slo.md)：明确的延迟、恢复、冷启动和可用性目标及测量口径。
 - [testability-and-coverage.md](engineering/testability-and-coverage.md)：100% 单元覆盖率分母、松耦合架构与设计原则。
 - [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
+- [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
 
 - [ADR 索引](adr/README.md)。
 - [开源组件调查](research/components.md)。
+- [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
 - [机器可读的设计清单](../contracts/design-contract.json)。
 - [覆盖率策略](../contracts/coverage-policy.json) 与 [性能目标清单](../contracts/performance-targets.json)。
 

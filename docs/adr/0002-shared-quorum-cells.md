@@ -2,6 +2,7 @@
 
 - 日期：2026-10-27
 - 状态：设计基线；实现通过 G0/G1 后才形成可承诺能力
+- 后续：2026-10-28 [ADR-0006](0006-raft-rs-consensus-library.md) 将共识库首选调整为 raft-rs；本 ADR 的共享拓扑与 CP 合同保持
 
 ## 背景
 
@@ -9,7 +10,7 @@
 
 ## 决策
 
-采用多个共享 storage cell。每个 cell 初始为三个跨可用区 voter 的 Raft 组，复制完整物理事务和控制记录；多个数据库共享一个 cell。OpenRaft 作为共识候选，持久化适配和数据库状态机由本项目实现。
+采用多个共享 storage cell。每个 cell 初始为三个跨可用区 voter 的 Raft 组，复制完整物理事务和控制记录；多个数据库共享一个 cell。原共识候选为 OpenRaft，现由 ADR-0006 调整为 raft-rs；持久化适配和数据库状态机仍由本项目实现。
 
 同一状态机裁决 incarnation、placement、owner epoch、前序提交位置和幂等结果。只有 durable quorum 加应用层接受才构成写成功。网络分区时无 quorum 的一侧拒绝新强读写。
 
@@ -32,4 +33,4 @@ etcd 保存目录与调度意图，不能独立授予可绕过 cell 的写权。
 
 若 G0 无法可靠接入引擎提交点，或共享 cell 自研和维护成本不成立，则重评底座。不能通过允许本地提交或缩小测试故障面继续宣称严格 HA。
 
-参考：[一致性协议](../architecture/consistency.md)、[OpenRaft 存储接口](https://docs.rs/openraft/latest/openraft/storage/trait.RaftLogStorage.html)。
+参考：[一致性协议](../architecture/consistency.md)、[Raft 库选型](../research/raft-library-selection.md)、[集成契约](../engineering/raft-rs-integration.md)。原 OpenRaft 候选的事实与接口记录保留在选型比较中。

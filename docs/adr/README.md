@@ -9,5 +9,6 @@ ADR 记录背景、选择、代价和重新评审条件。当前记录为设计�
 | [0003](0003-object-storage-and-cold-lifecycle.md) | 异步归档、明确发布、可验证回收 | 设计基线；恢复链待验证 |
 | [0004](0004-engine-and-implementation-boundary.md) | libSQL / Rust 技术方向及自研边界 | 候选；G0 通过后锁定 |
 | [0005](0005-measurable-performance-and-unit-coverage.md) | 明确性能目标、恢复分级与 100% 单元覆盖率 | 工程约束已接受；集群性能待测 |
+| [0006](0006-raft-rs-consensus-library.md) | 共识核心优先验证 TiKV raft-rs | 替代 0002/0004 中 OpenRaft 优先候选；G0/G1 待验 |
 
 新增 ADR 使用下一个编号，保留被替代记录并注明替代关系。用户或维护者改变范围时记录原因，不通过删除旧决策隐藏取舍。

@@ -11,6 +11,7 @@
 - Node.js 优先接入现有 **`@libsql/client`**；存量 `better-sqlite3` 应用评估 **`libsql` 兼容驱动**。兼容范围必须通过真实应用验证。
 - 每个数据库只有一个获准写入的 owner。多个数据库共享执行节点和存储 cell，**不为每个小库固定部署一套三节点集群**。
 - 每个 storage cell 初始为跨三个可用区的 **三副本 Raft 组**。事务变更和写者版本由同一个有序状态机裁决；多数派持久化并接受事务后才能返回成功。
+- 共识库首选候选调整为 **TiKV 的 `raft-rs`**；OpenRaft 保留为备选。此决定复用共识内核，SCAP 仍须实现并验证运行循环、持久存储、传输与数据库状态机，见 [ADR 0006](docs/adr/0006-raft-rs-consensus-library.md)。
 - **S3 异步归档不会降低提交保障**：未完成归档的数据必须仍由可靠日志或可恢复的状态机快照保留。
 - 网络分区时采用 **CP 策略**：无权威多数派的一侧不接受新的强一致读写，禁止自动降级为本地写成功。
 - Bottomless / Litestream 用作备份机制参考及实验对照，**不承担本设计的同步提交与自动选主职责**。
@@ -35,6 +36,8 @@
 | [可测架构与覆盖率](docs/engineering/testability-and-coverage.md) | 如何以 100% 单元覆盖率驱动模块、依赖边界和评审？ |
 | [G0 执行证据](docs/engineering/g0-evidence.md) | 当前实际运行了什么，哪些关键能力尚未证明？ |
 | [开源组件调查](docs/research/components.md) | 上游实际提供什么能力，证据与许可是什么？ |
+| [Raft 库选型](docs/research/raft-library-selection.md) | 为什么改用 TiKV 的 raft-rs，OpenRaft 的取舍是什么？ |
+| [raft-rs 集成门禁](docs/engineering/raft-rs-integration.md) | Ready、持久化、读屏障、快照与重启怎样实现和验证？ |
 | [ADR 索引](docs/adr/README.md) | 为什么这样选择，替代路线是什么？ |
 
 ## 可靠性目标与边界
@@ -51,7 +54,7 @@
 | --- | --- |
 | 平台服务 | Rust，Tokio，Axum，Tonic / Protobuf |
 | SQL 引擎 | libSQL / SQLite C 内核，Rust FFI 适配 |
-| 日志复制 | OpenRaft + 自行实现并验证的持久存储适配 |
+| 日志复制 | TiKV `raft-rs` 首选候选 + 自研运行循环、持久存储与传输适配 |
 | 本地日志与索引 | RocksDB 候选，显式同步持久化和恢复契约 |
 | 对象存储 | 具备已验证一致性、持久性和校验能力的 S3 兼容服务 |
 | 控制目录 | etcd；只保存目录、意图和控制元数据 |
@@ -79,4 +82,4 @@ cargo test --manifest-path experiments/wal-gate/Cargo.toml --locked -- --test-th
 
 本仓库自身的分发许可尚待维护者决定，当前不添加未经选择的开源授权。第三方组件的许可证、上游修改义务和供应链记录见组件调查；引入源码前完成核验。
 
-设计基线日期：**2026-10-27**。
+设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**。

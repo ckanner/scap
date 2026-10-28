@@ -20,6 +20,8 @@ v0 需要证明：
 
 性能阈值与计时口径以 [性能与恢复目标](performance-slo.md) 为准；单元测试范围和准确测量规则以 [可测试架构与覆盖率](testability-and-coverage.md) 为准。三类证据独立：100% 单元覆盖率、真实正确性/故障验证、性能验收不能互相替代，当前均不得仅凭设计文档声明通过。
 
+共识库选型见 [ADR 0006](../adr/0006-raft-rs-consensus-library.md)。`raft-rs` 的接口与持久化专项验收见 [集成门禁](raft-rs-integration.md)，其真实多节点结果不能从 TiKV 的使用记录或本仓库既有 WAL 探针推定。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级
@@ -165,8 +167,14 @@ oracle 应独立于被测服务的成功计数和内部日志；系统自己说�
 | F-32 | 完成清单存在但引用对象、授权材料、来源验证 key 或解密 key 缺失/错误 | 无法完整验证的候选明确失败；不创建同名空库、不跳过权限或解密检查开放服务 | O-05、O-08 |
 | F-33 | S3 不可用时 Suspend，随后重启 worker；并发请求 fullyCold | Suspend 可依 cell tail 完成并恢复 ACK；fullyCold 在归档/GC 证明不足时拒绝卸载 | O-01、O-05、O-07 |
 | F-34 | 相同条目在不同副本跨 token 到期时间 apply，副本墙钟偏移 | 已准入提案的确定性结果一致；auth_epoch 按日志顺序判定；已接受提交不因 TTL 后续到期撤销 | O-01、O-03、O-08 |
+| F-35 | `Ready` 的 HardState / entries / snapshot 持久化边界崩溃、刷盘失败，或注入重复/乱序完成事件 | 不提前发送 `persisted_messages` 或虚报持久推进；重启保留正确 term/vote，不以迟到完成恢复故障副本的服务资格 | O-01 |
+| F-36 | `advance_append` 产生 `LightReady` 后、commit 元数据落盘和状态机原子应用之间逐点崩溃 | 不遗漏新 committed entries；业务状态、去重、成员状态与 applied 水位一致；持久 commit 不落后于 applied，重启不得靠取二者最大值掩盖损坏 | O-01、O-04 |
+| F-37 | `ReadState` 延迟/重复、请求 context 错配、leader 切换以及应用进度落后 | 旧响应不授权新请求；真实 applied 达到有效读水位后才取同一状态机视图并绑定 SQL 快照 | O-02、O-08 |
+| F-38 | learner 追赶/晋升或 joint configuration 中，节点崩溃且 snapshot 安装/日志裁剪中断 | `ConfState`、snapshot term/index、实际业务状态及应用位置具有完整恢复视图；不跳过成员转换、不缩小 quorum 来恢复可写 | O-01、O-05 |
 
 每个场景至少覆盖故障出现前、故障持续期间、恢复后这三个时间窗。单独注入一次正常异常不足以证明随机竞争下的安全性；关键顺序需要确定性重放与不同 seed 覆盖。
+
+F-35–F-38 增补 `raft-rs` 接合边界，不替代 F-01–F-34。记录 Ready 编号、消息类别、持久完成、commit / applied 位置、读请求 context 及配置状态，供独立 oracle 复核；首版只允许串行同步持久化，不能通过测试夹具偷偷启用未经门禁的异步流水线。
 
 ## 5. SQL、事务与 Node.js 接入兼容性
 

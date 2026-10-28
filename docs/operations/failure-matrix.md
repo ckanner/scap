@@ -8,6 +8,8 @@ SCAP 为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQ
 
 数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。etcd 保存目录和调度信息，但不是提交权威。etcd 中的锁、租约或路由指向不构成写入许可。S3 异步保存快照及 WAL segments，manifest 经 Raft 提交后才能成为可用恢复点；“上传完成”和“可回收旧数据”是不同事件。
 
+共识库首选候选按 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 调整为 `raft-rs`，以下故障合同不因此降低。驱动循环、持久化、读取和恢复的具体约束见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
+
 本文使用以下术语：
 
 | 术语 | 含义 |
@@ -70,6 +72,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 旧 worker 被隔离，连不到 cell quorum | 禁止新的成功写和强一致读 | 返回不可用；保持 staged 状态不发布，等待查询结果/回收 | 禁止离线写后向客户端返回成功；禁止继续提供无屏障的“最新读” |
 | 一个 Raft follower 退出 | quorum 健康时继续 | 限制维护并重建该副本；恢复追赶 | 追赶前不视作健康，不同时滚动第二个副本 |
 | Raft leader 退出 / 重启 | 选主期间短暂不可用；已确认日志应保留 | 新 leader 按 Raft 规则恢复；读屏障重新建立 | 未提交 tail 可被覆盖；不能将本地最长日志等同于已提交日志 |
+| Raft driver 次序校验失败、持久完成错配或 apply 失败 | 对应副本停止正常服务，不发送尚无持久依据的确认；其他健康副本形成 quorum 时可继续 | 保留故障证据，按完整 HardState / ConfState、日志、snapshot 与实际 applied 状态恢复 | 不忽略 `LightReady`；不提前调用持久/应用推进接口；不凭内存 applied 或取最大水位修复不一致 |
 | Raft 组失去多数派 | 新写和强一致读停止 | 等待恢复多数派；报警并保全所有介质 | 禁止自动降为单副本、强制新集群、从 S3 覆盖现有日志 |
 | 一份 Raft 日志 fsync / checksum 失败 | 故障副本停止持久化确认及投票，退出正常服务；另两副本健康时可继续 | 将副本标为不可用，保留诊断证据，再替换/重建 | 吞掉 I/O 错误后继续 ACK 或投票会破坏安全性；健康检查须暴露失效原因 |
 | Raft 日志磁盘接近满 | 按 cell 水位逐级限流，达到停止线拒绝新的用户写 | 排查归档、compaction 和热点库；保护控制记录预留 | 禁止手动删除 WAL 或未确认可回收的 segments；控制记录也无法安全写入时整体停写 |

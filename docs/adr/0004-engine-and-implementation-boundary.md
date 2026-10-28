@@ -2,6 +2,7 @@
 
 - 日期：2026-10-27
 - 状态：候选；G0 后锁定准确依赖版本
+- 后续：共识库候选于 2026-10-28 由 [ADR-0006](0006-raft-rs-consensus-library.md) 修订；其余语言与引擎方向保持
 
 ## 背景
 
@@ -11,13 +12,13 @@
 
 服务端使用 Rust / Tokio；HTTP 使用 Axum，内部 RPC 使用 Tonic / Protobuf。SQL 内核首选 libSQL 的 SQLite C fork，以 Rust FFI / virtual WAL 接入。客户端使用 TypeScript 和现有 libSQL SDK。当前 Python 只用于仓库检查。
 
-OpenRaft 复用共识算法，RocksDB 候选承担 cell 本地持久化，etcd 承担目录与控制意图。监控采用 Prometheus 与 OpenTelemetry。
+原方案以 OpenRaft 复用共识算法，现按 ADR-0006 优先验证 TiKV raft-rs 并自行组织 driver。RocksDB 候选承担 cell 本地持久化，etcd 承担目录与控制意图。监控采用 Prometheus 与 OpenTelemetry。
 
 自行实现：SQL 提交可见性适配、Raft 持久 store、cell 状态机、请求幂等、owner fencing、归档发布/GC、冷库调度、权限与配额、恢复和升级。
 
 ## 代价
 
-libSQL 内部接口、OpenRaft API 和磁盘格式需要锁定和维护；Rust 服务仍包含 C / C++ 依赖。选择 Rust 不能消除 FFI、内存损坏、设备持久化或逻辑协议风险。
+libSQL 内部接口、所选 Raft API、内部 RPC 和磁盘格式需要锁定和维护；采用 raft-rs 还需承担 Ready / LightReady 驱动与持久完成次序。Rust 服务仍包含 C / C++ 依赖。选择 Rust 不能消除 FFI、内存损坏、设备持久化或逻辑协议风险。
 
 `sqld` 不是稳定的万能平台库，可能需要维护集中、可追踪的 fork patch。必须记录 upstream revision 与修改范围，避免将长期分叉成本隐藏。
 

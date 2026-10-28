@@ -8,6 +8,8 @@
 
 任一阶段未达到持久性门禁，产物只能标为实验或备份恢复原型，不能对外承诺本仓库的严格 HA。改变产品保障范围须记录新的 ADR 和维护者决定，不能在实现中静默降级。
 
+共识库按照 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 优先验证 TiKV 的 `raft-rs`；[选型调研](../research/raft-library-selection.md) 记录取舍。当前没有已集成的 OpenRaft 运行时或生产数据格式需要迁移，这次调整不代表 Raft 适配已完成。
+
 ## 2. 阶段计划
 
 | 阶段 | 交付 | 进入下一阶段的条件 |
@@ -22,7 +24,7 @@
 
 ## 3. G0 的具体工作
 
-所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前窄提交策略和真实 WAL 探针已开始执行；OpenRaft 持久存储、完整事务暂存、SDK 返回边界等尚未完成，不能将部分探针通过视为 G0 整体通过。
+所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前窄提交策略和真实 WAL 探针已开始执行；`raft-rs` 运行循环与持久存储、完整事务暂存、SDK 返回边界等尚未完成，不能将部分探针通过视为 G0 整体通过。
 
 ### 3.1 引擎适配
 
@@ -32,7 +34,9 @@
 
 ### 3.2 持久化适配
 
-实现最小 OpenRaft storage adapter，运行上游契约测试和进程 / 存储故障测试。明确 RocksDB WriteBatch、sync、vote、last-applied、snapshot、log purge 的一致性关系。
+实现最小 `raft-rs` driver 与持久存储 adapter，执行锁定上游版本的适用测试、SCAP 契约测试及进程 / 存储故障测试。`Storage` 的读取接口不能代替应用负责的持久写入；需要明确 RocksDB WriteBatch / sync、`HardState`、`ConfState`、last-applied、snapshot 和 log purge 的恢复关系。
+
+首版采用串行同步 `Ready`：完成必要持久化后调用 `advance_append(ready)`，处理 `LightReady`，有序持久化应用结果，再调用 `advance_apply_to(durable_applied)`；先验证这些工作、消息类别和应用进度，再考虑异步持久化流水线。持久化失败不得发送 `persisted_messages` 或虚报持久推进；应用完成边界不得超前于实际可恢复的业务状态，`commit_index` 也不能落后于已持久化的应用位置。具体接口、顺序和验证出口以 [raft-rs 集成门禁](raft-rs-integration.md) 为准。
 
 ### 3.3 客户端与备选基线
 

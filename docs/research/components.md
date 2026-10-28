@@ -1,12 +1,12 @@
 # 开源组件调研与采用边界
 
-查询日期：2026-10-27。状态：架构候选与源码核实记录，尚未完成端到端实现、故障注入或生产验证。
+初始查询日期：2026-10-27；Raft 选型复核：2026-10-28。状态：架构候选与源码核实记录，尚未完成端到端实现、故障注入或生产验证。
 
 本文件回答三个问题：已有项目提供了什么、SCAP 准备复用什么、哪些保证必须由 SCAP 自己建立。技术栈的模块分工见 [技术栈与集成契约](../architecture/technology-stack.md)。这里的“已存在”仅表示在官方文档或公开源码中找到了相应能力，不表示不同组件拼接后已经满足本项目的可靠性目标。
 
 ## 1. 选型结论
 
-推荐以 **libSQL 的 SQLite C 分支和远程 SQL 生态作为执行与兼容基础，以共享的 OpenRaft cell 和本地持久存储建立提交权威，以 S3 保存冷数据**。每个 cell 是一个复制组，初期由三个 voting members 组成，承载多个数据库；不为每个租户创建独立的三节点复制组。
+推荐以 **libSQL 的 SQLite C 分支和远程 SQL 生态作为执行与兼容基础，以 raft-rs 驱动的共享 cell 和本地持久存储建立提交权威，以 S3 保存冷数据**。每个 cell 是一个复制组，初期由三个 voting members 组成，承载多个数据库；不为每个租户创建独立的三节点复制组。
 
 | 层次 | 候选组件 | 已存在的能力 | SCAP 必须承担的部分 | 当前决策 |
 | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@
 | 远程 SQL | `sqld`、Hrana | 协议、远程查询、namespace 管理、认证接入基础 | 路由、唤醒、会话归属、租户授权、迁移期间行为 | 尽量复用，锁定实现版本 |
 | Node.js 异步客户端 | `@libsql/client` | 远程 libSQL、Promise API、ORM 适配生态 | 错误契约、兼容测试、明确可重试范围 | 默认入口 |
 | Node.js 同步兼容 | `libsql` npm 包 | 接近 `better-sqlite3` 的 API，支持远程连接 | 缺失 API 处理、阻塞影响评估、事务兼容验证 | 存量应用的可选入口 |
-| 共识 | OpenRaft | 选举、日志复制、成员变更、读屏障及存储接口 | 网络与持久存储适配、数据库状态机、fencing、幂等、快照、调度 | 首选候选，不是完整数据库服务 |
+| 共识 | TiKV raft-rs / crate `raft` | 选举、日志复制、成员变更、ReadIndex 与显式 Ready 接口 | driver、网络与持久存储、状态机、fencing、幂等、快照、调度 | 首选候选；OpenRaft 保留对照 |
 | cell 本地持久化 | RocksDB | 有序 KV、原子 WriteBatch、WAL、同步写选项 | 按 Raft 契约实现落盘顺序、回调、恢复与截断 | 首选候选，需测量写放大 |
 | 冷存储 | S3 / 经验证的 S3-compatible 服务 | 对象存储与对象 API | 不可变对象布局、manifest 发布、恢复验证、引用与回收 | 采用，供应商能力逐项验证 |
 | 控制面 | etcd | 一致性 KV、事务、watch、lease | 数据库目录、配置与调度流程、目录和 cell 状态收敛 | 采用；不作为 WAL 提交 fencing 权威 |
@@ -64,19 +64,19 @@ SCAP 可以复用协议与执行层，但以下能力不是“namespace 存在�
 
 原生 SQLite + 自定义 VFS 暂列后续兼容路线。`better-sqlite3` 官方允许[定制 SQLite 构建][better-sqlite-build]；这也意味着不能假设替换操作系统的 `libsqlite3` 就能改变所有 Node native addon 的行为。VFS 分发、注册、ABI 和同步 I/O 阻塞都需要额外工程。
 
-## 4. OpenRaft：采用共识库，同时实现自己的正确存储
+## 4. raft-rs：复用 TiKV 共识核心，承担明确的外围职责
 
-[OpenRaft 仓库][openraft-repo]提供 MIT / Apache-2.0 许可文件。选择其作为候选是为了复用共识实现，不是因为它已经提供 SCAP 的 SQL、存储服务或多租户调度。
+根据 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，首选由 OpenRaft 调整为 [raft-rs][raft-repo]。它采用 Apache-2.0，在 TiKV 中用于共识；库本身只提供共识核心，不能自动带来 TiKV raftstore 的日志、快照、传输和多 Group 调度。
 
-[官方 API 说明][openraft-api]明确 1.0 前接口可能不兼容升级，甚至涉及磁盘数据变化。实现时必须锁定发布版本或 commit，并记录协议与磁盘格式升级路径；本文不指定“最新版本”。
+OpenRaft 的异步框架和高层接口能减少初期集成工作，也有 Databend meta-service 等真实采用。SCAP 现在更重视 TiKV 数据复制路径的使用经验，接受额外 driver 工作。详细对照、正式 TiKV v8.5.8 锁文件及 G0 源码候选见 [Raft 选型调查](raft-library-selection.md)。当前不声明候选依赖已在本项目验证。
 
-当前文档中有三组必须保留的契约：
+三组关键集成契约如下：
 
 | 契约 | 官方接口能证明什么 | SCAP 的集成要求 |
 | --- | --- | --- |
-| 日志与投票持久化 | [`RaftLogStorage`][openraft-log]要求日志无洞、vote/log 写 I/O 有序；vote 在返回前落盘，append 的 flush 回调在日志落盘后触发 | 自研 RocksDB adapter，正确表达磁盘完成，传播 I/O 错误，不能把入内存队列当成落盘 |
-| 已提交状态应用 | [`RaftStateMachine`][openraft-sm]只应用已提交日志；持久状态机与持久快照是两种可选恢复方式 | 首版选择持久状态机；业务更新、membership、last-applied 与去重结果需按恢复契约保存 |
-| 强一致读与写响应 | [`Raft` API][openraft-raft]提供 `ensure_linearizable` / `get_read_log_id`，`client_write` 返回状态机应用结果 | SQL worker 还须追到读屏障对应的数据库水位；fencing 和请求幂等需写入自定义状态机 |
+| 日志与投票持久化 | [RawNode / Ready][raft-raw]区分普通与持久依赖消息，要求按序完成 entries、HardState 与 snapshot | 自研同步 Ready driver 和 RocksDB store；真实落盘后才能 advance_append 或发送对应 persisted_messages |
+| 已提交状态应用 | [集成说明][raft-lib]提示 commit index 与 applied 的持久关系；LightReady 仍可能产生提交进度 | 完整处理两批 committed entries；commit 先于或同批覆盖业务、ConfState、dedup、applied，再 advance_apply_to |
+| 强一致读与写响应 | [Safe ReadIndex][raft-read]提供请求 context 与读取水位；提案成功不等于业务提交 | 等待持久 apply，绑定远程 SQL 快照；owner fencing、权限与幂等由状态机裁决 |
 
 SCAP 的数据库身份为 `db_id + incarnation + epoch + db_seq` 的组合。`incarnation` 区分删除后重建的数据库实例；`epoch` 区分 writer 归属；`db_seq` 标识该数据库实例中的提交顺序。它们与 cell 的 Raft term / log index 不是同一套编号。状态机必须在应用提交时校验身份、epoch 与前置水位，不能只在请求进入时查一次 etcd lease。
 
@@ -88,7 +88,7 @@ SCAP 的数据库身份为 `db_id + incarnation + epoch + db_seq` 的组合。`i
 
 [官方基础操作文档][rocksdb-basic]给出 WriteBatch 的原子更新语义；[WAL 文档][rocksdb-wal]说明默认 `WriteOptions.sync = false`，`sync = true` 才在 WAL 同步到持久介质后返回。**原子性与持久性是两项不同条件。**
 
-SCAP 首版要求启用 RocksDB WAL，并对 Raft 所需的持久写使用明确的同步完成边界。可以在之后增加 group commit，但在相应批次真实落盘前不得报告 `LogFlushed` 成功。不能先关闭 RocksDB WAL，再用“上层已经是 Raft”解释本地恢复缺口。
+SCAP 首版要求启用 RocksDB WAL，并对 Raft 所需的持久写使用明确的同步完成边界。未来可增加跨 cell group commit，但在对应有序前缀真实落盘前不得报告 Ready 持久完成。不能先关闭 RocksDB WAL，再用“上层已经是 Raft”解释本地恢复缺口。
 
 RocksDB 中的 log、状态机、去重记录、manifest 指针与回收水位需要明确的 key/column family 设计。更新相关状态时使用同一个数据库实例内的原子批次；跨实例的独立写入不具有这种原子性。主要待测风险是多租户写放大、compaction 尾延迟、磁盘满、后台恢复以及大事务造成的复制阻塞，而不只是平均写入吞吐。
 
@@ -112,9 +112,9 @@ RocksDB 中的 log、状态机、去重记录、manifest 指针与回收水位�
 
 ## 8. 进入实现前的关闭条件
 
-以下是计划中的验证门槛，当前尚未执行：
+以下是整体验证门槛；当前仅有 [G0 记录](../engineering/g0-evidence.md)中的局部实现证据，不能视为整体验收通过：
 
-1. 锁定 libSQL、Hrana、SDK 与 OpenRaft 版本，建立可复现构建；通过目标 Node.js、ORM 和 SQLite 特性兼容样例。
+1. 锁定 libSQL、Hrana、SDK 与 raft-rs 版本，建立可复现构建；通过目标 Node.js、ORM 和 SQLite 特性兼容样例。
 2. 用最小 virtual WAL 原型证明：quorum 确认前，其他连接不可观察到新提交；提交失败、savepoint、rollback 与 checkpoint 不破坏状态。
 3. 对 RocksDB adapter 验证 crash、磁盘同步错误、投票持久化、日志截断与 snapshot 安装，确认不会报告虚假的持久完成。
 4. 对旧 writer、drop/recreate、超时后重试和读屏障做故障注入；检查数据库身份与去重记录。
@@ -123,13 +123,13 @@ RocksDB 中的 log、状态机、去重记录、manifest 指针与回收水位�
 
 ## 官方资料索引
 
-以下资料均于 2026-10-27 查询。`main` 与 `latest` 链接用于追溯来源，实际实现必须换成锁定的 release / commit，不将这些浮动链接当成依赖锁文件。
+非 Raft 资料沿用 2026-10-27 查询；Raft 资料于 2026-10-28 复核。`main` 与 `latest` 链接用于追溯来源，实际实现必须换成锁定的 release / commit，不将这些浮动链接当成依赖锁文件。
 
 - [libSQL README][libsql-readme]；[virtual WAL 扩展说明][libsql-extensions]；[Rust Wal/WalManager 源码][libsql-wal]。
 - [sqld Admin API][libsql-admin]；[Docker 部署][libsql-docker]；[Hrana 3 规范][hrana]；[main.rs][libsql-main]；[lib.rs][libsql-server-lib]。
 - [Turso TS SDK 对照][turso-ts]；[libsql-js README][libsql-js]；[compat.js][libsql-js-compat]；[Rust binding][libsql-js-native]；[Drizzle SQLite][drizzle]；[Prisma SQLite][prisma]。
 - [SQLite WAL hook][sqlite-wal-hook]；[better-sqlite3 定制构建][better-sqlite-build]。
-- [OpenRaft 仓库][openraft-repo]；[API 状态][openraft-api]；[日志存储契约][openraft-log]；[状态机契约][openraft-sm]；[读写 API][openraft-raft]。
+- [raft-rs 仓库][raft-repo]；[RawNode][raft-raw]；[集成说明][raft-lib]；[读取模式][raft-read]；OpenRaft 对照来源见 [专项调查](raft-library-selection.md)。
 - [RocksDB 仓库及许可说明][rocksdb-repo]；[WriteBatch 与同步写][rocksdb-basic]；[WAL 同步][rocksdb-wal]。
 - [Bottomless][bottomless]；[Litestream 工作原理][litestream-how]；[复制窗口][litestream-tips]；[sync -wait][litestream-sync]；[可写 VFS][litestream-vfs]。
 - [S3 一致性][s3-consistency]；[etcd API 保证][etcd-guarantees]。
@@ -150,11 +150,10 @@ RocksDB 中的 log、状态机、去重记录、manifest 指针与回收水位�
 [prisma]: https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/sqlite
 [sqlite-wal-hook]: https://sqlite.org/c3ref/wal_hook.html
 [better-sqlite-build]: https://github.com/WiseLibs/better-sqlite3/blob/master/docs/compilation.md
-[openraft-repo]: https://github.com/databendlabs/openraft
-[openraft-api]: https://docs.rs/openraft/latest/openraft/
-[openraft-log]: https://docs.rs/openraft/latest/openraft/storage/trait.RaftLogStorage.html
-[openraft-sm]: https://docs.rs/openraft/latest/openraft/storage/trait.RaftStateMachine.html
-[openraft-raft]: https://docs.rs/openraft/latest/openraft/raft/struct.Raft.html
+[raft-repo]: https://github.com/tikv/raft-rs
+[raft-raw]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/raw_node.rs
+[raft-lib]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/lib.rs
+[raft-read]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/read_only.rs
 [rocksdb-repo]: https://github.com/facebook/rocksdb
 [rocksdb-basic]: https://github.com/facebook/rocksdb/wiki/Basic-Operations
 [rocksdb-wal]: https://github.com/facebook/rocksdb/wiki/WAL-Performance

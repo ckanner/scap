@@ -99,10 +99,12 @@ cargo +1.90.0 test --manifest-path experiments/wal-gate/Cargo.toml --locked -- -
 ## 6. 仍然阻断完整 G0 / HA 上线的工作
 
 - 完整、可恢复的事务暂存协议：spill、更多 page size、大事务、checkpoint 交互、错误恢复与所有可见性边界。
-- OpenRaft 存储 adapter 的真实 durable flush、状态机原子落盘、snapshot/purge 与成员变更验证。
+- `raft-rs` driver / 存储 adapter 的真实 durable flush、`Ready` / `LightReady` 次序、状态机原子落盘、snapshot/purge 与成员变更验证。
 - 与提交完成策略连接的真实引擎与共识 adapter，以及其独立 100% 单元覆盖和真实契约测试。
 - Hrana / Node.js SDK 的请求身份、返回值缓冲、交互事务、UNKNOWN 和重试语义。
 - 跨三个 AZ 的失败检测、owner 仲裁、重建、路由恢复和 R0/R1/R2 接管实现。
 - [性能目标](performance-slo.md)的真实延迟、吞吐、安全容量、RTO、RPO 与长期可用性证据。
 
 这些工作不能用本页测试计数代替。后续每次修改代码或工具链，应保留新的精确报告并更新本页；性能不达标不得更改已确认写入的持久性合同。
+
+2026-10-28 的 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 将共识库首选候选由 OpenRaft 调整为 `raft-rs`。本页既有测试结果保持原有范围：此前没有接入任何真实 Raft adapter，不能把引擎探针或提交策略的通过记录记作 `raft-rs` 验证。新增工作的出口见 [集成门禁](raft-rs-integration.md)。
