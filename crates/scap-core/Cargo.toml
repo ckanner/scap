@@ -1,0 +1,10 @@
+[package]
+name = "scap-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "SCAP commit completion policy; no database or Raft implementation"
+
+[lints]
+workspace = true

@@ -15,11 +15,15 @@
 | `docs/research/` | 开源证据、许可和复用边界 |
 | `contracts/design-contract.json` | 当前方案的机器可读清单，不是服务配置 |
 | `scripts/check_repo.py` | 无第三方依赖的文档检查 |
+| `scripts/check_unit_coverage.py` | 精确计数、生产源码与 coverage map 对账 |
+| `crates/scap-core/` | Rust；已实现的窄提交完成策略与单元测试 |
+| `experiments/wal-gate/` | 独立真实引擎探针，不能作为运行时依赖 |
+| `tests/tooling/` | 仓库脚本自身的单元测试 |
 | `.github/` | 文档 CI、PR 与 issue 模板 |
 
 ## 2. 实现阶段的规划结构
 
-以下模块在实施阶段创建，本次不创建假实现：
+除上面的已实现小范围核心与探针外，下列模块在后续实施阶段创建：
 
 | 规划路径 | 语言 / 内容 |
 | --- | --- |
@@ -46,7 +50,7 @@
 
 ## 4. 工具链与版本
 
-第一批 Rust 代码合入时提交固定的 toolchain 和 `Cargo.lock`；第一批 TypeScript 代码合入时提交包管理器版本与锁文件。依赖升级必须同时考虑 RPC、日志、磁盘、对象格式和 SDK 兼容性。
+当前 Rust 核心已有固定 toolchain 和 `Cargo.lock`；引擎探针独立锁定上游 commit 与依赖。第一批 TypeScript 代码合入时提交包管理器版本与锁文件。依赖升级必须同时考虑 RPC、日志、磁盘、对象格式和 SDK 兼容性。
 
 不在文档初始化阶段指定未经验证的 MSRV、虚构可编译的依赖版本或发布镜像标签。编译选项、引擎 page size 与 extension 清单进入可复现构建记录。
 

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "scap",
   "design_date": "2026-10-27",
-  "status": "design-only",
+  "status": "g0-prototype",
   "implementation_complete": false,
   "database_engine": "libsql-sqlite-c-fork-candidate",
   "server_language": "Rust",
@@ -58,7 +58,8 @@
     "single_az_acknowledged_write_rpo": 0,
     "single_az_rpo_validated": false,
     "region_disaster_rpo": "last-verified-complete-dr-checkpoint",
-    "rto_measured": false
+    "rto_measured": false,
+    "performance_contract": "contracts/performance-targets.json"
   },
   "planned_defaults": {
     "authorization_positive_cache_seconds": 60,
@@ -75,5 +76,21 @@
     "G2": "multi-database-gateway-auth-control-plane",
     "G3": "archive-lifecycle-gc-pitr-dr",
     "G4": "ha-capacity-operations-rollout"
-  }
+  },
+  "quality": {
+    "unit_coverage_percent": 100,
+    "rust_metrics": [
+      "lines",
+      "functions",
+      "regions",
+      "branches"
+    ],
+    "tooling_metrics": [
+      "statements",
+      "branches"
+    ],
+    "integration_profiles_count_as_unit": false,
+    "policy": "contracts/coverage-policy.json"
+  },
+  "implementation_evidence": "docs/engineering/g0-evidence.md"
 }

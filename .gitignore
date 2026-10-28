@@ -22,6 +22,10 @@ dist/
 __pycache__/
 *.py[cod]
 .venv/
+.coverage*
+coverage/
+*.profraw
+*.profdata
 .DS_Store
 .idea/
 .vscode/
