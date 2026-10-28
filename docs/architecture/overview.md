@@ -1,10 +1,12 @@
 # 总体架构
 
-状态：拟实现架构。本文描述目标行为，不代表现有 `sqld` 或 OpenRaft 直接具有这些平台能力。
+状态：拟实现架构。本文描述目标行为，不代表现有 `sqld` 或 `raft-rs` 直接具有这些平台能力。
 
 ## 1. 架构选择
 
 SCAP 采用“SQL 计算与可靠持久化分离”的结构：SQLite / libSQL 负责单库 SQL、事务和页面管理；共享 cell 负责写者裁决与可靠提交；对象存储负责冷数据和历史。
+
+共识库首选候选为 TiKV 的 `raft-rs`，选型原因见 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 与 [对比调研](../research/raft-library-selection.md)。该选择不改变共享 cell 拓扑，也不表示已经接入 TiKV 的完整存储或调度系统。
 
 先使用完整的本地数据库副本执行 SQL。首次唤醒下载经过验证的快照和增量；按页远读作为后续优化，不进入正确性首版。
 
@@ -48,6 +50,8 @@ flowchart TD
 - 开发环境可以将多个进程放在一台机器，但必须标为开发拓扑，不能称为 HA 验证。
 
 Kubernetes 可负责进程拉起、调度和滚动更新；Pod 存在、PVC 存在或 Deployment 副本数都不能证明数据库层有 quorum、写权或可靠恢复点。
+
+一个节点承载多个 cell 时，每个复制组的 `RawNode` 事件由受控执行路径串行驱动；跨组公平调度、网络复用、存储背压和快照限速由 SCAP 实现。不能因为使用 `raft-rs` 就把 TiKV 的多组运行与调度能力算作已有功能。
 
 ## 4. 请求流程
 
@@ -94,8 +98,8 @@ etcd watch 只是缓存更新机制，不能充当线性化授权。目录丢失
 ## 7. 必须通过的关键 PoC
 
 1. libSQL WAL 接口可在提交可见前可靠暂存、提交和回滚，包括 savepoint、DDL、checkpoint、磁盘错误和取消。
-2. OpenRaft 的 vote / log flush / state machine / snapshot 适配确实满足持久性契约。
+2. `raft-rs` 的 `HardState`、`Ready` / `LightReady`、应用进度、`ConfState` 和 snapshot 适配满足持久性及恢复契约；没有提前发送持久确认或跳过未应用状态。
 3. 已接受的事务页面能够从快照与日志确定性恢复，版本、page size、schema 和校验规则一致。
 4. 严格兼容的 Hrana / SDK 子集与故障错误语义被真实 Node.js 应用验证。
 
-任一关键 PoC 不成立，应重新评审引擎或复制底座，不能将异步备份替换为同步 HA 的证明。详细门禁见 [实施路线](../engineering/roadmap.md)。
+任一关键 PoC 不成立，应重新评审引擎或复制底座，不能将异步备份替换为同步 HA 的证明。详细门禁见 [实施路线](../engineering/roadmap.md) 和 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。

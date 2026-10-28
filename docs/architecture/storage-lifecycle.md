@@ -55,9 +55,9 @@ Cell 保存经过版本化的物理事务增量：最终页面变化、数据库
 
 ### 5.1 Raft 日志压缩
 
-Raft 日志索引属于整个 cell。压缩必须由可恢复的状态机快照覆盖：数据库状态、membership、last-applied、幂等记录、归档指针以及尚未归档的数据尾部都不能遗漏。
+Raft 日志索引属于整个 cell。压缩必须由可恢复的状态机快照覆盖：数据库状态、`ConfState`（包括尚未结束的 joint configuration）、last-applied 的 term/index 与 cell 身份、幂等记录、归档指针以及尚未归档的数据尾部都不能遗漏。
 
-状态机快照可以直接包含未归档尾部，或引用已经发布且不可变的恢复对象。只有满足 OpenRaft 存储与 snapshot 安装契约后才截断日志；不能仅凭“某个库已上传到 S3”截断整个 cell 的历史。
+状态机快照可以直接包含未归档尾部，或引用已经发布且不可变的恢复对象。只有满足 `raft-rs` 及 SCAP 的存储、snapshot 安装与恢复契约后才截断日志；不能仅凭“某个库已上传到 S3”截断整个 cell 的历史。具体检查见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
 
 ### 5.2 数据归档与对象 GC
 

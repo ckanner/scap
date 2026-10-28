@@ -1,6 +1,6 @@
 # 一致性、提交与故障恢复协议
 
-> 状态：`Proposed / Implementation Gate`。本文规定 SCAP 拟实现的协议和验收条件，不表示仓库已经实现这些保证。`libSQL virtual WAL` 的提交边界、OpenRaft 的持久化适配器、精确读快照以及恢复流程都必须通过 PoC 和故障注入验证，才能对生产用户承诺本文的语义。
+> 状态：`Proposed / Implementation Gate`。本文规定 SCAP 拟实现的协议和验收条件，不表示仓库已经实现这些保证。`libSQL virtual WAL` 的提交边界、raft-rs 的 driver 与持久化适配、精确读快照以及恢复流程都必须通过 PoC 和故障注入验证，才能对生产用户承诺本文的语义。2026-10-28 的共识库调整见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
 
 字段别名：本文的 `database_id` 等同于其他文档的 `db_id`，`revision` 等同于 `db_seq`；`owner_epoch` 是所有权世代简写 `epoch` 的规范名。权限世代单独命名为 `auth_epoch`，与 `owner_epoch` 不可互换。最终代码、持久格式与 wire protocol 的字段名在 `G0` 冻结，本文中的结构是协议模型，不是已冻结的接口定义。
 
@@ -8,7 +8,7 @@
 
 SCAP 的首版以 Rust 实现服务层，使用 **基于 SQLite C 实现的 libSQL fork** 作为 SQL 引擎及 `virtual WAL` 接入候选。它不是 Turso 原名 Limbo 的 Rust 数据库重写，也不是安装 `sqld`、启用 Bottomless 后即可获得的现成 HA 产品。libSQL 提供的扩展接口是实现入口，本文中的仲裁、持久化、读屏障和生命周期协议由 SCAP 负责实现。[S1] [S2]
 
-首版部署在一个区域的三个可用区。每个 `storage cell` 对应一个 OpenRaft 复制组，三个持有完整日志的投票副本分别位于三个可用区；多个数据库共享该复制组。每个数据库最多有一个得到 cell 授权的 `worker` 执行写事务，worker 可以迁移，worker 的本地数据库文件和 WAL 是可重建的执行缓存。
+首版部署在一个区域的三个可用区。每个 `storage cell` 对应一个以 raft-rs 为首选候选的 Raft 复制组，三个持有完整日志的投票副本分别位于三个可用区；多个数据库共享该复制组。每个数据库最多有一个得到 cell 授权的 `worker` 执行写事务，worker 可以迁移，worker 的本地数据库文件和 WAL 是可重建的执行缓存。
 
 在本文规定的故障模型内，目标保证为：
 
@@ -72,7 +72,7 @@ OwnershipToken = (
 - `auth_epoch` 是独立的权限 fence 版本，由同一 cell 状态机单调增加。它约束用户或服务主体是否仍获准执行某项操作；一个有效 owner token 不能替代请求方的当前权限。
 - `worker_instance_id` 必须包含进程启动世代。同一机器重启的新进程不能直接复用旧进程的有效身份。
 - `revision` 是单库已经接受的写事务序号。它只在一个 `CommitTxn` 被状态机接受时加一，不等于共享 cell 的 Raft log index。
-- `last_applied_log_id` 是 cell 状态机应用位置；比较时必须保留完整 OpenRaft `LogId` 及 cell 身份，不能跨复制组比较一个裸整数。
+- `last_applied_log_id` 是 cell 状态机持久应用位置，使用 SCAP 的 `CellLogPosition {cell_id, cell_incarnation, term, index}`。只在同一 cell 实例内比较日志水位，并校验对应 term/index 身份；不能跨复制组比较裸整数，也不以库内部类型充当长期协议格式。
 
 每个数据库的权威状态至少包含：
 
@@ -254,7 +254,7 @@ sequenceDiagram
 1. worker 以有效 owner 身份取得单库写事务执行权，请求先通过权限准入，并在已提交的基准 revision 上执行 SQL。事务自己的读取可以看到自己的未提交修改。
 2. 到达提交点时，重新执行提案前准入检查，适配器封存私有页面集合及结果元数据，连同请求的 `auth_epoch` 和授权上下文生成不可变 `CommitTxn`。此时对其他事务仍不可见。
 3. leader 可以做快速预检查，但最终判定只能发生在 Raft 状态机的有序 `apply` 中。
-4. leader 通过 OpenRaft 复制完整命令。三副本稳定配置下，需要至少两个副本持久化完整命令，且满足 Raft 当前 term、日志连续性和提交推进规则。不能自行把“任意两个节点曾收到某些字节”当成提交证明。
+4. leader 通过 raft-rs 与 SCAP adapter 复制完整命令。三副本稳定配置下，需要至少两个副本持久化完整命令，且满足 Raft 当前 term、日志连续性和提交推进规则。不能自行把“任意两个节点曾收到某些字节”当成提交证明。
 5. 状态机依序处理命令，原子更新数据库 revision、页面索引或受保护的日志引用、提交哈希、幂等记录以及 `last_applied_log_id`。只有此时命令才获得应用层的 `Accepted` 或 `Rejected` 结果。
 6. `Accepted` 后，worker 才允许适配器将该事务发布到公共 SQL 快照，并记录本地 `applied_revision`。服务层此后才能向客户端返回写成功。
 7. 如果状态机已经接受而 worker 在发布时失败，事务仍然已提交。关闭或隔离该执行实例，恢复权威状态；客户端可能得到 `UNKNOWN`，不能得到“已撤销”。
@@ -307,31 +307,32 @@ apply CommitTxn(command):
 
 提交结果需要重试重放时，`last_insert_rowid`、影响行数及协议承诺重放的返回值必须与提交一起持久化。首版必须设置结果大小上限；不能在返回值丢失后重新执行 SQL 来猜测原始结果。
 
-## 6. OpenRaft 持久化适配器契约
+## 6. raft-rs driver 与持久化适配契约
 
-OpenRaft 提供共识协议和存储接口，不会替 SCAP 自动把自定义存储实现变成掉电安全的数据库。必须选择并验证一个具体的持久化后端。[S5] [S6]
+raft-rs 提供共识核心；driver、持久写、网络、业务状态机与恢复仍属 SCAP。必须选择并验证具体后端，不能把 RawNode 或内存 Storage 示例视为掉电安全的数据库。[S5] [S6] 完整顺序和专项测试见 [raft-rs 集成契约](../engineering/raft-rs-integration.md)。
 
 ### 6.1 日志与投票
 
-- `save_vote` 在返回成功前必须真正持久化投票状态。
-- `append` 把数据变得可读取，与通过 `LogFlushed` 宣告数据已持久化，是不同事件。只有完整记录、校验信息及必要文件元数据持久化后才能调用成功回调。
-- vote、append、truncate、purge 及相关元数据更新必须满足 OpenRaft 要求的顺序，不能由互相独立的后台队列破坏持久化先后关系。
+- 一个 cell 的 RawNode 串行驱动。取得 Ready 后按锁定版本处理，再推进该批；不得让并发任务随意修改共识状态。
+- `HardState` 的 term/vote/commit、entries 和 snapshot 按 Ready 契约保存。只有完整记录、校验信息及必要文件元数据真实持久化后，才能发送依赖它们的 `persisted_messages` 或推进持久完成；普通 messages 使用独立的上游发送规则。
+- 首版采用同步 Ready → `advance_append` → 完整消费 `LightReady` → 持久有序 apply → `advance_apply_to(durable_applied)`。`propose()` 返回成功不是提交成功，不能漏掉 LightReady 产生的提交和消息。
+- 日志替换、截断、压缩、HardState 与 snapshot 的更新必须满足锁定版本要求，不能由互相独立的后台队列破坏顺序。snapshot 的新视图、ConfState/applied、合法 HardState/commit 与日志边界须通过同一可恢复安装事务发布，不能先发布 applied 再补 commit。
 - 日志必须连续，不能留下 index 空洞。文件创建、轮转、rename 和目录更新需要相应的崩溃一致性处理。
 - leader 只有在自己的日志真实持久化后才能把自己计入 durable quorum；其他副本同理。
-- 可以合并多个事务的刷盘，但每个已确认事务都必须完整处于覆盖它的持久化边界内。
+- 可以在受限批次中合并事务，但每个已确认事务都必须完整处于覆盖它的持久化边界内。异步 Ready 和跨 cell 合并刷盘首版关闭；未来 `on_persist_ready(n)` 只能确认已经连续持久化的前缀，不能跳过较早的未完成批次。
 - 磁盘写入或刷盘失败必须进入失败路径，不允许仍然发送成功的持久化回调。
 
 这些是适配器验收条款，不能因为 storage trait 编译通过就视为满足。[S5]
 
 ### 6.2 状态机恢复策略
 
-首版选择**持久化状态机**策略：应用一个或一批有序条目时，页面映射、身份与 lifecycle、`auth_epoch` 与权限策略/fence、幂等记录、membership 元数据及 `last_applied_log_id` 必须以可恢复的原子事务持久化，之后 `apply` 才返回成功。
+首版选择**持久化状态机**策略：应用一个或一批有序条目时，页面映射、身份与 lifecycle、`auth_epoch` 与权限策略/fence、幂等记录、完整 `ConfState` 及 `last_applied_log_id` 必须以可恢复的原子事务持久化，之后才调用 `advance_apply_to` 并报告应用完成。空条目、拒绝、去重命中和成员变更同样推进真实应用水位。
 
 页面字节可以仍位于受保护的持久日志或不可变对象中，但所有引用必须有可验证的生命周期约束，不能指向可能被无条件 purge 的文件。元数据原子落盘不能代替被引用字节的持久化。
 
-OpenRaft 允许采用“持久化 snapshot、重启重建状态机”的其他策略；这不是首版可随意混用的优化。如果改用它，必须另行证明 committed/applied 指针、重建边界和重启后何时可读，不能保留较新的 `last_applied_log_id` 却恢复较旧的业务状态。[S6]
+持久 commit 必须先于或与业务 applied 同批保存；不得从“条目已经 committed”推断 commit index 已落盘。重启需要验证 `snapshot_index <= durable_applied <= durable_commit <= recoverable_last_index`，不能用 `max(commit, applied)` 掩盖不一致。[S6] 若未来改成仅持久 snapshot 后重建状态机，必须另行证明 committed/applied、重建边界和何时可读，不能保留较新的 applied 却恢复较旧的业务状态。
 
-成员变更必须使用 OpenRaft 的成员变更协议，先加入 learner、补齐状态，再完成合法的配置转换。不能在网络故障时通过手改配置把一个孤立节点变成新多数，或删除必要副本来“恢复写入”。
+成员变更使用锁定版本的 `ConfChangeV2` / `apply_conf_change`，先加入 learner、补齐状态，再完成合法的配置转换；完整保存 joint configuration 与应用位置。内存成员已变但持久化失败时停止节点。不能在网络故障时通过手改配置把一个孤立节点变成新多数，或删除必要副本来“恢复写入”。
 
 ## 7. 默认读协议
 
@@ -339,7 +340,7 @@ OpenRaft 允许采用“持久化 snapshot、重启重建状态机”的其他�
 
 worker 可能仍然运行但已经失去 owner 身份；cell 的旧 leader 也可能仍然可达。每个新强读事务必须获得 cell 的线性化读屏障。缓存中的 owner、刚收到的心跳或一段尚未到期的 TTL 都不能替代它。
 
-本文的 `ReadIndex` 是协议概念。选定 OpenRaft 版本可以通过 `ensure_linearizable` 或正确组合 `get_read_log_id` 与等待应用来实现；必须以锁定版本的具体语义为准。只验证 leader 身份但不等状态机应用到相应位置不够。[S7]
+本文的 `ReadIndex` 是协议概念。首版使用 raft-rs 的 `ReadOnlyOption::Safe`：对实际请求调用带唯一 context 的 `read_index`，匹配 Ready 中的 `ReadState`，等待持久状态机应用达到返回水位。迟到或旧世代 context 不得授权新请求；只验证 leader 身份、check_quorum 或本地 lease 不够。[S5] [S7]
 
 ### 7.2 `ReadBarrier` 与精确 SQL 快照
 
@@ -510,7 +511,7 @@ cell snapshot 可以直接携带尚未归档的 committed payload，也可以引
 
 发布一个数据库的 S3 manifest，**不会自动授权截断共享 Raft 日志**。清除日志前缀到位置 `P` 前必须证明：
 
-1. 存在满足 OpenRaft 要求、可安装且持久化的 cell snapshot，覆盖待清除的状态。
+1. 存在满足锁定 raft-rs 与 SCAP 恢复契约、可安装且持久化的 cell snapshot，覆盖待清除的状态。
 2. 对 snapshot 内每个数据库，都有能精确恢复它在该边界 revision 的 snapshot 加连续 segments，或者其他仍被保护的持久字节。
 3. 所有身份、owner fence、`auth_epoch` 与权限 fence、去重和 tombstone 状态均包含在恢复路径中。
 4. snapshot 引用的对象不会被并发 GC 删除，恢复需要的密钥也仍然可用。
@@ -518,7 +519,7 @@ cell snapshot 可以直接携带尚未归档的 committed payload，也可以引
 
 尤其要检查长时间不活跃的数据库：它最后一条写可能很早，仍然是恢复该库必需的唯一数据。不能只根据活跃数据库的归档进度推进整个 cell 的 GC 水位。
 
-Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象存储中有文件，不能替代 OpenRaft 对本地 snapshot、log 指针和成员恢复的要求。
+Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象存储中有文件，不能替代本地 snapshot、term/index、HardState、ConfState 与 applied 的恢复要求。
 
 ### 10.5 对象 GC
 
@@ -540,7 +541,7 @@ Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象�
 6. 目标 cell 在完整恢复并验证后才允许 `ActivateImportedDb`，再执行正常 owner 激活。新 owner token 必须与源端 token 不同，并在 placement/epoch 规则上后继于源端。
 7. etcd CAS 更新路由。路由更新失败时继续重试或返回重定向；不能因此解除源端 seal。
 
-`SealProof` 不是 OpenRaft 自动提供的一份跨组提交证书。SCAP 必须定义可信节点身份、源端线性化 seal 查询、响应验证和目标端持久化格式。仅拿到一个旧 leader 的未经验证日志 index 不够。此协议和恢复演练未通过前，跨 cell 迁移功能必须保持关闭。
+`SealProof` 不是 raft-rs 自动提供的一份跨组提交证书。SCAP 必须定义可信节点身份、源端线性化 seal 查询、响应验证和目标端持久化格式。仅拿到一个旧 leader 的未经验证日志 index 不够。此协议和恢复演练未通过前，跨 cell 迁移功能必须保持关闭。
 
 源 cell 无 quorum 时不能强制开始正常迁移。源端 seal 之后目标不可用时，数据库保持不可写，等待目标恢复；不能超时后在源端重新激活。若需要迁回，必须从当前权威 placement 发起新的、经过 seal 的迁移。
 
@@ -572,8 +573,8 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 
 ### 13.2 Raft 节点重启
 
-1. 读取并验证持久 cell 身份、vote、membership、日志记录、snapshot 和状态机原子状态。
-2. 依据锁定版本 OpenRaft 的恢复协议初始化，保持 `last_applied_log_id` 与实际状态一致。
+1. 读取并验证持久 cell 身份、HardState、完整 ConfState、日志记录、snapshot 和状态机原子状态，验证安装视图及 commit/applied 关系。
+2. 依据锁定 raft-rs 接口初始化；`Config.applied` 来自真实持久状态，保持 `last_applied_log_id` 与业务状态一致，不从日志末尾或旧进程内存猜测。
 3. 只应用被 Raft 判定为 committed 的日志。磁盘上存在的最新 entry 可能是未提交后缀，不能直接重放到文件末尾然后对外服务。
 4. 参与日志对齐、选举和必要的 snapshot 安装。所有新强读仍需完成正常 quorum 读屏障。
 5. 只有持久化和状态机校验通过后，节点才可提供相应服务。重启完成不是跳过读屏障或恢复校验的理由。
@@ -636,11 +637,11 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 
 ### 15.2 durable store gate
 
-- 对 vote、append、flush 回调、状态机原子应用、snapshot 安装和 purge 的每个落盘边界注入进程退出及掉电类故障。
+- 对 HardState、entries、Ready 完成、LightReady、状态机原子应用、snapshot 安装和 purge 的每个落盘边界注入进程退出及掉电类故障。
 - 验证磁盘满、短写、刷盘错误、日志尾部撕裂、目录元数据未持久化和校验失败的行为。
 - 在三可用区拓扑中执行任意单节点及单可用区故障，证明已返回成功的事务在合法恢复后仍存在。
 - 测试 leader 切换与当前 term 提交规则，禁止从内存接收成功推导 durable quorum。
-- 通过 OpenRaft 提供的存储测试只是必要条件；仍需验证 SCAP 事务与恢复语义。[S5] [S6]
+- 上游 RawNode / Storage 测试提供参考，不能替代 SCAP 的真实 driver、磁盘、事务与恢复测试。特别验证持久完成次序、LightReady 消费、commit/applied 原子性和重启 Config.applied。[S5] [S6]
 
 ### 15.3 协议历史验证
 
@@ -668,20 +669,20 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 - **[S2] libSQL 扩展文档**：Virtual WAL 接口和注册机制。<https://github.com/tursodatabase/libsql/blob/main/libsql-sqlite3/doc/libsql_extensions.md>
 - **[S3] SQLite Write-Ahead Logging**：WAL、commit、checkpoint 及跨主机共享文件的限制。<https://www.sqlite.org/wal.html>
 - **[S4] SQLite WAL commit hook**：回调发生在提交之后，返回错误也不撤销提交。<https://sqlite.org/c3ref/wal_hook.html>
-- **[S5] OpenRaft `RaftLogStorage`**：投票持久化、日志连续性、I/O 顺序和刷盘回调契约。<https://docs.rs/openraft/0.9.25/openraft/storage/trait.RaftLogStorage.html>
-- **[S6] OpenRaft `RaftStateMachine`**：应用、状态机持久化、snapshot 和恢复职责。<https://docs.rs/openraft/0.9.25/openraft/storage/trait.RaftStateMachine.html>
-- **[S7] OpenRaft `Raft` API**：`ensure_linearizable`、`get_read_log_id` 和成员变更接口。<https://docs.rs/openraft/0.9.25/openraft/raft/struct.Raft.html>
+- **[S5] raft-rs RawNode / Ready 源码**：持久完成、消息分类、LightReady、apply 与成员接口。<https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/raw_node.rs>
+- **[S6] raft-rs 集成说明**：状态应用、commit index 落盘与恢复风险。<https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/lib.rs>
+- **[S7] raft-rs 读取源码**：Safe / LeaseBased 和请求 context 的责任。<https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/read_only.rs>
 - **[S8] Raft 论文，扩展版**：提交安全性、成员变更、客户端交互和线性化读的算法依据。<https://raft.github.io/raft.pdf>
 - **[S9] SQLite Isolation**：单 writer、连接隔离和 WAL 快照语义。<https://www.sqlite.org/isolation.html>
 
-检索日期：2026-10-27。文中的 OpenRaft URL 固定到本次核查的 `0.9.25` 文档，仅用于使引用可复核，不替代项目后续的依赖锁定和 PoC 选型。
+初始检索日期：2026-10-27；Raft 选型与接口于 2026-10-28 复核。S5–S7 固定到本次候选源码，仅用于使引用可复核，不替代实际依赖锁定或 PoC。版本来源与替代关系见 [Raft 选型](../research/raft-library-selection.md)。
 
 [S1]: https://github.com/tursodatabase/libsql
 [S2]: https://github.com/tursodatabase/libsql/blob/main/libsql-sqlite3/doc/libsql_extensions.md
 [S3]: https://www.sqlite.org/wal.html
 [S4]: https://sqlite.org/c3ref/wal_hook.html
-[S5]: https://docs.rs/openraft/0.9.25/openraft/storage/trait.RaftLogStorage.html
-[S6]: https://docs.rs/openraft/0.9.25/openraft/storage/trait.RaftStateMachine.html
-[S7]: https://docs.rs/openraft/0.9.25/openraft/raft/struct.Raft.html
+[S5]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/raw_node.rs
+[S6]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/lib.rs
+[S7]: https://github.com/tikv/raft-rs/blob/ad13f3d90780f53aea2488c6a4b76c0d334bf136/src/read_only.rs
 [S8]: https://raft.github.io/raft.pdf
 [S9]: https://www.sqlite.org/isolation.html
