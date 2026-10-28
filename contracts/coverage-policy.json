@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "test_tier": "unit",
+  "required_percent": 100,
+  "rust_metrics": ["lines", "functions", "regions", "branches"],
+  "rust_test_sources": ["crates/scap-core/src/tests.rs"],
+  "research_harness_roots": ["experiments/wal-gate"],
+  "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
+  "tooling_sources": ["scripts/check_repo.py", "scripts/check_unit_coverage.py"],
+  "tooling_metrics": ["statements", "branches"],
+  "toolchains": {
+    "rust": "1.90.0",
+    "coverage_rust": "nightly-2025-09-18",
+    "cargo_llvm_cov": "0.6.21",
+    "coverage_py": "7.10.6"
+  }
+}

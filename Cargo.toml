@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/scap-core"]
+exclude = ["experiments/wal-gate"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

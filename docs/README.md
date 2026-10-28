@@ -19,6 +19,9 @@
 - [validation.md](engineering/validation.md)：验证模型、故障注入和上线门禁。
 - [roadmap.md](engineering/roadmap.md)：逐阶段交付和拒绝降级的条件。
 - [capacity-cost.md](engineering/capacity-cost.md)：成本模型与测量计划。
+- [performance-slo.md](engineering/performance-slo.md)：明确的延迟、恢复、冷启动和可用性目标及测量口径。
+- [testability-and-coverage.md](engineering/testability-and-coverage.md)：100% 单元覆盖率分母、松耦合架构与设计原则。
+- [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
@@ -26,6 +29,7 @@
 - [ADR 索引](adr/README.md)。
 - [开源组件调查](research/components.md)。
 - [机器可读的设计清单](../contracts/design-contract.json)。
+- [覆盖率策略](../contracts/coverage-policy.json) 与 [性能目标清单](../contracts/performance-targets.json)。
 
 ## 文档解释规则
 
