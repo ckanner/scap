@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/scap-core"]
-exclude = ["experiments/wal-gate"]
+exclude = ["experiments/wal-gate", "experiments/raft-rpc"]
 resolver = "2"
 
 [workspace.package]

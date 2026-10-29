@@ -22,6 +22,8 @@ v0 需要证明：
 
 共识库选型见 [ADR 0006](../adr/0006-raft-rs-consensus-library.md)。`raft-rs` 的接口与持久化专项验收见 [集成门禁](raft-rs-integration.md)，其真实多节点结果不能从 TiKV 的使用记录或本仓库既有 WAL 探针推定。
 
+运行与传输还须满足 [RPC 接合契约](runtime-and-rpc.md)：外层版本与内层原始消息、明确的收发/解压/对象限额、mTLS 身份和成员权限、全局背压与 deadline、管理资源隔离及 sqld/平台依赖组合。独立 loopback 探针只能关闭列出的编解码问题，不能替代以上生产验证或 durable quorum。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级

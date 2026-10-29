@@ -23,15 +23,20 @@
 - [testability-and-coverage.md](engineering/testability-and-coverage.md)：100% 单元覆盖率分母、松耦合架构与设计原则。
 - [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
 - [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
+- [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：执行池、有界背压、RPC 编码、身份、健康检查和 sqld 依赖边界；生产集成仍待验证。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
 
 - [ADR 索引](adr/README.md)。
+- [ADR-0007](adr/0007-tikv-stack-and-rpc-boundaries.md)：参考 TiKV 技术栈，明确采用方向与运行/RPC 边界。
 - [开源组件调查](research/components.md)。
 - [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
+- [TiKV Rust 技术栈审计](research/tikv-rust-stack.md)：固定发布源码、实际调用路径与锁文件；区分直接候选、借鉴设计和暂不引入。
 - [机器可读的设计清单](../contracts/design-contract.json)。
+- [机器可读的技术决策](../contracts/technology-decisions.json)：技术方向、未采用项和不变量；不是服务配置或依赖锁文件。
 - [覆盖率策略](../contracts/coverage-policy.json) 与 [性能目标清单](../contracts/performance-targets.json)。
+- [Raft RPC 真实实验](../experiments/raft-rpc/README.md)：8 项真实 loopback 编码/传输测试已通过；不包含 RawNode、持久化、quorum 或 HA 验证。
 
 ## 文档解释规则
 
@@ -40,3 +45,4 @@
 3. 一致性细节以 `architecture/consistency.md` 为准；故障操作必须遵守该协议。
 4. 官方组件行为、项目设计选择、待验证集成能力必须分别标识。
 5. 修改协议时，同时检查 API、故障矩阵、验证计划和相关 ADR。
+6. 实验锁定的依赖与结果只适用于所测范围；平台与 sqld 的 fork、模块提取或独立进程边界仍须通过 G0 验证。

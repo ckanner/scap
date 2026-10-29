@@ -86,3 +86,20 @@ jobs:
         run: cargo +1.90.0 fmt --manifest-path experiments/wal-gate/Cargo.toml --all -- --check
       - name: Execute engine and process-exit experiments separately
         run: cargo +1.90.0 test --manifest-path experiments/wal-gate/Cargo.toml --locked -- --test-threads=1
+
+  rpc-codec-probe:
+    name: Real raft-rs Tonic codec probes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - name: Check probe format and lint
+        run: |
+          cargo +1.90.0 fmt --manifest-path experiments/raft-rpc/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/raft-rpc/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Execute real loopback RPC experiments separately
+        run: cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- --test-threads=1
