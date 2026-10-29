@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-29",
+  "status": "directions-with-bounded-contract-probe",
+  "reference_project": {
+    "repository": "tikv/tikv",
+    "release": "v8.5.8",
+    "commit": "a1fdd6a59bb9c8a282c15677e1894501a52425cf",
+    "copy_entire_dependency_graph": false
+  },
+  "evidence": {
+    "research": "docs/research/tikv-rust-stack.md",
+    "adr": "docs/adr/0007-tikv-stack-and-rpc-boundaries.md",
+    "integration_contract": "docs/engineering/runtime-and-rpc.md",
+    "rpc_probe": "experiments/raft-rpc/README.md"
+  },
+  "directions": {
+    "async_runtime": "Tokio",
+    "http": "Axum/Tower over Hyper",
+    "internal_rpc": "Tonic",
+    "internal_tls": "mTLS; rustls/provider integration pending",
+    "consensus": "tikv/raft-rs",
+    "raft_transport_codec": "versioned outer Prost envelope; opaque inner protobuf-codec bytes",
+    "diagnostic_logging": "tracing; raft-rs slog boundary adapter",
+    "metrics": "Prometheus",
+    "configuration": "typed Serde/TOML; validated effective configuration",
+    "fault_injection_candidate": "fail-rs plus process/network/storage faults",
+    "local_persistence": "RocksDB candidate; binding/native revision validation pending",
+    "object_client": "S3 SDK candidate; exact version/features/MSRV pending"
+  },
+  "not_initially_adopted": [
+    "TiKV grpcio runtime and complete kvproto service",
+    "TiKV historical Tokio compatibility stack",
+    "yatp without a measured scheduling need",
+    "TiKV allocator or nightly toolchain by default",
+    "Raft Engine without separate recovery proof"
+  ],
+  "invariants": {
+    "transport_success_is_commit_success": false,
+    "self_reported_node_id_is_authentication": false,
+    "internal_production_plaintext_fallback": false,
+    "unbounded_queues": false,
+    "unknown_sql_write_automatic_replay": false,
+    "decode_reencode_required_for_relay": false,
+    "single_framework_version_across_unmodified_sqld_assumed": false,
+    "research_probe_is_production_adapter": false,
+    "first_party_production_unit_coverage_percent": 100
+  }
+}

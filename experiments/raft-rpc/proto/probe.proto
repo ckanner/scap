@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package scap.experiment.rpc.v1;
+
+// Test fixture only. This is not SCAP's production replication API.
+service CodecProbe {
+  rpc Exchange(Envelope) returns (Observed);
+}
+
+message Envelope {
+  uint32 protocol_version = 1;
+  string cluster_id = 2;
+  string cell_id = 3;
+  uint64 cell_incarnation = 4;
+  uint64 from_node = 5;
+  uint64 to_node = 6;
+  string codec = 7;
+  bytes payload = 8;
+}
+
+// Evidence that a test fixture decoded bytes. Never a Raft/SQL commit ACK.
+message Observed {
+  bytes original_payload = 1;
+  uint64 decoded_term = 2;
+  uint64 decoded_from = 3;
+  uint64 decoded_to = 4;
+}

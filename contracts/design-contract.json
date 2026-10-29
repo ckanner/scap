@@ -3,6 +3,8 @@
   "project": "scap",
   "design_date": "2026-10-27",
   "consensus_review_date": "2026-10-28",
+  "technology_review_date": "2026-10-29",
+  "technology_decisions": "contracts/technology-decisions.json",
   "status": "g0-prototype",
   "implementation_complete": false,
   "database_engine": "libsql-sqlite-c-fork-candidate",

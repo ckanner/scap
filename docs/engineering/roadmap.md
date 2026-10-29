@@ -10,11 +10,13 @@
 
 共识库按照 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 优先验证 TiKV 的 `raft-rs`；[选型调研](../research/raft-library-selection.md) 记录取舍。当前没有已集成的 OpenRaft 运行时或生产数据格式需要迁移，这次调整不代表 Raft 适配已完成。
 
+TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计](../research/tikv-rust-stack.md)。采用与暂缓项见 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md) 和 [技术决策清单](../../contracts/technology-decisions.json)，后续实现受 [运行与 RPC 契约](runtime-and-rpc.md)约束；参考项目的成熟度不能替代本项目门禁。
+
 ## 2. 阶段计划
 
 | 阶段 | 交付 | 进入下一阶段的条件 |
 | --- | --- | --- |
-| G0：关键可行性 | 锁定依赖、libSQL WAL 原型、真实 SDK 兼容、存储契约验证 | 能在提交可见前暂存/拒绝/确认；页恢复正确；依赖许可和版本明确 |
+| G0：关键可行性 | 锁定依赖与 sqld 接合边界、WAL 原型、真实 SDK 兼容、RPC/存储契约验证 | 能在提交可见前暂存/拒绝/确认；页恢复正确；最小 RPC 契约与所选依赖组合验证；许可和版本明确 |
 | G1：一个可靠 cell | 三副本日志、持久状态机、owner fencing、提交与读屏障 | 故障注入证明 ACK 保留、旧写者拒绝、未知结果不重复接受 |
 | G2：多库与平台入口 | Gateway、权限、目录、调度、多库配额、会话与错误语义 | 跨租户权限与资源测试通过；控制面失效行为符合合同 |
 | G3：对象与生命周期 | 快照、增量、发布、GC、冷唤醒、PITR、DR checkpoint | 在干净环境恢复成功；任意上传/发布/删除点崩溃不破坏恢复链 |
@@ -24,7 +26,7 @@
 
 ## 3. G0 的具体工作
 
-所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前窄提交策略和真实 WAL 探针已开始执行；`raft-rs` 运行循环与持久存储、完整事务暂存、SDK 返回边界等尚未完成，不能将部分探针通过视为 G0 整体通过。
+所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前窄提交策略和真实 WAL 探针已开始执行，[真实 RPC 实验](../../experiments/raft-rpc/README.md)的 8 项编码/传输测试已通过。它没有 RawNode、持久化、quorum 或 HA；`raft-rs` 运行循环与持久存储、完整事务暂存、SDK 返回边界等尚未完成，不能将部分探针通过视为 G0 整体通过。
 
 ### 3.1 引擎适配
 
@@ -38,15 +40,25 @@
 
 首版采用串行同步 `Ready`：完成必要持久化后调用 `advance_append(ready)`，处理 `LightReady`，有序持久化应用结果，再调用 `advance_apply_to(durable_applied)`；先验证这些工作、消息类别和应用进度，再考虑异步持久化流水线。持久化失败不得发送 `persisted_messages` 或虚报持久推进；应用完成边界不得超前于实际可恢复的业务状态，`commit_index` 也不能落后于已持久化的应用位置。具体接口、顺序和验证出口以 [raft-rs 集成门禁](raft-rs-integration.md) 为准。
 
-### 3.3 客户端与备选基线
+### 3.3 运行、RPC 与依赖边界
+
+先明确 sqld 与平台的接合方案：维护经过评审的 fork、提取必要模块，或通过独立构建/进程边界连接。记录两侧真实依赖、features、代码生成器和协议版本，并在选定组合上验证 Hrana/SDK。不能为统一 Axum/Tonic/Tokio 版本而直接假设旧 sqld 兼容性不变。
+
+现有 RPC 实验仅验证外层 Prost envelope 透传内层 raft-rs `protobuf-codec` 原始字节、字段/版本/大小拒绝与真实 loopback 往返。下一步补齐生产 mTLS、节点与 cell 授权、未知版本处理和有界准入；字段匹配与解码回执都不能代替身份认证或持久完成。
+
+将 transport 接到真实 RawNode 与持久存储后，按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)验证消息类别、拥塞、断连、重复、慢盘和进程重启。禁止由 gRPC 接收成功推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。G1 继续完成 quorum/恢复故障证明；多 cell 公平性、批处理与恢复干扰进入相应容量和 SLO 测量。
+
+### 3.4 客户端与备选基线
 
 跑一套真实 Node.js 应用：`@libsql/client`、选定 ORM、可选 `libsql` 同步兼容包。记录实际改动，而不是只运行 `SELECT 1`。
 
 对 dqlite 的现成同步复制、原生 SQLite + Litestream 的备份恢复分别做对照，验证自研存算分离带来的收益与复杂度。它们是技术对照，不改变正式 HA 合同。
 
-### 3.4 Go / No-Go
+### 3.5 Go / No-Go
 
 如果 WAL 接口不能安全控制可见性，或持久存储契约无法证明，停止扩展产品功能，重新选择底座。可选择缩小兼容范围、集中维护引擎 patch，或重评已有复制引擎；不得在提交后上传数据来假装满足门禁。
+
+sqld 与平台边界、生产身份或最小 RPC/资源契约尚未验证时，保持 G0 未完成。独立编码/传输实验通过不能用来豁免这些项目，也不触发性能或 HA 承诺。
 
 ## 4. G1–G3 的实现顺序
 
@@ -61,9 +73,9 @@
 
 ## 5. 仓库开发顺序
 
-第一批可运行代码进入仓库时，新增 Rust workspace、固定 toolchain、锁文件和许可证清单；随后按 [目录规划](repository-layout.md) 建立模块。TypeScript workspace 仅在 SDK / examples 开发时加入并锁定包管理器与依赖。
+核心已有 Rust workspace、固定 toolchain 与锁文件；后续按 [目录规划](repository-layout.md) 建立模块，并补齐各新增依赖的许可证与构建记录。TypeScript workspace 仅在 SDK / examples 开发时加入并锁定包管理器与依赖。
 
-当前已建立无外部依赖的 Rust 核心 workspace、固定工具链和独立引擎实验 workspace，CI 分开执行单元覆盖率、工具检查与引擎探针。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
+独立引擎与 RPC 实验使用各自 workspace；单元覆盖率、工具检查、引擎探针和 RPC 实验的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
 
 ## 6. 试运行标准
 
