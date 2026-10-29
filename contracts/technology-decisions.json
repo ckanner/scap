@@ -12,7 +12,9 @@
     "research": "docs/research/tikv-rust-stack.md",
     "adr": "docs/adr/0007-tikv-stack-and-rpc-boundaries.md",
     "integration_contract": "docs/engineering/runtime-and-rpc.md",
-    "rpc_probe": "experiments/raft-rpc/README.md"
+    "rpc_probe": "experiments/raft-rpc/README.md",
+    "durable_store_contract": "docs/engineering/durable-store.md",
+    "durable_store_probe": "experiments/raft-store/README.md"
   },
   "directions": {
     "async_runtime": "Tokio",
@@ -25,8 +27,21 @@
     "metrics": "Prometheus",
     "configuration": "typed Serde/TOML; validated effective configuration",
     "fault_injection_candidate": "fail-rs plus process/network/storage faults",
-    "local_persistence": "RocksDB candidate; binding/native revision validation pending",
+    "local_persistence": "Bounded Store<AtomicBackend> policy; rocksdb 0.24.0 G0 contract fixture, native runtime integration pending",
     "object_client": "S3 SDK candidate; exact version/features/MSRV pending"
+  },
+  "durable_store_g0": {
+    "policy_crate": "crates/scap-raft-store",
+    "layout": "bounded-complete-image",
+    "format_version": 1,
+    "integrity": "SHA-256 via sha2 0.10.9; not authentication or rollback prevention",
+    "binding": "rocksdb 0.24.0",
+    "native_package": "librocksdb-sys 0.17.3+10.4.2",
+    "native_revision": "410c5623195ecbe4699b9b5a5f622c7325cec6fe",
+    "binding_is_tikv_fork": false,
+    "backend_is_production_runtime": false,
+    "unit_io": "controlled AtomicBackend",
+    "real_dependency_tier": "separate-contract-tests"
   },
   "not_initially_adopted": [
     "TiKV grpcio runtime and complete kvproto service",

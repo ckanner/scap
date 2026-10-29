@@ -24,6 +24,7 @@
 - [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
 - [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
 - [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：执行池、有界背压、RPC 编码、身份、健康检查和 sqld 依赖边界；生产集成仍待验证。
+- [durable-store.md](engineering/durable-store.md)：正式持久存储策略、磁盘格式、失败后停止、应用与 checkpoint，以及真实契约测试边界。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
@@ -37,6 +38,7 @@
 - [机器可读的技术决策](../contracts/technology-decisions.json)：技术方向、未采用项和不变量；不是服务配置或依赖锁文件。
 - [覆盖率策略](../contracts/coverage-policy.json) 与 [性能目标清单](../contracts/performance-targets.json)。
 - [Raft RPC 真实实验](../experiments/raft-rpc/README.md)：8 项真实 loopback 编码/传输测试已通过；不包含 RawNode、持久化、quorum 或 HA 验证。
+- [Raft/RocksDB 恢复实验](../experiments/raft-store/README.md)：真实 RawNode、同步存储与进程恢复，测试结果和限制单独记录。
 
 ## 文档解释规则
 

@@ -24,6 +24,8 @@ v0 需要证明：
 
 运行与传输还须满足 [RPC 接合契约](runtime-and-rpc.md)：外层版本与内层原始消息、明确的收发/解压/对象限额、mTLS 身份和成员权限、全局背压与 deadline、管理资源隔离及 sqld/平台依赖组合。独立 loopback 探针只能关闭列出的编解码问题，不能替代以上生产验证或 durable quorum。
 
+[持久 store 契约](durable-store.md)及 [RawNode/RocksDB 实验](../../experiments/raft-store/README.md)提供有界本地存储、投票、Ready/LightReady、应用、快照与进程退出的具体证据。其合成应用与单节点边界不能将 R-01–R-11、F-01–F-38 或完整 G0 自动标记为全部通过；三进程 quorum、实际 SQL 和物理断电仍单独验收。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级
