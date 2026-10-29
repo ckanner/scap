@@ -86,6 +86,8 @@ SCAP 的数据库身份为 `db_id + incarnation + epoch + db_seq` 的组合。`i
 
 [RocksDB][rocksdb-repo]是嵌入式有序 KV，可选择 Apache-2.0 或 GPLv2 授权路径；SCAP 候选采用 Apache-2.0 路径，Rust binding 及其传递依赖另行锁定核验。
 
+2026-10-29 的正式 native 后端固定 [rust-rocksdb 0.24.0 manifest](https://github.com/rust-rocksdb/rust-rocksdb/blob/v0.24.0/Cargo.toml)，其许可元数据为 Apache-2.0；[librocksdb-sys manifest](https://github.com/rust-rocksdb/rust-rocksdb/blob/v0.24.0/librocksdb-sys/Cargo.toml)固定 `0.17.3+10.4.2`，许可元数据为 `MIT/Apache-2.0/BSD-3-Clause`。完整依赖由根 Cargo.lock 记录，关闭默认特性，仅开启 bindgen-runtime，并使用 bundled static native；这不是 TiKV 定制的 binding/native 组合。实际职责与测试分层见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)，不据此替本仓库选择自身许可证。
+
 [官方基础操作文档][rocksdb-basic]给出 WriteBatch 的原子更新语义；[WAL 文档][rocksdb-wal]说明默认 `WriteOptions.sync = false`，`sync = true` 才在 WAL 同步到持久介质后返回。**原子性与持久性是两项不同条件。**
 
 SCAP 首版要求启用 RocksDB WAL，并对 Raft 所需的持久写使用明确的同步完成边界。未来可增加跨 cell group commit，但在对应有序前缀真实落盘前不得报告 Ready 持久完成。不能先关闭 RocksDB WAL，再用“上层已经是 Raft”解释本地恢复缺口。

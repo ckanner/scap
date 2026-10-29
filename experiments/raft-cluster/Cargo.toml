@@ -1,0 +1,27 @@
+[package]
+name = "scap-raft-cluster-probe"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+autobins = false
+autolib = false
+description = "Research-only three-process durable Raft failure contracts"
+
+[workspace]
+
+[[test]]
+name = "cluster"
+path = "tests/cluster.rs"
+
+[dev-dependencies]
+scap-raft-driver = { path = "../../crates/scap-raft-driver" }
+scap-raft-rocks = { path = "../../crates/scap-raft-rocks" }
+scap-raft-store = { path = "../../crates/scap-raft-store" }
+raft = { git = "https://github.com/tikv/raft-rs", rev = "ad13f3d90780f53aea2488c6a4b76c0d334bf136", default-features = false, features = ["protobuf-codec"] }
+protobuf = "=2.28.0"
+slog = "=2.8.2"
+tempfile = "=3.27.0"
+
+[profile.dev]
+debug = 0

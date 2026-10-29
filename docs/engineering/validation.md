@@ -26,6 +26,8 @@ v0 需要证明：
 
 [持久 store 契约](durable-store.md)及 [RawNode/RocksDB 实验](../../experiments/raft-store/README.md)提供有界本地存储、投票、Ready/LightReady、应用、快照与进程退出的具体证据。其合成应用与单节点边界不能将 R-01–R-11、F-01–F-38 或完整 G0 自动标记为全部通过；三进程 quorum、实际 SQL 和物理断电仍单独验收。
 
+后续 [正式 driver/native 合同](serial-driver.md)与[三进程实验](../../experiments/raft-cluster/README.md)追加受控消息分区、SIGKILL、全组重启与 snapshot 追赶证据。它们使用真实持久副本，但合成应用不提供 SQL ACK，IPC 路由不验证生产 RPC/mTLS；其他故障矩阵断言及端到端性能仍按各自门禁执行。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级

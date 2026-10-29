@@ -6,7 +6,7 @@
 
 正式 `crates/scap-raft-store` 负责格式、身份、顺序与恢复规则，并实现固定版本的 `raft::Storage`。它通过 `AtomicBackend` 调用最终 I/O；不包含网络服务或自动选主循环，也不返回 SQL Accepted 回执。
 
-独立 `experiments/raft-store` 装配真实 RawNode 和 RocksDB，兑现同一个原子同步端口并注入退出点。夹具的 RawNode driver、RocksDB 连接与合成应用都是测试资产；未来产品复用前必须移入正式模块、补齐 100% 单元覆盖和生产边界。
+独立 `experiments/raft-store` 保存第一步的真实 RawNode/RocksDB 退出边界实验，其中 driver、连接与合成应用仍是测试资产。后续正式 `scap-raft-driver` / `scap-raft-rocks` 已分别实现可复用顺序和 native I/O，新的三进程实验直接依赖正式模块；接口和范围见 [串行 driver 合同](serial-driver.md)。研究夹具不成为运行时依赖。
 
 | 边界 | 正式模块负责 | 端口或调用方负责 |
 | --- | --- | --- |

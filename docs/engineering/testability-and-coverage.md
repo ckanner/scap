@@ -110,6 +110,8 @@ rust_gate_pass
 
 `crates/scap-raft-store` 的格式、校验、状态转换和 `raft::Storage` 已属于正式源码，由可控 AtomicBackend 支撑独立单元覆盖。`experiments/raft-store` 使用同一正式实现，另行装配真实 RocksDB、RawNode 和子进程恢复测试；夹具的执行结果只提供真实依赖契约证据。后续产品采用其后端或运行循环时，必须先将对应第一方实现纳入正式源码与单元门禁。
 
+后续正式 `scap-raft-driver` / `scap-raft-rocks` 遵守相同分类：单 driver 的次序、输入和预算测试控制 I/O、应用、逻辑 tick 与输出，使用未修改的 Raft 内核，不再编写另一套 fake 共识算法。native adapter 的薄委托使用 RocksDB memory Env 测试参数和返回，其策略错误通过实际 I/O 边界注入；默认入口仍实际覆盖。单独目录准入测试只检查隔离临时命名空间的元数据操作。任何真实 payload 磁盘重开、跨节点协议历史、进程崩溃或全系统模拟都继续进入独立契约层，不能靠放进单元 test module 改变分类。具体边界见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。
+
 研究探针必须满足以下边界：
 
 - 生产 crate、发布 binary 和运行时配置不得依赖它，不能把其中的逻辑作为隐蔽的生产模块调用。
