@@ -1,6 +1,6 @@
 # raft-rs 集成与验收契约
 
-初始日期：2026-10-28；G0 存储推进：2026-10-29。状态：完整接合门禁；其中有界持久存储策略及真实依赖实验已按 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)进入实现，精确结果见 [G0 记录](g0-evidence.md)与[存储实验](../../experiments/raft-store/README.md)。**这些证据不表示已经完成三进程 quorum、SQL 接合或 HA 验收**。共识库选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
+初始日期：2026-10-28；G0 存储与 driver 推进：2026-10-29。状态：完整接合门禁；有界 Store、正式串行 driver/native 后端与真实依赖实验已按 [ADR-0008](../adr/0008-bounded-durable-store-g0.md) / [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)进入实现，精确结果见 [G0 记录](g0-evidence.md)。三进程证据采用受控 IPC 消息故障；**不能据此宣布生产传输、SQL 接合或完整 HA 验收完成**。共识库选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
 
 ## 1. 范围与源码基线
 
@@ -72,9 +72,9 @@ SCAP 因而要求在每个可恢复状态上满足：`snapshot_index <= durable_
 
 ## 5. RocksDB 与线程执行
 
-首选后端仍待验证。初版保持 RocksDB WAL 开启，并明确使用 sync 完成。一个原子 WriteBatch 只能覆盖同一实例内的数据；跨实例、外部 snapshot 文件或 S3 对象需要额外发布与恢复协议。不得把 write 返回、队列入队、页缓存更新或普通 flush 等同于所需持久完成。
+正式有界后端已使用固定 RocksDB，实际范围见 [driver/native 合同](serial-driver.md)。初版保持 WAL 开启，并明确使用 sync 完成。一个原子 WriteBatch 只能覆盖同一实例内的数据；跨实例、外部 snapshot 文件或 S3 对象需要额外发布与恢复协议。不得把 write 返回、队列入队、页缓存更新或普通 flush 等同于所需持久完成。
 
-G0 的第一步采用 [有界完整镜像](durable-store.md)和独立 RocksDB 同步 WriteBatch 夹具，先验证可恢复原子边界。其写放大、镜像大小和合成应用限制均明确记录；正式生产布局、native backend 和 driver 仍需后续实现与同等级测试。
+G0 采用 [有界完整镜像](durable-store.md)，先验证可恢复原子边界，再通过正式 driver/native 后端连接真实三进程。其写放大、镜像大小和合成应用限制均明确记录；可扩展布局、大快照、完整业务状态机和生产调度仍需后续实现与同等级测试。native 后端对 WAL 损坏采用严格拒绝，不以较早的一致镜像自动回退 term/vote/commit。
 
 大 snapshot 先写临时版本、校验并完成文件/目录持久化，再原子发布 active generation、snapshot 位置、业务状态引用、ConfState、applied、合法 HardState/commit 与日志边界。若物理布局不能用一个 WriteBatch 发布，必须另行证明安装事务的恢复协议后才能实现。安装发布前不得 advance_append、发送依赖该安装的 persisted_messages 或开放新视图读取；文件持久不等于安装完成。发生任何错误时不能出现“新的 applied 指向旧的业务状态”，也不能恢复一半新配置一半旧日志。
 

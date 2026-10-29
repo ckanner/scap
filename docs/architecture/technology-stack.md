@@ -22,7 +22,7 @@ SCAP 首期只实现 SQLite 平台。目标是让 Node.js 应用通过现有 lib
 
 这些都是本项目的设计选择。模块之间的可靠性契约必须实现并验证，不能由选用了 Rust、Raft 或 S3 自动获得。
 
-依据 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，共识首选由 OpenRaft 调整为 `tikv/raft-rs`（crate `raft`），重视其在 TiKV 数据复制中的使用经验。OpenRaft 的高层异步接口仍有工程价值，作为替代候选保留；比较和正式 TiKV 发布对应的源码候选见 [选型调查](../research/raft-library-selection.md)。正式 `scap-raft-store` 已依赖固定 raft-rs 类型并实现 `Storage`；真实 RawNode/RocksDB 装配和 RPC 目前分别在独立契约实验中验证，生产 driver、native 后端与完整 cell 尚未完成。
+依据 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，共识首选由 OpenRaft 调整为 `tikv/raft-rs`（crate `raft`），重视其在 TiKV 数据复制中的使用经验。OpenRaft 的高层异步接口仍有工程价值，作为替代候选保留；比较和正式 TiKV 发布对应的源码候选见 [选型调查](../research/raft-library-selection.md)。正式 `scap-raft-store` 实现 `Storage`，`scap-raft-driver` 管理真实 RawNode，`scap-raft-rocks` 提供同步 native 后端；三者已在独立三进程故障合同中组合验证。RPC 目前是单独的 codec/transport 实验，生产传输接合、完整业务 cell 与 SQL 服务尚未完成。
 
 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md)基于 TiKV 正式版本的 manifest、lock 与调用路径核对，保留本项目 Tokio/Axum/Tonic 方向。TiKV 主 RPC 实际使用 grpcio、状态 HTTP 使用 Hyper；其云 SDK 中出现 Tonic 不等于主服务采用 Tonic。具体组件、fork、native 版本与取舍见 [技术栈审计](../research/tikv-rust-stack.md)和[机器可读决策](../../contracts/technology-decisions.json)，不整体复制 TiKV 依赖树。
 
@@ -119,7 +119,7 @@ RocksDB 的 WAL 与 SCAP 复制的数据库事务日志是两层不同日志。�
 
 TiKV 使用自己的 rust-rocksdb fork 和固定 native 子模块，不等于任意 crates.io 同名 binding。本项目在真实 sync、WriteBatch、checkpoint、恢复与构建验证后锁定 binding/native/features；暂不同时引入独立 Raft Engine，以免未经验证地增加跨引擎恢复组合。对应上游事实见 [技术栈审计](../research/tikv-rust-stack.md)。
 
-G0 已固定 rust-rocksdb `0.24.0` / native RocksDB `10.4.2`，通过独立 fixture 以 WAL 开启、sync WriteBatch 原子替换完整有界镜像，验证正式存储策略。它不是 TiKV 的 fork 组合，也尚未成为生产 native adapter；格式、资源限制和写放大见 [持久 store 契约](../engineering/durable-store.md)，真实结果见 [存储实验](../../experiments/raft-store/README.md)。
+G0 已固定 rust-rocksdb `0.24.0` / native RocksDB `10.4.2`。正式 `scap-raft-rocks` 以 WAL 开启、sync WriteBatch 原子替换完整有界镜像，`scap-raft-driver` 管理真实 RawNode 的串行顺序；这不是 TiKV 的 fork 组合。格式、资源限制和写放大见 [持久 store 契约](../engineering/durable-store.md)，运行与恢复边界见 [driver 合同](../engineering/serial-driver.md)和[三进程实验](../../experiments/raft-cluster/README.md)。生产传输与完整业务状态机仍需实现。
 
 ### 5.4 读屏障与 SDK 重试
 
@@ -172,7 +172,7 @@ libSQL 仓库采用 MIT；[raft-rs][raft-repo]采用 Apache-2.0；RocksDB 官方
 
 ## 9. 候选变成已选定组件的条件
 
-当前已运行提交策略和有界持久 store 的单元测试，以及独立 WAL、RPC、真实 RawNode/RocksDB 恢复探针，见 [G0 证据](../engineering/g0-evidence.md)；生产 driver/native 后端、完整 cell 和规模化验证尚未完成。以下结果决定是否继续使用候选：
+当前四个正式模块均达到精确 100% 单元覆盖，独立 WAL、RPC、RawNode/RocksDB 恢复和三进程故障合同已运行，见 [G0 证据](../engineering/g0-evidence.md)。完整业务 cell、SQL/RPC 接合和规模化验证尚未完成。以下结果决定是否继续使用候选：
 
 - libSQL virtual WAL：提交可见性、事务撤销与恢复都满足要求，目标 SDK 和导入格式验证通过。
 - raft-rs/RocksDB：真实 Ready/LightReady 契约、持久 commit/applied、掉电/进程崩溃/磁盘故障和快照恢复通过，未出现虚假持久 ACK。

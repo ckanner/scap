@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "review_date": "2026-10-29",
-  "status": "directions-with-bounded-contract-probe",
+  "status": "bounded-store-driver-and-native-adapter",
   "reference_project": {
     "repository": "tikv/tikv",
     "release": "v8.5.8",
@@ -14,7 +14,10 @@
     "integration_contract": "docs/engineering/runtime-and-rpc.md",
     "rpc_probe": "experiments/raft-rpc/README.md",
     "durable_store_contract": "docs/engineering/durable-store.md",
-    "durable_store_probe": "experiments/raft-store/README.md"
+    "durable_store_probe": "experiments/raft-store/README.md",
+    "driver_adr": "docs/adr/0009-serial-driver-and-native-backend.md",
+    "driver_contract": "docs/engineering/serial-driver.md",
+    "three_process_probe": "experiments/raft-cluster/README.md"
   },
   "directions": {
     "async_runtime": "Tokio",
@@ -27,7 +30,7 @@
     "metrics": "Prometheus",
     "configuration": "typed Serde/TOML; validated effective configuration",
     "fault_injection_candidate": "fail-rs plus process/network/storage faults",
-    "local_persistence": "Bounded Store<AtomicBackend> policy; rocksdb 0.24.0 G0 contract fixture, native runtime integration pending",
+    "local_persistence": "Bounded Store<AtomicBackend> policy with formal rocksdb 0.24.0 synchronous backend; incremental layout pending",
     "object_client": "S3 SDK candidate; exact version/features/MSRV pending"
   },
   "durable_store_g0": {
@@ -39,9 +42,23 @@
     "native_package": "librocksdb-sys 0.17.3+10.4.2",
     "native_revision": "410c5623195ecbe4699b9b5a5f622c7325cec6fe",
     "binding_is_tikv_fork": false,
-    "backend_is_production_runtime": false,
+    "backend_is_production_runtime": true,
+    "backend_module": "crates/scap-raft-rocks",
     "unit_io": "controlled AtomicBackend",
-    "real_dependency_tier": "separate-contract-tests"
+    "real_dependency_tier": "separate-contract-tests",
+    "native_wal_recovery": "AbsoluteConsistency; paranoid_checks=true; no permissive recovery fallback"
+  },
+  "serial_driver_g0": {
+    "module": "crates/scap-raft-driver",
+    "consensus": "fixed real RawNode over formal Store",
+    "execution": "bounded synchronous single-cell driver; dedicated blocking execution required",
+    "read_mode": "Safe; leader-local; boot-bound non-reused tickets",
+    "unit_io": "controlled backend/application; explicit ticks and captured output",
+    "native_unit_environment": "RocksDB memory Env for isolated adapter calls; no disk recovery claims",
+    "fault_transport": "bounded test IPC with controlled message delivery and partitions",
+    "production_rpc_added": false,
+    "sql_acceptance_added": false,
+    "performance_validated": false
   },
   "not_initially_adopted": [
     "TiKV grpcio runtime and complete kvproto service",

@@ -1,18 +1,21 @@
 # G0 原型执行证据与剩余门禁
 
-初始记录日期：2026-10-27；RPC 与持久存储实验追加日期：2026-10-29。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。
+初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。最新正式 workspace 与多进程结果见第 8 节；前面的分阶段记录保留其当时范围。
 
 ## 1. 本次实际交付
 
 | 资产 | 实现与证据 | 不包含的能力 |
 | --- | --- | --- |
 | `crates/scap-core` | 提交完成顺序；两个窄 port；完整回执身份、前序序号、重复结果、未知结果与本地发布失败处理 | SQLite adapter、真实 quorum、授权校验服务、Raft 状态机 |
-| `crates/scap-raft-store` | 正式 `raft::Storage`、有界持久镜像、身份/投票/日志/应用校验、原子 checkpoint 与恢复策略 | 生产 native 后端、网络 driver、SCAP SQL/owner/auth/dedup 状态机 |
+| `crates/scap-raft-store` | 正式 `raft::Storage`、有界持久镜像、身份/投票/日志/应用校验、原子 checkpoint 与恢复策略 | 增量布局、SCAP SQL/owner/auth/dedup 状态机 |
+| `crates/scap-raft-driver` | 正式单 RawNode 串行 driver、Ready/LightReady 持久顺序、应用、读票据、限额和停止语义 | 生产传输、调度、业务 ACK、完整成员管理 |
+| `crates/scap-raft-rocks` | 正式同步 RocksDB 后端、独占目录、严格 WAL 恢复、私有持久选项与 namespace 校验 | 副本自动重建、设备故障证明、增量布局 |
 | `experiments/wal-gate` | 固定 libSQL 的真实提交前 gate、另一连接可见性、拒绝/回滚、页面捕获与进程退出恢复 | 产品运行时 adapter、分布式日志、一般 spill 事务、SDK 返回屏障 |
 | `experiments/raft-rpc` | 固定 raft-rs 的真实消息经过 Tonic loopback 往返，验证原始字节、字段、拒绝和两层限额 | RawNode、持久化、quorum、mTLS、TiKV 协议互通 |
 | `experiments/raft-store` | 真实 RawNode 与同步 RocksDB，Ready/LightReady、投票、joint ConfState、快照及 5 个进程退出边界 | 三进程 quorum、真实断电、生产服务、SQL 接合、性能/RTO |
+| `experiments/raft-cluster` | 直接组合正式模块；三个真实 OS 进程和独立磁盘目录；leader/整组 SIGKILL、分区、后缀、快照失败重试和 WAL 损坏 | 生产 RPC/mTLS、SQL 接合、物理断电、自动修复、性能/RTO |
 | 仓库工具 | 文档/合同检查；覆盖率源码清单与原始计数核对 | 证明报告来源可信或取代人工架构审查 |
-| CI | 分开执行 Rust 单元覆盖、Python 工具单元覆盖、引擎探针、RPC 探针和持久恢复探针，保留覆盖率 JSON | 云环境性能、三 AZ 演练、生产 SLA |
+| CI | 六个独立质量 job：Rust 单元覆盖、Python 工具单元覆盖、引擎、RPC、持久恢复、三进程故障；保留覆盖率 JSON 和三进程历史，另有文档 job | 云环境性能、三 AZ 演练、生产 SLA |
 
 `CommitCoordinator` 只有在新接受回执绑定完整请求、序号正确且本地发布成功后才返回 ACK。`AlreadyCommitted` 是单独的历史结果路径：停止当前上下文，交外部丢弃新暂存、对齐状态和取得原结果，绝不再次发布旧页面。`UNKNOWN`、非法回执、拒绝、发布失败与被捕获的 adapter panic 均不能让同一上下文继续提交。
 
@@ -35,7 +38,7 @@
 | 真实 libSQL 实验 | **13 passed，0 failed，0 ignored**：8 项引擎/子进程实验与 5 项探针合同检查 |
 | Rust 格式与 Clippy | 通过；Clippy 以 `-D warnings` 执行 |
 
-这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。最新两个正式模块的覆盖计数见第 7 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
+这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。最新四个正式模块的覆盖计数见第 8 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
 
 引擎实验先在上游指定 Rust 1.85.0 下完成，再用相同锁文件在 Rust 1.90.0 重新编译运行，均通过。它固定 4096 字节页面、关闭 spill、限制最多 1024 页，并使用同步测试决策。独立 fsync 页 fixture 只证明受限页面捕获/重建路径；进程退出不等于断电，也没有同步复制。
 
@@ -53,7 +56,7 @@
 
 ## 3. 复现正式模块单元覆盖
 
-首次准备工具：
+首次准备 C/C++17、libclang 18 开发文件和固定 Rust 工具；Ubuntu 24.04 可安装 `libclang-18-dev`，并将 `LIBCLANG_PATH` 指向 `/usr/lib/llvm-18/lib`。正式 workspace 现在包含 native 后端，单元构建也需要这些工具：
 
 ```bash
 rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
@@ -72,7 +75,7 @@ cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --loc
 python3 scripts/check_unit_coverage.py target/coverage/unit.json
 ```
 
-只运行正式 workspace 的 library/binary unit harness，不运行独立实验 workspace 或 integration tests；采集前清理旧 profile。`scap-raft-store` 的单元测试使用可控 AtomicBackend，不链接 RocksDB 后端。禁止因 `cfg(coverage)` 改变产品代码，脚本同时拒绝相关源码排除。新增 bin、feature 或生成代码时必须扩展真实编译/执行矩阵，不能认为当前命令自动覆盖所有未来配置。
+只运行正式 workspace 的 library/binary unit harness，不运行独立实验 workspace 或 integration tests；采集前清理旧 profile。store/driver 使用可控 AtomicBackend，driver 内部仍为真实 RawNode；native adapter 的单元调用使用私有 RocksDB memory Env，只有隔离目录元数据操作接触临时文件系统，不声称完成真实磁盘恢复。详细分类见[单元边界](testability-and-coverage.md)。禁止因 `cfg(coverage)` 改变产品代码，脚本同时拒绝相关源码排除。新增 bin、feature 或生成代码时必须扩展真实编译/执行矩阵，不能认为当前命令自动覆盖所有未来配置。
 
 报告文件为 `target/coverage/unit.json`。CI 对每个生产源文件核对精确整数计数；缺源码、重复文件、非法计数、分支缺失或未达 100% 都失败。核心报告中若出现研究探针等未批准的生产来源也失败，不能通过从实验路径引入代码绕过分母。
 
@@ -115,13 +118,13 @@ cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- -
 
 这组测试在独立 workspace 和 CI job 运行，属于研究/集成证据，不混入核心 unit profile，也不改变第 2 节覆盖率分母。未来复用其中的第一方运行逻辑，须先迁入生产范围并满足 100% 单元门禁。
 
-## 7. 持久存储、RawNode 与进程恢复（2026-10-29）
+## 7. 首轮持久存储、RawNode 与进程恢复（2026-10-29）
 
 正式 `scap-raft-store` 实现固定 raft-rs 的 `Storage`，通过 `AtomicBackend` 隔离原子同步 I/O。真实契约夹具直接使用该正式实现，并以 RocksDB 单个同步 WriteBatch 保存完整状态；没有用 MemStorage 代替持久策略。代码职责与完整格式见 [持久存储契约](durable-store.md)，布局取舍见 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)。
 
 ### 7.1 正式单元与精确覆盖率
 
-同第 3 节的固定工具链与命令重新采集整个正式 workspace，**29 项单元测试通过，0 failed**：`scap-core` 10 项，`scap-raft-store` 19 项。
+该轮按第 3 节的固定工具链采集当时的正式 workspace，**29 项单元测试通过，0 failed**：`scap-core` 10 项，`scap-raft-store` 19 项。以下是该轮历史计数，当前四模块报告见第 8 节。
 
 | 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
 | --- | --- | --- | --- | --- |
@@ -171,12 +174,65 @@ cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked --
 
 完整镜像是有明确限额的 G0 布局，每次修改重写整个状态。checkpoint 会把当前应用复制进 snapshot，同时保留当前应用与必要的日志后缀，所以它也可能增大镜像并超过总上限；拒绝时磁盘保留旧镜像。不能据此推断大 cell 容量、长尾成本或生产吞吐。
 
-正式模块已有 raft-rs 依赖与 Storage 实现；生产 RawNode driver、native 后端装配和 SCAP 业务状态机尚未实现。实验包含真实依赖与恢复行为，但没有完成三进程 quorum、RPC 接合、SQLite 原子发布或 HA 服务。上述计数不改变原有性能、RTO 和 RPO 合同。
+该轮结束时已有正式 raft-rs 依赖与 Storage 实现，RawNode driver 和 native 后端仍在实验中。第 8 节随后补齐正式 driver/native 模块及三进程 quorum 证据；RPC 接合、SQLite 原子发布和 HA 服务仍未完成。以上历史计数不改变原有性能、RTO 和 RPO 合同。
 
-## 8. 仍然阻断完整 G0 / HA 上线的工作
+## 8. 正式 driver/native backend 与三进程故障（2026-10-29）
+
+正式 `scap-raft-driver` 直接持有 `RawNode<Store<B>>`，正式 `scap-raft-rocks` 实现 `AtomicBackend`。独立三进程实验直接依赖这些模块，没有复制实验版运行循环。模块合同见[串行 driver](serial-driver.md)，决策见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。
+
+### 8.1 最新完整单元报告
+
+清理旧 profile 后，使用第 3 节固定命令采集全部正式 workspace：**64 passed，0 failed，0 ignored**。其中 core 10 项、store 19 项、driver 23 项、native adapter 12 项。
+
+| 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
+| --- | --- | --- | --- | --- |
+| `crates/scap-core/src/lib.rs` | **40 / 40** | **2 / 2** | **38 / 38** | **10 / 10** |
+| `crates/scap-raft-store/src/lib.rs` | **524 / 524** | **44 / 44** | **790 / 790** | **174 / 174** |
+| `crates/scap-raft-driver/src/lib.rs` | **331 / 331** | **29 / 29** | **501 / 501** | **68 / 68** |
+| `crates/scap-raft-rocks/src/lib.rs` | **90 / 90** | **15 / 15** | **147 / 147** | **8 / 8** |
+| 合计 | **985 / 985** | **90 / 90** | **1476 / 1476** | **260 / 260** |
+
+所有文件、所有列精确达到 100%，门禁输出 `PASS: every production Rust source is present; unit counters are 100%.`。没有降低阈值、隐藏产品源码或把多进程实验计入 unit profile。native 最后一个未覆盖 region 来自泛型 opener 的不同测试实例；同一受控 opener 类型现在验证准备成功和失败，并断言失败不会创建 native 内存库。
+
+driver 单元测试覆盖真实 Ready/LightReady 顺序、快照与成员状态、应用/存储失败和 panic 后停止、各输入输出预算、跨 boot 读票据、取消和内部读队列上限。native 单元测试覆盖原子目录预留、缺失/外来路径、namespace、借用长度检查、实际 memory Env 读写/错误委托与严格打开选项。测试替身只控制依赖边界，不替代 Raft 协议。
+
+### 8.2 五项真实故障合同
+
+Linux x86_64、Rust 1.90.0、GCC 13.3.0、libclang 18.1.3；与第 7 节相同的固定 Raft/native 版本。最新正式源码下 **5 passed，0 failed，0 ignored**，格式与 Clippy `-D warnings` 通过。
+
+| 场景 | 实际观察与断言 |
+| --- | --- |
+| leader 故障与整组重启 | 先隔离 node3，仅在 leader1 + node2 的多数派持久应用后 SIGKILL leader1；拥有历史的 node2 与落后的 node3 恢复 quorum 并继续应用；旧 leader 重开追赶，再全组 SIGKILL/重开，已提交历史完整且不重复 |
+| 1 对 2 分区 | 旧 leader 仍自认为 leader 时准入新提案和读票据；少数派 commit 不前进、该读不完成；多数派继续提交；连接恢复后收敛 |
+| 未提交后缀 | 实际持久但未提交的后缀在 SIGKILL 重开后仍存在，却未被擅自应用；多数派提交新 term 冲突前缀后才能断言该特定 UNKNOWN 提案被覆盖 |
+| snapshot 失败与重试 | checkpoint 超过落后节点日志末尾；第一次真实 MsgSnapshot 投递被拒并反馈 Failure，随后真实重试、持久安装及 Finish；重开仍保留快照与应用 |
+| 损坏 WAL | SIGKILL 后定位包含已同步操作的真实 WAL，核对物理 record header，翻转一个 checksum bit 并同步；正式打开明确返回 `Corruption: checksum mismatch`，目录、IDENTITY、CURRENT 指向与坏 WAL 保留；其他两副本继续提交并完成读屏障 |
+
+每个响应验证 `snapshot <= applied <= commit <= last`；合成应用保存完整 token/delta 历史且不去重，能够观察重复应用。读完成以 node/boot/ticket 唯一性检查，不能因 index 不同漏过同一请求的重复完成。五份有界事件日志分别记录参数、请求、故障、持久水位、应用序列和读/快照结果，由 CI artifact 保留。
+
+本层是三个真实 OS 进程、各自真实 RocksDB 目录和父进程控制的有界 IPC 消息路由。分区是消息投递控制；选举使用逻辑 tick 和显式 campaign。SIGKILL 保留宿主机内核缓存，WAL 修改是明确的损坏注入。它们不等于生产 Tonic/mTLS、真实 TCP 故障、物理断电、自动 writer 路由或端到端 RTO。
+
+```bash
+cargo +1.90.0 fmt --manifest-path experiments/raft-cluster/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/raft-cluster/Cargo.toml --all-targets --locked -- -D warnings
+cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked -- --test-threads=1
+```
+
+本地先按锁文件从源码构建 native 静态库，最终隔离 target 复用同一源码和 features 的该第三方 C++ 缓存，使用 `ROCKSDB_LIB_DIR`、`ROCKSDB_STATIC=1` 与显式 `RUSTFLAGS='-C link-arg=-lstdc++'`。第一方 Rust、插桩和 profile 仍重新生成；未用其他系统版本替换 RocksDB。CI 不设置这组缓存快捷参数，按锁文件从 native 源码构建。
+
+### 8.3 审查发现与实现约束
+
+1. 读序号必须绑定 boot；取消旧票据不能取消重启后的同序号新读。取消也不能只释放外层计数后绕过真实 Raft 内部 pending read 上限。
+2. 已完成但尚未交出的读结果也阻止新输入，调用方先 drain，避免输出持续积压或饥饿。
+3. native 打开可能在检查 `create_if_missing` 前创建目录；正式 `open_existing` 因此先验证路径，失败不能自动走初始化。
+4. RocksDB 默认 PointInTimeRecovery 可能退到较早的合法状态；正式后端固定 `AbsoluteConsistency` 和 paranoid checks，检测到坏 WAL 时拒绝恢复。严格模式也可能拒绝损坏的尾部，需上层从健康副本受控重建，当前尚未实现自动重建。它不检测整份有效旧镜像的外部回滚。
+
+这些行为与固定上游源码依据见[模块合同](serial-driver.md)和 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。完整镜像仍是有界 G0 布局，不能外推规模化成本；driver 的 propose 准入、Raft 消息或 ReadBarrier 也不是业务 SQL ACK。
+
+## 9. 仍然阻断完整 G0 / HA 上线的工作
 
 - 完整、可恢复的事务暂存协议：spill、更多 page size、大事务、checkpoint 交互、错误恢复与所有可见性边界。
-- 生产 `raft-rs` driver、native backend 及增量存储布局；把已有单节点 Ready/LightReady、应用、快照和成员变更证据扩展到真实三进程 quorum、网络分区与物理存储故障。
+- 增量存储布局、物理存储故障与安全副本重建；把正式串行 driver 接入真实生产传输、多 cell 调度与完整成员管理。
 - 与提交完成策略连接的真实引擎与共识 adapter，以及其独立 100% 单元覆盖和真实契约测试。
 - Hrana / Node.js SDK 的请求身份、返回值缓冲、交互事务、UNKNOWN 和重试语义。
 - 固定 sqld 与现代平台依赖树的实际接合边界；RPC mTLS 身份、成员权限、重连/取消、全局背压与多 cell 调度验证。
@@ -189,4 +245,6 @@ cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked --
 
 2026-10-29 的 [ADR 0007](../adr/0007-tikv-stack-and-rpc-boundaries.md)补充 TiKV 技术栈参考、运行与 RPC 约束及上述 codec/transport 实验。当时尚无正式 Raft 依赖或持久 adapter。
 
-同日后续 [ADR 0008](../adr/0008-bounded-durable-store-g0.md)落实有界持久策略和真实 RawNode/RocksDB 恢复实验，新增第 7 节证据。正式 Storage 已接入；生产 driver 与 native runtime 仍待实现，整个 G0 尚未通过。
+同日后续 [ADR 0008](../adr/0008-bounded-durable-store-g0.md)落实有界持久策略和真实 RawNode/RocksDB 恢复实验，新增第 7 节证据；当时正式 driver/native 尚待实现。
+
+最新 [ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。整个 G0 尚未通过，剩余工作以上述第 9 节为准。

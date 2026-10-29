@@ -1,0 +1,15 @@
+[package]
+name = "scap-raft-driver"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+scap-raft-store = { path = "../scap-raft-store" }
+raft = { git = "https://github.com/tikv/raft-rs", rev = "ad13f3d90780f53aea2488c6a4b76c0d334bf136", default-features = false, features = ["protobuf-codec"] }
+protobuf = "=2.28.0"
+slog = "=2.8.2"
+
+[lints]
+workspace = true
