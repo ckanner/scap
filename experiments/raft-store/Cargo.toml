@@ -1,0 +1,26 @@
+[package]
+name = "scap-raft-store-probe"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+autobins = false
+autolib = false
+description = "Research-only RawNode and synchronous RocksDB recovery contract probes"
+
+[workspace]
+
+[[test]]
+name = "recovery"
+path = "tests/recovery.rs"
+
+[dev-dependencies]
+scap-raft-store = { path = "../../crates/scap-raft-store" }
+raft = { git = "https://github.com/tikv/raft-rs", rev = "ad13f3d90780f53aea2488c6a4b76c0d334bf136", default-features = false, features = ["protobuf-codec"] }
+protobuf = "=2.28.0"
+rocksdb = { version = "=0.24.0", default-features = false, features = ["bindgen-runtime"] }
+slog = "=2.8.2"
+tempfile = "=3.27.0"
+
+[profile.dev]
+debug = 0

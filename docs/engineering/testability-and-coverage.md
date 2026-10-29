@@ -108,6 +108,8 @@ rust_gate_pass
 
 `experiments/wal-gate` 的角色是 G0 引擎行为探针与测试 harness：验证真实 libSQL 的 WAL 提交边界，不是可供服务运行的 engine adapter。其运行归入独立集成层，不并入 `scap-core` 的单元 profile。这个分类必须由实际依赖关系和用途支持，而不是因为目录名叫 `experiments`。
 
+`crates/scap-raft-store` 的格式、校验、状态转换和 `raft::Storage` 已属于正式源码，由可控 AtomicBackend 支撑独立单元覆盖。`experiments/raft-store` 使用同一正式实现，另行装配真实 RocksDB、RawNode 和子进程恢复测试；夹具的执行结果只提供真实依赖契约证据。后续产品采用其后端或运行循环时，必须先将对应第一方实现纳入正式源码与单元门禁。
+
 研究探针必须满足以下边界：
 
 - 生产 crate、发布 binary 和运行时配置不得依赖它，不能把其中的逻辑作为隐蔽的生产模块调用。

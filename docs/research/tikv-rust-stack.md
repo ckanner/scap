@@ -26,7 +26,7 @@ SCAP 优先复用 raft-rs 共识核心，平台继续验证 **Tokio / Axum / Tow
 | 指标 | prometheus 0.13.0、prometheus-static-metric 0.5.1 | Prometheus 直接候选 | 指标与桶边界按 SCAP SLO 定义；不照搬 nightly feature 和无界标签 |
 | 配置 | Serde 1.0.228、TOML 0.5.7、自有在线配置模块 | Serde/TOML 直接候选 | 采用类型校验与生效配置记录；不复制巨型配置控制器 |
 | 故障注入 | fail 0.5.1、专用 failpoint runner、传输 filters | fail-rs 直接候选 | 用例隔离与真实磁盘/网络证据独立；不继承上游覆盖率结论 |
-| KV 持久层 | TiKV rust-rocksdb fork `64a092fd…` | RocksDB 候选，binding 待验 | 同名 crate 不等于相同 native 引擎；需核验 sync、snapshot、构建与恢复 |
+| KV 持久层 | TiKV rust-rocksdb fork `64a092fd…` | G0 后续固定 rust-rocksdb 0.24.0；生产 binding 接合待验 | 同名 crate 不等于相同 native 引擎；G0 真实同步与恢复范围见[存储实验](../../experiments/raft-store/README.md) |
 | Raft 日志引擎 | raft-engine 0.4.2，`tikv-8.5` 分支 `3d844051…` | 暂不引入 | 先明确单后端恢复，再用日志吞吐、放大与恢复测量决定 |
 | AWS S3 | aws-sdk-s3 1.126.0、aws-config 1.8.15 | 官方 SDK 家族直接候选 | 实际 Rust/MSRV、TLS、endpoint、条件写与重试仍须独立验证，不照搬旧 connector |
 | 分配器 | tikv-jemallocator 0.6.1，可选其他 allocator | 暂不改变基线 | 根据 Rust/native 内存、碎片与尾延迟测量决定 |

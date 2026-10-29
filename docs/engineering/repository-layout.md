@@ -20,8 +20,10 @@
 | `scripts/check_repo.py` | 无第三方依赖的文档检查 |
 | `scripts/check_unit_coverage.py` | 精确计数、生产源码与 coverage map 对账 |
 | `crates/scap-core/` | Rust；已实现的窄提交完成策略与单元测试 |
+| `crates/scap-raft-store/` | Rust；有界持久状态策略、codec/校验与 raft::Storage；最终 I/O 通过 AtomicBackend 注入 |
 | `experiments/wal-gate/` | 独立真实引擎探针，不能作为运行时依赖 |
 | [experiments/raft-rpc/](../../experiments/raft-rpc/README.md) | 独立真实 loopback 编码/传输实验；只有测试与构建目标，不能作为运行时依赖 |
+| [experiments/raft-store/](../../experiments/raft-store/README.md) | 独立真实 RawNode/RocksDB 契约与进程恢复实验；使用正式存储策略，后端和 driver 装配仍为测试夹具 |
 | `tests/tooling/` | 仓库脚本自身的单元测试 |
 | `.github/` | 文档 CI、PR 与 issue 模板 |
 
@@ -36,7 +38,7 @@
 | `crates/scap-types` | Rust；身份、错误、版本化存储类型 |
 | `crates/scap-engine` | Rust + libSQL C FFI；SQL/WAL 适配与恢复 |
 | `crates/scap-cell` | Rust；受控 RawNode driver、Raft 状态机和写者/提交规则 |
-| `crates/scap-store` | Rust；RocksDB 候选的持久存储与快照适配，binding/native 版本待验证 |
+| 增量存储 / 生产后端模块 | Rust；在已有有界存储策略基础上实现可扩展布局、RocksDB runtime 装配和正式 I/O 执行边界 |
 | `crates/scap-archive` | Rust；S3、manifest、恢复和 GC |
 | `crates/scap-gateway` | Rust；协议、认证、路由和会话 |
 | `crates/scap-controller` | Rust；生命周期与目录 reconciliation |

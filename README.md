@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台：以轻量计算单元服务大量独立数据库，以共享同步日志提供故障保障，以对象存储承载冷数据与历史。
 
-> **当前阶段：G0 可行性原型。** 已有可执行的提交完成策略、100% 单元覆盖率门禁、真实 libSQL WAL 探针，以及通过 8 项测试的真实 RPC 编码/传输实验；尚未实现可部署的数据库服务。RPC 实验不包含 RawNode、持久化、quorum 或 HA。三副本复制、Node.js 服务入口、自动接管和性能指标仍待实现或测量，不代表已经可以用于生产。
+> **当前阶段：G0 可行性原型。** 已有可执行的提交完成策略、有界持久存储策略、100% 单元覆盖率门禁，以及真实 libSQL WAL、RPC 和 RawNode/RocksDB 恢复实验；尚未实现可部署的数据库服务。三副本 quorum、Node.js 服务入口、自动接管和性能指标仍待实现或测量，不能把单节点恢复测试扩展为生产 HA 证明。
 
 ## 核心决策
 
@@ -43,6 +43,8 @@
 | [运行与 RPC 契约](docs/engineering/runtime-and-rpc.md) | 执行池、背压、编码、身份、健康检查和 sqld 依赖树怎样接合？ |
 | [技术决策清单](contracts/technology-decisions.json) | 哪些技术方向已确定，哪些生产集成仍待验证？ |
 | [真实 RPC 实验](experiments/raft-rpc/README.md) | 8 项编码/传输测试实际证明什么，还没有证明什么？ |
+| [持久存储契约](docs/engineering/durable-store.md) | 正式 store 如何保护投票、日志、应用位置与快照，错误后怎样恢复？ |
+| [真实 RawNode/RocksDB 实验](experiments/raft-store/README.md) | 12 项真实依赖测试与 5 个进程退出场景证明什么？ |
 | [ADR 索引](docs/adr/README.md) | 为什么这样选择，替代路线是什么？ |
 
 ## 可靠性目标与边界
@@ -59,8 +61,8 @@
 | --- | --- |
 | 平台服务 | Rust，Tokio，Axum/Tower，Tonic / Protobuf；生产组合待集成验证 |
 | SQL 引擎 | libSQL / SQLite C 内核，Rust FFI 适配 |
-| 日志复制 | TiKV `raft-rs` 首选候选 + 自研运行循环、持久存储与传输适配 |
-| 本地日志与索引 | RocksDB 候选，显式同步持久化和恢复契约 |
+| 日志复制 | 固定 TiKV `raft-rs`；已有正式 Storage 策略，运行 driver 与传输仍待产品化 |
+| 本地日志与索引 | 有界 Store/AtomicBackend；真实 RocksDB 同步恢复已有 G0 证据，增量生产布局待实现 |
 | 对象存储 | 具备已验证一致性、持久性和校验能力的 S3 兼容服务 |
 | 控制目录 | etcd；只保存目录、意图和控制元数据 |
 | Node.js 接入 | TypeScript，`@libsql/client`，可选 `libsql` 兼容入口 |
@@ -73,16 +75,19 @@
 
 ## 仓库使用
 
-文档检查使用 Python 3.11+；Rust 核心与独立探针使用各自锁定的工具链和依赖。探针需要相应 C/C++ 构建工具及首次下载依赖的能力；RPC 实验还需要允许本机 loopback socket，具体环境要求见实验 README：
+文档检查使用 Python 3.11+；Rust 模块与独立探针使用各自锁定的工具链和依赖。固定 Raft Protobuf 构建需要 C/C++ 与 make；真实 RocksDB 实验另需 libclang，RPC 实验需要本机 loopback socket。具体环境与固定命令见相应实验 README：
 
 ```bash
 python3 scripts/check_repo.py
 cargo test --workspace --lib --bins --all-features --locked
 cargo test --manifest-path experiments/wal-gate/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- --test-threads=1
+cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked -- --test-threads=1
 ```
 
-四条命令分别验证仓库文档、产品核心单元逻辑、受限引擎实验和 RPC 编码/传输实验，不能据此宣称 HA 已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。运行时第一方代码要求单元行、函数、分支覆盖率均为 100%；引擎及 RPC 集成实验不补齐产品单元覆盖率。
+五条命令分别验证仓库文档、正式模块单元逻辑、受限引擎实验、RPC 编码/传输和真实存储恢复，不能据此宣称 HA 已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
+
+`scap-raft-store` 将 codec、校验和持久状态转换放在正式源码中；最终 I/O 使用可注入的 `AtomicBackend`。G0 的完整镜像每次同步替换，具有明确限额与写放大；规模化部署前须改进布局并重新验证。RocksDB 装配和 RawNode 循环目前仍是独立实验夹具，见 [ADR-0008](docs/adr/0008-bounded-durable-store-g0.md)。
 
 开发规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，AI / 自动化协作规则见 [AGENTS.md](AGENTS.md)，安全报告见 [SECURITY.md](SECURITY.md)。主文档使用中文；代码标识符、协议字段、提交类型使用英文。
 
@@ -90,4 +95,4 @@ cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- -
 
 本仓库自身的分发许可尚待维护者决定，当前不添加未经选择的开源授权。第三方组件的许可证、上游修改义务和供应链记录见组件调查；引入源码前完成核验。
 
-设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 技术栈审计与 RPC 实验：**2026-10-29**。
+设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 栈、RPC 与持久存储 G0 推进：**2026-10-29**。
