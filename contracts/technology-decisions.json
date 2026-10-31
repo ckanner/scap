@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "review_date": "2026-10-31",
-  "status": "bounded-cell-acceptance-with-store-driver-native-and-engine-contracts",
+  "status": "formal-bounded-sqlite-adapter-with-cell-and-raft-contracts",
   "reference_project": {
     "repository": "tikv/tikv",
     "release": "v8.5.8",
@@ -21,7 +21,10 @@
     "raft_safety_contract": "docs/engineering/raft-safety.md",
     "cell_adr": "docs/adr/0010-cell-acceptance-and-raft-safety.md",
     "cell_contract": "docs/engineering/cell-state-machine.md",
-    "sqlite_cell_probe": "experiments/sqlite-cell/README.md"
+    "sqlite_cell_probe": "experiments/sqlite-cell/README.md",
+    "sqlite_engine_contract": "docs/engineering/sqlite-engine.md",
+    "sqlite_engine_adr": "docs/adr/0011-bounded-native-sqlite-adapter.md",
+    "sqlite_engine_probe": "experiments/sqlite-engine/README.md"
   },
   "directions": {
     "async_runtime": "Tokio",
@@ -62,7 +65,7 @@
     "fault_transport": "bounded test IPC with controlled message delivery and partitions",
     "production_rpc_added": false,
     "sql_acceptance_added": true,
-    "sql_acceptance_scope": "formal bounded CellApplication; production engine adapter pending",
+    "sql_acceptance_scope": "formal bounded CellApplication plus private native SQLite adapter; service assembly pending",
     "early_read_admission": "ReadNotReady until current-term commit; no allocated ticket",
     "election_contracts": "real tick PreVote/Vote; isolated-follower term stability; one-way partition with delayed ReadIndex ACK",
     "performance_validated": false
@@ -85,7 +88,7 @@
     "retention": "all accepted physical transactions and request/admin records; reject at capacity, no automatic GC",
     "recovery_api": "trusted internal worker only; not an ordinary user READ export endpoint",
     "complete_lifecycle_implemented": false,
-    "production_sql_adapter_implemented": false
+    "production_sql_adapter_implemented": true
   },
   "not_initially_adopted": [
     "TiKV grpcio runtime and complete kvproto service",
@@ -104,5 +107,39 @@
     "single_framework_version_across_unmodified_sqld_assumed": false,
     "research_probe_is_production_adapter": false,
     "first_party_production_unit_coverage_percent": 100
+  },
+  "sqlite_adapter_g0": {
+    "modules": [
+      "crates/scap-sql",
+      "crates/scap-engine",
+      "crates/scap-sqlite"
+    ],
+    "libsql_revision": "d8bc862d20bedc72945a1da27c8b7045414c0261",
+    "libsql_sys_features": [
+      "api",
+      "wal",
+      "rusqlite"
+    ],
+    "sqlite_version": "3.47.0",
+    "platform": "Linux/Unix; validated Ubuntu 24.04 x86_64",
+    "first_party_unsafe": "forbid",
+    "sql_request_format": "SCAPSQL1 exact SQL and typed positional parameters; SHA-256 fingerprint",
+    "sql_result_format": "SCAPRES1 bounded complete typed transaction results",
+    "physical_format": "SCAPIMG! version 1; fixed 4096-byte pages; full logical image base and result SHA-256",
+    "old_experimental_format_compatible": false,
+    "open_policy": "fresh exclusive runtime-owned directory only; no old cache or sidecar reuse",
+    "recovery_policy": "complete cell history from empty image after ReadIndex and decode_bound plus exact recovery target",
+    "physical_commit": "pre-native-publish gate; ACK after durable business acceptance and final COMMIT success",
+    "no_physical_changes": "same-image empty-page transaction and original result still committed through cell",
+    "idempotency": "current-authorized preflight plus ordered commit-time check; historical receipt and result preserved",
+    "configuration": "FULL sync; cache_spill OFF; no auto checkpoint; SQLite max_page_count bounded",
+    "sql_surface": "private connection; explicit batch; deny unknown authorizer action/function",
+    "failure_policy": "stop writer; retain accepted receipt for post-acceptance failures; never replay UNKNOWN automatically",
+    "separate_sql_read_snapshot_api_implemented": false,
+    "hrana_node_sdk_implemented": false,
+    "automatic_owner_recovery_implemented": false,
+    "s3_lifecycle_implemented": false,
+    "production_service_implemented": false,
+    "performance_validated": false
   }
 }

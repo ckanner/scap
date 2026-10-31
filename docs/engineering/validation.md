@@ -30,6 +30,8 @@ v0 需要证明：
 
 2026-10-31 的三进程合同扩展为 8 个场景，新增真实 tick 驱动 PreVote/Vote、孤立 follower 选举超时和单向分区中的延迟读 ACK；正式 [cell 状态机](cell-state-machine.md)加入有界接受规则。独立 [SQLite/cell 合同](../../experiments/sqlite-cell/README.md)组合真实引擎与该状态机，分别核对 quorum、业务接受、native publish 和崩溃恢复。该组合使用同一父进程内的三个 Raft 实例及独立磁盘，加真实 SQL writer 子进程；不能与三独立 Raft OS 进程、生产传输或 SDK 验证混称。
 
+[正式 SQLite adapter 合同](../../experiments/sqlite-engine/README.md)继续使用三个真实 Raft/RocksDB 实例与真实 SQL 子进程，覆盖类型化批次、前置 DDL 去重、无变化事务、整批回滚、owner/auth fence、quorum UNKNOWN、快照重开与接受后 SIGKILL。生产 SQL 逻辑来自正式 crate，测试 IPC/路由仍为夹具；不将这些执行合入 unit profile。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级

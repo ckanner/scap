@@ -2,6 +2,8 @@
 
 状态：拟实现接口。路径和字段是 v0 设计，不是已经可调用的服务。
 
+当前已有 [Rust 层 SQLite adapter](../engineering/sqlite-engine.md)，输入为有界 statement batch，返回已接受的完整结果；它不提供本文的 HTTP/Hrana 服务，也不意味着 Node.js 客户端已经可连接。其前置 Lookup、历史回执和 UNKNOWN 分类将作为后续客户端边界的基础。
+
 ## 1. 接入目标
 
 Node.js 默认通过 `@libsql/client` 的远程模式访问；Drizzle / Prisma 使用与实际版本匹配的 libSQL adapter。存量 `better-sqlite3` 应用可以验证 `libsql` npm 包，但不承诺任意程序仅修改 import 即可迁移。

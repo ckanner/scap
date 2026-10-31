@@ -1,0 +1,42 @@
+[package]
+name = "scap-sqlite-engine-contracts"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+autolib = false
+autobins = false
+description = "Independent real SQLite adapter and durable cell fault contracts"
+
+[workspace]
+resolver = "2"
+
+[[bin]]
+name = "sqlite-engine-child"
+path = "src/child.rs"
+test = false
+bench = false
+
+[[test]]
+name = "contracts"
+path = "tests/contracts.rs"
+
+[dependencies]
+scap-core = { path = "../../crates/scap-core" }
+scap-cell = { path = "../../crates/scap-cell" }
+scap-engine = { path = "../../crates/scap-engine" }
+scap-sql = { path = "../../crates/scap-sql" }
+scap-sqlite = { path = "../../crates/scap-sqlite" }
+libsql-sys = { git = "https://github.com/tursodatabase/libsql", rev = "d8bc862d20bedc72945a1da27c8b7045414c0261", features = ["rusqlite"] }
+
+[dev-dependencies]
+scap-raft-driver = { path = "../../crates/scap-raft-driver" }
+scap-raft-rocks = { path = "../../crates/scap-raft-rocks" }
+scap-raft-store = { path = "../../crates/scap-raft-store" }
+raft = { git = "https://github.com/tikv/raft-rs", rev = "ad13f3d90780f53aea2488c6a4b76c0d334bf136", default-features = false, features = ["protobuf-codec"] }
+protobuf = "=2.28.0"
+slog = "=2.8.2"
+tempfile = "=3.27.0"
+
+[profile.dev]
+debug = 0

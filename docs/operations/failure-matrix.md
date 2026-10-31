@@ -2,6 +2,8 @@
 
 > 状态：设计规范，尚未实现、部署或通过故障验证。本文的行为是实现必须满足的约束，不是现有系统能力声明。RTO 已有初始内部验收目标但均待实测；默认参数是初始设计值，不是 SLA。
 
+正式引擎的当前边界见 [SQLite adapter 合同](../engineering/sqlite-engine.md)：所有失败停止 writer；已接受而 native/最终 COMMIT 失败保留 receipt 并报告已提交不可用；有效历史 receipt 的坏结果同样不伪装成未提交。重启仅从权威完整物理链创建新目录，旧文件/sidecar 不直接复用；自动调度接管尚未实现。
+
 ## 1. 适用范围和基本假设
 
 SCAP 为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQL 执行，事务先生成未对其他请求可见的 staged WAL；所属 storage cell 的 Raft 多数副本完成持久化并提交后，worker 才能发布该事务并向客户端返回成功。一个 cell 使用跨三个可用区部署的三个 Raft 副本；同一 cell 中的数据库共享这一个 Raft 组，而不是每库建立一个 Raft 组。

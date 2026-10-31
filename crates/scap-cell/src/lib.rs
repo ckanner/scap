@@ -338,6 +338,10 @@ impl CellState {
         Ok(state)
     }
 
+    pub fn identity(&self) -> CellIdentity {
+        self.identity
+    }
+
     pub fn position(&self) -> Position {
         self.position
     }

@@ -2,12 +2,41 @@
   "schema_version": 1,
   "test_tier": "unit",
   "required_percent": 100,
-  "rust_metrics": ["lines", "functions", "regions", "branches"],
-  "rust_test_sources": ["crates/scap-core/src/tests.rs", "crates/scap-raft-store/src/tests.rs", "crates/scap-raft-driver/src/tests.rs", "crates/scap-raft-rocks/src/tests.rs", "crates/scap-cell/src/tests.rs"],
-  "research_harness_roots": ["experiments/wal-gate", "experiments/raft-rpc", "experiments/raft-store", "experiments/raft-cluster", "experiments/sqlite-cell"],
+  "rust_metrics": [
+    "lines",
+    "functions",
+    "regions",
+    "branches"
+  ],
+  "rust_test_sources": [
+    "crates/scap-core/src/tests.rs",
+    "crates/scap-raft-store/src/tests.rs",
+    "crates/scap-raft-driver/src/tests.rs",
+    "crates/scap-raft-rocks/src/tests.rs",
+    "crates/scap-cell/src/tests.rs",
+    "crates/scap-engine/src/tests.rs",
+    "crates/scap-sql/src/tests.rs",
+    "crates/scap-sqlite/src/tests.rs",
+    "crates/scap-sqlite/src/file_tests.rs",
+    "crates/scap-sqlite/src/config_tests.rs"
+  ],
+  "research_harness_roots": [
+    "experiments/wal-gate",
+    "experiments/raft-rpc",
+    "experiments/raft-store",
+    "experiments/raft-cluster",
+    "experiments/sqlite-cell",
+    "experiments/sqlite-engine"
+  ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
-  "tooling_sources": ["scripts/check_repo.py", "scripts/check_unit_coverage.py"],
-  "tooling_metrics": ["statements", "branches"],
+  "tooling_sources": [
+    "scripts/check_repo.py",
+    "scripts/check_unit_coverage.py"
+  ],
+  "tooling_metrics": [
+    "statements",
+    "branches"
+  ],
   "toolchains": {
     "rust": "1.90.0",
     "coverage_rust": "nightly-2025-09-18",

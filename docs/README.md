@@ -28,6 +28,7 @@
 - [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
 - [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
 - [cell-state-machine.md](engineering/cell-state-machine.md)：有界业务状态机的身份、owner/auth、事务接受、去重和取消规则。
+- [sqlite-engine.md](engineering/sqlite-engine.md)：正式引擎提交、完整结果、前置去重、无变化事务与全量物理恢复边界。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
@@ -44,6 +45,8 @@
 - [Raft/RocksDB 恢复实验](../experiments/raft-store/README.md)：真实 RawNode、同步存储与进程恢复，测试结果和限制单独记录。
 - [三进程故障实验](../experiments/raft-cluster/README.md)：正式 driver/backend 的多数派、少数派、整组重启和快照追赶；受控 IPC 故障模型。
 - [SQLite/cell 接合实验](../experiments/sqlite-cell/README.md)：真实提交前 gate、业务裁决、原生页面发布与保留物理事务恢复；不属于生产 SDK/服务。
+
+- [正式 SQLite adapter 实验](../experiments/sqlite-engine/README.md)：正式模块与真实 cell 的提交、分区、幂等、快照和进程退出恢复合同。
 
 ## 文档解释规则
 

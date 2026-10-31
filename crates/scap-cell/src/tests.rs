@@ -128,7 +128,9 @@ fn boot_with(limits: Limits) -> CellState {
     CellState::bootstrap(identity(), PRINCIPAL, GENESIS, limits).unwrap()
 }
 fn boot() -> CellState {
-    boot_with(limits())
+    let state = boot_with(limits());
+    assert_eq!(state.identity(), identity());
+    state
 }
 fn apply_at(state: &mut CellState, cmd: &Command, term: u64) -> Outcome {
     let position = Position {

@@ -94,6 +94,8 @@ deadline 从首次准入开始，包含排队和重试。记录已耗用预算�
 
 不要把少数派无法写入变成无限重启全部节点的探针策略，也不要把一个 `/status` 的 200 响应宣传成所有数据库都可用。实验的 graceful shutdown 仅证明测试任务和连接退出，不代表生产 drain、成员退出或数据持久化已完成。
 
+正式 [scap-sqlite adapter](sqlite-engine.md)是线程受限、私有连接的阻塞模块，直接调用固定 `libsql-sys`。它的同步 gate 必须接入有界共识执行路径；VM 指令预算不涵盖网络、fsync 或整个 wall-clock deadline。当前真实 adapter/cell 组合仍通过测试 IPC/受控路由接合，不能当作本节生产 transport 已完成。
+
 ## 6. sqld 与平台依赖树
 
 固定 libSQL commit 的 [server manifest][sqld-cargo]仍声明 Axum 0.6.18、Tonic 0.11、Prost 0.12 和 `Tokio =1.38`；其 workspace 使用 Hyper 0.14 / Tower 0.4。平台 Tonic 实验通过不能证明完整 sqld 与现代 Axum/Tonic 组合已合编通过。
