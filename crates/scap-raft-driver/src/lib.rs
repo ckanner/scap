@@ -40,6 +40,10 @@ pub enum Error {
     Stopped,
     NeedsDrain,
     NotLeader,
+    /// The leader has not committed an entry in its current term. The fixed
+    /// Raft core would drop this read without a completion; retry admission
+    /// after quorum progress rather than allocating an unfulfillable ticket.
+    ReadNotReady,
     InputLimit,
     ReadLimit,
     ReadIdExhausted,
@@ -228,6 +232,9 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
     /// Mint a fresh bounded pending read. Tickets are never reused in this boot.
     pub fn read_index(&mut self) -> Result<ReadTicket, Error> {
         self.ensure_leader()?;
+        if !self.node.raft.commit_to_current_term() {
+            return Err(Error::ReadNotReady);
+        }
         // Cancellation only retires the caller's ticket. Raft may still hold
         // that context until quorum progress or a term/role reset; both live
         // collections must stay bounded independently.

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "review_date": "2026-10-29",
-  "status": "bounded-store-driver-and-native-adapter",
+  "review_date": "2026-10-31",
+  "status": "bounded-cell-acceptance-with-store-driver-native-and-engine-contracts",
   "reference_project": {
     "repository": "tikv/tikv",
     "release": "v8.5.8",
@@ -17,7 +17,11 @@
     "durable_store_probe": "experiments/raft-store/README.md",
     "driver_adr": "docs/adr/0009-serial-driver-and-native-backend.md",
     "driver_contract": "docs/engineering/serial-driver.md",
-    "three_process_probe": "experiments/raft-cluster/README.md"
+    "three_process_probe": "experiments/raft-cluster/README.md",
+    "raft_safety_contract": "docs/engineering/raft-safety.md",
+    "cell_adr": "docs/adr/0010-cell-acceptance-and-raft-safety.md",
+    "cell_contract": "docs/engineering/cell-state-machine.md",
+    "sqlite_cell_probe": "experiments/sqlite-cell/README.md"
   },
   "directions": {
     "async_runtime": "Tokio",
@@ -57,8 +61,31 @@
     "native_unit_environment": "RocksDB memory Env for isolated adapter calls; no disk recovery claims",
     "fault_transport": "bounded test IPC with controlled message delivery and partitions",
     "production_rpc_added": false,
-    "sql_acceptance_added": false,
+    "sql_acceptance_added": true,
+    "sql_acceptance_scope": "formal bounded CellApplication; production engine adapter pending",
+    "early_read_admission": "ReadNotReady until current-term commit; no allocated ticket",
+    "election_contracts": "real tick PreVote/Vote; isolated-follower term stability; one-way partition with delayed ReadIndex ACK",
     "performance_validated": false
+  },
+  "cell_state_machine_g0": {
+    "module": "crates/scap-cell",
+    "execution": "pure deterministic Application; no SQL replay, I/O, clock or page publication",
+    "state_format": "SCAPCELL version 1; bounded binary codec and SHA-256",
+    "command_format": "SCAPCMD! version 1; bounded binary codec and SHA-256",
+    "limits": "replicated and compared to expected local configuration",
+    "genesis": "explicit bootstrap; identical nonempty application and snapshot atomically stored at term/index 1",
+    "recovery_binding": "same Store view cell identity and durable applied entry term/index; also required after snapshot-only install",
+    "authorization": "trusted admission followed by replicated current policy and auth_epoch recheck before historical replay",
+    "audit_binding": "original Admission retained in accepted transactions, cancellations and administrative records",
+    "bootstrap_admin_rotation_implemented": false,
+    "physical_payload": "opaque bounded bytes with digest; engine format and baseline validation remain adapter responsibilities",
+    "deduplication": "semantic fingerprint distinct from physical digest; retain original receipt, position and result",
+    "ordinary_rejection": "only the attempted command at its exact term/index; not permanent request cancellation",
+    "cancellation": "persistent ordered ResolveOrCancel; absent Lookup remains Unknown",
+    "retention": "all accepted physical transactions and request/admin records; reject at capacity, no automatic GC",
+    "recovery_api": "trusted internal worker only; not an ordinary user READ export endpoint",
+    "complete_lifecycle_implemented": false,
+    "production_sql_adapter_implemented": false
   },
   "not_initially_adopted": [
     "TiKV grpcio runtime and complete kvproto service",

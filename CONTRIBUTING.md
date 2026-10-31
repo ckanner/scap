@@ -25,7 +25,9 @@ python3 scripts/check_repo.py
 git diff --check
 ```
 
-文档检查不代表数据库正确性验证。CI 另行运行正式模块单元覆盖率、工具脚本覆盖率以及真实引擎、RPC、存储恢复和三进程故障探针；各层证据独立。外部链接检查采用人工核实官方来源，不在每次 CI 中依赖外网抓取。
+文档检查不代表数据库正确性验证。CI 另行运行正式模块单元覆盖率、工具脚本覆盖率以及真实引擎、RPC、存储恢复、三进程故障和 SQLite/cell 接合探针；各层证据独立。外部链接检查采用人工核实官方来源，不在每次 CI 中依赖外网抓取。
+
+SQLite/cell 接合的固定命令为 `cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1`；构建前提和测试进程边界见该实验 README。它不能补齐正式模块的单元覆盖率。
 
 ## 代码与覆盖率门禁
 

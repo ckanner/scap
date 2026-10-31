@@ -23,10 +23,12 @@
 | `crates/scap-raft-store/` | Rust；有界持久状态策略、codec/校验与 raft::Storage；最终 I/O 通过 AtomicBackend 注入 |
 | `crates/scap-raft-driver/` | Rust；正式单 cell 串行 RawNode driver、读票据、预算与应用次序 |
 | `crates/scap-raft-rocks/` | Rust；正式独占 RocksDB 后端，目录准入与 WAL + sync 原子镜像 |
+| `crates/scap-cell/` | Rust；有界确定性业务状态机，身份、owner/auth、事务接受、去重、取消和版本化 codec |
 | `experiments/wal-gate/` | 独立真实引擎探针，不能作为运行时依赖 |
 | [experiments/raft-rpc/](../../experiments/raft-rpc/README.md) | 独立真实 loopback 编码/传输实验；只有测试与构建目标，不能作为运行时依赖 |
 | [experiments/raft-store/](../../experiments/raft-store/README.md) | 独立真实 RawNode/RocksDB 契约与进程恢复实验；使用正式存储策略，后端和 driver 装配仍为测试夹具 |
 | [experiments/raft-cluster/](../../experiments/raft-cluster/README.md) | 独立三进程真实磁盘与受控消息故障；直接使用正式 driver/backend，合成应用与 IPC 路由为测试夹具 |
+| [experiments/sqlite-cell/](../../experiments/sqlite-cell/README.md) | 固定 libSQL 与正式 cell/driver/backend 的真实提交与恢复合同；受限引擎及 IPC 装配为测试夹具 |
 | `tests/tooling/` | 仓库脚本自身的单元测试 |
 | `.github/` | 文档 CI、PR 与 issue 模板 |
 
@@ -40,7 +42,7 @@
 | --- | --- |
 | `crates/scap-types` | Rust；身份、错误、版本化存储类型 |
 | `crates/scap-engine` | Rust + libSQL C FFI；SQL/WAL 适配与恢复 |
-| `crates/scap-cell` | Rust；连接已有 driver 的完整业务状态机、写者/提交规则和运行调度 |
+| `crates/scap-cell` 后续扩展 | Rust；补全现有接受子集之外的生命周期、迁移、删除和归档规则；调度另设明确边界 |
 | 增量存储 / I/O 执行模块 | Rust；在已有有界 Store 与 native 后端上实现可扩展布局、大快照和多 cell 有序执行 |
 | `crates/scap-archive` | Rust；S3、manifest、恢复和 GC |
 | `crates/scap-gateway` | Rust；协议、认证、路由和会话 |

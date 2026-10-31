@@ -197,6 +197,82 @@ fn genesis_is_durable_bound_and_explicitly_reopened() {
 }
 
 #[test]
+fn nonempty_genesis_is_a_complete_atomic_application_checkpoint() {
+    let backend = Fake::default();
+    let application = vec![42; limits().max_application_bytes];
+    let store = Store::create_new_with_application(
+        backend.clone(),
+        identity(),
+        configuration(),
+        limits(),
+        application.clone(),
+    )
+    .unwrap();
+    let state = store.view().unwrap().clone();
+    assert_eq!(state.application, application);
+    assert_eq!(state.snapshot.data.as_ref(), application.as_slice());
+    assert_eq!(state.snapshot.get_metadata().index, 1);
+    assert_eq!(state.snapshot.get_metadata().term, 1);
+    assert_eq!(state.applied, 1);
+    assert_eq!(state.hard_state.commit, 1);
+    assert!(state.entries.is_empty());
+    assert_eq!(backend.0.borrow().writes, 1);
+    drop(store);
+    let reopened = Store::open_existing(backend.clone(), identity(), limits()).unwrap();
+    assert_eq!(reopened.view().unwrap(), &state);
+    assert_eq!(backend.0.borrow().writes, 1);
+    assert!(Store::create_new_with_application(
+        backend.clone(),
+        identity(),
+        configuration(),
+        limits(),
+        b"different-bootstrap".to_vec(),
+    )
+    .is_err());
+    assert_eq!(backend.0.borrow().writes, 1);
+}
+
+#[test]
+fn genesis_application_is_bounded_before_io_and_sync_errors_remain_unknown() {
+    let backend = Fake::default();
+    assert!(matches!(
+        Store::create_new_with_application(
+            backend.clone(),
+            identity(),
+            configuration(),
+            limits(),
+            vec![0; limits().max_application_bytes + 1],
+        ),
+        Err(Error::Invalid(
+            "genesis application exceeds configured bound"
+        ))
+    ));
+    assert_eq!(backend.0.borrow().requested_bound, 0);
+    assert_eq!(backend.0.borrow().writes, 0);
+    for (fault, persisted) in [(Fault::BeforeWrite, false), (Fault::AfterWrite, true)] {
+        let backend = Fake::default();
+        backend.0.borrow_mut().fault = fault;
+        let application = b"authoritative-bootstrap-policy".to_vec();
+        assert!(matches!(
+            Store::create_new_with_application(
+                backend.clone(),
+                identity(),
+                configuration(),
+                limits(),
+                application.clone(),
+            ),
+            Err(Error::Backend(_))
+        ));
+        assert_eq!(backend.0.borrow().bytes.is_some(), persisted);
+        if persisted {
+            let reopened = Store::open_existing(backend, identity(), limits()).unwrap();
+            assert_eq!(reopened.view().unwrap().application, application);
+            assert_eq!(reopened.view().unwrap().snapshot.data.as_ref(), application);
+        }
+    }
+}
+
+#[test]
 fn create_and_open_never_guess_or_reinitialize_existing_data() {
     let (_, backend) = new_store();
     assert!(matches!(

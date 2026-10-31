@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/scap-core", "crates/scap-raft-store", "crates/scap-raft-driver", "crates/scap-raft-rocks"]
-exclude = ["experiments/wal-gate", "experiments/raft-rpc", "experiments/raft-store", "experiments/raft-cluster"]
+members = ["crates/scap-core", "crates/scap-raft-store", "crates/scap-raft-driver", "crates/scap-raft-rocks", "crates/scap-cell"]
+exclude = ["experiments/wal-gate", "experiments/raft-rpc", "experiments/raft-store", "experiments/raft-cluster", "experiments/sqlite-cell"]
 resolver = "2"
 
 [workspace.package]

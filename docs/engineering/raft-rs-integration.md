@@ -1,6 +1,6 @@
 # raft-rs 集成与验收契约
 
-初始日期：2026-10-28；G0 存储与 driver 推进：2026-10-29。状态：完整接合门禁；有界 Store、正式串行 driver/native 后端与真实依赖实验已按 [ADR-0008](../adr/0008-bounded-durable-store-g0.md) / [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)进入实现，精确结果见 [G0 记录](g0-evidence.md)。三进程证据采用受控 IPC 消息故障；**不能据此宣布生产传输、SQL 接合或完整 HA 验收完成**。共识库选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
+初始日期：2026-10-28；G0 存储与 driver 推进：2026-10-29；业务接受、选举与读合同更新：2026-10-31。状态：完整接合门禁；有界 Store、正式串行 driver/native 后端与真实依赖实验已按 [ADR-0008](../adr/0008-bounded-durable-store-g0.md) / [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)进入实现，[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续加入有界 cell 和受限 SQLite 接合，精确结果见 [G0 记录](g0-evidence.md)。三进程证据采用受控 IPC 消息故障；**不能据此宣布生产传输、通用 SQL 服务或完整 HA 验收完成**。共识库选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
 
 ## 1. 范围与源码基线
 
@@ -74,7 +74,7 @@ SCAP 因而要求在每个可恢复状态上满足：`snapshot_index <= durable_
 
 正式有界后端已使用固定 RocksDB，实际范围见 [driver/native 合同](serial-driver.md)。初版保持 WAL 开启，并明确使用 sync 完成。一个原子 WriteBatch 只能覆盖同一实例内的数据；跨实例、外部 snapshot 文件或 S3 对象需要额外发布与恢复协议。不得把 write 返回、队列入队、页缓存更新或普通 flush 等同于所需持久完成。
 
-G0 采用 [有界完整镜像](durable-store.md)，先验证可恢复原子边界，再通过正式 driver/native 后端连接真实三进程。其写放大、镜像大小和合成应用限制均明确记录；可扩展布局、大快照、完整业务状态机和生产调度仍需后续实现与同等级测试。native 后端对 WAL 损坏采用严格拒绝，不以较早的一致镜像自动回退 term/vote/commit。
+G0 采用 [有界完整镜像](durable-store.md)，先验证可恢复原子边界，再通过正式 driver/native 后端连接真实三进程。写放大、镜像大小和各实验的应用边界均明确记录；有界 cell 接受子集已另行实现，可扩展布局、大快照、完整生命周期和生产调度仍需后续实现与同等级测试。native 后端对 WAL 损坏采用严格拒绝，不以较早的一致镜像自动回退 term/vote/commit。
 
 大 snapshot 先写临时版本、校验并完成文件/目录持久化，再原子发布 active generation、snapshot 位置、业务状态引用、ConfState、applied、合法 HardState/commit 与日志边界。若物理布局不能用一个 WriteBatch 发布，必须另行证明安装事务的恢复协议后才能实现。安装发布前不得 advance_append、发送依赖该安装的 persisted_messages 或开放新视图读取；文件持久不等于安装完成。发生任何错误时不能出现“新的 applied 指向旧的业务状态”，也不能恢复一半新配置一半旧日志。
 
@@ -82,11 +82,11 @@ fsync、压缩和快照不阻塞共享网络 runtime。每 cell 的有界状态�
 
 ## 6. 读、选举和 SQL writer 切换
 
-初始配置候选为 `pre_vote = true`、`check_quorum = true`、`ReadOnlyOption::Safe`，需按锁定版本验证。tick、heartbeat/election tick、实际调度迟滞和背压阈值必须进入构建/实验配置记录；此处不把某个 election timeout 当作 RTO 保证。
+正式 driver 强制 `pre_vote = true`、`check_quorum = true`、`ReadOnlyOption::Safe`。2026-10-31 的真实三进程合同覆盖 tick 触发预投票/正式投票、孤立 follower 不膨胀持久 term、单向分区中的旧读 ACK 隔离和新 leader 的 `ReadNotReady`。范围与上游 transfer 例外见 [Raft 安全边界](raft-safety.md)。tick、heartbeat/election tick、实际调度迟滞和背压阈值必须进入构建/实验配置记录；此处不把某个 election timeout 当作 RTO 保证。
 
 强读顺序：
 
-1. 为已经到达的实际请求生成唯一 context，关联 cell 实例、请求身份、主体与过期控制；调用 `read_index(context)`。
+1. 为已经到达的实际请求生成唯一 context，关联 cell 实例、请求身份、主体与过期控制；调用 `read_index(context)`。当前 term 尚无已提交条目时，正式 driver 返回非致命 `ReadNotReady`，不分配票据，待 quorum 推进后重新准入。
 2. 从后续 Ready 取得匹配的 `ReadState {index, request_ctx}`。错误、超时、重复、旧世代或不匹配结果不能完成当前请求。
 3. 等待该 cell 的持久状态机应用至少到该 index，从同一状态机视图取得数据库身份、owner、权限与提交头。
 4. 遵守 [一致性协议](../architecture/consistency.md)的 snapshot-start gate，使独立 worker 固定恰好对应 revision 的 SQLite 快照，然后开始读取。
