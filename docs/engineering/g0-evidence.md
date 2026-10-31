@@ -340,22 +340,7 @@ SQLite adapter 单元包含隔离 native connection/临时目录调用；共识�
 | 场景 | 已验证行为 |
 | --- | --- |
 | 类型化参数与 RETURNING | gate 前已完整缓冲 NULL/i64/有限实数/UTF-8/BLOB；同一 writer 文件的其他读连接只见旧值；实际业务接受后才发布 |
-| DDL 业务重试 | 先经过带 ReadIndex 的 Lookup，返回原 receipt/result，不重新执行 CREATE | 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
-| --- | --- | --- | --- | --- |
-| `crates/scap-cell/src/codec.rs` | **566 / 566** | **50 / 50** | **1114 / 1114** | **38 / 38** |
-| `crates/scap-cell/src/lib.rs` | **688 / 688** | **37 / 37** | **820 / 820** | **286 / 286** |
-| `crates/scap-core/src/lib.rs` | **40 / 40** | **2 / 2** | **38 / 38** | **10 / 10** |
-| `crates/scap-engine/src/lib.rs` | **217 / 217** | **14 / 14** | **318 / 318** | **120 / 120** |
-| `crates/scap-raft-driver/src/lib.rs` | **334 / 334** | **29 / 29** | **504 / 504** | **70 / 70** |
-| `crates/scap-raft-rocks/src/lib.rs` | **90 / 90** | **15 / 15** | **147 / 147** | **8 / 8** |
-| `crates/scap-raft-store/src/lib.rs` | **539 / 539** | **45 / 45** | **806 / 806** | **176 / 176** |
-| `crates/scap-sql/src/lib.rs` | **208 / 208** | **18 / 18** | **408 / 408** | **60 / 60** |
-| `crates/scap-sqlite/src/config.rs` | **87 / 87** | **12 / 12** | **143 / 143** | **10 / 10** |
-| `crates/scap-sqlite/src/file.rs` | **44 / 44** | **8 / 8** | **76 / 76** | **2 / 2** |
-| `crates/scap-sqlite/src/gate.rs` | **157 / 157** | **17 / 17** | **192 / 192** | **40 / 40** |
-| `crates/scap-sqlite/src/lib.rs` | **124 / 124** | **7 / 7** | **160 / 160** | **10 / 10** |
-| `crates/scap-sqlite/src/sql.rs` | **282 / 282** | **14 / 14** | **288 / 288** | **24 / 24** |
-| 合计 | **3376 / 3376** | **268 / 268** | **5014 / 5014** | **854 / 854** |，不新增 proposal |
+| DDL 业务重试 | 先经过带 ReadIndex 的 Lookup，返回原 receipt/result，不重新执行 CREATE TABLE，不新增 proposal |
 | SELECT 与零行 UPDATE | 不触发 WAL 回调也必须记录 quorum 结果；revision 连续推进，镜像可保持不变 |
 | 同批后续 SQL 失败 | 前面的写和暂定结果全部回滚，无新 proposal，writer 停止 |
 | owner fence | 成功 preflight 后先提交 ClaimOwner，原 writer 的实际物理 proposal 被 Fenced 拒绝 |
@@ -408,4 +393,4 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked
 
 同日后续 [ADR 0008](../adr/0008-bounded-durable-store-g0.md)落实有界持久策略和真实 RawNode/RocksDB 恢复实验，新增第 7 节证据；当时正式 driver/native 尚待实现。
 
-[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据。整个 G0 尚未通过，剩余工作以上述第 10 节为准。
+[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据。整个 G0 尚未通过，剩余工作以上述第 11 节为准。
