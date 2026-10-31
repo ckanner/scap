@@ -96,12 +96,31 @@ impl<B: AtomicBackend> Store<B> {
     /// Bootstrap is explicit. Every founding replica must receive the same
     /// configuration and genesis checkpoint (index=term=1, empty application).
     pub fn create_new(
-        mut backend: B,
+        backend: B,
         identity: Identity,
         conf_state: ConfState,
         limits: Limits,
     ) -> Result<Self, Error> {
+        Self::create_new_with_application(backend, identity, conf_state, limits, Vec::new())
+    }
+
+    /// Bootstrap a new group with a complete application checkpoint. Every
+    /// founding replica must receive byte-identical application/configuration
+    /// at index=term=1; authorizing that bootstrap belongs to the caller.
+    /// Opening an existing image never invokes this initialization path.
+    pub fn create_new_with_application(
+        mut backend: B,
+        identity: Identity,
+        conf_state: ConfState,
+        limits: Limits,
+        application: Vec<u8>,
+    ) -> Result<Self, Error> {
         validate_limits(limits)?;
+        if application.len() > limits.max_application_bytes {
+            return Err(Error::Invalid(
+                "genesis application exceeds configured bound",
+            ));
+        }
         match backend
             .load(limits.max_image_bytes)
             .map_err(backend_error)?
@@ -113,6 +132,7 @@ impl<B: AtomicBackend> Store<B> {
         snapshot.mut_metadata().index = 1;
         snapshot.mut_metadata().term = 1;
         snapshot.mut_metadata().set_conf_state(conf_state.clone());
+        snapshot.data = application.clone().into();
         let hard_state = HardState {
             term: 1,
             commit: 1,
@@ -125,7 +145,7 @@ impl<B: AtomicBackend> Store<B> {
             applied: 1,
             snapshot,
             entries: Vec::new(),
-            application: Vec::new(),
+            application,
         };
         validate_state(&state, limits)?;
         let image = encode(&state, limits)?;

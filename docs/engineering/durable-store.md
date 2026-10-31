@@ -1,6 +1,6 @@
 # G0 持久存储、快照与恢复边界
 
-日期：2026-10-29。实现与验证范围见 [G0 证据](g0-evidence.md)；决策见 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)。本模块是有界存储策略，尚未组成可部署的数据库服务。
+初始日期：2026-10-29；非空业务 genesis 更新：2026-10-31。实现与验证范围见 [G0 证据](g0-evidence.md)；决策见 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。本模块是有界存储策略，尚未组成可部署的数据库服务。
 
 ## 1. 代码职责
 
@@ -28,6 +28,8 @@
 
 `create_new` 要求真正的空后端；`open_existing` 要求已有合法镜像。genesis 的 index/term 为 1，HardState.term/commit 和 applied 同为 1，配置与空应用状态在同一次原子写中保存。该 checkpoint 是新组的明确初始状态，不代表已经提交了客户事务。
 
+需要非空业务状态时使用 `create_new_with_application`：先于 backend I/O 和候选复制检查应用字节上限，再把相同 application bytes 同时保存为当前应用与 genesis snapshot data。所有 founding replicas 的业务 genesis 与配置须一致；单元验证完整原子恢复、超限不接触后端，以及同步报错可能发生在写前或写后的 UNKNOWN 边界。原 `create_new` 委托该入口传入空 bytes，磁盘格式仍为 v1。
+
 恢复至少校验：
 
 - 格式与完整性、预期 cell/实例/node 身份、资源上限；
@@ -52,6 +54,8 @@ RawNode 的 `advance_append` 可能生成新的 LightReady commit 和已提交�
 
 接收的 snapshot 连同业务数据、完整 joint ConfState、snapshot 位置、applied、合法 HardState/commit 和新日志边界原子发布。拒绝回退已提交或已应用的视图；不能只保存 snapshot 文件就提前报告完成。
 
+Store 只校验 opaque application 的外层完整性与原子位置，业务 codec 仍须校验自己的不变量。`scap_cell::CellState::decode_bound` 将应用内 cell 身份、term/index、限额与同一 Store 持久视图匹配；snapshot-only 路径不调用 `Application::apply`，恢复后的业务读取不能跳过这项检查。
+
 `checkpoint_and_compact` 从已持久应用的位置形成 checkpoint，并保留匹配需要的 boundary term。后续 `Storage::snapshot(request_index, to)` 只返回实际发布的 checkpoint；请求的最低位置更高时返回暂不可用，不能从 commit 构造尚不存在的业务快照。
 
 真实 RawNode 可能在日志已经匹配 snapshot index/term 时只快进 commit。验证安装路径的测试必须使其产生真正的 snapshot Ready，不能把快进路径算作原子安装证据。
@@ -72,7 +76,7 @@ checkpoint 不保证缩小镜像：当前 application 会复制进 snapshot，�
 
 真实契约测试采用固定 raft-rs 与 RocksDB，单独验证 Ready/LightReady、投票、应用、快照、未提交后缀和进程退出后的重开。执行结果、依赖版本、同步选项和确切故障点以 [实验 README](../../experiments/raft-store/README.md)记录为准，不进入单元覆盖率分子。
 
-本阶段的应用是合成状态，不包含 SCAP 完整业务状态机或 SQLite 页面可见性。进程退出不是断电；单节点或本机消息交换不是三 AZ 可用性证据。RPO、RTO 和端到端延迟继续按 [性能合同](performance-slo.md)测量。
+`experiments/raft-store` 与 `experiments/raft-cluster` 继续使用合成应用，单独验证持久/共识契约。后续正式 [cell 业务状态机](cell-state-machine.md)及独立 [SQLite/cell 实验](../../experiments/sqlite-cell/README.md)增加有界业务接受与真实页面证据。进程退出不是断电；单节点或本机消息交换不是三 AZ 可用性证据。RPO、RTO 和端到端延迟继续按 [性能合同](performance-slo.md)测量。
 
 ## 源码依据
 

@@ -1,6 +1,6 @@
 # 串行 Raft driver 与原生存储后端
 
-日期：2026-10-29。本页描述正式模块的接口、错误和资源边界；测试计数以 [执行证据](g0-evidence.md)为准。决策见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。这里的组件尚未组成 SQL 服务。
+初始日期：2026-10-29；读准入与业务接合更新：2026-10-31。本页描述正式模块的接口、错误和资源边界；测试计数以 [执行证据](g0-evidence.md)为准。决策见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。这里的组件尚未组成 SQL 服务。
 
 ## 1. 模块边界
 
@@ -9,12 +9,17 @@
 | `scap-raft-store` | 版本化镜像、恢复校验、持久状态转换与 `raft::Storage` | 合法身份与新组创建授权 |
 | `scap-raft-rocks` | 独占目录与 RocksDB 句柄、镜像读取、WAL + sync 原子替换 | 目录生命周期、设备和挂载前提、阻塞执行安排 |
 | `scap-raft-driver` | 一个 RawNode 的串行输入、Ready/LightReady、持久 apply、读票据与有界输出 | 认证、路由、传输、逻辑 tick 调度和完整业务状态机 |
+| `scap-cell` | 纯确定性的有界业务接受、身份/owner/auth、去重和取消 | 可信准入、引擎发布、完整生命周期和服务接口 |
 
 driver 直接持有 `RawNode<Store<B>>`，不暴露可任意修改 RawNode 的入口。注入的 `Application` 接收旧应用字节和有序条目，只计算候选新字节；不能在该回调中发布 SQLite 页面、发送业务成功或执行不可回滚外部效果。配置条目由 driver 调用固定 Raft 库处理，再和应用、applied 一起保存。当前没有公开成员变更提案入口，完整生产成员管理仍待实现。
 
 ## 2. 启动与配置
 
 调用方先明确选择 `RocksBackend::create_new` 或 `open_existing`，再构造经过校验的 Store，最后建立 Driver。不能因重开失败就改走创建新组。
+
+非空业务 genesis 使用 `Store::create_new_with_application`，把应用和 genesis snapshot 原子保存；同组 founding replicas 必须使用相同应用 bytes。已有 `scap-cell` 状态在恢复或 snapshot-only 安装后，以同一 Store 视图的 cell 身份和 applied term/index 执行 `decode_bound`，不能仅凭外层 applied 开放业务读取。
+
+该 term 来自 applied 对应的 entry；若 applied 位于 snapshot 边界，则来自 snapshot metadata。不能使用当前 HardState.term 或 driver status 中较新的选举 term。
 
 driver 从 Store 取得 node identity 和 durable applied，固定 `pre_vote`、`check_quorum` 与 `ReadOnlyOption::Safe`，关闭持久前 apply、proposal forwarding 和 append batching。传入 Raft Config 的对应字段不能覆盖这组有效配置。选举参数仍需上游校验；默认选举区间的整数溢出在调用上游前拒绝。
 
@@ -43,6 +48,7 @@ driver 从 Store 取得 node identity 和 durable applied，固定 `pre_vote`、
 | 类别 | 行为 |
 | --- | --- |
 | 准入拒绝 | 输入超限、待 drain、非 leader 提案/读、读容量满等不等于已发生持久修改 |
+| `ReadNotReady` | leader 尚未提交本 term 条目；不分配票据或占 pending 容量，保持实例可用，quorum 推进后由调用方重新准入 |
 | 持久化或应用失败 | 当前 driver 停止，不返回本批成功输出；通过重新打开磁盘确定实际恢复状态 |
 | 后置输出超限 | 工作可能已经持久，属于停止错误，不能按确定未提交自动重放业务请求 |
 | panic 被外层捕获 | 修改开始前先设置停止标记；外层不能捕获后继续使用同一实例 |
@@ -56,13 +62,15 @@ Store 保证完整镜像的原子替换和恢复校验；它不自动决定 quor
 
 `ReadTicket` 含 `(boot_id, sequence)`。wire context 还包含 cluster/cell/实例/node 身份。序号不复用；旧 boot 的取消不能删除新实例请求，旧 context 不能完成新票据。
 
+准入先检查当前 term 是否已有提交。固定上游会静默忽略不满足此条件的 ReadIndex；driver 返回 `ReadNotReady`，避免创建没有后续完成路径的票据。真实三进程测试在新 leader 的 no-op 尚未 quorum 提交时检查此错误，完成提交后再验证首张 sequence=1 票据可完成。
+
 只有匹配当前待处理票据的 Safe ReadState，并且持久 applied 已达到其 index，才返回 `ReadBarrier`。已取消或无法匹配的结果不会授权其他请求；输出暂时放不下的已完成读继续留在有界队列中。
 
 取消外层请求不会立刻删除 Raft 内部待 quorum 的读。因此准入同时检查 SCAP 的 pending 集合与 Raft 的 pending read 数，不能通过反复“发读—取消”绕过容量限制。内部上下文由真实 Raft 在完成或状态重置时退休，driver 不重新实现其队列推进算法。
 
 当前只开放 leader-local ReadIndex。peer 转发读/提案不能绕过本地准入。这个约束属于首版接口范围，不是一般 Raft 协议不支持 follower read。
 
-该屏障只证明对应 Raft 请求和持久应用位置；授权、数据库 revision、owner 以及 SQLite snapshot-start gate 仍由后续业务接合完成。
+该屏障只证明对应 Raft 请求和持久应用位置；`scap-cell` 已提供同视图中的授权、数据库 revision 和 owner 校验，调用方须显式接合。精确 SQLite snapshot-start gate 与生产查询入口仍待实现。选举与租约边界见 [Raft 安全说明](raft-safety.md)。
 
 ## 6. Native backend
 
@@ -80,6 +88,6 @@ native 句柄、选项和专有 key 不对调用方开放。加载拒绝外来�
 
 [三进程实验](../../experiments/raft-cluster/README.md)使用正式模块、各自 RocksDB 和 SIGKILL，独立核对持久历史、少数派限制、恢复及真实 snapshot。父进程的 IPC 路由只提供受控消息故障模型，未实现生产 RPC/mTLS；逻辑 tick 与测试耗时不构成端到端 RTO。
 
-本轮保持完整有界镜像布局，不降低 [原有容量与写放大限制](durable-store.md)。同步 driver 需要有序阻塞执行安排；网络 runtime、多个 cell 的公平性和控制资源预留仍需独立实现。G0/G1 的 SQL、SDK、业务状态机和其他门禁没有被这些局部证据替代。
+本轮保持完整有界镜像布局，不降低 [原有容量与写放大限制](durable-store.md)。同步 driver 需要有序阻塞执行安排；网络 runtime、多个 cell 的公平性和控制资源预留仍需独立实现。有界业务接受与受限 SQLite 接合已经加入，G0/G1 的通用 SQL、SDK、完整生命周期和其他门禁仍须分别完成。
 
 上游接口与来源见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。

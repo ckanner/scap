@@ -2,6 +2,8 @@
 
 > 状态：`Proposed / Implementation Gate`。本文规定 SCAP 拟实现的协议和验收条件，不表示仓库已经实现这些保证。`libSQL virtual WAL` 的提交边界、raft-rs 的 driver 与持久化适配、精确读快照以及恢复流程都必须通过 PoC 和故障注入验证，才能对生产用户承诺本文的语义。2026-10-28 的共识库调整见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
 
+2026-10-31 实现进度：正式 driver/Store/native 后端已接入固定 raft-rs，`scap-cell` 已实现有界 owner/auth、事务接受、去重与取消规则，并有独立受限 SQLite 接合实验。PreVote、Safe ReadIndex 与 snapshot 的实测范围见 [Raft 安全边界](../engineering/raft-safety.md)；业务子集见 [cell 合同](../engineering/cell-state-machine.md)。本文其余完整生命周期、精确 SQL 读快照、生产传输和恢复承诺仍按原门禁验证，局部通过不能把整份协议标记为已实现。
+
 字段别名：本文的 `database_id` 等同于其他文档的 `db_id`，`revision` 等同于 `db_seq`；`owner_epoch` 是所有权世代简写 `epoch` 的规范名。权限世代单独命名为 `auth_epoch`，与 `owner_epoch` 不可互换。最终代码、持久格式与 wire protocol 的字段名在 `G0` 冻结，本文中的结构是协议模型，不是已冻结的接口定义。
 
 ## 1. 范围与保证

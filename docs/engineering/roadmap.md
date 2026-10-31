@@ -26,7 +26,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 ## 3. G0 的具体工作
 
-所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前已有窄提交策略、有界持久 store、正式串行 driver/native 后端，以及独立 WAL、RPC、存储恢复和三进程实验；精确计数见 [执行证据](g0-evidence.md)。增量布局、生产 peer transport、完整业务状态机、事务暂存与 SDK 返回边界仍未完成，不能将部分探针通过视为 G0 整体通过。
+所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前已有窄提交策略、有界持久 store、正式串行 driver/native 后端和有界 cell 业务接受状态机，以及独立 WAL、RPC、存储恢复、三进程与 SQLite/cell 实验；精确计数见 [执行证据](g0-evidence.md)。增量布局、生产 peer transport、完整生命周期、通用事务暂存与 SDK 返回边界仍未完成，不能将部分探针通过视为 G0 整体通过。
 
 ### 3.1 引擎适配
 
@@ -40,7 +40,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 首版采用串行同步 `Ready`：完成必要持久化后调用 `advance_append(ready)`，处理 `LightReady`，有序持久化应用结果，再调用 `advance_apply_to(durable_applied)`；先验证这些工作、消息类别和应用进度，再考虑异步持久化流水线。持久化失败不得发送 `persisted_messages` 或虚报持久推进；应用完成边界不得超前于实际可恢复的业务状态，`commit_index` 也不能落后于已持久化的应用位置。具体接口、顺序和验证出口以 [raft-rs 集成门禁](raft-rs-integration.md) 为准。
 
-[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。下一步实现可扩展布局、完整 cell 业务状态机及 SQL 接合；已有合成应用和完整镜像不充当这些交付。
+[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)再实现有界 cell 接受规则与受限 SQLite 组合，补充 PreVote、ReadIndex 和原子非空 genesis 验证。下一步把引擎与提交装配迁入正式 adapter，完成通用暂存、真实 SDK 和生产传输，再扩展布局与生命周期；受限夹具不自动成为这些产品交付。
 
 ### 3.3 运行、RPC 与依赖边界
 
@@ -77,7 +77,7 @@ sqld 与平台边界、生产身份或最小 RPC/资源契约尚未验证时，�
 
 核心已有 Rust workspace、固定 toolchain 与锁文件；后续按 [目录规划](repository-layout.md) 建立模块，并补齐各新增依赖的许可证与构建记录。TypeScript workspace 仅在 SDK / examples 开发时加入并锁定包管理器与依赖。
 
-独立引擎、RPC、存储与三进程实验使用各自 workspace；单元覆盖率、工具检查和四类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
+独立引擎、RPC、存储、三进程和 SQLite/cell 实验使用各自 workspace；单元覆盖率、工具检查和五类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
 
 ## 6. 试运行标准
 

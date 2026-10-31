@@ -647,7 +647,7 @@ fn transport_feedback_obeys_serial_input_and_stopped_boundaries() {
     ));
 }
 
-fn elect_with_peer(node: &mut Node) {
+fn elect_before_current_term_commit(node: &mut Node) -> Message {
     node.campaign().unwrap();
     let prevote = drain(node)
         .messages
@@ -675,11 +675,15 @@ fn elect_with_peer(node: &mut Node) {
     };
     response.set_msg_type(MessageType::MsgRequestVoteResponse);
     node.step(response).unwrap();
-    let append = drain(node)
+    drain(node)
         .messages
         .into_iter()
         .find(|m| m.to == 2 && m.get_msg_type() == MessageType::MsgAppend)
-        .unwrap();
+        .unwrap()
+}
+
+fn elect_with_peer(node: &mut Node) {
+    let append = elect_before_current_term_commit(node);
     let mut response = Message {
         from: 2,
         to: 1,
@@ -691,6 +695,56 @@ fn elect_with_peer(node: &mut Node) {
     node.step(response).unwrap();
     drain(node);
     assert_eq!(node.status().unwrap().role, StateRole::Leader);
+}
+
+#[test]
+fn new_leader_rejects_early_reads_without_allocating_a_lost_ticket() {
+    let (mut node, backend, _) = build(&[1, 2, 3], config());
+    let append = elect_before_current_term_commit(&mut node);
+    assert_eq!(node.status().unwrap().role, StateRole::Leader);
+    assert!(!node.node.raft.commit_to_current_term());
+    let persisted = node.view().unwrap().clone();
+    let writes = backend.writes.get();
+    for _ in 0..8 {
+        assert!(matches!(node.read_index(), Err(Error::ReadNotReady)));
+        assert!(!node.is_stopped());
+    }
+    assert!(node.pending_reads.is_empty());
+    assert_eq!(node.node.raft.pending_read_count(), 0);
+    assert_eq!(node.next_read, 1);
+    assert_eq!(node.view().unwrap(), &persisted);
+    assert_eq!(backend.writes.get(), writes);
+
+    // This single-driver fixture controls its peer boundary. The independent
+    // three-process contract exercises the actual pre-vote/vote/append path.
+    let mut response = Message {
+        from: 2,
+        to: 1,
+        term: append.term,
+        index: append.entries.last().unwrap().index,
+        ..Default::default()
+    };
+    response.set_msg_type(MessageType::MsgAppendResponse);
+    node.step(response).unwrap();
+    drain(&mut node);
+    assert!(node.node.raft.commit_to_current_term());
+    let ticket = node.read_index().unwrap();
+    assert_eq!(ticket.sequence, 1);
+    let context = node.pending_reads[&ticket.sequence].context.clone();
+    assert!(drain(&mut node).reads.is_empty());
+    let mut response = Message {
+        from: 2,
+        to: 1,
+        term: node.status().unwrap().term,
+        context: context.into(),
+        ..Default::default()
+    };
+    response.set_msg_type(MessageType::MsgHeartbeatResponse);
+    node.step(response).unwrap();
+    let completed = drain(&mut node).reads;
+    assert_eq!(completed.len(), 1);
+    assert_eq!(completed[0].ticket, ticket);
+    assert_eq!(completed[0].index, node.view().unwrap().applied);
 }
 
 #[test]

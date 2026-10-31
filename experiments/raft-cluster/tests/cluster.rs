@@ -17,7 +17,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
-const PREFIX: &str = "SCAP_CLUSTER_V1";
+const PREFIX: &str = "SCAP_CLUSTER_V2";
 const CHILD_ID: &str = "SCAP_CLUSTER_CHILD_ID";
 const CHILD_PATH: &str = "SCAP_CLUSTER_CHILD_PATH";
 const CHILD_BOOT: &str = "SCAP_CLUSTER_CHILD_BOOT";
@@ -166,6 +166,8 @@ struct Observation {
     role: u8,
     leader: u64,
     term: u64,
+    durable_term: u64,
+    durable_vote: u64,
     commit: u64,
     applied: u64,
     last: u64,
@@ -178,7 +180,7 @@ struct Observation {
 impl Observation {
     fn parse(line: &str) -> Self {
         let fields: Vec<_> = line.split_whitespace().collect();
-        assert_eq!(fields.len(), 15, "invalid response fields: {line}");
+        assert_eq!(fields.len(), 17, "invalid response fields: {line}");
         assert_eq!(fields[0], PREFIX);
         let parse = |i: usize| fields[i].parse::<u64>().unwrap();
         let result = Self {
@@ -191,6 +193,8 @@ impl Observation {
             role: u8::try_from(parse(4)).unwrap(),
             leader: parse(5),
             term: parse(6),
+            durable_term: parse(14),
+            durable_vote: parse(15),
             commit: parse(7),
             applied: parse(8),
             last: parse(9),
@@ -218,7 +222,9 @@ impl Observation {
                 fields[13].split(',').map(unhex).collect()
             },
         };
-        assert_eq!(fields[14], "END");
+        assert_eq!(fields[16], "END");
+        assert_eq!(result.term, result.durable_term);
+        assert!(result.durable_vote <= 3);
         assert!(result.snapshot <= result.applied);
         assert!(result.applied <= result.commit);
         assert!(result.commit <= result.last);
@@ -274,7 +280,7 @@ fn emit(driver: &mut DiskDriver, sequence: u64, error: Option<String>, ticket: O
             .join(",")
     };
     let line = format!(
-        "{PREFIX} {sequence} {} {} {role} {} {} {} {} {} {} {} {reads} {messages} END\n",
+        "{PREFIX} {sequence} {} {} {role} {} {} {} {} {} {} {} {reads} {messages} {} {} END\n",
         error.map_or_else(|| "-".into(), |error| hex(error.as_bytes())),
         ticket.map_or_else(
             || "-".into(),
@@ -287,6 +293,8 @@ fn emit(driver: &mut DiskDriver, sequence: u64, error: Option<String>, ticket: O
         status.last_index,
         status.snapshot_index,
         hex(&state.application),
+        state.hard_state.term,
+        state.hard_state.vote,
     );
     assert!(line.len() <= RESPONSE_LIMIT);
     let mut stdout = io::stdout().lock();
@@ -452,6 +460,8 @@ impl Node {
             role: 0,
             leader: 0,
             term: 0,
+            durable_term: 0,
+            durable_vote: 0,
             commit: 0,
             applied: 0,
             last: 0,
@@ -546,6 +556,17 @@ struct Routed {
     bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug)]
+struct VoteObservation {
+    from: u64,
+    to: u64,
+    kind: MessageType,
+    term: u64,
+    reject: bool,
+    durable_term: u64,
+    durable_vote: u64,
+}
+
 struct Cluster {
     directory: TempDir,
     test: String,
@@ -554,6 +575,7 @@ struct Cluster {
     blocked: BTreeSet<(u64, u64)>,
     queue: VecDeque<Routed>,
     reads: Vec<(u64, u128, u64, u64)>,
+    votes: Vec<VoteObservation>,
     snapshots: Vec<(u64, u64, u64)>,
     failed_snapshots: Vec<(u64, u64, u64)>,
     fail_next_snapshot_to: Option<u64>,
@@ -572,6 +594,7 @@ impl Cluster {
             blocked: BTreeSet::new(),
             queue: VecDeque::new(),
             reads: Vec::new(),
+            votes: Vec::new(),
             snapshots: Vec::new(),
             failed_snapshots: Vec::new(),
             fail_next_snapshot_to: None,
@@ -612,8 +635,9 @@ impl Cluster {
 
     fn record(&mut self, id: u64, response: &Observation) {
         self.event(format!(
-            "node={id} seq={} role={} leader={} term={} commit={} applied={} last={} snapshot={} app={:?} error={:?}",
+            "node={id} seq={} role={} leader={} term={} durable_term={} durable_vote={} commit={} applied={} last={} snapshot={} app={:?} error={:?}",
             response.sequence, response.role, response.leader, response.term,
+            response.durable_term, response.durable_vote,
             response.commit, response.applied, response.last, response.snapshot,
             response.history, response.error,
         ));
@@ -635,6 +659,29 @@ impl Cluster {
             let message = Message::parse_from_bytes(bytes).unwrap();
             assert_eq!(message.from, id);
             assert!((1..=3).contains(&message.to));
+            if matches!(
+                message.get_msg_type(),
+                MessageType::MsgRequestPreVote
+                    | MessageType::MsgRequestPreVoteResponse
+                    | MessageType::MsgRequestVote
+                    | MessageType::MsgRequestVoteResponse
+            ) {
+                let vote = VoteObservation {
+                    from: message.from,
+                    to: message.to,
+                    kind: message.get_msg_type(),
+                    term: message.term,
+                    reject: message.reject,
+                    durable_term: response.durable_term,
+                    durable_vote: response.durable_vote,
+                };
+                self.event(format!("vote emitted: {vote:?}"));
+                self.votes.push(vote);
+                assert!(
+                    self.votes.len() <= ROUTE_LIMIT,
+                    "vote history budget exhausted"
+                );
+            }
             self.queue.push_back(Routed {
                 from: message.from,
                 to: message.to,
@@ -674,56 +721,74 @@ impl Cluster {
             let Some(message) = self.queue.pop_front() else {
                 return;
             };
-            if self.blocked.contains(&(message.from, message.to)) {
-                self.event(format!(
-                    "drop {}->{} {:?}",
-                    message.from, message.to, message.kind
-                ));
-                continue;
-            }
-            if !self.nodes.contains_key(&message.to) {
-                self.event(format!(
-                    "unreachable {}->{} {:?}",
-                    message.from, message.to, message.kind
-                ));
-                if self.nodes.contains_key(&message.from) {
-                    if message.kind == MessageType::MsgSnapshot {
-                        self.ok(message.from, "snapshot", &format!("{}:failure", message.to));
-                    } else {
-                        self.ok(message.from, "unreachable", &message.to.to_string());
-                    }
-                }
-                continue;
-            }
-            if message.kind == MessageType::MsgSnapshot
-                && self.fail_next_snapshot_to == Some(message.to)
-            {
-                self.fail_next_snapshot_to = None;
-                let snapshot = Message::parse_from_bytes(&message.bytes).unwrap();
-                let index = snapshot.get_snapshot().get_metadata().index;
-                self.failed_snapshots
-                    .push((message.from, message.to, index));
-                self.event(format!(
-                    "injected snapshot delivery failure {}->{} index={index}",
-                    message.from, message.to,
-                ));
-                self.ok(message.from, "snapshot", &format!("{}:failure", message.to));
-                continue;
-            }
-            if message.kind == MessageType::MsgSnapshot {
-                let snapshot = Message::parse_from_bytes(&message.bytes).unwrap();
-                self.snapshots.push((
-                    message.from,
-                    message.to,
-                    snapshot.get_snapshot().get_metadata().index,
-                ));
-            }
-            self.ok(message.to, "step", &hex(&message.bytes));
-            if message.kind == MessageType::MsgSnapshot && self.nodes.contains_key(&message.from) {
-                self.ok(message.from, "snapshot", &format!("{}:finish", message.to));
-            }
+            self.deliver(message);
         }
         panic!("router work budget exhausted");
+    }
+
+    fn deliver_matching(&mut self, from: u64, to: u64, kind: MessageType) {
+        let position = self
+            .queue
+            .iter()
+            .position(|message| message.from == from && message.to == to && message.kind == kind)
+            .expect("actual matching Raft message must have been emitted");
+        let message = self.queue.remove(position).unwrap();
+        self.deliver(message);
+    }
+
+    fn deliver(&mut self, message: Routed) {
+        if self.blocked.contains(&(message.from, message.to)) {
+            self.event(format!(
+                "drop {}->{} {:?}",
+                message.from, message.to, message.kind
+            ));
+            return;
+        }
+        if !self.nodes.contains_key(&message.to) {
+            self.event(format!(
+                "unreachable {}->{} {:?}",
+                message.from, message.to, message.kind
+            ));
+            if self.nodes.contains_key(&message.from) {
+                if message.kind == MessageType::MsgSnapshot {
+                    self.ok(message.from, "snapshot", &format!("{}:failure", message.to));
+                } else {
+                    self.ok(message.from, "unreachable", &message.to.to_string());
+                }
+            }
+            return;
+        }
+        if message.kind == MessageType::MsgSnapshot
+            && self.fail_next_snapshot_to == Some(message.to)
+        {
+            self.fail_next_snapshot_to = None;
+            let snapshot = Message::parse_from_bytes(&message.bytes).unwrap();
+            let index = snapshot.get_snapshot().get_metadata().index;
+            self.failed_snapshots
+                .push((message.from, message.to, index));
+            self.event(format!(
+                "injected snapshot delivery failure {}->{} index={index}",
+                message.from, message.to,
+            ));
+            self.ok(message.from, "snapshot", &format!("{}:failure", message.to));
+            return;
+        }
+        if message.kind == MessageType::MsgSnapshot {
+            let snapshot = Message::parse_from_bytes(&message.bytes).unwrap();
+            self.snapshots.push((
+                message.from,
+                message.to,
+                snapshot.get_snapshot().get_metadata().index,
+            ));
+        }
+        self.event(format!(
+            "deliver {}->{} {:?}",
+            message.from, message.to, message.kind
+        ));
+        self.ok(message.to, "step", &hex(&message.bytes));
+        if message.kind == MessageType::MsgSnapshot && self.nodes.contains_key(&message.from) {
+            self.ok(message.from, "snapshot", &format!("{}:finish", message.to));
+        }
     }
 
     fn tick(&mut self, ids: &[u64], count: usize) {
@@ -806,21 +871,22 @@ impl Cluster {
     fn finish(mut self) {
         assert!(Instant::now() < self.deadline, "scenario deadline exceeded");
         self.event(format!(
-            "verification passed; read_barriers={:?}; snapshot_routes={:?}; failed_snapshot_routes={:?}",
-            self.reads, self.snapshots, self.failed_snapshots,
+            "verification passed; read_barriers={:?}; snapshot_routes={:?}; failed_snapshot_routes={:?}; votes={:?}",
+            self.reads, self.snapshots, self.failed_snapshots, self.votes,
         ));
         let directory = std::env::var_os("SCAP_CLUSTER_EVIDENCE_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("target/evidence/raft-cluster"));
         std::fs::create_dir_all(&directory).unwrap();
         let header = concat!(
-            "SCAP three-process contract evidence v1\n",
+            "SCAP three-process contract evidence v2\n",
             "raft-rs=ad13f3d90780f53aea2488c6a4b76c0d334bf136 protobuf=2.28.0\n",
             "backend=scap-raft-rocks rocksdb=0.24.0 native=10.4.2 WAL=true sync=true\n",
             "recovery=AbsoluteConsistency paranoid_checks=true\n",
             "voters=1,2,3 genesis=index1/term1 application=raw-token-delta-history(no-dedup)\n",
             "transport=bounded-parent-IPC-router fault=SIGKILL-or-controlled-message-drop-or-WAL-checksum-corruption\n",
             "logical-ticks: heartbeat=1 election=10 randomized-min=30 randomized-max=31\n",
+            "raft-policy: pre_vote=true check_quorum=true read=Safe; durable-term/vote recorded after drain\n",
             "not-validated=SQL-ACK,mTLS,TCP-faults,AZs,power-loss,RTO,throughput\n",
         );
         let file = directory.join(format!("{}.log", self.test));
@@ -1084,5 +1150,241 @@ fn corrupt_wal_is_rejected_without_reinitializing_the_replica() {
     cluster.assert_history(&[1, 2], &[(501, 31), (502, 37)]);
     let read = cluster.read(1);
     cluster.assert_read_completed(1, read);
+    cluster.finish();
+}
+
+#[test]
+fn tick_election_prevotes_before_changing_durable_term_and_vote() {
+    if child_main() {
+        return;
+    }
+    let mut cluster = Cluster::new("tick_election_prevotes_before_changing_durable_term_and_vote");
+    // The configured randomized interval is [30, 31), so no randomness or
+    // explicit campaign command is needed to reach exactly this timeout.
+    cluster.tick(&[1], ELECTION_TICKS * 3 - 1);
+    assert_eq!(cluster.nodes[&1].last.role, 0);
+    assert!(cluster.votes.is_empty());
+    let pre_candidate = cluster.ok(1, "tick", "-");
+    assert_eq!(pre_candidate.role, 3);
+    assert_eq!(pre_candidate.term, 1);
+    assert_eq!(pre_candidate.durable_term, 1);
+    assert_eq!(pre_candidate.durable_vote, 0);
+    assert_eq!(cluster.votes.len(), 2);
+    for vote in &cluster.votes {
+        assert_eq!(vote.from, 1);
+        assert!([2, 3].contains(&vote.to));
+        assert_eq!(vote.kind, MessageType::MsgRequestPreVote);
+        assert_eq!(vote.term, 2);
+        assert!(!vote.reject);
+        assert_eq!(vote.durable_term, 1);
+        assert_eq!(vote.durable_vote, 0);
+    }
+
+    // Deliver original messages one at a time. A real peer granting PreVote
+    // neither increments its durable term nor records a real vote.
+    cluster.deliver_matching(1, 2, MessageType::MsgRequestPreVote);
+    let grant = cluster.votes.last().unwrap();
+    assert_eq!(grant.kind, MessageType::MsgRequestPreVoteResponse);
+    assert_eq!((grant.from, grant.to, grant.term), (2, 1, 2));
+    assert!(!grant.reject);
+    assert_eq!((grant.durable_term, grant.durable_vote), (1, 0));
+    assert_eq!(cluster.nodes[&1].last.role, 3);
+
+    cluster.deliver_matching(2, 1, MessageType::MsgRequestPreVoteResponse);
+    let candidate = &cluster.nodes[&1].last;
+    assert_eq!(candidate.role, 1);
+    assert_eq!((candidate.durable_term, candidate.durable_vote), (2, 1));
+    let real_votes: Vec<_> = cluster
+        .votes
+        .iter()
+        .filter(|vote| vote.kind == MessageType::MsgRequestVote)
+        .collect();
+    assert_eq!(real_votes.len(), 2);
+    assert!(real_votes.iter().all(|vote| {
+        vote.from == 1 && vote.term == 2 && vote.durable_term == 2 && vote.durable_vote == 1
+    }));
+
+    // The responder must also persist its formal vote before its response is
+    // released. The candidate is still not leader until that reply is delivered.
+    cluster.deliver_matching(1, 2, MessageType::MsgRequestVote);
+    let grant = cluster.votes.last().unwrap();
+    assert_eq!(grant.kind, MessageType::MsgRequestVoteResponse);
+    assert_eq!((grant.from, grant.to, grant.term), (2, 1, 2));
+    assert!(!grant.reject);
+    assert_eq!((grant.durable_term, grant.durable_vote), (2, 1));
+    assert_eq!(cluster.nodes[&1].last.role, 1);
+    cluster.deliver_matching(2, 1, MessageType::MsgRequestVoteResponse);
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    assert!(cluster.nodes[&1].last.last > cluster.nodes[&1].last.commit);
+    // Election success alone does not establish the new term's read frontier.
+    // Reject before allocating a ticket while its no-op is only local; the
+    // fixed Raft library would otherwise silently drop this read request.
+    let early_read = cluster.request(1, "read", "-");
+    assert_eq!(early_read.error.as_deref(), Some("ReadNotReady"));
+    assert!(early_read.ticket.is_none());
+    cluster.pump();
+    let read = cluster.read(1);
+    assert_eq!(read.1, 1, "not-ready admission must not consume a ticket");
+    cluster.assert_read_completed(1, read);
+    cluster.propose(1, 601, 41);
+    cluster.assert_history(&[1, 2, 3], &[(601, 41)]);
+    assert!(cluster
+        .history
+        .iter()
+        .all(|event| !event.contains("action=campaign")));
+    cluster.finish();
+}
+
+#[test]
+fn isolated_follower_prevote_preserves_the_healthy_leaders_term() {
+    if child_main() {
+        return;
+    }
+    let mut cluster = Cluster::new("isolated_follower_prevote_preserves_the_healthy_leaders_term");
+    cluster.tick(&[1], ELECTION_TICKS * 3);
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    cluster.propose(1, 701, 43);
+    cluster.assert_history(&[1, 2, 3], &[(701, 43)]);
+    let term = cluster.nodes[&1].last.durable_term;
+    let old_vote = cluster.nodes[&3].last.durable_vote;
+    let votes_before_partition = cluster.votes.len();
+    cluster.isolate(3);
+    let mut expected = vec![(701, 43)];
+    for round in 1..=3 {
+        // Both healthy nodes continue processing ticks and actual heartbeats.
+        // Node 3 crosses three separate election timeouts in the blackhole.
+        cluster.tick(&[1, 2, 3], ELECTION_TICKS * 3);
+        assert_eq!(cluster.nodes[&1].last.role, 2);
+        assert_eq!(cluster.nodes[&1].last.term, term);
+        assert_eq!(cluster.nodes[&2].last.term, term);
+        assert_eq!(cluster.nodes[&3].last.role, 3);
+        assert_eq!(cluster.nodes[&3].last.term, term);
+        assert_eq!(cluster.nodes[&3].last.durable_term, term);
+        assert_eq!(cluster.nodes[&3].last.durable_vote, old_vote);
+        cluster.propose(1, 701 + round, round);
+        expected.push((701 + round, round));
+        cluster.assert_history(&[1, 2], &expected);
+    }
+    let isolated_votes = &cluster.votes[votes_before_partition..];
+    assert!(isolated_votes.len() >= 6);
+    assert!(isolated_votes.iter().all(|vote| {
+        vote.from == 3
+            && vote.kind == MessageType::MsgRequestPreVote
+            && vote.term == term + 1
+            && vote.durable_term == term
+            && vote.durable_vote == old_vote
+    }));
+    cluster.assert_history(&[3], &[(701, 43)]);
+
+    // Reconnect the still-running PreCandidate, not a freshly reset replacement.
+    cluster.heal();
+    cluster.tick(&[1, 2, 3], 3);
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    for id in 1..=3 {
+        assert_eq!(cluster.nodes[&id].last.term, term);
+        assert_eq!(cluster.nodes[&id].last.leader, 1);
+    }
+    cluster.assert_history(&[1, 2, 3], &expected);
+    cluster.kill(3);
+    cluster.start(3, false);
+    assert_eq!(cluster.nodes[&3].last.durable_term, term);
+    assert_eq!(cluster.nodes[&3].last.durable_vote, old_vote);
+    cluster.tick(&[1, 2], 3);
+    cluster.assert_history(&[1, 2, 3], &expected);
+    let read = cluster.read(1);
+    cluster.assert_read_completed(1, read);
+    assert!(cluster
+        .history
+        .iter()
+        .all(|event| !event.contains("action=campaign")));
+    cluster.finish();
+}
+
+#[test]
+fn one_way_partition_and_old_read_ack_cannot_complete_a_new_read() {
+    if child_main() {
+        return;
+    }
+    let mut cluster = Cluster::new("one_way_partition_and_old_read_ack_cannot_complete_a_new_read");
+    cluster.tick(&[1], ELECTION_TICKS * 3);
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    cluster.propose(1, 801, 47);
+    cluster.assert_history(&[1, 2, 3], &[(801, 47)]);
+
+    let old_ticket = cluster.ok(1, "read", "-").ticket.unwrap();
+    cluster.deliver_matching(1, 2, MessageType::MsgHeartbeat);
+    let delayed_ack = cluster
+        .queue
+        .iter()
+        .find(|message| {
+            message.from == 2
+                && message.to == 1
+                && message.kind == MessageType::MsgHeartbeatResponse
+        })
+        .expect("capture an actual peer response, not a manufactured message")
+        .clone();
+    let old_context = Message::parse_from_bytes(&delayed_ack.bytes)
+        .unwrap()
+        .context;
+    assert!(!old_context.is_empty());
+    cluster.pump();
+    cluster.assert_read_completed(1, old_ticket);
+
+    cluster.blocked.insert((2, 1));
+    cluster.blocked.insert((3, 1));
+    cluster.event(
+        "one-way partition: leader traffic reaches peers; peer replies to leader are dropped"
+            .into(),
+    );
+    let commit = cluster.nodes[&1].last.commit;
+    let new_ticket = cluster.ok(1, "read", "-").ticket.unwrap();
+    assert_ne!(old_ticket, new_ticket);
+    let fresh_heartbeat = cluster.queue.front().unwrap();
+    assert_eq!(fresh_heartbeat.kind, MessageType::MsgHeartbeat);
+    let new_context = Message::parse_from_bytes(&fresh_heartbeat.bytes)
+        .unwrap()
+        .context;
+    assert_ne!(old_context, new_context);
+    cluster.pump();
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    assert!(!cluster
+        .reads
+        .iter()
+        .any(|&(node, boot, ticket, _)| { node == 1 && (boot, ticket) == new_ticket }));
+
+    // One already captured old-context acknowledgement is delivered again;
+    // every new acknowledgement remains blocked. Original protobuf bytes and
+    // request context are retained, even though the network reorders/replays it.
+    assert!(cluster.blocked.remove(&(2, 1)));
+    cluster.event(format!(
+        "deliver captured old read ACK unchanged: old_context={} new_context={}",
+        hex(&old_context),
+        hex(&new_context),
+    ));
+    cluster.deliver(delayed_ack);
+    cluster.blocked.insert((2, 1));
+    cluster.pump();
+    assert_eq!(cluster.nodes[&1].last.role, 2);
+    assert!(!cluster
+        .reads
+        .iter()
+        .any(|&(node, boot, ticket, _)| { node == 1 && (boot, ticket) == new_ticket }));
+
+    cluster.tick(&[1], ELECTION_TICKS * 2);
+    assert_eq!(cluster.nodes[&1].last.role, 0);
+    assert_eq!(cluster.nodes[&1].last.commit, commit);
+    let rejected = cluster.request(1, "read", "-");
+    assert_eq!(rejected.error.as_deref(), Some("NotLeader"));
+    cluster.heal();
+    cluster.tick(&[2], ELECTION_TICKS * 3);
+    assert_eq!(cluster.nodes[&2].last.role, 2);
+    cluster.propose(2, 802, 53);
+    cluster.assert_history(&[1, 2, 3], &[(801, 47), (802, 53)]);
+    assert!(!cluster
+        .reads
+        .iter()
+        .any(|&(node, boot, ticket, _)| { node == 1 && (boot, ticket) == new_ticket }));
+    let recovered = cluster.read(2);
+    cluster.assert_read_completed(2, recovered);
     cluster.finish();
 }

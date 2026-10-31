@@ -26,6 +26,8 @@
 - [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：执行池、有界背压、RPC 编码、身份、健康检查和 sqld 依赖边界；生产集成仍待验证。
 - [durable-store.md](engineering/durable-store.md)：正式持久存储策略、磁盘格式、失败后停止、应用与 checkpoint，以及真实契约测试边界。
 - [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
+- [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
+- [cell-state-machine.md](engineering/cell-state-machine.md)：有界业务状态机的身份、owner/auth、事务接受、去重和取消规则。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
@@ -41,6 +43,7 @@
 - [Raft RPC 真实实验](../experiments/raft-rpc/README.md)：8 项真实 loopback 编码/传输测试已通过；不包含 RawNode、持久化、quorum 或 HA 验证。
 - [Raft/RocksDB 恢复实验](../experiments/raft-store/README.md)：真实 RawNode、同步存储与进程恢复，测试结果和限制单独记录。
 - [三进程故障实验](../experiments/raft-cluster/README.md)：正式 driver/backend 的多数派、少数派、整组重启和快照追赶；受控 IPC 故障模型。
+- [SQLite/cell 接合实验](../experiments/sqlite-cell/README.md)：真实提交前 gate、业务裁决、原生页面发布与保留物理事务恢复；不属于生产 SDK/服务。
 
 ## 文档解释规则
 

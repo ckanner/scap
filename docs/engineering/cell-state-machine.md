@@ -1,0 +1,101 @@
+# 有界 cell 数据库状态机
+
+日期：2026-10-31。正式模块：`crates/scap-cell`。本页描述 G0 的事务接受子集，不表示完整 SQL 服务、认证服务、S3 生命周期或生产接管已经实现。决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，实际测试结果见 [G0 执行证据](g0-evidence.md)。
+
+## 1. 职责与依赖
+
+`CellApplication` 实现正式 driver 的 `Application` 接口：从旧应用 bytes 和连续已提交条目计算下一份应用 bytes。它不访问外部网络、墙钟、文件或权限服务，不发布 SQLite 页面，不重新执行 SQL。driver 继续负责原子保存应用 bytes、ConfState 和 applied。
+
+`scap-core` 的 `CommitTicket`、`PreparedWrite`、`CommitReceipt` 是复用的提交绑定。Raft index 是共享 cell 的日志位置；数据库 revision 只随该库的新接受事务增加。空日志、成员配置、管理命令、重复命中和业务拒绝均推进应用位置，但不凭空增加数据库 revision。
+
+## 2. 初始化与恢复绑定
+
+新组使用明确的 bootstrap：`CellState::bootstrap` 接收 cell 身份、bootstrap 管理员、genesis term/index 和限额。当前 Store 的新组 genesis 为 `term = index = 1`。`Store::create_new_with_application` 在同一原子镜像中保存非空应用和相同的 genesis snapshot data；所有 founding replicas 必须取得相同配置与逐字节相同的应用状态。
+
+已有组必须走 `open_existing`，不能因业务状态 decode 失败重新 bootstrap。Store 格式继续为既有 v1；新增非空应用初始化不改变已有空应用数据的表示。
+
+业务状态和命令使用分别标识的版本化二进制 envelope：`SCAPCELL` / `SCAPCMD!`、版本 1、明确长度与 SHA-256。状态包含 cell 身份、完整限额、bootstrap 管理员、应用位置、数据库元数据、管理操作记录、接受的事务与取消 fence。格式校验与一致性校验都须通过；SHA-256 是损坏检测，不是认证或外部回滚防护。
+
+恢复使用 `decode_bound(bytes, cell_identity, position, limits)`，必须匹配**同一个外层 Store 持久视图**的 term/index。snapshot-only Ready 不调用业务 `apply`，所以快照安装后也不能跳过这项读取校验。应用内旧水位不能借用外层较新的 applied 对外授权。
+
+这里的 term 是 durable applied 对应条目的 `entry.term`；若 applied 恰好等于 snapshot index，则取 `snapshot.metadata.term`。当前 `HardState.term` 或 driver status 的选举 term 不能替代这个日志位置的 term。
+
+限额随状态复制，并与本地预期严格匹配。修改限额需要明确的版本/配置演进；不能让副本各自采用不同限额，对同一条日志作出不同接受结果。
+
+## 3. 身份与权限
+
+所有命令绑定 cell 身份和数据库的 `database_id / incarnation / placement_generation`。准入上下文包含 principal、credential 标识、admission 标识和 auth epoch。它们必须由可信认证/准入组件验证并绑定实际请求；客户端自报这些字段不构成认证。
+
+状态机在应用时再次核对当前复制的权限策略与 auth epoch。首版策略按主体授予数据库范围的 READ、WRITE、ADMIN 位，规范化排序，拒绝重复/非法主体、未知权限位以及没有管理员的策略。
+
+| 操作 | 状态机权限要求 |
+| --- | --- |
+| 创建数据库 | cell bootstrap 管理员及规定的初始准入版本 |
+| ClaimOwner、ActivateOwner、AuthFence | 该库当前 ADMIN 权限和当前 auth epoch |
+| Commit、ResolveOrCancel | 该库当前 WRITE 权限和当前 auth epoch |
+| 读视图、历史请求查询 | 当前 READ 权限；历史请求还须匹配原主体与请求指纹 |
+
+授权检查先于幂等命中。历史上有权限不能授权今天查询结果；知道 request ID 也不能读取其他主体的结果。当前 G0 只允许原请求主体查询该请求历史，其他主体即使是管理员也不能借此取得结果。
+
+原始准入标识随接受事务、取消 fence 和管理记录保留；不保存可直接使用的秘密凭据。重复请求使用新的合法准入进行检查，但不能覆盖历史记录的原始准入身份。
+
+bootstrap 管理员的轮换、真实凭证验签、外部撤销传播、租户目录和更细粒度权限模型尚未实现。内部 `database` 检查不能直接暴露为未受保护的用户 API。`recovery_transactions` 包含整库物理内容及各主体的原事务结果/元数据，即使用户具有 READ 权限也不能作为用户导出接口；它只供可信内部 worker 在绑定经过验证的恢复身份后调用。
+
+## 4. 所有权与激活
+
+`Create` 创建 inactive 数据库，owner 尚未分配，revision 为 0。首版没有删除或跨 cell 迁移入口，现有 database ID 不会被静默复用。
+
+写者取得执行权必须经过：
+
+1. `ClaimOwner` 校验当前管理权限与 expected owner epoch，单调增加 epoch，绑定新的 worker instance，并立即令数据库 inactive。
+2. worker 按权威历史恢复执行状态；这个实际引擎恢复过程不在纯状态机回调中执行。
+3. `ActivateOwner` 校验完整数据库 scope、当前 owner token、恢复 revision 和提交链 hash，匹配后才转为 active。
+
+新 Claim 之后，旧 owner 的新事务会被 fence。声明恢复完成不能替代引擎真实恢复证明；`ActivateOwner` 负责校验提交的恢复身份和水位，可信 worker/引擎适配器仍须保证本地文件确实与之对应。
+
+`AuthFence` 同样是有序命令：检查当前管理员权限和 expected auth epoch，递增 auth epoch 并替换规范化策略。Owner epoch 与 auth epoch 独立，不能用有效写者身份绕过用户权限撤销。
+
+管理操作有稳定 operation ID 与规范化 intent 摘要。刷新 credential/admission 标识或使用新的合法 auth epoch，不改变原管理意图；重复命中返回历史结果，不重复增加 epoch。不同主体、数据库或意图复用同 ID 会被拒绝。
+
+## 5. 事务接受与业务拒绝
+
+新 `Commit` 依次检查当前权限、完整票据 scope、请求身份、活动 owner、前序 revision、物理 payload SHA-256、事务/结果上限和保留容量。通过后原子保留完整物理 bytes、结果 bytes、原准入上下文、原 receipt、接受的 term/index 和提交链 hash，并增加该库 revision。
+
+必须区分两个摘要：
+
+- **业务 request fingerprint**：由可信入口对事务意图与绑定输入规范化生成，用于跨请求去重；不是物理页面 hash。
+- **physical payload digest**：绑定本次封存的不可变物理提案，校验存储和传递的 bytes。
+
+同一业务请求重新执行，可能生成不同随机值、时间或页内容。相同 ID、主体和业务 fingerprint 命中历史时，只能返回原 `AlreadyCommitted`，不能把新页作为新的接受结果发布。
+
+业务规则拒绝作为正常的 `Outcome::Rejected` 应用：它推进日志应用位置，不破坏后续 cell 服务。损坏编码、不可恢复的状态不变量或非连续位置则是应用错误，由 driver 停止实例；不能用“业务拒绝”隐藏坏持久状态。
+
+普通 Rejected 只裁决该 term/index 对应的这一次命令，不自动建立永久请求取消 fence。状态变化之后，同 ID 的另一条提案仍须按当时规则判定；若要保证迟到重提以后也不能接受，必须完成 `ResolveOrCancel`，不能将一次拒绝扩大解释为永久取消。
+
+该模块目前把物理事务作为有界 opaque bytes 保存并校验摘要。SQLite page format、引擎配置、正确基线、精确快照和 native publish 仍由引擎适配层验证，不能把摘要匹配理解为 SQL 语义已通过验证。
+
+## 6. UNKNOWN、取消与结果观察
+
+`Lookup::Unknown` 只说明在已验证的这个业务视图中没有记录；迟到提案仍可能在之后提交。不能将其转换为确定回滚。
+
+`ResolveOrCancel` 经同一 Raft 顺序应用：有已接受结果时返回原提交，已有取消记录时返回已取消；没有记录时持久化终止 fence。后续同身份事务不能再被接受。取消不撤销已提交事务，也不代表 SQL 之外的外部副作用被撤销。
+
+接受记录、取消 fence 和管理记录均不自动删除。达到容量上限时拒绝新增工作；不靠删除必要 fence 腾出空间。没有实现基于墙钟的记录过期、GC 或退休水位压缩。
+
+状态只保留一条带精确 term/index 的 `last_outcome` 作为最近业务命令结果。提交适配器只有在该位置确实对应本次提案时，才能将其解释为本次 Accepted/Rejected。若已被后续命令覆盖，应使用受保护的历史查询或报告 UNKNOWN，不能猜测。
+
+历史 `CommitResult` 永远保存原 receipt 与原接受位置。对重新执行产生新物理页的同业务请求，不能篡改历史 ticket 来迎合 `scap-core` 的不可变提案绑定。应丢弃新暂存、对齐权威状态并取得原结果。
+
+## 7. 读取与资源预算
+
+`authorize_read` 只执行当前业务视图中的身份、权限、active owner 校验；调用方必须先完成本次请求的 Safe ReadIndex，并把对应 Store 视图传给 `decode_bound`。返回的 ReadView 仍不是已打开的 SQLite snapshot。
+
+状态、命令、数据库数、权限条目、管理操作、每库请求数、事务 bytes 和结果 bytes 均有上限。总状态容量预留固定的应用水位与结果空间，使业务容量拒绝本身能够正常持久应用。候选修改在副本中计算，失败不部分修改原业务状态。
+
+本轮仍使用完整有界镜像，编码、验证和候选复制有明确 CPU/内存与写放大代价。它用于建立正确性边界，规模化布局、索引、大快照和批处理必须另行设计、测量和验证。
+
+## 8. 证据与剩余工作
+
+单元测试覆盖正式 domain、codec、权限、幂等、取消、位置、恢复和限额规则，精确计数由未放宽的覆盖率门禁记录。真实 SQL 接合在独立 [SQLite/cell 合同](../../experiments/sqlite-cell/README.md) 中组合固定 libSQL、正式 driver、backend 和业务状态机，不进入单元 profile。
+
+整个 G0/G1 仍受原有门禁约束：生产 peer RPC/mTLS、通用事务暂存/spill、SDK/Hrana 返回语义、完整 lifecycle、S3/GC、坏副本重建和跨 AZ 性能/RTO 均不能由本模块的局部通过结果代替。
