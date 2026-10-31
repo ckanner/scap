@@ -8,7 +8,7 @@
   "technology_decisions": "contracts/technology-decisions.json",
   "status": "g0-prototype",
   "implementation_complete": false,
-  "database_engine": "libsql-sqlite-c-fork-candidate",
+  "database_engine": "pinned-libsql-sqlite-c-fork",
   "server_language": "Rust",
   "client_language": "TypeScript",
   "scope": {
@@ -37,7 +37,7 @@
     "sql_state_machine_scope": "bounded-deterministic-acceptance-owner-auth-dedup-cancellation",
     "sql_state_machine_complete": false,
     "sqlite_cell_evidence": "experiments/sqlite-cell/README.md",
-    "production_sql_adapter_added": false,
+    "production_sql_adapter_added": true,
     "consensus_adr": "docs/adr/0006-raft-rs-consensus-library.md",
     "ready_strategy": "serial-durable-ready-explicit-apply",
     "raft_read_mode": "ReadOnlyOption::Safe",
@@ -58,7 +58,14 @@
       "atomic-sql-visibility"
     ],
     "write_authority": "cell-state-machine",
-    "etcd_is_write_authority": false
+    "etcd_is_write_authority": false,
+    "production_sql_adapter_modules": [
+      "crates/scap-engine",
+      "crates/scap-sql",
+      "crates/scap-sqlite"
+    ],
+    "sqlite_engine_evidence": "experiments/sqlite-engine/README.md",
+    "sqlite_adapter_scope": "bounded-private-connection-batch-gate-full-image-recovery"
   },
   "consistency": {
     "partition_policy": "CP",
@@ -79,7 +86,8 @@
       "worker_instance_id",
       "auth_epoch"
     ],
-    "database_commit_position": "db_seq"
+    "database_commit_position": "db_seq",
+    "implemented_sql_read_path": "bounded-transaction-with-quorum-logged-result; separate ReadIndex-only SQL snapshot API pending"
   },
   "storage": {
     "s3_upload": "asynchronous-after-accepted-commit",
@@ -127,5 +135,6 @@
     "integration_profiles_count_as_unit": false,
     "policy": "contracts/coverage-policy.json"
   },
-  "implementation_evidence": "docs/engineering/g0-evidence.md"
+  "implementation_evidence": "docs/engineering/g0-evidence.md",
+  "sqlite_adapter_review_date": "2026-10-31"
 }

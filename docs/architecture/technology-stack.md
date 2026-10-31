@@ -62,7 +62,7 @@ SCAP 可增加薄 TypeScript 包提供配置、错误分类、显式请求标识
 
 [libSQL Rust virtual WAL 接口][libsql-wal]为首选集成点。SCAP 需要在 `insert_frames(..., is_commit, ...)` 所在的提交路径处理事务页，同时覆盖 rollback、savepoint、checkpoint 和恢复；它不是一个“发送网络请求”的附加 callback。
 
-最低正确性要求如下，均属于待实现契约：
+最低正确性要求如下。正式有界 adapter 已实现提交前 gate、结果缓冲和完整镜像恢复；独立 SQL 强读、checkpoint 扩展及完整服务装配仍按门禁推进，见 [引擎合同](../engineering/sqlite-engine.md)：
 
 1. 未经 cell 接受并持久确认的事务页，只能作为暂存数据存在，不能对其他连接发布为已提交版本。
 2. 每次提交包含数据库身份与前置水位，cell 应用时再次校验，拒绝旧 writer、旧数据库实例或不连续写入。

@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台：以轻量计算单元服务大量独立数据库，以共享同步日志提供故障保障，以对象存储承载冷数据与历史。
 
-> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端和有界 cell 业务状态机，以及独立 100% 单元覆盖率门禁。真实 libSQL、RPC、磁盘恢复、三进程受控故障与 SQLite/cell 接合分别提供证据；尚未实现可部署 SQL 服务。完整生命周期、生产 peer transport、Node.js 入口、自动 SQL writer 接管和性能指标仍待实现或测量。
+> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、有界 cell 业务状态机和正式 SQLite adapter，以及独立 100% 单元覆盖率门禁。真实 libSQL、RPC、磁盘恢复、三进程受控故障与 SQLite/cell 及正式 adapter 接合分别提供证据；尚未实现可部署 SQL 服务。完整生命周期、生产 peer transport、Node.js 入口、自动 SQL writer 接管和性能指标仍待实现或测量。
 
 ## 核心决策
 
@@ -50,6 +50,8 @@
 | [Raft 安全边界](docs/engineering/raft-safety.md) | PreVote、check_quorum、Safe ReadIndex、快照和分区分别保证什么？ |
 | [cell 业务状态机](docs/engineering/cell-state-machine.md) | owner、权限版本、事务接受、幂等、取消和恢复怎样有序裁决？ |
 | [SQLite/cell 接合实验](experiments/sqlite-cell/README.md) | 真实物理事务何时允许发布，接受后崩溃如何恢复？ |
+| [正式 SQLite adapter](docs/engineering/sqlite-engine.md) | SQL 如何缓冲结果、拒绝绕过、处理幂等并从权威物理历史恢复？ |
+| [正式 adapter 故障实验](experiments/sqlite-engine/README.md) | 正式引擎与真实三副本 cell 如何验证分区、快照和接受后崩溃？ |
 | [ADR 索引](docs/adr/README.md) | 为什么这样选择，替代路线是什么？ |
 
 ## 可靠性目标与边界
@@ -74,7 +76,7 @@
 | 观测 | tracing，Prometheus；OpenTelemetry 出口按资源预算验证 |
 | 部署 | Linux / OCI 容器；生产可用 Kubernetes，编排器不承担数据库选主 |
 
-通用同步 WAL 适配、完整 cell 生命周期、自动恢复协议和生产控制面**仍是本项目需要开发的部分**。已有有界事务接受规则与受限引擎接合证据，采用现有 SDK 不意味着这些剩余能力已经存在。G0 探针分别锁定了上游 commit 与依赖；实验版本不自动成为产品版本，不能长期追随上游 `main` 或浮动 `latest`。
+正式 `scap-sql`、`scap-engine` 与 `scap-sqlite` 已实现有界事务批次、完整结果、提交前 gate 和权威物理恢复。完整 cell 生命周期、自动恢复编排、独立 SQL 强读、Node.js 入口和生产控制面**仍需实现**；现有 Rust adapter 不是已部署服务或完整 SQLite SDK 兼容承诺。G0 探针分别锁定了上游 commit 与依赖；实验版本不自动成为产品版本，不能长期追随上游 `main` 或浮动 `latest`。
 
 固定 libSQL 的 sqld 使用较早的 Axum/Hyper/Tonic/Prost 和精确 Tokio 依赖。它与平台候选栈尚未证明能统一合编；G0 必须选择并验证 fork、模块提取或独立构建/进程边界，同时重跑 Hrana/SDK 兼容测试，见 [运行与 RPC 契约](docs/engineering/runtime-and-rpc.md)。
 
@@ -90,9 +92,10 @@ cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- -
 cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1
+cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
 ```
 
-七条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码/传输、真实存储恢复、三进程受控故障和 SQLite/cell 接合，不能据此宣称完整 HA 已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
+八条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码/传输、真实存储恢复、三进程受控故障、SQLite/cell 接合和正式 adapter 故障，不能据此宣称完整 HA 已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
 
 `scap-raft-store` 负责 codec、校验和持久状态转换，`scap-raft-rocks` 兑现同步 I/O，`scap-raft-driver` 管理真实 RawNode 与确定性应用接口。G0 的完整镜像每次同步替换，具有明确限额与写放大；规模化部署前须改进布局并重新验证。模块职责与独立测试边界见 [ADR-0009](docs/adr/0009-serial-driver-and-native-backend.md)。
 
@@ -105,3 +108,5 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -
 本仓库自身的分发许可尚待维护者决定，当前不添加未经选择的开源授权。第三方组件的许可证、上游修改义务和供应链记录见组件调查；引入源码前完成核验。
 
 设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 栈、RPC、持久存储与三进程 G0 推进：**2026-10-29**；cell 状态机、选举/读故障合同与 SQL 接合：**2026-10-31**。
+
+`scap-sqlite` 只从新目录打开经过校验的逻辑镜像，每次重启从完整 cell 历史重建。前置线性化 Lookup 与提交时去重共同处理重复请求；没有 WAL 页变化的 SELECT/零行更新也记录 quorum 结果。这一有界事务 API 尚未接入 Node.js，完整镜像的成本与恢复目标仍需测量，见 [ADR-0011](docs/adr/0011-bounded-native-sqlite-adapter.md)。

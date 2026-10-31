@@ -14,5 +14,6 @@ ADR 记录背景、选择、代价和重新评审条件。当前记录为设计�
 | [0008](0008-bounded-durable-store-g0.md) | 有界持久镜像与真实 RawNode/RocksDB 恢复验证 | G0 存储策略；生产布局与完整 cell 待验 |
 | [0009](0009-serial-driver-and-native-backend.md) | 正式串行 driver、native 后端与三进程故障验证 | 正式模块与有限进程证据；完整业务/RPC/SQL 接合待验 |
 | [0010](0010-cell-acceptance-and-raft-safety.md) | 有界 cell 业务接受、非空 genesis、PreVote / Safe ReadIndex 与 SQLite 接合 | 正式接受子集与受限故障证据；完整生命周期、SDK 和生产接管待验 |
+| [0011](0011-bounded-native-sqlite-adapter.md) | 正式 SQL 类型/结果、提交前 native gate、无变化事务与完整逻辑镜像恢复 | 有界正式 adapter；完整服务、SDK、自动接管与性能待验 |
 
 新增 ADR 使用下一个编号，保留被替代记录并注明替代关系。用户或维护者改变范围时记录原因，不通过删除旧决策隐藏取舍。

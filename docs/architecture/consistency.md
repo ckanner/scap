@@ -4,6 +4,8 @@
 
 2026-10-31 实现进度：正式 driver/Store/native 后端已接入固定 raft-rs，`scap-cell` 已实现有界 owner/auth、事务接受、去重与取消规则，并有独立受限 SQLite 接合实验。PreVote、Safe ReadIndex 与 snapshot 的实测范围见 [Raft 安全边界](../engineering/raft-safety.md)；业务子集见 [cell 合同](../engineering/cell-state-machine.md)。本文其余完整生命周期、精确 SQL 读快照、生产传输和恢复承诺仍按原门禁验证，局部通过不能把整份协议标记为已实现。
 
+本阶段进一步新增 [正式 SQLite adapter](../engineering/sqlite-engine.md)：私有连接、整个 batch 的结果缓冲、前置线性化请求查询、提交前物理 gate、无变化事务的 quorum 结果记录，以及完整物理历史恢复。它尚未实现本文的独立 SQL snapshot 读 API 和自动恢复编排；当前 SELECT 经由有记录的事务路径。
+
 字段别名：本文的 `database_id` 等同于其他文档的 `db_id`，`revision` 等同于 `db_seq`；`owner_epoch` 是所有权世代简写 `epoch` 的规范名。权限世代单独命名为 `auth_epoch`，与 `owner_epoch` 不可互换。最终代码、持久格式与 wire protocol 的字段名在 `G0` 冻结，本文中的结构是协议模型，不是已冻结的接口定义。
 
 ## 1. 范围与保证

@@ -1,6 +1,6 @@
 # G0 原型执行证据与剩余门禁
 
-初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29；cell 业务状态机、选举/读合同和 SQLite 接合追加日期：2026-10-31。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。最新正式 workspace 与组合结果见第 9 节；前面的分阶段记录保留其当时范围。
+初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29；cell 业务状态机、选举/读合同和 SQLite 接合追加日期：2026-10-31。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。最新正式 workspace 与组合结果见第 10 节；前面的分阶段记录保留其当时范围。
 
 ## 1. 本次实际交付
 
@@ -40,7 +40,7 @@
 | 真实 libSQL 实验 | **13 passed，0 failed，0 ignored**：8 项引擎/子进程实验与 5 项探针合同检查 |
 | Rust 格式与 Clippy | 通过；Clippy 以 `-D warnings` 执行 |
 
-这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。最新五个正式模块、六份生产源码的覆盖计数见第 9 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
+这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。第 9 节保留当时五个正式模块、六份生产源码的计数；最新八个模块、十三份源码见第 10 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
 
 引擎实验先在上游指定 Rust 1.85.0 下完成，再用相同锁文件在 Rust 1.90.0 重新编译运行，均通过。它固定 4096 字节页面、关闭 spill、限制最多 1024 页，并使用同步测试决策。独立 fsync 页 fixture 只证明受限页面捕获/重建路径；进程退出不等于断电，也没有同步复制。
 
@@ -77,7 +77,7 @@ cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --loc
 python3 scripts/check_unit_coverage.py target/coverage/unit.json
 ```
 
-只运行正式 workspace 的 library/binary unit harness，不运行独立实验 workspace 或 integration tests；采集前清理旧 profile。store/driver 使用可控 AtomicBackend，driver 内部仍为真实 RawNode；native adapter 的单元调用使用私有 RocksDB memory Env，只有隔离目录元数据操作接触临时文件系统，不声称完成真实磁盘恢复。详细分类见[单元边界](testability-and-coverage.md)。禁止因 `cfg(coverage)` 改变产品代码，脚本同时拒绝相关源码排除。新增 bin、feature 或生成代码时必须扩展真实编译/执行矩阵，不能认为当前命令自动覆盖所有未来配置。
+只运行正式 workspace 的 library/binary unit harness，不运行独立实验 workspace 或 integration tests；采集前清理旧 profile。store/driver 使用可控 AtomicBackend，driver 内部仍为真实 RawNode；native adapter 的单元调用使用私有 RocksDB memory Env，只有隔离目录元数据操作接触临时文件系统，不声称完成真实磁盘恢复。正式 SQLite adapter 另以私有 native connection、临时目录与可控配置/文件效果验证单元行为，不把集群或进程故障混入 profile。详细分类见[单元边界](testability-and-coverage.md)。禁止因 `cfg(coverage)` 改变产品代码，脚本同时拒绝相关源码排除。新增 bin、feature 或生成代码时必须扩展真实编译/执行矩阵，不能认为当前命令自动覆盖所有未来配置。
 
 报告文件为 `target/coverage/unit.json`。CI 对每个生产源文件核对精确整数计数；缺源码、重复文件、非法计数、分支缺失或未达 100% 都失败。核心报告中若出现研究探针等未批准的生产来源也失败，不能通过从实验路径引入代码绕过分母。
 
@@ -126,7 +126,7 @@ cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- -
 
 ### 7.1 正式单元与精确覆盖率
 
-该轮按第 3 节的固定工具链采集当时的正式 workspace，**29 项单元测试通过，0 failed**：`scap-core` 10 项，`scap-raft-store` 19 项。以下是该轮历史计数，后续四模块报告见第 8 节，最新报告见第 9 节。
+该轮按第 3 节的固定工具链采集当时的正式 workspace，**29 项单元测试通过，0 failed**：`scap-core` 10 项，`scap-raft-store` 19 项。以下是该轮历史计数，后续四模块报告见第 8 节，最新报告见第 10 节。
 
 | 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
 | --- | --- | --- | --- | --- |
@@ -235,7 +235,7 @@ cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked 
 
 本轮新增正式 `scap-cell`，复用 `scap-core` 提交身份和 driver 的纯 `Application`；Store 增加非空业务 genesis 的原子初始化，driver 修复新 leader 的 ReadIndex 准入。决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，接口见 [cell 合同](cell-state-machine.md)和 [Raft 安全边界](raft-safety.md)。
 
-### 9.1 最新完整单元报告
+### 9.1 该阶段完整单元报告
 
 在新的隔离 coverage target 中，用第 3 节固定工具链和原有严格门禁重新采集全部正式 workspace：**92 passed，0 failed，0 ignored**。其中 core 10 项、store 21 项、driver 24 项、native adapter 12 项、cell 25 项。只使用单元 harness；下述三进程和真实 SQL 运行不进入这个 profile。
 
@@ -302,11 +302,98 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -
 
 `SCAP_SQLITE_CELL_EVIDENCE_DIR` 控制六份有界历史的输出位置；CI artifact 为 `sqlite-cell-evidence`。本地再次按锁文件从源码构建 native RocksDB，隔离 Rust/coverage target 只复用相同源码与 features 的 C++ 静态缓存；CI 仍自行从 native 源码构建。这些测试耗时只记录执行成本，不是 SQL 服务 p99、writer RTO、掉电 RPO 或三 AZ 可用性测量。
 
-## 10. 仍然阻断完整 G0 / HA 上线的工作
+## 10. 正式 SQLite adapter、结果与物理恢复（2026-10-31）
+
+本轮新增正式 `scap-sql`、`scap-engine`、`scap-sqlite`；固定 libSQL 从研究探针进入根 workspace，旧第三方依赖的版本、来源与 checksum 均保留。具体设计见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)与[引擎合同](sqlite-engine.md)。研究 IPC、三节点测试路由和故障编排没有进入产品运行时。
+
+### 10.1 最终完整单元门禁
+
+以第 3 节固定工具链，在独立且清理 profile 的 target 采集整个正式 workspace：**142 passed，0 failed，0 ignored**。其中 core 10、store 21、driver 24、RocksDB adapter 12、cell 25、engine 11、SQL codec 9、native SQLite/config/file adapter 30。单元报告没有混入下面的真实集群/进程测试。
+
+| 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
+| --- | --- | --- | --- | --- |
+| `crates/scap-cell/src/codec.rs` | **566 / 566** | **50 / 50** | **1114 / 1114** | **38 / 38** |
+| `crates/scap-cell/src/lib.rs` | **688 / 688** | **37 / 37** | **820 / 820** | **286 / 286** |
+| `crates/scap-core/src/lib.rs` | **40 / 40** | **2 / 2** | **38 / 38** | **10 / 10** |
+| `crates/scap-engine/src/lib.rs` | **217 / 217** | **14 / 14** | **318 / 318** | **120 / 120** |
+| `crates/scap-raft-driver/src/lib.rs` | **334 / 334** | **29 / 29** | **504 / 504** | **70 / 70** |
+| `crates/scap-raft-rocks/src/lib.rs` | **90 / 90** | **15 / 15** | **147 / 147** | **8 / 8** |
+| `crates/scap-raft-store/src/lib.rs` | **539 / 539** | **45 / 45** | **806 / 806** | **176 / 176** |
+| `crates/scap-sql/src/lib.rs` | **208 / 208** | **18 / 18** | **408 / 408** | **60 / 60** |
+| `crates/scap-sqlite/src/config.rs` | **87 / 87** | **12 / 12** | **143 / 143** | **10 / 10** |
+| `crates/scap-sqlite/src/file.rs` | **44 / 44** | **8 / 8** | **76 / 76** | **2 / 2** |
+| `crates/scap-sqlite/src/gate.rs` | **157 / 157** | **17 / 17** | **192 / 192** | **40 / 40** |
+| `crates/scap-sqlite/src/lib.rs` | **124 / 124** | **7 / 7** | **160 / 160** | **10 / 10** |
+| `crates/scap-sqlite/src/sql.rs` | **282 / 282** | **14 / 14** | **288 / 288** | **24 / 24** |
+| 合计 | **3376 / 3376** | **268 / 268** | **5014 / 5014** | **854 / 854** |
+
+13 份第一方生产源码均在 coverage map 中，所有计数精确相等；仓库脚本输出 `PASS: every production Rust source is present; unit counters are 100%.`。没有排除异常处理、adapter、native 配置或文件效果，也没有使用覆盖率条件编译。新增 `ConfigOps` 与文件效果端口让真实配置/物化流程的每一步失败都能被单位注入，同一正式策略在真实 native 调用中使用。
+
+全 workspace Rust 1.90 格式与 Clippy `--all-targets --all-features --locked -- -D warnings` 通过。Python 工具重新执行 **47 passed**，语句 **241/241**、分支 **116/116**；门禁本身的阈值与检查逻辑没有改低。
+
+SQLite adapter 单元包含隔离 native connection/临时目录调用；共识裁决由可控端口驱动，文件失败由同一效果边界注入。它们验证小范围 adapter 行为，不声称证明真实 quorum、设备断电或生产恢复；这些证明与独立实验分层。
+
+### 10.2 十一项独立真实 adapter/cell 合同
+
+`experiments/sqlite-engine` 在最终候选源码上独立完整运行 **11 passed，0 failed，0 ignored**，格式与 Clippy 通过。使用三个真实 RawNode/Driver、三个独立磁盘 RocksDB、实际 CellApplication 和正式 SqliteWriter。十一份有界证据记录均包含最终 `verification passed`，独立复读 SHA-256 一致。
+
+| 场景 | 已验证行为 |
+| --- | --- |
+| 类型化参数与 RETURNING | gate 前已完整缓冲 NULL/i64/有限实数/UTF-8/BLOB；同一 writer 文件的其他读连接只见旧值；实际业务接受后才发布 |
+| DDL 业务重试 | 先经过带 ReadIndex 的 Lookup，返回原 receipt/result，不重新执行 CREATE | 正式源文件 | 行 | 函数 | LLVM region | LLVM 分支 |
+| --- | --- | --- | --- | --- |
+| `crates/scap-cell/src/codec.rs` | **566 / 566** | **50 / 50** | **1114 / 1114** | **38 / 38** |
+| `crates/scap-cell/src/lib.rs` | **688 / 688** | **37 / 37** | **820 / 820** | **286 / 286** |
+| `crates/scap-core/src/lib.rs` | **40 / 40** | **2 / 2** | **38 / 38** | **10 / 10** |
+| `crates/scap-engine/src/lib.rs` | **217 / 217** | **14 / 14** | **318 / 318** | **120 / 120** |
+| `crates/scap-raft-driver/src/lib.rs` | **334 / 334** | **29 / 29** | **504 / 504** | **70 / 70** |
+| `crates/scap-raft-rocks/src/lib.rs` | **90 / 90** | **15 / 15** | **147 / 147** | **8 / 8** |
+| `crates/scap-raft-store/src/lib.rs` | **539 / 539** | **45 / 45** | **806 / 806** | **176 / 176** |
+| `crates/scap-sql/src/lib.rs` | **208 / 208** | **18 / 18** | **408 / 408** | **60 / 60** |
+| `crates/scap-sqlite/src/config.rs` | **87 / 87** | **12 / 12** | **143 / 143** | **10 / 10** |
+| `crates/scap-sqlite/src/file.rs` | **44 / 44** | **8 / 8** | **76 / 76** | **2 / 2** |
+| `crates/scap-sqlite/src/gate.rs` | **157 / 157** | **17 / 17** | **192 / 192** | **40 / 40** |
+| `crates/scap-sqlite/src/lib.rs` | **124 / 124** | **7 / 7** | **160 / 160** | **10 / 10** |
+| `crates/scap-sqlite/src/sql.rs` | **282 / 282** | **14 / 14** | **288 / 288** | **24 / 24** |
+| 合计 | **3376 / 3376** | **268 / 268** | **5014 / 5014** | **854 / 854** |，不新增 proposal |
+| SELECT 与零行 UPDATE | 不触发 WAL 回调也必须记录 quorum 结果；revision 连续推进，镜像可保持不变 |
+| 同批后续 SQL 失败 | 前面的写和暂定结果全部回滚，无新 proposal，writer 停止 |
+| owner fence | 成功 preflight 后先提交 ClaimOwner，原 writer 的实际物理 proposal 被 Fenced 拒绝 |
+| auth fence | preflight 后先提交 AuthFence，旧 admission 被拒绝，不发布 |
+| 分区 UNKNOWN | preflight 后隔离 leader，proposal 无 quorum、无 native 发布；新的 Safe ReadIndex 也不能完成。连通恢复后原 proposal 可以迟到提交，并从原物理历史恢复，无 SQL 自动重试 |
+| snapshot 与后端重开 | 实际 MsgSnapshot 安装到落后第三副本；正常关闭并重开三后端后，原结果、取消 fence 与完整物理数据保留 |
+| SQL/资源/目录限制 | PRAGMA、ATTACH、事务控制、临时库、虚表、扩展及越限结果被拒；旧目录/sidecar 不能复用 |
+| Accepted 后 SIGKILL | 真实 SQL 子进程被 signal 9 终止；cell 已持久接受而原生页未发布，客户端无 ACK；新目录物理恢复保留准确 randomblob 与原结果 |
+| 非确定 CHECK 的恢复 | 已合法接受的连接状态相关 CHECK 不在新连接中被重新裁决；物理 image/head 和原行保留，恢复后的违规 INSERT 仍被 `SQLITE_CONSTRAINT_CHECK` 拒绝 |
+
+初始化 DDL 也进入相同共识历史，恢复从空 Image 开始；不再借助测试 schema 的 cache_meta 表或旧 `SCAPPG01` 页格式。正式 `SCAPIMG!` v1、结果 `SCAPRES1` 和请求 fingerprint 均由生产模块生成和校验。
+
+三个 Raft 实例仍在同一父测试进程内，SQL SIGKILL 使用独立子进程；不能把本套说成生产网络、三独立 Raft OS 进程、跨 AZ 或断电测试。第 9 节与更早实验的历史记录保留其当时范围。CI 为本层新增独立 job 与 `sqlite-engine-evidence` artifact，unit artifact 仍单独采集。
+
+```bash
+cargo +1.90.0 fmt --manifest-path experiments/sqlite-engine/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/sqlite-engine/Cargo.toml --all-targets --locked -- -D warnings
+SCAP_ENGINE_EVIDENCE_DIR=/tmp/scap-engine-evidence \
+cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
+```
+
+本地隔离构建继续只复用同一已锁定源码/features 的 native RocksDB 静态缓存，Rust 与 LLVM profile 重新生成；CI 从固定 native 源码构建。测试执行时间不作为性能或 RTO 证据。
+
+### 10.3 审查中关闭的具体问题
+
+- DDL/唯一键重试可能在进入 WAL gate 前报错；新增前置线性化 Lookup，提交时仍二次裁决。
+- 无 dirty pages 不调用 gate；新增同镜像空页事务，不能绕过 quorum 返回结果。
+- 合法历史 receipt 对应的结果过大或损坏，必须保留 `CommittedButUnavailable`，不能报成未提交的 SQL 错误。
+- 默认 integrity_check 重新执行连接状态相关 CHECK 会误拒合法恢复；现在先安装安全与资源限制，仅在结构检查期间忽略 CHECK，结束必恢复，恢复失败不发布连接。新增真实回归确保业务约束并未关闭。
+- 已有目录中的旧 WAL/SHM 可污染基线；新 worker 必须独占新目录，且文件、目录和父目录的同步失败均阻断构造。
+
+正式 adapter 仍是有界完整镜像实现。每次提交的镜像复制/摘要和每次重启的全历史恢复尚未通过大库、长期容量或尾延迟验证；独立 SQL 强读、SDK、生产 transport 与自动 owner 接管仍未交付。
+
+## 11. 仍然阻断完整 G0 / HA 上线的工作
 
 - 完整、可恢复的事务暂存协议：spill、更多 page size、大事务、checkpoint 交互、错误恢复与所有可见性边界。
 - 增量存储布局、物理存储故障与安全副本重建；把正式串行 driver 接入真实生产传输、多 cell 调度与完整成员管理。
-- 将受限 SQLite/cell 装配实现为正式引擎与共识 adapter，纳入独立 100% 单元覆盖与通用真实契约；当前研究 helper 不能作为产品运行时依赖。
+- 将正式 SQLite adapter 的可信 CommitGate 接入生产身份、请求调度与网络共识服务，并完成独立 SQL 强读和自动恢复编排；研究 IPC/集群装配不能作为运行时依赖。
 - 在已有有界接受子集上补全 lifecycle、迁移、删除、管理员轮换、归档引用和安全历史回收；完成 S3/manifest/GC 的独立恢复证明。
 - Hrana / Node.js SDK 的请求身份、返回值缓冲、交互事务、UNKNOWN 和重试语义。
 - 固定 sqld 与现代平台依赖树的实际接合边界；RPC mTLS 身份、成员权限、重连/取消、全局背压与多 cell 调度验证。
