@@ -4,6 +4,8 @@
 !.env.example
 *.pem
 *.key
+# Public, synthetic parser fixture; no private key or runtime trust material.
+!crates/scap-raft-wire/fixtures/leaf.pem
 
 # Runtime and customer data
 data/

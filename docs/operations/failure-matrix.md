@@ -1,12 +1,12 @@
 # 故障模型与组件可用性矩阵
 
-> 状态：设计规范，尚未实现、部署或通过故障验证。本文的行为是实现必须满足的约束，不是现有系统能力声明。RTO 已有初始内部验收目标但均待实测；默认参数是初始设计值，不是 SLA。
+> 状态：完整目标故障规范与部分已执行证据。正式 SQLite adapter、持久 Raft 和固定成员单 cell mTLS/runtime 已有指定范围的验证；完整服务尚未部署或通过全部故障矩阵。第 3.1 节单列本轮实际范围，其余目标行为不能自动视为已有能力。RTO 已有初始内部验收目标但均待实测；默认参数是初始设计值，不是 SLA。
 
 正式引擎的当前边界见 [SQLite adapter 合同](../engineering/sqlite-engine.md)：所有失败停止 writer；已接受而 native/最终 COMMIT 失败保留 receipt 并报告已提交不可用；有效历史 receipt 的坏结果同样不伪装成未提交。重启仅从权威完整物理链创建新目录，旧文件/sidecar 不直接复用；自动调度接管尚未实现。
 
 ## 1. 适用范围和基本假设
 
-SCAP 为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQL 执行，事务先生成未对其他请求可见的 staged WAL；所属 storage cell 的 Raft 多数副本完成持久化并提交后，worker 才能发布该事务并向客户端返回成功。一个 cell 使用跨三个可用区部署的三个 Raft 副本；同一 cell 中的数据库共享这一个 Raft 组，而不是每库建立一个 Raft 组。
+SCAP 的目标服务为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQL 执行，事务先生成未对其他请求可见的 staged WAL；所属 storage cell 的 Raft 多数副本完成持久化并提交后，worker 才能发布该事务并向客户端返回成功。目标部署让一个 cell 的三个 Raft 副本跨三个可用区；当前本机三进程实验不代表三个故障域。同一 cell 中的数据库共享这一个 Raft 组，而不是每库建立一个 Raft 组。
 
 数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。etcd 保存目录和调度信息，但不是提交权威。etcd 中的锁、租约或路由指向不构成写入许可。S3 异步保存快照及 WAL segments，manifest 经 Raft 提交后才能成为可用恢复点；“上传完成”和“可回收旧数据”是不同事件。
 
@@ -95,6 +95,23 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | GC 进程退出或重试 | 数据保留增加，成本上升；用户正确性优先 | 幂等恢复清理任务 | GC 失败可延迟删除，不能反向选择“先删再确认” |
 | 监控、告警或日志收集不可用 | 不应成为事务提交或读路径依赖 | 本地有界缓冲、恢复采集；暂停高风险人工操作 | 关键安全阈值必须在服务内执行，不能依赖监控系统替服务停写 |
 | DNS / LB / 集群调度不可用 | 新连接、节点替换或 cold wake 受影响；已建立健康数据面可能继续 | 冗余基础服务；按真实故障定位 | 不因服务发现缺失直接变更数据库 incarnation |
+
+### 3.1 当前固定成员 peer 运行层的已验证范围（2026-11-01）
+
+本节对应 [正式网络运行层](../engineering/raft-network-runtime.md)、[八项真实 mTLS 契约](../../experiments/raft-network/README.md)及其独立单元测试。真实契约使用同一宿主机上的三个独立进程与 RocksDB 目录，应用内容为合成 opaque payload；它不执行 SQLite SQL，也没有 Gateway、etcd、S3 或自动 writer 接管。以下证据不把上面的目标矩阵整体改为完成。
+
+| 情况 | 已实现和实际检查 | 证据层及剩余边界 |
+| --- | --- | --- |
+| follower 连接拒绝、断连、双向黑洞 | 健康多数派继续；少数派未提交后缀不能增加 commit，新读不成功；连通恢复后追赶 | 三进程真实 TCP/mTLS；UNKNOWN 由后续有序状态解析，不把超时当回滚 |
+| 单向 Raft 回复通路失联 | 反向路由切为黑洞、正向保持 Open，新读请求不能返回成功，多数派继续 | 未导出失败 read ticket、未逐条观察 cut 后 receipt；精确旧 ACK 重放由受控集群实验承担 |
+| leader SIGKILL、整组三进程 SIGKILL 后重开 | 使用原目录保留已确认 cell 历史，重新选举、继续提交并使用新 boot 的读屏障 | 真实进程崩溃；不证明掉电、丢盘、跨 AZ RPO 或自动 SQL owner 恢复 |
+| 副本落后到日志已压缩 | 通过正式网络安装完整有界 snapshot，durable snapshot/applied 前进，再次重开仍保留 | 未实现大快照流式传输、成员替换或损坏盘自动重建 |
+| 无证书、错误 CA、过期/未授权 leaf、伪造身份 | mTLS 与当前 policy 拒绝输入；node、cell incarnation、本地 Raft 事件不能靠字段伪造绕过 | 真实网络加有限解析/日期单元；签发与 CA/授权分发控制面尚未实现 |
+| pin 轮换后旧连接和旧队列 | 原连接新请求被拒，已准入未消费消息在到期前因 policy 复核丢弃；合法替换 pin 可使用 | 同一真实连接和队列的撤销证据；不代表动态 Raft 成员变更已实现 |
+| inbox 数量/字节用尽、发送 deadline 已过 | 明确拒绝额外准入；过期发送不占新槽；只有 Received 的消息可在持久应用前消失 | 真实契约；Received 只是内存排队，不能当作已交 driver、durable quorum 或 SQL ACK |
+| 迟到/重复反馈、取消和关闭 | attempt ID、deadline、term 与 snapshot attempt 过滤；实际 worker payload 预算保持到释放；关闭新准入并取消 async 任务 | 独立受控单元与正常真实退出；同步 fsync/应用回调无法被网络 shutdown deadline 强制中断 |
+
+正式 worker 每条 delivery 新建 mTLS 连接，对端证书在新握手中验证；入站旧连接仍按每请求和消费时的当前 pin/日期检查。每次握手的 CPU、连接 churn、TIME_WAIT 与资源释放成本仍待生产负载验证。自供 incoming 的 accepted socket 已显式开启 NODELAY，设置失败拒绝连接；这次真实网络缺陷修复不构成吞吐或 p99 证明。故障检测到稳定业务窗口的 RTO 仍须按第 2 节独立测量。
 
 ## 4. 控制面与鉴权降级边界
 

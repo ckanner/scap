@@ -88,6 +88,6 @@ native 句柄、选项和专有 key 不对调用方开放。加载拒绝外来�
 
 [三进程实验](../../experiments/raft-cluster/README.md)使用正式模块、各自 RocksDB 和 SIGKILL，独立核对持久历史、少数派限制、恢复及真实 snapshot。父进程的 IPC 路由只提供受控消息故障模型，未实现生产 RPC/mTLS；逻辑 tick 与测试耗时不构成端到端 RTO。
 
-本轮保持完整有界镜像布局，不降低 [原有容量与写放大限制](durable-store.md)。同步 driver 需要有序阻塞执行安排；网络 runtime、多个 cell 的公平性和控制资源预留仍需独立实现。有界业务接受与受限 SQLite 接合已经加入，G0/G1 的通用 SQL、SDK、完整生命周期和其他门禁仍须分别完成。
+本轮保持完整有界镜像布局，不降低 [原有容量与写放大限制](durable-store.md)。2026-11-01 新增[正式单 cell 网络运行时](raft-network-runtime.md)，在专用线程通过窄 RaftDriver port 驱动本模块；[真实 mTLS 三进程实验](../../experiments/raft-network/README.md)另行验证网络故障，没有改变上面旧 IPC 实验的历史范围。多个 cell 的公平性、动态成员与服务控制面仍需实现。有界业务接受与受限 SQLite 接合已经加入，G0/G1 的通用 SQL、SDK、完整生命周期和其他门禁仍须分别完成。
 
 上游接口与来源见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。
