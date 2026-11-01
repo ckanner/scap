@@ -23,7 +23,8 @@
 - [testability-and-coverage.md](engineering/testability-and-coverage.md)：100% 单元覆盖率分母、松耦合架构与设计原则。
 - [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
 - [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
-- [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：执行池、有界背压、RPC 编码、身份、健康检查和 sqld 依赖边界；生产集成仍待验证。
+- [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：平台执行、RPC、健康检查和 sqld 依赖设计；peer 网络的当前实现见下一项。
+- [raft-network-runtime.md](engineering/raft-network-runtime.md)：正式 wire/mTLS/runtime、固定成员与撤销复核、RAII 配额、Safe ReadIndex、停止和真实网络证据边界。
 - [durable-store.md](engineering/durable-store.md)：正式持久存储策略、磁盘格式、失败后停止、应用与 checkpoint，以及真实契约测试边界。
 - [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
 - [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
@@ -35,6 +36,7 @@
 
 - [ADR 索引](adr/README.md)。
 - [ADR-0007](adr/0007-tikv-stack-and-rpc-boundaries.md)：参考 TiKV 技术栈，明确采用方向与运行/RPC 边界。
+- [ADR-0012](adr/0012-bounded-raft-network-runtime.md)：正式单 cell 网络运行时、逐次 mTLS、有限资源与回执语义。
 - [开源组件调查](research/components.md)。
 - [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
 - [TiKV Rust 技术栈审计](research/tikv-rust-stack.md)：固定发布源码、实际调用路径与锁文件；区分直接候选、借鉴设计和暂不引入。
@@ -47,6 +49,7 @@
 - [SQLite/cell 接合实验](../experiments/sqlite-cell/README.md)：真实提交前 gate、业务裁决、原生页面发布与保留物理事务恢复；不属于生产 SDK/服务。
 
 - [正式 SQLite adapter 实验](../experiments/sqlite-engine/README.md)：正式模块与真实 cell 的提交、分区、幂等、快照和进程退出恢复合同。
+- [真实 mTLS 网络实验](../experiments/raft-network/README.md)：八项正式网络/runtime 三进程合同；含分区、重启、snapshot、pin 撤销与非持久回执，不执行 SQLite SQL。
 
 ## 文档解释规则
 

@@ -32,6 +32,10 @@ v0 需要证明：
 
 [正式 SQLite adapter 合同](../../experiments/sqlite-engine/README.md)继续使用三个真实 Raft/RocksDB 实例与真实 SQL 子进程，覆盖类型化批次、前置 DDL 去重、无变化事务、整批回滚、owner/auth fence、quorum UNKNOWN、快照重开与接受后 SIGKILL。生产 SQL 逻辑来自正式 crate，测试 IPC/路由仍为夹具；不将这些执行合入 unit profile。
 
+2026-11-01 的 [正式网络运行层](raft-network-runtime.md)与[八项真实网络契约](../../experiments/raft-network/README.md)进一步组合正式 wire/transport/runtime、三个独立 OS 进程和各自 RocksDB。Raft 消息全部经过实际 mTLS 与透明 TCP 代理，parent 控制通道只负责请求和观察。它验证自动 tick/选举、连接拒绝和黑洞、少数派/单向分区、进程重启、真实 snapshot、实际证书身份与 pin 撤销，以及指定的数量/字节/deadline 边界。该层仍使用合成 opaque application payload，不执行 SQLite SQL；不能把两套分别通过的 SQL 与网络实验合称为完整服务验收。
+
+网络实验把 `Received` 当作有限内存队列准入，业务结果另经新的 Safe ReadIndex 和绑定位置的 `CellState` 检查。单向分区中的失败读只证明新读没有返回成功，没有导出失败 ticket，也没有逐条记录分区后的正向 receipt；更精确的旧 ACK/请求上下文调度由受控 `raft-cluster` 合同承担。snapshot 安装、SIGKILL 重开与应用历史有直接观察，但不等于设备掉电、丢盘或三个 AZ 的证据。故障表各项仍应按实际 oracle 逐项判定，不能整体标绿。
+
 ## 2. 测试环境与可复现记录
 
 ### 2.1 环境层级
@@ -40,7 +44,8 @@ v0 需要证明：
 | --- | --- | --- |
 | 状态机 / 模型 | 穷举关键顺序和验证不变量 | commit、owner、incarnation、manifest/GC、幂等状态的可控模型 |
 | 单进程确定性模拟 | 高频复现崩溃点、重排和响应丢失 | 可控制时钟、I/O、网络与随机种子；重放相同 seed |
-| 多进程集成 | 校验真正的 RPC、持久化和恢复路径 | 三个 Raft 副本、至少两个 worker/Gateway、etcd、S3 接口测试端 |
+| Raft 子系统真实网络 | 已有固定成员单 cell 的 RPC、持久化与进程恢复合同 | 三个独立持久副本、正式 mTLS/runtime、有限透明故障代理；不含 SQL/Gateway/S3 |
+| 完整多进程集成目标 | 校验整个服务的请求、RPC、持久化和恢复路径 | 三个 Raft 副本、至少两个 worker/Gateway、etcd、S3 接口测试端 |
 | 三故障域环境 | 验证单 AZ、分区和调度容量 | 明确节点/AZ 映射及反亲和，磁盘故障与网络隔离能力 |
 | 灰度环境 | 验证真实 SDK、工作负载与运维流程 | 合成 tenant、真实连接池、容量/权限限制、可回收数据 |
 
@@ -62,6 +67,8 @@ v0 需要证明：
 第一方生产代码要求 **单元行覆盖率 100%、单元函数覆盖率 100%、单元分支覆盖率 100%**，按实际整数计数判定，不依赖显示值四舍五入。Rust 分支必须由准确的覆盖报告实测；工具无法正确测量则标记 `TOOLING_BLOCKED` 并阻断，不用 region 或行覆盖率替代。各语言、构建配置及生产入口/适配器/异常路径的范围遵守 [覆盖率合同](testability-and-coverage.md)。
 
 单元报告只使用单元测试执行记录，集成、故障注入和人工运行不能补进分子。没有某语言生产代码时记录 `NO_PRODUCTION_CODE` / `NOT_APPLICABLE`；有代码却零分母、文件遗漏或 profile 缺失则失败，不能记成 100%。为达到门禁应重构纯决策与副作用边界、注入时间/I/O/调度依赖，不能排除难测生产代码或删除必要保护逻辑。覆盖率达标仍不代表穷尽状态组合、并发顺序或真实持久化故障。
+
+本轮 wire/transport/runtime 的正式 native/async adapter 与 `RaftDriver` 委托全部进入生产分母。隔离 native mTLS 调用只验证 adapter 参数、连接身份和效果传递；三个进程的 quorum、重启和 snapshot 历史单独运行。CI 为 `raft-network` 提供独立 job：测试命令先成功，再要求恰八份完成的事件日志；原始日志与 unit JSON 分别保留，旧日志存在不能替代本次测试退出状态。
 
 ## 3. 独立安全性 oracle
 
@@ -214,6 +221,7 @@ SQLite 文件 API、SQL 方言、C API 和远程 SDK 是不同兼容层；只通
 | 租户基数 | 库总量、活跃比例、每库大小、保留历史 | 目录、调度、Raft 状态、manifest、缓存的固定内存/磁盘成本 |
 | 事务 | 小写、批量写、最大允许事务、读写比例 | quorum fsync 延迟、排队、apply 延迟、成功/拒绝/未知率 |
 | 单 cell 共享 Raft | 热点库比例、活跃库数、事务大小偏斜 | head-of-line 阻塞、公平性、跨库尾延迟、控制记录预留能力 |
+| peer 网络实现 | 每 delivery 新 TLS、证书轮换、连接 churn、普通消息/snapshot 并发、黑洞和取消 | 握手 CPU、socket/TIME_WAIT、队列持有字节、deadline 失败和释放时间；修复 NODELAY 不等于容量验收 |
 | 冷唤醒 | 缓存命中、快照大小、增量链长度、并发唤醒 | 排队、调度、对象读取、重放、ready 各阶段 p50/p95/p99 |
 | 归档 | S3 时延、吞吐、错误率、PUT/GET 成本 | 归档积压、完整可恢复位置滞后、磁盘压力 |
 | 故障恢复 | 数据量、日志 tail、剩余 AZ 容量 | 检测、栅栏、重建、重连阶段的实测 RTO |

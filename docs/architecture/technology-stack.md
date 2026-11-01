@@ -1,17 +1,18 @@
 # 技术栈与集成契约
 
-初始查询日期：2026-10-27；Raft 选型复核：2026-10-28；TiKV 技术栈复核：2026-10-29；cell 与读准入推进：2026-10-31。状态：首期架构与部分 G0 实现；本文件区分已有模块与拟实现职责，不代表全部组件已集成或完成生产验证。
+初始查询日期：2026-10-27；Raft 选型复核：2026-10-28；TiKV 技术栈复核：2026-10-29；cell 与读准入推进：2026-10-31；正式 mTLS 与单 cell 运行层更新：2026-11-01。状态：首期架构与部分 G0 实现；本文件区分已有模块与拟实现职责，不代表全部组件已集成或完成生产验证。
 
 SCAP 首期只实现 SQLite 平台。目标是让 Node.js 应用通过现有 libSQL SDK 或兼容入口访问独立数据库，并将执行计算、提交日志与冷数据分离。详细的开源证据与替代方案见 [组件调研](../research/components.md)。
 
 ## 1. 栈总览
 
-| 模块 | 技术候选 | 主要职责 | 采用方式 |
+| 模块 | 技术选择或方向 | 主要职责 | 采用方式与状态 |
 | --- | --- | --- | --- |
-| 外部 SQL 入口 | Rust、Tokio、Axum/Tower、Hrana | TLS、认证、授权、路由、限额、会话与超时 | 复用 sqld/Hrana 实现，补平台入口 |
+| 外部 SQL 入口 | Rust、Tokio、Axum/Tower、Hrana | TLS、认证、授权、路由、限额、会话与超时 | 计划复用 sqld/Hrana 并补平台入口；尚未实现 |
 | SQL worker | Rust、libSQL SQLite C 分支、`libsql-sys` | 执行 SQL、事务管理、本地页缓存、恢复与重放 | 锁定引擎分支，集成自定义 virtual WAL |
-| durable cell | Rust、TiKV raft-rs、Tonic、RocksDB | 三副本共识、提交权威、writer fencing、每库提交头和幂等结果 | 自研 driver、持久 store 与状态机 |
-| 内部 RPC | Tonic、外层 Prost、内层 Raft protobuf-codec、mTLS/rustls 候选 | worker/cell、复制、恢复、控制面交互 | 自研版本化服务定义、编码边界与错误模型 |
+| durable cell | Rust、TiKV raft-rs、Tonic、RocksDB | 三副本共识、提交权威、writer fencing、每库提交头和幂等结果 | 正式 driver、store、状态机与单 cell owner 已实现；生命周期尚未完整 |
+| Raft peer RPC | Tokio 1.50.0、Tonic 0.14.6、Prost 0.14.3、raft protobuf-codec、mTLS/tls-ring | 固定成员复制、节点/cell 授权、有界准入与反馈 | 正式 wire/transport/runtime；真实三进程网络契约独立验证 |
+| 内部业务 RPC | Tonic、版本化业务协议 | worker/cell、Gateway、controller 的业务调用 | SQL gate、路由和控制面完整装配尚未实现 |
 | archive / restore | Rust、S3 客户端 SDK | 生成不可变对象、发布 manifest、验证恢复、回收对象 | 自研流程；复用成熟对象 SDK |
 | control plane | Rust、Axum/Tonic、etcd | 数据库目录、配置、调度意图、服务发现、生命周期协调 | 自研控制器；etcd 提供一致性元数据 |
 | Node.js SDK | TypeScript、`@libsql/client`；可选 `libsql` | 异步 SQL 默认入口、存量同步 API 兼容 | 优先采用已有客户端，薄封装必要平台能力 |
@@ -20,9 +21,9 @@ SCAP 首期只实现 SQLite 平台。目标是让 Node.js 应用通过现有 lib
 
 一个 cell 是一个 Raft 复制组，不等于一台机器，也不等于一个客户数据库。初期一个 cell 有三个持久 voting members，多个租户的小数据库共享它。计算 worker 数量随活跃库和负载变化，不为每库保留独立数据库进程或独立 Raft 集群。`Suspended` 先释放 SQL 执行资源与无引用的执行缓存，cell 仍可靠保存必要的 committed tail；达到 `Cold` 还须完成归档并满足持久热数据回收条件。二者对应同一权威 lifecycle `SUSPENDED`，不能把计算休眠等同于所有持久数据已卸载。具体规则见 [存储生命周期](storage-lifecycle.md)。
 
-这些都是本项目的设计选择。模块之间的可靠性契约必须实现并验证，不能由选用了 Rust、Raft 或 S3 自动获得。
+表中同时列出正式模块与待实现方向。模块之间的可靠性契约必须分别实现并验证，不能由选用了 Rust、Raft 或 S3 自动获得。
 
-依据 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，共识首选由 OpenRaft 调整为 `tikv/raft-rs`（crate `raft`），重视其在 TiKV 数据复制中的使用经验。OpenRaft 的高层异步接口仍有工程价值，作为替代候选保留；比较和正式 TiKV 发布对应的源码候选见 [选型调查](../research/raft-library-selection.md)。正式 `scap-raft-store` 实现 `Storage`，`scap-raft-driver` 管理真实 RawNode，`scap-raft-rocks` 提供同步 native 后端；三者已在独立三进程故障合同中组合验证。`scap-cell` 继续实现有界业务接受规则与版本化状态。RPC 目前是单独的 codec/transport 实验，生产传输接合、完整生命周期与 SQL 服务尚未完成。
+依据 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，共识首选由 OpenRaft 调整为 `tikv/raft-rs`（crate `raft`），重视其在 TiKV 数据复制中的使用经验。OpenRaft 的高层异步接口仍有工程价值，作为替代候选保留；比较和正式 TiKV 发布对应的源码候选见 [选型调查](../research/raft-library-selection.md)。正式 `scap-raft-store` 实现 `Storage`，`scap-raft-driver` 管理真实 RawNode，`scap-raft-rocks` 提供同步 native 后端；三者已在独立三进程故障合同中组合验证。`scap-cell` 实现有界业务接受规则与版本化状态。新增 `scap-raft-wire`、`scap-raft-transport` 和 `scap-raft-runtime` 将固定成员单 cell 接入正式 mTLS、有限队列和自动 tick，见 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)。完整生命周期、外部 SQL/SDK 与自动 writer 接管仍未完成。
 
 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md)基于 TiKV 正式版本的 manifest、lock 与调用路径核对，保留本项目 Tokio/Axum/Tonic 方向。TiKV 主 RPC 实际使用 grpcio、状态 HTTP 使用 Hyper；其云 SDK 中出现 Tonic 不等于主服务采用 Tonic。具体组件、fork、native 版本与取舍见 [技术栈审计](../research/tikv-rust-stack.md)和[机器可读决策](../../contracts/technology-decisions.json)，不整体复制 TiKV 依赖树。
 
@@ -37,6 +38,8 @@ SQLite C 调用、RocksDB 同步写、压缩和大对象处理不得长时间占
 进程隔离按租户等级设计：共享进程适合平台受控 SQL，独立 worker/process 用于更强的资源和故障隔离。native SQL extension 与应用自定义代码不开放给普通租户任意加载。
 
 队列同时按数量和字节限额；Raft 控制流、SQL、持久化、归档与管理接口有各自资源预算。独立线程或 HTTP/2 stream 不自动证明隔离，必须验证过载和大流量下的心跳、管理与租户尾延迟。编码、mTLS 身份、deadline、健康检查、日志桥接与配置的完整约束见 [运行与 RPC 契约](../engineering/runtime-and-rpc.md)。
+
+当前 peer runtime 使用调用方提供的专用阻塞 owner 线程，每个 peer 的 ordinary/snapshot 各有一个异步 worker，所有发送共享有限实际 payload 预算。每条 delivery 新建 mTLS 连接，在同一绝对 deadline 内完成排队、握手和发送；这使出站服务端证书每次握手重新验证，也增加 TCP/TLS、socket 与 TIME_WAIT 成本，尚未证明生产吞吐或 p99。server 的自供 incoming 对 accepted socket 显式设置 NODELAY；全局连接预算在 accept 前预留，RPC 预算在解码前预留。`Received` 只表示进入有限 inbox，消息消费时还要复核权限，不能当作已经交给 driver 或已持久化。详细实现与限制见 [网络运行层](../engineering/raft-network-runtime.md)。
 
 ## 3. SQL 引擎、协议与客户端
 
@@ -105,7 +108,7 @@ raft-rs 负责共识过程，SCAP 的 driver 负责驱动和持久化集成，SC
 - 首版采用同步持久 Ready，调用 `advance_append` 后完整处理 `LightReady`，有序持久应用，再调用 `advance_apply_to(durable_applied)`；不提前引入异步 Ready 流水线。
 - 空条目、拒绝、去重命中和成员变更均推进真实 applied。vote、日志替换、snapshot 安装与压缩不得形成不可恢复视图。
 
-SCAP 的 RocksDB adapter 与 Tonic transport 必须自行实现，不能把内存 store 或网络入队当作持久副本。鉴权、cell/node 身份、连接限额、重试与消息大小也不由共识库自动提供。
+SCAP 已自行实现正式 RocksDB adapter 与有界 Tonic peer transport；不能把内存 store 或网络入队当作持久副本。鉴权、cell/node 身份、连接限额、重试与消息大小由相应正式模块承担，不由共识库自动提供；外部 SQL 身份、动态成员和控制面仍按后续门禁推进。
 
 首版采用 **持久状态机**。业务变更、完整 `ConfState`、最后应用位置与请求去重记录原子保存；durable commit 必须先于或同批覆盖 durable applied。[上游集成说明][raft-lib]特别指出，条目已持久并 committed，不代表 commit index 已在应用前落盘。禁止重启时用 `max(commit, applied)` 掩盖不一致。完整实现顺序与门禁见 [raft-rs 集成契约](../engineering/raft-rs-integration.md)。
 
@@ -121,7 +124,7 @@ RocksDB 的 WAL 与 SCAP 复制的数据库事务日志是两层不同日志。�
 
 TiKV 使用自己的 rust-rocksdb fork 和固定 native 子模块，不等于任意 crates.io 同名 binding。本项目在真实 sync、WriteBatch、checkpoint、恢复与构建验证后锁定 binding/native/features；暂不同时引入独立 Raft Engine，以免未经验证地增加跨引擎恢复组合。对应上游事实见 [技术栈审计](../research/tikv-rust-stack.md)。
 
-G0 已固定 rust-rocksdb `0.24.0` / native RocksDB `10.4.2`。正式 `scap-raft-rocks` 以 WAL 开启、sync WriteBatch 原子替换完整有界镜像，`scap-raft-driver` 管理真实 RawNode 的串行顺序；这不是 TiKV 的 fork 组合。格式、资源限制和写放大见 [持久 store 契约](../engineering/durable-store.md)，运行与恢复边界见 [driver 合同](../engineering/serial-driver.md)和[三进程实验](../../experiments/raft-cluster/README.md)。生产传输、完整生命周期与规模化布局仍需实现。
+G0 已固定 rust-rocksdb `0.24.0` / native RocksDB `10.4.2`。正式 `scap-raft-rocks` 以 WAL 开启、sync WriteBatch 原子替换完整有界镜像，`scap-raft-driver` 管理真实 RawNode 的串行顺序；这不是 TiKV 的 fork 组合。格式、资源限制和写放大见 [持久 store 契约](../engineering/durable-store.md)，运行与恢复边界见 [driver 合同](../engineering/serial-driver.md)、[受控三进程实验](../../experiments/raft-cluster/README.md)和[真实 mTLS 网络实验](../../experiments/raft-network/README.md)。完整生命周期、自动副本重建与规模化布局仍需实现。
 
 ### 5.4 读屏障与 SDK 重试
 
@@ -174,14 +177,14 @@ libSQL 仓库采用 MIT；[raft-rs][raft-repo]采用 Apache-2.0；RocksDB 官方
 
 ## 9. 候选变成已选定组件的条件
 
-当前五个正式模块及其 codec 均纳入精确 100% 单元覆盖门禁，独立 WAL、RPC、RawNode/RocksDB 恢复、三进程故障和受限 SQLite/cell 合同的结果见 [G0 证据](../engineering/g0-evidence.md)。完整生命周期、生产 SQL/RPC 接合和规模化验证尚未完成。以下结果决定是否继续使用候选：
+所有正式模块及其 codec、native/async adapter、runtime driver 委托均纳入精确 100% 单元覆盖门禁。独立 WAL、codec RPC、持久恢复、受控三进程、SQLite/cell、正式 SQLite adapter 与真实 mTLS 网络合同分别记录，最终完整计数见 [G0 证据](../engineering/g0-evidence.md)。正式网络合同采用合成应用 payload，不执行 SQLite SQL；完整 SQL/SDK 网络装配、生命周期和规模化验证尚未完成。以下结果决定是否继续使用候选：
 
 - libSQL virtual WAL：提交可见性、事务撤销与恢复都满足要求，目标 SDK 和导入格式验证通过。
 - raft-rs/RocksDB：真实 Ready/LightReady 契约、持久 commit/applied、掉电/进程崩溃/磁盘故障和快照恢复通过，未出现虚假持久 ACK。
 - cell：旧 writer、drop/recreate、结果未知重试、只读屏障和成员变更的安全性得到故障注入证据。
 - S3：manifest 与数据对象的发布/回收顺序可恢复，兼容服务通过所需操作验证。
 - 运行时：长查询、冷启动和 compaction 不造成无界线程、内存或跨租户饥饿。
-- RPC/依赖接合：原始消息与版本边界、生产 mTLS、背压/取消，以及所选 sqld/平台组合的真实 SDK 行为通过验证。
+- RPC/依赖接合：保留本轮固定成员 mTLS、版本、准入和取消证据，继续验证 SQL gate、证书控制面、所选 sqld/平台组合与真实 SDK 行为。
 
 Bottomless、Litestream 的常规异步备份不能替代以上测试。若首期无法完成同步提交、fencing 或其他正确性门禁，必须停止 HA 上线，相关产物只作为实验原型；不能用现有架构文档授权降低产品保障。产品范围或可靠性合同的变更需要新的 ADR 和维护者明确决定，再同步修改需求、接口及验收条件。
 

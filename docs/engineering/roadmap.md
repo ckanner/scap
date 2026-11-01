@@ -26,7 +26,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 ## 3. G0 的具体工作
 
-所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前已有窄提交策略、有界持久 store、正式串行 driver/native 后端、有界 cell 业务状态机和正式 SQLite adapter，以及独立 WAL、RPC、存储恢复、三进程、SQLite/cell 与正式 adapter 实验；精确计数见 [执行证据](g0-evidence.md)。增量布局、生产 peer transport、完整生命周期、通用事务暂存与 SDK 返回边界仍未完成，不能将部分探针通过视为 G0 整体通过。
+所有生产代码遵守 [100% 单元覆盖率与可测架构](testability-and-coverage.md)，每个阶段同时核查 [性能与恢复目标](performance-slo.md) 的适用部分。当前已有窄提交策略、有界持久 store、正式串行 driver/native 后端、有界 cell 业务状态机、正式 SQLite adapter，以及固定成员单 cell 的正式 mTLS peer transport 与自动 runtime。独立 WAL、codec RPC、持久恢复、受控三进程、SQLite/cell、正式 adapter 和真实网络实验分别提供证据，精确计数见 [执行证据](g0-evidence.md)。增量布局、SQL/SDK 网络入口、自动 writer 接管、多 cell 调度、完整生命周期与通用事务暂存仍未完成，不能将部分契约通过视为 G0 整体通过。
 
 ### 3.1 引擎适配
 
@@ -40,15 +40,15 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 首版采用串行同步 `Ready`：完成必要持久化后调用 `advance_append(ready)`，处理 `LightReady`，有序持久化应用结果，再调用 `advance_apply_to(durable_applied)`；先验证这些工作、消息类别和应用进度，再考虑异步持久化流水线。持久化失败不得发送 `persisted_messages` 或虚报持久推进；应用完成边界不得超前于实际可恢复的业务状态，`commit_index` 也不能落后于已持久化的应用位置。具体接口、顺序和验证出口以 [raft-rs 集成门禁](raft-rs-integration.md) 为准。
 
-[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)再实现有界 cell 接受规则与受限 SQLite 组合，补充 PreVote、ReadIndex 和原子非空 genesis 验证。[ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)把类型化 SQL、结果缓冲、前置去重、native gate 与全历史镜像恢复纳入正式 adapter。下一步完成生产传输、独立 SQL 强读、真实 SDK 与恢复编排，再扩展暂存能力、布局与生命周期；受限夹具不自动成为这些产品交付。
+[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)再实现有界 cell 接受规则与受限 SQLite 组合，补充 PreVote、ReadIndex 和原子非空 genesis 验证。[ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)把类型化 SQL、结果缓冲、前置去重、native gate 与全历史镜像恢复纳入正式 adapter。[ADR-0012](../adr/0012-bounded-raft-network-runtime.md)继续落实正式 wire/mTLS/runtime 与三进程真实 TCP 故障证据。下一步连接 SQL gate、独立 SQL 强读、可信服务身份和真实 SDK，并补自动 writer 恢复编排，再扩展暂存能力、布局与生命周期；受限夹具不自动成为这些产品交付。
 
 ### 3.3 运行、RPC 与依赖边界
 
 先明确 sqld 与平台的接合方案：维护经过评审的 fork、提取必要模块，或通过独立构建/进程边界连接。记录两侧真实依赖、features、代码生成器和协议版本，并在选定组合上验证 Hrana/SDK。不能为统一 Axum/Tonic/Tokio 版本而直接假设旧 sqld 兼容性不变。
 
-现有 RPC 实验仅验证外层 Prost envelope 透传内层 raft-rs `protobuf-codec` 原始字节、字段/版本/大小拒绝与真实 loopback 往返。下一步补齐生产 mTLS、节点与 cell 授权、未知版本处理和有界准入；字段匹配与解码回执都不能代替身份认证或持久完成。
+早期 `raft-rpc` 实验仅验证外层 Prost envelope 透传内层 raft-rs `protobuf-codec` 原始字节、字段/版本/大小拒绝与真实 loopback 往返。2026-11-01 的正式 wire/transport/runtime 已补齐固定成员的 mTLS、实际 leaf pin 与 node/cell 授权、有限消息解析、连接/RPC/inbox/发送预算和绝对 deadline。`Received` 只表示排队成功，尚未保证交给 driver，消费时还要复核授权和有效期。
 
-将 transport 接到真实 RawNode 与持久存储后，按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)验证消息类别、拥塞、断连、重复、慢盘和进程重启。禁止由 gRPC 接收成功推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。G1 继续完成 quorum/恢复故障证明；多 cell 公平性、批处理与恢复干扰进入相应容量和 SLO 测量。
+[真实网络契约](../../experiments/raft-network/README.md)已用三个独立 RawNode/RocksDB 进程执行真实 mTLS、自动 tick、连接拒绝/黑洞、单向分区、重启、snapshot、pin 撤销和有限 inbox 场景；合成 payload 不执行 SQLite SQL。后续按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)补 SQL 完整装配、证书控制面、慢盘/丢盘、动态成员及容量证据。当前每条 delivery 新建 TLS 连接，握手 CPU、socket/TIME_WAIT 和尾延迟必须实测，不能把 NODELAY 修复或八场景通过当成性能达标。禁止由 gRPC 接收成功推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。
 
 ### 3.4 客户端与备选基线
 
@@ -60,7 +60,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 如果 WAL 接口不能安全控制可见性，或持久存储契约无法证明，停止扩展产品功能，重新选择底座。可选择缩小兼容范围、集中维护引擎 patch，或重评已有复制引擎；不得在提交后上传数据来假装满足门禁。
 
-sqld 与平台边界、生产身份或最小 RPC/资源契约尚未验证时，保持 G0 未完成。独立编码/传输实验通过不能用来豁免这些项目，也不触发性能或 HA 承诺。
+固定成员的 peer RPC/资源子集已有实现与证据；sqld/SDK 边界、外部身份、SQL gate 与网络服务的完整装配仍未完成，因此 G0 保持未通过。现有网络结果不豁免动态成员、证书控制面、多 cell、公平性或性能验收，也不触发 HA 承诺。
 
 ## 4. G1–G3 的实现顺序
 
@@ -77,7 +77,7 @@ sqld 与平台边界、生产身份或最小 RPC/资源契约尚未验证时，�
 
 核心已有 Rust workspace、固定 toolchain 与锁文件；后续按 [目录规划](repository-layout.md) 建立模块，并补齐各新增依赖的许可证与构建记录。TypeScript workspace 仅在 SDK / examples 开发时加入并锁定包管理器与依赖。
 
-独立引擎、RPC、存储、三进程和 SQLite/cell 实验使用各自 workspace；单元覆盖率、工具检查和六类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
+独立引擎、codec RPC、存储、受控三进程、SQLite/cell、正式 SQLite adapter 和真实网络实验使用各自 workspace；单元覆盖率、工具检查和七类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
 
 ## 6. 试运行标准
 

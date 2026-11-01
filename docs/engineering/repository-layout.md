@@ -23,6 +23,9 @@
 | `crates/scap-raft-store/` | Rust；有界持久状态策略、codec/校验与 raft::Storage；最终 I/O 通过 AtomicBackend 注入 |
 | `crates/scap-raft-driver/` | Rust；正式单 cell 串行 RawNode driver、读票据、预算与应用次序 |
 | `crates/scap-raft-rocks/` | Rust；正式独占 RocksDB 后端，目录准入与 WAL + sync 原子镜像 |
+| `crates/scap-raft-wire/` | Rust；固定 envelope、有限 protobuf 预检、实际 leaf pin/日期与 cell/node 授权 |
+| `crates/scap-raft-transport/` | Rust；正式 Tonic mTLS peer server/client，全局连接/RPC 预算与绝对 deadline |
+| `crates/scap-raft-runtime/` | Rust；单 cell 串行 owner、自动 tick、有限请求/inbox、读和反馈；ordinary/snapshot 异步发送；含正式 `RaftDriver` 委托 |
 | `crates/scap-cell/` | Rust；有界确定性业务状态机，身份、owner/auth、事务接受、去重、取消和版本化 codec |
 | `crates/scap-sql/` | Rust；有界请求类型、精确请求 fingerprint 与完整结果 codec |
 | `crates/scap-engine/` | Rust；版本化物理页事务、完整逻辑镜像与权威历史恢复 |
@@ -33,10 +36,13 @@
 | [experiments/raft-cluster/](../../experiments/raft-cluster/README.md) | 独立三进程真实磁盘与受控消息故障；直接使用正式 driver/backend，合成应用与 IPC 路由为测试夹具 |
 | [experiments/sqlite-cell/](../../experiments/sqlite-cell/README.md) | 固定 libSQL 与正式 cell/driver/backend 的真实提交与恢复合同；受限引擎及 IPC 装配为测试夹具 |
 | [experiments/sqlite-engine/](../../experiments/sqlite-engine/README.md) | 正式 SQLite adapter 与真实 cell 的独立故障合同，含 SQL 子进程被杀 |
+| [experiments/raft-network/](../../experiments/raft-network/README.md) | 三个独立进程使用正式 wire/transport/runtime 与 RocksDB；端到端 mTLS、透明 TCP 故障代理、重启和 snapshot；合成 payload 不执行 SQLite SQL |
 | `tests/tooling/` | 仓库脚本自身的单元测试 |
-| `.github/` | 文档 CI、PR 与 issue 模板 |
+| `.github/` | 文档、独立单元覆盖和真实依赖/故障 CI；PR 与 issue 模板 |
 
 本轮技术栈的事实依据放在 [TiKV 审计](../research/tikv-rust-stack.md)，取舍放在 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md)，实现必须遵守 [运行与 RPC 契约](runtime-and-rpc.md)。机器可读清单登记选择与证据；实验 README 记录实际版本、运行结果和未验证边界，各自不能替代产品实现。
+
+正式单 cell peer 网络的当前边界见 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)和[模块合同](raft-network-runtime.md)。运行代码只位于正式 crates；实验中的控制协议、证书夹具、透明代理和子进程编排不作为产品依赖。生产服务入口、外部 SQL/SDK 和自动 writer 接管仍待实现。
 
 ## 2. 实现阶段的规划结构
 
@@ -52,7 +58,7 @@
 | `crates/scap-controller` | Rust；生命周期与目录 reconciliation |
 | `crates/scap-observability` | Rust；受控指标、链路和审计 |
 | `bin/` | Rust 服务入口及受控运维 CLI |
-| `proto/` | 自有版本化 Protobuf 与 Raft 外层 envelope；先定义契约，再生成代码 |
+| 后续业务 `proto/` | SQL/控制面自有版本化协议；当前 peer schema 已放在 `crates/scap-raft-transport/proto/peer.proto`，最小服务直接由正式源码实现 |
 | `sdk/typescript/` | 薄 SDK、管理 API、错误和请求身份封装 |
 | `examples/node/` | 原生 SDK / ORM 接入样例 |
 | `tests/` | 契约、状态机、故障注入、兼容与恢复测试 |
@@ -66,7 +72,7 @@
 
 ## 4. 工具链与版本
 
-当前 Rust 核心已有固定 toolchain 和 `Cargo.lock`；引擎和 RPC 探针各自独立锁定上游 commit 与依赖，所测版本不自动成为产品依赖。本阶段正式 sys/WAL adapter 在根 workspace 固定同一 libSQL revision，边界见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)。第一批 TypeScript 代码合入时提交包管理器版本与锁文件。依赖升级必须同时考虑 RPC、日志、磁盘、对象格式和 SDK 兼容性。
+当前 Rust 核心已有固定 toolchain 和 `Cargo.lock`；各独立探针另行锁定上游 commit 与依赖，所测版本不自动成为产品依赖。正式 sys/WAL adapter 在根 workspace 固定同一 libSQL revision，边界见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)；正式 peer 栈固定 Tokio 1.50.0、Tonic 0.14.6、Prost 0.14.3 与相应 TLS features，完整解析依赖仍由根锁文件管理。第一批 TypeScript 代码合入时提交包管理器版本与锁文件。依赖升级必须同时考虑 RPC、日志、磁盘、对象格式和 SDK 兼容性。
 
 引入库时同时记录完整源码版本、features、代码生成器/protoc、native 库及 submodule、目标平台、许可证和 patch。TiKV 的 fork、nightly 工具链与 allocator 是审计参考，不能因为同名组件存在就认为 SCAP 已采用或验证。
 
@@ -80,4 +86,4 @@
 
 部署文档只能出现真实实现且经过验证的命令；计划接口以“计划”标注，不通过占位命令制造已完成印象。
 
-RPC 实验的 8 项通过结果只涵盖其编码/传输契约，没有 RawNode、持久化、quorum 或 HA。若复用实验逻辑，须迁入正式模块并纳入 100% 第一方生产单元覆盖率与真实依赖/故障验证，不能把实验目录变成运行时依赖或覆盖率例外。
+早期 `raft-rpc` 的 8 项结果只涵盖其编码/传输契约，没有 RawNode、持久化、quorum 或 HA。新增 `raft-network` 则组合正式运行模块、三个真实持久进程与 mTLS，保留独立 integration profile。二者都不补生产单元覆盖率。测试文件和研究目录按 [coverage policy](../../contracts/coverage-policy.json)精确登记；包括 `runtime/src/driver.rs` 在内的正式源码保留在生产分母，不因委托很薄而排除。

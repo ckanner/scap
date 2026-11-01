@@ -1,6 +1,6 @@
 # 正式 SQLite adapter：提交、结果与恢复
 
-日期：2026-10-31。状态：有界正式运行模块；尚不是可部署 SQL 服务。决策见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)，实际测试计数见 [G0 执行证据](g0-evidence.md)。
+初版日期：2026-10-31；网络接合进展更新：2026-11-01。状态：有界正式运行模块；尚不是可部署 SQL 服务。决策见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)，实际测试计数见 [G0 执行证据](g0-evidence.md)。正式 peer mTLS/runtime 已由 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)落实，本文的 native SQLite 合同与完整 SQL 网络组合仍须区分。
 
 ## 1. 模块与固定依赖
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `scap-sql` | SQL/参数类型、请求 fingerprint、结果版本化 codec 与限额 | 执行 SQL、权限、共识 |
 | `scap-engine` | 规范物理页事务、完整逻辑镜像、精确基线/回执/恢复 tip 校验 | 文件 I/O、native publish、凭证认证 |
-| `scap-sqlite` | 私有 libSQL 连接、SQL 准入、结果缓冲、提交 gate、目录物化与 native 完成 | 生产 transport、quorum 调度、自动故障接管 |
+| `scap-sqlite` | 私有 libSQL 连接、SQL 准入、结果缓冲、提交 gate、目录物化与 native 完成 | peer transport、quorum 调度、自动故障接管 |
 | `scap-cell` | 有序 owner/auth fencing、提交接受、请求去重/取消与完整恢复历史 | SQLite SQL 执行或物理格式解析 |
 
 引擎固定为 [`libsql-sys` 的同一完整 revision][libsql-sys] `d8bc862d20bedc72945a1da27c8b7045414c0261`，开启默认 `api/wal` 与 `rusqlite`，完整解析依赖固定在根 `Cargo.lock`。底层 SQLite C 为 3.47.0；当前没有第一方引擎 patch，没有引入 Rust Turso rewrite，也没有把旧实验作为运行时依赖。构建采用 Rust 1.90.0、C/C++ 编译器与 Linux/Unix 文件系统；first-party `unsafe_code = forbid` 保持不变。
@@ -105,7 +105,11 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 正式 unit harness 测确定性格式/状态、窄 port、真实 native 调用及可控 I/O 失败；所有第一方 adapter 路径进入覆盖分母。真实多数派、分区、快照和进程被杀的独立 [adapter 合同](../../experiments/sqlite-engine/README.md)不补 unit coverage。
 
-完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把测试执行时长报告为故障 RTO。当前性能目标保持原定义。下一阶段须完成生产 transport/mTLS、实际请求调度、独立 SQL 强读、Hrana/Node.js 和自动 owner 恢复，再推进增量布局与 S3 生命周期。
+2026-11-01 的后续阶段已实现 [正式 wire、mTLS transport 与单 cell runtime](raft-network-runtime.md)，并通过 [八项真实三进程网络契约](../../experiments/raft-network/README.md)。这些用例验证正式 cell 业务接受、Safe ReadIndex、分区、重启、snapshot 与证书撤销，但 `physical_changes` 是合成 opaque payload，没有执行 SQLite SQL。2026-10-31 adapter 实验使用受控路由的历史范围保持不变；不能把两套独立实验的通过合并描述成完整 native SQLite + mTLS + SDK 验收。
+
+下一阶段需要将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。独立 SQL 强读还要绑定实际 SQLite snapshot、当前权限和 owner；Hrana/Node.js 入口、writer 自动 fencing/恢复/激活仍待实现。
+
+完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，增量布局、S3 归档/恢复/GC 和长期容量继续接受各自的门禁。
 
 [libsql-sys]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sys/Cargo.toml
 [libsql-license]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/LICENSE.md

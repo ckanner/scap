@@ -18,7 +18,14 @@
     "crates/scap-sql/src/tests.rs",
     "crates/scap-sqlite/src/tests.rs",
     "crates/scap-sqlite/src/file_tests.rs",
-    "crates/scap-sqlite/src/config_tests.rs"
+    "crates/scap-sqlite/src/config_tests.rs",
+    "crates/scap-raft-wire/src/tests.rs",
+    "crates/scap-raft-transport/src/tests.rs",
+    "crates/scap-raft-transport/src/client_tests.rs",
+    "crates/scap-raft-transport/src/server_tests.rs",
+    "crates/scap-raft-transport/src/incoming_tests.rs",
+    "crates/scap-raft-runtime/src/tests.rs",
+    "crates/scap-raft-runtime/src/workers_tests.rs"
   ],
   "research_harness_roots": [
     "experiments/wal-gate",
@@ -26,7 +33,8 @@
     "experiments/raft-store",
     "experiments/raft-cluster",
     "experiments/sqlite-cell",
-    "experiments/sqlite-engine"
+    "experiments/sqlite-engine",
+    "experiments/raft-network"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

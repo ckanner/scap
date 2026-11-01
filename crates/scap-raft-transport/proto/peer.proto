@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package scap.raft.peer.v1;
+
+// Schema documentation for the hand-written, covered Tonic adapter.
+// No generated Rust sources are compiled by this crate.
+service Peer {
+  rpc Deliver(Packet) returns (Received);
+}
+
+message Packet {
+  // Complete SCAPRPC1 envelope with opaque raft-rs protobuf bytes.
+  bytes data = 1;
+}
+
+message Received {
+  // Version 1 means bounded inbox admission only. Never quorum or SQL commit.
+  uint32 version = 1;
+}

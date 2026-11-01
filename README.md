@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台：以轻量计算单元服务大量独立数据库，以共享同步日志提供故障保障，以对象存储承载冷数据与历史。
 
-> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、有界 cell 业务状态机和正式 SQLite adapter，以及独立 100% 单元覆盖率门禁。真实 libSQL、RPC、磁盘恢复、三进程受控故障与 SQLite/cell 及正式 adapter 接合分别提供证据；尚未实现可部署 SQL 服务。完整生命周期、生产 peer transport、Node.js 入口、自动 SQL writer 接管和性能指标仍待实现或测量。
+> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、cell 业务状态机、SQLite adapter，以及固定成员的单 cell 运行时和 mTLS peer transport。正式源码执行独立 100% 单元覆盖率门禁；真实引擎、持久恢复、三进程网络分区、重启和快照分别提供故障证据。可部署 SQL 服务、Node.js 入口、自动 SQL writer 接管、完整生命周期和性能指标仍待实现或测量。
 
 ## 核心决策
 
@@ -52,6 +52,8 @@
 | [SQLite/cell 接合实验](experiments/sqlite-cell/README.md) | 真实物理事务何时允许发布，接受后崩溃如何恢复？ |
 | [正式 SQLite adapter](docs/engineering/sqlite-engine.md) | SQL 如何缓冲结果、拒绝绕过、处理幂等并从权威物理历史恢复？ |
 | [正式 adapter 故障实验](experiments/sqlite-engine/README.md) | 正式引擎与真实三副本 cell 如何验证分区、快照和接受后崩溃？ |
+| [正式网络与运行时](docs/engineering/raft-network-runtime.md) | mTLS 身份、队列、串行调度、发送反馈和有限关闭如何实现？ |
+| [真实三进程网络合同](experiments/raft-network/README.md) | 实际 TCP/mTLS 下选举、分区、SIGKILL、快照、轮换与背压证明了什么？ |
 | [ADR 索引](docs/adr/README.md) | 为什么这样选择，替代路线是什么？ |
 
 ## 可靠性目标与边界
@@ -66,9 +68,9 @@
 
 | 层 | 方向 |
 | --- | --- |
-| 平台服务 | Rust，Tokio，Axum/Tower，Tonic / Protobuf；生产组合待集成验证 |
+| 平台服务 | Rust；正式 peer 使用 Tokio、Tonic / Protobuf、rustls ring；Axum/Tower 对外服务与控制面仍待装配 |
 | SQL 引擎 | libSQL / SQLite C 内核，Rust FFI 适配 |
-| 日志复制 | 固定 TiKV `raft-rs`；正式 Storage、串行 driver 和有界 cell 接受状态机，生产传输与完整生命周期待实现 |
+| 日志复制 | 固定 TiKV `raft-rs`；正式 Storage、driver、cell 状态机和单 cell mTLS 运行时；多 cell 与完整生命周期待实现 |
 | 本地日志与索引 | 有界 Store/AtomicBackend 与正式 RocksDB 同步后端；增量布局和大快照待实现 |
 | 对象存储 | 具备已验证一致性、持久性和校验能力的 S3 兼容服务 |
 | 控制目录 | etcd；只保存目录、意图和控制元数据 |
@@ -82,7 +84,7 @@
 
 ## 仓库使用
 
-文档检查使用 Python 3.11+；Rust 模块与独立探针使用各自锁定的工具链和依赖。正式 workspace 已含 native RocksDB，需要 C/C++17、make 和 libclang 18；RPC 实验需要本机 loopback socket。具体环境与固定命令见相应实验 README：
+文档检查使用 Python 3.11+；Rust 模块与独立探针使用各自锁定的工具链和依赖。正式 workspace 已含 native RocksDB，需要 C/C++17、make 和 libclang 18；网络 adapter 单元与网络实验需要本机 loopback socket。具体环境与固定命令见相应实验 README：
 
 ```bash
 python3 scripts/check_repo.py
@@ -93,9 +95,10 @@ cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked --
 cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
+cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked -- --test-threads=1
 ```
 
-八条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码/传输、真实存储恢复、三进程受控故障、SQLite/cell 接合和正式 adapter 故障，不能据此宣称完整 HA 已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
+九条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码、真实存储恢复、三进程受控故障、SQLite/cell 接合、正式 adapter 故障和真实 mTLS 网络故障。它们的证据范围分别记录，不能据此宣称完整 HA 产品已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
 
 `scap-raft-store` 负责 codec、校验和持久状态转换，`scap-raft-rocks` 兑现同步 I/O，`scap-raft-driver` 管理真实 RawNode 与确定性应用接口。G0 的完整镜像每次同步替换，具有明确限额与写放大；规模化部署前须改进布局并重新验证。模块职责与独立测试边界见 [ADR-0009](docs/adr/0009-serial-driver-and-native-backend.md)。
 
@@ -107,6 +110,8 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked
 
 本仓库自身的分发许可尚待维护者决定，当前不添加未经选择的开源授权。第三方组件的许可证、上游修改义务和供应链记录见组件调查；引入源码前完成核验。
 
-设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 栈、RPC、持久存储与三进程 G0 推进：**2026-10-29**；cell 状态机、选举/读故障合同与 SQL 接合：**2026-10-31**。
+设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 栈、RPC、持久存储与三进程 G0 推进：**2026-10-29**；cell 状态机、选举/读故障合同与 SQL 接合：**2026-10-31**；正式网络与运行时：**2026-11-01**。
 
 `scap-sqlite` 只从新目录打开经过校验的逻辑镜像，每次重启从完整 cell 历史重建。前置线性化 Lookup 与提交时去重共同处理重复请求；没有 WAL 页变化的 SELECT/零行更新也记录 quorum 结果。这一有界事务 API 尚未接入 Node.js，完整镜像的成本与恢复目标仍需测量，见 [ADR-0011](docs/adr/0011-bounded-native-sqlite-adapter.md)。
+
+`scap-raft-wire` 验证证书 pin、节点与 cell 身份及消息边界；`scap-raft-transport` 提供有界 mTLS 收发；`scap-raft-runtime` 在专用线程串行驱动持久 Raft，提供自动 tick、请求专属 Safe ReadIndex 和有界发送 worker。网络 `Received` 只确认入站准入，本地 `Admitted` 只确认 proposal 准入，二者都不是业务 ACK。真实网络实验使用正式 cell 与 opaque 物理 payload；SQL gate 与这条网络链的完整组合仍需实现。
