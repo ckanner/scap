@@ -82,6 +82,24 @@ async fn http_response(address: std::net::SocketAddr, path: &str, status: u16) {
     );
 }
 
+async fn bind_after_cancellation(address: std::net::SocketAddr, deadline: Instant) -> TcpListener {
+    tokio::time::timeout_at(deadline.into(), async {
+        loop {
+            match TcpListener::bind(address).await {
+                Ok(listener) => return listener,
+                // Dropping run aborts its server tasks; their listener drops
+                // complete when those tasks are next polled by the runtime.
+                Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => panic!("cannot observe release of {address}: {error}"),
+            }
+        }
+    })
+    .await
+    .expect("cancelled node retained a listener past the shutdown observation deadline")
+}
+
 struct Faults {
     entropy: bool,
     directory: Option<&'static str>,
@@ -449,7 +467,7 @@ async fn native_assembly_opens_serves_and_joins_before_reopening_existing_store(
     let http = fixture.config.http_listen;
     let peer = fixture.config.peer_listen;
     run(fixture.config.clone(), StartMode::Initialize, async {
-        tokio::time::sleep(Duration::from_millis(120)).await;
+        // This shutdown future is first polled by supervise after assembly.
         http_ready(http).await;
         http_response(http, "/livez", 200).await;
         http_response(http, "/db/alpha/v1/status", 401).await;
@@ -623,15 +641,37 @@ async fn cancelling_run_reclaims_tasks_native_owners_and_exclusive_store_lock() 
     let mut fixture = Fixture::new();
     (fixture.config.http_listen, fixture.config.peer_listen) = free_addresses();
     let config = fixture.config.clone();
-    let task = tokio::spawn(run(config, StartMode::Initialize, std::future::pending()));
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    let (release, released) = oneshot::channel();
+    let (entered, entering) = oneshot::channel();
+    let (started, mut startup) = oneshot::channel();
+    let task = tokio::spawn(async move {
+        entered.send(()).unwrap();
+        released.await.unwrap();
+        run(config, StartMode::Initialize, async {
+            // Reaching supervise proves both listeners and owner threads exist.
+            started.send(()).unwrap();
+            std::future::pending::<()>().await;
+        })
+        .await
+    });
+    entering.await.unwrap();
+    // Deliberately hold startup: scheduling the task is not a readiness signal.
+    assert_eq!(
+        startup.try_recv().unwrap_err(),
+        oneshot::error::TryRecvError::Empty
+    );
+    release.send(()).unwrap();
+    startup
+        .await
+        .expect("node exited before reaching supervise");
     http_ready(fixture.config.http_listen).await;
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
-    tokio::task::yield_now().await;
+    let deadline = Instant::now() + Duration::from_secs(1);
     drop(open_store_with(&fixture.config, StartMode::OpenExisting, &Native).unwrap());
-    drop(TcpListener::bind(fixture.config.http_listen).await.unwrap());
-    drop(TcpListener::bind(fixture.config.peer_listen).await.unwrap());
+    let http = bind_after_cancellation(fixture.config.http_listen, deadline).await;
+    let peer = bind_after_cancellation(fixture.config.peer_listen, deadline).await;
+    drop((http, peer));
 }
 
 #[test]
@@ -708,11 +748,15 @@ async fn shutdown_closes_an_accepted_incomplete_body_and_releases_the_connection
     let mut fixture = Fixture::new();
     (fixture.config.http_listen, fixture.config.peer_listen) = free_addresses();
     let (stop, stopped) = oneshot::channel();
+    let (started, startup) = oneshot::channel();
     let config = fixture.config.clone();
     let node = tokio::spawn(run(config, StartMode::Initialize, async {
+        started.send(()).unwrap();
         let _ = stopped.await;
     }));
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    startup
+        .await
+        .expect("node exited before reaching supervise");
     let mut slow = tokio::net::TcpStream::connect(fixture.config.http_listen)
         .await
         .unwrap();

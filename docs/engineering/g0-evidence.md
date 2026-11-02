@@ -591,6 +591,8 @@ SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口
 
 首次 GitHub quality run 在调度前拒绝了两处 job 级 `runner.temp` 表达式；本机 YAML 语法解析未发现该平台规则。已将临时目录变量改为 step 写入 `GITHUB_ENV`，并在文档 workflow 增加固定 actionlint 1.7.12 及官方 SHA-256 校验，检查 GitHub 上下文与 workflow schema。该失败保留，不计为数据库测试通过。
 
+合入前同时检查 PR 与 push 两轮 CI 时，发现同一源码的 push unit 在取消测试中出现 `ConnectionRefused`，而 PR 轮全部通过。根因是测试固定等待 120 ms 后连接，未等待 RocksDB/TLS 初始化和 listener bind 的真实完成。测试改为在正式资源装配后首次轮询 shutdown future 时发送 oneshot 启动信号；受控 release gate 验证启动前信号未发生。保留严格单次连接，不对启动错误静默重试。取消后只对 `AddrInUse` 在单个 1 秒测试预算内观察端口最终释放，其他错误立即失败；RocksDB 独占锁仍要求父任务取消完成后立即重新打开。生产源码与最终服务构建输入不变，失败历史保留。修正后的 11 个 node tests 先通过，再按预先固定的 20 轮完整运行得到 220 passed、0 failed/ignored；任一失败立即停止，没有重试失败轮。全 workspace 单元与完整 CI 重新执行。
+
 质量 workflow 增加 SDK unit、独立 S3、正式服务部署三个 job，共 13 个质量 job，另有文档 job。Rust profile、Python profile、SDK profile、各类故障历史分别保存 artifact，完整性检查与执行退出码分开。正式服务 job 在 release 构建上运行完整 8 项及全部 360 样本，但输出明确 `production_slo_passed=false`。
 
 ## 14. 仍然阻断生产规模和完整平台目标的工作

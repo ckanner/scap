@@ -99,6 +99,8 @@ SQL 维护线程只 enqueue/poll，不等待后台 S3 I/O。前景 cold hydrate 
 | HTTP、peer、Raft、SQL 或归档线程异常退出 | supervisor 结束节点服务，取消/关闭在途资源并回收线程；不留下独立继续写入的后台 owner |
 | SIGTERM / Ctrl-C | 停止准入，通知网络与 owner 关闭，取消归档当前任务，按同一关闭预算 drain/join |
 
+宿主取消 `run` future 时，资源守卫同步停止并回收 native owner，同时向下级 Tokio 任务发出 abort。被取消的 async 任务及其 listener 由执行器后续调度完成析构；父任务的 JoinHandle 结束不能单独证明所有 socket 已同步释放。正常关闭仍执行显式 drain/join，取消测试分别观察持久化锁与两个监听端口的实际释放，不以固定 sleep 作为完成证明。
+
 正常关闭等待预算为 5 秒；同步磁盘调用无法被强制中断，超时不会被当成完成。CLI 对 runtime 的最后退出也使用有限等待，进程级 supervisor 仍需管理真正卡住的 native I/O。SIGKILL 实验不证明设备断电持久性。
 
 ## 6. 当前容量与兼容边界
