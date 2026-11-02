@@ -15,7 +15,7 @@ jobs:
   rust-unit:
     name: Rust unit coverage 100 percent
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p target/coverage
           cargo +nightly-2025-09-18 llvm-cov clean --workspace
-          cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --locked --branch --no-cfg-coverage --no-cfg-coverage-nightly --json --output-path target/coverage/unit.json
+          cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --locked --branch --no-cfg-coverage --no-cfg-coverage-nightly --json --output-path target/coverage/unit.json -- --test-threads=1
           python3 scripts/check_unit_coverage.py target/coverage/unit.json
       - name: Retain exact coverage counters
         if: always()
@@ -324,7 +324,7 @@ jobs:
           cargo +1.90.0 clippy --manifest-path experiments/sqlite-network/Cargo.toml --all-targets --locked -- -D warnings
       - name: Execute real SQL and mTLS process contracts separately
         run: cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
-      - name: Verify all seven SQLite network histories completed
+      - name: Verify all eight SQLite network histories completed
         run: |
           python3 - <<'PY'
           import os
@@ -332,13 +332,13 @@ jobs:
 
           directory = Path(os.environ["SCAP_SQL_NETWORK_EVIDENCE_DIR"])
           histories = sorted(directory.glob("*.log"))
-          if len(histories) != 7:
-              raise SystemExit(f"Expected seven SQL network histories, found {len(histories)}")
+          if len(histories) != 8:
+              raise SystemExit(f"Expected eight SQL network histories, found {len(histories)}")
           for history in histories:
               lines = history.read_text(encoding="utf-8").splitlines()
               if not lines or not lines[-1].endswith(" verification passed"):
                   raise SystemExit(f"Incomplete SQL network history: {history.name}")
-          print("Verified seven completed SQL network histories; test success is a separate gate.")
+          print("Verified eight completed SQL network histories; test success is a separate gate.")
           PY
       - name: Retain SQL commit and recovery histories
         if: always()
@@ -346,4 +346,162 @@ jobs:
         with:
           name: sqlite-network-evidence
           path: target/evidence/sqlite-network
+          if-no-files-found: warn
+
+  node-sdk-unit:
+    name: Node SDK unit coverage 100 percent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.22.1'
+      - name: Install exactly the locked SDK dependencies
+        run: npm --prefix sdk/node ci --ignore-scripts
+      - name: Collect fresh unit-only coverage and check exact source counters
+        run: |
+          npm --prefix sdk/node test
+          python3 scripts/check_sdk_coverage.py sdk/node/coverage/coverage-final.json
+      - name: Retain SDK unit counters separately from real service evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-sdk-unit-coverage
+          path: |
+            sdk/node/coverage/coverage-final.json
+            sdk/node/coverage/lcov.info
+          if-no-files-found: error
+
+  archive-s3-probe:
+    name: Real signed immutable S3 object contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      SCAP_ARCHIVE_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/archive-s3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed Rust and native tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - name: Download and verify the fixed independent S3 backend
+        run: |
+          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
+      - name: Check format and lint
+        run: |
+          cargo +1.90.0 fmt --manifest-path experiments/archive-s3/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/archive-s3/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Execute signed object and process-restart contracts separately
+        run: cargo +1.90.0 test --manifest-path experiments/archive-s3/Cargo.toml --locked -- --test-threads=1
+      - name: Verify both independent object histories completed
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          directory = Path(os.environ["SCAP_ARCHIVE_EVIDENCE_DIR"])
+          names = {"immutable-restart.log", "orphan-outage.log"}
+          if {path.name for path in directory.glob("*.log")} != names:
+              raise SystemExit("S3 contract history inventory is incomplete")
+          for name in sorted(names):
+              lines = (directory / name).read_text(encoding="utf-8").splitlines()
+              if not lines or lines[-1] != "verification passed":
+                  raise SystemExit(f"Incomplete S3 contract history: {name}")
+          PY
+      - name: Retain independent S3 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: archive-s3-evidence
+          path: target/evidence/archive-s3
+          if-no-files-found: warn
+
+  sqlite-service-probe:
+    name: Real SQL service SDK S3 and automatic recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
+      SCAP_SERVICE_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-service
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.22.1'
+      - name: Install fixed Rust and native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - name: Build the production release binary and real SDK
+        run: |
+          cargo +1.90.0 build --release -p scap-server --locked
+          npm --prefix sdk/node ci --ignore-scripts
+          npm --prefix sdk/node run build
+          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
+      - name: Execute all eight service contracts without unit instrumentation
+        run: |
+          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
+          node experiments/service-network/run.mjs
+      - name: Verify the complete contract inventory and retained measurement
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          directory = Path(os.environ["SCAP_SERVICE_NETWORK_EVIDENCE_DIR"])
+          complete = json.loads((directory / "completed.json").read_text())
+          if complete["selected_contract"] != "all" or not complete["s3_requested"]:
+              raise SystemExit("The full SQL and S3 deployment contract is required")
+          expected = {
+              "01-three-real-daemons", "02-real-node-sdk", "03-tenant-and-read-permissions",
+              "04-acknowledged-write-leader-kill", "05-real-minority-tcp-blackhole",
+              "06-all-processes-reopen", "07-s3-cold-publication-and-wake",
+              "08-local-recovery-measurement",
+          }
+          names = complete["completed_contracts"]
+          if len(names) != 8 or set(names) != expected:
+              raise SystemExit("Expected every specified independent service contract exactly once")
+          for name in sorted(expected):
+              lines = (directory / f"{name}.history.jsonl").read_text().splitlines()
+              if not lines or lines[-1] != "verification passed":
+                  raise SystemExit(f"Incomplete service history: {name}")
+          samples = [json.loads(line) for line in (directory / "latency.samples.jsonl").read_text().splitlines()]
+          if len(samples) != 360 or len({sample["request_id"] for sample in samples}) != 360:
+              raise SystemExit("All 360 distinct scheduled requests, including failures, must be retained")
+          expected_slots = {
+              (phase, database, kind, round_number)
+              for phase, rounds in (("hot", 30), ("recovery", 60))
+              for database in ("alpha", "beta")
+              for kind in ("read", "write")
+              for round_number in range(rounds)
+          }
+          slots = {(sample["phase"], sample["database"], sample["kind"], sample["round"]) for sample in samples}
+          if slots != expected_slots or any(type(sample["round"]) is not int for sample in samples):
+              raise SystemExit("The complete two-database hot and recovery schedule must be retained")
+          print("Service correctness and local recovery window verified; production SLO remains unvalidated.")
+          PY
+      - name: Retain all service outcomes and local measurement samples
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sqlite-service-evidence
+          path: target/evidence/sqlite-service
           if-no-files-found: warn

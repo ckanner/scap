@@ -8,6 +8,7 @@
 mod config;
 mod file;
 mod gate;
+mod query;
 mod sql;
 
 #[cfg(test)]
@@ -16,6 +17,7 @@ mod config_tests;
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use libsql_sys::wal::wrapper::WrappedWal;
 use libsql_sys::wal::Sqlite3Wal;
@@ -87,6 +89,11 @@ pub enum Error {
     InvalidLimits,
     InvalidSql,
     ResultLimit,
+    /// A read was cancelled or its original deadline/clock guard failed. A
+    /// read-only invocation cannot have created a new database commit.
+    Interrupted,
+    /// A trusted Engine adapter has not implemented the independent read API.
+    ReadUnsupported,
     InvalidImage,
     Stopped,
     InvalidReceipt,
@@ -108,6 +115,13 @@ pub struct Completed {
     pub result: TransactionResult,
     pub replayed: bool,
 }
+
+/// Trusted wall-clock/cancellation check for one bounded read invocation. The
+/// callback must retain the original request deadline; a panic interrupts the
+/// request and retires the writer instead of escaping a native callback.
+/// It is checked before BEGIN, between statements, during VM execution and
+/// before returning the complete buffered result.
+pub type ReadInterrupt = Arc<dyn Fn() -> bool + Send + Sync>;
 
 type NativeConnection<G> = libsql_sys::Connection<WrappedWal<GateWal<G>, Sqlite3Wal>>;
 
@@ -154,9 +168,33 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         self.stopped
     }
 
+    /// Executes a bounded read-only snapshot on this exclusively owned cache.
+    /// The trusted caller must first bind a fresh Safe ReadIndex, READ authority,
+    /// owner and exact physical head to this writer. This method supplies native
+    /// read isolation and budgets; it is not a public authorization boundary.
+    /// Successful reads do not enter CommitGate or advance the image revision.
+    pub fn query(
+        &mut self,
+        statements: &[Statement],
+        interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, Error> {
+        if self.stopped {
+            return Err(Error::Stopped);
+        }
+        self.stopped = true;
+        scap_sql::validate_statements(statements, self.limits.sql).map_err(Error::Sql)?;
+        let result = query::execute(&self.connection, statements, self.limits, &interrupt)?;
+        // Apply the same exact serialized size and finite-number contract as
+        // writes, without retaining or replicating a read result.
+        scap_sql::encode_result(&result, self.limits.sql).map_err(Error::Sql)?;
+        query::check(&interrupt)?;
+        self.stopped = false;
+        Ok(result)
+    }
+
     /// Runs a bounded statement batch as a single explicit transaction. Even a
     /// read-only/no-op batch records its exact result through the consensus gate;
-    /// this is not the future high-throughput ReadIndex-only SQL read API.
+    /// use the separately authorized `query` API for ReadIndex-only SQL reads.
     pub fn execute(
         &mut self,
         ticket: CommitTicket,

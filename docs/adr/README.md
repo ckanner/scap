@@ -17,5 +17,6 @@ ADR 记录背景、选择、代价和重新评审条件。当前记录为设计�
 | [0011](0011-bounded-native-sqlite-adapter.md) | 正式 SQL 类型/结果、提交前 native gate、无变化事务与完整逻辑镜像恢复 | 有界正式 adapter；完整服务、SDK、自动接管与性能待验 |
 | [0012](0012-bounded-raft-network-runtime.md) | 正式 wire、mTLS transport、固定成员运行时、物理配额与真实网络故障合同 | 正式模块与八项三进程契约；完整 SQL/SDK/S3 接合及生产性能待验 |
 | [0013](0013-tracked-sqlite-network-commit.md) | 逐请求持久裁决、可信 SQLite 网络 gate 和明确 owner 恢复入口 | 有界正式组合；外部 SDK、自动接管调度、S3 与性能待验 |
+| [0014](0014-sqlite-service-and-cold-lifecycle.md) | 正式三节点 SQL/SDK 服务、自动 owner 恢复、独立强读和有界 S3 冷生命周期 | 有界可运行实现与真实故障证据；生产容量、动态控制面、GC/PITR/DR 与 SLO 待验 |
 
 新增 ADR 使用下一个编号，保留被替代记录并注明替代关系。用户或维护者改变范围时记录原因，不通过删除旧决策隐藏取舍。

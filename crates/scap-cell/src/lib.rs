@@ -81,6 +81,18 @@ pub struct OwnerToken {
     pub worker_instance_id: u128,
 }
 
+/// Immutable, content-addressed full physical-history archive. The cell remains
+/// authoritative for permissions, ownership, request results and cancellations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArchiveRef {
+    pub source: Position,
+    pub revision: u64,
+    pub commit_hash: [u8; 32],
+    pub object_digest: [u8; 32],
+    pub object_bytes: u32,
+    pub metadata_digest: [u8; 32],
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command {
     pub cell: CellIdentity,
@@ -120,6 +132,26 @@ pub enum CommandKind {
         request_id: u128,
         request_fingerprint: [u8; 32],
     },
+    SuspendDb {
+        operation_id: u128,
+        token: OwnerToken,
+        expected_revision: u64,
+    },
+    PublishArchive {
+        operation_id: u128,
+        expected_owner: OwnerToken,
+        expected_previous: Option<[u8; 32]>,
+        archive: ArchiveRef,
+    },
+    PruneArchive {
+        operation_id: u128,
+        expected_owner: OwnerToken,
+        archive_digest: [u8; 32],
+    },
+    HydrateArchive {
+        operation_id: u128,
+        archive: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -134,6 +166,7 @@ pub enum Reject {
     Capacity,
     TooLarge,
     Exhausted,
+    Cold,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -159,6 +192,10 @@ pub enum AdminResult {
     OwnerClaimed(OwnerToken),
     OwnerActivated,
     AuthChanged(u64),
+    Suspended(u64),
+    ArchivePublished([u8; 32]),
+    ArchivePruned([u8; 32]),
+    ArchiveHydrated([u8; 32]),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -215,6 +252,9 @@ pub struct DatabaseView {
     pub active: bool,
     pub revision: u64,
     pub commit_hash: [u8; 32],
+    pub suspended: bool,
+    pub cold: bool,
+    pub archive: Option<ArchiveRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -244,6 +284,9 @@ struct Database {
     policy: Vec<Grant>,
     transactions: Vec<AcceptedTransaction>,
     requests: BTreeMap<u128, RequestRecord>,
+    suspended: bool,
+    cold: bool,
+    archive: Option<ArchiveRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -286,6 +329,17 @@ enum AdminAction<'a> {
         expected_epoch: u64,
         policy: &'a [Grant],
     },
+    Suspend {
+        token: OwnerToken,
+        expected_revision: u64,
+    },
+    Publish {
+        expected_owner: OwnerToken,
+        expected_previous: Option<[u8; 32]>,
+        archive: ArchiveRef,
+    },
+    Prune(OwnerToken, [u8; 32]),
+    Hydrate(&'a [u8]),
 }
 
 pub fn payload_digest(bytes: &[u8]) -> [u8; 32] {
@@ -438,7 +492,63 @@ impl CellState {
         identity: DatabaseIdentity,
         admission: Admission,
     ) -> Result<&[AcceptedTransaction], Reject> {
-        Ok(&self.authorized(identity, admission, READ)?.transactions)
+        let database = self.authorized(identity, admission, READ)?;
+        if database.cold {
+            return Err(Reject::Cold);
+        }
+        Ok(&database.transactions)
+    }
+
+    /// Trusted archiver only, after a fresh bound ReadIndex. The exact bytes must
+    /// be uploaded and read back successfully before proposing PublishArchive.
+    /// This does not grant publication or permit truncating shared Raft logs.
+    pub fn archive_snapshot(
+        &self,
+        identity: DatabaseIdentity,
+        admission: Admission,
+    ) -> Result<(ArchiveRef, Vec<u8>), Reject> {
+        let database = self.authorized(identity, admission, ADMIN)?;
+        if database.cold {
+            return Err(Reject::Cold);
+        }
+        let bytes = codec::encode_archive(self.identity, database, self.position);
+        // A future hydration must fit one bounded ordered command. Oversized
+        // databases remain hot until a separately verified chunk protocol exists.
+        if bytes.len().saturating_add(192) > self.limits.max_command_bytes as usize {
+            return Err(Reject::TooLarge);
+        }
+        let view = database.view();
+        Ok((
+            ArchiveRef {
+                source: self.position,
+                revision: view.revision,
+                commit_hash: view.commit_hash,
+                object_digest: payload_digest(&bytes),
+                object_bytes: bytes.len() as u32,
+                metadata_digest: codec::archive_metadata(database),
+            },
+            bytes,
+        ))
+    }
+
+    /// Trusted lifecycle inspection with current administrative permission.
+    /// The caller must bind this state to a fresh Safe ReadIndex.
+    pub fn archive_status(
+        &self,
+        identity: DatabaseIdentity,
+        admission: Admission,
+    ) -> Result<DatabaseView, Reject> {
+        Ok(self.authorized(identity, admission, ADMIN)?.view())
+    }
+
+    /// Finite metadata only, with current READ permission and a fresh bound
+    /// ReadIndex. Suspended/cold databases need no active execution owner.
+    pub fn metadata(
+        &self,
+        identity: DatabaseIdentity,
+        admission: Admission,
+    ) -> Result<DatabaseView, Reject> {
+        Ok(self.authorized(identity, admission, READ)?.view())
     }
 
     fn authorized(
@@ -570,6 +680,53 @@ impl CellState {
                     policy,
                 },
             ),
+            CommandKind::SuspendDb {
+                operation_id,
+                token,
+                expected_revision,
+            } => self.administer(
+                command,
+                position,
+                *operation_id,
+                AdminAction::Suspend {
+                    token: *token,
+                    expected_revision: *expected_revision,
+                },
+            ),
+            CommandKind::PublishArchive {
+                operation_id,
+                expected_owner,
+                expected_previous,
+                archive,
+            } => self.administer(
+                command,
+                position,
+                *operation_id,
+                AdminAction::Publish {
+                    expected_owner: *expected_owner,
+                    expected_previous: *expected_previous,
+                    archive: *archive,
+                },
+            ),
+            CommandKind::PruneArchive {
+                operation_id,
+                expected_owner,
+                archive_digest,
+            } => self.administer(
+                command,
+                position,
+                *operation_id,
+                AdminAction::Prune(*expected_owner, *archive_digest),
+            ),
+            CommandKind::HydrateArchive {
+                operation_id,
+                archive,
+            } => self.administer(
+                command,
+                position,
+                *operation_id,
+                AdminAction::Hydrate(archive),
+            ),
         }
     }
 
@@ -629,6 +786,9 @@ impl CellState {
                         policy: policy.to_vec(),
                         transactions: Vec::new(),
                         requests: BTreeMap::new(),
+                        suspended: true,
+                        cold: false,
+                        archive: None,
                     },
                 );
                 AdminResult::Created
@@ -641,6 +801,9 @@ impl CellState {
                     .databases
                     .get_mut(&command.database.database_id)
                     .unwrap();
+                if db.cold {
+                    return Err(Reject::Cold);
+                }
                 if db.owner.epoch != expected_epoch || worker_instance_id == 0 {
                     return Err(Reject::Fenced);
                 }
@@ -650,6 +813,7 @@ impl CellState {
                     worker_instance_id,
                 };
                 db.active = false;
+                db.suspended = false;
                 AdminResult::OwnerClaimed(db.owner)
             }
             AdminAction::Activate {
@@ -661,7 +825,10 @@ impl CellState {
                     .databases
                     .get_mut(&command.database.database_id)
                     .unwrap();
-                if token.epoch == 0 || db.owner != token {
+                if db.cold {
+                    return Err(Reject::Cold);
+                }
+                if token.epoch == 0 || db.owner != token || db.suspended {
                     return Err(Reject::Fenced);
                 }
                 let view = db.view();
@@ -686,6 +853,112 @@ impl CellState {
                 db.auth_epoch = expected_epoch.checked_add(1).ok_or(Reject::Exhausted)?;
                 db.policy = policy.to_vec();
                 AdminResult::AuthChanged(db.auth_epoch)
+            }
+            AdminAction::Suspend {
+                token,
+                expected_revision,
+            } => {
+                let db = self
+                    .databases
+                    .get_mut(&command.database.database_id)
+                    .unwrap();
+                if db.owner != token {
+                    return Err(Reject::Fenced);
+                }
+                if db.view().revision != expected_revision {
+                    return Err(Reject::Conflict);
+                }
+                // A never-claimed legacy database has no owner to revoke.
+                // Otherwise advance the epoch; old activate/commit requests fail.
+                if !db.suspended && db.owner.epoch != 0 {
+                    db.owner.epoch = db.owner.epoch.checked_add(1).ok_or(Reject::Exhausted)?;
+                }
+                db.active = false;
+                db.suspended = true;
+                AdminResult::Suspended(db.owner.epoch)
+            }
+            AdminAction::Publish {
+                expected_owner,
+                expected_previous,
+                archive,
+            } => {
+                let db = self
+                    .databases
+                    .get_mut(&command.database.database_id)
+                    .unwrap();
+                if db.cold || db.active || !db.suspended || db.owner != expected_owner {
+                    return Err(Reject::Fenced);
+                }
+                let previous = db.archive.map(|value| value.object_digest);
+                let view = db.view();
+                if previous != expected_previous
+                    || archive.revision != view.revision
+                    || archive.commit_hash != view.commit_hash
+                    || !position_within(archive.source, self.position)
+                    || db
+                        .transactions
+                        .last()
+                        .is_some_and(|tx| !position_within(tx.commit.position, archive.source))
+                {
+                    return Err(Reject::Conflict);
+                }
+                let expected = codec::encode_archive(self.identity, db, archive.source);
+                if archive.object_bytes as usize != expected.len()
+                    || archive.object_digest != payload_digest(&expected)
+                    || archive.metadata_digest != codec::archive_metadata(db)
+                    || expected.len().saturating_add(192) > self.limits.max_command_bytes as usize
+                {
+                    return Err(Reject::Invalid);
+                }
+                db.archive = Some(archive);
+                AdminResult::ArchivePublished(archive.object_digest)
+            }
+            AdminAction::Prune(expected_owner, digest) => {
+                let db = self
+                    .databases
+                    .get_mut(&command.database.database_id)
+                    .unwrap();
+                let archive = db.archive.ok_or(Reject::NotFound)?;
+                let view = db.view();
+                if db.active || !db.suspended || db.owner != expected_owner {
+                    return Err(Reject::Fenced);
+                }
+                if archive.object_digest != digest
+                    || archive.revision != view.revision
+                    || archive.commit_hash != view.commit_hash
+                {
+                    return Err(Reject::Conflict);
+                }
+                for transaction in &mut db.transactions {
+                    transaction.physical_changes.clear();
+                }
+                db.cold = true;
+                AdminResult::ArchivePruned(digest)
+            }
+            AdminAction::Hydrate(bytes) => {
+                let db = self
+                    .databases
+                    .get_mut(&command.database.database_id)
+                    .unwrap();
+                let archive = db.archive.ok_or(Reject::NotFound)?;
+                if db.active || !db.suspended {
+                    return Err(Reject::Fenced);
+                }
+                if bytes.len() != archive.object_bytes as usize
+                    || payload_digest(bytes) != archive.object_digest
+                {
+                    return Err(Reject::Invalid);
+                }
+                let restored =
+                    codec::decode_archive(bytes, self.identity, db, archive, self.limits)
+                        .map_err(|_| Reject::Invalid)?;
+                // Only missing physical bytes are copied; current metadata,
+                // results, request identities, policy and fences are preserved.
+                for (target, source) in db.transactions.iter_mut().zip(restored) {
+                    target.physical_changes = source.physical_changes;
+                }
+                db.cold = false;
+                AdminResult::ArchiveHydrated(archive.object_digest)
             }
         };
         self.administration.insert(
@@ -733,7 +1006,8 @@ impl CellState {
             Some(RequestRecord::Cancelled { .. }) => return Err(Reject::Cancelled),
             None => {}
         }
-        if !db.active
+        if db.cold
+            || !db.active
             || db.owner.epoch != ticket.owner_epoch
             || db.owner.worker_instance_id != ticket.worker_instance_id
         {
@@ -832,6 +1106,9 @@ impl Database {
                 .transactions
                 .last()
                 .map_or([0; 32], |tx| tx.commit_hash),
+            suspended: self.suspended,
+            cold: self.cold,
+            archive: self.archive,
         }
     }
 
@@ -1000,6 +1277,44 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         {
             return Err(Error::Malformed("invalid database metadata"));
         }
+        if (database.suspended && database.active) || (database.cold && !database.suspended) {
+            return Err(Error::Malformed("invalid cold lifecycle"));
+        }
+        if let Some(archive) = database.archive {
+            let view = database.view();
+            if !position_within(archive.source, state.position)
+                || archive.revision > view.revision
+                || archive.object_bytes == 0
+                || (archive.object_bytes as usize).saturating_add(192)
+                    > state.limits.max_command_bytes as usize
+                || archive.object_digest == [0; 32]
+                || (archive.revision == view.revision && archive.commit_hash != view.commit_hash)
+            {
+                return Err(Error::Malformed("invalid archive reference"));
+            }
+            let archived_hash = if archive.revision == 0 {
+                [0; 32]
+            } else {
+                let transaction = &database.transactions[archive.revision as usize - 1];
+                if !position_within(transaction.commit.position, archive.source) {
+                    return Err(Error::Malformed("archive source precedes accepted history"));
+                }
+                transaction.commit_hash
+            };
+            if archive.commit_hash != archived_hash {
+                return Err(Error::Malformed(
+                    "archive hash does not match retained history",
+                ));
+            }
+            if database.cold
+                && (archive.revision != view.revision
+                    || archive.metadata_digest != codec::archive_metadata(database))
+            {
+                return Err(Error::Malformed("cold archive does not cover metadata"));
+            }
+        } else if database.cold {
+            return Err(Error::Malformed("cold database has no archive"));
+        }
         validate_policy(&database.policy, state.limits)
             .map_err(|_| Error::Malformed("invalid stored policy"))?;
         let mut previous_hash = [0; 32];
@@ -1029,7 +1344,13 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
             {
                 return Err(Error::Malformed("invalid accepted transaction identity"));
             }
-            if transaction.physical_changes.is_empty()
+            if database.cold {
+                if !transaction.physical_changes.is_empty() {
+                    return Err(Error::Malformed(
+                        "cold state retained partial physical data",
+                    ));
+                }
+            } else if transaction.physical_changes.is_empty()
                 || payload_digest(&transaction.physical_changes) != ticket.payload_digest
                 || codec::transaction_hash(previous_hash, transaction) != transaction.commit_hash
             {
@@ -1113,6 +1434,18 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
             AdminResult::AuthChanged(epoch) => {
                 if *epoch < 2 || *epoch > database.auth_epoch {
                     return Err(Error::Malformed("invalid historical auth epoch"));
+                }
+            }
+            AdminResult::Suspended(epoch) => {
+                if *epoch > database.owner.epoch {
+                    return Err(Error::Malformed("invalid historical suspend epoch"));
+                }
+            }
+            AdminResult::ArchivePublished(digest)
+            | AdminResult::ArchivePruned(digest)
+            | AdminResult::ArchiveHydrated(digest) => {
+                if *digest == [0; 32] {
+                    return Err(Error::Malformed("invalid historical archive digest"));
                 }
             }
         }

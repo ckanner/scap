@@ -41,7 +41,7 @@ flowchart TD
 
 SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源码][pager]中的早返回与正式真实测试覆盖此行为。adapter 在 COMMIT 成功且本次没有 gate 裁决后，生成空页、同镜像记录，经过相同 quorum 与业务接受后返回结果。
 
-因此 SELECT 和更新零行不会获得本地成功捷径；它们也占用请求记录、Raft 日志和数据库 revision。当前 API 是有界事务接口，尚未实现高吞吐、只走 ReadIndex 的 SQL 查询协议。后者需要绑定实际 SQLite snapshot 与权限/owner，不能仅省略日志记录。
+因此 SELECT 和更新零行不会获得本地成功捷径；它们也占用请求记录、Raft 日志和数据库 revision。该 execute API 是有界写事务接口。后续正式 `Writer::query` / `SqliteWriter::query` 已实现独立强读：Safe ReadIndex、当前 READ/owner、完整物理 head 校验及只读 native snapshot；它不增加 revision，但高吞吐与生产延迟仍未验收。
 
 ## 3. 数据格式与限额
 
@@ -75,7 +75,7 @@ SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源
 
 结构检查先安装安全配置、值/SQL/列/页数限额，再仅在私有检查阶段临时设置 `ignore_check_constraints=ON`；检查成功或失败后都恢复为 OFF，恢复失败不返回连接。原因是固定引擎允许 CHECK 使用连接状态或非确定函数，而默认 `integrity_check` 会重新求值这些表达式，可能错误拒绝合法的物理恢复。[表达式解析源码][resolve]与[检查源码][pragma]说明这一边界；真实回归验证换连接后原行可恢复，随后违反 CHECK 的业务 INSERT 仍被拒绝。
 
-旧本地缓存不在恢复权威之列。当前选择以全量恢复换取清楚的崩溃边界；尚未实现可安全复用缓存、增量追赶或 S3 冷唤醒。
+旧本地缓存不在恢复权威之列。当前选择以全量恢复换取清楚的崩溃边界；尚未实现可安全复用缓存或增量追赶。正式服务后续已由 `scap-archive` 实现有界 S3 冷唤醒，仍从核验的权威历史在新目录重建。
 
 ## 5. 失败语义
 
@@ -107,9 +107,9 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 2026-11-01 的后续阶段已实现 [正式 wire、mTLS transport 与单 cell runtime](raft-network-runtime.md)，并通过 [八项真实三进程网络契约](../../experiments/raft-network/README.md)。这些用例验证正式 cell 业务接受、Safe ReadIndex、分区、重启、snapshot 与证书撤销，但 `physical_changes` 是合成 opaque payload，没有执行 SQLite SQL。2026-10-31 adapter 实验使用受控路由的历史范围保持不变；不能把两套独立实验的通过合并描述成完整 native SQLite + mTLS + SDK 验收。
 
-[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)已将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。明确的 owner 恢复和激活入口已实现；独立 SQL 强读还要绑定实际 SQLite snapshot、当前权限和 owner，Hrana/Node.js、故障检测、自动调度与路由仍待实现。
+[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)已将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。明确的 owner 恢复和激活入口已实现。后续 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)继续接通独立 SQL 强读、闭合 Hrana/Node.js 入口和有界 leader-owned 自动恢复；动态多 cell 与容量调度仍待实现。
 
-完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，增量布局、S3 归档/恢复/GC 和长期容量继续接受各自的门禁。
+完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，增量布局、对象 GC、长期容量和生产性能继续接受各自门禁；已有 S3 归档/恢复的有界实现与独立真实合同不能替代这些目标。
 
 [libsql-sys]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sys/Cargo.toml
 [libsql-license]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/LICENSE.md
@@ -121,4 +121,4 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 ## SQLite 网络提交实现更新（2026-11-02 UTC）
 
-正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部静态凭证身份、SDK 和单 cell leader-owned 自动恢复已由后续服务实现；动态控制面及生产性能仍待验，当前状态见 [服务方案](sqlite-service.md)。

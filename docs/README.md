@@ -60,4 +60,4 @@
 5. 修改协议时，同时检查 API、故障矩阵、验证计划和相关 ADR。
 6. 实验锁定的依赖与结果只适用于所测范围；平台与 sqld 的 fork、模块提取或独立进程边界仍须通过 G0 验证。
 
-最新实现：[SQLite 网络提交与恢复](engineering/sqlite-network.md)，以及对应的 [ADR-0013](adr/0013-tracked-sqlite-network-commit.md)。
+最新实现：[正式 SQLite 服务、自动接管与冷生命周期](engineering/sqlite-service.md)、[服务配置与运行](../crates/scap-server/README.md)、[Node SDK](../sdk/node/README.md)，以及 [ADR-0014](adr/0014-sqlite-service-and-cold-lifecycle.md)。它们更新此前 ADR-0013 的“服务/SDK/S3 尚待实现”状态；生产规模与 SLO 仍未验收。

@@ -1,6 +1,6 @@
 # 运行、RPC 与依赖接合契约
 
-初始日期：2026-10-29；正式 peer 网络与单 cell 运行层更新：2026-11-01。状态：完整运行栈契约与部分正式实现。`scap-raft-wire`、`scap-raft-transport`、`scap-raft-runtime` 已实现固定成员单 cell 的有界 mTLS 传输和自动驱动，并有独立三进程网络证据；外部 SQL/Hrana/SDK、自动 writer 接管和多 cell 调度尚未完成。技术方向见 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md) 与 [TiKV 参考审计](../research/tikv-rust-stack.md)，本轮实现决策见 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)。
+初始日期：2026-10-29；正式 peer 网络与单 cell 运行层更新：2026-11-01。状态：完整运行栈契约与部分正式实现。`scap-raft-wire`、`scap-raft-transport`、`scap-raft-runtime` 已实现固定成员单 cell 的有界 mTLS 传输和自动驱动，并有独立三进程网络证据；外部 SQL/Hrana/SDK 和单 cell 自动 writer 接管已由后续 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)装配，多 cell 调度与生产规模仍未完成。技术方向见 [ADR-0007](../adr/0007-tikv-stack-and-rpc-boundaries.md) 与 [TiKV 参考审计](../research/tikv-rust-stack.md)，本轮实现决策见 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)。
 
 ## 1. 采用方向与边界
 
@@ -37,7 +37,7 @@ TiKV 的主服务使用 grpcio C Core，状态 HTTP 使用 Hyper，部分云 SDK
 
 | 接口 | 使用者 | 契约与当前状态 |
 | --- | --- | --- |
-| Hrana / 对外 SQL | Node.js SDK 与应用 | 既定参数、事务、会话、整数/BLOB、UNKNOWN 和兼容行为；入口尚未实现 |
+| Hrana / 对外 SQL | Node.js SDK 与应用 | 已实现自包含闭合 HTTP v2 pipeline、参数/整数/BLOB、batch、稳定 ID 与 UNKNOWN；交互会话/cursor 不支持 |
 | SCAP 内部业务 RPC | gateway、worker、cell、controller | 自有版本化服务定义、服务身份、明确的提交/查询结果；完整装配尚未实现 |
 | Raft peer transport | 合法 cell 成员 | 已实现 `/scap.raft.peer.v1.Peer/Deliver`；版本化 envelope 与内层 Raft 消息，不对租户开放 |
 
@@ -109,7 +109,7 @@ Tonic 允许设置收发消息上限，其[默认值][tonic]不构成 SCAP 的�
 
 不要把少数派无法写入变成无限重启全部节点的探针策略，也不要把一个 `/status` 的 200 响应宣传成所有数据库都可用。上面的健康接口仍是服务层设计。正式关闭先停止准入并取消异步发送，worker 等待有绝对 deadline；同步 fsync 或已开始的应用/SQL 回调不能被这个 deadline 强制中断。实验退出成功不代表设备卡死下固定时限的 graceful shutdown、成员退出或 SQL drain 已获证明。
 
-正式 [scap-sqlite adapter](sqlite-engine.md)是线程受限、私有连接的阻塞模块，直接调用固定 `libsql-sys`。它的同步 gate 仍须接入正式服务的身份、请求与网络共识路径；VM 指令预算不涵盖网络、fsync 或整个 wall-clock deadline。当前真实 adapter/cell 组合使用测试 IPC/受控路由，新的网络实验使用合成 opaque payload；两套分别通过仍不能当作完整 SQL/mTLS/SDK 组合验收。
+正式 [scap-sqlite adapter](sqlite-engine.md)是线程受限、私有连接的阻塞模块，直接调用固定 `libsql-sys`。它的同步 gate 已通过 `scap-cell-client` / `scap-sql-worker` 接入正式身份、请求与网络共识路径；VM 指令预算不涵盖网络、fsync 或整个 wall-clock deadline。早期 adapter/cell 与 opaque 网络实验保留原范围；后续 [真实服务合同](../../experiments/service-network/README.md)已经在三个独立 daemon 上通过同一正式 native/HTTP/SDK/mTLS/S3 组合，生产规模仍需独立测量。
 
 ## 6. sqld 与平台依赖树
 

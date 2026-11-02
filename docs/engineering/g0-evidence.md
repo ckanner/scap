@@ -1,8 +1,8 @@
 # G0 原型执行证据与剩余门禁
 
-初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29；cell 业务状态机、选举/读合同和 SQLite 接合追加日期：2026-10-31；正式网络与运行时追加日期：2026-11-01。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。SQLite 网络提交追加日期：2026-11-02（UTC）。最新正式 workspace 与组合结果见第 12 节；前面的分阶段记录保留其当时范围。
+初始记录日期：2026-10-27；后续 Raft/存储、cell/引擎、mTLS 和可信 SQL 接合记录分别保留其当时范围。**2026-11-02 已完成有界可运行 SQL/SDK 服务、自动 writer 恢复、独立强读与 S3 冷生命周期闭环；最新实现、单元计数与真实服务合同见第 13 节。** 生产规模、三 AZ RPO、R0/R1/R2 性能和长期可用性仍未验收，完整 G0 / 生产上线门禁仍未通过，剩余工作见第 14 节。早期章节中的“尚未实现”是相应阶段的历史状态，不覆盖 ADR-0014 的后续实现。
 
-## 1. 本次实际交付
+## 1. 历次交付的原始组件范围（新增服务集成见第 13 节）
 
 | 资产 | 实现与证据 | 不包含的能力 |
 | --- | --- | --- |
@@ -514,18 +514,97 @@ cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked 
 
 尚未实现外部 SQL/Hrana/Node SDK、凭证验证和 worker admission 服务、自动故障检测/调度/路由、动态成员、多 cell、S3 归档/GC、增量布局与大事务。测试同机 loopback 和 SIGKILL 不证明三 AZ、设备断电、生产 RTO 或目标 p99；性能目标保持原值且待测。
 
-## 13. 仍然阻断完整 G0 / HA 上线的工作
+## 13. 正式 SQL 服务、Node SDK 与冷生命周期（2026-11-02）
 
-- 完整、可恢复的事务暂存协议：spill、更多 page size、大事务、checkpoint 交互、错误恢复与所有可见性边界。
-- 增量存储布局、物理存储故障与安全副本重建；在现有固定成员单 cell 运行时上扩展多 cell 公平调度、完整成员管理和服务进程装配。
-- 在已完成的可信 CommitGate、mTLS 共识和明确 owner 恢复入口上补生产身份、请求调度、外部 SQL/SDK、独立 SQL 强读和自动恢复调度；研究控制协议不能作为运行时依赖。
-- 在已有有界接受子集上补全 lifecycle、迁移、删除、管理员轮换、归档引用和安全历史回收；完成 S3/manifest/GC 的独立恢复证明。
-- Hrana / Node.js SDK 的请求身份、返回值缓冲、交互事务、UNKNOWN 和重试语义。
-- 固定 sqld 与现代平台依赖树的实际接合边界；证书签发/轮换控制面、动态成员与多 cell 授权、规模和长期网络背压验证。
-- 跨三个 AZ 的失败检测、owner 仲裁、重建、路由恢复和 R0/R1/R2 接管实现。
-- [性能目标](performance-slo.md)的真实延迟、吞吐、安全容量、RTO、RPO 与长期可用性证据。
+对应 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)、[正式服务方案](sqlite-service.md)和 [可运行配置](../../crates/scap-server/README.md)。新增 `scap-service`、`scap-server`、`scap-archive` 与 TypeScript SDK，保留既有提交、CP 和原结果合同。所有核心算法在正式 crate 中；实验仅创建进程、透明代理、故障控制和断言。
 
-这些工作不能用本页测试计数代替。后续每次修改代码或工具链，应保留新的精确报告并更新本页；性能不达标不得更改已确认写入的持久性合同。
+### 13.1 全工作区 fresh unit-only 门禁
+
+16 个正式 Rust crate、45 个生产源文件，**364 个单元测试全部通过**。固定 nightly 采集的单一新 profile 与源码清单逐文件核对；没有混入任何独立 experiment 或网络部署 profile。
+
+| 精确整数维度 | 覆盖 / 分母 |
+| --- | --- |
+| Lines | **9359 / 9359** |
+| Functions | **863 / 863** |
+| Regions | **13745 / 13745** |
+| Branches | **2074 / 2074** |
+
+SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口控制网络、时钟和请求 ID；`c8` 的行/语句/函数/分支均为 100%。源码清单门禁另外核对唯一生产源 `src/client.ts` 的 **318 个 statement、30 个 function、225 个 branch counter** 全部为正整数，不用四舍五入的百分比或遗漏源码过关。
+
+三个 Python 工具的 **58 个单元测试**全部通过，**321/321 statements、160/160 branches**。新增 SDK 门禁拒绝遗漏源码、重复路径、空分母、非法 hit、branch arity 错误、忽略标记和未覆盖 counter。Rust gate 保持完整 map、四维整数和无排除检查。
+
+固定工具链为 Rust 1.90.0、nightly-2025-09-18、cargo-llvm-cov 0.6.21、Node.js 24.22.1、TypeScript 5.9.3、c8 12.0.0、coverage.py 7.10.6。SDK 包和 Cargo 依赖都有锁文件。CI 的 native 依赖从锁定源码构建；本机复用的 native 静态库只属于本次环境，不是 CI 下载依赖。
+
+### 13.2 关键行为及单元反例
+
+- SQL 入口先完整解析并验证自包含 Hrana pipeline，再准入有界 SQL mailbox；Bearer 映射为不可变数据库/principal/credential 身份，执行时仍检查复制状态中的权限和 auth epoch。
+- owner 调度只允许 Raft leader 操作；term 变化退休全部本地 writer。空闲计时必须同时匹配当前 owner、active 状态和 revision，不能让旧 writer 的空闲时间休眠一个新 owner。
+- 强读使用自己的 Safe ReadIndex，并核对当前授权、物理镜像与已接受 head；不写 quorum 结果记录、不增加 revision。读事务拒绝变更、事务控制和未授权函数，并有原 deadline、VM、行数和字节限额。
+- 冷流程按 Suspend / 上传核验 / Publish / Prune / Hydrate 排序。物理内容只有在可恢复对象已经有序发布后才可裁剪；原 receipt、结果、权限和 fence 保留。新格式兼容合法 v1 状态与旧行政操作重试，但没有混版本或降级协议。
+- 后台归档每库最多一个 pending，总队列 8，失败有界退避；任务携带原 owner/head/generation 和 deadline。fresh read 后到最终 apply 前换 owner 仍会被 cell 拒绝，不能用旧任务裁剪新历史。
+- 对后台 Prune 与前景 Claim 的竞争，仅明确 `Rejected(Cold)` 可在原 deadline 下刷新一次并 hydrate；SQL 尚未运行，UNKNOWN 不进入该重试。实际 Controller / CellApplication 注入测试验证一次成功和第二次拒绝。
+- 启动与部分失败拥有完整资源归属；缓存 namespace 的根和子项都拒绝 symlink。SIGINT/SIGTERM、运行 future 取消、线程启动失败或 panic 都触发停止和 join；慢 HTTP body 在停止时被显式唤醒关闭。
+- 所有自包含 HTTP/1 响应明确 `Connection: close`，避免客户端复用接近 30 秒绝对寿命的连接而在最后核对时被断开；30 秒慢连接硬限和连接数限额仍保留。
+- 行政 ID 整数耗尽、每个读/写时钟检查点失败、native 恢复目录错误、旧权限、损坏原结果、丢失裁决和状态读取失败都有禁止 ACK/重放的单元断言。
+
+### 13.3 独立真实合同
+
+冻结后的全部 9 套 Rust experiment 已重新执行格式、严格 Clippy 与锁定依赖测试：共 **27 个检查步骤、76 个测试全部通过，0 failed / ignored**。各套测试数为 WAL 13、RPC 8、Store 12、Raft cluster 8、SQLite cell 6、SQLite engine 11、Raft network 8、SQLite network 8、S3 2。43 份历史均有最终 `verification passed`，回归前后源码无漂移，未使用 unit profile。
+
+| 独立实验 | 本次验收内容 |
+| --- | --- |
+| `sqlite-network` | 原七项 durable SQL/mTLS 合同加独立强读，共 8 项；ReadIndex 与 SQL snapshot 绑定，少数派不能强读 |
+| `archive-s3` | 固定真实 SeaweedFS 4.51 的两个对象合同；签名、错误凭据、条件 PUT 不覆盖、HEAD 超限、SIGKILL/同目录重开 |
+| `service-network` | 8 项真实三 daemon 合同；含真实 Node SDK 五组调用、租户/只读权限、leader SIGKILL、双向 TCP 黑洞、全组重启、冷库与 S3 故障、双库持续测量 |
+
+服务实验启动三个独立 RocksDB 目录、实际 `scap-server` release 二进制、实际 HTTP/Hrana SDK 和实际双向 TLS。S3 黑洞时，新的 beta revision 已 suspended 但没有 prune；alpha 继续在原 1.5 秒 deadline 内完成五组写与强读。网络恢复后 beta 自动发布/裁剪到新 revision，再精确恢复数据与原随机结果。
+
+服务 harness 每次运行保存构建 hash、环境和逐请求原始结果；本机最终验收另外保存生产源码清单、源码包及运行前后摘要核验。CI 绑定实际 checkout commit 与自行构建的 binary，不声称自动产出这份本机源码包。服务历史只有所有断言通过才写末行 `verification passed`；`completed.json` 必须含完整 8 项及 S3 requested。测量另核对全部 ACK 的行与内容，而非仅检查响应次数。源码或 binary 变化时不复用此前结果冒充最终构建。
+
+### 13.4 性能结果的适用范围与失败记录
+
+本次诊断负载为 **同一宿主机 loopback、两个小库、4 请求/秒、8 秒固定原 deadline、30 秒热基线和故障后 60 秒观察**。这与生产目标的三 AZ、500 请求/秒、2 秒 deadline、GiB 库和长期故障分位不是同一 profile。所有 360 个 scheduled/invoked/result/deadline 样本保留；每库每秒一个强读和一个稳定 ID 小写，恢复必须满足两库完整 30 秒稳定窗口，最后重新核对所有 ACK。
+
+较早两轮 debug 测量没有满足稳定窗口：首轮热基线 120 次只有 49 成功，另有 61 COMMIT_UNKNOWN、4 OVERLOADED、6 NO_LEADER；透明代理修正 NODELAY 后另一轮为 68 成功、40 UNKNOWN、12 NO_LEADER。它们仍是失败，不能删除、改写为事后成功或混进 release 的成功分位数。
+
+优化热请求时去掉了两次重复的 ReadIndex，保留正式 Writer 自己的新鲜权威检查；后台 S3 归档移出了 SQL 线程。release 与热路径同时变化，因此不作单因素性能归因。第一轮 release 虽收齐 360 样本并形成恢复窗口，但末尾 ACK 核对遇到 HTTP 连接断开，整项仍记失败；随后补了明确关闭响应的连接协议及原生 EOF/停止回归。
+
+最终格式冻结后的 release binary SHA-256 为 `6012c2366632ecad0de381c6382d4b6000f98bd6f14f9ca1a9f03dab26f43150`，68 个生产输入的 source ID 为 `0681df93b2539a45bcaab2c952fa828a89b002db43378fc6a09b2a665991485e`，运行前后无源码漂移。该二进制完整 8 项通过，末尾全部 ACK 核对无缺失。环境为 Linux x64、Node 24.22.1、可见 9 个 CPU、约 9.7 GiB 内存、同机临时磁盘；没有证明 CPU/磁盘隔离。
+
+| 最终诊断结果 | 实际观测 |
+| --- | --- |
+| 热基线 | 120/120 成功；每库每操作 30 个样本 |
+| 故障观察 | 240 次中 228 成功、12 次 NO_LEADER，集中在故障后最初三个探测轮次 |
+| UNKNOWN / OVERLOADED / ACK 缺失 | 本轮均为 0；此前失败轮仍保留 |
+| 首次成功 | 故障后 3.050 s；alpha 3.050 s、beta 3.338 s |
+| 双库 30 秒窗口起点 | 故障后 **3.009 s**；于 **33.009 s** 确认完整窗口，探测分辨率 1 s |
+| 热 alpha 强读 p95 / p99 | 151.252 / 190.762 ms |
+| 热 alpha 写 p95 / p99 | 164.286 / 164.479 ms |
+| 热 beta 强读 p95 / p99 | 161.575 / 188.405 ms |
+| 热 beta 写 p95 / p99 | 189.106 / 201.415 ms |
+
+这些分位数仅描述各 30 个成功热样本；故障阶段各分组为 57 成功/3 失败，完整分母和成功分位单独保存在 [可复核摘要](../evidence/sqlite-service-local-2026-11-02.json)。摘要包含全部生产文件摘要、二进制标识、环境、指标与原始样本文件 hash；原始过程日志作为测试 artifact 保存，不提交生成的凭据或数据库。CI 会针对其实际 commit 重新构建并保留独立结果，不把本机数字复制成 CI 或生产结果。
+
+单次窗口只是一条观测；不转写成生产 RTO p95/p99 或 SLA。当前热请求实测尾延迟仍高于原先 50/100 ms 目标，后续增量存储、复用安全 peer 连接和恢复调度优化不能绕过持久性门禁。
+
+### 13.5 CI 与原始计数
+
+首次 GitHub quality run 在调度前拒绝了两处 job 级 `runner.temp` 表达式；本机 YAML 语法解析未发现该平台规则。已将临时目录变量改为 step 写入 `GITHUB_ENV`，并在文档 workflow 增加固定 actionlint 1.7.12 及官方 SHA-256 校验，检查 GitHub 上下文与 workflow schema。该失败保留，不计为数据库测试通过。
+
+合入前同时检查 PR 与 push 两轮 CI 时，发现同一源码的 push unit 在取消测试中出现 `ConnectionRefused`，而 PR 轮全部通过。根因是测试固定等待 120 ms 后连接，未等待 RocksDB/TLS 初始化和 listener bind 的真实完成。测试改为在正式资源装配后首次轮询 shutdown future 时发送 oneshot 启动信号；受控 release gate 验证启动前信号未发生。保留严格单次连接，不对启动错误静默重试。取消后只对 `AddrInUse` 在单个 1 秒测试预算内观察端口最终释放，其他错误立即失败；RocksDB 独占锁仍要求父任务取消完成后立即重新打开。生产源码与最终服务构建输入不变，失败历史保留。修正后的 11 个 node tests 先通过，再按预先固定的 20 轮完整运行得到 220 passed、0 failed/ignored；任一失败立即停止，没有重试失败轮。全 workspace 单元与完整 CI 重新执行。
+
+质量 workflow 增加 SDK unit、独立 S3、正式服务部署三个 job，共 13 个质量 job，另有文档 job。Rust profile、Python profile、SDK profile、各类故障历史分别保存 artifact，完整性检查与执行退出码分开。正式服务 job 在 release 构建上运行完整 8 项及全部 360 样本，但输出明确 `production_slo_passed=false`。
+
+## 14. 仍然阻断生产规模和完整平台目标的工作
+
+- 当前单 cell 上限 32 个配置数据库、每库 256 KiB；128 个请求/库和 4096 个行政记录/cell 到限即拒绝。必须先实现增量持久布局、分段物理历史和可证明的保留策略，再验证万级冷库与 GiB 级库，不能只调大常数。
+- 前景 cold hydrate 仍共享一个 SQL owner 线程；需可停止的恢复调度、独立并发预算和热点公平性。R1 预置文件、R2 热备执行与跨 AZ 路由恢复尚未实现。
+- 当前 S3 实现具备 suspend/publish/prune/hydrate，没有对象 GC、删除/跨 cell 迁移、PITR、完整目录与权限恢复、S3-only DR。对象与原结果一直保留，长尾成本未全部解决。
+- 动态成员、自动替换损坏或丢失的 RocksDB 副本、证书/管理员轮换控制面、多 cell 调度和 rolling upgrade 尚待实现与故障验证。
+- 支持闭合 Hrana pipeline、显式事务 batch 和强读；跨请求交互事务、cursor、同步文件驱动兼容、更多 page size、spill 与大事务不在当前服务范围。
+- 三 AZ、设备断电/慢盘/丢盘、生产参考负载、故障分位、长期可用性与成本需要独立环境和样本。单机进程 SIGKILL、100% 单元覆盖率以及这 8 项成功不能替代上述证据。
+
+这些限制不取消已实现的请求闭环，也不降低原有持久性合同。阶段结果、缺失能力和性能未达标分别报告；不能用测试计数代替完整目标的验收。
 
 2026-10-28 的 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 将共识库首选候选由 OpenRaft 调整为 `raft-rs`。本页既有测试结果保持原有范围：此前没有接入任何真实 Raft adapter，不能把引擎探针或提交策略的通过记录记作 `raft-rs` 验证。新增工作的出口见 [集成门禁](raft-rs-integration.md)。
 
@@ -533,4 +612,4 @@ cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked 
 
 同日后续 [ADR 0008](../adr/0008-bounded-durable-store-g0.md)落实有界持久策略和真实 RawNode/RocksDB 恢复实验，新增第 7 节证据；当时正式 driver/native 尚待实现。
 
-[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据；ADR 0011 与 0012 分别落实第 10、11 节。整个 G0 尚未通过，剩余工作以上述第 13 节为准。
+[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据；ADR 0011 与 0012 分别落实第 10、11 节。整个 G0 尚未通过，剩余工作以上述第 14 节为准。

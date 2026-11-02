@@ -12,6 +12,7 @@ pub const CLUSTER: u128 = 0x53434150;
 pub const CELL: u128 = 0x4e4554574f524b;
 pub const CELL_GENERATION: u64 = 7;
 pub const ADMINISTRATOR: u128 = 101;
+pub const READER: u128 = 102;
 pub const DATABASE: DatabaseIdentity = DatabaseIdentity {
     database_id: 0x44415441,
     incarnation: 2,

@@ -1,16 +1,16 @@
 # 故障模型与组件可用性矩阵
 
-> 状态：完整目标故障规范与部分已执行证据。正式 SQLite adapter、持久 Raft 和固定成员单 cell mTLS/runtime 已有指定范围的验证；完整服务尚未部署或通过全部故障矩阵。第 3.1 节单列本轮实际范围，其余目标行为不能自动视为已有能力。RTO 已有初始内部验收目标但均待实测；默认参数是初始设计值，不是 SLA。
+> 状态：完整目标故障规范与当前有界实现并列。2026-11-02 已有可部署三节点 daemon、HTTP/Node SDK、独立强读、leader owner 恢复和 S3 冷生命周期。第 3.1 节保留底层 peer 实验证据，第 3.2 节说明当前服务行为；动态控制面、GC/DR 和完整生产矩阵仍为 planned。实际执行结果以实验记录为准，配置参数与功能测试不等于恢复 SLO 达标。
 
-正式引擎的当前边界见 [SQLite adapter 合同](../engineering/sqlite-engine.md)：所有失败停止 writer；已接受而 native/最终 COMMIT 失败保留 receipt 并报告已提交不可用；有效历史 receipt 的坏结果同样不伪装成未提交。重启仅从权威完整物理链创建新目录，旧文件/sidecar 不直接复用；自动调度接管尚未实现。
+正式引擎的当前边界见 [SQLite adapter 合同](../engineering/sqlite-engine.md)：失败停止相应 writer；已接受而 native/最终 COMMIT 失败保留 receipt 并报告已提交不可用；有效历史 receipt 的坏结果同样不伪装成未提交。当前 leader 已自动从权威物理历史创建新目录并恢复 owner，旧 SQLite cache/sidecar 不直接复用。完整服务流程与容量边界见 [SQLite 服务实现](../engineering/sqlite-service.md)。
 
 ## 1. 适用范围和基本假设
 
 SCAP 的目标服务为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQL 执行，事务先生成未对其他请求可见的 staged WAL；所属 storage cell 的 Raft 多数副本完成持久化并提交后，worker 才能发布该事务并向客户端返回成功。目标部署让一个 cell 的三个 Raft 副本跨三个可用区；当前本机三进程实验不代表三个故障域。同一 cell 中的数据库共享这一个 Raft 组，而不是每库建立一个 Raft 组。
 
-数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。etcd 保存目录和调度信息，但不是提交权威。etcd 中的锁、租约或路由指向不构成写入许可。S3 异步保存快照及 WAL segments，manifest 经 Raft 提交后才能成为可用恢复点；“上传完成”和“可回收旧数据”是不同事件。
+数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。当前目录/凭据由静态 JSON 配置，etcd 不参与启动；后续 etcd 目录、租约和调度也不能成为提交权威。当前 S3 保存完整单库事务历史及 manifest，Publish 经 Raft 接受后才能成为恢复入口；Prune 与共享日志 Checkpoint 分开，“上传完成”不等于获准删除数据。分段归档、对象 GC 与 DR checkpoint 尚未实现。
 
-共识库首选候选按 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 调整为 `raft-rs`，以下故障合同不因此降低。驱动循环、持久化、读取和恢复的具体约束见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
+共识库已按 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 采用 `raft-rs`，以下故障合同不因此降低。驱动循环、持久化、读取和恢复的具体约束见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
 
 本文使用以下术语：
 
@@ -62,6 +62,8 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 
 下表中的“自动”描述目标行为。实现前必须通过 [验证规范](../engineering/validation.md) 中对应场景。
 
+独立 Gateway/控制服务、etcd、成员替换、磁盘百分比背压、GC/PITR/DR 等行仍为 planned；不要把目标矩阵当作当前已安装的组件清单。当前服务的准确自动行为单列于第 3.2 节。
+
 | 故障 | 写入与标准读取 | 自动处理目标 | 运维边界 / 禁止行为 |
 | --- | --- | --- | --- |
 | 单个 Gateway 进程退出 | 新请求可由其余 Gateway 接受；该进程上的连接中断，事务可能结果未知 | 负载均衡摘除；客户端重连；原幂等键用于查结果 | 不重放无幂等键的写请求；Gateway 不是事务持久化节点 |
@@ -96,7 +98,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 监控、告警或日志收集不可用 | 不应成为事务提交或读路径依赖 | 本地有界缓冲、恢复采集；暂停高风险人工操作 | 关键安全阈值必须在服务内执行，不能依赖监控系统替服务停写 |
 | DNS / LB / 集群调度不可用 | 新连接、节点替换或 cold wake 受影响；已建立健康数据面可能继续 | 冗余基础服务；按真实故障定位 | 不因服务发现缺失直接变更数据库 incarnation |
 
-### 3.1 当前固定成员 peer 运行层的已验证范围（2026-11-01）
+### 3.1 固定成员 peer 运行层的独立验证范围（2026-11-01）
 
 本节对应 [正式网络运行层](../engineering/raft-network-runtime.md)、[八项真实 mTLS 契约](../../experiments/raft-network/README.md)及其独立单元测试。真实契约使用同一宿主机上的三个独立进程与 RocksDB 目录，应用内容为合成 opaque payload；它不执行 SQLite SQL，也没有 Gateway、etcd、S3 或自动 writer 接管。以下证据不把上面的目标矩阵整体改为完成。
 
@@ -113,7 +115,31 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 
 正式 worker 每条 delivery 新建 mTLS 连接，对端证书在新握手中验证；入站旧连接仍按每请求和消费时的当前 pin/日期检查。每次握手的 CPU、连接 churn、TIME_WAIT 与资源释放成本仍待生产负载验证。自供 incoming 的 accepted socket 已显式开启 NODELAY，设置失败拒绝连接；这次真实网络缺陷修复不构成吞吐或 p99 证明。故障检测到稳定业务窗口的 RTO 仍须按第 2 节独立测量。
 
+### 3.2 当前正式服务的故障行为（2026-11-02）
+
+本节对应正式 `scap-server`、`scap-service`、`sdk/node` 和 `scap-archive`，不是实验专用恢复算法。测试场景、原始证据及测量限制分别见 [service-network](../../experiments/service-network/README.md)与 [archive-s3](../../experiments/archive-s3/README.md)；此表描述实现合同，不自动宣称每个云产品、故障域或 SLO 已验证。
+
+| 情况 | 当前处理 | 剩余边界 |
+| --- | --- | --- |
+| leader/daemon 退出或与多数派分区 | PreVote/check_quorum 后由合法 leader 取得新 owner，重读 head、恢复新目录、Activate；旧 owner 被 epoch 拒绝 | 同一 cell 的 leader 驱动恢复，没有跨 cell 调度、热备执行器或固定秒数承诺 |
+| 少数派继续收到 SQL | 新提交/强读仍须 durable quorum / Safe ReadIndex，不能由 ready、旧文件或本地租约授权 | 没有 stale read/离线写降级；已接受请求可能为 UNKNOWN |
+| 所有进程重启、原 RocksDB 完好 | OpenExisting 验证持久身份、limits、镜像及应用位置；重选 leader 后恢复活跃库，休眠状态保留 | 进程重开证据不等于设备断电、跨 AZ 或介质损失验证 |
+| SQLite cache 丢失或页面不匹配 | 停用失效 writer，后续从相同已确认历史重建新目录；不以本地页覆盖权威 | 命名、symlink 或清理异常会停止准入要求人工检查 |
+| RocksDB/WAL/状态镜像坏、目录丢失或身份不符 | OpenExisting 拒绝，保全介质；其他健康多数派可继续 | 没有坏盘自动重建或动态成员替换；不自动 Initialize 空 cell |
+| S3 后台上传遇拒绝、黑洞或停机 | 有界后台任务失败/退避，保持未覆盖物理历史；健康热库继续原 quorum 提交 | 热服务仍受 cell 空间、CPU 和磁盘边界约束，没有无限积压 |
+| 已 Cold 数据库在 S3 故障时唤醒 | 等待精确对象或在原 deadline 内失败；不建空、不用更老对象 | 前景 hydrate 仍占单 SQL actor，可推迟同进程其他热库请求 |
+| 归档上传后进程退出，尚未发布 | 对象保留但不成为恢复入口；重启按 cell 状态重建任务 | 所有对象保留，无 orphan GC 和成本收敛保证 |
+| I/O 期间 owner/head 改变 | 原 Publish/Prune 的 owner/head/auth 条件拒绝迟到任务 | 队列丢弃或任务失败不等于撤销已经提交的管理命令 |
+| Prune 恰好先于新请求 Claim | 明确 Cold 且 SQL 尚未执行时，原 deadline 下仅一次 fresh/hydrate/恢复 | 其他错误和 Unknown 不自动重试 SQL |
+| 错库 token、旧 auth_epoch 或越权结果查询 | 静态凭据绑定后仍由新 cell view 复核当前主体/权限；写 apply 再检查 | 没有外部身份源、JWT expiry、动态配置或 60 秒策略缓存 |
+| 关键 HTTP/peer/Raft/SQL/归档任务异常退出 | 节点 supervisor 停止整体服务，取消并回收其余资源 | native 同步 I/O 不能被异步 deadline 强制打断 |
+| SIGTERM/Ctrl-C | 停止准入、取消当前任务、在关闭预算内 drain/join | 超时不冒充完成；进程管理仍需处理卡住的底层 I/O |
+
+当前 Prune 仅移除数据库物理历史，完整请求结果、取消 fence、授权和 archive pointer 继续持久化。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像和有界记录，无 GC、恢复空间预留或无限长尾承诺。
+
 ## 4. 控制面与鉴权降级边界
+
+本节描述后续动态控制面和外部策略源的目标合同。当前 daemon 使用静态目录/token；每个请求仍复核 cell auth_epoch，但没有 etcd/外部鉴权依赖可供降级。当前自动同 cell 接管/唤醒不需要等待不存在的外部调度服务；不能因静态配置成功而绕过 quorum。
 
 ### 4.1 控制面失联时的数据面准入
 
@@ -132,7 +158,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 
 ### 4.2 有界认证缓存
 
-v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安全评审。有效期取 `策略验证时间 + 上限`、token 到期时间、凭证到期时间的最早者。缓存命中不得延长有效期，源不可达时不得续期。即使 JWT 还有数小时才到期，权限新鲜度仍受 60 秒上限约束。
+planned 的 v0 初始上限为 **60 秒**，允许配置得更短；当前静态 token 不具有这套 TTL/JWT 能力。未来有效期取 `策略验证时间 + 上限`、token 到期时间、凭证到期时间的最早者；缓存命中不得延长有效期，源不可达时不得续期。即使 JWT 还有数小时才到期，权限新鲜度仍受上限约束。
 
 - 缓存必须绑定身份、tenant、数据库身份、权限范围和 auth_epoch / 策略版本；不能只缓存“这个 token 曾经成功”。
 - 已建立连接在每次新操作准入及 leader 提交提案前重新检查 TTL / token 有效期。进入确定性 Raft `apply` 后，只依据有序复制的 auth_epoch、fence 及授权范围判定，不使用各副本墙钟再决定 token 是否到期；否则副本可能对同一条目作出不同结果。正在运行的查询受执行预算限制；已经接受的提交不因 token 随后失效而撤销。
@@ -146,7 +172,7 @@ v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安
 
 ### 5.1 初始阈值
 
-以下使用率阈值是待压测的初始设计值，不能代替绝对剩余空间条件。任一磁盘的绝对预留不足时，必须更早升级措施。
+以下使用率阈值是 planned 的初始设计值，当前没有启用按 70%/80%/90% 水位自动治理。已有实现依赖 command/state/history/queue 上限及真实 I/O 失败拒绝；恢复与控制记录的绝对空间预留尚未实现。未来使用率阈值也不能替代绝对剩余空间条件。
 
 | 状态 | 初始触发线 | 服务动作 |
 | --- | --- | --- |
@@ -162,6 +188,8 @@ v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安
 
 ### 5.2 允许截断日志或删除对象的条件
 
+当前仅实现经完整状态覆盖的 Raft Checkpoint 和受 exact archive 覆盖的单库 Prune；不删除任何 S3 对象。下面的历史引用、PITR/DR pin 与 GC 删除任务属于启用回收前的 planned 合同。
+
 删除候选必须同时满足：
 
 1. 替代的快照及所需 segments 已上传，完整性校验通过。
@@ -172,6 +200,8 @@ v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安
 6. 不是依靠墙钟或对象文件名推测“足够老”。
 
 ## 6. 文件损坏、数据错误与灾难恢复的区别
+
+表中按库 PITR、删除恢复、成员重建和区域 DR 是目标运维路径，当前没有这些通用管理工具。当前可自动完成的是从仍然有效的 cell 权威重建 SQLite cache/owner；权威介质损坏或永久失去多数派必须保持失败。
 
 | 问题 | 正确处理 | 不应采用 |
 | --- | --- | --- |
@@ -185,6 +215,4 @@ v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安
 
 常规故障处理见 [运维手册](runbooks.md)。任何改变恢复时间点、删除保留数据或接受归档缺口的动作，都必须留有操作者、批准者、恢复边界和影响范围的审计记录。
 
-## SQLite 网络提交实现更新（2026-11-02 UTC）
-
-正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](../engineering/sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。
+版本升级须同时遵守 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)：新状态写入 v2，合法 v1 热历史仅在相同身份/limits 下兼容读取；无旧 binary 降级或混版本滚动协议。服务可部署与完整生产 SLO/故障矩阵通过是不同结论。

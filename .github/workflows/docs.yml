@@ -20,6 +20,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Validate GitHub Actions contexts and workflow schema
+        run: |
+          mkdir -p "$RUNNER_TEMP/scap-actionlint"
+          curl --fail --location --silent --show-error https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$RUNNER_TEMP/scap-actionlint/actionlint.tar.gz"
+          printf '%s  %s\n' '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' "$RUNNER_TEMP/scap-actionlint/actionlint.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-actionlint/actionlint.tar.gz" -C "$RUNNER_TEMP/scap-actionlint" actionlint
+          "$RUNNER_TEMP/scap-actionlint/actionlint" -shellcheck= -pyflakes= .github/workflows/quality.yml .github/workflows/docs.yml
       - name: Validate documentation and design manifest
         run: python3 scripts/check_repo.py
       - name: Check whitespace

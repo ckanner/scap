@@ -532,6 +532,43 @@ impl Cluster {
         self.nodes.get_mut(&node).unwrap().receive()
     }
 
+    pub fn begin_query(
+        &mut self,
+        node: u64,
+        request: u128,
+        auth_epoch: u64,
+        hook: &str,
+        statements: &[scap_sql::Statement],
+    ) {
+        assert!(!statements.is_empty());
+        assert!(statements
+            .iter()
+            .all(|statement| statement.parameters.is_empty()));
+        let statements = statements
+            .iter()
+            .map(|statement| hex(statement.sql.as_bytes()))
+            .collect::<Vec<_>>()
+            .join(",");
+        self.nodes.get_mut(&node).unwrap().begin(
+            "query",
+            &format!("2500 {request} {auth_epoch} {hook} {statements}"),
+        );
+        self.record(format!(
+            "node={node} READ-only principal query={request} hook={hook} issued"
+        ));
+    }
+
+    pub fn query(
+        &mut self,
+        node: u64,
+        request: u128,
+        auth_epoch: u64,
+        statements: &[scap_sql::Statement],
+    ) -> Reply {
+        self.begin_query(node, request, auth_epoch, "none", statements);
+        self.nodes.get_mut(&node).unwrap().receive()
+    }
+
     fn hook_path(&self, node: u64, request: u128, extension: &str) -> PathBuf {
         self.directory
             .path()

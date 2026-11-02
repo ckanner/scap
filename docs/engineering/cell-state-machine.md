@@ -1,6 +1,6 @@
 # 有界 cell 数据库状态机
 
-日期：2026-10-31。正式模块：`crates/scap-cell`。本页描述 G0 的事务接受子集，不表示完整 SQL 服务、认证服务、S3 生命周期或生产接管已经实现。决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，实际测试结果见 [G0 执行证据](g0-evidence.md)。
+日期：2026-10-31。正式模块：`crates/scap-cell`。本页描述 G0 事务接受的基础合同。后续 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)已实现有界 SQL/SDK 服务、静态认证、自动 owner 恢复及 Suspend/Publish/Prune/Hydrate；完整平台生命周期和生产规模仍未验收。决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，实际测试结果见 [G0 执行证据](g0-evidence.md)。
 
 ## 1. 职责与依赖
 
@@ -39,11 +39,11 @@
 
 原始准入标识随接受事务、取消 fence 和管理记录保留；不保存可直接使用的秘密凭据。重复请求使用新的合法准入进行检查，但不能覆盖历史记录的原始准入身份。
 
-bootstrap 管理员的轮换、真实凭证验签、外部撤销传播、租户目录和更细粒度权限模型尚未实现。内部 `database` 检查不能直接暴露为未受保护的用户 API。`recovery_transactions` 包含整库物理内容及各主体的原事务结果/元数据，即使用户具有 READ 权限也不能作为用户导出接口；它只供可信内部 worker 在绑定经过验证的恢复身份后调用。
+bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录和更细粒度权限模型尚未实现。当前 HTTP 服务验证静态 token 的 SHA256 映射，每次操作仍按复制状态的当前 policy/auth_epoch 判定；不把本模块的 Admission 当作可由用户提供的凭证。内部 `database` 检查不能直接暴露为未受保护的用户 API。`recovery_transactions` 包含整库物理内容及各主体的原事务结果/元数据，即使用户具有 READ 权限也不能作为用户导出接口；它只供可信内部 worker 在绑定经过验证的恢复身份后调用。
 
 ## 4. 所有权与激活
 
-`Create` 创建 inactive 数据库，owner 尚未分配，revision 为 0。首版没有删除或跨 cell 迁移入口，现有 database ID 不会被静默复用。
+`Create` 创建 inactive、suspended 数据库，owner 尚未分配，revision 为 0；配置目录不会立即给所有冷库创建 native writer。首版没有删除或跨 cell 迁移入口，现有 database ID 不会被静默复用。
 
 写者取得执行权必须经过：
 
@@ -99,3 +99,9 @@ bootstrap 管理员的轮换、真实凭证验签、外部撤销传播、租户�
 单元测试覆盖正式 domain、codec、权限、幂等、取消、位置、恢复和限额规则，精确计数由未放宽的覆盖率门禁记录。真实 SQL 接合在独立 [SQLite/cell 合同](../../experiments/sqlite-cell/README.md) 中组合固定 libSQL、正式 driver、backend 和业务状态机，不进入单元 profile。
 
 整个 G0/G1 仍受原有门禁约束：生产 peer RPC/mTLS、通用事务暂存/spill、SDK/Hrana 返回语义、完整 lifecycle、S3/GC、坏副本重建和跨 AZ 性能/RTO 均不能由本模块的局部通过结果代替。
+
+## 后续 v2 冷生命周期（2026-11-02）
+
+`SCAPCELL` 与 `SCAPCMD!` 当前写入 version 2；Store、SCAPIMG、SCAPRES 与逐 entry outcome 的版本没有因此自动改变。v2 接受相同 identity/持久化 limits 下合法的 v1 数据和旧命令，旧行政 intent digest 不依赖 envelope version，因此合法重试仍是 AlreadyApplied。当前没有反向降级、混版本滚动协议或自动 limits 迁移。
+
+Suspend 撤销 owner/active 权限，PublishArchive 记录精确物理 head、对象与元数据摘要；PruneArchive 必须匹配发布的精确 head 和 expected_owner，且对象可以在当前 command 上限内完整 Hydrate，才裁剪物理 payload。权限、结果、取消和行政记录不裁剪。Hydrate 按已发布摘要验证所有内容，不替换当前权威元数据。后台旧任务不能在 wake→suspend 换 owner 后裁剪新世代。实现、边界和真实故障合同以 [正式服务](sqlite-service.md)为准。

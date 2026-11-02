@@ -426,3 +426,11 @@ raw_report_and_profile_provenance
 [S5]: https://doc.rust-lang.org/rustc/tests/index.html
 [S6]: https://github.com/taiki-e/cargo-llvm-cov
 [S7]: https://doc.rust-lang.org/cargo/commands/cargo-test.html
+
+## 12. 正式服务与 TypeScript SDK 的当前门禁（2026-11-02）
+
+Rust fresh unit-only 采集覆盖全部 workspace 的 lib 与 bin，固定 `--test-threads=1` 隔离进程级 POSIX 信号 fixture；生产 Raft/HTTP 并发由独立真实合同验证。全部 45 个生产文件由 `contracts/coverage-policy.json` 与实际目录核对，不因为入口、异步回调、native 代理、CLI 或无条件分支文件而遗漏分母。
+
+SDK 先执行 `npm --prefix sdk/node test`，固定 c8 的 `--all` 与四维 100% 门禁，再执行 `python3 scripts/check_sdk_coverage.py sdk/node/coverage/coverage-final.json`。后者枚举 `sdk/node/src` 的全部生产源、逐个原始 statement/function/branch hit 和 map identity；新文件未进入报告、空分母、未执行分支或忽略标记均失败。SDK 与服务端到端测试另有入口，不给 unit coverage 填缺。
+
+Clock、System/Assembly、Inbox、对象存储和 CellPort 分别是实际可替换边界；单元注入失败，正式委托仍有原生调用覆盖。泛型实例的覆盖表现不能靠目录排除修饰；同一个语义函数必须被完整验证，必要时收敛成单一窄接口。行、函数、region、branch 的 100% 不代表 MC/DC 或所有线程交错已被证明；原始 SQL/网络/S3 故障及长期容量测量仍须独立验收。

@@ -296,6 +296,46 @@ impl SqlSession {
                     },
                 }
             }
+            "query" => {
+                // The request number only names the test scheduling hook; the
+                // formal query has no write request ID or retained result.
+                let request: u128 = parts[3].parse().unwrap();
+                let auth: u64 = parts[4].parse().unwrap();
+                self.scheduling
+                    .arm(&parts[5], self.root.join(format!("hook-{node}-{request}")));
+                let statements = parts[6]
+                    .split(',')
+                    .map(|text| common::sql(&String::from_utf8(unhex(text)).unwrap()))
+                    .collect::<Vec<_>>();
+                let mut request_context = context(auth, deadline);
+                request_context.admission.principal_id = common::READER;
+                match self
+                    .writer
+                    .as_mut()
+                    .unwrap()
+                    .query(request_context, &statements)
+                {
+                    Ok(completed) => Response {
+                        kind: "query",
+                        fields: format!(
+                            "{} {} {} {} {}",
+                            completed.revision,
+                            completed.position.term,
+                            completed.position.index,
+                            hex(&completed.commit_hash),
+                            hex(&scap_sql::encode_result(
+                                &completed.result,
+                                common::writer_limits().sql
+                            )
+                            .unwrap()),
+                        ),
+                    },
+                    Err(error) => Response {
+                        kind: "error",
+                        fields: hex(format!("{error:?}").as_bytes()),
+                    },
+                }
+            }
             _ => panic!("unknown SQL fixture action"),
         }
     }

@@ -1,5 +1,910 @@
 use super::*;
 
+fn suspend(state: &CellState, id: u128) -> Command {
+    let view = state.database(database().database_id).unwrap();
+    command(CommandKind::SuspendDb {
+        operation_id: id,
+        token: view.owner,
+        expected_revision: view.revision,
+    })
+}
+
+fn published(mut state: CellState) -> (CellState, ArchiveRef, Vec<u8>) {
+    let cmd = suspend(&state, operation(10));
+    assert!(matches!(
+        apply(&mut state, &cmd),
+        Outcome::Administrative(AdminResult::Suspended(_))
+    ));
+    let (archive, bytes) = state.archive_snapshot(database(), admission()).unwrap();
+    let cmd = command(CommandKind::PublishArchive {
+        expected_owner: state.database(database().database_id).unwrap().owner,
+        operation_id: operation(11),
+        expected_previous: None,
+        archive,
+    });
+    assert_eq!(
+        apply(&mut state, &cmd),
+        Outcome::Administrative(AdminResult::ArchivePublished(archive.object_digest))
+    );
+    (state, archive, bytes)
+}
+
+#[test]
+fn cold_archive_roundtrip_preserves_receipts_results_cancel_and_revokes_writer() {
+    let mut state = active();
+    apply(&mut state, &write(1, 0));
+    apply(&mut state, &write(2, 1));
+    apply(&mut state, &cancel(3));
+    let before = state
+        .lookup(database(), admission(), request(1), [1; 32])
+        .unwrap();
+    let history = state
+        .recovery_transactions(database(), admission())
+        .unwrap()
+        .to_vec();
+    let (mut state, archive, bytes) = published(state);
+    assert_eq!(
+        state.database(database().database_id).unwrap().owner.epoch,
+        2
+    );
+    rejected_without_mutation(
+        &state,
+        &activate(1, WORKER, 20, 2, archive.commit_hash),
+        Reject::Fenced,
+    );
+    rejected_without_mutation(
+        &state,
+        &activate(2, WORKER, 20, 2, archive.commit_hash),
+        Reject::Fenced,
+    );
+    let prune = command(CommandKind::PruneArchive {
+        expected_owner: OwnerToken {
+            epoch: 2,
+            worker_instance_id: WORKER,
+        },
+        operation_id: operation(12),
+        archive_digest: archive.object_digest,
+    });
+    assert_eq!(
+        apply(&mut state, &prune),
+        Outcome::Administrative(AdminResult::ArchivePruned(archive.object_digest))
+    );
+    assert_eq!(
+        apply(&mut state, &prune),
+        Outcome::AlreadyApplied(AdminResult::ArchivePruned(archive.object_digest))
+    );
+    let view = state.database(database().database_id).unwrap();
+    assert!(view.suspended && view.cold && !view.active);
+    assert_eq!(view.archive, Some(archive));
+    assert_eq!(
+        state
+            .lookup(database(), admission(), request(1), [1; 32])
+            .unwrap(),
+        before
+    );
+    assert!(matches!(
+        state.lookup(database(), admission(), request(3), [3; 32]),
+        Ok(Lookup::Cancelled { .. })
+    ));
+    assert_eq!(
+        state.recovery_transactions(database(), admission()),
+        Err(Reject::Cold)
+    );
+    assert_eq!(
+        state.archive_snapshot(database(), admission()),
+        Err(Reject::Cold)
+    );
+    rejected_without_mutation(&state, &claim(2, 77, 20), Reject::Cold);
+    rejected_without_mutation(
+        &state,
+        &activate(2, WORKER, 20, 2, archive.commit_hash),
+        Reject::Cold,
+    );
+    rejected_without_mutation(&state, &write(4, 2), Reject::Fenced);
+    state = decode_snapshot(&state).unwrap();
+    assert_eq!(
+        state.databases[&database().database_id]
+            .transactions
+            .iter()
+            .map(|tx| tx.physical_changes.len())
+            .sum::<usize>(),
+        0
+    );
+    let hydrate = command(CommandKind::HydrateArchive {
+        operation_id: operation(13),
+        archive: bytes,
+    });
+    assert_eq!(
+        apply(&mut state, &hydrate),
+        Outcome::Administrative(AdminResult::ArchiveHydrated(archive.object_digest))
+    );
+    assert_eq!(
+        state
+            .recovery_transactions(database(), admission())
+            .unwrap(),
+        history
+    );
+    assert_eq!(
+        apply(&mut state, &hydrate),
+        Outcome::AlreadyApplied(AdminResult::ArchiveHydrated(archive.object_digest))
+    );
+    assert_eq!(decode_snapshot(&state).unwrap(), state);
+    apply(&mut state, &claim(2, 77, 14));
+    apply(&mut state, &activate(3, 77, 15, 2, archive.commit_hash));
+    assert!(state.database(database().database_id).unwrap().active);
+}
+
+#[test]
+fn archive_publication_requires_current_scope_head_previous_digest_and_exact_bytes() {
+    let state = active();
+    let (archive, bytes) = state.archive_snapshot(database(), admission()).unwrap();
+    let publish = |reference, previous, id| {
+        command(CommandKind::PublishArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(id),
+            expected_previous: previous,
+            archive: reference,
+        })
+    };
+    rejected_without_mutation(&state, &publish(archive, None, 20), Reject::Fenced);
+    assert_eq!(
+        state.archive_snapshot(
+            database(),
+            Admission {
+                principal_id: 22,
+                ..admission()
+            }
+        ),
+        Err(Reject::Unauthorized)
+    );
+    let (mut state, archive, _) = published(state);
+    for i in 0..7 {
+        let mut invalid = archive;
+        let expected = match i {
+            0 => {
+                invalid.revision += 1;
+                Reject::Conflict
+            }
+            1 => {
+                invalid.commit_hash[0] ^= 1;
+                Reject::Conflict
+            }
+            2 => {
+                invalid.source.index = u64::MAX;
+                Reject::Conflict
+            }
+            3 => {
+                invalid.object_bytes += 1;
+                Reject::Invalid
+            }
+            4 => {
+                invalid.object_digest[0] ^= 1;
+                Reject::Invalid
+            }
+            5 => {
+                invalid.metadata_digest[0] ^= 1;
+                Reject::Invalid
+            }
+            _ => {
+                invalid.source.term = 0;
+                Reject::Conflict
+            }
+        };
+        rejected_without_mutation(
+            &state,
+            &publish(invalid, Some(archive.object_digest), 20),
+            expected,
+        );
+    }
+    rejected_without_mutation(&state, &publish(archive, None, 20), Reject::Conflict);
+    assert_eq!(
+        apply(
+            &mut state,
+            &publish(archive, Some(archive.object_digest), 20)
+        ),
+        Outcome::Administrative(AdminResult::ArchivePublished(archive.object_digest))
+    );
+    let mut constrained = state.clone();
+    constrained.limits.max_command_bytes = bytes.len() as u32;
+    assert_eq!(
+        constrained.archive_snapshot(database(), admission()),
+        Err(Reject::TooLarge)
+    );
+    assert_eq!(
+        constrained.execute(
+            &publish(archive, Some(archive.object_digest), 21),
+            Position {
+                term: 10,
+                index: 100
+            }
+        ),
+        Err(Reject::Invalid)
+    );
+}
+
+#[test]
+fn archive_suspend_and_prune_are_ordered_fenced_and_idempotent() {
+    let state = active();
+    let mut wrong = suspend(&state, operation(20));
+    if let CommandKind::SuspendDb { token, .. } = &mut wrong.kind {
+        token.epoch += 1;
+    }
+    rejected_without_mutation(&state, &wrong, Reject::Fenced);
+    let mut wrong = suspend(&state, operation(20));
+    if let CommandKind::SuspendDb {
+        expected_revision, ..
+    } = &mut wrong.kind
+    {
+        *expected_revision += 1;
+    }
+    rejected_without_mutation(&state, &wrong, Reject::Conflict);
+    let mut exhausted = state.clone();
+    exhausted
+        .databases
+        .get_mut(&database().database_id)
+        .unwrap()
+        .owner
+        .epoch = u64::MAX;
+    let cmd = suspend(&exhausted, operation(20));
+    rejected_without_mutation(&exhausted, &cmd, Reject::Exhausted);
+    let prune = |digest| {
+        command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(20),
+            archive_digest: digest,
+        })
+    };
+    rejected_without_mutation(&state, &prune([0; 32]), Reject::NotFound);
+    let (mut state, archive, bytes) = published(state);
+    let stale_owner = OwnerToken {
+        epoch: 1,
+        worker_instance_id: WORKER,
+    };
+    rejected_without_mutation(
+        &state,
+        &command(CommandKind::PublishArchive {
+            operation_id: operation(30),
+            expected_owner: stale_owner,
+            expected_previous: Some(archive.object_digest),
+            archive,
+        }),
+        Reject::Fenced,
+    );
+    rejected_without_mutation(
+        &state,
+        &command(CommandKind::PruneArchive {
+            operation_id: operation(30),
+            expected_owner: stale_owner,
+            archive_digest: archive.object_digest,
+        }),
+        Reject::Fenced,
+    );
+    let again = suspend(&state, operation(21));
+    assert_eq!(
+        apply(&mut state, &again),
+        Outcome::Administrative(AdminResult::Suspended(2))
+    );
+    rejected_without_mutation(&state, &prune([0; 32]), Reject::Conflict);
+    for i in 0..2 {
+        let mut mismatch = state.clone();
+        let value = mismatch
+            .databases
+            .get_mut(&database().database_id)
+            .unwrap()
+            .archive
+            .as_mut()
+            .unwrap();
+        if i == 0 {
+            value.revision += 1;
+        } else {
+            value.commit_hash[0] ^= 1;
+        }
+        assert_eq!(
+            mismatch.execute(
+                &prune(archive.object_digest),
+                Position {
+                    term: 10,
+                    index: 100
+                }
+            ),
+            Err(Reject::Conflict)
+        );
+    }
+    apply(&mut state, &claim(2, 77, 22));
+    rejected_without_mutation(&state, &prune(archive.object_digest), Reject::Fenced);
+    let hydrate = command(CommandKind::HydrateArchive {
+        operation_id: operation(23),
+        archive: bytes,
+    });
+    rejected_without_mutation(&state, &hydrate, Reject::Fenced);
+    let mut created = boot();
+    apply(&mut created, &create());
+    let command = suspend(&created, operation(24));
+    assert_eq!(
+        apply(&mut created, &command),
+        Outcome::Administrative(AdminResult::Suspended(0))
+    );
+    assert_eq!(decode_snapshot(&created).unwrap(), created);
+}
+
+#[test]
+fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwriting_metadata() {
+    let state = active();
+    let hydrate = |bytes| {
+        command(CommandKind::HydrateArchive {
+            operation_id: operation(20),
+            archive: bytes,
+        })
+    };
+    rejected_without_mutation(&state, &hydrate(Vec::new()), Reject::NotFound);
+    let mut state = state;
+    apply(&mut state, &write(1, 0));
+    let (mut state, archive, bytes) = published(state);
+    rejected_without_mutation(&state, &hydrate(Vec::new()), Reject::Invalid);
+    let mut corrupt = bytes.clone();
+    corrupt[0] ^= 1;
+    rejected_without_mutation(&state, &hydrate(corrupt), Reject::Invalid);
+    apply(
+        &mut state,
+        &command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(12),
+            archive_digest: archive.object_digest,
+        }),
+    );
+    let publish = command(CommandKind::PublishArchive {
+        expected_owner: OwnerToken {
+            epoch: 2,
+            worker_instance_id: WORKER,
+        },
+        operation_id: operation(30),
+        expected_previous: Some(archive.object_digest),
+        archive,
+    });
+    rejected_without_mutation(&state, &publish, Reject::Fenced);
+    // A hostile/mismatched archived record cannot replace any retained field.
+    // This direct codec exercise also checks malformed internals independently
+    // of the outer immutable object's digest gate.
+    for index in 0..8 {
+        let mut target = state.databases[&database().database_id].clone();
+        let tx = &mut target.transactions[0];
+        match index {
+            0 => tx.admission.admission_id += 1,
+            1 => tx.request_fingerprint[0] ^= 1,
+            2 => tx.commit.receipt.sequence += 1,
+            3 => tx.result.push(0),
+            4 => tx.commit_hash[0] ^= 1,
+            5 => target.transactions.clear(),
+            6 => target.identity.incarnation += 1,
+            _ => target.identity.placement_generation += 1,
+        }
+        assert!(codec::decode_archive(&bytes, identity(), &target, archive, limits()).is_err());
+    }
+    assert!(codec::decode_archive(
+        &bytes,
+        CellIdentity {
+            cell_id: 999,
+            ..identity()
+        },
+        &state.databases[&database().database_id],
+        archive,
+        limits()
+    )
+    .is_err());
+    let mut wrong_ref = archive;
+    wrong_ref.source.index += 1;
+    assert!(codec::decode_archive(
+        &bytes,
+        identity(),
+        &state.databases[&database().database_id],
+        wrong_ref,
+        limits()
+    )
+    .is_err());
+    let mut changed = state.clone();
+    changed
+        .databases
+        .get_mut(&database().database_id)
+        .unwrap()
+        .transactions[0]
+        .result
+        .push(0);
+    assert_eq!(
+        changed.execute(
+            &hydrate(bytes.clone()),
+            Position {
+                term: 10,
+                index: 100
+            }
+        ),
+        Err(Reject::Invalid)
+    );
+    for end in 0..body(&bytes).len() {
+        assert!(codec::decode_archive(
+            &envelope(&bytes, &body(&bytes)[..end]),
+            identity(),
+            &state.databases[&database().database_id],
+            archive,
+            limits()
+        )
+        .is_err());
+    }
+    let trailing = mutate_body(&bytes, |body| body.push(0));
+    assert!(codec::decode_archive(
+        &trailing,
+        identity(),
+        &state.databases[&database().database_id],
+        archive,
+        limits()
+    )
+    .is_err());
+}
+
+#[test]
+fn v1_hot_state_and_old_commands_upgrade_explicitly_without_cold_defaults() {
+    fn legacy_state(state: &CellState) -> Vec<u8> {
+        let mut template = state.encode();
+        template[8] = 1;
+        let mut bytes = body(&template).to_vec();
+        // v2 adds three flags for this unarchived database immediately before
+        // the administrative count. All original hashes stay unchanged.
+        let extension = unique_offset(&bytes, &operation(1).to_be_bytes()) - 8 - 3;
+        assert_eq!(&bytes[extension..extension + 3], &[0, 0, 0]);
+        bytes.drain(extension..extension + 3);
+        envelope(&template, &bytes)
+    }
+    let original = rich();
+    let legacy = legacy_state(&original);
+    let decoded =
+        CellState::decode_bound(&legacy, identity(), original.position, limits()).unwrap();
+    assert_eq!(decoded, original);
+    assert_eq!(decoded.encode()[8], 2);
+    // v2 envelope headers do not change the existing administrative intent
+    // bytes: old durable IDs must still resolve after an upgrade.
+    let mut replayed = decoded.clone();
+    assert_eq!(
+        apply(&mut replayed, &create()),
+        Outcome::AlreadyApplied(AdminResult::Created)
+    );
+    for mut old_command in [
+        claim(0, WORKER, 2),
+        activate(1, WORKER, 3, 0, [0; 32]),
+        command(CommandKind::AuthFence {
+            operation_id: operation(4),
+            expected_epoch: 1,
+            policy: policy(),
+        }),
+    ] {
+        old_command.admission.auth_epoch = 2;
+        assert!(matches!(
+            apply(&mut replayed, &old_command),
+            Outcome::AlreadyApplied(_)
+        ));
+    }
+    let mut never_claimed = boot();
+    apply(&mut never_claimed, &create());
+    // v1 had no suspended flag, including databases never assigned an owner.
+    never_claimed
+        .databases
+        .get_mut(&database().database_id)
+        .unwrap()
+        .suspended = false;
+    let mut upgraded = CellState::decode_bound(
+        &legacy_state(&never_claimed),
+        identity(),
+        never_claimed.position,
+        limits(),
+    )
+    .unwrap();
+    let pause = suspend(&upgraded, operation(2));
+    assert_eq!(
+        apply(&mut upgraded, &pause),
+        Outcome::Administrative(AdminResult::Suspended(0))
+    );
+    assert_eq!(
+        upgraded.database(database().database_id).unwrap().owner,
+        OwnerToken {
+            epoch: 0,
+            worker_instance_id: 0
+        }
+    );
+    assert_eq!(decode_snapshot(&upgraded).unwrap(), upgraded);
+    for command in [
+        create(),
+        claim(0, WORKER, 2),
+        activate(1, WORKER, 3, 0, [0; 32]),
+        write(1, 0),
+        cancel(2),
+        command(CommandKind::AuthFence {
+            operation_id: operation(4),
+            expected_epoch: 1,
+            policy: policy(),
+        }),
+    ] {
+        let mut bytes = encode_command(&command, limits()).unwrap();
+        bytes[8] = 1;
+        assert_eq!(
+            codec::decode_command(&envelope(&bytes, body(&bytes)), limits()).unwrap(),
+            command
+        );
+    }
+    let old = AppliedOutcome {
+        position: Position { term: 1, index: 1 },
+        outcome: Outcome::Rejected(Reject::Fenced),
+    };
+    let mut bytes = encode_applied_outcome(&old);
+    bytes[8] = 1;
+    assert_eq!(
+        decode_applied_outcome(&envelope(&bytes, body(&bytes)), old.position).unwrap(),
+        old
+    );
+    let (state, archive, data) = published(active());
+    let commands = [
+        suspend(&state, operation(20)),
+        command(CommandKind::PublishArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(20),
+            expected_previous: Some(archive.object_digest),
+            archive,
+        }),
+        command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(20),
+            archive_digest: archive.object_digest,
+        }),
+        command(CommandKind::HydrateArchive {
+            operation_id: operation(20),
+            archive: data.clone(),
+        }),
+    ];
+    for command in commands {
+        let mut bytes = encode_command(&command, limits()).unwrap();
+        bytes[8] = 1;
+        assert!(codec::decode_command(&envelope(&bytes, body(&bytes)), limits()).is_err());
+        let bytes = encode_command(&command, limits()).unwrap();
+        for end in 0..body(&bytes).len() {
+            assert!(
+                codec::decode_command(&envelope(&bytes, &body(&bytes)[..end]), limits()).is_err()
+            );
+        }
+    }
+    for result in [
+        AdminResult::Suspended(1),
+        AdminResult::ArchivePublished([1; 32]),
+        AdminResult::ArchivePruned([1; 32]),
+        AdminResult::ArchiveHydrated([1; 32]),
+    ] {
+        let mut invalid = original.clone();
+        invalid
+            .administration
+            .get_mut(&operation(1))
+            .unwrap()
+            .result = result.clone();
+        assert_eq!(
+            CellState::decode_bound(
+                &legacy_state(&invalid),
+                identity(),
+                invalid.position,
+                limits()
+            ),
+            Err(Error::Malformed(
+                "new administrative result in legacy state"
+            ))
+        );
+        for outcome in [
+            Outcome::Administrative(result.clone()),
+            Outcome::AlreadyApplied(result),
+        ] {
+            let mut invalid = original.clone();
+            invalid.last_outcome.as_mut().unwrap().outcome = outcome.clone();
+            assert_eq!(
+                CellState::decode_bound(
+                    &legacy_state(&invalid),
+                    identity(),
+                    invalid.position,
+                    limits()
+                ),
+                Err(Error::Malformed("new outcome in legacy state"))
+            );
+            let value = AppliedOutcome {
+                position: old.position,
+                outcome,
+            };
+            let mut bytes = encode_applied_outcome(&value);
+            bytes[8] = 1;
+            assert!(decode_applied_outcome(&envelope(&bytes, body(&bytes)), old.position).is_err());
+        }
+    }
+    let value = AppliedOutcome {
+        position: old.position,
+        outcome: Outcome::Rejected(Reject::Cold),
+    };
+    let mut bytes = encode_applied_outcome(&value);
+    bytes[8] = 1;
+    assert!(decode_applied_outcome(&envelope(&bytes, body(&bytes)), old.position).is_err());
+    let mut legacy = data;
+    legacy[8] = 1;
+    assert!(codec::decode_archive(
+        &envelope(&legacy, body(&legacy)),
+        identity(),
+        &state.databases[&database().database_id],
+        archive,
+        limits()
+    )
+    .is_err());
+}
+
+#[test]
+fn cold_snapshot_rejects_partial_payload_and_broken_reference_or_metadata() {
+    let mut hot = active();
+    apply(&mut hot, &write(1, 0));
+    apply(&mut hot, &write(2, 1));
+    let (mut state, archive, _) = published(hot.clone());
+    apply(
+        &mut state,
+        &command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(12),
+            archive_digest: archive.object_digest,
+        }),
+    );
+    for index in 0..15 {
+        let mut damaged = state.clone();
+        let db = damaged.databases.get_mut(&database().database_id).unwrap();
+        match index {
+            0 => db.active = true,
+            1 => db.suspended = false,
+            2 => db.archive = None,
+            3 => db.archive.as_mut().unwrap().source.index = 999,
+            4 => db.archive.as_mut().unwrap().revision = 99,
+            5 => db.archive.as_mut().unwrap().object_bytes = 0,
+            6 => db.archive.as_mut().unwrap().object_bytes = 8192,
+            7 => db.archive.as_mut().unwrap().object_digest = [0; 32],
+            8 => db.archive.as_mut().unwrap().commit_hash = [1; 32],
+            9 => db.archive.as_mut().unwrap().metadata_digest = [1; 32],
+            10 => {
+                let hash = db.transactions[0].commit_hash;
+                let value = db.archive.as_mut().unwrap();
+                value.revision = 1;
+                value.commit_hash = hash;
+            }
+            11 => db.transactions[0].physical_changes = vec![1],
+            12 => db.archive.as_mut().unwrap().source = Position { term: 1, index: 1 },
+            13 => {
+                let value = db.archive.as_mut().unwrap();
+                value.revision = 1;
+                value.commit_hash = [1; 32];
+            }
+            _ => db.transactions[0].result.push(1),
+        }
+        assert!(decode_snapshot(&damaged).is_err(), "cold fault {index}");
+    }
+    let target = &hot.databases[&database().database_id];
+    for index in 0..3 {
+        let mut source = target.clone();
+        match index {
+            0 => source.transactions[0].physical_changes.clear(),
+            1 => source.transactions[0].physical_changes[0] ^= 1,
+            _ => source.transactions[0].commit_hash = [42; 32],
+        }
+        let bytes = codec::encode_archive(identity(), &source, archive.source);
+        let retained = if index == 2 { &source } else { target };
+        assert!(codec::decode_archive(&bytes, identity(), retained, archive, limits()).is_err());
+    }
+    let mut damaged = state.clone();
+    damaged
+        .administration
+        .get_mut(&operation(10))
+        .unwrap()
+        .result = AdminResult::Suspended(999);
+    assert!(decode_snapshot(&damaged).is_err());
+    for operation_id in [operation(11), operation(12)] {
+        let mut damaged = state.clone();
+        damaged
+            .administration
+            .get_mut(&operation_id)
+            .unwrap()
+            .result = AdminResult::ArchivePublished([0; 32]);
+        assert!(decode_snapshot(&damaged).is_err());
+    }
+    let mut old_source = archive;
+    old_source.source = Position { term: 1, index: 1 };
+    assert_eq!(
+        hot.execute(
+            &command(CommandKind::PublishArchive {
+                expected_owner: OwnerToken {
+                    epoch: 2,
+                    worker_instance_id: WORKER
+                },
+                operation_id: operation(30),
+                expected_previous: None,
+                archive: old_source
+            }),
+            Position {
+                term: 10,
+                index: 100
+            }
+        ),
+        Err(Reject::Fenced)
+    );
+}
+
+#[test]
+fn lifecycle_codec_truncation_and_ordering_guards_cover_full_archive_and_outcomes() {
+    let mut state = active();
+    apply(&mut state, &write(1, 0));
+    let (state, archive, bytes) = published(state);
+    let db = &state.databases[&database().database_id];
+    assert!(codec::decode_archive(&[], identity(), db, archive, limits()).is_err());
+    for end in 0..body(&state.encode()).len() {
+        let image = state.encode();
+        assert!(CellState::decode_bound(
+            &envelope(&image, &body(&image)[..end]),
+            identity(),
+            state.position,
+            limits()
+        )
+        .is_err());
+    }
+    for result in [
+        AdminResult::Suspended(2),
+        AdminResult::ArchivePublished([1; 32]),
+        AdminResult::ArchivePruned([1; 32]),
+        AdminResult::ArchiveHydrated([1; 32]),
+    ] {
+        let value = AppliedOutcome {
+            position: state.position,
+            outcome: Outcome::Administrative(result),
+        };
+        let image = encode_applied_outcome(&value);
+        for end in 0..body(&image).len() {
+            assert!(decode_applied_outcome(
+                &envelope(&image, &body(&image)[..end]),
+                state.position
+            )
+            .is_err());
+        }
+    }
+    let mut old_source = archive;
+    old_source.source = Position { term: 1, index: 1 };
+    rejected_without_mutation(
+        &state,
+        &command(CommandKind::PublishArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(30),
+            expected_previous: Some(archive.object_digest),
+            archive: old_source,
+        }),
+        Reject::Conflict,
+    );
+    let mut waking = state.clone();
+    apply(&mut waking, &claim(2, 77, 20));
+    rejected_without_mutation(
+        &waking,
+        &command(CommandKind::PublishArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(30),
+            expected_previous: Some(archive.object_digest),
+            archive,
+        }),
+        Reject::Fenced,
+    );
+    apply(&mut waking, &activate(3, 77, 21, 1, archive.commit_hash));
+    rejected_without_mutation(
+        &waking,
+        &command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(30),
+            archive_digest: archive.object_digest,
+        }),
+        Reject::Fenced,
+    );
+    rejected_without_mutation(
+        &waking,
+        &command(CommandKind::HydrateArchive {
+            operation_id: operation(30),
+            archive: bytes,
+        }),
+        Reject::Fenced,
+    );
+}
+
+#[test]
+fn read_metadata_is_fresh_authorized_and_available_without_waking_cold_data() {
+    let mut state = active();
+    apply(&mut state, &write(1, 0));
+    let (mut state, archive, _) = published(state);
+    let reader = Admission {
+        principal_id: 33,
+        ..admission()
+    };
+    assert_eq!(state.metadata(database(), reader).unwrap().revision, 1);
+    apply(
+        &mut state,
+        &command(CommandKind::PruneArchive {
+            expected_owner: OwnerToken {
+                epoch: 2,
+                worker_instance_id: WORKER,
+            },
+            operation_id: operation(12),
+            archive_digest: archive.object_digest,
+        }),
+    );
+    assert!(state.metadata(database(), reader).unwrap().cold);
+    assert_eq!(
+        state.metadata(
+            database(),
+            Admission {
+                auth_epoch: 2,
+                ..reader
+            }
+        ),
+        Err(Reject::Unauthorized)
+    );
+    assert_eq!(
+        state.metadata(
+            database(),
+            Admission {
+                principal_id: 44,
+                ..reader
+            }
+        ),
+        Err(Reject::Unauthorized)
+    );
+    assert_eq!(
+        state.metadata(
+            DatabaseIdentity {
+                incarnation: 999,
+                ..database()
+            },
+            reader
+        ),
+        Err(Reject::Fenced)
+    );
+    assert_eq!(
+        state.metadata(
+            DatabaseIdentity {
+                database_id: 999,
+                ..database()
+            },
+            reader
+        ),
+        Err(Reject::NotFound)
+    );
+    assert_eq!(
+        state.archive_status(database(), reader),
+        Err(Reject::Unauthorized)
+    );
+    assert!(state.archive_status(database(), admission()).unwrap().cold);
+}
+
 #[test]
 fn transaction_preflight_needs_both_permissions_current_owner_and_exact_head() {
     let mut state = active();

@@ -51,7 +51,7 @@ sequenceDiagram
 
 每次执行持有一个 `Invocation`，绑定完整 ticket、独立 Admission、取消标志和原始 deadline。lookup 和 propose 必须依次进行并且指纹一致，每个阶段至多一次。释放 invocation 会清除本次上下文，不能让持久连接继承旧主体或预算。
 
-preflight 同时检查 READ 和 WRITE、active owner 和准确 predecessor。SQL 执行期间这些条件可以改变，因此 cell 在最终有序提交时再次校验；预检不授予绕过后续 fencing 的许可。没有 dirty WAL 页的 SELECT/零行更新仍提交同镜像结果，当前读写事务接口不等于独立强读 API。
+preflight 同时检查 READ 和 WRITE、active owner 和准确 predecessor。SQL 执行期间这些条件可以改变，因此 cell 在最终有序提交时再次校验；预检不授予绕过后续 fencing 的许可。没有 dirty WAL 页的 SELECT/零行更新仍提交同镜像结果，该 execute 事务接口保留此语义；后续正式 `Writer::query` 已提供独立 Safe ReadIndex 强读，不写结果记录，见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
 ## 3. tracked proposal 的关联和资源
 
@@ -84,9 +84,9 @@ driver 生成 `ProposalTicket { boot_id, sequence }`，在 Entry context 中还�
 6. 在原 deadline 内提交 `ActivateOwner(token, restored_revision, restored_hash)`，确认对应激活裁决。
 7. 最后再取新 ReadIndex，确认当前 READ+WRITE、owner 和 revision，检查原 deadline，才交付 writer。
 
-任何阶段失败都不交付 writer。若已经 claim 成功而恢复失败，数据库保持 inactive，后续需显式重新恢复；若激活已完成但最终读失败，引擎仍被关闭，不能把等待失败解释为激活回滚。所有新建目录留给明确的运维清理，不自动删除可能有取证价值的数据。调用方不得复用先前存活 worker 的身份。
+任何阶段失败都不交付 writer。若已经 claim 成功而恢复失败，数据库保持 inactive，后续需显式重新恢复；若激活已完成但最终读失败，引擎仍被关闭，不能把等待失败解释为激活回滚。本 crate 本身不清理目录；正式服务由持有独占存储锁的 Cache owner 关闭连接后删除其保留目录，启动时只清理经过验证的私有 writer namespace，未知路径不删除。调用方不得复用先前存活 worker 的身份。
 
-这提供了可测试的恢复入口，没有实现自动故障检测、跨节点调度或业务路由。外层控制面必须选择健康 leader、分配容量和新目录，再调用该入口；不能声称只依赖 Kubernetes 重启就已完成接管。
+这个 crate 提供可测试的恢复入口。后续 `scap-server` 已实现有界单 cell 的 leader-owned 自动恢复、term 变化退休 writer 和请求路由配合；动态多 cell 调度及跨 AZ 容量仍待实现。接管来自新鲜权威与 owner fencing，不依赖 Kubernetes 决定写权限。
 
 ## 5. 已提交、拒绝与未知结果
 
@@ -113,7 +113,7 @@ Lookup 的 Unknown/未找到只描述一个线性化读时刻。仍可能存在�
 | 整组重启 | 各副本严格重开原 RocksDB；取得新 quorum、ReadIndex 与 owner 后再创建 SQLite；旧 SQLite 缓存不能直接服务 |
 | snapshot 安装 | 传递正式 cell 全状态，包括物理历史、结果、fence；接收方重开后仍验证绑定，再供新 writer 恢复 |
 | 本地 RocksDB 损坏 | 继续严格拒绝不可信历史；自动重建副本、替换成员尚未实现 |
-| S3 不可用 | 本阶段运行链路尚不依赖 S3；未来归档和冷生命周期仍须单独实现，不能削弱同步提交 |
+| S3 不可用 | 正式服务热提交不依赖 S3；冷库由 scap-archive 完成有序归档/恢复，对象不可用时不裁剪唯一历史且唤醒失败，不能削弱同步提交 |
 
 ## 7. 复现与上线边界
 
@@ -127,4 +127,4 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locke
 
 固定工具和 native 依赖与前一阶段相同；新增的两个正式 crate 只组合已有固定依赖。网络实验不能填补 unit coverage；固定小库、同机 loopback、进程 SIGKILL 和控制器观测也不能证明三 AZ 延迟、断电持久性或运营 RTO。
 
-热写 SDK p99 ≤100 ms、leader 故障 RTO p99 ≤5 s、R0 worker 恢复 p99 ≤30 s 等仍为原定验收目标。当前没有 SDK 端到端或连续稳定窗口测量，详情继续以 [性能目标](performance-slo.md)为准。本阶段不修改这些数值、不剔除 UNKNOWN，也不以七项测试运行时间替代恢复时间。
+热写 SDK p99 ≤100 ms、leader 故障 RTO p99 ≤5 s、R0 worker 恢复 p99 ≤30 s 等仍为原定验收目标。后续 [真实服务实验](../../experiments/service-network/README.md)已有同机小库 SDK 与双库 30 秒稳定窗口观测；生产参考档仍未达标，详情以 [性能目标](performance-slo.md)为准。本阶段不修改这些数值、不剔除 UNKNOWN，也不以七项测试运行时间替代恢复时间。

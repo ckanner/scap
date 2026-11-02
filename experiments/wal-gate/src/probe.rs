@@ -188,7 +188,7 @@ mod contract_tests {
         assert_eq!(copied.pages[0].bytes[0], 3);
         assert_eq!(copied.pages[0].number, 1);
         assert_eq!(copied.size_after, 1);
-        let result = collect_batch(1, std::iter::repeat((1, &page[..])).take(MAX_PAGES + 1));
+        let result = collect_batch(1, std::iter::repeat_n((1, &page[..]), MAX_PAGES + 1));
         assert_eq!(result.unwrap_err().extended_code, ffi::SQLITE_TOOBIG);
     }
 

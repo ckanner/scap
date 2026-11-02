@@ -1,6 +1,6 @@
 # 串行 Raft driver 与原生存储后端
 
-初始日期：2026-10-29；读准入与业务接合更新：2026-10-31。本页描述正式模块的接口、错误和资源边界；测试计数以 [执行证据](g0-evidence.md)为准。决策见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。这里的组件尚未组成 SQL 服务。
+初始日期：2026-10-29；读准入与业务接合更新：2026-10-31。本页描述正式模块的接口、错误和资源边界；测试计数以 [执行证据](g0-evidence.md)为准。决策见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。本页聚焦底层 driver；上层现已由 [正式服务](sqlite-service.md)组合，底层接口的独立实验范围仍按原证据说明。
 
 ## 1. 模块边界
 
@@ -94,4 +94,4 @@ native 句柄、选项和专有 key 不对调用方开放。加载拒绝外来�
 
 ## SQLite 网络提交实现更新（2026-11-02 UTC）
 
-正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。现有 `scap-server` 已提供静态凭据映射、HTTP/Hrana 与 Node SDK，并在固定三节点 cell 内随 leader 变化自动恢复 owner；完整运行与冷生命周期见 [服务方案](sqlite-service.md)。动态成员、多 cell 调度和自动更换损坏副本仍待实现，生产性能目标未通过。
