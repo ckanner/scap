@@ -1,0 +1,130 @@
+# SQLite 与真实 Raft 网络的提交及恢复
+
+日期：2026-11-02（UTC）。实现范围为一个固定三 voter cell、一个明确恢复和激活的 SQLite writer，以及可信 Rust 请求入口。决策见 [ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)，测试实况与精确计数见 [执行证据](g0-evidence.md)。这不是已经部署的 Hrana/Node.js 数据库服务。
+
+## 1. 正式模块与线程边界
+
+| 模块 | 本阶段职责 |
+| --- | --- |
+| `scap-raft-driver` | 真实 RawNode、同步持久化、按 attempt 关联的应用结果 |
+| `scap-raft-runtime` | 单 cell owner、绝对 deadline、有限 tracked waiter、网络调度和取消 |
+| `scap-cell` | 每条命令的确定性业务裁决、版本化结果 codec、当前写入权限预检 |
+| `scap-cell-client` | 固定完整 scope、ReadIndex/view 绑定、可信命令提交、正式 SQLite CommitGate |
+| `scap-sql-worker` | owner claim、权威物理恢复、native 创建、激活、每次执行生命周期 |
+| `scap-sqlite` | 在 WAL 可见前调用 gate，缓冲结果，在 native COMMIT 完成后推进本地 head |
+
+SQLite writer、gate 及 invocation 使用 `Rc`，不可跨线程移动或共享。调用方先启动 cell 的专用 `Runtime::run` 线程和 Tokio 网络 worker，再在单独 SQL 线程构造和使用 writer；所有同步 SQLite/文件 I/O 和 gate 等待都在该 SQL 线程。Rust API 本身不创建无界后台队列，也不包含 worker 调度器。测试 harness 的固定有界控制通道只负责测试输入和观测。
+
+`RuntimePort` 固定连接一个进程内 Handle，Handle 对应的 cluster/cell/incarnation/node 在 runtime 创建时冻结。客户端构造、每次 I/O 和返回 ReadView 分别验证 scope，不能将另一个 cluster 中相同 cell 编号的结果当成本请求结果。
+
+Admission 来自可信调用方，含 principal、credential、admission ID 和 auth epoch。这里重新检查复制策略，但不替代外部凭证验证。`Client::read` 返回完整 cell 状态，只允许内部恢复和授权代码使用；不能把整个状态暴露为租户查询接口。
+
+## 2. 一次成功事务的真实顺序
+
+```mermaid
+sequenceDiagram
+    participant A as 可信调用方
+    participant S as SQLite线程
+    participant G as CellClient
+    participant R as Raft运行时
+    participant Q as 其余voter
+    A->>S: 请求身份、SQL、原deadline
+    S->>G: 当前权限与幂等Lookup
+    G->>R: 新Safe ReadIndex
+    R->>Q: quorum屏障
+    Q-->>R: 屏障确认
+    R-->>G: 同一持久应用视图
+    G-->>S: READ和WRITE、owner、前序匹配
+    S->>S: 执行SQL并暂存页面和结果
+    S->>G: 物理变更、指纹、完整结果
+    G->>R: tracked proposal
+    R->>Q: 同步复制Entry
+    Q-->>R: 持久复制确认
+    R->>R: 业务apply及应用状态持久化
+    R-->>G: 本attempt的AppliedOutcome
+    G-->>S: 新Accepted
+    S->>S: native COMMIT完成并推进head
+    S-->>A: 原始结果与receipt
+```
+
+页面和 `RETURNING` 行在最后一步之前都不作为成功返回。`Received` 是 peer 内存准入，`Admitted` 是本地 Raft 准入，`Applied` 是该 Entry 的业务裁决，三者不能互换。`Applied` 中的业务结果可能是拒绝或历史去重，只有新 `Accepted` 可以发布当前暂存页面。
+
+每次执行持有一个 `Invocation`，绑定完整 ticket、独立 Admission、取消标志和原始 deadline。lookup 和 propose 必须依次进行并且指纹一致，每个阶段至多一次。释放 invocation 会清除本次上下文，不能让持久连接继承旧主体或预算。
+
+preflight 同时检查 READ 和 WRITE、active owner 和准确 predecessor。SQL 执行期间这些条件可以改变，因此 cell 在最终有序提交时再次校验；预检不授予绕过后续 fencing 的许可。没有 dirty WAL 页的 SELECT/零行更新仍提交同镜像结果，当前读写事务接口不等于独立强读 API。
+
+## 3. tracked proposal 的关联和资源
+
+driver 生成 `ProposalTicket { boot_id, sequence }`，在 Entry context 中还绑定 cluster、cell incarnation 和 node。精确匹配原 context、command bytes 和 Entry term 后，才将该 Entry index 交给 `Application::apply_with_results`。应用按这些 index 的顺序捕获结果，不读取整个批次最后的裁决来猜测其他请求。
+
+只实现旧 `Application::apply` 的类型仅兼容普通 Propose；若误用 tracked，默认空结果导致 driver 停止并返回 UNKNOWN，此时命令可能已提交。支持 tracked 的应用必须实现 `apply_with_results`，正式 CellApplication 已实现。
+
+结果先在内存形成，随后 `Store::apply_committed` 将最终状态和 applied 水位原子持久化。只有持久化返回成功，结果才进入可交付输出。磁盘错误可能已经发生在提交之后；任何错误都停止 driver，等待者只得到 UNKNOWN。新 term 提交旧 term Entry 合法，回执仍保留 Entry 的原 term/index。
+
+| 资源 | 限额与释放原则 |
+| --- | --- |
+| driver 未完成 tracked attempts | `max_pending_proposals` 与 `max_pending_proposal_bytes` 同时限制；计入原命令、context、最大结果与固定开销 |
+| 每次裁决 | runtime `max_result_bytes`；cell 格式上限 512 bytes；完整 SQL 结果留在有界业务历史中 |
+| driver 输出 | 消息、read barrier、proposal result 共用 `max_output_bytes`；不能在配置上接受永远装不进一个输出批次的结果 |
+| runtime 本地请求 | 原有数量/字节 reservation 覆盖排队、处理、响应等待；新增 tracked waiter 数量限制 |
+| 截止时间 | enqueue、等待和 client 返回均沿用原绝对时间，不在每跳重置 |
+| 取消 | `Pending::wait_cancelled` 最迟在一个配置 tick 等待周期内观察外部 atomic；它不强制中断 owner 正在执行的 fsync |
+
+取消或超时从等待表移除本地 waiter，不删除已入 Raft 的 command。完成或取消尚未释放实际数据时，内存 reservation 也不能提前归还。重启 boot 不复用；snapshot 恢复状态不会虚构旧 waiter 的专属结果。
+
+## 4. owner 恢复协议
+
+`Writer::recover` 在调用方指定的 SQL 线程同步执行下列步骤，全程使用同一个 context/deadline：
+
+1. 校验请求字段；claim 和 activate 使用不同的非零 operation ID，worker instance ID 对本次启动唯一。取一次新读确认目标 cell/database scope。
+2. 提交有序 `ClaimOwner(expected_epoch, worker_instance_id)`，确认本请求的 `OwnerClaimed`，精确 token 必须等于 expected epoch 加一及本次 worker ID。此操作撤销旧 owner 并使数据库 inactive。
+3. 再取 Safe ReadIndex，检查数据库身份、owner token 和 inactive 状态。从这一相同视图取得完整接受历史、revision 和 commit hash。
+4. `Image::recover` 从空镜像校验并应用物理历史，禁止重执行 SQL。结果绑定 cell/db identity、applied term/index、revision、commit hash 和物理页格式。
+5. `NativeFactory` 在从未使用过的目录创建私有 SQLite writer。它执行现有新文件、fsync、完整性和资源校验；不打开旧 main/WAL/sidecar 作为权威恢复源。
+6. 在原 deadline 内提交 `ActivateOwner(token, restored_revision, restored_hash)`，确认对应激活裁决。
+7. 最后再取新 ReadIndex，确认当前 READ+WRITE、owner 和 revision，检查原 deadline，才交付 writer。
+
+任何阶段失败都不交付 writer。若已经 claim 成功而恢复失败，数据库保持 inactive，后续需显式重新恢复；若激活已完成但最终读失败，引擎仍被关闭，不能把等待失败解释为激活回滚。所有新建目录留给明确的运维清理，不自动删除可能有取证价值的数据。调用方不得复用先前存活 worker 的身份。
+
+这提供了可测试的恢复入口，没有实现自动故障检测、跨节点调度或业务路由。外层控制面必须选择健康 leader、分配容量和新目录，再调用该入口；不能声称只依赖 Kubernetes 重启就已完成接管。
+
+## 5. 已提交、拒绝与未知结果
+
+| 观察到的结果 | 正式行为 |
+| --- | --- |
+| 新 Accepted，receipt、位置及前序都匹配 | 允许本次 native 发布，完整 COMMIT 成功后返回 |
+| 前置 Lookup 找到同一请求 | 使用当前权限返回原 receipt/result，不执行 SQL；退休 writer，下一次必须恢复 |
+| preflight 后发生竞争，proposal 返回 AlreadyCommitted | 新 ReadIndex 验当前 owner/READ+WRITE，以相同请求 ID/指纹查历史；必须与 tracked 历史 receipt/position 完全匹配，丢弃本次新页面 |
+| owner/auth/predecessor 或其他有序业务拒绝 | 不发布本次页面，返回明确拒绝并停止 writer |
+| 超时、取消、无 quorum、非法回执、scope 或历史绑定不明 | UNKNOWN，不发布新页面，不自动重执行 SQL |
+| 已知 Accepted 后 native 发布失败 | `CommittedButUnavailable` 保留 receipt；不能称为事务回滚 |
+| native 已完成，但返回前原 deadline 已到或时钟失效 | 同样保留已提交 receipt，退休 writer；请求 deadline 达标率仍记录失败 |
+
+Lookup 的 Unknown/未找到只描述一个线性化读时刻。仍可能存在先前请求在途，必须通过有序 `ResolveOrCancel` 才能建立取消终态；若命令返回 AlreadyCommitted，则继续查询原结果。一次普通拒绝也不等于持久取消。
+
+## 6. 分区、重启和组件不可用
+
+| 事件 | 保证和限制 |
+| --- | --- |
+| writer 所在节点成为少数派 | 新 ReadIndex/写等待失败；在预检之后才分区的写也不能越过 quorum gate，UNKNOWN 后停止 writer |
+| 旧 leader 隔离、新 leader 当选 | PreVote/check_quorum/Safe ReadIndex 沿用正式 driver；旧 Handle 不转发业务写，不把网络可达当成新的写权限 |
+| SQL 执行后 owner 或 auth 改变 | 后续有序 commit 被拒绝，独立 SQLite 读连接仍只看到原值 |
+| cell Accepted 后 SQL 进程被杀 | 幸存多数派保留物理页和完整结果，新 owner 在新目录恢复同一事务，不重执行随机函数或 DDL |
+| 整组重启 | 各副本严格重开原 RocksDB；取得新 quorum、ReadIndex 与 owner 后再创建 SQLite；旧 SQLite 缓存不能直接服务 |
+| snapshot 安装 | 传递正式 cell 全状态，包括物理历史、结果、fence；接收方重开后仍验证绑定，再供新 writer 恢复 |
+| 本地 RocksDB 损坏 | 继续严格拒绝不可信历史；自动重建副本、替换成员尚未实现 |
+| S3 不可用 | 本阶段运行链路尚不依赖 S3；未来归档和冷生命周期仍须单独实现，不能削弱同步提交 |
+
+## 7. 复现与上线边界
+
+正式 workspace 的单元门禁独立运行，精确配置见 [覆盖率规范](testability-and-coverage.md)。新真实组合实验使用自己的 lock、进程和证据目录：
+
+```bash
+cargo +1.90.0 fmt --manifest-path experiments/sqlite-network/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/sqlite-network/Cargo.toml --all-targets --locked -- -D warnings
+cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
+```
+
+固定工具和 native 依赖与前一阶段相同；新增的两个正式 crate 只组合已有固定依赖。网络实验不能填补 unit coverage；固定小库、同机 loopback、进程 SIGKILL 和控制器观测也不能证明三 AZ 延迟、断电持久性或运营 RTO。
+
+热写 SDK p99 ≤100 ms、leader 故障 RTO p99 ≤5 s、R0 worker 恢复 p99 ≤30 s 等仍为原定验收目标。当前没有 SDK 端到端或连续稳定窗口测量，详情继续以 [性能目标](performance-slo.md)为准。本阶段不修改这些数值、不剔除 UNKNOWN，也不以七项测试运行时间替代恢复时间。

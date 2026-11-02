@@ -184,3 +184,7 @@ v0 初始设计上限为 **60 秒**，允许配置得更短；增大上限需安
 仅剩 S3 时，必须按 [存储生命周期 §11.1](../architecture/storage-lifecycle.md) 验证完成态 DR checkpoint。当前 cell 全部损毁后，不能仅从普通数据 manifest 证明它曾被 Raft 接受；更新但不在所选完成 checkpoint 中的零散对象，不自动推进恢复点。
 
 常规故障处理见 [运维手册](runbooks.md)。任何改变恢复时间点、删除保留数据或接受归档缺口的动作，都必须留有操作者、批准者、恢复边界和影响范围的审计记录。
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](../engineering/sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

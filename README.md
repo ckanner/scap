@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台：以轻量计算单元服务大量独立数据库，以共享同步日志提供故障保障，以对象存储承载冷数据与历史。
 
-> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、cell 业务状态机、SQLite adapter，以及固定成员的单 cell 运行时和 mTLS peer transport。正式源码执行独立 100% 单元覆盖率门禁；真实引擎、持久恢复、三进程网络分区、重启和快照分别提供故障证据。可部署 SQL 服务、Node.js 入口、自动 SQL writer 接管、完整生命周期和性能指标仍待实现或测量。
+> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、cell 业务状态机、SQLite adapter，以及固定成员的单 cell 运行时、mTLS peer transport、按请求关联的持久裁决和正式 SQLite owner 恢复入口。正式源码执行独立 100% 单元覆盖率门禁；真实引擎、持久恢复、三进程网络分区、重启、快照及真实 SQL/mTLS 组合分别提供故障证据。可部署 SQL 服务、Node.js 入口、自动 SQL writer 接管、完整生命周期和性能指标仍待实现或测量。
 
 ## 核心决策
 
@@ -78,7 +78,7 @@
 | 观测 | tracing，Prometheus；OpenTelemetry 出口按资源预算验证 |
 | 部署 | Linux / OCI 容器；生产可用 Kubernetes，编排器不承担数据库选主 |
 
-正式 `scap-sql`、`scap-engine` 与 `scap-sqlite` 已实现有界事务批次、完整结果、提交前 gate 和权威物理恢复。完整 cell 生命周期、自动恢复编排、独立 SQL 强读、Node.js 入口和生产控制面**仍需实现**；现有 Rust adapter 不是已部署服务或完整 SQLite SDK 兼容承诺。G0 探针分别锁定了上游 commit 与依赖；实验版本不自动成为产品版本，不能长期追随上游 `main` 或浮动 `latest`。
+正式 `scap-sql`、`scap-engine` 与 `scap-sqlite` 已实现有界事务批次、完整结果、提交前 gate 和权威物理恢复。完整 cell 生命周期、自动故障检测和跨节点调度、独立 SQL 强读、Node.js 入口和生产控制面**仍需实现**；现有 Rust adapter 不是已部署服务或完整 SQLite SDK 兼容承诺。G0 探针分别锁定了上游 commit 与依赖；实验版本不自动成为产品版本，不能长期追随上游 `main` 或浮动 `latest`。
 
 固定 libSQL 的 sqld 使用较早的 Axum/Hyper/Tonic/Prost 和精确 Tokio 依赖。它与平台候选栈尚未证明能统一合编；G0 必须选择并验证 fork、模块提取或独立构建/进程边界，同时重跑 Hrana/SDK 兼容测试，见 [运行与 RPC 契约](docs/engineering/runtime-and-rpc.md)。
 
@@ -96,9 +96,10 @@ cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked 
 cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
 cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked -- --test-threads=1
+cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
 ```
 
-九条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码、真实存储恢复、三进程受控故障、SQLite/cell 接合、正式 adapter 故障和真实 mTLS 网络故障。它们的证据范围分别记录，不能据此宣称完整 HA 产品已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
+十条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码、真实存储恢复、三进程受控故障、SQLite/cell 接合、正式 adapter 故障、真实 mTLS 网络故障和真实 SQL/mTLS 组合。它们的证据范围分别记录，不能据此宣称完整 HA 产品已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
 
 `scap-raft-store` 负责 codec、校验和持久状态转换，`scap-raft-rocks` 兑现同步 I/O，`scap-raft-driver` 管理真实 RawNode 与确定性应用接口。G0 的完整镜像每次同步替换，具有明确限额与写放大；规模化部署前须改进布局并重新验证。模块职责与独立测试边界见 [ADR-0009](docs/adr/0009-serial-driver-and-native-backend.md)。
 
@@ -114,4 +115,6 @@ cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked 
 
 `scap-sqlite` 只从新目录打开经过校验的逻辑镜像，每次重启从完整 cell 历史重建。前置线性化 Lookup 与提交时去重共同处理重复请求；没有 WAL 页变化的 SELECT/零行更新也记录 quorum 结果。这一有界事务 API 尚未接入 Node.js，完整镜像的成本与恢复目标仍需测量，见 [ADR-0011](docs/adr/0011-bounded-native-sqlite-adapter.md)。
 
-`scap-raft-wire` 验证证书 pin、节点与 cell 身份及消息边界；`scap-raft-transport` 提供有界 mTLS 收发；`scap-raft-runtime` 在专用线程串行驱动持久 Raft，提供自动 tick、请求专属 Safe ReadIndex 和有界发送 worker。网络 `Received` 只确认入站准入，本地 `Admitted` 只确认 proposal 准入，二者都不是业务 ACK。真实网络实验使用正式 cell 与 opaque 物理 payload；SQL gate 与这条网络链的完整组合仍需实现。
+`scap-raft-wire` 验证证书 pin、节点与 cell 身份及消息边界；`scap-raft-transport` 提供有界 mTLS 收发；`scap-raft-runtime` 在专用线程串行驱动持久 Raft，提供自动 tick、请求专属 Safe ReadIndex 和有界发送 worker。网络 `Received` 只确认入站准入，本地 `Admitted` 只确认 proposal 准入，二者都不是业务 ACK。真实网络实验使用正式 cell 与 opaque 物理 payload；后续 [SQL 网络实现](docs/engineering/sqlite-network.md)已用正式 `scap-cell-client` 和 `scap-sql-worker` 连接这条链路，独立验证真实 SQL、UNKNOWN、fence、发布前 SIGKILL 和物理恢复。外部 SQL/SDK 服务与自动接管调度仍待实现。
+
+`scap-raft-driver` 的 tracked proposal 只在对应应用状态持久化后交付逐条裁决；`scap-cell-client` 将每次请求的身份、原 deadline、取消和精确 ticket 接入 native gate；`scap-sql-worker` 执行 ClaimOwner、物理恢复、新目录创建、ActivateOwner 及最终权限校验。实现及运行边界见 [ADR-0013](docs/adr/0013-tracked-sqlite-network-commit.md)，新增真实组合见 [sqlite-network](experiments/sqlite-network/README.md)。

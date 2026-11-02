@@ -15,7 +15,7 @@ use std::fmt::{self, Display};
 
 use raft::eraftpb::{Entry, EntryType};
 use scap_core::{CommitReceipt, CommitTicket, PreparedWrite};
-use scap_raft_driver::Application;
+use scap_raft_driver::{Application, AppliedBatch};
 use sha2::{Digest, Sha256};
 
 mod codec;
@@ -23,6 +23,10 @@ mod codec;
 pub const READ: u8 = 1;
 pub const WRITE: u8 = 2;
 pub const ADMIN: u8 = 4;
+
+/// Bound for the versioned per-entry result, excluding the retained SQL result.
+/// A tracked result is meaningful only from the matching durable driver attempt.
+pub const MAX_APPLIED_OUTCOME_BYTES: u32 = 512;
 const RESERVED_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -292,6 +296,14 @@ pub fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8>, Erro
     codec::encode_command(command, limits)
 }
 
+pub fn encode_applied_outcome(outcome: &AppliedOutcome) -> Vec<u8> {
+    codec::encode_applied_outcome(outcome)
+}
+
+pub fn decode_applied_outcome(bytes: &[u8], expected: Position) -> Result<AppliedOutcome, Error> {
+    codec::decode_applied_outcome(bytes, expected)
+}
+
 impl CellState {
     /// Only explicit authorized new-group bootstrap may call this constructor.
     /// Genesis must equal the enclosing Store's durable application position.
@@ -372,6 +384,24 @@ impl CellState {
             admission,
             position: self.position,
         })
+    }
+
+    /// Transaction preflight on a fresh, bound read view. The transaction API
+    /// needs both permissions, an active owner and the writer's exact head.
+    /// Commit checks these again in the ordered state machine after SQL runs.
+    pub fn authorize_write(
+        &self,
+        identity: DatabaseIdentity,
+        admission: Admission,
+        owner: OwnerToken,
+        predecessor: u64,
+    ) -> Result<ReadView, Reject> {
+        let view = self.authorize_read(identity, admission, owner)?;
+        self.authorized(identity, admission, WRITE)?;
+        if view.database.revision != predecessor {
+            return Err(Reject::Conflict);
+        }
+        Ok(view)
     }
 
     pub fn lookup(
@@ -861,6 +891,33 @@ impl Application for CellApplication {
             state.advance(entry)?;
         }
         Ok(state.encode())
+    }
+
+    fn apply_with_results(
+        &mut self,
+        previous: &[u8],
+        committed: &[Entry],
+        requested: &[u64],
+    ) -> Result<AppliedBatch, Error> {
+        let mut state = codec::decode_state(previous, self.identity, self.limits)?;
+        let mut results = Vec::new();
+        for entry in committed {
+            state.advance(entry)?;
+            if requested.get(results.len()) == Some(&entry.index) {
+                let outcome = state.last_outcome.as_ref().ok_or(Error::Position)?;
+                if outcome.position != state.position {
+                    return Err(Error::Position);
+                }
+                results.push(encode_applied_outcome(outcome));
+            }
+        }
+        if results.len() != requested.len() {
+            return Err(Error::Position);
+        }
+        Ok(AppliedBatch {
+            state: state.encode(),
+            results,
+        })
     }
 }
 

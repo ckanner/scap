@@ -1,0 +1,22 @@
+[package]
+name = "scap-cell-client"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+scap-cell = { path = "../scap-cell" }
+scap-core = { path = "../scap-core" }
+scap-raft-driver = { path = "../scap-raft-driver" }
+scap-raft-runtime = { path = "../scap-raft-runtime" }
+scap-raft-store = { path = "../scap-raft-store" }
+scap-sqlite = { path = "../scap-sqlite" }
+
+[dev-dependencies]
+raft = { git = "https://github.com/tikv/raft-rs", rev = "ad13f3d90780f53aea2488c6a4b76c0d334bf136", default-features = false, features = ["protobuf-codec"] }
+scap-raft-wire = { path = "../scap-raft-wire" }
+slog = "=2.8.2"
+
+[lints]
+workspace = true

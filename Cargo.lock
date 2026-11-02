@@ -1355,6 +1355,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "scap-cell-client"
+version = "0.0.0"
+dependencies = [
+ "raft",
+ "scap-cell",
+ "scap-core",
+ "scap-raft-driver",
+ "scap-raft-runtime",
+ "scap-raft-store",
+ "scap-raft-wire",
+ "scap-sqlite",
+ "slog",
+]
+
+[[package]]
 name = "scap-core"
 version = "0.1.0"
 
@@ -1445,6 +1460,22 @@ name = "scap-sql"
 version = "0.0.0"
 dependencies = [
  "sha2",
+]
+
+[[package]]
+name = "scap-sql-worker"
+version = "0.0.0"
+dependencies = [
+ "raft",
+ "scap-cell",
+ "scap-cell-client",
+ "scap-core",
+ "scap-engine",
+ "scap-raft-driver",
+ "scap-raft-runtime",
+ "scap-raft-store",
+ "scap-sql",
+ "scap-sqlite",
 ]
 
 [[package]]

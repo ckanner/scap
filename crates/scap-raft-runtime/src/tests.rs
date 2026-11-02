@@ -1,6 +1,6 @@
 use super::*;
 use raft::eraftpb::{ConfState, Entry, EntryType, Message, MessageType};
-use scap_raft_driver::{Application, Driver, DriverConfig};
+use scap_raft_driver::{Application, AppliedBatch, Driver, DriverConfig};
 use scap_raft_store::{AtomicBackend, Limits, LoadState, Store};
 use scap_raft_wire::{certificate_identity, Binding, Limits as WireLimits};
 use std::sync::atomic::{AtomicU8, AtomicUsize};
@@ -49,6 +49,23 @@ impl Application for Counter {
             }
         }
         Ok(value.to_be_bytes().to_vec())
+    }
+
+    fn apply_with_results(
+        &mut self,
+        previous: &[u8],
+        entries: &[Entry],
+        requested: &[u64],
+    ) -> Result<AppliedBatch, Self::Error> {
+        let mut state = previous.to_vec();
+        let mut results = Vec::new();
+        for entry in entries {
+            state = self.apply(&state, std::slice::from_ref(entry))?;
+            if requested.contains(&entry.index) {
+                results.push(state.clone());
+            }
+        }
+        Ok(AppliedBatch { state, results })
     }
 }
 
@@ -118,6 +135,8 @@ fn config() -> RuntimeConfig {
         max_pending_deliveries: 16,
         max_pending_delivery_bytes: 8192,
         max_pending_reads: 4,
+        max_pending_proposals: 4,
+        max_result_bytes: 8,
         max_view_bytes: 1024,
         max_poll_rounds: 32,
         tick_interval: Duration::from_millis(5),
@@ -209,6 +228,8 @@ fn raw_driver(voters: &[u64], backend: Backend) -> Driver<Backend, Counter> {
             max_output_messages: 32,
             max_output_bytes: 8192,
             max_pending_reads: 4,
+            max_pending_proposals: 16,
+            max_pending_proposal_bytes: 65536,
             max_ready_rounds: 16,
         },
         &slog::Logger::root(slog::Discard, slog::o!()),
@@ -456,6 +477,8 @@ fn configuration_identity_membership_and_time_fail_closed() {
         |c| c.max_pending_deliveries = 0,
         |c| c.max_pending_delivery_bytes = 1,
         |c| c.max_pending_reads = 0,
+        |c| c.max_pending_proposals = 0,
+        |c| c.max_result_bytes = 0,
         |c| c.max_view_bytes = 0,
         |c| c.max_poll_rounds = 0,
         |c| c.tick_interval = Duration::ZERO,
@@ -465,6 +488,7 @@ fn configuration_identity_membership_and_time_fail_closed() {
         |c| c.delivery_timeout = Duration::from_secs(61),
         |c| c.max_inbound_age = Duration::from_secs(61),
         |c| c.max_view_bytes = c.requests.max_bytes,
+        |c| c.max_result_bytes = c.requests.max_bytes,
     ];
     let der = certificate();
     for change in changes {
@@ -607,6 +631,7 @@ fn error_conversion_and_allocation_accounting_preserve_classification() {
         (D::ReadNotReady, Error::ReadNotReady),
         (D::ReadLimit, Error::InputLimit),
         (D::InputLimit, Error::InputLimit),
+        (D::ProposalLimit, Error::Full),
     ] {
         assert_eq!(driver_error(input), expected);
     }
@@ -845,6 +870,7 @@ struct FaultDriver {
     fault: Mutex<Option<(&'static str, usize, bool)>>,
     stopped: AtomicBool,
     more_ready_once: bool,
+    extra_proposals: Vec<ProposalResult>,
 }
 
 impl FaultDriver {
@@ -854,6 +880,7 @@ impl FaultDriver {
             fault: Mutex::new(None),
             stopped: AtomicBool::new(false),
             more_ready_once: false,
+            extra_proposals: Vec::new(),
         }
     }
     fn fail(&self, operation: &'static str, skip: usize, fatal: bool) {
@@ -896,6 +923,9 @@ impl RaftDriver for FaultDriver {
         self.guard("drain")?;
         let mut output = RaftDriver::drain(&mut self.inner)?;
         output.more_ready |= std::mem::take(&mut self.more_ready_once);
+        output
+            .proposals
+            .extend(std::mem::take(&mut self.extra_proposals));
         Ok(output)
     }
     fn tick(&mut self) -> Result<(), scap_raft_driver::Error> {
@@ -909,6 +939,18 @@ impl RaftDriver for FaultDriver {
     fn propose(&mut self, context: Vec<u8>, data: Vec<u8>) -> Result<(), scap_raft_driver::Error> {
         self.guard("propose")?;
         RaftDriver::propose(&mut self.inner, context, data)
+    }
+    fn propose_tracked(
+        &mut self,
+        data: Vec<u8>,
+        max_result_bytes: usize,
+    ) -> Result<ProposalTicket, scap_raft_driver::Error> {
+        self.guard("propose_tracked")?;
+        RaftDriver::propose_tracked(&mut self.inner, data, max_result_bytes)
+    }
+    fn cancel_proposal(&mut self, ticket: ProposalTicket) -> Result<bool, scap_raft_driver::Error> {
+        self.guard("cancel_proposal")?;
+        RaftDriver::cancel_proposal(&mut self.inner, ticket)
     }
     fn read_index(&mut self) -> Result<ReadTicket, scap_raft_driver::Error> {
         self.guard("read_index")?;
@@ -1347,4 +1389,248 @@ fn fatal_read_view_closes_ingress_in_the_same_poll() {
         handle.submit(Input::Status, deadline(&clock)),
         Err(Error::Closed)
     ));
+}
+
+fn tracked(amount: u64) -> Input {
+    Input::ProposeTracked {
+        data: amount.to_be_bytes().to_vec(),
+    }
+}
+
+#[test]
+fn tracked_results_are_bound_to_each_request_and_runtime_scope() {
+    let (mut node, handle, clock, _, der) = build(&[1]);
+    let mut network = Capture::default();
+    elect(&mut node, &mut network);
+    assert_eq!(handle.identity(), node.driver.view().unwrap().identity);
+    let identity = handle.identity();
+    handle
+        .replace_bindings(vec![Binding {
+            node_id: 1,
+            fingerprint: certificate_identity(&der, 8192).unwrap().fingerprint,
+        }])
+        .unwrap();
+    assert_eq!(handle.identity(), identity);
+    let calls: Vec<_> = [5, 7, 11]
+        .into_iter()
+        .map(|amount| handle.submit(tracked(amount), deadline(&clock)).unwrap())
+        .collect();
+    node.poll(&mut network).unwrap();
+    assert!(node.proposals.is_empty());
+    assert_eq!(handle.mailbox.requests.lock().count, 3);
+    assert_eq!(handle.mailbox.requests.lock().bytes, 3 * (16 + 8 + 256));
+    let mut last = 0;
+    for (pending, expected) in calls.into_iter().zip([5u64, 12, 23]) {
+        let Answer::Applied(result) = pending.wait().unwrap() else {
+            panic!("missing applied result")
+        };
+        assert_eq!(result.data, expected.to_be_bytes());
+        assert!(result.index > last);
+        assert_eq!(result.term, node.driver.status().unwrap().term);
+        assert!(result.index <= node.driver.view().unwrap().applied);
+        last = result.index;
+    }
+    assert_eq!(handle.mailbox.requests.lock().bytes, 0);
+    // A driver-owned attempt without a runtime waiter is never delivered to a
+    // subsequent request, even though its command still changes durable state.
+    node.driver
+        .propose_tracked(1u64.to_be_bytes().to_vec(), 8)
+        .unwrap();
+    node.poll(&mut network).unwrap();
+    assert!(node.proposals.is_empty());
+}
+
+#[test]
+fn tracked_waiters_are_count_limited_cancelled_expired_and_closed_as_unknown() {
+    let (mut node, handle, clock, _, _) = build(&[1, 2]);
+    let mut network = Capture::default();
+    elect_pair(&mut node, &mut network);
+    node.config.max_pending_proposals = 1;
+    let first = handle.submit(tracked(5), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    assert_eq!(node.proposals.len(), 1);
+    assert_eq!(
+        call(&mut node, &handle, &clock, &mut network, tracked(7)).unwrap_err(),
+        Error::Full
+    );
+    drop(first);
+    node.poll(&mut network).unwrap();
+    assert!(node.proposals.is_empty());
+    let second = handle.submit(tracked(7), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    clock.advance(Duration::from_secs(3));
+    node.poll(&mut network).unwrap();
+    assert_eq!(second.wait().unwrap_err(), Error::Unknown);
+    let third = handle.submit(tracked(11), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    assert_eq!(node.proposals.len(), 1);
+    handle.stop();
+    assert_eq!(node.poll(&mut network), Err(Error::Closed));
+    assert_eq!(third.wait().unwrap_err(), Error::Unknown);
+}
+
+#[test]
+fn tracked_errors_preserve_admission_and_post_admission_distinctions() {
+    let (mut node, handle, clock, _, _) = build(&[1]);
+    let mut network = Capture::default();
+    assert_eq!(
+        call(&mut node, &handle, &clock, &mut network, tracked(7)).unwrap_err(),
+        Error::NotLeader
+    );
+    elect(&mut node, &mut network);
+    node.driver.fail("propose_tracked", 0, false);
+    assert!(matches!(
+        call(&mut node, &handle, &clock, &mut network, tracked(7)),
+        Err(Error::Driver(_))
+    ));
+    assert!(!handle.is_stopped());
+    node.driver.fail("propose_tracked", 0, true);
+    let pending = handle.submit(tracked(7), deadline(&clock)).unwrap();
+    assert!(matches!(node.poll(&mut network), Err(Error::Driver(_))));
+    assert!(matches!(pending.wait(), Err(Error::Driver(_))));
+    assert!(handle.is_stopped());
+
+    let (mut node, handle, clock, backend, _) = build(&[1]);
+    elect(&mut node, &mut network);
+    node.config.max_poll_rounds = 1;
+    let pending = handle.submit(tracked(7), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    assert_eq!(node.proposals.len(), 1);
+    backend.fault.store(1, Ordering::SeqCst);
+    assert!(matches!(node.poll(&mut network), Err(Error::Driver(_))));
+    assert_eq!(pending.wait().unwrap_err(), Error::Unknown);
+
+    let (mut node, handle, clock, _, _) = build(&[1, 2]);
+    elect_pair(&mut node, &mut network);
+    let pending = handle.submit(tracked(7), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    drop(pending);
+    node.driver.fail("cancel_proposal", 0, true);
+    assert!(matches!(node.poll(&mut network), Err(Error::Driver(_))));
+    assert!(handle.is_stopped());
+}
+
+#[test]
+fn tracked_handoff_rechecks_cancellation_deadline_and_result_budget() {
+    for mode in 0..4 {
+        let (mut node, handle, clock, _, _) = build(&[1]);
+        let mut network = Capture::default();
+        elect(&mut node, &mut network);
+        node.config.max_poll_rounds = 1;
+        let pending = handle.submit(tracked(7), deadline(&clock)).unwrap();
+        node.poll(&mut network).unwrap();
+        assert_eq!(node.proposals.len(), 1);
+        match mode {
+            0 => pending.cancelled.store(true, Ordering::Release),
+            1 => clock.advance(Duration::from_secs(3)),
+            2 => node.config.max_result_bytes = 1,
+            _ => {}
+        }
+        node.poll(&mut network).unwrap();
+        if mode == 3 {
+            assert!(matches!(pending.wait(), Ok(Answer::Applied(_))));
+        } else {
+            assert_eq!(pending.wait().unwrap_err(), Error::Unknown);
+        }
+        assert!(node.proposals.is_empty());
+    }
+}
+
+#[test]
+fn old_boot_proposal_output_cannot_consume_a_current_waiter() {
+    let (mut node, handle, clock, _, _) = build(&[1, 2]);
+    let mut network = Capture::default();
+    elect_pair(&mut node, &mut network);
+    let pending = handle.submit(tracked(7), deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    let ticket = node.proposals.values().next().unwrap().ticket;
+    node.driver.extra_proposals.push(ProposalResult {
+        ticket: ProposalTicket {
+            boot_id: ticket.boot_id + 1,
+            ..ticket
+        },
+        index: 3,
+        term: 2,
+        data: 99u64.to_be_bytes().to_vec(),
+    });
+    node.poll(&mut network).unwrap();
+    assert_eq!(node.proposals.len(), 1);
+    let status = node.driver.status().unwrap();
+    node.driver
+        .step(Message {
+            msg_type: MessageType::MsgAppendResponse,
+            from: 2,
+            to: 1,
+            term: status.term,
+            index: status.last_index,
+            ..Default::default()
+        })
+        .unwrap();
+    node.poll(&mut network).unwrap();
+    let Answer::Applied(result) = pending.wait().unwrap() else {
+        panic!("missing result")
+    };
+    assert_eq!(result.ticket, ticket);
+    assert_eq!(result.data, 7u64.to_be_bytes());
+}
+
+#[test]
+fn cancellable_wait_uses_one_deadline_and_rechecks_the_returned_answer() {
+    let (mut node, handle, clock, _, _) = build(&[1]);
+    let mut network = Capture::default();
+    let active = AtomicBool::new(false);
+    let cancelled = AtomicBool::new(true);
+    let pending = handle.submit(Input::Status, deadline(&clock)).unwrap();
+    node.poll(&mut network).unwrap();
+    assert!(matches!(
+        pending.wait_cancelled(&active),
+        Ok(Answer::Status(_))
+    ));
+
+    let pending = handle.submit(Input::Status, deadline(&clock)).unwrap();
+    let cancellation = Arc::clone(&pending.cancelled);
+    assert_eq!(
+        pending.wait_cancelled(&cancelled).unwrap_err(),
+        Error::Unknown
+    );
+    assert!(cancellation.load(Ordering::Acquire));
+    node.poll(&mut network).unwrap();
+
+    let pending = handle
+        .submit(Input::Status, Instant::now() + Duration::from_millis(1))
+        .unwrap();
+    assert_eq!(pending.wait_cancelled(&active).unwrap_err(), Error::Unknown);
+    node.poll(&mut network).unwrap();
+
+    let pending = handle.submit(Input::Status, deadline(&clock)).unwrap();
+    handle.mailbox.state.lock().requests.clear();
+    assert_eq!(pending.wait_cancelled(&active).unwrap_err(), Error::Unknown);
+
+    let pending = handle.submit(Input::Status, deadline(&clock)).unwrap();
+    assert_eq!(
+        pending
+            .finish_wait(Ok(Answer::Checkpointed), &cancelled, Instant::now())
+            .unwrap_err(),
+        Error::Unknown
+    );
+    assert_eq!(
+        pending
+            .finish_wait(Ok(Answer::Checkpointed), &active, pending.deadline)
+            .unwrap_err(),
+        Error::Unknown
+    );
+    drop(pending);
+    node.poll(&mut network).unwrap();
+
+    let pending = handle.submit(Input::Status, deadline(&clock)).unwrap();
+    let flag = Arc::new(AtomicBool::new(false));
+    let flag_writer = Arc::clone(&flag);
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        flag_writer.store(true, Ordering::Release);
+    });
+    assert_eq!(pending.wait_cancelled(&flag).unwrap_err(), Error::Unknown);
+    writer.join().unwrap();
+    node.poll(&mut network).unwrap();
+    assert_eq!(handle.mailbox.requests.lock().count, 0);
 }

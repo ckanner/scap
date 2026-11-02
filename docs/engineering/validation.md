@@ -312,3 +312,7 @@ SQLite 文件 API、SQL 方言、C API 和远程 SDK 是不同兼容层；只通
 每个门禁条目记录：`测试编号 / 版本与配置 / 环境 / seed 或工作负载 / 故障时间线 / oracle 输出 / 原始证据位置 / 通过或失败 / 未覆盖范围 / 审阅者`。
 
 尚无对应执行证据的项目保持为 **未执行**。后续实现不能通过把该文档中的勾选项改为“完成”替代实际运行记录，也不能把局部通过或设计目标转述成已经达到的服务 SLA。
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

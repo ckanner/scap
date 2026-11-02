@@ -138,3 +138,7 @@ const result = await db.execute({
 覆盖 prepared statements、batch、interactive transaction、savepoint、DDL、回滚、64 位整数、BLOB、NULL、SQLite 错误码、连接断开、写结果未知、重连、迁移工具以及实际 ORM 查询。对自动提交 `RETURNING`、游标和结果流注入 quorum 前失败，验证结果行及 SDK 成功返回均未提前泄露；对显式事务验证语句结果与最终提交的区别。取消响应缓存到期后再投递原提交，必须仍被 tombstone 或退休边界拒绝。
 
 当前不默认允许跨库 ATTACH、动态原生扩展、不受控 UDF 或改变平台 WAL / 同步 / 文件布局的 PRAGMA。范围和理由见 [租户隔离](tenancy-security.md)。
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](../engineering/sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

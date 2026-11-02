@@ -16,5 +16,6 @@ ADR 记录背景、选择、代价和重新评审条件。当前记录为设计�
 | [0010](0010-cell-acceptance-and-raft-safety.md) | 有界 cell 业务接受、非空 genesis、PreVote / Safe ReadIndex 与 SQLite 接合 | 正式接受子集与受限故障证据；完整生命周期、SDK 和生产接管待验 |
 | [0011](0011-bounded-native-sqlite-adapter.md) | 正式 SQL 类型/结果、提交前 native gate、无变化事务与完整逻辑镜像恢复 | 有界正式 adapter；完整服务、SDK、自动接管与性能待验 |
 | [0012](0012-bounded-raft-network-runtime.md) | 正式 wire、mTLS transport、固定成员运行时、物理配额与真实网络故障合同 | 正式模块与八项三进程契约；完整 SQL/SDK/S3 接合及生产性能待验 |
+| [0013](0013-tracked-sqlite-network-commit.md) | 逐请求持久裁决、可信 SQLite 网络 gate 和明确 owner 恢复入口 | 有界正式组合；外部 SDK、自动接管调度、S3 与性能待验 |
 
 新增 ADR 使用下一个编号，保留被替代记录并注明替代关系。用户或维护者改变范围时记录原因，不通过删除旧决策隐藏取舍。

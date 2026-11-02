@@ -26,6 +26,8 @@
 | `crates/scap-raft-wire/` | Rust；固定 envelope、有限 protobuf 预检、实际 leaf pin/日期与 cell/node 授权 |
 | `crates/scap-raft-transport/` | Rust；正式 Tonic mTLS peer server/client，全局连接/RPC 预算与绝对 deadline |
 | `crates/scap-raft-runtime/` | Rust；单 cell 串行 owner、自动 tick、有限请求/inbox、读和反馈；ordinary/snapshot 异步发送；含正式 `RaftDriver` 委托 |
+| `crates/scap-cell-client/` | Rust；固定 scope、请求上下文、Safe ReadIndex 与精确 tracked 业务裁决的正式 CommitGate |
+| `crates/scap-sql-worker/` | Rust；线程内 ClaimOwner、物理恢复、新目录 native 创建、ActivateOwner 和每次执行生命周期 |
 | `crates/scap-cell/` | Rust；有界确定性业务状态机，身份、owner/auth、事务接受、去重、取消和版本化 codec |
 | `crates/scap-sql/` | Rust；有界请求类型、精确请求 fingerprint 与完整结果 codec |
 | `crates/scap-engine/` | Rust；版本化物理页事务、完整逻辑镜像与权威历史恢复 |
@@ -37,6 +39,7 @@
 | [experiments/sqlite-cell/](../../experiments/sqlite-cell/README.md) | 固定 libSQL 与正式 cell/driver/backend 的真实提交与恢复合同；受限引擎及 IPC 装配为测试夹具 |
 | [experiments/sqlite-engine/](../../experiments/sqlite-engine/README.md) | 正式 SQLite adapter 与真实 cell 的独立故障合同，含 SQL 子进程被杀 |
 | [experiments/raft-network/](../../experiments/raft-network/README.md) | 三个独立进程使用正式 wire/transport/runtime 与 RocksDB；端到端 mTLS、透明 TCP 故障代理、重启和 snapshot；合成 payload 不执行 SQLite SQL |
+| [experiments/sqlite-network/](../../experiments/sqlite-network/README.md) | 三个独立进程的真实 SQLite 与正式 mTLS 共识组合；fence、UNKNOWN、发布前 SIGKILL、owner 恢复及 snapshot |
 | `tests/tooling/` | 仓库脚本自身的单元测试 |
 | `.github/` | 文档、独立单元覆盖和真实依赖/故障 CI；PR 与 issue 模板 |
 
@@ -87,3 +90,5 @@
 部署文档只能出现真实实现且经过验证的命令；计划接口以“计划”标注，不通过占位命令制造已完成印象。
 
 早期 `raft-rpc` 的 8 项结果只涵盖其编码/传输契约，没有 RawNode、持久化、quorum 或 HA。新增 `raft-network` 则组合正式运行模块、三个真实持久进程与 mTLS，保留独立 integration profile。二者都不补生产单元覆盖率。测试文件和研究目录按 [coverage policy](../../contracts/coverage-policy.json)精确登记；包括 `runtime/src/driver.rs` 在内的正式源码保留在生产分母，不因委托很薄而排除。
+
+正式 SQLite 网络组合与 owner 恢复入口见 [ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)。`EngineFactory`、`CellPort` 和 Runtime adapter 都计入第一方单元分母；实验只装配正式实现与故障控制，不保存另一套生产算法。

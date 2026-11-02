@@ -212,3 +212,7 @@
 4. 检查日志缓冲有界，避免监控故障填满数据库磁盘。恢复采集后补齐事故窗口，明确无法重建的观测缺口。
 
 **完成标准：** 安全保护未依赖外部监控存活；采集恢复；观测缺口和期间操作清楚记录。
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](../engineering/sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

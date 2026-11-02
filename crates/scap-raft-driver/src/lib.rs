@@ -5,7 +5,7 @@
 //! Returned messages are handed to a separately bounded transport; transport
 //! receipt is never a durable or business acknowledgement.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Display};
 
 use protobuf::Message as ProtobufMessage;
@@ -18,6 +18,28 @@ use scap_raft_store::{AtomicBackend, State, Store};
 pub trait Application {
     type Error: Display;
     fn apply(&mut self, previous: &[u8], committed: &[Entry]) -> Result<Vec<u8>, Self::Error>;
+
+    /// Capture a result immediately after each requested entry is applied.
+    /// `requested` contains ascending indices from `committed`; results must
+    /// have the same order and length. Neither state nor results may cause
+    /// external effects until the driver has persisted the complete batch.
+    /// Applications using only ordinary proposals can retain this default.
+    fn apply_with_results(
+        &mut self,
+        previous: &[u8],
+        committed: &[Entry],
+        _requested: &[u64],
+    ) -> Result<AppliedBatch, Self::Error> {
+        Ok(AppliedBatch {
+            state: self.apply(previous, committed)?,
+            results: Vec::new(),
+        })
+    }
+}
+
+pub struct AppliedBatch {
+    pub state: Vec<u8>,
+    pub results: Vec<Vec<u8>>,
 }
 
 /// Every resource budget is explicit. The driver fixes node identity and
@@ -31,6 +53,8 @@ pub struct DriverConfig {
     pub max_output_messages: usize,
     pub max_output_bytes: usize,
     pub max_pending_reads: usize,
+    pub max_pending_proposals: usize,
+    pub max_pending_proposal_bytes: usize,
     pub max_ready_rounds: usize,
 }
 
@@ -47,6 +71,8 @@ pub enum Error {
     InputLimit,
     ReadLimit,
     ReadIdExhausted,
+    ProposalLimit,
+    ProposalIdExhausted,
     /// Detected after work may have become durable: fatal, never an admission
     /// rejection that permits blind replay of an unknown business proposal.
     OutputLimit,
@@ -79,9 +105,28 @@ pub struct ReadBarrier {
     pub index: u64,
 }
 
+/// A single local admission attempt, distinct from an application's durable
+/// idempotency key. Cancellation never retracts a Raft proposal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProposalTicket {
+    pub boot_id: u128,
+    pub sequence: u64,
+}
+
+/// Opaque application result for exactly one durably applied entry. The
+/// application must still distinguish acceptance, deduplication and rejection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProposalResult {
+    pub ticket: ProposalTicket,
+    pub index: u64,
+    pub term: u64,
+    pub data: Vec<u8>,
+}
+
 pub struct Output {
     pub messages: Vec<Message>,
     pub reads: Vec<ReadBarrier>,
+    pub proposals: Vec<ProposalResult>,
     pub more_ready: bool,
 }
 
@@ -102,6 +147,18 @@ struct PendingRead {
     index: Option<u64>,
 }
 
+struct PendingProposal {
+    context: Vec<u8>,
+    data: Vec<u8>,
+    term: u64,
+    max_result_bytes: usize,
+    reserved_bytes: usize,
+    result: Option<ProposalResult>,
+}
+
+const PROPOSAL_CONTEXT: &[u8] = b"SCAPAPPL";
+const PROPOSAL_RESULT_BYTES: usize = 40;
+
 pub struct Driver<B: AtomicBackend, A: Application> {
     node: RawNode<Store<B>>,
     application: A,
@@ -109,6 +166,9 @@ pub struct Driver<B: AtomicBackend, A: Application> {
     context_prefix: Vec<u8>,
     next_read: u64,
     pending_reads: BTreeMap<u64, PendingRead>,
+    next_proposal: u64,
+    pending_proposals: BTreeMap<u64, PendingProposal>,
+    pending_proposal_bytes: usize,
     stopped: bool,
 }
 
@@ -143,6 +203,9 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
             context_prefix,
             next_read: 1,
             pending_reads: BTreeMap::new(),
+            next_proposal: 1,
+            pending_proposals: BTreeMap::new(),
+            pending_proposal_bytes: 0,
             stopped: false,
         })
     }
@@ -216,6 +279,9 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
     /// Proposal admission is not a commit or business acknowledgement.
     pub fn propose(&mut self, context: Vec<u8>, data: Vec<u8>) -> Result<(), Error> {
         self.ensure_leader()?;
+        if context.starts_with(PROPOSAL_CONTEXT) {
+            return Err(Error::Invalid("reserved tracked proposal context"));
+        }
         if context.len().saturating_add(data.len()) > self.config.max_input_bytes {
             return Err(Error::InputLimit);
         }
@@ -227,6 +293,82 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
             .as_ref()
             .is_err_and(|error| *error != raft::Error::ProposalDropped);
         result.map_err(Error::Raft)
+    }
+
+    /// Track this exact command and its application result. A successful return
+    /// means admission only; a missing result after failure remains unknown.
+    pub fn propose_tracked(
+        &mut self,
+        data: Vec<u8>,
+        max_result_bytes: usize,
+    ) -> Result<ProposalTicket, Error> {
+        self.ensure_leader()?;
+        let next = self
+            .next_proposal
+            .checked_add(1)
+            .ok_or(Error::ProposalIdExhausted)?;
+        let ticket = ProposalTicket {
+            boot_id: self.config.boot_id,
+            sequence: self.next_proposal,
+        };
+        let mut context = self.context_prefix.clone();
+        context[..PROPOSAL_CONTEXT.len()].copy_from_slice(PROPOSAL_CONTEXT);
+        context.extend_from_slice(&ticket.sequence.to_be_bytes());
+        if data.is_empty()
+            || context.len().saturating_add(data.len()) > self.config.max_input_bytes
+            || max_result_bytes == 0
+            || max_result_bytes.saturating_add(PROPOSAL_RESULT_BYTES) > self.config.max_output_bytes
+        {
+            return Err(Error::InputLimit);
+        }
+        let reserved_bytes = context
+            .len()
+            .saturating_add(data.len())
+            .saturating_add(max_result_bytes)
+            .saturating_add(256);
+        if self.pending_proposals.len() >= self.config.max_pending_proposals
+            || reserved_bytes
+                > self
+                    .config
+                    .max_pending_proposal_bytes
+                    .saturating_sub(self.pending_proposal_bytes)
+        {
+            return Err(Error::ProposalLimit);
+        }
+        self.next_proposal = next;
+        self.stopped = true;
+        if let Err(error) = self.node.propose(context.clone(), data.clone()) {
+            self.stopped = error != raft::Error::ProposalDropped;
+            return Err(Error::Raft(error));
+        }
+        self.pending_proposals.insert(
+            ticket.sequence,
+            PendingProposal {
+                context,
+                data,
+                term: self.node.raft.term,
+                max_result_bytes,
+                reserved_bytes,
+                result: None,
+            },
+        );
+        self.pending_proposal_bytes += reserved_bytes;
+        self.stopped = false;
+        Ok(ticket)
+    }
+
+    /// Remove only the volatile waiter. A late commit remains part of durable
+    /// application history and must be resolved by the application's protocol.
+    pub fn cancel_proposal(&mut self, ticket: ProposalTicket) -> Result<bool, Error> {
+        self.ensure_running()?;
+        if ticket.boot_id != self.config.boot_id {
+            return Ok(false);
+        }
+        if let Some(pending) = self.pending_proposals.remove(&ticket.sequence) {
+            self.pending_proposal_bytes -= pending.reserved_bytes;
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     /// Mint a fresh bounded pending read. Tickets are never reused in this boot.
@@ -354,19 +496,63 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
                     }
                 }
             }
+            let matched: Vec<_> = committed
+                .iter()
+                .filter_map(|entry| {
+                    self.match_proposal(entry)
+                        .map(|sequence| (sequence, entry.index, entry.term))
+                })
+                .collect();
+            let requested: Vec<_> = matched.iter().map(|entry| entry.1).collect();
+            if matched
+                .iter()
+                .map(|entry| entry.0)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != matched.len()
+            {
+                return Err(Error::Application("duplicate tracked proposal".into()));
+            }
             let application = if committed.is_empty() {
-                previous
+                AppliedBatch {
+                    state: previous,
+                    results: Vec::new(),
+                }
             } else {
                 self.application
-                    .apply(&previous, &committed)
+                    .apply_with_results(&previous, &committed, &requested)
                     .map_err(|error| Error::Application(error.to_string()))?
             };
+            if application.results.len() != matched.len() {
+                return Err(Error::Application(
+                    "application result count mismatch".into(),
+                ));
+            }
+            for ((sequence, _, _), result) in matched.iter().zip(&application.results) {
+                if result.len() > self.pending_proposals[sequence].max_result_bytes {
+                    return Err(Error::OutputLimit);
+                }
+            }
             self.node
                 .mut_store()
-                .apply_committed(commit, &committed, &application, &conf)
+                .apply_committed(commit, &committed, &application.state, &conf)
                 .map_err(Error::Store)?;
             let applied = self.durable_view().applied;
             self.node.advance_apply_to(applied);
+            for ((sequence, index, term), data) in matched.into_iter().zip(application.results) {
+                self.pending_proposals
+                    .get_mut(&sequence)
+                    .expect("matched live proposal")
+                    .result = Some(ProposalResult {
+                    ticket: ProposalTicket {
+                        boot_id: self.config.boot_id,
+                        sequence,
+                    },
+                    index,
+                    term,
+                    data,
+                });
+            }
             for read in reads {
                 for pending in self.pending_reads.values_mut() {
                     if pending.context == read.request_ctx {
@@ -405,11 +591,34 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         for ticket in completed {
             self.pending_reads.remove(&ticket);
         }
-        let more_ready = self.node.has_ready() || self.has_completed_read(applied);
+        let mut proposals = Vec::new();
+        let mut completed = Vec::new();
+        for (&sequence, pending) in &self.pending_proposals {
+            if let Some(result) = &pending.result {
+                let size = PROPOSAL_RESULT_BYTES + result.data.len();
+                if bytes.saturating_add(size) > self.config.max_output_bytes {
+                    break;
+                }
+                bytes += size;
+                completed.push(sequence);
+            }
+        }
+        for sequence in completed {
+            let pending = self
+                .pending_proposals
+                .remove(&sequence)
+                .expect("collected completed proposal");
+            self.pending_proposal_bytes -= pending.reserved_bytes;
+            proposals.push(pending.result.expect("completed application result"));
+        }
+        let more_ready = self.node.has_ready()
+            || self.has_completed_read(applied)
+            || self.has_completed_proposal();
         self.stopped = false;
         Ok(Output {
             messages,
             reads,
+            proposals,
             more_ready,
         })
     }
@@ -434,7 +643,10 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
 
     fn ensure_input(&self) -> Result<(), Error> {
         self.ensure_running()?;
-        if self.node.has_ready() || self.has_completed_read(self.durable_view().applied) {
+        if self.node.has_ready()
+            || self.has_completed_read(self.durable_view().applied)
+            || self.has_completed_proposal()
+        {
             return Err(Error::NeedsDrain);
         }
         Ok(())
@@ -452,6 +664,34 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         self.pending_reads
             .values()
             .any(|read| read.index.is_some_and(|index| index <= applied))
+    }
+
+    fn has_completed_proposal(&self) -> bool {
+        self.pending_proposals
+            .values()
+            .any(|pending| pending.result.is_some())
+    }
+
+    fn match_proposal(&self, entry: &Entry) -> Option<u64> {
+        if entry.get_entry_type() != EntryType::EntryNormal || entry.data.is_empty() {
+            return None;
+        }
+        let sequence: [u8; 8] = entry
+            .context
+            .get(self.context_prefix.len()..)?
+            .try_into()
+            .ok()?;
+        let sequence = u64::from_be_bytes(sequence);
+        let pending = self.pending_proposals.get(&sequence)?;
+        if pending.result.is_none()
+            && pending.term == entry.term
+            && pending.context == entry.context
+            && pending.data == entry.data
+        {
+            Some(sequence)
+        } else {
+            None
+        }
     }
 
     fn durable_view(&self) -> &State {
@@ -472,6 +712,8 @@ fn validate_config(config: &DriverConfig) -> Result<(), Error> {
         || config.max_output_messages == 0
         || config.max_output_bytes < 32
         || config.max_pending_reads == 0
+        || !(1..=65_536).contains(&config.max_pending_proposals)
+        || !(1..=1_073_741_824).contains(&config.max_pending_proposal_bytes)
         || config.max_ready_rounds == 0
     {
         return Err(Error::Invalid(

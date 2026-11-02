@@ -296,3 +296,54 @@ jobs:
           name: raft-network-evidence
           path: target/evidence/raft-network
           if-no-files-found: warn
+
+  sqlite-network-probe:
+    name: Real SQLite and mTLS durable commit contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      SCAP_SQL_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-network
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install and record native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          c++ --version
+          dpkg-query --show libclang-18-dev
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - name: Check SQLite network contract format and lint
+        run: |
+          cargo +1.90.0 fmt --manifest-path experiments/sqlite-network/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/sqlite-network/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Execute real SQL and mTLS process contracts separately
+        run: cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
+      - name: Verify all seven SQLite network histories completed
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          directory = Path(os.environ["SCAP_SQL_NETWORK_EVIDENCE_DIR"])
+          histories = sorted(directory.glob("*.log"))
+          if len(histories) != 7:
+              raise SystemExit(f"Expected seven SQL network histories, found {len(histories)}")
+          for history in histories:
+              lines = history.read_text(encoding="utf-8").splitlines()
+              if not lines or not lines[-1].endswith(" verification passed"):
+                  raise SystemExit(f"Incomplete SQL network history: {history.name}")
+          print("Verified seven completed SQL network histories; test success is a separate gate.")
+          PY
+      - name: Retain SQL commit and recovery histories
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sqlite-network-evidence
+          path: target/evidence/sqlite-network
+          if-no-files-found: warn

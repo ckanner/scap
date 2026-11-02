@@ -98,6 +98,8 @@ fn node_config(boot_id: u128) -> DriverConfig {
         max_output_messages: 64,
         max_output_bytes: 4 * 1024 * 1024,
         max_pending_reads: 16,
+        max_pending_proposals: 16,
+        max_pending_proposal_bytes: 8 * 1024 * 1024,
         max_ready_rounds: 32,
     }
 }

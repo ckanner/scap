@@ -107,7 +107,7 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 2026-11-01 的后续阶段已实现 [正式 wire、mTLS transport 与单 cell runtime](raft-network-runtime.md)，并通过 [八项真实三进程网络契约](../../experiments/raft-network/README.md)。这些用例验证正式 cell 业务接受、Safe ReadIndex、分区、重启、snapshot 与证书撤销，但 `physical_changes` 是合成 opaque payload，没有执行 SQLite SQL。2026-10-31 adapter 实验使用受控路由的历史范围保持不变；不能把两套独立实验的通过合并描述成完整 native SQLite + mTLS + SDK 验收。
 
-下一阶段需要将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。独立 SQL 强读还要绑定实际 SQLite snapshot、当前权限和 owner；Hrana/Node.js 入口、writer 自动 fencing/恢复/激活仍待实现。
+[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)已将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。明确的 owner 恢复和激活入口已实现；独立 SQL 强读还要绑定实际 SQLite snapshot、当前权限和 owner，Hrana/Node.js、故障检测、自动调度与路由仍待实现。
 
 完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，增量布局、S3 归档/恢复/GC 和长期容量继续接受各自的门禁。
 
@@ -118,3 +118,7 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 [resolve]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sqlite3/src/resolve.c
 [pragma]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sqlite3/src/pragma.c
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

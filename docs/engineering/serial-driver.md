@@ -91,3 +91,7 @@ native 句柄、选项和专有 key 不对调用方开放。加载拒绝外来�
 本轮保持完整有界镜像布局，不降低 [原有容量与写放大限制](durable-store.md)。2026-11-01 新增[正式单 cell 网络运行时](raft-network-runtime.md)，在专用线程通过窄 RaftDriver port 驱动本模块；[真实 mTLS 三进程实验](../../experiments/raft-network/README.md)另行验证网络故障，没有改变上面旧 IPC 实验的历史范围。多个 cell 的公平性、动态成员与服务控制面仍需实现。有界业务接受与受限 SQLite 接合已经加入，G0/G1 的通用 SQL、SDK、完整生命周期和其他门禁仍须分别完成。
 
 上游接口与来源见 [ADR-0009](../adr/0009-serial-driver-and-native-backend.md)。
+
+## SQLite 网络提交实现更新（2026-11-02 UTC）
+
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。

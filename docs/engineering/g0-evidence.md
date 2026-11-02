@@ -1,6 +1,6 @@
 # G0 原型执行证据与剩余门禁
 
-初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29；cell 业务状态机、选举/读合同和 SQLite 接合追加日期：2026-10-31；正式网络与运行时追加日期：2026-11-01。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。最新正式 workspace 与组合结果见第 11 节；前面的分阶段记录保留其当时范围。
+初始记录日期：2026-10-27；RPC、持久存储、正式 driver/native backend 与三进程故障实验追加日期：2026-10-29；cell 业务状态机、选举/读合同和 SQLite 接合追加日期：2026-10-31；正式网络与运行时追加日期：2026-11-01。状态：**部分 G0 证据已经实际执行，整个 G0 尚未通过；没有可部署 HA 服务。** 性能、RTO 和三 AZ RPO 目标均未测量，不能从单机测试运行时间推导生产指标。SQLite 网络提交追加日期：2026-11-02（UTC）。最新正式 workspace 与组合结果见第 12 节；前面的分阶段记录保留其当时范围。
 
 ## 1. 本次实际交付
 
@@ -22,8 +22,11 @@
 | `experiments/sqlite-cell` | 固定真实 libSQL、3 个正式持久 Raft 实例及 cell；真实 SQL 子进程的提交 gate、业务拒绝、发布、SIGKILL 后从空文件恢复、snapshot/reopen | 三个独立 Raft OS 进程、生产 RPC/SDK、通用 spill、生产引擎 adapter 和自动接管 |
 | `experiments/sqlite-engine` | 正式 SQLite adapter 与真实 cell 的十一项独立故障合同 | 三个独立 Raft OS 进程、mTLS 网络、自动 owner 接管 |
 | `experiments/raft-network` | 正式 wire/transport/runtime/cell，三个独立 OS 进程与 RocksDB，真实 mTLS、方向性网络故障、重启与快照 | SQLite SQL/SDK 网络组合、跨 AZ、设备断电、性能/RTO |
+| `crates/scap-cell-client` | 完整固定 scope、原请求上下文、Safe ReadIndex/view 绑定、tracked 业务结果与正式 CommitGate | 外部凭证验证、业务网络 RPC、SQL 调度 |
+| `crates/scap-sql-worker` | 明确的 ClaimOwner/物理恢复/新目录 native 创建/ActivateOwner 入口与每次执行生命周期 | 自动故障检测、跨节点调度、SDK 服务 |
+| `experiments/sqlite-network` | 正式 SQLite writer 与三个持久 mTLS 进程的七项真实故障组合；物理数据/结果、fence、UNKNOWN、发布前 SIGKILL、snapshot/restart | 三 AZ、设备断电、生产凭证、自动控制面和性能 |
 | 仓库工具 | 文档/合同检查；覆盖率源码清单与原始计数核对 | 证明报告来源可信或取代人工架构审查 |
-| CI | 九个独立质量 job：Rust 单元覆盖、Python 工具单元覆盖、引擎、RPC、持久恢复、三进程受控故障、SQLite/cell、正式 SQLite adapter、真实 mTLS 网络；另有文档 job | 云环境性能、三 AZ 演练、生产 SLA |
+| CI | 十个独立质量 job：Rust 单元覆盖、Python 工具单元覆盖、引擎、RPC、持久恢复、三进程受控故障、SQLite/cell、正式 SQLite adapter、真实 mTLS 网络、真实 SQLite/mTLS 组合；另有文档 job | 云环境性能、三 AZ 演练、生产 SLA |
 
 `CommitCoordinator` 只有在新接受回执绑定完整请求、序号正确且本地发布成功后才返回 ACK。`AlreadyCommitted` 是单独的历史结果路径：停止当前上下文，交外部丢弃新暂存、对齐状态和取得原结果，绝不再次发布旧页面。`UNKNOWN`、非法回执、拒绝、发布失败与被捕获的 adapter panic 均不能让同一上下文继续提交。
 
@@ -46,7 +49,7 @@
 | 真实 libSQL 实验 | **13 passed，0 failed，0 ignored**：8 项引擎/子进程实验与 5 项探针合同检查 |
 | Rust 格式与 Clippy | 通过；Clippy 以 `-D warnings` 执行 |
 
-这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。第 9 节保留当时五个正式模块、六份生产源码的计数，第 10 节保留八个模块、十三份源码的计数；本轮十一个模块、二十三份源码见第 11 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
+这些百分比描述初始核心范围：当时只有一个生产 Rust 源文件、两个有函数体的生产函数。第 9 节保留当时五个正式模块、六份生产源码的计数，第 10 节保留八个模块、十三份源码的计数；第 11 节保留十一个模块、二十三份源码的计数；本轮十三个模块、二十六份源码见第 12 节。测试代码、编译器生成的实现、第三方依赖和测试探针不被包装成产品逻辑的覆盖成绩；所有第一方产品源码由门禁清单核对。LLVM 的已计数分支不等于所有 `match` 模式、派生比较的每个条件、MC/DC 或全部执行交错。10 项核心行为测试同时检查完整身份字段、错误结果及未发生的发布效果。
 
 引擎实验先在上游指定 Rust 1.85.0 下完成，再用相同锁文件在 Rust 1.90.0 重新编译运行，均通过。它固定 4096 字节页面、关闭 spill、限制最多 1024 页，并使用同步测试决策。独立 fsync 页 fixture 只证明受限页面捕获/重建路径；进程退出不等于断电，也没有同步复制。
 
@@ -459,11 +462,63 @@ cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked 
 - 完成但尚未被调用方取走的读结果继续持有请求 reservation；取消也不提前释放仍排队的请求。持久化错误或 panic 关闭入口与等待读；读屏障完成后的 fatal view 错误也在同一次 poll 关闭入口，阻止已失效 owner 继续准入。
 - 串行调度通过窄 `RaftDriver` port 调用正式持久 driver。单元故障 decorator 只替换指定的一次操作结果，其余调用执行真实 driver；时钟、native codec 结果、网络和磁盘失败分别注入，不另写模拟 Raft 协议。
 
-## 12. 仍然阻断完整 G0 / HA 上线的工作
+## 12. 正式 SQLite 网络提交与 owner 恢复（2026-11-02 UTC）
+
+[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)及 [SQLite 网络合同](sqlite-network.md)把正式 native writer 与已有固定成员 mTLS cell 接通。新增 `scap-cell-client`、`scap-sql-worker`，扩展 driver/runtime 的 tracked proposal 和 cell 的逐 Entry outcome；没有通过 `Admitted`、最后一次 outcome 或猜测日志 index 判断业务成功。
+
+### 12.1 新的全工作区单元报告
+
+最终正式 Rust 源码下采集 fresh unit-only LLVM profile，**245 passed，0 failed**。十三个 crate、二十六个生产源码文件全部进入 coverage map，`check_unit_coverage.py` 对每个文件核对精确整数并通过：
+
+| 维度 | 全部正式源码 |
+| --- | --- |
+| Lines | **5802 / 5802，100%** |
+| Functions | **474 / 474，100%** |
+| Regions | **8346 / 8346，100%** |
+| Branches | **1402 / 1402，100%** |
+
+| 本轮直接变化的组件 | Lines | Functions | Regions | Branches |
+| --- | --- | --- | --- | --- |
+| `scap-raft-driver` | 510/510 | 37/37 | 743/743 | 120/120 |
+| `scap-cell` | 1320/1320 | 93/93 | 2037/2037 | 338/338 |
+| `scap-raft-runtime` | 951/951 | 80/80 | 1396/1396 | 210/210 |
+| `scap-cell-client` | 294/294 | 21/21 | 348/348 | 74/74 |
+| `scap-sql-worker` | 209/209 | 12/12 | 251/251 | 34/34 |
+| 其余八个既有组件 | 2518/2518 | 231/231 | 3571/3571 | 626/626 |
+
+各 crate 单元数为：cell 28、cell-client 18、core 10、engine 11、driver 33、rocks 12、runtime 37、store 21、transport 12、wire 13、sql 9、sql-worker 11、sqlite 30。Python 工具仍为 **47 passed**，241/241 statements 与 116/116 branches。单元收集不执行任何独立 experiment；没有源码 exclusion、coverage(off)、缺失 map 或集成记录补缺。
+
+真实 RuntimePort 和 NativeFactory/Engine 委托也由 unit 调用；policy 使用窄端口控制时钟、存储、请求结果和 native 创建。owner 恢复中原 deadline 在恢复前、native 构造后和交付前都重新检查，激活竞争和部分资源退出各自有测试。
+
+### 12.2 七项独立真实 SQL/mTLS 合同
+
+`experiments/sqlite-network` 使用三个独立 OS 进程、三个 RocksDB 目录、正式 Runtime/NetworkWorkers/PeerServer 和实际 mTLS，SQL 仅在独立 SQL 线程使用正式 Writer。透明代理只调度加密 TCP，CellPort decorator 只暂停精确效果边界；生产接受、恢复和发布算法没有复制到 fixture。
+
+| 场景 | 直接证明 |
+| --- | --- |
+| SQL、DDL 与 RETURNING 去重 | 唯一键和随机 blob 的原 receipt/result 保留，重复 DDL 不重执行 |
+| preflight 后 owner fence | 最终有序提交拒绝，独立 SQLite 读连接看不到新页面 |
+| preflight 后 auth fence | 旧 auth epoch 拒绝，同样没有新 native 可见性 |
+| TCP 黑洞造成 quorum 丢失 | 请求 UNKNOWN 且不发布；新多数派有序取消，网络恢复后 fence 仍有效 |
+| 已接受回执超过原 deadline | 仍返回 UNKNOWN；显式解析与新目录物理恢复得到同一随机结果 |
+| Accepted 后、native publish 前 SIGKILL | 另一个真实进程成为 leader，正式恢复入口取得新 owner/new directory，物理恢复原事务与结果 |
+| snapshot 和整组重启 | 实际 mTLS MsgSnapshot 持久安装；接收者 snapshot 检查与全组三进程 SIGKILL/reopen 后仍可恢复数据和取消记录 |
+
+完整运行 **7 passed，0 failed，0 ignored**，每份逐事件日志均以 `verification passed` 结束。最终冻结源码的格式/严格 Clippy 与复跑另由同一 quality workflow 验证；源码/构建输入在本地运行前后以 SHA-256 核对。实验 artifact 为 `sqlite-network-evidence`，不混入 Rust unit artifact。
+
+旧 `raft-cluster`、`sqlite-cell`、`sqlite-engine`、`raft-network` 分别回归 **8、6、11、8 passed**，合计 33 项，0 failed/ignored；33 份日志均完成最终验证。新增 Answer 枚举要求旧普通提案 fixture 显式拒绝意外 `Applied`，不会把它映成 `Admitted`；fixture 配置仍需满足实际请求/视图预算。这些兼容修复不改变正式持久性或 deadline 合同。
+
+### 12.3 本次证据不扩大的结论
+
+恢复入口由可信调用方显式触发。Claim 后失败可能留下 inactive 新 epoch；Activate 已生效而后续读失败可能留下 active owner，但不交付 writer。后续恢复必须先读取权威状态，使用新 worker ID 和新目录；调用失败不证明 owner 变更回滚。
+
+尚未实现外部 SQL/Hrana/Node SDK、凭证验证和 worker admission 服务、自动故障检测/调度/路由、动态成员、多 cell、S3 归档/GC、增量布局与大事务。测试同机 loopback 和 SIGKILL 不证明三 AZ、设备断电、生产 RTO 或目标 p99；性能目标保持原值且待测。
+
+## 13. 仍然阻断完整 G0 / HA 上线的工作
 
 - 完整、可恢复的事务暂存协议：spill、更多 page size、大事务、checkpoint 交互、错误恢复与所有可见性边界。
 - 增量存储布局、物理存储故障与安全副本重建；在现有固定成员单 cell 运行时上扩展多 cell 公平调度、完整成员管理和服务进程装配。
-- 将正式 SQLite adapter 的可信 CommitGate 接入生产身份、请求调度与网络共识服务，并完成独立 SQL 强读和自动恢复编排；研究 IPC/集群装配不能作为运行时依赖。
+- 在已完成的可信 CommitGate、mTLS 共识和明确 owner 恢复入口上补生产身份、请求调度、外部 SQL/SDK、独立 SQL 强读和自动恢复调度；研究控制协议不能作为运行时依赖。
 - 在已有有界接受子集上补全 lifecycle、迁移、删除、管理员轮换、归档引用和安全历史回收；完成 S3/manifest/GC 的独立恢复证明。
 - Hrana / Node.js SDK 的请求身份、返回值缓冲、交互事务、UNKNOWN 和重试语义。
 - 固定 sqld 与现代平台依赖树的实际接合边界；证书签发/轮换控制面、动态成员与多 cell 授权、规模和长期网络背压验证。
@@ -478,4 +533,4 @@ cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked 
 
 同日后续 [ADR 0008](../adr/0008-bounded-durable-store-g0.md)落实有界持久策略和真实 RawNode/RocksDB 恢复实验，新增第 7 节证据；当时正式 driver/native 尚待实现。
 
-[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据；ADR 0011 与 0012 分别落实第 10、11 节。整个 G0 尚未通过，剩余工作以上述第 12 节为准。
+[ADR 0009](../adr/0009-serial-driver-and-native-backend.md)落实正式 driver/native 和第 8 节三进程故障合同。2026-10-31 的 [ADR 0010](../adr/0010-cell-acceptance-and-raft-safety.md)继续增加第 9 节业务接受、选举/读和 SQLite 接合证据；ADR 0011 与 0012 分别落实第 10、11 节。整个 G0 尚未通过，剩余工作以上述第 13 节为准。

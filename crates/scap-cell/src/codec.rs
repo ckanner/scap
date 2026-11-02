@@ -2,6 +2,7 @@ use super::*;
 
 const STATE_MAGIC: &[u8; 8] = b"SCAPCELL";
 const COMMAND_MAGIC: &[u8; 8] = b"SCAPCMD!";
+const OUTCOME_MAGIC: &[u8; 8] = b"SCAPOUT!";
 const VERSION: u8 = 1;
 
 struct Writer(Vec<u8>);
@@ -499,6 +500,32 @@ pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Er
     };
     reader.finish()?;
     Ok(command)
+}
+
+pub(super) fn encode_applied_outcome(outcome: &AppliedOutcome) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.position(outcome.position);
+    writer.outcome(&outcome.outcome);
+    seal(OUTCOME_MAGIC, writer.0)
+}
+
+pub(super) fn decode_applied_outcome(
+    bytes: &[u8],
+    expected: Position,
+) -> Result<AppliedOutcome, Error> {
+    let mut reader = Reader {
+        bytes: open(bytes, OUTCOME_MAGIC, MAX_APPLIED_OUTCOME_BYTES)?,
+        cursor: 0,
+    };
+    let outcome = AppliedOutcome {
+        position: reader.position()?,
+        outcome: reader.outcome()?,
+    };
+    reader.finish()?;
+    if expected.term == 0 || expected.index == 0 || outcome.position != expected {
+        return Err(Error::Position);
+    }
+    Ok(outcome)
 }
 
 pub(super) fn admin_digest(command: &Command) -> [u8; 32] {
