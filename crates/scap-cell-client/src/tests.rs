@@ -359,6 +359,7 @@ fn build() -> (Client<Port>, Port, Arc<TestClock>, RequestContext) {
         cancelled: Arc::new(AtomicBool::new(false)),
     };
     let client = Client::new(10, cell(), limits(), port.clone(), clock.clone()).unwrap();
+    assert_eq!(client.identity(), port.identity());
     (client, port, clock, context)
 }
 

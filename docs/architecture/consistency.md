@@ -1,10 +1,10 @@
 # 一致性、提交与故障恢复协议
 
-> 状态：`Proposed / Implementation Gate`。本文规定 SCAP 拟实现的协议和验收条件，不表示仓库已经实现这些保证。`libSQL virtual WAL` 的提交边界、raft-rs 的 driver 与持久化适配、精确读快照以及恢复流程都必须通过 PoC 和故障注入验证，才能对生产用户承诺本文的语义。2026-10-28 的共识库调整见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)。
+> 状态：有界实现与完整平台的发布门禁并列。2026-11-02 已实现固定三节点 daemon、真实 SQLite/HTTP/Node SDK、独立 Safe ReadIndex 强读、leader 自动 owner 恢复和有界 S3 冷生命周期。跨 AZ/规模 SLO、动态成员、多 cell、删除迁移、历史 GC、PITR 和 S3-only DR 仍为 planned；不能把局部正确性验证视为全部生产保证已成立。共识选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，当前服务范围见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
-2026-10-31 实现进度：正式 driver/Store/native 后端已接入固定 raft-rs，`scap-cell` 已实现有界 owner/auth、事务接受、去重与取消规则，并有独立受限 SQLite 接合实验。PreVote、Safe ReadIndex 与 snapshot 的实测范围见 [Raft 安全边界](../engineering/raft-safety.md)；业务子集见 [cell 合同](../engineering/cell-state-machine.md)。本文其余完整生命周期、精确 SQL 读快照、生产传输和恢复承诺仍按原门禁验证，局部通过不能把整份协议标记为已实现。
+正式 driver/Store/native 后端、PreVote、check_quorum、Safe ReadIndex 与完整有界 snapshot 已接入 mTLS peer runtime。`scap-cell` 在同一全序内处理 owner/auth、事务接受、去重、取消和 Suspend/Publish/Prune/Hydrate；`scap-sqlite` 在发布页面前等待精确持久裁决并缓冲完整结果。`query` 建立独立只读 SQLite 事务，不增加 accepted-write 历史；第三方 SDK 的普通 execute SELECT 保留兼容事务路径。
 
-本阶段进一步新增 [正式 SQLite adapter](../engineering/sqlite-engine.md)：私有连接、整个 batch 的结果缓冲、前置线性化请求查询、提交前物理 gate、无变化事务的 quorum 结果记录，以及完整物理历史恢复。它尚未实现本文的独立 SQL snapshot 读 API 和自动恢复编排；当前 SELECT 经由有记录的事务路径。
+实际装配、重启与故障边界见 [SQLite 服务实现](../engineering/sqlite-service.md)，底层读选举边界见 [Raft 安全合同](../engineering/raft-safety.md)。已执行场景以 [真实服务实验](../../experiments/service-network/README.md)、[对象实验](../../experiments/archive-s3/README.md)及 [G0 证据](../engineering/g0-evidence.md)为准，本文保留的协议模型并非每项都有公开 API。
 
 字段别名：本文的 `database_id` 等同于其他文档的 `db_id`，`revision` 等同于 `db_seq`；`owner_epoch` 是所有权世代简写 `epoch` 的规范名。权限世代单独命名为 `auth_epoch`，与 `owner_epoch` 不可互换。最终代码、持久格式与 wire protocol 的字段名在 `G0` 冻结，本文中的结构是协议模型，不是已冻结的接口定义。
 
@@ -12,7 +12,7 @@
 
 SCAP 的首版以 Rust 实现服务层，使用 **基于 SQLite C 实现的 libSQL fork** 作为 SQL 引擎及 `virtual WAL` 接入候选。它不是 Turso 原名 Limbo 的 Rust 数据库重写，也不是安装 `sqld`、启用 Bottomless 后即可获得的现成 HA 产品。libSQL 提供的扩展接口是实现入口，本文中的仲裁、持久化、读屏障和生命周期协议由 SCAP 负责实现。[S1] [S2]
 
-首版部署在一个区域的三个可用区。每个 `storage cell` 对应一个以 raft-rs 为首选候选的 Raft 复制组，三个持有完整日志的投票副本分别位于三个可用区；多个数据库共享该复制组。每个数据库最多有一个得到 cell 授权的 `worker` 执行写事务，worker 可以迁移，worker 的本地数据库文件和 WAL 是可重建的执行缓存。
+生产目标部署在一个区域的三个可用区。每个 `storage cell` 对应一个使用 raft-rs 的 Raft 复制组，三个持久投票副本应位于独立故障域；多个数据库共享该复制组。当前可部署 profile 固定三个 voter、一个 cell，实验在同一宿主机运行三个进程，不能据此声称跨 AZ 验证已完成。每库最多一个获 cell 授权的 writer；SQLite 文件与 WAL 是可重建的执行缓存。
 
 在本文规定的故障模型内，目标保证为：
 
@@ -22,7 +22,7 @@ SCAP 的首版以 Rust 实现服务层，使用 **基于 SQLite C 实现的 libS
 - 无法联系 cell quorum 时，拒绝发起新的强一致读写；不会改成只写本地文件后返回成功。
 - 对已经建立快照的读事务，可以在资源仍然可用时继续读取该快照；这不等于允许分区后的新请求绕过读屏障。
 
-保证以**单个数据库中的事务**为单位。自动提交的一条 SQL 是一个事务；显式多语句事务是一个整体。显式读事务中的后续语句保持同一个快照，不承诺每条语句都读取执行时最新状态。首版不支持跨数据库事务，也不支持通过 `ATTACH` 写入多个数据库后声称全局原子性。
+保证以**单个数据库中的事务**为单位。自动提交的一条 SQL 是一个事务；当前支持的自包含 batch 作为一个整体。读 batch 中后续语句保持同一个快照，不承诺每条语句都读取执行时最新状态。跨请求 interactive transaction 仍为 planned；不支持跨数据库事务，也不允许 `ATTACH` 绕过边界。
 
 `RPO = 0` 的范围是以上已确认提交和指定故障模型。本文不承诺区域整体毁损、超出容错范围的永久数据丢失、恶意节点、应用主动误删，以及数据库引擎缺陷导致的逻辑错误都能自动无损恢复。RTO 取决于选举、重放、S3 读取和缓存恢复耗时，必须实测，不能由“用了 Raft”直接推导。
 
@@ -40,6 +40,8 @@ SCAP 的首版以 Rust 实现服务层，使用 **基于 SQLite C 实现的 libS
 
 ### 2.2 哪一层决定什么
 
+下表为完整架构职责。当前 gateway 与 worker 集成在 `scap-server`，目录和 token 来自静态配置，没有 etcd 启动依赖；seal、删除 tombstone 和外部控制面尚未实现。
+
 | 组件 | 权威职责 | 不能作为证明的内容 |
 | --- | --- | --- |
 | cell Raft 状态机 | 数据库身份、placement、owner epoch、auth epoch、权限 fence、事务顺序、已接受提交、manifest、seal 和 tombstone | 单台节点尚未提交的日志 |
@@ -55,6 +57,8 @@ etcd 可暂时不可用或保存过期路由。已经知道正确 cell 的请求
 ## 3. 身份、版本和不变量
 
 ### 3.1 身份与状态
+
+以下结构描述完整协议模型。当前 `DatabaseView` 以 owner、active、suspended、cold 和可选 ArchiveRef 表示已实现状态；SEALED/DELETED/QUARANTINED 及相应管理流程不属于当前可调用子集。
 
 ```text
 CellIdentity = (cell_id, cell_incarnation)
@@ -121,6 +125,8 @@ lifecycle ∈ {
 | `I10` | 已撤销的权限版本不能授权新的提交、读屏障或历史结果查询；状态机不根据各副本的本地墙钟作出不同授权判定。 |
 
 ### 3.3 权限 fence、缓存与到期
+
+当前入口用静态 token SHA-256 绑定数据库、principal/credential、权限与 auth_epoch；每次执行、强读、结果查证及状态查询仍在新权威 view 中校验当前策略，写入 apply 再次检查。已有 cell `AuthFence` 命令，但尚无通用外部授权变更 API、JWT 验签、token expiry 或 60 秒远端策略缓存；下面涉及这些能力的规则是 planned，不能把配置中的旧 auth_epoch 自动提升成当前版本。
 
 `auth_policy` 必须包含确定性判断主体及操作权限所需的状态，或引用已经随状态机持久化的不可变策略。不能在 `apply` 中查询外部权限服务或只保存一个无法重建策略的摘要。
 
@@ -212,7 +218,7 @@ PageChange {
 
 ### 4.3 执行环境限制
 
-首版为每库串行化写事务，最多保留一个尚未判定结果的 mutating transaction。多个业务连接可以排队，读事务可以并行，但不能通过多条连接绕过写入顺序。
+当前每个 daemon 只有一个 SQL actor，全部本地 SQLite connection 在该线程内执行，有界 mailbox 控制排队。每库最多一个尚未判定结果的 mutating transaction；并行读或按库 actor 是后续优化，不能把“单库单写者”误读成当前已实现跨库并行执行。
 
 必须固定并验证 journaling、checkpoint 和共享缓存设置，禁止 `read_uncommitted` 或其他暴露未提交数据的路径。外部文件型 virtual table、可产生外部副作用的扩展、未适配的写入 API，以及会绕过虚拟 WAL 的恢复或替换文件操作，不在首版支持范围。
 
@@ -223,6 +229,8 @@ PageChange {
 ## 5. 事务提交协议
 
 ### 5.1 取得和激活 owner
+
+当前仅 Raft leader 驱动同 cell 自动 owner 恢复，term/领导状态变化时退休全部本地 writer。若库为 cold，必须先按新权威视图 hydrate；其后沿用下面的 Claim/重读/恢复/Activate 次序。精确 API 与错误边界见 [服务恢复流程](../engineering/sqlite-service.md#3-选举owner-恢复与分区)。
 
 `ClaimOwner` 和 `ActivateOwner` 都是 cell Raft 命令。
 
@@ -342,6 +350,8 @@ raft-rs 提供共识核心；driver、持久写、网络、业务状态机与恢
 
 ### 7.1 强读不是“连上 primary 就算强”
 
+`scap-sql-worker::Writer::read` 和正式 native adapter 已实现独立强读，并由 `query` / read batch 使用。每次读取核验新 ReadIndex 视图的 READ 权限、owner、revision/hash 和本地完整镜像；只读事务中的写操作被拒绝。不使用租约读，也不在分区时回退本地缓存。
+
 worker 可能仍然运行但已经失去 owner 身份；cell 的旧 leader 也可能仍然可达。每个新强读事务必须获得 cell 的线性化读屏障。缓存中的 owner、刚收到的心跳或一段尚未到期的 TTL 都不能替代它。
 
 本文的 `ReadIndex` 是协议概念。首版使用 raft-rs 的 `ReadOnlyOption::Safe`：对实际请求调用带唯一 context 的 `read_index`，匹配 Ready 中的 `ReadState`，等待持久状态机应用达到返回水位。迟到或旧世代 context 不得授权新请求；只验证 leader 身份、check_quorum 或本地 lease 不够。[S5] [S7]
@@ -378,7 +388,7 @@ ReadBarrier {
 
 只有 `applied_revision >= target_revision` 还不够：它说明没有落后，不能单独证明 SQL 连接实际读到哪个 revision。首版采用精确 revision 规则，避免在 owner 校验和读取新版本之间引入额外证明义务。
 
-snapshot-start gate 的线程、锁顺序和 WAL 集成是 PoC 内容。不得在 Rust 异步执行器上通过阻塞等待形成整个服务的死锁；同步 SQLite 调用应位于受控执行线程，并验证提交与开读快照之间的锁顺序。
+当前以 SQL actor 对 writer 的独占访问串行化本地发布与快照建立，核验完整保留历史后固定只读事务的精确镜像；SQL C 调用不放在网络异步线程。未来增加并行连接或快照起始锁时须重新验证锁顺序，不能仅凭现有串行测试推导新调度模型正确。
 
 该 gate 必须在安全的引擎调度点取得：已有提交若尚未完成本地发布，应先完成判定与发布；结果未知时先冻结或重建执行实例。不能持有 gate 等待一个同样需要该 gate 才能完成的写事务。首版可以保守地等待当前私有写事务结束后再建立新读快照，已经固定快照的读仍可继续。
 
@@ -393,6 +403,8 @@ snapshot-start gate 的线程、锁顺序和 WAL 集成是 PoC 内容。不得�
 首版不提供自动退化的 stale read 模式。未来如果增加，需要独立的请求选项、返回版本和明确的一致性合同，不能改变默认路径。
 
 ### 7.4 显式事务
+
+当前只提供单次请求内的 read/write batch。以下跨 RPC 会话、min_revision 和后续语句准入是 planned，不通过空 baton 假装延续连接事务。
 
 读事务的屏障发生在固定首个数据快照时，而不是把每条后续 `SELECT` 都升级成“读最新”。读写事务还要满足单 writer、基准 revision 和 owner 校验；若事务基准已失效，必须中止或由业务重新提交整个事务，不能把基于旧快照产生的页面强行合并到新状态。
 
@@ -441,7 +453,7 @@ request_digest = hash(canonical transaction intent and bound inputs)
 
 ### 8.4 去重窗口、退休和过期
 
-首版只承诺公布的保留窗口内去重，记录随 cell snapshot 保留。删除旧幂等记录后，把相同 ID 当成全新请求执行，不能再称为窗口外 exactly once。保留期限、是否可查询以及请求准入规则必须进入 API 契约：
+当前每库最多保留 128 条 accepted/cancel 记录，cell 最多 4096 条管理记录；到限拒绝新增，不按时间或 Prune 删除原结果及 fence。记录随 cell snapshot 和冷恢复保留。下面的保留窗口、压缩及退休协议仍为 planned：删除旧幂等记录后把相同 ID 当成新请求执行，不能称为窗口外 exactly once，保留期限及准入规则必须进入 API 契约。
 
 - 保留窗口内必须保存足以证明提交身份和结果状态的元数据；若承诺重放响应体，还须在其承诺期限内保留该响应体。完整响应和精简状态可以有不同保留期限。
 - 对结构化的 `client_id + request_sequence`，可以通过 Raft 命令推进单调的 `retired_through`。已退休区间中的请求一律拒绝重新执行，即使完整结果记录已回收。
@@ -465,15 +477,19 @@ request_digest = hash(canonical transaction intent and bound inputs)
 
 1. worker 停止接收新会话，等待已有事务结束，或明确取消尚未提交的事务。
 2. 对未决写请求查询权威结果。不能因为准备休眠就把 `UNKNOWN` 当作已回滚。
-3. 向 cell 提交带当前 token 和预期 revision 的 `SuspendDb`。状态机接受后增加 owner epoch、撤销 owner，并进入 `SUSPENDED`。
+3. 向 cell 提交带当前 token 和预期 revision 的 `SuspendDb`。状态机接受后撤销 active 并进入 `SUSPENDED`；已有且尚未休眠的 owner 增加 epoch，幂等重复休眠不再次增加，从未 Claim 的零 owner 不伪造非零世代。
 4. 旧 owner 晚到的提交会因 epoch 或 lifecycle 被拒绝。休眠命令之前已接受的事务属于数据库最终状态，即使其回包较晚。
 5. worker 关闭连接并释放没有被读事务继续固定的缓存。崩溃或强制 fence 后旧读可能结束；不承诺保留活跃会话。
 
 休眠无需等待最新数据全部归档到 S3，只要 committed tail 仍然由 cell 可靠持有。若要同时回收对应的本地持久数据，则必须先满足第 10 节的恢复和 GC 条件。
 
+当前 idle 维护必须把本地 slot 的 owner/active/revision 与新 view 比较；失配先退休，不能依据旧 last_use 撤销另一个新 owner。后台任务排队成功不等于归档发布或冷卸载完成。
+
 ### 9.2 唤醒与同 cell 迁移
 
-唤醒和 worker 故障迁移都使用 `ClaimOwner → restore → ActivateOwner`。多个并发唤醒请求通过状态机条件检查收敛到一个 owner。恢复者先取得正确身份和目标 revision，再使用 manifest 加 committed tail 重建；不能仅选择 S3 中看起来最新的文件。
+唤醒和 worker 故障迁移都使用 `ClaimOwner → 新 ReadIndex → restore → ActivateOwner → 最终复核`。Cold 必须先用当前精确 ArchiveRef hydrate，不能先 Claim 再以任意旧对象覆盖状态。多个并发请求通过状态机条件检查收敛到一个 owner；恢复者使用当前完整物理历史，不从 S3 listing 选择“最新文件”。
+
+已实现的后台 Prune 可能与新请求竞争。仅在 Claim 明确被 `Cold` 拒绝、SQL 尚未执行时，服务允许一次新 view/hydrate/Claim，沿用原 deadline；没有第二次刷新预算，也不重试 Unknown 或其他拒绝。恢复步骤失败可能已改变 epoch，不能把函数错误当作管理操作回滚。
 
 同 cell 的 worker 切换不改变 `incarnation`，但必须增加 owner epoch。旧 worker 是否真的停止、是否能收到撤销消息，不影响新写权的正确性；其新提交已无法通过状态机。
 
@@ -481,18 +497,24 @@ request_digest = hash(canonical transaction intent and bound inputs)
 
 ### 10.1 S3 不在正常事务的同步提交路径上
 
+当前 `scap-archive` 和后台 Jobs 已接入真实 S3 兼容客户端。对象是完整单库事务历史与原结果；上传/发布不在热写 ACK 链上。后台 I/O 有独立有界线程，S3 黑洞时不会同步占住 SQL 维护线程；前景 cold hydrate 仍占用单 SQL actor，其他库可能因此排队。
+
 新事务的同步耐久性来自 cell 的 durable quorum。S3 异步保存不可变数据库快照和事务段，用于冷数据、恢复与历史保留。S3 暂时不可用时，已提交事务仍由 cell 持有；随着归档积压接近安全容量，系统必须背压或拒绝新写，不能先删日志再期待稍后补传。
 
 三个 storage replica 仍然是共享持久化成本。只有经过安全归档和日志回收，冷库数据才可以主要驻留在 S3；“worker scale-to-zero”不能让尚未归档的 committed tail 消失。
 
 ### 10.2 发布顺序
 
+当前实际命令为 `PublishArchive`，不是下面模型名 `PublishManifest`。完整对象条件创建后必须 HEAD/GET 回读并核对精确大小、SHA-256 和作用域，再通过原 owner/head/source/前序 pointer 条件发布；之后 `PruneArchive` 再次检查同一 owner、suspended/inactive 和完整覆盖。它仅清除 physical_changes，保留请求身份、receipt/result、取消和权限。Hydrate 只可装回与当前 pointer/head 及逐事务保留元数据完全一致的物理字节。
+
+后续基准快照与分段 manifest 的通用顺序为：
+
 1. 基于一个固定已提交 revision 生成一致的数据库 snapshot，或者生成边界完整、revision 连续的 segment。
 2. 写入新的不可变对象键，包含 `DatabaseIdentity`、格式版本和内容摘要。禁止原地覆盖历史对象。
 3. 确认所有必要 PUT 完成并校验内容、长度及对象版本；不要把 multipart ETag 一概当作端到端内容校验和。
 4. 构造不可变 `Manifest`，描述准确的 base revision、目标 revision、连续 segments、每个对象的身份和摘要。
 5. 向 cell 提交 `PublishManifest`。状态机校验数据库世代、预期 manifest generation、覆盖 revision、链条和已提交状态的关系，然后原子发布引用。
-6. 只有发布成功的 manifest 才成为恢复入口。上传成功但发布失败的对象是可回收的孤儿对象，不是新数据库状态。
+6. 只有发布成功的 manifest 才成为恢复入口。上传成功但发布失败的对象是未发布对象，不是新数据库状态；当前永久保留，未来只有经过 GC 证明才可删除。
 
 上传前检查和对象存储 I/O 不得放进状态机 `apply`，否则副本会因为外部响应不同而发生非确定性。状态机处理已经验证的 manifest 描述，后台任务负责对象验证；验证失败必须阻止发布。
 
@@ -508,6 +530,8 @@ SQLite 文件 snapshot 仅代表一个数据库的页面状态。cell Raft snaps
 - 删除 tombstone、迁移 seal、目标 cell 绑定和其他不能复活的控制状态。
 
 cell snapshot 必须是状态机某个固定位置的视图；不能把多个数据库和控制记录在不同时间分别读取后拼接，并标注一个并不存在的一致 `last_applied_log_id`。
+
+当前正式 Checkpoint 保存全部已经实现的 cell 状态、完整 membership 与 applied 位置，包含 cold 引用和未归档 payload。上表中的迁移/删除/退休数据在这些能力实现后必须一并加入，不能从尚不存在的字段推断功能已完成。Prune 完成通知及所有 voter 的周期维护触发 checkpoint，实际日志压缩仍由 Store 契约裁决。
 
 cell snapshot 可以直接携带尚未归档的 committed payload，也可以引用已发布的不可变 manifest。前一种方式允许在 S3 暂时不可用时推进 Raft 日志压缩，但相应字节仍占用受保护的持久 snapshot 空间；它没有完成向 S3 卸载数据。只有元数据、没有必要 payload 或可靠对象引用的 snapshot 不足以清除原日志。
 
@@ -527,11 +551,15 @@ Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象�
 
 ### 10.5 对象 GC
 
+本节为 planned。当前没有对象删除、历史结果 GC 或恢复 pin 退休；已发布指针作为恢复根，所有 S3 对象永久保留。不得给 SCAP 对象前缀配置自动过期。完整历史与状态上限可能阻止继续写入或 hydrate，尚未实现恢复容量预留及自动跨 cell 搬迁。
+
 对象删除以权威 manifest、保留的 cell snapshot、恢复点、活跃读引用和迁移引用为根。使用可恢复的标记与删除流程，保留必要的延迟窗口，并验证重试幂等。`LIST` 只用于发现候选垃圾，不能用于决定某个数据库的最新提交或授权删除仍在使用的数据。
 
 对象暂时不可读或校验失败时，可以从其他已验证副本修复；没有合法替代时停止相关读取和恢复，不能静默回退到更旧 revision。
 
 ## 11. 跨 cell 迁移
+
+状态：planned，当前没有跨 cell 的 seal/import/路由管理入口。
 
 首版只设计**离线迁移**：暂停该库的新业务事务，完成单向切换后恢复服务。不支持跨 cell 原子 SQL 事务，也不通过 etcd CAS 假装两个独立 Raft 组具有一个共同提交点。
 
@@ -555,6 +583,8 @@ Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象�
 
 ## 12. 删除、重建和旧消息
 
+状态：planned，当前配置数据库没有外部删除或同名重建 API；下面的不变量是未来实现的阻断条件。
+
 `DeleteDb` 由当前权威 cell 通过 Raft 提交：增加 epoch、撤销 owner、进入 `DELETED` 并持久化 tombstone。逻辑删除的生效点是状态机中的这个位置，不是 gateway 删除一条路由的时刻。
 
 删除之后：
@@ -571,7 +601,7 @@ Raft 自身的日志保留和 snapshot 安装规则仍然必须遵守。对象�
 
 ### 13.1 worker 重启
 
-worker 本地文件可以用于加速恢复，但不是提交真源。新进程必须取得新的身份授权，验证本地缓存对应的数据库世代、revision、提交哈希和格式，再从权威 committed tail 补齐。
+当前新进程不复用旧 SQLite 文件和 sidecar，重新取得 owner 并从权威物理历史建立新目录；缺失或损坏的缓存不能更改已提交 head。若缓存目录准入/清理失败则停止服务，不能绕过路径安全检查继续生成目录。验证缓存后加速恢复是后续优化，缓存始终不是提交真源。
 
 尚未判定的本地 WAL 不能自动被当作成功提交。恢复必须能隔离或丢弃私有阶段，识别已接受的事务，再重建公共 SQL 快照。无法证明边界时，丢弃缓存并完整重建。
 
@@ -584,6 +614,10 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 5. 只有持久化和状态机校验通过后，节点才可提供相应服务。重启完成不是跳过读屏障或恢复校验的理由。
 
 整个 cell 断电后恢复时，仍需足够的合法成员和持久历史重新建立 quorum。不能看到 S3 中有一个数据库 snapshot，就用空日志初始化原 cell 并继续接受旧身份请求。
+
+当前 CLI 明确区分 Initialize 与 OpenExisting。服务重启使用原配置和 OpenExisting；数据目录缺失、身份/limits 不符或 RocksDB/状态镜像校验失败会拒绝启动，不自动建空。进程 SIGKILL/重开证据不等于设备断电证明；坏盘自动修复和动态成员替换仍未提供。
+
+cell state/command/outcome 写入 v2；在相同身份和持久化 limits 下读取合法 v1 历史，并保留旧管理请求的重试语义。没有混版本写协议或自动 limits 迁移；写入 v2 后不支持直接启动旧 binary 降级。
 
 ### 13.3 损坏处理
 
@@ -618,6 +652,9 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 | 旧 worker 与 quorum 断开 | 不产生新的强读写；已有固定快照的读可以结束 |
 | cell leader 在 S3 归档前崩溃 | 由剩余合法 quorum 恢复 committed tail，不能只恢复到 S3 水位 |
 | `SuspendDb` 与旧提交竞争 | 根据同一日志顺序处理；先接受的事务保留，fence 之后的旧提交拒绝 |
+| 归档 I/O 期间 owner 改变，即使 head 未变 | 原任务的 Publish/Prune 被 exact owner 拒绝，不刷新成新 token 续办 |
+| Prune 先于新请求的 Claim | Claim 明确 Cold 后，仅在 SQL 尚未执行时允许原 deadline 下的一次 fresh/hydrate；不重放 Unknown |
+| Cold 对象读取失败或正文与保留 receipt 不符 | 保持 cold/不可用，不覆盖元数据，不建空库，不降到旧 revision |
 | 源端已 seal，目标尚未激活 | 数据库暂停服务；重试迁移，不能双端解封 |
 | 删除后收到旧上传完成或旧重试 | 世代与 tombstone 阻止重新发布和写入 |
 | `AuthFence` 与 `CommitTxn` 竞争 | 同一 cell 顺序决定结果；fence 之后的旧权限提交拒绝，之前已接受的提交保留 |
@@ -629,7 +666,7 @@ worker 本地文件可以用于加速恢复，但不是提交真源。新进程�
 
 ## 15. 发布阻断条件与验证计划
 
-本文中的安全性不是通过 happy-path 集成测试证明的。以下条件是实现阶段的发布 gate；当前文档不宣称这些验证已执行。
+本文中的安全性不能仅靠 happy-path 测试证明。以下保留全部发布 gate；已执行的有界单元、真实依赖与服务场景分别记录在 [G0 证据](../engineering/g0-evidence.md)和 [服务实验](../../experiments/service-network/README.md)。未执行的规模、跨 AZ、设备故障及 planned 能力仍阻断相应生产承诺。
 
 ### 15.1 引擎 gate
 

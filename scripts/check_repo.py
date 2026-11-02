@@ -16,9 +16,9 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED = {
     ".git", "node_modules", "target", "__pycache__", ".venv",
-    "coverage", ".coverage", "vendor",
+    "coverage", ".coverage", "vendor", "dist",
 }
-TEXT_SUFFIXES = {".md", ".json", ".py", ".yaml", ".yml", ".rs", ".toml"}
+TEXT_SUFFIXES = {".md", ".json", ".py", ".yaml", ".yml", ".rs", ".toml", ".ts", ".mjs", ".sh"}
 TEXT_NAMES = {".gitignore", ".gitattributes", ".editorconfig"}
 REQUIRED = (
     "README.md",

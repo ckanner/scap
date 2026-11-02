@@ -83,6 +83,10 @@ pub struct Client<P> {
 }
 
 impl<P: CellPort> Client<P> {
+    pub fn identity(&self) -> Identity {
+        self.identity.clone()
+    }
+
     pub fn new(
         cluster_id: u128,
         cell: CellIdentity,

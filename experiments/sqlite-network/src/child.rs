@@ -191,11 +191,11 @@ pub fn maybe_run() -> bool {
                 workers = Some(network_workers);
                 emit(sequence, "started", "-");
             }
-            "recover" | "sql" => {
+            "recover" | "sql" | "query" => {
                 let deadline = Instant::now() + Duration::from_millis(parts[2].parse().unwrap());
                 sql_worker.enqueue(&parts, deadline, sequence);
             }
-            "create" | "claim" | "auth" | "resolve" => {
+            "create" | "claim" | "auth" | "reader" | "resolve" => {
                 let deadline = Instant::now() + Duration::from_millis(parts[2].parse().unwrap());
                 let auth = parts[3].parse().unwrap();
                 let kind = match parts[0] {
@@ -218,6 +218,20 @@ pub fn maybe_run() -> bool {
                             principal_id: common::ADMINISTRATOR,
                             permissions: READ | WRITE | ADMIN,
                         }],
+                    },
+                    "reader" => CommandKind::AuthFence {
+                        operation_id: parts[4].parse().unwrap(),
+                        expected_epoch: auth,
+                        policy: vec![
+                            Grant {
+                                principal_id: common::ADMINISTRATOR,
+                                permissions: READ | WRITE | ADMIN,
+                            },
+                            Grant {
+                                principal_id: common::READER,
+                                permissions: READ,
+                            },
+                        ],
                     },
                     "resolve" => CommandKind::ResolveOrCancel {
                         request_id: parts[4].parse().unwrap(),

@@ -8,7 +8,7 @@ use scap_sql::{Statement, StatementResult, TransactionResult, Value};
 
 pub(crate) use crate::config::configure;
 use crate::gate::GateWal;
-use crate::{CommitGate, Error, NativeConnection, WriterLimits};
+use crate::{CommitGate, Error, NativeConnection, ReadInterrupt, WriterLimits};
 
 pub(crate) fn validate_limits(limits: WriterLimits) -> Result<(), Error> {
     limits.sql.validate().map_err(Error::Sql)?;
@@ -209,16 +209,17 @@ pub(crate) fn execute_transaction(
         }),
     );
     connection.authorizer(Some(authorize));
-    let result = collect_results(connection, statements, limits);
+    let result = collect_results(connection, statements, limits, None);
     connection.authorizer(None::<fn(AuthContext<'_>) -> Authorization>);
     connection.progress_handler(0, None::<fn() -> bool>);
     result
 }
 
-fn collect_results(
+pub(crate) fn collect_results(
     connection: &rusqlite::Connection,
     statements: &[Statement],
     limits: WriterLimits,
+    interrupt: Option<&ReadInterrupt>,
 ) -> Result<TransactionResult, Error> {
     let mut result = TransactionResult {
         statements: Vec::new(),
@@ -226,12 +227,20 @@ fn collect_results(
     let mut remaining_bytes = limits.sql.max_result_bytes as usize;
     let mut remaining_rows = limits.sql.max_rows as usize;
     for statement in statements {
+        if let Some(interrupt) = interrupt {
+            crate::query::check(interrupt)?;
+        }
         let mut batch = Batch::new(connection, &statement.sql);
         let mut prepared = batch
             .next()
             .map_err(Error::Sqlite)?
             .ok_or(Error::InvalidSql)?;
         if batch.next().map_err(Error::Sqlite)?.is_some() {
+            return Err(Error::InvalidSql);
+        }
+        // The authorizer blocks write operations and side-effect surfaces;
+        // sqlite3_stmt_readonly is a second check on the complete prepared VM.
+        if interrupt.is_some() && !prepared.readonly() {
             return Err(Error::InvalidSql);
         }
         let count = prepared.column_count();
@@ -244,9 +253,13 @@ fn collect_results(
             spend(&mut remaining_bytes, name.len() + 4)?;
             columns.push(name.to_owned());
         }
-        let before: u64 = connection
-            .query_row("SELECT total_changes()", [], |row| row.get(0))
-            .map_err(Error::Sqlite)?;
+        let before: u64 = if interrupt.is_none() {
+            connection
+                .query_row("SELECT total_changes()", [], |row| row.get(0))
+                .map_err(Error::Sqlite)?
+        } else {
+            0
+        };
         let parameters = statement.parameters.iter().map(native_value);
         let mut native_rows = prepared
             .query(rusqlite::params_from_iter(parameters))
@@ -257,7 +270,7 @@ fn collect_results(
             let mut values = Vec::new();
             for index in 0..count {
                 values.push(copy_value(
-                    // This private connection holds BEGIN IMMEDIATE and every
+                    // This private connection holds a transaction and every
                     // index comes from this same statement's column_count.
                     // The pinned API's only usize lookup error is out-of-range;
                     // no independently supplied index crosses this boundary.
@@ -270,9 +283,13 @@ fn collect_results(
         }
         drop(native_rows);
         drop(prepared);
-        let after: u64 = connection
-            .query_row("SELECT total_changes()", [], |row| row.get(0))
-            .map_err(Error::Sqlite)?;
+        let after: u64 = if interrupt.is_none() {
+            connection
+                .query_row("SELECT total_changes()", [], |row| row.get(0))
+                .map_err(Error::Sqlite)?
+        } else {
+            0
+        };
         result.statements.push(StatementResult {
             columns,
             rows,
@@ -284,8 +301,15 @@ fn collect_results(
             } else {
                 connection.changes()
             },
-            last_insert_rowid: connection.last_insert_rowid(),
+            last_insert_rowid: if interrupt.is_some() {
+                0
+            } else {
+                connection.last_insert_rowid()
+            },
         });
+        if let Some(interrupt) = interrupt {
+            crate::query::check(interrupt)?;
+        }
     }
     Ok(result)
 }

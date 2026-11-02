@@ -12,7 +12,7 @@
 
 测试控制通道只传入固定合成请求、调度指令和观察结果，不传送 Raft 消息。控制协议有长度、数量和等待上限；原生 SQL 请求只使用固定、无参数的测试批次，不构成面向客户的 SQL RPC 或 SDK。
 
-## 七项合同
+## 八项合同
 
 | 场景 | 必须观察到的结果 |
 | --- | --- |
@@ -23,6 +23,7 @@
 | Accepted 回复超时 | 真正持久 Accepted 的回复在端口返回前越过原调用 deadline；请求保持 UNKNOWN 且未发布本地页；有序解析确认原提交，新目录恢复并返回原随机结果 |
 | Accepted 后 SIGKILL | 在正式逐提案结果已为 Accepted、尚未进入原生发布时真实 SIGKILL writer/voter 进程；无 SQL ACK；其他 voter 选主后在新目录恢复精确页面和结果 |
 | snapshot 与全组重启 | 停掉一个落后 voter，积累真实 SQLite 物理历史与取消记录，checkpoint 后通过 mTLS 安装实际 snapshot；再次杀掉接收者直接检查其持久 snapshot；全组三进程 SIGKILL/reopen 后由新 owner 重建 SQLite |
+| 独立 SQL 强读 | 只有 READ 权限的主体以新 Safe ReadIndex 和精确物理 head 读取；连续查询不增长 revision；已授权有限快照可结束，下一次旧 owner 查询被拒；真实 TCP quorum 丢失时新读失败，多数派恢复后仍读到原字节 |
 
 `PausingPort` 只包装正式 `CellPort` 的效果边界。读取暂停点是正式 Safe ReadIndex view 已返回、即将交给 client 校验和 gate 授权的边界；恢复后仍使用这个已线性化的 view，最终 owner/auth 冲突由有序 Commit 裁决。Accepted 暂停点先以正式 codec 校验该提案的 `term/index` 与 `Outcome::Accepted`。夹具不将 transport Received、本地 Admitted 或“读不到请求”伪装成持久接受/取消。
 
@@ -45,7 +46,7 @@ CI 从锁定源码构建 native 依赖。开发环境可复用由相同源码、
 
 ## 不能据此宣称的能力
 
-这七项测试验证固定三 voter、单 cell、有界合成数据库的正确性与恢复合同。它们不测生产 p99 延迟、跨 AZ RTO、SLO、长期可用性、大库恢复吞吐或容量。夹具等待上限只是防止测试卡死，不能作为性能结果。
+这八项测试验证固定三 voter、单 cell、有界合成数据库的正确性与恢复合同。它们不测生产 p99 延迟、跨 AZ RTO、SLO、长期可用性、大库恢复吞吐或容量。夹具等待上限只是防止测试卡死，不能作为性能结果。
 
 它也不包含对外鉴权服务、SQL/Hrana 网络 API、Node.js SDK、自动发现/调度新 owner、动态成员、多 cell、公平队列、S3 归档/休眠/唤醒，以及永久丢失多数副本后的恢复承诺。测试中的 trusted `Admission` 是固定合成身份，不是面向真实用户的认证实现。
 

@@ -1,120 +1,115 @@
 # SCAP
 
-面向多租户 SaaS 与 Agent 的 SQLite 数据库平台：以轻量计算单元服务大量独立数据库，以共享同步日志提供故障保障，以对象存储承载冷数据与历史。
+面向多租户 SaaS 与 Agent 的 SQLite 数据库平台。多个独立数据库共享一个三副本存储 cell；活跃库使用私有 SQLite 连接，休眠库把可恢复的物理历史归档到 S3 兼容对象存储。
 
-> **当前阶段：G0 可行性原型。** 已有提交完成策略、有界持久 Store、正式串行 RawNode driver、RocksDB 后端、cell 业务状态机、SQLite adapter，以及固定成员的单 cell 运行时、mTLS peer transport、按请求关联的持久裁决和正式 SQLite owner 恢复入口。正式源码执行独立 100% 单元覆盖率门禁；真实引擎、持久恢复、三进程网络分区、重启、快照及真实 SQL/mTLS 组合分别提供故障证据。可部署 SQL 服务、Node.js 入口、自动 SQL writer 接管、完整生命周期和性能指标仍待实现或测量。
+**当前已经有可运行的三节点数据库服务、Node.js 客户端、自动 writer 接管、独立强读，以及休眠、归档、裁剪和唤醒。** 正式实现与真实故障测试使用同一套引擎、状态机和网络代码。当前发布范围仍是有明确容量上限的 G0 实现，生产规模、三 AZ 性能、动态成员、多 cell 调度、GC/PITR/区域灾备尚未验收；不是通用 SQLite 文件挂载服务，也没有对外 SLA。
 
-## 核心决策
+## 已实现的完整请求路径
 
-- **SQLite 优先**，PostgreSQL 暂不进入实施范围。
-- SQL 执行优先复用 **libSQL 的 SQLite C 内核及 WAL 扩展接口**；它与 Turso 的 Rust 重写引擎是不同项目。
-- Node.js 优先接入现有 **`@libsql/client`**；存量 `better-sqlite3` 应用评估 **`libsql` 兼容驱动**。兼容范围必须通过真实应用验证。
-- 每个数据库只有一个获准写入的 owner。多个数据库共享执行节点和存储 cell，**不为每个小库固定部署一套三节点集群**。
-- 每个 storage cell 初始为跨三个可用区的 **三副本 Raft 组**。事务变更和写者版本由同一个有序状态机裁决；多数派持久化并接受事务后才能返回成功。
-- 共识库首选候选调整为 **TiKV 的 `raft-rs`**；OpenRaft 保留为备选。此决定复用共识内核，SCAP 仍须实现并验证运行循环、持久存储、传输与数据库状态机，见 [ADR 0006](docs/adr/0006-raft-rs-consensus-library.md)。
-- 按固定版本审计 **TiKV 的 Rust 技术栈**，参考其资源隔离、背压和故障测试；平台保持 Tokio、Axum/Tower、Tonic 方向，具体复用与依赖边界见 [ADR 0007](docs/adr/0007-tikv-stack-and-rpc-boundaries.md)。
-- **S3 异步归档不会降低提交保障**：未完成归档的数据必须仍由可靠日志或可恢复的状态机快照保留。
-- 网络分区时采用 **CP 策略**：无权威多数派的一侧不接受新的强一致读写，禁止自动降级为本地写成功。
-- Bottomless / Litestream 用作备份机制参考及实验对照，**不承担本设计的同步提交与自动选主职责**。
+| 能力 | 当前行为 |
+| --- | --- |
+| SQL 服务 | `scap-server`，Rust / Axum；闭合 Hrana HTTP v2 pipeline，真实 `@libsql/client` 兼容测试 |
+| Node.js 入口 | TypeScript `sdk/node`；标准 execute/batch，显式强读、原结果查询和有序取消 |
+| 本地引擎 | 固定 libSQL 的 SQLite C 内核及提交前 WAL gate；私有连接，不向用户暴露可绕过复制的文件路径 |
+| 共识 | 固定 TiKV `raft-rs`，三个 voter；PreVote、check_quorum、Safe ReadIndex；关闭租约读 |
+| 成功写 | 同一个 cell 的 durable quorum、状态机接受、native SQLite publication 均完成后才 ACK |
+| 自动接管 | 仅当前 leader 恢复 writer；新 owner epoch、新 worker ID、新目录；从权威物理历史恢复并激活 |
+| 分区 | CP；少数派拒绝新的强读和写，没有本地成功或陈旧读降级 |
+| 原结果 | 请求 ID、SQL/参数指纹、原 receipt 和结果持久保留；UNKNOWN 不盲重放，Lookup 缺失不代表取消 |
+| 强读 | 新鲜 Safe ReadIndex、当前 READ 权限、owner 与物理 head 绑定；不增加数据库 revision 或写结果记录 |
+| 冷生命周期 | 有序 Suspend → 不可变对象上传/核验 → PublishArchive → PruneArchive；唤醒先核验精确归档再恢复 owner |
+| S3 不可用 | 热库仍可在 quorum 正常时服务；未完成归档的历史不裁剪，冷库唤醒明确失败 |
+| 重启与关闭 | 默认严格 OpenExisting，显式初始化；损坏不自动建空库；SIGINT/SIGTERM 停准入、取消、排空并 join 所有 owner |
+| 工程门禁 | 第一方 Rust 行/函数/region/分支全部 100%；SDK 行/语句/函数/分支 100%；单元与真实故障 profile 分离 |
+
+架构、精确上限、启动配置和故障语义见 [正式 SQLite 服务](docs/engineering/sqlite-service.md)、[server 操作入口](crates/scap-server/README.md)和 [ADR-0014](docs/adr/0014-sqlite-service-and-cold-lifecycle.md)。
+
+## 当前上限与适用范围
+
+当前一个进程只承载一个固定成员 cell，每个节点一条 SQL owner 线程。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。数据库最多保留 128 个请求身份记录，cell 最多保留 4096 个行政操作记录。达到容量时拒绝新工作，不驱逐幂等记录或取消 fence。
+
+这些限额用于验证完整协议。它们没有满足最初规划的 10,000 个冷库、100 个热库、500 req/s 或 GiB 级库；也不能仅通过调大常数就变成该规模的系统。当前完整 Store 镜像同步替换、全历史恢复、全量归档以及强读的历史校验都有放大成本。下一步需要增量布局、分段日志与快照、可证明的保留策略、多 cell 公平调度，并重跑全部故障门禁。
+
+后台 S3 归档使用独立、有界、可停止并显式 join 的线程，不占用 SQL 执行线程等待对象 I/O。前景冷库 hydration 仍由单 SQL 线程等待，受原请求 deadline 限制；它与热点延迟的隔离仍是待改进项。当前不删除任何 S3 对象，因此没有未经证明的 GC，但对象与幂等元数据成本也不会自动归零。
+
+## Node.js 使用方式
+
+在仓库构建 SDK 后，可以从工作区直接引用它。当前包未发布到 npm。
+
+```bash
+npm --prefix sdk/node ci --ignore-scripts
+npm --prefix sdk/node run build
+```
+
+```javascript
+import { createClient } from "./sdk/node/dist/client.js";
+
+const db = createClient({
+  endpoints: [
+    "https://node-1.example.invalid",
+    "https://node-2.example.invalid",
+    "https://node-3.example.invalid",
+  ],
+  database: "alpha",
+  authToken: process.env.SCAP_TOKEN,
+  timeoutMs: 2000,
+});
+
+await db.execute("CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY, value TEXT)");
+await db.execute({ sql: "INSERT INTO items(value) VALUES (?)", args: ["hello"] });
+const rows = await db.query("SELECT id, value FROM items");
+console.log(rows.rows);
+db.close();
+```
+
+`execute` 和 `batch` 复用已有 libSQL SDK 语义；只读热点使用 `query` 才走独立 ReadIndex 强读。直接使用标准 `@libsql/client/http` 也可访问 `/db/{name}` 的 Hrana 路由，但客户端自身的请求身份、未知结果处理和多节点路由必须遵守 [API 契约](docs/architecture/api-contracts.md)。
+
+现有 `better-sqlite3` 的同步文件 API 不能直接把文件名换成 S3 URL。网络访问需要异步 SDK；跨请求交互事务、持久 baton、cursor、扩展加载和跨库事务不在当前兼容范围。完整错误与迁移示例见 [Node SDK](sdk/node/README.md)。
+
+## 构建与验证
+
+固定 Rust 1.90.0；native 构建需要 Linux、C/C++17、make、libclang 18。Node 单元与部署合同固定 Node.js 24.22.1。服务配置、证书 scope、显式初始化和同目录重开命令见 [server README](crates/scap-server/README.md)。
+
+```bash
+cargo build --release -p scap-server --locked
+cargo test --workspace --lib --bins --all-features --locked -- --test-threads=1
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+npm --prefix sdk/node test
+python3 scripts/check_sdk_coverage.py sdk/node/coverage/coverage-final.json
+python3 scripts/check_repo.py
+```
+
+100% Rust 门禁使用固定 nightly 和 cargo-llvm-cov，核对每个正式源文件的精确分母，见 [覆盖率规范](docs/engineering/testability-and-coverage.md)。运行测试不会把 coverage、数据库、生成的证书或进程日志提交到仓库。
+
+独立验证分三层：
+
+- [真实 SQLite/mTLS 合同](experiments/sqlite-network/README.md)：native 发布边界、owner/auth fence、UNKNOWN、snapshot 与完整重启，另含独立强读合同。
+- [真实 S3 对象合同](experiments/archive-s3/README.md)：签名、不可变条件写、大小校验、故障和同目录重启。
+- [三节点服务/SDK/冷生命周期](experiments/service-network/README.md)：真实 daemon、真实 Node SDK、leader SIGKILL、网络黑洞、全组重启、S3 黑洞、热库继续服务及冷库恢复；另保留完整 360 个本机负载样本和 30 秒恢复窗口。
+
+正式源码最新全工作区报告为 **364 个 Rust 单元测试，45 个生产源文件，9359 行 / 863 函数 / 13745 regions / 2074 branches 全部覆盖**。SDK 有 11 个单元测试；仓库门禁有 58 个 Python 单元测试。故障合同独立执行，不计入这些单元覆盖率。完整证据、失败样本和适用边界见 [执行证据](docs/engineering/g0-evidence.md)。
+
+## 性能和可靠性合同
+
+单区域三个独立故障域、正确持久化、非拜占庭故障、仍有有效多数派或其可恢复数据时，设计目标是单进程、单节点、单存储副本或单 AZ 故障不丢已确认事务。永久丢失多数副本、区域灾难、应用误删使用不同的恢复合同。
+
+原生产目标保持不变：SDK 热强读 p99 ≤50 ms、小写 p99 ≤100 ms；writer 恢复 R0/R1/R2 的 p99 目标分别 30/15/10 秒，并有库大小、尾部和预置副本条件。**本机小库、4 req/s、单次故障的观测不能证明这些 p99、三 AZ RPO 或 99.9% 可用性。** 恢复时间从真实故障发生计到随后验证完成的 30 秒稳定窗口起点；所有超时、UNKNOWN、拒绝和最慢数据库必须保留。见 [性能与恢复目标](docs/engineering/performance-slo.md)。
 
 ## 设计导航
 
-| 文档 | 回答的问题 |
+| 主题 | 文档 |
 | --- | --- |
-| [需求与故障合同](docs/architecture/requirements.md) | 什么是成功、可用、零丢失，以及承诺的故障范围？ |
-| [总体架构](docs/architecture/overview.md) | 请求流向、组件职责、部署和扩展方式是什么？ |
-| [一致性协议](docs/architecture/consistency.md) | 分区、提交、读屏障、旧写者和未知提交怎样处理？ |
-| [存储与生命周期](docs/architecture/storage-lifecycle.md) | S3、日志回收、休眠、唤醒、删除和恢复怎样协作？ |
-| [客户端与 API 契约](docs/architecture/api-contracts.md) | Node.js 如何接入，哪些兼容性和重试行为有边界？ |
-| [租户隔离与安全](docs/architecture/tenancy-security.md) | 权限、配额、进程隔离和密钥怎样管理？ |
-| [技术栈](docs/architecture/technology-stack.md) | 用什么语言、组件，哪些需要自行实现？ |
-| [组件故障矩阵](docs/operations/failure-matrix.md) | 每个组件失效、分区或重启后，系统具体做什么？ |
-| [运维恢复手册](docs/operations/runbooks.md) | 如何升级、恢复、换节点和处理异常？ |
-| [验证计划](docs/engineering/validation.md) | 怎样证明提交不丢失、无双写、可正确恢复？ |
-| [实施路线](docs/engineering/roadmap.md) | 开发顺序、验收门禁和停止条件是什么？ |
-| [成本与容量](docs/engineering/capacity-cost.md) | 规模和成本怎么测，长尾收益来自哪里？ |
-| [性能与恢复目标](docs/engineering/performance-slo.md) | 延迟、故障接管、冷启动、可用性怎样定义与验收？ |
-| [可测架构与覆盖率](docs/engineering/testability-and-coverage.md) | 如何以 100% 单元覆盖率驱动模块、依赖边界和评审？ |
-| [G0 执行证据](docs/engineering/g0-evidence.md) | 当前实际运行了什么，哪些关键能力尚未证明？ |
-| [开源组件调查](docs/research/components.md) | 上游实际提供什么能力，证据与许可是什么？ |
-| [Raft 库选型](docs/research/raft-library-selection.md) | 为什么改用 TiKV 的 raft-rs，OpenRaft 的取舍是什么？ |
-| [TiKV 技术栈审计](docs/research/tikv-rust-stack.md) | TiKV 的实际调用与依赖是什么，哪些直接验证、借鉴或暂不引入？ |
-| [raft-rs 集成门禁](docs/engineering/raft-rs-integration.md) | Ready、持久化、读屏障、快照与重启怎样实现和验证？ |
-| [运行与 RPC 契约](docs/engineering/runtime-and-rpc.md) | 执行池、背压、编码、身份、健康检查和 sqld 依赖树怎样接合？ |
-| [技术决策清单](contracts/technology-decisions.json) | 哪些技术方向已确定，哪些生产集成仍待验证？ |
-| [真实 RPC 实验](experiments/raft-rpc/README.md) | 8 项编码/传输测试实际证明什么，还没有证明什么？ |
-| [持久存储契约](docs/engineering/durable-store.md) | 正式 store 如何保护投票、日志、应用位置与快照，错误后怎样恢复？ |
-| [真实 RawNode/RocksDB 实验](experiments/raft-store/README.md) | 12 项真实依赖测试与 5 个进程退出场景证明什么？ |
-| [正式 driver 与后端](docs/engineering/serial-driver.md) | 串行输入、原子应用、读票据、取消、预算与 native 打开规则是什么？ |
-| [三进程故障实验](experiments/raft-cluster/README.md) | 多数派、分区、整组重启、snapshot 与坏 WAL 拒绝的真实证据是什么？ |
-| [Raft 安全边界](docs/engineering/raft-safety.md) | PreVote、check_quorum、Safe ReadIndex、快照和分区分别保证什么？ |
-| [cell 业务状态机](docs/engineering/cell-state-machine.md) | owner、权限版本、事务接受、幂等、取消和恢复怎样有序裁决？ |
-| [SQLite/cell 接合实验](experiments/sqlite-cell/README.md) | 真实物理事务何时允许发布，接受后崩溃如何恢复？ |
-| [正式 SQLite adapter](docs/engineering/sqlite-engine.md) | SQL 如何缓冲结果、拒绝绕过、处理幂等并从权威物理历史恢复？ |
-| [正式 adapter 故障实验](experiments/sqlite-engine/README.md) | 正式引擎与真实三副本 cell 如何验证分区、快照和接受后崩溃？ |
-| [正式网络与运行时](docs/engineering/raft-network-runtime.md) | mTLS 身份、队列、串行调度、发送反馈和有限关闭如何实现？ |
-| [真实三进程网络合同](experiments/raft-network/README.md) | 实际 TCP/mTLS 下选举、分区、SIGKILL、快照、轮换与背压证明了什么？ |
-| [ADR 索引](docs/adr/README.md) | 为什么这样选择，替代路线是什么？ |
+| 总体架构、需求与一致性 | [总体架构](docs/architecture/overview.md)、[需求合同](docs/architecture/requirements.md)、[一致性协议](docs/architecture/consistency.md) |
+| 当前服务与配置 | [SQLite 服务](docs/engineering/sqlite-service.md)、[server README](crates/scap-server/README.md) |
+| 客户端与隔离 | [API 契约](docs/architecture/api-contracts.md)、[租户与安全](docs/architecture/tenancy-security.md) |
+| 存储和故障 | [生命周期](docs/architecture/storage-lifecycle.md)、[故障矩阵](docs/operations/failure-matrix.md)、[恢复手册](docs/operations/runbooks.md) |
+| Raft 与持久化 | [Raft 安全边界](docs/engineering/raft-safety.md)、[持久 Store](docs/engineering/durable-store.md)、[网络运行时](docs/engineering/raft-network-runtime.md) |
+| SQLite 权威提交 | [cell 状态机](docs/engineering/cell-state-machine.md)、[native adapter](docs/engineering/sqlite-engine.md)、[网络提交](docs/engineering/sqlite-network.md) |
+| 工程与验收 | [路线图](docs/engineering/roadmap.md)、[验证计划](docs/engineering/validation.md)、[性能规范](docs/engineering/performance-slo.md)、[测试架构](docs/engineering/testability-and-coverage.md) |
+| 技术与证据 | [技术栈](docs/architecture/technology-stack.md)、[TiKV 参考审计](docs/research/tikv-rust-stack.md)、[ADR](docs/adr/README.md)、[全部执行证据](docs/engineering/g0-evidence.md) |
 
-## 可靠性目标与边界
+PostgreSQL 延后。Bottomless / Litestream 是备份机制的参考，不承担 SCAP 的同步提交与自动选主。SQL 引擎复用的 libSQL SQLite C 内核，与 Turso 的 Rust 重写引擎是不同实现。
 
-在单区域三个独立故障域、正确持久化、无拜占庭故障、仍有有效多数派或其可恢复数据的前提下，目标是：**单进程、单计算节点、单存储副本或单可用区故障不丢已确认事务**。
+开发与协作规则见 [CONTRIBUTING.md](CONTRIBUTING.md)、[AGENTS.md](AGENTS.md)；安全报告见 [SECURITY.md](SECURITY.md)。主文档中文，代码和协议标识符英文。仓库分发许可证仍由维护者决定，当前没有擅自添加开源授权；第三方组件沿用各自许可证。
 
-永久丢失多数副本、区域灾难、凭证泄露或应用误删不被包装成相同的 HA 承诺。区域恢复使用已核验的归档恢复点，可能存在未归档尾部损失；误删需要历史恢复。性能与恢复已有明确初始目标，尚无集群实测结果或对外 SLA。
-
-热小请求的 SDK 端到端 p99 目标为强读 50 ms、写入 100 ms。写者故障的 p99 恢复目标按 R0 完整恢复 / R1 预置缓存 / R2 跨 AZ 热备分别为 30 / 15 / 10 秒；R0 限定库大小不超过 1 GiB，其他档位也有预备副本、追赶量和容量前提。R1/R2 属于待实现的 G4 能力，具体测量条件以性能文档为准。
-
-## 初始技术方向
-
-| 层 | 方向 |
-| --- | --- |
-| 平台服务 | Rust；正式 peer 使用 Tokio、Tonic / Protobuf、rustls ring；Axum/Tower 对外服务与控制面仍待装配 |
-| SQL 引擎 | libSQL / SQLite C 内核，Rust FFI 适配 |
-| 日志复制 | 固定 TiKV `raft-rs`；正式 Storage、driver、cell 状态机和单 cell mTLS 运行时；多 cell 与完整生命周期待实现 |
-| 本地日志与索引 | 有界 Store/AtomicBackend 与正式 RocksDB 同步后端；增量布局和大快照待实现 |
-| 对象存储 | 具备已验证一致性、持久性和校验能力的 S3 兼容服务 |
-| 控制目录 | etcd；只保存目录、意图和控制元数据 |
-| Node.js 接入 | TypeScript，`@libsql/client`，可选 `libsql` 兼容入口 |
-| 观测 | tracing，Prometheus；OpenTelemetry 出口按资源预算验证 |
-| 部署 | Linux / OCI 容器；生产可用 Kubernetes，编排器不承担数据库选主 |
-
-正式 `scap-sql`、`scap-engine` 与 `scap-sqlite` 已实现有界事务批次、完整结果、提交前 gate 和权威物理恢复。完整 cell 生命周期、自动故障检测和跨节点调度、独立 SQL 强读、Node.js 入口和生产控制面**仍需实现**；现有 Rust adapter 不是已部署服务或完整 SQLite SDK 兼容承诺。G0 探针分别锁定了上游 commit 与依赖；实验版本不自动成为产品版本，不能长期追随上游 `main` 或浮动 `latest`。
-
-固定 libSQL 的 sqld 使用较早的 Axum/Hyper/Tonic/Prost 和精确 Tokio 依赖。它与平台候选栈尚未证明能统一合编；G0 必须选择并验证 fork、模块提取或独立构建/进程边界，同时重跑 Hrana/SDK 兼容测试，见 [运行与 RPC 契约](docs/engineering/runtime-and-rpc.md)。
-
-## 仓库使用
-
-文档检查使用 Python 3.11+；Rust 模块与独立探针使用各自锁定的工具链和依赖。正式 workspace 已含 native RocksDB，需要 C/C++17、make 和 libclang 18；网络 adapter 单元与网络实验需要本机 loopback socket。具体环境与固定命令见相应实验 README：
-
-```bash
-python3 scripts/check_repo.py
-cargo test --workspace --lib --bins --all-features --locked
-cargo test --manifest-path experiments/wal-gate/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked -- --test-threads=1
-cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
-```
-
-十条命令分别验证仓库文档、正式模块单元逻辑、受限引擎、RPC 编码、真实存储恢复、三进程受控故障、SQLite/cell 接合、正式 adapter 故障、真实 mTLS 网络故障和真实 SQL/mTLS 组合。它们的证据范围分别记录，不能据此宣称完整 HA 产品已实现。覆盖率采集、精确门禁和工具安装见 [G0 执行证据](docs/engineering/g0-evidence.md) 与 CI。第一方正式模块要求单元行、函数、region 和分支覆盖率均为 100%；各类真实依赖实验不补齐单元覆盖率。
-
-`scap-raft-store` 负责 codec、校验和持久状态转换，`scap-raft-rocks` 兑现同步 I/O，`scap-raft-driver` 管理真实 RawNode 与确定性应用接口。G0 的完整镜像每次同步替换，具有明确限额与写放大；规模化部署前须改进布局并重新验证。模块职责与独立测试边界见 [ADR-0009](docs/adr/0009-serial-driver-and-native-backend.md)。
-
-`scap-cell` 通过纯确定性 `Application` 实现身份、owner/auth fencing、事务去重和取消规则，不在 apply 中执行 SQL 或发布页面。Raft commit、业务 Accepted 和 native SQL publish 分别验证，见 [ADR-0010](docs/adr/0010-cell-acceptance-and-raft-safety.md)。默认读采用 Safe ReadIndex；正常超时选举启用 PreVote 与 check_quorum，未启用租约读。
-
-开发规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，AI / 自动化协作规则见 [AGENTS.md](AGENTS.md)，安全报告见 [SECURITY.md](SECURITY.md)。主文档使用中文；代码标识符、协议字段、提交类型使用英文。
-
-## 许可
-
-本仓库自身的分发许可尚待维护者决定，当前不添加未经选择的开源授权。第三方组件的许可证、上游修改义务和供应链记录见组件调查；引入源码前完成核验。
-
-设计基线日期：**2026-10-27**；Raft 库选型复核：**2026-10-28**；TiKV 栈、RPC、持久存储与三进程 G0 推进：**2026-10-29**；cell 状态机、选举/读故障合同与 SQL 接合：**2026-10-31**；正式网络与运行时：**2026-11-01**。
-
-`scap-sqlite` 只从新目录打开经过校验的逻辑镜像，每次重启从完整 cell 历史重建。前置线性化 Lookup 与提交时去重共同处理重复请求；没有 WAL 页变化的 SELECT/零行更新也记录 quorum 结果。这一有界事务 API 尚未接入 Node.js，完整镜像的成本与恢复目标仍需测量，见 [ADR-0011](docs/adr/0011-bounded-native-sqlite-adapter.md)。
-
-`scap-raft-wire` 验证证书 pin、节点与 cell 身份及消息边界；`scap-raft-transport` 提供有界 mTLS 收发；`scap-raft-runtime` 在专用线程串行驱动持久 Raft，提供自动 tick、请求专属 Safe ReadIndex 和有界发送 worker。网络 `Received` 只确认入站准入，本地 `Admitted` 只确认 proposal 准入，二者都不是业务 ACK。真实网络实验使用正式 cell 与 opaque 物理 payload；后续 [SQL 网络实现](docs/engineering/sqlite-network.md)已用正式 `scap-cell-client` 和 `scap-sql-worker` 连接这条链路，独立验证真实 SQL、UNKNOWN、fence、发布前 SIGKILL 和物理恢复。外部 SQL/SDK 服务与自动接管调度仍待实现。
-
-`scap-raft-driver` 的 tracked proposal 只在对应应用状态持久化后交付逐条裁决；`scap-cell-client` 将每次请求的身份、原 deadline、取消和精确 ticket 接入 native gate；`scap-sql-worker` 执行 ClaimOwner、物理恢复、新目录创建、ActivateOwner 及最终权限校验。实现及运行边界见 [ADR-0013](docs/adr/0013-tracked-sqlite-network-commit.md)，新增真实组合见 [sqlite-network](experiments/sqlite-network/README.md)。
+最新实现与验收更新：**2026-11-02**。历史阶段和当时未完成项保留在对应 ADR 与执行记录中，当前实现状态以 ADR-0014 和正式 SQLite 服务文档为准。

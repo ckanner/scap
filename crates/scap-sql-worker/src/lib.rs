@@ -10,13 +10,13 @@ use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use scap_cell::{AdminResult, CommandKind, Outcome, OwnerToken, Reject};
+use scap_cell::{AdminResult, CommandKind, Outcome, OwnerToken, Position, Reject};
 use scap_cell_client::{CellPort, Client, Gate, RequestContext};
 use scap_core::CommitTicket;
 use scap_engine::{EngineIdentity, Head, Image, RecoveryTarget};
 use scap_raft_runtime::Clock;
-use scap_sql::Statement;
-use scap_sqlite::{CommitGate, Completed, SqliteWriter, WriterLimits};
+use scap_sql::{Statement, TransactionResult};
+use scap_sqlite::{CommitGate, Completed, ReadInterrupt, SqliteWriter, WriterLimits};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OwnerRequest {
@@ -32,6 +32,16 @@ pub struct OwnerRequest {
 pub struct WorkerLimits {
     pub engine: scap_engine::Limits,
     pub sqlite: WriterLimits,
+}
+
+/// One buffered read-only snapshot authorized by this exact fresh cell view.
+/// No transaction receipt is created and no database revision is advanced.
+#[derive(Debug, PartialEq)]
+pub struct ReadCompleted {
+    pub result: TransactionResult,
+    pub position: Position,
+    pub revision: u64,
+    pub commit_hash: [u8; 32],
 }
 
 #[derive(Debug)]
@@ -56,6 +66,17 @@ pub trait Engine {
         ticket: CommitTicket,
         statements: &[Statement],
     ) -> Result<Completed, scap_sqlite::Error>;
+
+    /// Read exactly the current head without mutating it. The native adapter
+    /// enforces a read-only SQLite snapshot and invokes `interrupt` throughout
+    /// execution. Legacy write-only adapters must fail closed for this API.
+    fn query(
+        &mut self,
+        _statements: &[Statement],
+        _interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, scap_sqlite::Error> {
+        Err(scap_sqlite::Error::ReadUnsupported)
+    }
 }
 
 impl<G: CommitGate + 'static> Engine for SqliteWriter<G> {
@@ -73,6 +94,14 @@ impl<G: CommitGate + 'static> Engine for SqliteWriter<G> {
         statements: &[Statement],
     ) -> Result<Completed, scap_sqlite::Error> {
         SqliteWriter::execute(self, ticket, statements)
+    }
+
+    fn query(
+        &mut self,
+        statements: &[Statement],
+        interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, scap_sqlite::Error> {
+        SqliteWriter::query(self, statements, interrupt)
     }
 }
 
@@ -110,10 +139,12 @@ impl<P: CellPort + 'static> EngineFactory<P> for NativeFactory {
 /// trusted caller bounds admission to this SQL thread; no queue is created here.
 pub struct Writer<P: CellPort + 'static, E: Engine = SqliteWriter<Gate<P>>> {
     engine: E,
+    client: Client<P>,
     gate: Gate<P>,
     identity: EngineIdentity,
     owner: OwnerToken,
     clock: Arc<dyn Clock>,
+    image_limits: scap_engine::Limits,
     stopped: bool,
 }
 
@@ -249,10 +280,12 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
         live(context, clock.as_ref())?;
         Ok(Self {
             engine,
+            client,
             gate,
             identity: request.identity,
             owner,
             clock,
+            image_limits: limits.engine,
             stopped: false,
         })
     }
@@ -267,6 +300,65 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
 
     pub fn is_stopped(&self) -> bool {
         self.stopped || self.engine.is_stopped()
+    }
+
+    /// A fresh Safe ReadIndex authorizes READ and binds the private native
+    /// snapshot to the exact accepted physical head. This bounded first version
+    /// replays retained physical history to verify its image digest against the
+    /// current commit-hash chain; it is O(retained history), not a claimed
+    /// low-latency implementation. It never proposes or records read results.
+    pub fn query(
+        &mut self,
+        context: RequestContext,
+        statements: &[Statement],
+    ) -> Result<ReadCompleted, Error> {
+        if self.is_stopped() {
+            return Err(Error::Stopped);
+        }
+        self.stopped = true;
+        live(&context, self.clock.as_ref())?;
+        let state = self.client.read(&context).map_err(Error::Client)?;
+        let view = state
+            .authorize_read(self.identity.database, context.admission, self.owner)
+            .map_err(Error::Rejected)?;
+        let target = RecoveryTarget {
+            position: view.position,
+            revision: view.database.revision,
+            commit_hash: view.database.commit_hash,
+        };
+        let verified = Image::recover(
+            &state,
+            self.identity,
+            context.admission,
+            target,
+            self.image_limits,
+        )
+        .map_err(Error::Image)?;
+        let head = self.engine.head();
+        if head != verified.head() {
+            return Err(Error::Image(scap_engine::Error::Head));
+        }
+        live(&context, self.clock.as_ref())?;
+        let control = context.clone();
+        let clock = self.clock.clone();
+        let result = self
+            .engine
+            .query(
+                statements,
+                Arc::new(move || live(&control, clock.as_ref()).is_err()),
+            )
+            .map_err(Error::Native)?;
+        live(&context, self.clock.as_ref())?;
+        if self.engine.is_stopped() || self.engine.head() != head {
+            return Err(Error::Image(scap_engine::Error::Head));
+        }
+        self.stopped = false;
+        Ok(ReadCompleted {
+            result,
+            position: target.position,
+            revision: target.revision,
+            commit_hash: target.commit_hash,
+        })
     }
 
     pub fn execute(

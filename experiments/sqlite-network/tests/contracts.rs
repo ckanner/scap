@@ -63,6 +63,104 @@ fn rejected(reply: Reply, expected: &str) {
     assert!(error.contains(expected), "expected {expected}, got {error}");
 }
 
+fn queried(reply: Reply) -> (u64, Position, Vec<u8>, TransactionResult) {
+    assert_eq!(reply.kind, "query", "{reply:?} error={:?}", reply.error());
+    assert_eq!(reply.fields.len(), 5);
+    (
+        reply.fields[0].parse().unwrap(),
+        Position {
+            term: reply.fields[1].parse().unwrap(),
+            index: reply.fields[2].parse().unwrap(),
+        },
+        unhex(&reply.fields[3]),
+        scap_sql::decode_result(&unhex(&reply.fields[4]), common::writer_limits().sql).unwrap(),
+    )
+}
+
+#[test]
+fn strong_sql_reads_use_fresh_quorum_authority_without_write_permission_or_history_growth() {
+    if child::maybe_run() {
+        return;
+    }
+    let (mut cluster, old, path, original) = initialized(
+        "strong_sql_reads_use_fresh_quorum_authority_without_write_permission_or_history_growth",
+    );
+    assert!(cluster
+        .apply(old, "reader", "5000 1 9101")
+        .contains("AuthChanged(2)"));
+    let before = cluster.try_read(old, 2000).unwrap();
+    let database = before.database(common::DATABASE.database_id).unwrap();
+    let select = [common::sql("SELECT payload FROM items WHERE id=1")];
+    let first = queried(cluster.query(old, 80, 2, &select));
+    assert_eq!(first.0, 1);
+    assert!(first.1.index >= before.position().index);
+    assert_eq!(first.2, database.commit_hash);
+    assert_eq!(payload(&first.3), payload(&original.result));
+    assert_eq!(first.3.statements[0].affected_rows, 0);
+    let again = queried(cluster.query(old, 81, 2, &select));
+    assert_eq!(again.3, first.3);
+    assert_eq!(
+        cluster
+            .try_read(old, 2000)
+            .unwrap()
+            .database(common::DATABASE.database_id)
+            .unwrap(),
+        database
+    );
+    assert_eq!(read_payload(&path), payload(&original.result));
+
+    // A read already holding a fresh barrier can finish at that snapshot. The
+    // subsequent read must get new authority and reject the old owner token.
+    cluster.begin_query(old, 82, 2, "read", &select);
+    assert!(cluster.wait_hook(old, 82).contains("SafeReadIndex"));
+    assert!(cluster
+        .apply(old, "claim", "5000 2 9102 1 8001")
+        .contains("OwnerClaimed"));
+    cluster.resume(old, 82);
+    let previous_snapshot = queried(cluster.nodes.get_mut(&old).unwrap().receive());
+    assert_eq!(previous_snapshot.3, first.3);
+    rejected(cluster.query(old, 83, 2, &select), "Fenced");
+    cluster.recover(old, 1010, 2, 2);
+    assert_eq!(queried(cluster.query(old, 84, 2, &select)).3, first.3);
+
+    cluster.partition(old, Mode::Blackhole);
+    rejected(cluster.query(old, 85, 2, &select), "Unknown");
+    let others = (1..=3).filter(|id| *id != old).collect::<Vec<_>>();
+    let leader = cluster.leader(&others);
+    let state = cluster.try_read(leader, 2000).unwrap();
+    assert_eq!(
+        state
+            .database(common::DATABASE.database_id)
+            .unwrap()
+            .revision,
+        1
+    );
+    assert_eq!(
+        state
+            .database(common::DATABASE.database_id)
+            .unwrap()
+            .commit_hash,
+        database.commit_hash
+    );
+    cluster.recover(leader, 1011, 3, 2);
+    let recovered = queried(cluster.query(leader, 86, 2, &select));
+    assert_eq!(recovered.3, first.3);
+    assert_eq!(recovered.0, 1);
+    cluster.partition(old, Mode::Open);
+    let final_state = cluster.try_read(leader, 2000).unwrap();
+    caught_up(&mut cluster, old, final_state.position().index);
+    assert_eq!(
+        final_state
+            .database(common::DATABASE.database_id)
+            .unwrap()
+            .revision,
+        1
+    );
+    assert_eq!(read_payload(&path), payload(&original.result));
+    cluster.record("READ-only principal used fresh SafeReadIndex and exact physical-head binding for native queries; repeated reads created no accepted transaction/revision; a bounded already-authorized snapshot finished while subsequent old-owner read was fenced; real TCP quorum loss rejected new read, surviving majority recovered original bytes and served a new strong read");
+    cluster.finish();
+}
+
 fn seed() -> Vec<Statement> {
     vec![
         common::sql("CREATE TABLE items(id INTEGER PRIMARY KEY, payload BLOB NOT NULL)"),

@@ -1,47 +1,59 @@
 # 客户端、接口与错误契约
 
-状态：拟实现接口。路径和字段是 v0 设计，不是已经可调用的服务。
-
-当前已有 [Rust 层 SQLite adapter](../engineering/sqlite-engine.md)，输入为有界 statement batch，返回已接受的完整结果；它不提供本文的 HTTP/Hrana 服务，也不意味着 Node.js 客户端已经可连接。其前置 Lookup、历史回执和 UNKNOWN 分类将作为后续客户端边界的基础。
+状态：2026-11-02 已实现有界 HTTP/Hrana、Node SDK、独立强读、请求结果查询及数据库状态接口；通用管理 API 和跨请求事务会话仍为 planned。当前可调用接口以 [正式协议模块](../../crates/scap-service/README.md)、[Node 客户端](../../sdk/node/README.md)及 [SQLite 服务实现](../engineering/sqlite-service.md)为准，本文同时保留后续完整平台的语义约束。
 
 ## 1. 接入目标
 
-Node.js 默认通过 `@libsql/client` 的远程模式访问；Drizzle / Prisma 使用与实际版本匹配的 libSQL adapter。存量 `better-sqlite3` 应用可以验证 `libsql` npm 包，但不承诺任意程序仅修改 import 即可迁移。
+当前 `sdk/node` 是基于固定 `@libsql/client` 0.18.0 的薄 TypeScript 客户端，保留常用 `execute` / `batch` 输入和结果形态，并提供 `query`、稳定 request ID、`lookup`、`resolveOrCancel` 和 `status`。它使用明确配置的候选节点，只在确定未进入提交窗口的 `NOT_LEADER` 等安全边界上重新选择节点，不自动重放 UNKNOWN 写入。
+
+直接使用该版本第三方 SDK 的 execute/batch 也可访问已经验证的 Hrana 子集；独立强读需选择 SCAP read 模式。Drizzle / Prisma、同步 `libsql` 包及 `better-sqlite3` 迁移仍需逐项验证，不承诺任意程序仅修改 import 即可迁移。
 
 SQLite SQL 兼容、数据库文件兼容、驱动 API 兼容、分布式故障语义是四个独立维度。兼容矩阵须记录确切客户端、ORM、server 和引擎版本。
 
 ```ts
-// 目标接入形式示例；SCAP 服务尚未实现。
-import { createClient } from "@libsql/client";
+// 从仓库根目录运行；先按 sdk/node/README.md 构建本地 SDK。
+import { createScapClient } from "./sdk/node/dist/client.js";
 
-const db = createClient({
-  url: process.env.SCAP_DATABASE_URL!,
-  authToken: process.env.SCAP_DATABASE_TOKEN!,
+const db = createScapClient({
+  endpoints: JSON.parse(process.env.SCAP_ENDPOINTS!),
+  database: "agents",
+  authToken: process.env.SCAP_TOKEN!,
 });
 
-const result = await db.execute({
+const result = await db.query({
   sql: "SELECT id, state FROM agents WHERE id = ?",
   args: [agentId],
 });
 ```
 
-以上示例只说明业务调用形态，不包含完整重试、错误处理和凭据管理。官方客户端资料见 [libSQL TypeScript](https://github.com/tursodatabase/libsql-client-ts)。
+`query` 不增加 accepted-write 历史；普通第三方 `execute("SELECT ...")` 仍走有记录的兼容事务入口。以上示例只说明业务调用形态；完整启动、错误查证和凭据配置见 [服务文档](../engineering/sqlite-service.md)，上游客户端资料见 [libSQL TypeScript](https://github.com/tursodatabase/libsql-client-ts)。
 
 ## 2. 协议和会话
 
-- 优先复用 Hrana 协议和 `sqld` 实现，首版以经测试的协议子集为合同。
-- 一个会话及其 interactive transaction 固定到一个数据库 owner，不逐语句随机切换 worker。
-- worker 失效时会话可中断，未完成事务不能无感搬迁。客户端重新建立连接后决定是否按幂等规则重试。
-- 读事务具有固定快照；自动提交查询默认在新的强一致屏障后执行。
-- 禁止将多个数据库的 SQL 包装成原子 batch；每个 batch / transaction 只作用于一个数据库身份。
-- 不默认启用 embedded replica 或离线写入。若以后增加陈旧读，需要显式 API 和落后范围，不改变默认强读。
-- 同步兼容驱动会等待远程结果，主线程 event loop 延迟必须实测。
+- 正式 `scap-service` 直接实现经过验证的 Hrana HTTP v2 子集，没有把完整旧 `sqld` 服务并入当前进程。
+- 每个 pipeline 自包含，baton 为空，包含至多一次 execute 或 SDK 的固定原子 batch，并以 close 结束。所有协议、参数和控制步骤在 SQL 开始前完成验证。
+- `query` / read batch 取得新的 Safe ReadIndex 和精确 revision 的只读 SQLite 快照；写 batch 整体原子提交，不能跨数据库。
+- 未支持的 interactive transaction、跨请求 stream、任意条件 batch、named args、cursor、WebSocket 和 embedded replica 明确拒绝。
+- writer 故障后从权威历史恢复数据库，不恢复旧连接的临时表、游标、prepared statement 或进程内对象。
 
-客户端必须获得明确的 deadline、事务持续时间上限、在途请求数、结果大小、参数大小及提交字节上限；初始数值由 PoC 和容量验证确定。
+未来若增加跨请求事务，会话必须固定到 owner，后续 RPC 仍需当前授权；未完成事务不能在故障后无感搬迁。同步驱动、完整 ORM 与陈旧读模式另行验证。
+
+当前 HTTP body 为 1 MiB、响应为 512 KiB、在途请求最多 32、单请求服务预算最多 10 秒；SQL/事务及 mailbox 还有独立上限。排队、恢复、执行和返回共用原绝对 deadline，客户端只能缩短预算。完整 profile 见 [服务容量边界](../engineering/sqlite-service.md#6-当前容量与兼容边界)，这些上限不是吞吐或延迟 SLO。
+
+### 2.1 已实现的 HTTP 入口
+
+| 方法与路径 | 当前行为 |
+| --- | --- |
+| `POST /v2/pipeline` | 使用配置的默认数据库执行有界 Hrana 程序 |
+| `POST /db/{database}/v2/pipeline` | 路由名经鉴权映射为不可变数据库身份 |
+| `POST /db/{database}/v1/requests/{request_id}` | 携带原 statements，执行 lookup 或 resolve_or_cancel |
+| `GET /db/{database}/v1/status` | 通过新的 ReadIndex 和当前 READ 权限返回有限元数据，不唤醒冷库 |
+
+请求必须携带 Bearer 凭据。`x-scap-request-id` 接受非零 128-bit 十六进制身份；`x-scap-deadline-unix-ms` 只能缩短预算；`x-scap-mode: read` 选择独立强读。status 只返回 revision、suspended、cold、owner_active、archived_revision，不泄露对象 key、其他数据库或完整状态机。SQL HTTP 默认只允许 loopback；非 loopback 必须显式配置 `proxy_terminates_tls=true` 并由部署提供 HTTPS 终止，开关本身不会启动 TLS 代理。Peer RPC 已使用 mTLS。
 
 ## 3. 每次操作携带的身份
 
-外部鉴权绑定 tenant 和不可变 `db_id` / incarnation。网关或 worker 在内部附加经验证的 cell、owner instance、epoch、权限版本、请求 deadline 和 trace ID。
+当前静态 token 的 SHA-256 配置绑定数据库路由名、不可变 `db_id` / incarnation / placement、principal、credential、权限和 auth_epoch。每次数据操作、历史结果查询及 status 仍通过 cell 当前状态复核授权；客户端不能自行提供复制的 Admission。通用 tenant 目录、外部身份提供方、令牌到期与自动轮换属于后续控制面设计。
 
 客户端不自行决定 epoch，路由 header 也不是授权。真正写入仍由 cell 校验当前数据库代次、owner epoch、前序 `db_seq` 与有效权限状态。
 
@@ -67,21 +79,21 @@ const result = await db.execute({
 
 对未知结果的非幂等写入，网关和 SDK 均不自动重放。业务可使用唯一业务键、条件更新或应用级事务记录解决重复执行风险。
 
-### 4.2 可选 SCAP 请求封装
+### 4.2 已实现的 SCAP 请求封装
 
-计划提供薄 TypeScript wrapper 或显式 request envelope，携带稳定 `request_id`、请求指纹、数据库代次及重试窗口。去重结果由同一 cell 状态机原子记录。
+`sdk/node` 已携带稳定 `request_id` 并保留原 SQL/参数，服务端重新计算业务指纹和绑定数据库身份。去重结果由同一 cell 状态机原子记录，客户端不能用自报指纹替换实际请求。
 
 - 相同 ID、相同请求指纹：返回原事务结果或状态，不再次接受写入。
-- 相同 ID、不同指纹：`IDEMPOTENCY_CONFLICT`。
+- 相同 ID、不同指纹：拒绝冲突，不覆盖原记录；具体 wire 错误以当前服务模块为准。
 - 并发重复请求：最多一个 accepted commit，其余引用该结果。
-- 去重记录受明确保留期约束，并随 cell snapshot 恢复。
-- 保留期外不能继续承诺去重。可识别的过期服务端 receipt 返回 `REQUEST_EXPIRED`；普通自定义 ID 没有永久历史时，不宣称能够识别所有过期重试。
+- 当前 accepted/cancel 记录及原结果随 cell snapshot 保留，Prune 不删除它们；每库最多 128 条，到限拒绝新增，不自动过期或淘汰。
+- 可回收结果的保留窗口、退休边界和 `REQUEST_EXPIRED` 协议仍为 planned。未来实现时，不能把已删除记录的普通 UUID 当成可证明的新请求。
 
 请求指纹覆盖 SQL / 参数 / 事务边界或规范化操作，不用物理页面 hash 冒充业务请求指纹。SQL 重新执行可能生成不同的时间或随机值，但重复接受必须由同一请求身份阻止。
 
 ### 4.3 状态查询与取消
 
-`LookupRequest` 的未找到结果只证明读取屏障处没有记录，不能证明一个迟到提交以后不会到达。需要确定未提交时，计划使用同 cell 有序的 `ResolveOrCancel`：先记录取消或返回已有结果，使后到的同 ID 命令不能再被接受。
+`LookupRequest` 的未找到结果只证明读取屏障处没有记录，不能证明一个迟到提交以后不会到达。当前已提供同 cell 有序的 `ResolveOrCancel`：先记录取消或返回已有结果，使后到的同 ID 命令不能再被接受。两个入口都重新检查当前权限和原请求主体，冷库结果查证不要求先访问 S3。
 
 取消已接受事务不能撤销提交；需要业务补偿事务。没有稳定 ID 的请求不能使用这一机制假装精确取消。
 
@@ -89,7 +101,9 @@ const result = await db.execute({
 
 ## 5. 错误模型
 
-下表是语义类别，具体 Hrana error code / HTTP / gRPC 映射须由兼容 PoC 确认。
+当前 wire 映射已由正式协议模块实现：`UNAUTHORIZED` 为 HTTP 401，`INVALID_REQUEST` / `UNSUPPORTED_FEATURE` 为 400，`EXPIRED` 为 408，`COMMIT_UNKNOWN` 为 504，`NOT_LEADER` / `OVERLOADED` / `COMMITTED_RESULT_UNAVAILABLE` 为 503。HTTP 状态不能独自证明提交结果，最终查证使用稳定请求身份。`NOT_LEADER` 必须表示本次尚未进入可能提交窗口；状态机已接受后响应过大或结果不可用也不能改报回滚。
+
+下表保留完整平台的目标语义类别，其中尚无当前 wire 映射的名称是 planned，不能当作已稳定的错误码。准确支持列表见 [HTTP 合同](../../crates/scap-service/README.md)。
 
 | 类别 | 说明 | 默认行为 |
 | --- | --- | --- |
@@ -127,7 +141,9 @@ const result = await db.execute({
 
 ## 7. 内部 RPC 规划
 
-首期边界包括 `GetReadBarrier`、`SubmitTransaction`、`LookupRequest`、`ResolveOrCancel`、`GrantOwner`、`SealDatabase`、`PublishArchive`、`FetchCommittedRange` 与 `InstallRecoveryState`。这些是职责名，不是已经定义的 Protobuf 服务。
+正式 daemon 已通过 `Mailbox`、`CellPort`、`EngineFactory` 和 `Objects` 窄端口装配同进程 SQL、共识与归档；跨节点使用正式 mTLS peer RPC。没有另行公开一个允许客户端提交 cell 命令的业务 gRPC 服务。
+
+未来拆分 worker/controller 时的职责边界包括 `GetReadBarrier`、`SubmitTransaction`、`LookupRequest`、`ResolveOrCancel`、`GrantOwner`、`SealDatabase`、`PublishArchive`、`FetchCommittedRange` 与 `InstallRecoveryState`。这些职责名不等于已经定义的 Protobuf 服务。
 
 所有协议需有版本、最大消息大小、校验、deadline、请求身份和错误分类。Raft 消息、SQL 数据和控制面请求使用不同的限流与执行队列，防止冷启动或慢查询阻塞选举和复制。
 
@@ -135,10 +151,10 @@ const result = await db.execute({
 
 ## 8. 兼容性验收
 
-覆盖 prepared statements、batch、interactive transaction、savepoint、DDL、回滚、64 位整数、BLOB、NULL、SQLite 错误码、连接断开、写结果未知、重连、迁移工具以及实际 ORM 查询。对自动提交 `RETURNING`、游标和结果流注入 quorum 前失败，验证结果行及 SDK 成功返回均未提前泄露；对显式事务验证语句结果与最终提交的区别。取消响应缓存到期后再投递原提交，必须仍被 tombstone 或退休边界拒绝。
+当前验证入口为 [真实三节点服务实验](../../experiments/service-network/README.md)和 [Node SDK 测试](../../sdk/node/README.md)，覆盖已经接入的 SQL/结果类型、原子 batch、强读、身份和 UNKNOWN 边界；具体执行清单与统计以实验记录为准。
+
+扩展兼容范围时还需覆盖 interactive transaction、savepoint、cursor、迁移工具、实际 ORM 和同步驱动。对自动提交 `RETURNING`、游标和结果流注入 quorum 前失败，验证结果行及 SDK 成功返回均未提前泄露；对显式事务验证语句结果与最终提交的区别。未来允许响应缓存到期后，再投递原提交必须仍被 tombstone 或退休边界拒绝。
 
 当前不默认允许跨库 ATTACH、动态原生扩展、不受控 UDF 或改变平台 WAL / 同步 / 文件布局的 PRAGMA。范围和理由见 [租户隔离](tenancy-security.md)。
 
-## SQLite 网络提交实现更新（2026-11-02 UTC）
-
-正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](../engineering/sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。外部服务身份、SDK、故障检测与自动调度仍未实现；性能目标保持待测。
+部署 profile、leader 自动恢复、后台归档及并发 Prune 的有限刷新由 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)约束。当前接口可运行，不代表完整管理平台、无限历史或生产 SLO 已通过。

@@ -3,7 +3,8 @@ use super::*;
 const STATE_MAGIC: &[u8; 8] = b"SCAPCELL";
 const COMMAND_MAGIC: &[u8; 8] = b"SCAPCMD!";
 const OUTCOME_MAGIC: &[u8; 8] = b"SCAPOUT!";
-const VERSION: u8 = 1;
+const ARCHIVE_MAGIC: &[u8; 8] = b"SCAPARC!";
+const VERSION: u8 = 2;
 
 struct Writer(Vec<u8>);
 
@@ -46,6 +47,14 @@ impl Writer {
     fn owner(&mut self, value: OwnerToken) {
         self.u64(value.epoch);
         self.u128(value.worker_instance_id);
+    }
+    fn archive_ref(&mut self, value: ArchiveRef) {
+        self.position(value.source);
+        self.u64(value.revision);
+        self.raw(&value.commit_hash);
+        self.raw(&value.object_digest);
+        self.u32(value.object_bytes);
+        self.raw(&value.metadata_digest);
     }
     fn admission(&mut self, value: Admission) {
         self.u128(value.principal_id);
@@ -113,6 +122,22 @@ impl Writer {
             AdminResult::AuthChanged(epoch) => {
                 self.byte(3);
                 self.u64(*epoch);
+            }
+            AdminResult::Suspended(epoch) => {
+                self.byte(4);
+                self.u64(*epoch);
+            }
+            AdminResult::ArchivePublished(digest) => {
+                self.byte(5);
+                self.raw(digest);
+            }
+            AdminResult::ArchivePruned(digest) => {
+                self.byte(6);
+                self.raw(digest);
+            }
+            AdminResult::ArchiveHydrated(digest) => {
+                self.byte(7);
+                self.raw(digest);
             }
         }
     }
@@ -203,6 +228,49 @@ impl Writer {
                 self.u128(*request_id);
                 self.raw(request_fingerprint);
             }
+            CommandKind::SuspendDb {
+                operation_id,
+                token,
+                expected_revision,
+            } => {
+                self.byte(6);
+                self.u128(*operation_id);
+                self.owner(*token);
+                self.u64(*expected_revision);
+            }
+            CommandKind::PublishArchive {
+                operation_id,
+                expected_owner,
+                expected_previous,
+                archive,
+            } => {
+                self.byte(7);
+                self.u128(*operation_id);
+                self.owner(*expected_owner);
+                self.byte(u8::from(expected_previous.is_some()));
+                if let Some(digest) = expected_previous {
+                    self.raw(digest);
+                }
+                self.archive_ref(*archive);
+            }
+            CommandKind::PruneArchive {
+                operation_id,
+                expected_owner,
+                archive_digest,
+            } => {
+                self.byte(8);
+                self.u128(*operation_id);
+                self.owner(*expected_owner);
+                self.raw(archive_digest);
+            }
+            CommandKind::HydrateArchive {
+                operation_id,
+                archive,
+            } => {
+                self.byte(9);
+                self.u128(*operation_id);
+                self.bytes(archive);
+            }
         }
     }
 }
@@ -291,6 +359,16 @@ impl<'a> Reader<'a> {
             worker_instance_id: self.u128()?,
         })
     }
+    fn archive_ref(&mut self) -> Result<ArchiveRef, Error> {
+        Ok(ArchiveRef {
+            source: self.position()?,
+            revision: self.u64()?,
+            commit_hash: self.take()?,
+            object_digest: self.take()?,
+            object_bytes: self.u32()?,
+            metadata_digest: self.take()?,
+        })
+    }
     fn admission(&mut self) -> Result<Admission, Error> {
         Ok(Admission {
             principal_id: self.u128()?,
@@ -362,6 +440,10 @@ impl<'a> Reader<'a> {
             1 => Ok(AdminResult::OwnerClaimed(self.owner()?)),
             2 => Ok(AdminResult::OwnerActivated),
             3 => Ok(AdminResult::AuthChanged(self.u64()?)),
+            4 => Ok(AdminResult::Suspended(self.u64()?)),
+            5 => Ok(AdminResult::ArchivePublished(self.take()?)),
+            6 => Ok(AdminResult::ArchivePruned(self.take()?)),
+            7 => Ok(AdminResult::ArchiveHydrated(self.take()?)),
             _ => Err(Error::Malformed("unknown administrative result")),
         }
     }
@@ -384,6 +466,7 @@ impl<'a> Reader<'a> {
                 7 => Reject::Capacity,
                 8 => Reject::TooLarge,
                 9 => Reject::Exhausted,
+                10 => Reject::Cold,
                 _ => return Err(Error::Malformed("unknown rejection")),
             })),
             _ => Err(Error::Malformed("unknown outcome")),
@@ -423,6 +506,30 @@ impl<'a> Reader<'a> {
                 request_id: self.u128()?,
                 request_fingerprint: self.take()?,
             }),
+            6 => Ok(CommandKind::SuspendDb {
+                operation_id: self.u128()?,
+                token: self.owner()?,
+                expected_revision: self.u64()?,
+            }),
+            7 => Ok(CommandKind::PublishArchive {
+                operation_id: self.u128()?,
+                expected_owner: self.owner()?,
+                expected_previous: if self.boolean()? {
+                    Some(self.take()?)
+                } else {
+                    None
+                },
+                archive: self.archive_ref()?,
+            }),
+            8 => Ok(CommandKind::PruneArchive {
+                operation_id: self.u128()?,
+                expected_owner: self.owner()?,
+                archive_digest: self.take()?,
+            }),
+            9 => Ok(CommandKind::HydrateArchive {
+                operation_id: self.u128()?,
+                archive: self.bytes(limit)?,
+            }),
             _ => Err(Error::Malformed("unknown command")),
         }
     }
@@ -447,7 +554,7 @@ fn open<'a>(bytes: &'a [u8], magic: &[u8; 8], limit: u32) -> Result<&'a [u8], Er
     }
     // The minimum envelope guard proves these fixed header bytes exist. Keep
     // fallible reads for variable fields instead of inventing impossible EOFs.
-    if &bytes[..8] != magic || bytes[8] != VERSION {
+    if &bytes[..8] != magic || !matches!(bytes[8], 1 | VERSION) {
         return Err(Error::Malformed("unknown format"));
     }
     let mut reader = Reader { bytes, cursor: 9 };
@@ -470,6 +577,7 @@ pub(super) fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8
         CommandKind::Commit { write, result, .. } => {
             write.physical_changes.len().saturating_add(result.len())
         }
+        CommandKind::HydrateArchive { archive, .. } => archive.len(),
         _ => 0,
     };
     if owned > limits.max_command_bytes as usize {
@@ -498,6 +606,17 @@ pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Er
         admission: reader.admission()?,
         kind: reader.kind(limits.max_command_bytes)?,
     };
+    if bytes[8] == 1
+        && matches!(
+            command.kind,
+            CommandKind::SuspendDb { .. }
+                | CommandKind::PublishArchive { .. }
+                | CommandKind::PruneArchive { .. }
+                | CommandKind::HydrateArchive { .. }
+        )
+    {
+        return Err(Error::Malformed("new command in legacy envelope"));
+    }
     reader.finish()?;
     Ok(command)
 }
@@ -522,10 +641,30 @@ pub(super) fn decode_applied_outcome(
         outcome: reader.outcome()?,
     };
     reader.finish()?;
+    if bytes[8] == 1 && newer_outcome(&outcome.outcome) {
+        return Err(Error::Malformed("new outcome in legacy envelope"));
+    }
     if expected.term == 0 || expected.index == 0 || outcome.position != expected {
         return Err(Error::Position);
     }
     Ok(outcome)
+}
+
+fn newer_outcome(outcome: &Outcome) -> bool {
+    matches!(
+        outcome,
+        Outcome::Administrative(
+            AdminResult::Suspended(_)
+                | AdminResult::ArchivePublished(_)
+                | AdminResult::ArchivePruned(_)
+                | AdminResult::ArchiveHydrated(_)
+        ) | Outcome::AlreadyApplied(
+            AdminResult::Suspended(_)
+                | AdminResult::ArchivePublished(_)
+                | AdminResult::ArchivePruned(_)
+                | AdminResult::ArchiveHydrated(_)
+        ) | Outcome::Rejected(Reject::Cold)
+    )
 }
 
 pub(super) fn admin_digest(command: &Command) -> [u8; 32] {
@@ -544,6 +683,80 @@ pub(super) fn transaction_hash(previous: [u8; 32], transaction: &AcceptedTransac
     writer.raw(&previous);
     writer.transaction(transaction, false);
     payload_digest(&writer.0)
+}
+
+pub(super) fn archive_metadata(database: &Database) -> [u8; 32] {
+    let mut writer = Writer(Vec::new());
+    writer.raw(b"SCAP archive retained metadata v1");
+    writer.database(database.identity);
+    writer.count(database.transactions.len());
+    for transaction in &database.transactions {
+        writer.admission(transaction.admission);
+        writer.raw(&transaction.request_fingerprint);
+        writer.commit(&transaction.commit);
+        writer.bytes(&transaction.result);
+        writer.raw(&transaction.commit_hash);
+    }
+    payload_digest(&writer.0)
+}
+
+pub(super) fn encode_archive(cell: CellIdentity, database: &Database, source: Position) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(cell);
+    writer.database(database.identity);
+    writer.position(source);
+    writer.count(database.transactions.len());
+    for transaction in &database.transactions {
+        writer.transaction(transaction, true);
+    }
+    seal(ARCHIVE_MAGIC, writer.0)
+}
+
+pub(super) fn decode_archive(
+    bytes: &[u8],
+    cell: CellIdentity,
+    database: &Database,
+    archive: ArchiveRef,
+    limits: Limits,
+) -> Result<Vec<AcceptedTransaction>, Error> {
+    let mut reader = Reader {
+        bytes: open(bytes, ARCHIVE_MAGIC, limits.max_command_bytes)?,
+        cursor: 0,
+    };
+    if bytes[8] != VERSION {
+        return Err(Error::Malformed("unknown archive version"));
+    }
+    if reader.cell()? != cell
+        || reader.database()? != database.identity
+        || reader.position()? != archive.source
+    {
+        return Err(Error::Binding);
+    }
+    let count = reader.count(limits.max_requests_per_database)?;
+    if count != database.transactions.len() {
+        return Err(Error::Binding);
+    }
+    let mut transactions = Vec::new();
+    let mut previous = [0; 32];
+    for retained in &database.transactions {
+        let transaction = reader.transaction(limits)?;
+        if transaction.admission != retained.admission
+            || transaction.request_fingerprint != retained.request_fingerprint
+            || transaction.commit != retained.commit
+            || transaction.result != retained.result
+            || transaction.commit_hash != retained.commit_hash
+            || transaction.physical_changes.is_empty()
+            || payload_digest(&transaction.physical_changes)
+                != transaction.commit.receipt.ticket.payload_digest
+            || transaction_hash(previous, &transaction) != transaction.commit_hash
+        {
+            return Err(Error::Binding);
+        }
+        previous = transaction.commit_hash;
+        transactions.push(transaction);
+    }
+    reader.finish()?;
+    Ok(transactions)
 }
 
 pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> {
@@ -582,6 +795,12 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
                     writer.position(*position);
                 }
             }
+        }
+        writer.byte(u8::from(database.suspended));
+        writer.byte(u8::from(database.cold));
+        writer.byte(u8::from(database.archive.is_some()));
+        if let Some(archive) = database.archive {
+            writer.archive_ref(archive);
         }
     }
     writer.count(state.administration.len());
@@ -643,6 +862,9 @@ pub(super) fn decode_state(
             policy: reader.policy(limits.max_policy_grants)?,
             transactions: Vec::new(),
             requests: BTreeMap::new(),
+            suspended: false,
+            cold: false,
+            archive: None,
         };
         let count = reader.count(limits.max_requests_per_database)?;
         for _ in 0..count {
@@ -664,6 +886,13 @@ pub(super) fn decode_state(
                 return Err(Error::Malformed("duplicate request"));
             }
         }
+        if bytes[8] >= 2 {
+            database.suspended = reader.boolean()?;
+            database.cold = reader.boolean()?;
+            if reader.boolean()? {
+                database.archive = Some(reader.archive_ref()?);
+            }
+        }
         if state
             .databases
             .insert(identity.database_id, database)
@@ -682,15 +911,24 @@ pub(super) fn decode_state(
             result: reader.admin_result()?,
             position: reader.position()?,
         };
+        if bytes[8] == 1 && newer_outcome(&Outcome::Administrative(record.result.clone())) {
+            return Err(Error::Malformed(
+                "new administrative result in legacy state",
+            ));
+        }
         if state.administration.insert(operation, record).is_some() {
             return Err(Error::Malformed("duplicate administrative operation"));
         }
     }
     if reader.boolean()? {
-        state.last_outcome = Some(AppliedOutcome {
+        let outcome = AppliedOutcome {
             position: reader.position()?,
             outcome: reader.outcome()?,
-        });
+        };
+        if bytes[8] == 1 && newer_outcome(&outcome.outcome) {
+            return Err(Error::Malformed("new outcome in legacy state"));
+        }
+        state.last_outcome = Some(outcome);
     }
     reader.finish()?;
     validate_state(&state)?;

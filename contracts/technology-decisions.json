@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "review_date": "2026-11-01",
-  "status": "formal-bounded-sqlite-mtls-commit-with-explicit-owner-recovery",
+  "review_date": "2026-11-02",
+  "status": "formal-bounded-sqlite-service-sdk-autorecovery-and-s3-cold-lifecycle",
   "reference_project": {
     "repository": "tikv/tikv",
     "release": "v8.5.8",
@@ -28,7 +28,12 @@
     "sqlite_cell_probe": "experiments/sqlite-cell/README.md",
     "sqlite_engine_contract": "docs/engineering/sqlite-engine.md",
     "sqlite_engine_adr": "docs/adr/0011-bounded-native-sqlite-adapter.md",
-    "sqlite_engine_probe": "experiments/sqlite-engine/README.md"
+    "sqlite_engine_probe": "experiments/sqlite-engine/README.md",
+    "service_contract": "docs/engineering/sqlite-service.md",
+    "service_adr": "docs/adr/0014-sqlite-service-and-cold-lifecycle.md",
+    "service_probe": "experiments/service-network/README.md",
+    "archive_probe": "experiments/archive-s3/README.md",
+    "node_sdk": "sdk/node/README.md"
   },
   "directions": {
     "async_runtime": "Tokio",
@@ -39,10 +44,10 @@
     "raft_transport_codec": "bounded Prost Packet containing SCAPRPC1 versioned fixed-header envelope and opaque raft protobuf-codec bytes",
     "diagnostic_logging": "tracing; raft-rs slog boundary adapter",
     "metrics": "Prometheus",
-    "configuration": "typed Serde/TOML; validated effective configuration",
+    "configuration": "bounded validated versioned JSON; explicit absolute paths and immutable scopes; broader control-plane config planned",
     "fault_injection_candidate": "fail-rs plus process/network/storage faults",
     "local_persistence": "Bounded Store<AtomicBackend> policy with formal rocksdb 0.24.0 synchronous backend; incremental layout pending",
-    "object_client": "S3 SDK candidate; exact version/features/MSRV pending"
+    "object_client": "object_store 0.14.2 / reqwest 0.13.2 / rustls ring; explicit credentials; conditional immutable PUT and verified HEAD/GET"
   },
   "durable_store_g0": {
     "policy_crate": "crates/scap-raft-store",
@@ -69,7 +74,7 @@
     "fault_transport": "separate bounded IPC scheduling contracts and real TCP/mTLS three-process fault contracts",
     "production_rpc_added": true,
     "sql_acceptance_added": true,
-    "sql_acceptance_scope": "formal bounded CellApplication plus private native SQLite adapter; service assembly pending",
+    "sql_acceptance_scope": "formal bounded CellApplication, private native SQLite adapter and HTTP/SDK service",
     "early_read_admission": "ReadNotReady until current-term commit; no allocated ticket",
     "election_contracts": "real tick PreVote/Vote; isolated-follower term stability; one-way partition with delayed ReadIndex ACK",
     "performance_validated": false
@@ -111,15 +116,17 @@
     "multi_cell_fair_scheduling_implemented": false,
     "streaming_large_snapshot_implemented": false,
     "certificate_control_plane_implemented": false,
-    "sql_sdk_network_assembly_implemented": false,
+    "sql_sdk_network_assembly_implemented": true,
     "production_service_implemented": false,
-    "performance_validated": false
+    "performance_validated": false,
+    "bounded_service_implemented": true,
+    "production_service_scope": "bounded-service exists; scale/certificate-control-plane/SLO not production-validated"
   },
   "cell_state_machine_g0": {
     "module": "crates/scap-cell",
     "execution": "pure deterministic Application; no SQL replay, I/O, clock or page publication",
-    "state_format": "SCAPCELL version 1; bounded binary codec and SHA-256",
-    "command_format": "SCAPCMD! version 1; bounded binary codec and SHA-256",
+    "state_format": "SCAPCELL version 2; accepts valid v1 at identical persisted limits and scope; no downgrade or mixed-version protocol",
+    "command_format": "SCAPCMD! version 2; reads v1 old commands with stable administrative intent digest",
     "limits": "replicated and compared to expected local configuration",
     "genesis": "explicit bootstrap; identical nonempty application and snapshot atomically stored at term/index 1",
     "recovery_binding": "same Store view cell identity and durable applied entry term/index; also required after snapshot-only install",
@@ -130,10 +137,12 @@
     "deduplication": "semantic fingerprint distinct from physical digest; retain original receipt, position and result",
     "ordinary_rejection": "only the attempted command at its exact term/index; not permanent request cancellation",
     "cancellation": "persistent ordered ResolveOrCancel; absent Lookup remains Unknown",
-    "retention": "all accepted physical transactions and request/admin records; reject at capacity, no automatic GC",
+    "retention": "published exact immutable archive permits physical history pruning; request/result/admin/fence metadata retained; capacity rejects without unsafe eviction",
     "recovery_api": "trusted internal worker only; not an ordinary user READ export endpoint",
     "complete_lifecycle_implemented": false,
-    "production_sql_adapter_implemented": true
+    "production_sql_adapter_implemented": true,
+    "suspend_publish_prune_hydrate_implemented": true,
+    "archive_binding": "cluster/cell/database/full generations, exact revision/commit_hash and expected_owner; metadata and object digests checked"
   },
   "not_initially_adopted": [
     "TiKV grpcio runtime and complete kvproto service",
@@ -180,12 +189,13 @@
     "configuration": "FULL sync; cache_spill OFF; no auto checkpoint; SQLite max_page_count bounded",
     "sql_surface": "private connection; explicit batch; deny unknown authorizer action/function",
     "failure_policy": "stop writer; retain accepted receipt for post-acceptance failures; never replay UNKNOWN automatically",
-    "separate_sql_read_snapshot_api_implemented": false,
-    "hrana_node_sdk_implemented": false,
-    "automatic_owner_recovery_implemented": false,
-    "s3_lifecycle_implemented": false,
+    "separate_sql_read_snapshot_api_implemented": true,
+    "hrana_node_sdk_implemented": true,
+    "automatic_owner_recovery_implemented": true,
+    "s3_lifecycle_implemented": true,
     "production_service_implemented": false,
-    "performance_validated": false
+    "performance_validated": false,
+    "s3_lifecycle_scope": "suspend/publish/prune/hydrate only; GC/PITR/DR and complete platform lifecycle pending"
   },
   "sqlite_network_g0": {
     "review_date": "2026-11-02",
@@ -203,9 +213,32 @@
     "preflight": "fresh Safe ReadIndex, same-view decode_bound, current READ and WRITE, active owner and exact predecessor",
     "recovery": "claim; fresh view; physical Image recovery; new exclusive native directory; activate exact revision/hash; final current authority check",
     "threads": "private SQL thread; separate Runtime owner and async network workers",
-    "automatic_owner_scheduling": false,
-    "hrana_node_sdk_implemented": false,
-    "s3_lifecycle_implemented": false,
+    "automatic_owner_scheduling": true,
+    "hrana_node_sdk_implemented": true,
+    "s3_lifecycle_implemented": true,
+    "performance_validated": false,
+    "s3_lifecycle_scope": "suspend/publish/prune/hydrate only; GC/PITR/DR and complete platform lifecycle pending",
+    "automatic_owner_recovery_implemented": true
+  },
+  "sqlite_service_g0": {
+    "modules": [
+      "crates/scap-service",
+      "crates/scap-server",
+      "crates/scap-archive",
+      "sdk/node"
+    ],
+    "http": "Axum 0.8.9 / HTTP1 self-contained Hrana v2; explicit Connection: close; bounded connections and absolute lifetime",
+    "sdk": "@libsql/client 0.18.0; TypeScript 5.9.3; Node.js 24.22.1 in CI",
+    "route_auth": "static configured credential SHA256 plus immutable database scope; fresh replicated auth_epoch and grants per actual operation",
+    "owner_recovery": "Raft leader only; term change retires local writers; one configured database maintenance per tick; fresh Claim/Activate and private directory",
+    "cold_prune_race": "one original-deadline refresh only after definite ClaimOwner Rejected(Cold), before SQL execution",
+    "archive_jobs": "one joined native worker; 8 pending tasks, one per configured database; owner/head-bound; bounded retries and cancellation",
+    "readiness": "quorum-backed database maintenance plus failed-cache guard; S3-only outage does not unready hot SQL",
+    "shutdown": "SIGINT/SIGTERM; stop admission, cancel network/object work, drain HTTP then join native owners; no forced cancellation of blocked fsync",
+    "limits_document": "docs/engineering/sqlite-service.md",
+    "static_membership": true,
+    "single_sql_thread_per_node": true,
+    "production_capacity_validated": false,
     "performance_validated": false
   }
 }

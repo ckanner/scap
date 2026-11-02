@@ -1,0 +1,21 @@
+[package]
+name = "scap-archive-s3-contract"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[workspace]
+
+[dependencies]
+scap-archive = { path = "../../crates/scap-archive" }
+scap-cell = { path = "../../crates/scap-cell" }
+scap-cell-client = { path = "../../crates/scap-cell-client" }
+tokio = { version = "=1.50.0", features = ["rt-multi-thread", "time", "net"] }
+serde_json = "=1.0.145"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"

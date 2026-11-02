@@ -16,6 +16,9 @@ use scap_raft_runtime::{ClockReading, ReadView};
 use scap_raft_store::Identity;
 use scap_sql::{SqlLimits, TransactionResult, Value};
 
+#[path = "query_tests.rs"]
+mod query_tests;
+
 struct TestClock {
     base: Instant,
     mode: AtomicUsize,
@@ -331,6 +334,8 @@ struct Effect {
     engine_stopped: bool,
     dropped: usize,
     calls: Vec<CommitTicket>,
+    query_calls: usize,
+    query_mode: u8,
 }
 
 struct Factory {
@@ -406,6 +411,31 @@ impl Engine for TestEngine {
             result: TransactionResult { statements: vec![] },
             replayed: effect.replay,
         })
+    }
+
+    fn query(
+        &mut self,
+        _statements: &[Statement],
+        interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, scap_sqlite::Error> {
+        let mut effect = self.effect.borrow_mut();
+        effect.query_calls += 1;
+        match effect.query_mode {
+            1 => return Err(scap_sqlite::Error::InvalidSql),
+            2 => self.clock.mode.store(1, Ordering::Release),
+            3 => self.clock.mode.store(2, Ordering::Release),
+            _ => (),
+        }
+        if interrupt() {
+            return Err(scap_sqlite::Error::Interrupted);
+        }
+        match effect.query_mode {
+            4 => effect.engine_stopped = true,
+            5 => self.head.revision += 1,
+            6 => self.clock.mode.store(1, Ordering::Release),
+            _ => (),
+        }
+        Ok(TransactionResult { statements: vec![] })
     }
 }
 

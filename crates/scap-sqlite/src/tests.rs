@@ -8,6 +8,9 @@ use scap_cell::{CellIdentity, DatabaseIdentity};
 use scap_engine::{EngineIdentity, Limits as ImageLimits, PageChange, PAGE_SIZE};
 use scap_sql::{SqlError, Value};
 
+#[path = "query_tests.rs"]
+mod query_tests;
+
 #[derive(Default)]
 struct Plan {
     lookups: VecDeque<LookupDecision>,
