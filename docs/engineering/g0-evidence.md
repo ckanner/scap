@@ -589,6 +589,8 @@ SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口
 
 ### 13.5 CI 与原始计数
 
+首次 GitHub quality run 在调度前拒绝了两处 job 级 `runner.temp` 表达式；本机 YAML 语法解析未发现该平台规则。已将临时目录变量改为 step 写入 `GITHUB_ENV`，并在文档 workflow 增加固定 actionlint 1.7.12 及官方 SHA-256 校验，检查 GitHub 上下文与 workflow schema。该失败保留，不计为数据库测试通过。
+
 质量 workflow 增加 SDK unit、独立 S3、正式服务部署三个 job，共 13 个质量 job，另有文档 job。Rust profile、Python profile、SDK profile、各类故障历史分别保存 artifact，完整性检查与执行退出码分开。正式服务 job 在 release 构建上运行完整 8 项及全部 360 样本，但输出明确 `production_slo_passed=false`。
 
 ## 14. 仍然阻断生产规模和完整平台目标的工作

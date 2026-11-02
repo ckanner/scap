@@ -383,7 +383,6 @@ jobs:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_SEAWEEDFS_BIN: ${{ runner.temp }}/scap-seaweedfs/weed
       SCAP_ARCHIVE_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/archive-s3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -395,7 +394,9 @@ jobs:
           sudo apt-get install --yes --no-install-recommends libclang-18-dev
           rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
       - name: Download and verify the fixed independent S3 backend
-        run: bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+        run: |
+          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
       - name: Check format and lint
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/archive-s3/Cargo.toml --all -- --check
@@ -434,7 +435,6 @@ jobs:
       CXXFLAGS: -g0
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
       SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
-      SCAP_SEAWEEDFS_BIN: ${{ runner.temp }}/scap-seaweedfs/weed
       SCAP_SERVICE_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-service
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -454,6 +454,7 @@ jobs:
           npm --prefix sdk/node ci --ignore-scripts
           npm --prefix sdk/node run build
           bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
       - name: Execute all eight service contracts without unit instrumentation
         run: |
           export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
