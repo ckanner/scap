@@ -105,6 +105,8 @@ pub fn maybe_run() -> bool {
         max_pending_deliveries: 128,
         max_pending_delivery_bytes: 4 * 1024 * 1024,
         max_pending_reads: 16,
+        max_pending_proposals: 16,
+        max_result_bytes: 512,
         max_view_bytes: 512 * 1024,
         max_poll_rounds: 64,
         tick_interval: Duration::from_millis(20),
@@ -217,6 +219,9 @@ pub fn maybe_run() -> bool {
                     .and_then(|pending| pending.wait());
                 match answer {
                     Ok(Answer::Admitted) => emit(sequence, "admitted", "-"),
+                    Ok(Answer::Applied(_)) => {
+                        panic!("ordinary-proposal fixture received a tracked application result")
+                    }
                     Ok(Answer::Checkpointed) => emit(sequence, "checkpoint", "-"),
                     Ok(Answer::Status(status)) => {
                         emit(

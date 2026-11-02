@@ -1,5 +1,187 @@
 use super::*;
 
+#[test]
+fn transaction_preflight_needs_both_permissions_current_owner_and_exact_head() {
+    let mut state = active();
+    let owner = state.database(database().database_id).unwrap().owner;
+    let view = state
+        .authorize_write(database(), admission(), owner, 0)
+        .unwrap();
+    assert_eq!(view.position, state.position());
+    assert_eq!(view.admission, admission());
+    assert_eq!(
+        state.authorize_write(database(), admission(), owner, 1),
+        Err(Reject::Conflict)
+    );
+    assert_eq!(
+        state.authorize_write(
+            database(),
+            Admission {
+                principal_id: 33,
+                ..admission()
+            },
+            owner,
+            0,
+        ),
+        Err(Reject::Unauthorized)
+    );
+    state
+        .databases
+        .get_mut(&database().database_id)
+        .unwrap()
+        .policy[1]
+        .permissions = WRITE;
+    assert_eq!(
+        state.authorize_write(
+            database(),
+            Admission {
+                principal_id: 22,
+                ..admission()
+            },
+            owner,
+            0,
+        ),
+        Err(Reject::Unauthorized)
+    );
+    assert_eq!(
+        state.authorize_write(database(), admission(), OwnerToken { epoch: 2, ..owner }, 0,),
+        Err(Reject::Fenced)
+    );
+}
+
+#[test]
+fn tracked_results_belong_to_each_requested_entry_not_the_last_batch_outcome() {
+    let state = active();
+    let commands = [write(1, 0), write(1, 0), claim(1, 88, 4), write(2, 1)];
+    let entries: Vec<_> = commands
+        .iter()
+        .enumerate()
+        .map(|(offset, command)| Entry {
+            term: 2,
+            index: state.position().index + offset as u64 + 1,
+            data: encode_command(command, limits()).unwrap().into(),
+            ..Entry::default()
+        })
+        .collect();
+    let requested = [entries[0].index, entries[1].index, entries[3].index];
+    let mut app = CellApplication::new(identity(), limits()).unwrap();
+    let batch = app
+        .apply_with_results(&state.encode(), &entries, &requested)
+        .unwrap();
+    assert_eq!(batch.state, app.apply(&state.encode(), &entries).unwrap());
+    let outcomes: Vec<_> = batch
+        .results
+        .iter()
+        .zip(requested)
+        .map(|(bytes, index)| {
+            decode_applied_outcome(bytes, Position { term: 2, index })
+                .unwrap()
+                .outcome
+        })
+        .collect();
+    assert!(matches!(outcomes[0], Outcome::Accepted(_)));
+    assert!(matches!(outcomes[1], Outcome::AlreadyCommitted(_)));
+    assert_eq!(outcomes[2], Outcome::Rejected(Reject::Fenced));
+    assert!(app
+        .apply_with_results(&state.encode(), &entries, &[])
+        .unwrap()
+        .results
+        .is_empty());
+    for invalid in [
+        vec![999],
+        vec![entries[1].index, entries[0].index],
+        vec![entries[0].index; 2],
+    ] {
+        assert!(matches!(
+            app.apply_with_results(&state.encode(), &entries, &invalid),
+            Err(Error::Position)
+        ));
+    }
+    assert!(app.apply_with_results(&[], &[], &[]).is_err());
+    let invalid = Entry {
+        term: 1,
+        index: 999,
+        ..Entry::default()
+    };
+    assert!(matches!(
+        app.apply_with_results(&state.encode(), &[invalid], &[]),
+        Err(Error::Position)
+    ));
+    for initial in [boot(), active()] {
+        let entry = Entry {
+            term: 2,
+            index: initial.position().index + 1,
+            ..Entry::default()
+        };
+        assert!(matches!(
+            app.apply_with_results(
+                &initial.encode(),
+                std::slice::from_ref(&entry),
+                &[entry.index]
+            ),
+            Err(Error::Position)
+        ));
+    }
+    assert_eq!(
+        app.apply_with_results(&state.encode(), &[], &[])
+            .unwrap()
+            .state,
+        state.encode()
+    );
+}
+
+#[test]
+fn tracked_outcome_codec_is_versioned_bounded_and_position_bound() {
+    let mut state = active();
+    apply(&mut state, &write(1, 0));
+    let value = state.last_outcome().unwrap().clone();
+    let bytes = encode_applied_outcome(&value);
+    assert!(bytes.len() <= MAX_APPLIED_OUTCOME_BYTES as usize);
+    assert_eq!(
+        decode_applied_outcome(&bytes, value.position).unwrap(),
+        value
+    );
+    for position in [
+        Position {
+            term: 0,
+            ..value.position
+        },
+        Position {
+            index: 0,
+            ..value.position
+        },
+        Position {
+            index: 99,
+            ..value.position
+        },
+    ] {
+        assert_eq!(
+            decode_applied_outcome(&bytes, position),
+            Err(Error::Position)
+        );
+    }
+    assert_eq!(
+        decode_applied_outcome(
+            &vec![0; MAX_APPLIED_OUTCOME_BYTES as usize + 1],
+            value.position
+        ),
+        Err(Error::Limit)
+    );
+    for end in 0..body(&bytes).len() {
+        assert!(
+            decode_applied_outcome(&envelope(&bytes, &body(&bytes)[..end]), value.position)
+                .is_err()
+        );
+    }
+    for invalid in [
+        mutate_body(&bytes, |body| body.push(0)),
+        mutate_body(&bytes, |body| body[16] = 255),
+        vec![0; 2],
+    ] {
+        assert!(decode_applied_outcome(&invalid, value.position).is_err());
+    }
+}
+
 const PRINCIPAL: u128 = 11;
 const WORKER: u128 = 77;
 const GENESIS: Position = Position { term: 1, index: 1 };

@@ -74,7 +74,16 @@
       "crates/scap-sqlite"
     ],
     "sqlite_engine_evidence": "experiments/sqlite-engine/README.md",
-    "sqlite_adapter_scope": "bounded-private-connection-batch-gate-full-image-recovery"
+    "sqlite_adapter_scope": "bounded-private-connection-batch-gate-full-image-recovery",
+    "sqlite_network_commit_assembled": true,
+    "sqlite_network_modules": [
+      "crates/scap-cell-client",
+      "crates/scap-sql-worker"
+    ],
+    "sqlite_network_evidence": "experiments/sqlite-network/README.md",
+    "owner_recovery_entry_added": true,
+    "automatic_owner_recovery_added": false,
+    "tracked_application_results": "exact-attempt-after-durable-application-state"
   },
   "consistency": {
     "partition_policy": "CP",
@@ -145,5 +154,6 @@
     "policy": "contracts/coverage-policy.json"
   },
   "implementation_evidence": "docs/engineering/g0-evidence.md",
-  "sqlite_adapter_review_date": "2026-10-31"
+  "sqlite_adapter_review_date": "2026-10-31",
+  "sqlite_network_review_date": "2026-11-02"
 }

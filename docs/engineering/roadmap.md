@@ -40,7 +40,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 首版采用串行同步 `Ready`：完成必要持久化后调用 `advance_append(ready)`，处理 `LightReady`，有序持久化应用结果，再调用 `advance_apply_to(durable_applied)`；先验证这些工作、消息类别和应用进度，再考虑异步持久化流水线。持久化失败不得发送 `persisted_messages` 或虚报持久推进；应用完成边界不得超前于实际可恢复的业务状态，`commit_index` 也不能落后于已持久化的应用位置。具体接口、顺序和验证出口以 [raft-rs 集成门禁](raft-rs-integration.md) 为准。
 
-[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)再实现有界 cell 接受规则与受限 SQLite 组合，补充 PreVote、ReadIndex 和原子非空 genesis 验证。[ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)把类型化 SQL、结果缓冲、前置去重、native gate 与全历史镜像恢复纳入正式 adapter。[ADR-0012](../adr/0012-bounded-raft-network-runtime.md)继续落实正式 wire/mTLS/runtime 与三进程真实 TCP 故障证据。下一步连接 SQL gate、独立 SQL 强读、可信服务身份和真实 SDK，并补自动 writer 恢复编排，再扩展暂存能力、布局与生命周期；受限夹具不自动成为这些产品交付。
+[ADR-0008](../adr/0008-bounded-durable-store-g0.md)先落实正式 `scap-raft-store` 和五个进程退出边界。[ADR-0009](../adr/0009-serial-driver-and-native-backend.md)继续实现正式 driver/native 后端，并使用三个真实进程验证受控多数派、分区和恢复。[ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)再实现有界 cell 接受规则与受限 SQLite 组合，补充 PreVote、ReadIndex 和原子非空 genesis 验证。[ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)把类型化 SQL、结果缓冲、前置去重、native gate 与全历史镜像恢复纳入正式 adapter。[ADR-0012](../adr/0012-bounded-raft-network-runtime.md)继续落实正式 wire/mTLS/runtime 与三进程真实 TCP 故障证据。[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)已继续接通正式 SQL gate、逐请求持久裁决和明确 owner 恢复入口，并独立执行真实 SQLite/mTLS 故障合同。下一步补外部服务身份、独立 SQL 强读、Hrana/真实 SDK，以及故障检测和跨节点自动调度，再扩展暂存、布局与生命周期。
 
 ### 3.3 运行、RPC 与依赖边界
 
@@ -60,7 +60,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 如果 WAL 接口不能安全控制可见性，或持久存储契约无法证明，停止扩展产品功能，重新选择底座。可选择缩小兼容范围、集中维护引擎 patch，或重评已有复制引擎；不得在提交后上传数据来假装满足门禁。
 
-固定成员的 peer RPC/资源子集已有实现与证据；sqld/SDK 边界、外部身份、SQL gate 与网络服务的完整装配仍未完成，因此 G0 保持未通过。现有网络结果不豁免动态成员、证书控制面、多 cell、公平性或性能验收，也不触发 HA 承诺。
+固定成员的 peer RPC/资源子集已有实现与证据；sqld/SDK 边界、外部身份、外部 SQL/SDK 入口和自动接管调度仍未完成，因此 G0 保持未通过。现有网络结果不豁免动态成员、证书控制面、多 cell、公平性或性能验收，也不触发 HA 承诺。
 
 ## 4. G1–G3 的实现顺序
 
@@ -77,7 +77,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 核心已有 Rust workspace、固定 toolchain 与锁文件；后续按 [目录规划](repository-layout.md) 建立模块，并补齐各新增依赖的许可证与构建记录。TypeScript workspace 仅在 SDK / examples 开发时加入并锁定包管理器与依赖。
 
-独立引擎、codec RPC、存储、受控三进程、SQLite/cell、正式 SQLite adapter 和真实网络实验使用各自 workspace；单元覆盖率、工具检查和七类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
+独立引擎、codec RPC、存储、受控三进程、SQLite/cell、正式 SQLite adapter 和真实网络实验使用各自 workspace；单元覆盖率、工具检查和八类真实依赖探针的执行证据分别记录。实验代码进入产品前须迁入正式模块，通过 100% 第一方单元覆盖率和真实契约门禁。其余模块按实际实现建立，不创建会让人误以为数据库可运行的空服务、假 Docker Compose 或无实现 API stub。
 
 ## 6. 试运行标准
 
@@ -86,3 +86,5 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 - 首次对外 SLA 来源于测量和演练，而不是设计文档中的期望。
 - 回滚计划必须考虑磁盘 / 日志格式；不支持格式回退时采用恢复迁移，而非直接运行旧二进制。
 - 关键正确性缺陷阻断发布；性能不达标先限额和缩小范围，不更改已确认写入保障。
+
+2026-11-02（UTC）已接通正式 SQLite 与 mTLS cell，逐请求裁决及 owner 恢复入口见 [SQLite 网络合同](sqlite-network.md)。这些入口尚需外部请求 admission、故障检测、leader 路由和调度服务装配；G0 仍不因单项合同通过而自动整体通过。

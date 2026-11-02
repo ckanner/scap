@@ -18,7 +18,7 @@ use parking_lot::{Condvar, Mutex};
 use protobuf::Message as ProtobufMessage;
 use raft::eraftpb::MessageType;
 use raft::SnapshotStatus;
-use scap_raft_driver::{ReadBarrier, ReadTicket, Status};
+use scap_raft_driver::{ProposalResult, ProposalTicket, ReadBarrier, ReadTicket, Status};
 use scap_raft_store::Identity;
 use scap_raft_transport::{AdmissionError, Ingress};
 use scap_raft_wire::{
@@ -100,6 +100,8 @@ pub struct RuntimeConfig {
     pub max_pending_deliveries: usize,
     pub max_pending_delivery_bytes: usize,
     pub max_pending_reads: usize,
+    pub max_pending_proposals: usize,
+    pub max_result_bytes: usize,
     pub max_view_bytes: usize,
     pub max_poll_rounds: usize,
     pub tick_interval: Duration,
@@ -113,6 +115,11 @@ pub enum Input {
     /// acceptance through the application state and a fresh read barrier.
     Propose {
         context: Vec<u8>,
+        data: Vec<u8>,
+    },
+    /// Wait for this exact command's durable application result. The opaque
+    /// result can describe business rejection as well as acceptance.
+    ProposeTracked {
         data: Vec<u8>,
     },
     Read,
@@ -132,6 +139,7 @@ pub struct ReadView {
 #[derive(Debug)]
 pub enum Answer {
     Admitted,
+    Applied(ProposalResult),
     Read(ReadView),
     Status(Status),
     Checkpointed,
@@ -198,6 +206,7 @@ struct Shared {
 }
 
 struct Mailbox {
+    identity: Identity,
     state: Mutex<Shared>,
     wake: Condvar,
     config: RuntimeConfig,
@@ -225,13 +234,51 @@ impl Pending {
         self.wait_at(Instant::now())
     }
 
+    /// The original absolute deadline is never extended. An external atomic
+    /// cancellation has no notification mechanism, so observe it at least once
+    /// per configured tick interval; Drop then wakes the owner to retire the
+    /// waiter. The command may already have committed and is never retracted.
+    pub fn wait_cancelled(self, cancelled: &AtomicBool) -> Result<Answer, Error> {
+        loop {
+            let now = Instant::now();
+            if cancelled.load(Ordering::Acquire) || now >= self.deadline {
+                return Err(Error::Unknown);
+            }
+            let wait = self
+                .deadline
+                .duration_since(now)
+                .min(self.mailbox.config.tick_interval);
+            match self.receiver.recv_timeout(wait) {
+                Ok(answer) => {
+                    return self.finish_wait(answer, cancelled, Instant::now());
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Err(Error::Unknown),
+            }
+        }
+    }
+
+    fn finish_wait(
+        &self,
+        answer: Result<Answer, Error>,
+        cancelled: &AtomicBool,
+        now: Instant,
+    ) -> Result<Answer, Error> {
+        if cancelled.load(Ordering::Acquire) || now >= self.deadline {
+            return Err(Error::Unknown);
+        }
+        answer
+    }
+
     fn wait_at(&self, now: Instant) -> Result<Answer, Error> {
         if now >= self.deadline {
             return Err(Error::Unknown);
         }
-        self.receiver
+        let answer = self
+            .receiver
             .recv_timeout(self.deadline.duration_since(now))
-            .map_err(|_| Error::Unknown)?
+            .map_err(|_| Error::Unknown)?;
+        self.finish_wait(answer, &self.cancelled, Instant::now())
     }
 }
 
@@ -243,6 +290,11 @@ impl Drop for Pending {
 }
 
 impl Handle {
+    /// Immutable durable scope validated when this runtime was constructed.
+    pub fn identity(&self) -> Identity {
+        self.mailbox.identity.clone()
+    }
+
     pub fn submit(&self, input: Input, deadline: Instant) -> Result<Pending, Error> {
         let now = self.mailbox.clock.now()?;
         if deadline <= now.instant {
@@ -253,6 +305,11 @@ impl Handle {
                 .len()
                 .saturating_add(data.len())
                 .saturating_mul(2)
+                .saturating_add(256),
+            Input::ProposeTracked { data } => data
+                .len()
+                .saturating_mul(2)
+                .saturating_add(self.mailbox.config.max_result_bytes)
                 .saturating_add(256),
             Input::Read => self.mailbox.config.max_view_bytes.saturating_add(256),
             _ => 256,
@@ -441,6 +498,11 @@ struct ReadRequest {
     request: Request,
 }
 
+struct ProposalRequest {
+    ticket: ProposalTicket,
+    request: Request,
+}
+
 pub struct Runtime<D: RaftDriver> {
     driver: D,
     handle: Handle,
@@ -452,6 +514,7 @@ pub struct Runtime<D: RaftDriver> {
     delivery_bytes: usize,
     latest_snapshot: BTreeMap<u64, (u64, u64)>,
     reads: BTreeMap<u64, ReadRequest>,
+    proposals: BTreeMap<u64, ProposalRequest>,
     prefer_request: bool,
     stopped: bool,
 }
@@ -477,12 +540,14 @@ impl<D: RaftDriver> Runtime<D> {
             return Err(Error::Invalid("runtime and durable identity differ"));
         }
         validate_members(&view.conf_state, &policy)?;
+        let identity = view.identity.clone();
         let now = clock.now()?;
         let next_tick = now
             .instant
             .checked_add(config.tick_interval)
             .ok_or(Error::Invalid("tick interval overflow"))?;
         let mailbox = Arc::new(Mailbox {
+            identity,
             state: Mutex::new(Shared {
                 policy,
                 inbound: VecDeque::new(),
@@ -514,6 +579,7 @@ impl<D: RaftDriver> Runtime<D> {
                 delivery_bytes: 0,
                 latest_snapshot: BTreeMap::new(),
                 reads: BTreeMap::new(),
+                proposals: BTreeMap::new(),
                 prefer_request: false,
                 stopped: false,
             },
@@ -526,7 +592,7 @@ impl<D: RaftDriver> Runtime<D> {
     pub fn poll(&mut self, network: &mut impl Network) -> Result<usize, Error> {
         if self.stopped || self.handle.is_stopped() {
             self.handle.stop();
-            self.close_reads();
+            self.close_pending();
             return Err(Error::Closed);
         }
         self.stopped = true;
@@ -536,7 +602,7 @@ impl<D: RaftDriver> Runtime<D> {
             Ok(result) => result,
             Err(panic) => {
                 self.handle.stop();
-                self.close_reads();
+                self.close_pending();
                 std::panic::resume_unwind(panic);
             }
         };
@@ -544,7 +610,7 @@ impl<D: RaftDriver> Runtime<D> {
             self.stopped = false;
         } else {
             self.handle.stop();
-            self.close_reads();
+            self.close_pending();
         }
         result
     }
@@ -572,7 +638,29 @@ impl<D: RaftDriver> Runtime<D> {
                     let _ = pending.request.reply.try_send(answer);
                 }
             }
+            for result in output.proposals {
+                if self
+                    .proposals
+                    .get(&result.ticket.sequence)
+                    .is_some_and(|pending| pending.ticket == result.ticket)
+                {
+                    let pending = self
+                        .proposals
+                        .remove(&result.ticket.sequence)
+                        .expect("matched pending proposal");
+                    let answer = if pending.request.cancelled.load(Ordering::Acquire)
+                        || now.instant >= pending.request.deadline
+                        || result.data.len() > self.config.max_result_bytes
+                    {
+                        Err(Error::Unknown)
+                    } else {
+                        Ok(Answer::Applied(result))
+                    };
+                    let _ = pending.request.reply.try_send(answer);
+                }
+            }
             self.cancel_reads(now.instant)?;
+            self.cancel_proposals(now.instant)?;
             if output.more_ready {
                 work += 1;
                 continue;
@@ -647,6 +735,23 @@ impl<D: RaftDriver> Runtime<D> {
                 .driver
                 .propose(context.clone(), data.clone())
                 .map(|()| Answer::Admitted),
+            Input::ProposeTracked { data } => {
+                if self.proposals.len() >= self.config.max_pending_proposals {
+                    let _ = request.reply.try_send(Err(Error::Full));
+                    return Ok(true);
+                }
+                match self
+                    .driver
+                    .propose_tracked(data.clone(), self.config.max_result_bytes)
+                {
+                    Ok(ticket) => {
+                        self.proposals
+                            .insert(ticket.sequence, ProposalRequest { ticket, request });
+                        return Ok(true);
+                    }
+                    Err(error) => Err(error),
+                }
+            }
             Input::Status => self.driver.status().map(Answer::Status),
             Input::Checkpoint => self.driver.checkpoint().map(|()| Answer::Checkpointed),
             Input::Read => {
@@ -718,6 +823,25 @@ impl<D: RaftDriver> Runtime<D> {
             let pending = self.reads.remove(&id).expect("collected live read");
             self.driver
                 .cancel_read(pending.ticket)
+                .map_err(driver_error)?;
+            let _ = pending.request.reply.try_send(Err(Error::Unknown));
+        }
+        Ok(())
+    }
+
+    fn cancel_proposals(&mut self, now: Instant) -> Result<(), Error> {
+        let expired: Vec<_> = self
+            .proposals
+            .iter()
+            .filter(|(_, pending)| {
+                pending.request.cancelled.load(Ordering::Acquire) || now >= pending.request.deadline
+            })
+            .map(|(&id, _)| id)
+            .collect();
+        for id in expired {
+            let pending = self.proposals.remove(&id).expect("collected live proposal");
+            self.driver
+                .cancel_proposal(pending.ticket)
                 .map_err(driver_error)?;
             let _ = pending.request.reply.try_send(Err(Error::Unknown));
         }
@@ -891,13 +1015,16 @@ impl<D: RaftDriver> Runtime<D> {
                 Err(error) => return Err(error),
             }
         }
-        self.close_reads();
+        self.close_pending();
         Ok(())
     }
 
-    fn close_reads(&mut self) {
+    fn close_pending(&mut self) {
         for (_, pending) in std::mem::take(&mut self.reads) {
             let _ = pending.request.reply.try_send(Err(Error::Closed));
+        }
+        for (_, pending) in std::mem::take(&mut self.proposals) {
+            let _ = pending.request.reply.try_send(Err(Error::Unknown));
         }
     }
 }
@@ -905,7 +1032,7 @@ impl<D: RaftDriver> Runtime<D> {
 impl<D: RaftDriver> Drop for Runtime<D> {
     fn drop(&mut self) {
         self.handle.stop();
-        self.close_reads();
+        self.close_pending();
     }
 }
 
@@ -913,6 +1040,7 @@ fn driver_error(error: scap_raft_driver::Error) -> Error {
     match error {
         scap_raft_driver::Error::NotLeader => Error::NotLeader,
         scap_raft_driver::Error::ReadNotReady => Error::ReadNotReady,
+        scap_raft_driver::Error::ProposalLimit => Error::Full,
         scap_raft_driver::Error::InputLimit | scap_raft_driver::Error::ReadLimit => {
             Error::InputLimit
         }
@@ -967,6 +1095,8 @@ fn validate_config(config: RuntimeConfig) -> Result<(), Error> {
     if !(1..=65_536).contains(&config.max_pending_deliveries)
         || !(HEADER_BYTES..=1_073_741_824).contains(&config.max_pending_delivery_bytes)
         || !(1..=65_536).contains(&config.max_pending_reads)
+        || !(1..=65_536).contains(&config.max_pending_proposals)
+        || !(1..=67_108_864).contains(&config.max_result_bytes)
         || !(1..=67_108_864).contains(&config.max_view_bytes)
         || !(1..=65_536).contains(&config.max_poll_rounds)
     {
@@ -974,6 +1104,11 @@ fn validate_config(config: RuntimeConfig) -> Result<(), Error> {
     }
     if config.max_view_bytes.saturating_add(256) > config.requests.max_bytes {
         return Err(Error::Invalid("request budget cannot hold a read view"));
+    }
+    if config.max_result_bytes.saturating_add(256) > config.requests.max_bytes {
+        return Err(Error::Invalid(
+            "request budget cannot hold an application result",
+        ));
     }
     for interval in [
         config.tick_interval,

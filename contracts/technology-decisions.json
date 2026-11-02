@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "review_date": "2026-11-01",
-  "status": "formal-bounded-sqlite-adapter-and-mtls-single-cell-runtime-with-separate-contracts",
+  "status": "formal-bounded-sqlite-mtls-commit-with-explicit-owner-recovery",
   "reference_project": {
     "repository": "tikv/tikv",
     "release": "v8.5.8",
@@ -185,6 +185,27 @@
     "automatic_owner_recovery_implemented": false,
     "s3_lifecycle_implemented": false,
     "production_service_implemented": false,
+    "performance_validated": false
+  },
+  "sqlite_network_g0": {
+    "review_date": "2026-11-02",
+    "modules": [
+      "crates/scap-cell-client",
+      "crates/scap-sql-worker"
+    ],
+    "contract": "docs/engineering/sqlite-network.md",
+    "adr": "docs/adr/0013-tracked-sqlite-network-commit.md",
+    "evidence": "experiments/sqlite-network/README.md",
+    "outcome_format": "SCAPOUT! version 1; maximum 512 bytes; exact applied position and checksum",
+    "tracked_binding": "cluster/cell/incarnation/node/boot/sequence plus exact command bytes and entry term",
+    "outcome_release": "only after durable application state and applied position",
+    "context": "one RAII invocation per SQL call; current Admission, original absolute deadline and cancellation",
+    "preflight": "fresh Safe ReadIndex, same-view decode_bound, current READ and WRITE, active owner and exact predecessor",
+    "recovery": "claim; fresh view; physical Image recovery; new exclusive native directory; activate exact revision/hash; final current authority check",
+    "threads": "private SQL thread; separate Runtime owner and async network workers",
+    "automatic_owner_scheduling": false,
+    "hrana_node_sdk_implemented": false,
+    "s3_lifecycle_implemented": false,
     "performance_validated": false
   }
 }

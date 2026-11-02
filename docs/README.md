@@ -59,3 +59,5 @@
 4. 官方组件行为、项目设计选择、待验证集成能力必须分别标识。
 5. 修改协议时，同时检查 API、故障矩阵、验证计划和相关 ADR。
 6. 实验锁定的依赖与结果只适用于所测范围；平台与 sqld 的 fork、模块提取或独立进程边界仍须通过 G0 验证。
+
+最新实现：[SQLite 网络提交与恢复](engineering/sqlite-network.md)，以及对应的 [ADR-0013](adr/0013-tracked-sqlite-network-commit.md)。

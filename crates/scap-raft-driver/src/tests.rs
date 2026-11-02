@@ -54,6 +54,7 @@ struct Counter {
     calls: Rc<Cell<usize>>,
     fail: Rc<Cell<bool>>,
     panic: Rc<Cell<bool>>,
+    result_mode: Rc<Cell<u8>>,
 }
 
 impl Application for Counter {
@@ -72,6 +73,31 @@ impl Application for Counter {
             }
         }
         Ok(value.to_be_bytes().to_vec())
+    }
+
+    fn apply_with_results(
+        &mut self,
+        previous: &[u8],
+        entries: &[Entry],
+        requested: &[u64],
+    ) -> Result<AppliedBatch, Self::Error> {
+        let state = self.apply(previous, entries)?;
+        let mut current = value(previous);
+        let mut results = Vec::new();
+        for entry in entries {
+            if entry.get_entry_type() == EntryType::EntryNormal && !entry.data.is_empty() {
+                current += value(&entry.data);
+            }
+            if requested.contains(&entry.index) {
+                results.push(current.to_be_bytes().to_vec());
+            }
+        }
+        match self.result_mode.get() {
+            1 => results.clear(),
+            2 => results.iter_mut().for_each(|result| result.resize(64, 0)),
+            _ => {}
+        }
+        Ok(AppliedBatch { state, results })
     }
 }
 
@@ -119,6 +145,8 @@ fn config() -> DriverConfig {
         max_output_messages: 64,
         max_output_bytes: 65536,
         max_pending_reads: 4,
+        max_pending_proposals: 4,
+        max_pending_proposal_bytes: 65536,
         max_ready_rounds: 16,
     }
 }
@@ -152,12 +180,14 @@ fn drain(node: &mut Node) -> Output {
     let mut output = Output {
         messages: Vec::new(),
         reads: Vec::new(),
+        proposals: Vec::new(),
         more_ready: false,
     };
     for _ in 0..100 {
         let next = node.drain().unwrap();
         output.messages.extend(next.messages);
         output.reads.extend(next.reads);
+        output.proposals.extend(next.proposals);
         if !next.more_ready {
             return output;
         }
@@ -233,7 +263,7 @@ fn initialization_uses_durable_identity_and_safe_effective_configuration() {
 
 #[test]
 fn invalid_driver_and_raft_configurations_are_rejected_before_rawnode_panics() {
-    for field in 0..6 {
+    for field in 0..8 {
         let mut configuration = config();
         match field {
             0 => configuration.boot_id = 0,
@@ -241,7 +271,9 @@ fn invalid_driver_and_raft_configurations_are_rejected_before_rawnode_panics() {
             2 => configuration.max_output_messages = 0,
             3 => configuration.max_output_bytes = 31,
             4 => configuration.max_pending_reads = 0,
-            _ => configuration.max_ready_rounds = 0,
+            5 => configuration.max_ready_rounds = 0,
+            6 => configuration.max_pending_proposals = 0,
+            _ => configuration.max_pending_proposal_bytes = 0,
         }
         assert!(matches!(
             Driver::new(
@@ -964,5 +996,364 @@ fn impossible_committed_configuration_has_no_partial_durable_membership() {
         let disk = Store::open_existing(backend, identity(), limits()).unwrap();
         assert_eq!(disk.view().unwrap().conf_state.voters, vec![1, 2]);
         assert_eq!(disk.view().unwrap().applied, 1);
+    }
+}
+
+#[test]
+fn legacy_application_keeps_ordinary_proposals_and_propagates_application_failure() {
+    struct Legacy(bool);
+    impl Application for Legacy {
+        type Error = &'static str;
+        fn apply(&mut self, previous: &[u8], _: &[Entry]) -> Result<Vec<u8>, Self::Error> {
+            if self.0 {
+                Err("legacy failure")
+            } else {
+                Ok(previous.to_vec())
+            }
+        }
+    }
+    let batch = Legacy(false)
+        .apply_with_results(b"image", &[], &[])
+        .unwrap();
+    assert_eq!(batch.state, b"image");
+    assert!(batch.results.is_empty());
+    assert!(Legacy(true).apply_with_results(b"image", &[], &[]).is_err());
+}
+
+fn acknowledge_tail(node: &mut Node) -> Output {
+    let status = node.status().unwrap();
+    let mut response = Message {
+        from: 2,
+        to: 1,
+        term: status.term,
+        index: status.last_index,
+        ..Default::default()
+    };
+    response.set_msg_type(MessageType::MsgAppendResponse);
+    node.step(response).unwrap();
+    drain(node)
+}
+
+#[test]
+fn tracked_batch_results_follow_exact_commands_and_only_durable_application() {
+    let (mut node, backend, _) = build(&[1, 2, 3], config());
+    elect_with_peer(&mut node);
+    let mut tickets = Vec::new();
+    for amount in [5u64, 7, 11] {
+        tickets.push(
+            node.propose_tracked(amount.to_be_bytes().to_vec(), 8)
+                .unwrap(),
+        );
+        assert!(drain(&mut node).proposals.is_empty());
+    }
+    assert_eq!(value(&node.view().unwrap().application), 0);
+    assert_eq!(node.pending_proposals.len(), 3);
+    let output = acknowledge_tail(&mut node);
+    assert_eq!(output.proposals.len(), 3);
+    for ((result, ticket), expected) in output.proposals.iter().zip(tickets).zip([5, 12, 23]) {
+        assert_eq!(result.ticket, ticket);
+        assert_eq!(value(&result.data), expected);
+        let entry = node
+            .view()
+            .unwrap()
+            .entries
+            .iter()
+            .find(|entry| entry.index == result.index)
+            .unwrap();
+        assert_eq!(entry.term, result.term);
+        assert_eq!(
+            entry.context[entry.context.len() - 8..],
+            ticket.sequence.to_be_bytes()
+        );
+        assert!(result.index <= node.view().unwrap().applied);
+    }
+    assert!(node.pending_proposals.is_empty());
+    assert_eq!(node.pending_proposal_bytes, 0);
+    let reopened = Store::open_existing(backend, identity(), limits()).unwrap();
+    assert_eq!(value(&reopened.view().unwrap().application), 23);
+    assert_eq!(
+        reopened.view().unwrap().applied,
+        output.proposals.last().unwrap().index
+    );
+}
+
+#[test]
+fn tracked_storage_failure_never_releases_a_result_even_after_sync_took_effect() {
+    for after in [false, true] {
+        for offset in [1, 2] {
+            let (mut node, backend, _) = leader();
+            let ticket = node
+                .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+                .unwrap();
+            let at = backend.writes.get() + offset;
+            backend.fault.set(if after {
+                Fault::After(at)
+            } else {
+                Fault::Before(at)
+            });
+            assert!(matches!(node.drain(), Err(Error::Store(_))));
+            assert!(node.is_stopped());
+            assert!(node.pending_proposals[&ticket.sequence].result.is_none());
+            assert!(matches!(node.cancel_proposal(ticket), Err(Error::Stopped)));
+            backend.fault.set(Fault::None);
+            let reopened = Store::open_existing(backend, identity(), limits()).unwrap();
+            assert_eq!(
+                value(&reopened.view().unwrap().application),
+                if after && offset == 2 { 7 } else { 0 }
+            );
+        }
+    }
+}
+
+#[test]
+fn tracked_admission_budgets_reserved_context_and_exhaustion_do_not_mutate_raft() {
+    let (mut follower, _, _) = build(&[1], config());
+    assert!(matches!(
+        follower.propose_tracked(vec![1], 8),
+        Err(Error::NotLeader)
+    ));
+    let (mut node, _, _) = leader();
+    assert!(matches!(
+        node.propose(PROPOSAL_CONTEXT.to_vec(), vec![1]),
+        Err(Error::Invalid(_))
+    ));
+    for (data, limit) in [
+        (vec![], 8),
+        (vec![0; 65536], 8),
+        (vec![1], 0),
+        (vec![1], 65536),
+    ] {
+        assert!(matches!(
+            node.propose_tracked(data, limit),
+            Err(Error::InputLimit)
+        ));
+    }
+    node.next_proposal = u64::MAX;
+    assert!(matches!(
+        node.propose_tracked(vec![1], 8),
+        Err(Error::ProposalIdExhausted)
+    ));
+    assert!(!node.is_stopped());
+
+    for count in [true, false] {
+        let (mut node, _, _) = build(&[1, 2, 3], config());
+        elect_with_peer(&mut node);
+        let ticket = node
+            .propose_tracked(5u64.to_be_bytes().to_vec(), 8)
+            .unwrap();
+        drain(&mut node);
+        if count {
+            node.config.max_pending_proposals = 1;
+        } else {
+            node.config.max_pending_proposal_bytes = node.pending_proposal_bytes;
+        }
+        assert!(matches!(
+            node.propose_tracked(7u64.to_be_bytes().to_vec(), 8),
+            Err(Error::ProposalLimit)
+        ));
+        assert!(!node
+            .cancel_proposal(ProposalTicket {
+                boot_id: ticket.boot_id + 1,
+                ..ticket
+            })
+            .unwrap());
+        assert!(!node
+            .cancel_proposal(ProposalTicket {
+                sequence: ticket.sequence + 1,
+                ..ticket
+            })
+            .unwrap());
+        assert!(node.cancel_proposal(ticket).unwrap());
+        assert!(!node.cancel_proposal(ticket).unwrap());
+        assert_eq!(node.pending_proposal_bytes, 0);
+        let next = node
+            .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+            .unwrap();
+        assert!(next.sequence > ticket.sequence);
+        drain(&mut node);
+        let results = acknowledge_tail(&mut node).proposals;
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].ticket, next);
+        assert_eq!(value(&results[0].data), 12);
+    }
+}
+
+#[test]
+fn tracked_raft_drop_retires_the_attempt_without_a_waiter_or_false_result() {
+    let mut configuration = config();
+    configuration.raft.max_size_per_msg = 8;
+    configuration.raft.max_uncommitted_size = 8;
+    let (mut node, _, _) = build(&[1, 2, 3], configuration);
+    elect_with_peer(&mut node);
+    let first = node
+        .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+        .unwrap();
+    drain(&mut node);
+    let reserved = node.pending_proposal_bytes;
+    assert!(matches!(
+        node.propose_tracked(9u64.to_be_bytes().to_vec(), 8),
+        Err(Error::Raft(raft::Error::ProposalDropped))
+    ));
+    assert!(!node.is_stopped());
+    assert_eq!(node.pending_proposal_bytes, reserved);
+    assert_eq!(node.next_proposal, first.sequence + 2);
+    assert_eq!(acknowledge_tail(&mut node).proposals[0].ticket, first);
+}
+
+#[test]
+fn tracked_result_bounds_missing_results_and_duplicate_context_fail_closed() {
+    for mode in [1, 2] {
+        let (mut node, _, app) = leader();
+        node.propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+            .unwrap();
+        app.result_mode.set(mode);
+        let result = node.drain();
+        if mode == 1 {
+            assert!(matches!(result, Err(Error::Application(_))));
+        } else {
+            assert!(matches!(result, Err(Error::OutputLimit)));
+        }
+        assert!(node.is_stopped());
+    }
+    let (mut node, _, _) = leader();
+    let ticket = node
+        .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+        .unwrap();
+    let pending = &node.pending_proposals[&ticket.sequence];
+    node.node
+        .propose(pending.context.clone(), pending.data.clone())
+        .unwrap();
+    assert!(matches!(node.drain(), Err(Error::Application(_))));
+    assert!(node.is_stopped());
+}
+
+#[test]
+fn completed_results_obey_shared_output_budget_and_keep_admission_closed_until_drained() {
+    let (mut node, _, _) = leader();
+    node.config.max_output_bytes = 48;
+    let ticket = node
+        .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+        .unwrap();
+    node.pending_reads.insert(
+        9,
+        PendingRead {
+            context: vec![],
+            index: Some(1),
+        },
+    );
+    let first = node.drain().unwrap();
+    assert_eq!(first.reads.len(), 1);
+    assert!(first.proposals.is_empty());
+    assert!(first.more_ready);
+    assert!(matches!(node.tick(), Err(Error::NeedsDrain)));
+    let entry = node.view().unwrap().entries.last().unwrap().clone();
+    assert!(node.match_proposal(&entry).is_none());
+    let next = node.drain().unwrap();
+    assert_eq!(next.proposals[0].ticket, ticket);
+    assert!(!next.more_ready);
+    assert_eq!(node.pending_proposal_bytes, 0);
+}
+
+#[test]
+fn old_boot_and_mismatched_entries_cannot_complete_a_new_attempt() {
+    let (mut old, backend, _) = build(&[1, 2, 3], config());
+    elect_with_peer(&mut old);
+    let old_ticket = old.propose_tracked(7u64.to_be_bytes().to_vec(), 8).unwrap();
+    drain(&mut old);
+    let old_entry = old.view().unwrap().entries.last().unwrap().clone();
+    drop(old);
+    let mut configuration = config();
+    configuration.boot_id += 1;
+    let mut node = Driver::new(
+        Store::open_existing(backend, identity(), limits()).unwrap(),
+        Counter::default(),
+        configuration,
+        &logger(),
+    )
+    .unwrap();
+    elect_with_peer(&mut node);
+    assert_eq!(value(&node.view().unwrap().application), 7);
+    let ticket = node
+        .propose_tracked(9u64.to_be_bytes().to_vec(), 8)
+        .unwrap();
+    assert_eq!(old_ticket.sequence, ticket.sequence);
+    assert_ne!(old_ticket.boot_id, ticket.boot_id);
+    assert!(!node.cancel_proposal(old_ticket).unwrap());
+    drain(&mut node);
+    let current = node.view().unwrap().entries.last().unwrap().clone();
+    assert_eq!(node.match_proposal(&current), Some(ticket.sequence));
+    assert!(node.match_proposal(&old_entry).is_none());
+    for field in 0..7 {
+        let mut entry = current.clone();
+        match field {
+            0 => entry.set_entry_type(EntryType::EntryConfChange),
+            1 => entry.data = vec![].into(),
+            2 => entry.context = vec![].into(),
+            3 => entry.context = vec![0; 81].into(),
+            4 => {
+                let mut context = entry.context.to_vec();
+                *context.last_mut().unwrap() = 99;
+                entry.context = context.into();
+            }
+            5 => entry.term += 1,
+            _ => entry.data = 8u64.to_be_bytes().to_vec().into(),
+        }
+        assert!(node.match_proposal(&entry).is_none());
+    }
+    // Same sequence and term still cannot substitute a foreign boot/context.
+    let mut foreign = current.clone();
+    let mut context = foreign.context.to_vec();
+    context[0] ^= 1;
+    foreign.context = context.into();
+    assert!(node.match_proposal(&foreign).is_none());
+    let result = acknowledge_tail(&mut node).proposals.remove(0);
+    assert_eq!(result.ticket, ticket);
+    assert_eq!(value(&result.data), 16);
+}
+
+#[test]
+fn term_change_can_finish_the_exact_old_entry_but_snapshot_never_invents_its_outcome() {
+    for snapshot in [false, true] {
+        let (mut node, _, _) = build(&[1, 2, 3], config());
+        elect_with_peer(&mut node);
+        let ticket = node
+            .propose_tracked(7u64.to_be_bytes().to_vec(), 8)
+            .unwrap();
+        drain(&mut node);
+        let old = node.view().unwrap().entries.last().unwrap().clone();
+        let mut message = Message {
+            from: 2,
+            to: 1,
+            term: old.term + 1,
+            commit: old.index,
+            ..Default::default()
+        };
+        if snapshot {
+            message.set_msg_type(MessageType::MsgSnapshot);
+            let mut snapshot = raft::eraftpb::Snapshot::default();
+            snapshot.mut_metadata().index = old.index + 10;
+            snapshot.mut_metadata().term = old.term + 1;
+            snapshot.mut_metadata().set_conf_state(ConfState {
+                voters: vec![1, 2, 3],
+                ..Default::default()
+            });
+            snapshot.data = 7u64.to_be_bytes().to_vec().into();
+            message.set_snapshot(snapshot);
+        } else {
+            message.set_msg_type(MessageType::MsgHeartbeat);
+        }
+        node.step(message).unwrap();
+        let output = drain(&mut node);
+        assert_eq!(node.status().unwrap().role, StateRole::Follower);
+        assert_eq!(value(&node.view().unwrap().application), 7);
+        if snapshot {
+            assert!(output.proposals.is_empty());
+            assert!(node.cancel_proposal(ticket).unwrap());
+        } else {
+            let result = &output.proposals[0];
+            assert_eq!(result.ticket, ticket);
+            assert_eq!((result.term, result.index), (old.term, old.index));
+            assert!(result.term < node.status().unwrap().term);
+        }
     }
 }

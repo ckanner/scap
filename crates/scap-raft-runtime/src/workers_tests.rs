@@ -26,6 +26,8 @@ fn config() -> RuntimeConfig {
         max_pending_deliveries: 16,
         max_pending_delivery_bytes: 8192,
         max_pending_reads: 8,
+        max_pending_proposals: 8,
+        max_result_bytes: 4096,
         max_view_bytes: 4096,
         max_poll_rounds: 32,
         tick_interval: Duration::from_millis(10),
@@ -57,6 +59,12 @@ fn handle(voters: &[u64], config: RuntimeConfig) -> Handle {
     .unwrap();
     Handle {
         mailbox: Arc::new(Mailbox {
+            identity: scap_raft_store::Identity {
+                cluster_id: 17,
+                cell_id: 29,
+                cell_incarnation: 3,
+                node_id: 1,
+            },
             state: Mutex::new(Shared {
                 policy,
                 inbound: VecDeque::new(),

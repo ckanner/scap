@@ -144,4 +144,8 @@ network shutdown 取消发送 future，超时或任务错误时 abort 剩余 asy
 
 本轮未提供生产 p95/p99、RTO、30 天可用性或多 AZ 容量结果。[性能目标](performance-slo.md)中的单 Raft leader 故障 p95 ≤ 2 秒、p99 ≤ 5 秒仍是特定前提下的待验目标；fixture 的 tick、选举区间、读 deadline 和测试总耗时都不是该目标的实测值。后续测量必须从故障发生计到稳定窗口起点，并保留失败、超时和 UNKNOWN 分母。
 
-尚待完整 SQL/Hrana/Node SDK 网络入口、SQLite writer 自动 fencing/恢复/激活、成员变更控制面、跨 AZ 和掉电/丢盘验证、S3 归档与可验证 GC、多 cell 公平性、大 snapshot 流式协议和长期容量测试。不能以放宽提交条件或隐藏未覆盖源码来把本阶段描述成完整 HA 产品。
+尚待完整 SQL/Hrana/Node SDK 网络入口、SQLite writer 的故障检测、自动调度和路由、成员变更控制面、跨 AZ 和掉电/丢盘验证、S3 归档与可验证 GC、多 cell 公平性、大 snapshot 流式协议和长期容量测试。不能以放宽提交条件或隐藏未覆盖源码来把本阶段描述成完整 HA 产品。
+
+## 10. SQLite tracked 提交扩展
+
+[ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)增加 `Input::ProposeTracked` / `Answer::Applied`：Runtime 等待实际 Entry 对应的持久应用裁决，不将 `Admitted` 作为 SQL 成功。driver 的 pending 数量/字节与 runtime 的 result/waiter 限额分别生效，取消只退出等待、不撤销 command。正式 `scap-cell-client` / `scap-sql-worker` 和真实三进程 SQLite 组合见 [SQL 网络合同](sqlite-network.md)。旧八项网络实验继续保留合成 payload 范围。
