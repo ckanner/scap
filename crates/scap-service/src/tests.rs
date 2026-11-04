@@ -34,6 +34,9 @@ impl Backend for EmptyBackend {
         Box::pin(async {
             Ok(DatabaseStatus {
                 revision: 0,
+                base_revision: 0,
+                tail_entries: 0,
+                tail_bytes: 0,
                 suspended: false,
                 cold: false,
                 owner_active: false,

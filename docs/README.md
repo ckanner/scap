@@ -30,7 +30,7 @@
 - [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
 - [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
 - [cell-state-machine.md](engineering/cell-state-machine.md)：有界业务状态机的身份、owner/auth、事务接受、去重和取消规则。
-- [sqlite-engine.md](engineering/sqlite-engine.md)：正式引擎提交、完整结果、前置去重、无变化事务与全量物理恢复边界。
+- [sqlite-engine.md](engineering/sqlite-engine.md)：正式引擎提交、完整结果、前置去重、无变化事务与基线/有限尾部恢复边界。
 - [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
 
 ## 决策与证据
@@ -39,6 +39,7 @@
 - [ADR-0007](adr/0007-tikv-stack-and-rpc-boundaries.md)：参考 TiKV 技术栈，明确采用方向与运行/RPC 边界。
 - [ADR-0012](adr/0012-bounded-raft-network-runtime.md)：正式单 cell 网络运行时、逐次 mTLS、有限资源与回执语义。
 - [ADR-0016](adr/0016-durable-membership-replacement.md)：保持三个 voter 的持久成员变更与故障副本替换。
+- [ADR-0017](adr/0017-bounded-physical-history.md)：有界物理历史、原结果保留、确定的旧格式迁移与通信世代隔离。
 - [开源组件调查](research/components.md)。
 - [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
 - [TiKV Rust 技术栈审计](research/tikv-rust-stack.md)：固定发布源码、实际调用路径与锁文件；区分直接候选、借鉴设计和暂不引入。
@@ -53,6 +54,7 @@
 - [正式 SQLite adapter 实验](../experiments/sqlite-engine/README.md)：正式模块与真实 cell 的提交、分区、幂等、快照和进程退出恢复合同。
 - [真实 mTLS 网络实验](../experiments/raft-network/README.md)：八项正式网络/runtime 三进程合同；含分区、重启、snapshot、pin 撤销与非持久回执，不执行 SQLite SQL。
 - [真实成员替换实验](../experiments/membership-network/README.md)：四 daemon 的快照追赶、joint 重启、新 voter 的 ACK 恢复与少数派 UNKNOWN。
+- [真实旧格式与历史实验](../experiments/history-network/README.md)：旧 daemon 与真实 S3 数据、不同应用进度的同盘升级、物理基线、原结果和完整重启验证。
 - [2026-11-04 成员替换完整本地证据](evidence/membership-local-2026-11-04.json)：精确单元计数、构建身份、实际故障结果与原始收据哈希。
 
 ## 文档解释规则

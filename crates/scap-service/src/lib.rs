@@ -78,6 +78,9 @@ pub enum Outcome {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DatabaseStatus {
     pub revision: u64,
+    pub base_revision: u64,
+    pub tail_entries: u64,
+    pub tail_bytes: u64,
     pub suspended: bool,
     pub cold: bool,
     pub owner_active: bool,

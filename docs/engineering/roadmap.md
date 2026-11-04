@@ -28,7 +28,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 | 范围 | 已有正式实现 | 仍待完成的目标 |
 | --- | --- | --- |
-| 共识与服务 | 三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon；本轮加入受控 learner/joint 替换，验收见 ADR-0016 | 跨 AZ/设备故障、自动坏盘运维、逻辑分段与保留、多 cell |
+| 共识与服务 | 三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon；受控 learner/joint 替换；有界物理基线与 tail 的验收见 ADR-0017 | 跨 AZ/设备故障、自动坏盘运维、逻辑 metadata 保留策略、多 cell |
 | SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、稳定请求结果查证 | 完整 ORM/同步驱动、交互式事务、生产规模的调度验收 |
 | 多租户与恢复 | 静态最多 32 库、token/当前 auth_epoch、leader 自动接管、新目录恢复、按库惰性 lane/准入配额 | 动态目录、外部身份源、每租户公平性、坏盘成员自动重建 |
 | 冷生命周期 | Suspend、不可变 S3 发布、受覆盖 Prune、精确 hydrate、全 cell Checkpoint | GC/结果退休、PITR/DR、分块归档、恢复空间预留和成本收敛 |
@@ -77,7 +77,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 ## 4. G1–G3 的实现顺序
 
 1. 已实现不依赖 S3 的最小可靠 cell、提交/强读和 owner fencing；继续补设备故障和更大 profile 证据。
-2. 已有有界每库元数据及静态目录；后续验证更大密度、增量持久布局和不依赖全历史扫描的恢复。
+2. 已有有界每库元数据及静态目录、增量持久块；[ADR-0017](../adr/0017-bounded-physical-history.md)补充物理基线与有限 tail。后续验证更大密度、逻辑 metadata 分段与保留以及目标容量下的恢复。
 3. 已有 HTTP/SDK、静态鉴权、请求结果查询和错误边界；后续加入外部身份、动态目录、公平调度及经验证的事务会话。
 4. 已有 idle 休眠、不可变归档、Publish/Prune/Hydrate 和全 cell Checkpoint；先永久保留对象与结果，继续扩展块级恢复和前景隔离。
 5. 设计并实现可证明的 GC、结果退休、恢复容量预留和删除，之后才能评价持续运行的冷存成本与容量收敛。

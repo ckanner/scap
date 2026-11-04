@@ -709,9 +709,63 @@ SDK 本轮独立执行 **11/11**，lines/statements **318/318**、functions **30
 
 本轮证据仍是同机、loopback、有界小库、每秒四次测量请求与进程 SIGKILL。`production_slo_passed=false`；三 AZ、介质断电、规模化负载与长期可用性不能由这些测试计数推导。
 
+### 14.9 有界物理历史与旧格式有序升级
+
+[ADR-0017](../adr/0017-bounded-physical-history.md)把物理恢复材料改为完整基线与有限 tail，逻辑请求表、原 receipt/result、取消 fence 和行政记录继续保留。tail 达到 8 条或复制 limits 推导的 bytes 阈值时，在同一个 Commit 候选中调用正式共享物理算法建立基线；候选校验或容量不足时原子拒绝，不提前释放旧数据。engine 的权威绑定、cell 折叠与冷归档恢复使用同一套 SCAPIMG 实现。
+
+旧数据读取保持 v2 的 Commit、容量与精确归档语义，在原日志之后通过独立内部 Raft entry 原子激活 v3。直接在 decode 时迁移会让不同旧 applied 的副本产生不同物理表示，也可能把旧日志中的 Capacity 拒绝变成接受或否定已发布的 v2 对象。正式 Initialize/Join 继续使用与真实旧 main 逐字节相同的 v2 genesis，避免新 learner 追赶旧前缀时提前采用 v3 规则。通信 envelope version 2 隔离旧、新状态机；本轮支持全停保盘升级，没有混版本滚动或旧二进制回退。
+
+#### 完整单元与独立实验
+
+最终完整采集 **496 个 Rust 单元测试通过，17 个测试二进制，0 failed / ignored / filtered**。52 个生产源文件完整进入覆盖分母；共享物理模块没有移入实验目录，也没有新增生产 coverage 排除。
+
+| 指标 | 本轮实际覆盖 / 总数 |
+| --- | --- |
+| Lines | **11984 / 11984** |
+| Functions | **1119 / 1119** |
+| Regions | **17543 / 17543** |
+| Branches | **2626 / 2626** |
+
+初次完整运行 492 个测试全部通过，但 3 个生产文件仍有少量边界路径未覆盖，精确门禁正确拒绝。只修改 4 个已登记的 cfg(test) 文件，增加 4 项测试并完善负例后，重新清空计数器、执行完整工作区采集。最终 285 个 `bounded-history-full-2-` raw profiles 与真实 merge-list 的集合完全一致；profile、profdata、列表及报告逐项保留。两次运行的 156 项输入集合相同，所有生产与配置 bytes 未变，未把两轮计数混合成 100%。全工作区格式与严格 all-targets/all-features Clippy 同时通过。
+
+SDK 本轮 **12/12**，lines/statements **327/327**、functions **30/30**、branches **235/235**；复用本轮同一源/测试/锁文件/配置/门禁六项 SHA 完全一致的独立结果，没有重复采样。Python 工具 **58/58**，statements **321/321**、branches **160/160**，没有 excluded、missing 或 partial。九套独立 Rust 实验 **81/81**、27 条 fmt/Clippy/test 命令全部成功，44 份公开故障历史完整；每套 test 命令执行一次，profile 与 unit 分开。
+
+真实旧 fixtures 来自实际 main `662f04133f6a869d0dae5b05467656e6deca5c12` 的编译产物，不是替换新格式的版本字节。26 个 hex、4 个 provenance、4 条编译与 7 条生成收据、204 份原输出通过 966 项只读来源检查。28 个旧前缀切点以及旧容量拒绝、精确 Publish/Prune/Hydrate 轨迹均保留旧结果，再在同一有序位置得到一致 v3 状态。固定旧 server genesis 为 154 bytes，SHA-256 为 `439508759eac918060ffb95d9d18a152ac40fc5d4587132c2018493583bd030b`。
+
+#### 真实旧 daemon、归档与恢复
+
+[升级实验](../../experiments/history-network/README.md)使用冻结的真实旧、新 release 程序与 SeaweedFS，最终完整 **9/9**。699 次逻辑调用、2635 次 HTTP 尝试和 7 次预期拒绝全部保留；独立审核逐项绑定原调用、响应及 deadline，没有在 UNKNOWN 后重发 SQL。
+
+旧三个节点先写热库并发布准确 v2 冷对象；只更换一个非 leader 时，新节点无法从旧 quorum 提交或强读，而两个旧节点仍可用旧 quorum 提交。再停止其中一个旧节点，剩下一个旧节点与一个新节点也不能提供强读。原未成功写请求经旧 quorum 有序取消。全部停机后用新程序 OpenExisting 原盘，落后节点从旧 applied **25** 追赶到 **32**，原成功结果和取消记录保持一致，没有重新 Initialize。
+
+随后连续 64 次覆盖 8 个 24 KiB BLOB，在原 8 MiB application、256 KiB 单库和 128 请求身份限制下完成。仅计 base 未变化时相邻真实 status 的正 tail 增量，触发折叠的当次写入计为零，仍得到保守历史下界 **11,066,060 bytes > 8,388,608 bytes**。基线推进 9 次；最终 alpha 为 revision **69**、base **64**、tail **5**、tail bytes **1,005,260**。恢复后的实际 alpha SQLite 文件为 **233,472 bytes**，beta 为 **8,192 bytes**；完整 BLOB SHA 与原返回结果均核对，没有只抽查前缀。
+
+v2 旧对象在既有租户权限与新增取消记录约束下准确 hydrate，再完成 v3 归档往返；动态 AuthFence 的保留由独立 Rust 合同验证。全组三进程 SIGKILL 后以新 owner/new writer directory 恢复；三个新格式目录逐一交给旧程序 OpenExisting，均以 `STORE_APPLICATION` 非零退出，锁或端口失败不算通过。新程序再次打开同盘后，**80 个 ACK（alpha 69、beta 11）及 5 个取消结果全部保留**，最终 85 个身份逐一 Lookup，原结果丢失 **0**。
+
+第一次升级实验在第二项的恢复正控失败，74 次逻辑调用、296 次 HTTP、7 个 ACK 原样保留。原 `/readyz` 返回 200 后，唯一正控 SQL 收到 `NOT_LEADER`，SDK 结束一次选址遍历并返回 `NO_LEADER`；原记录不足以推断具体 term 切换。修正仅在测试准备阶段使用固定整体 30 秒预算，以两次同 leader/term 的 fresh membership 确认夹住 readiness，再发送一次正控 SQL。只读准备探测可以重复，已发送 SQL 不循环。新一次完整九项运行使用同一个生产二进制；原脚本、失败记录和两个版本的 SHA 均保留。
+
+#### 成员、服务与性能边界
+
+成员回归 **8/8**，**135** 条已成功 witness（alpha 68、beta 67）全部保留。源端两个数据库已存在 base 8 时取得新鲜 applied 上界 **31**；之后三个原 voter 的 snapshot 分别为 **139/135/135**，仍被隔离的新 learner 保持 applied 1。解除隔离后它安装 snapshot **139** 并应用至 **145**。随后 joint 全组重启、稳定配置与仅新 voter 磁盘持有一条 ACK 的恢复证明继续通过。这是源端基线、后续裁剪、实际 snapshot 安装和精确 SQL/磁盘恢复的组合证据，没有声称直接读取 learner 内部 base，也没有把它冒充旧 cluster 加新 learner 的 log-only 升级实测。
+
+少数派管理请求仍得到真实 `MEMBERSHIP_UNKNOWN`，恢复 quorum 后 learner 5 出现；原未知响应没有被改写为取消或成功，也未盲重发。服务回归 **8/8** 与真实 SDK **5/5** 全部通过。冷唤醒黑洞保留完整 17 次：13 次冷请求中 5 次 `OVERLOADED`、2 次 `ARCHIVE_UNAVAILABLE`、6 次 `COMMIT_UNKNOWN`；4 次热请求分别为 **55.834 / 9.651 / 26.373 / 11.671 ms**，均早于自己的 1500 ms deadline 和原冷请求结束。
+
+性能窗口没有并行编译、压缩或其他实验。保留全部 **360** 样本：热态 **120/120**，故障观察 **232/240**，8 次 `NO_LEADER` 保持在分母中。**176** 个测量 ACK 全部找回。双库连续 30 秒稳定窗口从故障后 **2,002.919 ms** 开始，在 **32,002.919 ms** 完成确认；首次成功为 **2,028.326 ms**，最慢库首次成功为 **2,113.248 ms**。采样周期为 1 秒，单次局部观测不是恢复分位数。
+
+| 成功热样本组 | p99，ms | 成功 / 全部 |
+| --- | --- | --- |
+| alpha 强读 | 167.044 | 30 / 30 |
+| alpha 写 | 151.017 | 30 / 30 |
+| beta 强读 | 161.089 | 30 / 30 |
+| beta 写 | 182.291 | 30 / 30 |
+
+这些热态尾延迟没有通过生产热读 50 ms、热写 100 ms 目标；本轮 `production_slo_passed=false`。本地 loopback、进程 SIGKILL 与小库负载不能证明三 AZ、设备断电、GiB 恢复、长期可用性或每秒 500 请求的 profile。
+
+最终 release SHA-256 为 `87080fbf3ef7a5ea1615f8f70559ceb94114b9d1e0d42a85ccaecb31ed503bc2`，76 项生产输入摘要为 `0eb18bffcaafe375abdda95eec4c160ea75cf960371865ec6bbaf67f375f5633`。构建前后、所有成功运行前后与独立审计均一致。局部 strict lint、初次覆盖率、升级夹具失败和两个只读审计器的 Path/string 排序误判均保留；后两者修正后只重读原证据，没有重跑工作负载。完整计数、实际分母、来源及 artifact SHA 见[机器可读摘要](../evidence/history-local-2026-11-04.json)。本轮按维护者明确授权，以完整本地门禁作为合并依据；没有把未执行的远端 CI 标为通过。
+
 ## 15. 仍然阻断生产规模和完整平台目标的工作
 
-- 当前单 cell 上限 32 个配置数据库、每库 256 KiB；128 个请求/库和 4096 个行政记录/cell 到限即拒绝。native 增量块已实现，逻辑状态仍整体编码、复制与校验；分段物理历史和可证明的保留策略尚缺，万级冷库与 GiB 级库不能只靠调大常数验收。
+- 当前单 cell 上限 32 个配置数据库、每库 256 KiB；128 个请求/库和 4096 个行政记录/cell 到限即拒绝。native 增量块及物理基线/有限 tail 已实现；逻辑元数据仍整体编码、复制与校验，原结果长期保留的分段和容量策略尚缺，万级冷库与 GiB 级库不能只靠调大常数验收。
 - 前景 cold hydrate 已按库隔离，线程与请求有独立有界额度；dispatcher 元数据扫描仍可能等待 cell，任意数量租户的加权公平性未实现。R1 预置文件、R2 热备执行与跨 AZ 路由恢复尚未实现。
 - 当前 S3 实现具备 suspend/publish/prune/hydrate，没有对象 GC、删除/跨 cell 迁移、PITR、完整目录与权限恢复、S3-only DR。对象与原结果一直保留，长尾成本未全部解决。
 - 已有受控 learner/joint 成员替换和故障证据；自动发现/采购/调度损坏副本、证书/管理员轮换控制面、多 cell 与混版本 rolling upgrade 尚待实现与故障验证。原始 bootstrap 配置仍须由部署者保留，可信通信目录不提供拜占庭防护。

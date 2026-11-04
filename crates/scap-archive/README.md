@@ -5,11 +5,11 @@
 ## 已实现的协议
 
 1. `Controller::suspend` 读取新的 Safe ReadIndex，提交绑定当前 owner 与 revision 的 `SuspendDb`。cell 对已有 owner 增加 epoch、撤销执行权限；已经休眠的库及从未认领 owner 的旧版库保持同一 epoch。
-2. `publish` 从同一权威视图生成单库完整物理历史对象。对象包含 cell/database incarnation、placement generation、源应用位置、事务回执、物理变更与原结果。对象 key 另绑定 cluster ID 和内容 SHA-256。
+2. `publish` 从同一权威视图生成单库完整恢复对象。对象包含 cell/database incarnation、placement generation、源应用位置、全部保留事务回执与原结果、恢复基座和其后的物理尾部。对象 key 另绑定 cluster ID 和内容 SHA-256。
 3. S3 使用签名的 `PUT If-None-Match:*`。创建成功或已存在后，都必须执行有界 HEAD/GET，校验完整长度和 SHA-256；ETag 不承担内容校验职责。
 4. `PublishArchive` 在有序 cell 状态机中再次检查数据库身份、原 owner token、休眠状态、前序归档摘要、revision、commit hash、源位置，以及对象与当前完整历史的精确对应。对象已上传而命令尚未被接受时，不会推进权威恢复指针。
-5. `prune` 只在当前 head 已由已发布归档完整覆盖且原 owner token 未改变、数据库仍休眠时，清除应用状态中的物理事务字节。请求身份、回执、原始结果、取消记录、owner/auth fence 和归档指针继续保留。
-6. `hydrate` 只从新权威视图选定的精确 key 读取。命令校验完整对象摘要、每条 receipt/fingerprint/result/hash 和物理 payload 摘要，只装回缺失的物理字节，不覆盖现有权限和元数据。完成后才允许调用既有 `Writer::recover`。
+5. `prune` 只在当前 head 已由已发布归档完整覆盖且原 owner token 未改变、数据库仍休眠时，清除应用状态中的基座镜像及物理尾部字节。基座 revision、请求身份、回执、原始结果、取消记录、owner/auth fence 和归档指针继续保留。
+6. `hydrate` 只从新权威视图选定的精确 key 读取。命令校验完整对象摘要、每条 receipt/fingerprint/result/hash、恢复基座与物理 payload 摘要，只装回缺失的恢复数据，不覆盖现有权限和元数据。归档后新增的 AuthFence 和取消记录不会被旧对象覆盖。完成后才允许调用既有 `Writer::recover`。
 
 Cold 库不能 ClaimOwner、ActivateOwner 或产生新成功写。结果未知、S3 不可用、对象缺失/损坏或 deadline 到期时保持原有权威状态，不以同名空库或较旧对象降级恢复。维护请求超时后，提交可能已生效；下一次维护先读取当前状态，不能推断回滚。
 
@@ -37,9 +37,11 @@ Cold 库不能 ClaimOwner、ActivateOwner 或产生新成功写。结果未知�
 
 ## 格式与升级
 
-Cell state/command/outcome 写入 v2。v2 reader 可读取 v1 热状态和旧命令/结果；v1 热状态升级时没有归档引用和已卸载数据；从未认领的旧版库保留 `(epoch=0, worker=0)`，休眠不会创造虚假 owner。新生命周期命令与结果不能塞入 v1 envelope。原有 Create/Claim/Activate/AuthFence 的 intent bytes 不包含 envelope version，升级后相同 operation ID 仍返回原有 receipt，单元测试直接验证这一点。对象 envelope 使用 `SCAPARC!` v2；对象 key 的 `scap/v1/` 是独立的路径布局版本。
+Cell state 和 `SCAPARC!` 对象在有序 activation 持久应用后写入 v3；普通 command/outcome 仍为 v2，物理 `SCAPIMG!` 格式保持不变。新 reader 继续读取合法的 v1 热状态、v2 热/冷状态及 v2 归档。旧状态在 activation 前保留 legacy 语义和 v2 编码，PublishArchive、Hydrate 与容量裁决也按旧语义重放；仅仅解码不能升级。服务目录在对外业务与后台归档开始前完成该内部条目和新的阶段确认。
 
-旧二进制不能读取 v2 状态，禁止直接降级启动。升级时必须先停止写入并保留旧版本备份，完成新版本全副本验证；本模块没有滚动混合版本协商。
+activation 对旧热历史逐条采用与新提交相同的物理算法和折叠阈值，原子得到规范的基座与尾部；不足阈值的历史仍保留为尾部，不能按各副本当前 head 无条件全部折叠。已发布的旧归档引用保留原精确内容身份；激活后的旧 Cold 状态通过其原对象核验后恢复，再使用相同的规范 v3 表示。v1 热状态没有归档引用和已卸载数据；从未认领的旧版库保留 `(epoch=0, worker=0)`，休眠不会创造虚假 owner。原有 Create/Claim/Activate/AuthFence 的 intent bytes 不包含 envelope version，升级后相同 operation ID 仍返回原有 receipt。对象 key 的 `scap/v1/` 是独立的路径布局版本。
+
+旧二进制不能读取 v3 状态，禁止直接降级启动。升级时必须先停止写入和全部原 voter，再统一使用新版本 OpenExisting，保留旧版本备份并完成全副本验证；本模块没有滚动混合版本协商。归档格式升级不授权删除旧对象，没有新增 GC 或历史结果回收。
 
 ## 技术与证据
 

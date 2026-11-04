@@ -241,14 +241,38 @@ test("authorized status preserves unsigned revisions without a SQL write or wake
     captured.push(request);
     return response(value, request);
   })));
-  assert.deepEqual(await db.status(), { revision: 0n, suspended: false, cold: false, ownerActive: true, archivedRevision: null });
+  assert.deepEqual(await db.status(), { revision: 0n, baseRevision: null, tailEntries: null, tailBytes: null, suspended: false, cold: false, ownerActive: true, archivedRevision: null });
   value = { revision: "18446744073709551615", suspended: true, cold: true, owner_active: false, archived_revision: "18446744073709551615" };
-  assert.deepEqual(await db.status({ requestId: ID }), { revision: (1n << 64n) - 1n, suspended: true, cold: true, ownerActive: false, archivedRevision: (1n << 64n) - 1n });
+  assert.deepEqual(await db.status({ requestId: ID }), { revision: (1n << 64n) - 1n, baseRevision: null, tailEntries: null, tailBytes: null, suspended: true, cold: true, ownerActive: false, archivedRevision: (1n << 64n) - 1n });
   assert.equal(captured[0].method, "GET"); assert.equal(captured[0].url, "http://one.local/db/db/v1/status");
   assert.equal(captured[0].headers.get("authorization"), "Bearer token");
   assert.equal(await captured[0].text(), "");
   for (const malformed of [null, 1, {}, { ...value, cold: 1 }, { ...value, owner_active: 1 }, { ...value, revision: "-1" }, { ...value, archived_revision: "18446744073709551616" }]) {
     value = malformed;
     await assert.rejects(db.status(), (error) => error.code === "COMMIT_UNKNOWN" && error.request.statements.length === 0);
+  }
+});
+
+test("physical recovery status requires all watermarks and preserves exact unsigned values", async () => {
+  const legacy = { revision: "9", suspended: false, cold: false, owner_active: true, archived_revision: null };
+  const fields = ["base_revision", "tail_entries", "tail_bytes"];
+  let value = { ...legacy, base_revision: "8", tail_entries: "1", tail_bytes: "8192" };
+  const db = createClient(config, runtime(healthy(async (request) => response(value, request))));
+  assert.deepEqual(await db.status(), { revision: 9n, baseRevision: 8n, tailEntries: 1n, tailBytes: 8192n, suspended: false, cold: false, ownerActive: true, archivedRevision: null });
+  for (const boundary of ["0", "18446744073709551615"]) {
+    value = { ...legacy, ...Object.fromEntries(fields.map((field) => [field, boundary])) };
+    const status = await db.status();
+    assert.deepEqual([status.baseRevision, status.tailEntries, status.tailBytes], [BigInt(boundary), BigInt(boundary), BigInt(boundary)]);
+  }
+  for (let mask = 1; mask < 7; mask++) {
+    value = { ...legacy };
+    for (let index = 0; index < fields.length; index++) if (mask & (1 << index)) value[fields[index]] = "0";
+    await assert.rejects(db.status(), (error) => error.code === "COMMIT_UNKNOWN" && /Incomplete physical recovery status/.test(error.message));
+  }
+  for (const field of fields) {
+    for (const invalid of [null, 0, [], {}, "", "-1", "1.5", "18446744073709551616"]) {
+      value = { ...legacy, base_revision: "8", tail_entries: "1", tail_bytes: "8192", [field]: invalid };
+      await assert.rejects(db.status(), (error) => error.code === "COMMIT_UNKNOWN" && error.request.statements.length === 0);
+    }
   }
 });

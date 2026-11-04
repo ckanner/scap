@@ -20,5 +20,6 @@ ADR 记录背景、选择、代价和重新评审条件。当前记录为设计�
 | [0014](0014-sqlite-service-and-cold-lifecycle.md) | 正式三节点 SQL/SDK 服务、自动 owner 恢复、独立强读和有界 S3 冷生命周期 | 有界可运行实现与真实故障证据；生产容量、动态控制面、GC/PITR/DR 与 SLO 待验 |
 | [0015](0015-incremental-blocks-and-isolated-execution.md) | 增量 native 块布局、按库执行隔离、逐次重新授权的 peer 连接复用 | 实现与独立验证；逻辑分段、生产规模和 SLO 继续保留门禁 |
 | [0016](0016-durable-membership-replacement.md) | learner 追赶、持久联合配置、受控副本替换与独立管理入口 | 已实现；完整本地单元和真实四进程门禁通过，生产规模仍未验收 |
+| [0017](0017-bounded-physical-history.md) | 物理基线与有限尾部、保留原结果、确定的旧格式升级与通信世代隔离 | 已实现并通过完整本地门禁；生产规模/SLO 未验收 |
 
 新增 ADR 使用下一个编号，保留被替代记录并注明替代关系。用户或维护者改变范围时记录原因，不通过删除旧决策隐藏取舍。

@@ -8,7 +8,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use raft::eraftpb::ConfState;
-use scap_cell::{CellApplication, CellState, CommandKind, Grant, ADMIN, READ, WRITE};
+use scap_cell::{
+    ArchiveRef, CellApplication, CellState, CommandKind, Grant, OwnerToken, Position, ADMIN, READ,
+    WRITE,
+};
 use scap_cell_client::{Client, RuntimePort};
 use scap_raft_driver::Driver;
 use scap_raft_rocks::RocksBackend;
@@ -195,7 +198,8 @@ pub fn maybe_run() -> bool {
                 let deadline = Instant::now() + Duration::from_millis(parts[2].parse().unwrap());
                 sql_worker.enqueue(&parts, deadline, sequence);
             }
-            "create" | "claim" | "auth" | "reader" | "resolve" => {
+            "create" | "claim" | "auth" | "reader" | "resolve" | "archive_suspend"
+            | "archive_publish" | "archive_prune" | "archive_hydrate" => {
                 let deadline = Instant::now() + Duration::from_millis(parts[2].parse().unwrap());
                 let auth = parts[3].parse().unwrap();
                 let kind = match parts[0] {
@@ -236,6 +240,49 @@ pub fn maybe_run() -> bool {
                     "resolve" => CommandKind::ResolveOrCancel {
                         request_id: parts[4].parse().unwrap(),
                         request_fingerprint: unhex(parts[5]).try_into().unwrap(),
+                    },
+                    "archive_suspend" => CommandKind::SuspendDb {
+                        operation_id: parts[4].parse().unwrap(),
+                        token: OwnerToken {
+                            epoch: parts[5].parse().unwrap(),
+                            worker_instance_id: parts[6].parse().unwrap(),
+                        },
+                        expected_revision: parts[7].parse().unwrap(),
+                    },
+                    "archive_publish" => CommandKind::PublishArchive {
+                        operation_id: parts[4].parse().unwrap(),
+                        expected_owner: OwnerToken {
+                            epoch: parts[5].parse().unwrap(),
+                            worker_instance_id: parts[6].parse().unwrap(),
+                        },
+                        expected_previous: if parts[7] == "-" {
+                            None
+                        } else {
+                            Some(unhex(parts[7]).try_into().unwrap())
+                        },
+                        archive: ArchiveRef {
+                            source: Position {
+                                term: parts[8].parse().unwrap(),
+                                index: parts[9].parse().unwrap(),
+                            },
+                            revision: parts[10].parse().unwrap(),
+                            commit_hash: unhex(parts[11]).try_into().unwrap(),
+                            object_digest: unhex(parts[12]).try_into().unwrap(),
+                            object_bytes: parts[13].parse().unwrap(),
+                            metadata_digest: unhex(parts[14]).try_into().unwrap(),
+                        },
+                    },
+                    "archive_prune" => CommandKind::PruneArchive {
+                        operation_id: parts[4].parse().unwrap(),
+                        expected_owner: OwnerToken {
+                            epoch: parts[5].parse().unwrap(),
+                            worker_instance_id: parts[6].parse().unwrap(),
+                        },
+                        archive_digest: unhex(parts[7]).try_into().unwrap(),
+                    },
+                    "archive_hydrate" => CommandKind::HydrateArchive {
+                        operation_id: parts[4].parse().unwrap(),
+                        archive: unhex(parts[5]),
                     },
                     _ => unreachable!(),
                 };

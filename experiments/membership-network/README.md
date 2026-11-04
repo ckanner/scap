@@ -22,7 +22,7 @@ node experiments/membership-network/run.mjs
 | 01 | 原三个 voter 提供服务；新 Join 身份不会因为预注册而投票或提供 SQL |
 | 02 | 独立管理 token、租户凭据拒绝、未知 peer 和完整预期配置 CAS |
 | 03 | 隔离 learner 并提交新写，未追到 commit 时拒绝晋升 |
-| 04 | 等待原三个 voter 的生产 checkpoint 都裁剪过 learner 初态后解除隔离，learner 通过真实 snapshot 传输追赶并持久 apply |
+| 04 | 先从 fresh tenant metadata 观察双库非零 physical base，再记录权威 membership.applied 上界 B；等待原三个 voter 的生产 checkpoint 全部越过 B 后解除隔离，learner 真实安装带 base 的 snapshot 并持久 apply |
 | 05 | 停止一个原 voter，进入 JointExplicit；全部进程 SIGKILL 后保留 joint 并恢复 ACK |
 | 06 | 显式退出 joint；旧节点原目录重开不能恢复服务，旧 ID 不能再次加入；现有新 voter 换空目录 Join 在建目录前被拒绝；CLI 强读真实管理接口 |
 | 07 | 停止一个幸存原 voter，以另一个原 voter 加新 voter 提交；再 SIGKILL 两个 ACK 持有者，只重开新 voter 和写前已停止的旧副本，验证只能从新 voter 磁盘恢复的新 ACK |
@@ -32,6 +32,8 @@ node experiments/membership-network/run.mjs
 
 随机 SQL witness 在两个数据库中累计，所有成功返回的写逐行精确重读。写入数量保持在现有每库 128 请求上限内，同时跨过真实 checkpoint 的日志距离，不修改产品容量或持久化模式。
 
+当前 base 迁移验收是联合证明：双库 base 先在权威读取中出现，随后取得上界 B；三个可能的 snapshot 来源都裁剪到 B 之后，而 learner 仍位于 genesis；之后 learner 持久安装实际 snapshot，最终通过含该新 voter 的 quorum、全组重启和只能从 node 4 磁盘取得的新 ACK 核对全部 135 条 witness。没有把 leader 上的 tenant status 冒充直接读取 learner 的 DB metadata，也没有为测试添加新的 runtime 诊断接口。每次 SQL 核验同时检查非零 base、原 tail 上限和未 cold-prune 状态。
+
 ## 证据与边界
 
 公开证据包含固定二进制 SHA-256、每项开始/结束/失败历史、关键 ConfState/复制进度、ACK 核验数量和最终 summary。私有临时目录中的证书、密钥、token 配置、数据库和 daemon 原始日志不上传，不进入仓库。
@@ -40,7 +42,9 @@ node experiments/membership-network/run.mjs
 
 本机四进程不构成跨 AZ、介质断电、长期可用性或生产性能验收，`production_slo_passed` 保持 false。实际管理配置、操作顺序与限制见 [ADR-0016](../../docs/adr/0016-durable-membership-replacement.md)。
 
-## 2026-11-04 本机执行
+## 2026-11-04 V2 成员替换执行记录
+
+以下保留的是本次 base/tail 增强之前的真实执行，不作为新增 base 断言已经通过的证据。增强后的结果另由新构建身份和执行记录给出。
 
 固定正式 release 二进制 `9a9df3656d99e5275ca4cee74ceb7e8c85ba37156d5e24e605011728c7064dbb` 首次执行完成全部 **8/8** 合同。75 项生产输入的聚合 SHA-256 为 `5d9c2d210970e0c9363e187c15ddefd7397708fd1560623174b703f5d4b8bd17`，构建与运行前后一致；未使用旧 PR 的二进制或其测试结果。
 

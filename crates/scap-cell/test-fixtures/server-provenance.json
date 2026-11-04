@@ -1,0 +1,80 @@
+{
+  "source_git_revision": "662f04133f6a869d0dae5b05467656e6deca5c12",
+  "producer_sha256": "271eaa2db12c6e611fcf04ec067c33b9874f9b62227ccea8184d9cc0fcd0918e",
+  "generated_using_unchanged_legacy_rlibs": true,
+  "new_encoder_used": false,
+  "fixtures": [
+    {
+      "path": "server-cold-v2.hex",
+      "decoded_bytes": 2236,
+      "decoded_sha256": "5b108a038b122fa7fb0d55690a6f5d00508debe4d9ca8f16637901ed20862946"
+    },
+    {
+      "path": "server-hot-v2.hex",
+      "decoded_bytes": 6455,
+      "decoded_sha256": "093a5114cd560361890e8ac8878a4b87a489c6b5c4affb1fa6017d26cc3965bf"
+    }
+  ],
+  "cell": {
+    "cell_id": 7,
+    "cell_incarnation": 8
+  },
+  "database": {
+    "database_id": 9,
+    "incarnation": 10,
+    "placement_generation": 11
+  },
+  "admission": {
+    "principal_id": 12,
+    "credential_id": 13,
+    "admission_id": 14,
+    "auth_epoch": 1
+  },
+  "owner": {
+    "epoch": 2,
+    "worker_instance_id": 15
+  },
+  "positions": {
+    "hot": {
+      "term": 1,
+      "index": 9
+    },
+    "cold": {
+      "term": 1,
+      "index": 10
+    }
+  },
+  "revision": 2,
+  "request_ids": {
+    "accepted": [
+      101,
+      102
+    ],
+    "cancelled": 103
+  },
+  "fingerprints": "Each request suffix (1,2,3) repeated 32 bytes",
+  "results": {
+    "101": [
+      1,
+      0,
+      255
+    ],
+    "102": [
+      2,
+      0,
+      255
+    ]
+  },
+  "limits": {
+    "max_state_bytes": 8388608,
+    "max_command_bytes": 4194304,
+    "max_databases": 32,
+    "max_policy_grants": 33,
+    "max_admin_operations": 4096,
+    "max_requests_per_database": 128,
+    "max_transaction_bytes": 307200,
+    "max_result_bytes": 65536
+  },
+  "scope": "Immutable old cell codec and pure physical-image fixtures; native SQLite upgrade is separately verified by the real daemon experiment.",
+  "shared_archive_fixture": "archive-v2.hex"
+}

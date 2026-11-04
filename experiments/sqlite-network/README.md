@@ -12,7 +12,7 @@
 
 测试控制通道只传入固定合成请求、调度指令和观察结果，不传送 Raft 消息。控制协议有长度、数量和等待上限；原生 SQL 请求只使用固定、无参数的测试批次，不构成面向客户的 SQL RPC 或 SDK。
 
-## 八项合同
+## 九项合同
 
 | 场景 | 必须观察到的结果 |
 | --- | --- |
@@ -21,9 +21,10 @@
 | auth fence | 在同样的前置读取边界推进 auth epoch；旧调用最终 Unauthorized，未发布原生页面，也未建立成功请求记录 |
 | 无 quorum 与有序取消 | 黑洞旧 leader 的全部 peer 路径；SQL 返回 UNKNOWN 且本地页面不变；新多数派通过 ResolveOrCancel 写入取消记录；恢复网络后同 ID 请求仍被拒绝 |
 | Accepted 回复超时 | 真正持久 Accepted 的回复在端口返回前越过原调用 deadline；请求保持 UNKNOWN 且未发布本地页；有序解析确认原提交，新目录恢复并返回原随机结果 |
-| Accepted 后 SIGKILL | 在正式逐提案结果已为 Accepted、尚未进入原生发布时真实 SIGKILL writer/voter 进程；无 SQL ACK；其他 voter 选主后在新目录恢复精确页面和结果 |
-| snapshot 与全组重启 | 停掉一个落后 voter，积累真实 SQLite 物理历史与取消记录，checkpoint 后通过 mTLS 安装实际 snapshot；再次杀掉接收者直接检查其持久 snapshot；全组三进程 SIGKILL/reopen 后由新 owner 重建 SQLite |
+| Accepted 后 SIGKILL | 第八笔真实 native SQL 已被持久接受并折叠为 base、tail 已清空，但原生文件仍是第七笔、无 SQL ACK；此时 SIGKILL writer/voter，其他 voter 选主后在新目录从该 base 恢复精确页面和结果，第一笔逻辑原结果仍保留 |
+| snapshot 与全组重启 | 停掉一个落后 voter，形成 base revision 8、tail revision 9 与取消记录，checkpoint 后通过 mTLS 安装实际 snapshot；再次杀掉接收者，用正式 bound decoder 检查其持久 base/tail 与源完全相同；全组三进程 SIGKILL/reopen 后由新 owner 重建 SQLite |
 | 独立 SQL 强读 | 只有 READ 权限的主体以新 Safe ReadIndex 和精确物理 head 读取；连续查询不增长 revision；已授权有限快照可结束，下一次旧 owner 查询被拒；真实 TCP quorum 丢失时新读失败，多数派恢复后仍读到原字节 |
+| 归档后 auth/cancel 不回退 | `folded_archive_hydration_preserves_later_auth_and_cancel_through_network_restart`：正式 archive_snapshot 生成 base8+tail9 对象，正式 Client 发布与裁剪；cold 期间 AuthFence 撤销 reader、推进 epoch 并新增取消；旧 epoch hydrate 拒绝，新 epoch hydrate 只导入精确物理数据；九个原 ACK 结果、撤销、取消和 SQL 值经 checkpoint 与全 SIGKILL 后仍保留 |
 
 `PausingPort` 只包装正式 `CellPort` 的效果边界。读取暂停点是正式 Safe ReadIndex view 已返回、即将交给 client 校验和 gate 授权的边界；恢复后仍使用这个已线性化的 view，最终 owner/auth 冲突由有序 Commit 裁决。Accepted 暂停点先以正式 codec 校验该提案的 `term/index` 与 `Outcome::Accepted`。夹具不将 transport Received、本地 Admitted 或“读不到请求”伪装成持久接受/取消。
 
@@ -46,8 +47,8 @@ CI 从锁定源码构建 native 依赖。开发环境可复用由相同源码、
 
 ## 不能据此宣称的能力
 
-这八项测试验证固定三 voter、单 cell、有界合成数据库的正确性与恢复合同。它们不测生产 p99 延迟、跨 AZ RTO、SLO、长期可用性、大库恢复吞吐或容量。夹具等待上限只是防止测试卡死，不能作为性能结果。
+这九项测试验证固定三 voter、单 cell、有界合成数据库的正确性与恢复合同。它们不测生产 p99 延迟、跨 AZ RTO、SLO、长期可用性、大库恢复吞吐或容量。夹具等待上限只是防止测试卡死，不能作为性能结果。
 
-它也不包含对外鉴权服务、SQL/Hrana 网络 API、Node.js SDK、自动发现/调度新 owner、动态成员、多 cell、公平队列、S3 归档/休眠/唤醒，以及永久丢失多数副本后的恢复承诺。测试中的 trusted `Admission` 是固定合成身份，不是面向真实用户的认证实现。
+它也不包含对外鉴权服务、SQL/Hrana 网络 API、Node.js SDK、自动发现/调度新 owner、动态成员、多 cell、公平队列、真实 S3 对象网络，以及永久丢失多数副本后的恢复承诺。第九项使用正式生成的不可变 archive bytes 驱动真实 quorum 的生命周期命令，检验 current metadata 不被旧归档覆盖；真实旧 V2 / 新 V3 S3 对象由 [history-network](../history-network/README.md) 独立验证，两者是明确分层的组合证据。测试中的 trusted `Admission` 是固定合成身份，不是面向真实用户的认证实现。
 
 正式源码的 100% 单元行、函数、region、分支门禁另外执行；本实验的进程、网络、native 和故障 profile 必须与单元 profile 隔离。运行结果统一同步至 [G0 执行证据](../../docs/engineering/g0-evidence.md)，不能仅凭本 README 的测试定义认定已通过。

@@ -284,14 +284,21 @@ class Cluster {
     } finally { client.close(); }
   }
   async verify(excluded = []) {
+    const recovery = {};
     for (const database of ["alpha", "beta"]) {
       const client = this.client(database, excluded);
       try {
         const actual = (await client.query("SELECT id,marker FROM witness ORDER BY id")).rows.map((row) => Array.from(row));
         assert.deepEqual(actual, this.expected[database], "every acknowledged row must remain exact after membership changes");
+        const status = await client.status();
+        assert.ok(status.baseRevision > 0n, "the SQL witness must recover from a nonzero physical base");
+        assert.ok(status.baseRevision <= status.revision && status.tailEntries < 8n);
+        assert.ok(status.tailBytes < 1_228_800n);
+        assert.equal(status.cold, false, "this experiment never prunes its quorum-resident physical base to S3");
+        recovery[database] = { revision: status.revision.toString(), base_revision: status.baseRevision.toString(), tail_entries: status.tailEntries.toString(), tail_bytes: status.tailBytes.toString() };
       } finally { client.close(); }
     }
-    await event("all_acknowledged_rows_verified", { alpha: this.expected.alpha.length, beta: this.expected.beta.length, lost_acknowledgements: 0 });
+    await event("all_acknowledged_rows_verified", { alpha: this.expected.alpha.length, beta: this.expected.beta.length, lost_acknowledgements: 0, recovery });
   }
   async stop() {
     for (const state of this.processes) await state?.stop();
@@ -304,6 +311,7 @@ const cluster = new Cluster();
 let removed;
 let initialConf;
 let learnerGenesis;
+let baseObservedBy;
 
 try {
   await contract("01-original-quorum-and-unjoined-node", async () => {
@@ -363,6 +371,25 @@ try {
     for (let number = 2; number <= 67; number++) {
       await cluster.write("alpha", number);
       await cluster.write("beta", number);
+      if (number === 10) {
+        const bases = {};
+        for (const database of ["alpha", "beta"]) {
+          const client = cluster.client(database);
+          try {
+            const status = await client.status();
+            assert.ok(status.baseRevision > 0n, "physical history must fold before the Raft snapshots being tested");
+            assert.equal(status.cold, false);
+            bases[database] = { revision: status.revision.toString(), base_revision: status.baseRevision.toString(), tail_entries: status.tailEntries.toString(), tail_bytes: status.tailBytes.toString() };
+          } finally { client.close(); }
+        }
+        // This is an authoritative applied upper bound AFTER both fresh
+        // database reads. Every subsequent snapshot above B must therefore
+        // contain a nonzero base for both databases. We do not present a
+        // leader's tenant status as a direct read of the learner's contents.
+        baseObservedBy = (await cluster.membership()).view.applied;
+        assert.ok(Number.isSafeInteger(baseObservedBy) && baseObservedBy > learnerGenesis.applied);
+        await event("physical_bases_exist_before_snapshot_boundary", { authoritative_applied_upper_bound: baseObservedBy, databases: bases, learner_directly_inspected: false });
+      }
     }
     const end = performance.now() + 15_000;
     let source;
@@ -370,10 +397,10 @@ try {
     do {
       source = (await cluster.membership()).view;
       compacted = await Promise.all([0, 1, 2].map((node) => cluster.localStatus(node)));
-      if (compacted.every((status) => status.snapshot_index > learnerGenesis.applied)) break;
+      if (compacted.every((status) => status.snapshot_index > baseObservedBy)) break;
       await delay(100);
     } while (performance.now() < end);
-    assert.ok(compacted.every((status) => status.snapshot_index > learnerGenesis.applied), "every original voter must compact beyond the isolated learner's genesis, so even a new leader must send a snapshot");
+    assert.ok(compacted.every((status) => status.snapshot_index > baseObservedBy), "every original voter must compact beyond the authoritative bound after both physical bases were observed, so every possible source snapshot contains them");
     const compactedThrough = Math.min(...compacted.map((status) => status.snapshot_index));
     const isolated = await cluster.localStatus(3);
     assert.equal(isolated.applied, learnerGenesis.applied, "isolated learner must still be behind the compacted prefix");
@@ -393,7 +420,7 @@ try {
     assert.ok(installed.snapshot_index >= compactedThrough, "new replica must hold a real durable snapshot after all original voters compact their logs");
     assert.ok(installed.applied >= source.commit, "new replica must durably apply the source head");
     assert.equal(await cluster.ready(3), false, "caught-up learner still cannot serve as leader");
-    await event("learner_caught_up_after_compaction", { isolated_learner_applied: isolated.applied, original_voter_snapshots: compacted.map((status, node) => ({ node_id: node + 1, snapshot_index: status.snapshot_index, applied: status.applied })), compacted_through: compactedThrough, source_snapshot_index: source.snapshot_index, learner_snapshot_index: installed.snapshot_index, learner_applied: installed.applied, commit: caught.commit, progress: caught.progress });
+    await event("learner_caught_up_after_compaction", { isolated_learner_applied: isolated.applied, base_observed_by_applied: baseObservedBy, original_voter_snapshots: compacted.map((status, node) => ({ node_id: node + 1, snapshot_index: status.snapshot_index, applied: status.applied })), compacted_through: compactedThrough, source_snapshot_index: source.snapshot_index, learner_snapshot_index: installed.snapshot_index, learner_applied: installed.applied, commit: caught.commit, progress: caught.progress, base_transfer_proof: "fresh source base observations, all sources compact beyond that bound, real learner snapshot install, then exact SQL and unique-node4-disk ACK recovery" });
     await cluster.verify();
   });
 
@@ -483,7 +510,8 @@ try {
     await event("minority_management_and_strong_read_rejected", { isolated_node: leader + 1, http_status: attempted.status, code: attempted.data.code ?? null, final_conf_state: conf(resolved.conf_state), late_commit_after_quorum_return_is_possible: true });
   });
 
-  await writeFile(path.join(evidence, "summary.json"), JSON.stringify({ completed, all_contracts_passed: completed.length === 8, acknowledged_rows: { alpha: cluster.expected.alpha.length, beta: cluster.expected.beta.length }, lost_acknowledgements: 0, production_slo_passed: false, private_fixture_data_exported: false }, null, 2), { flag: "wx", mode: 0o600 });
+  assert.equal(cluster.expected.alpha.length + cluster.expected.beta.length, 135);
+  await writeFile(path.join(evidence, "summary.json"), JSON.stringify({ completed, all_contracts_passed: completed.length === 8, acknowledged_rows: { alpha: cluster.expected.alpha.length, beta: cluster.expected.beta.length }, lost_acknowledgements: 0, base_observed_by_applied: baseObservedBy, base_snapshot_transfer_proof: "combined authoritative source/snapshot/SQL/disk evidence; no direct learner database metadata endpoint", production_slo_passed: false, private_fixture_data_exported: false }, null, 2), { flag: "wx", mode: 0o600 });
   await event("all_membership_contracts_completed", { count: completed.length, production_slo_passed: false });
 } finally {
   for (const resource of resources.reverse()) await resource.stop();

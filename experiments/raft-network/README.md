@@ -18,7 +18,7 @@
 
 本实验只有在新的 Safe ReadIndex 完成后读取正式持久 application，并通过 `CellState::decode_bound` 核对 cell、applied term/index，才检查业务结果。每张 read ticket 必须属于当前 boot，且 `applied >= barrier.index`。业务成功通过有序状态机的 `Lookup::Committed`、原始 result、receipt request ID 和 sequence 共同确认；重复请求还要求新的日志位置实际应用出 `AlreadyCommitted`，不能仅看提案准入或旧结果仍存在。
 
-应用使用正式 `CellApplication` 的创建、owner claim/activate、幂等提交和 ResolveOrCancel；`physical_changes` 是有限的合成 opaque payload。**这里不执行 SQLite SQL，不将合成 payload 当成 SQLite 页面、session changeset 或 WAL。** 已有原生 SQLite 事务和发布验证仍由对应实验负责；本目录的通过不能直接当作 mTLS + SQL 入口 + SDK 的完整组合验收。
+应用使用正式 `CellApplication` 的创建、owner claim/activate、幂等提交和 ResolveOrCancel。`physical_changes` 使用正式 `scap_core::physical` 编码的空镜像 no-op，使真实 base 折叠也能验证合法物理格式。**这里不执行 SQLite SQL，也没有把合成 no-op 当成 native WAL 捕获。** 已有原生 SQLite 事务和发布验证仍由对应实验负责；本目录的通过不能直接当作 mTLS + SQL 入口 + SDK 的完整组合验收。
 
 ## 八项场景
 

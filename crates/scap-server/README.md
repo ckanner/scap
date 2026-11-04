@@ -82,6 +82,8 @@ CLI 输出完整 JSON；非成功 HTTP、超时或不确定结果都以非零状
 
 [Node SDK](../../sdk/node/README.md)提供 `execute`、`batch`、强读 `query`、`lookup`、`resolveOrCancel` 和不唤醒数据库的 `status`。裸 `@libsql/client/http` 可访问 `/db/{database}/` 下已经验证的自包含 Hrana 子集；不承诺同步本地文件驱动、全部 Hrana 或 ORM 无修改兼容。
 
+受鉴权的 `GET /db/{database}/v1/status` 在原 `revision`、休眠、Cold、owner 和归档水位之外，返回 `base_revision`、`tail_entries`、`tail_bytes`。这三个 u64 计数与 revision 一样使用十进制字符串，来自同一新鲜权威视图；Cold 时尾部计数为零，基座 revision 仍表示保留的恢复锚点，不能据此假定镜像字节在本机可用。该入口不执行 SQL，也不为查询状态而唤醒冷库。
+
 公开路径与错误合同见 [`scap-service`](../scap-service/README.md)。Bearer token 只存摘要，外部请求不能指定 owner/cell/S3 key。每次实际读写与结果查证均重新使用复制状态中的当前权限。`/readyz` 仅供选择候选节点，不能授权本地写或陈旧读。
 
 ## 运行时职责
@@ -115,13 +117,15 @@ S3 归档采用 `Suspend → upload/verify → Publish → Prune`，唤醒为当
 
 - 一个 cell、bootstrap 恰好三个 voter、最多 32 个库；成员替换限于 3–16 个预注册 peer，不能动态信任陌生证书，也不提供迁移或多 cell 路由。
 - 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库最多 128 条 accepted/cancel 记录，cell 最多 4096 条管理记录。
-- Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；强读与恢复仍核验保留的完整物理历史；不能由此推断大库吞吐或延迟。
+- Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；cell 在 Commit 候选状态中折叠物理前缀，强读与恢复核验完整恢复基座和有界物理尾部。请求结果和取消记录继续完整保留；不能由此推断大库吞吐或延迟。
 - 按库 lazy lane 隔离 SQL 与前景 hydrate；全局线程/准入预算固定，尚无加权公平调度、独立恢复容量预留或跨库性能保证。
 - 归档正文必须装入一次有界 hydrate command；state/command 分别为 8 MiB/4 MiB，尚无分块恢复。
 - 永久保留对象、原结果和取消 fence，无自动 GC、对象删除或 S3-only 灾难恢复。恢复所需总体容量没有跨库预留协议。
 - 无 quorum、损坏、未知 outcome 或当前权限失败时保持拒绝；不会改用旧文件、较旧对象或本地成功。
 
-格式为 cell state/command/outcome v2，支持绑定相同身份/限额的合法 v1 热历史及原管理 receipt 重试；旧二进制直接降级和混合版本滚动协商不受支持。详细限额、升级和故障矩阵见[工程说明](../../docs/engineering/sqlite-service.md)，服务合同见 [ADR-0014](../../docs/adr/0014-sqlite-service-and-cold-lifecycle.md)，增量持久化、按库执行与连接复用见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
+Cell state 和归档在持久激活后使用 v3，普通 command/outcome 仍为 v2，物理 IMG 格式保持不变。OpenExisting 支持绑定相同身份/限额的合法 v1 热状态和 v2 热/冷状态；打开旧盘时保留 legacy 语义和 v2 编码，不能提前重判尚待应用的旧归档发布或容量裁决。当前 leader 的目录循环在创建数据库、恢复 owner、归档或开放业务前，提交独立内部 activation 条目；只有该条目 durable apply 且后续新 Safe ReadIndex 确认 phase 3，才可置 ready。未知结果保持未就绪，下轮先查询持久阶段。普通数据库 lane 不发起升级，phase 2 直接拒绝请求；peer、受鉴权的本机管理观测和 livez 可先启动，因此无 quorum 的新节点能够被诊断但不能服务 SQL。
+
+Initialize、Join 和规范 genesis 摘要统一使用与旧二进制逐字节相同的 v2 初始应用，再由有序 activation 开启新语义；新 learner 从旧日志前缀追赶时也必须先看到原预算和格式。v2 已发布对象继续按原精确摘要读取，原管理 receipt、鉴权和取消 fence 均保留。升级必须先停止写入和全部原 voter，再统一用新二进制 OpenExisting；新旧 wire 版本隔离，不支持旧二进制降级或混合版本滚动协商。新节点只能在已升级的健康集群完成新鲜预检后加入。详细限额、升级和故障矩阵见[工程说明](../../docs/engineering/sqlite-service.md)，服务合同见 [ADR-0014](../../docs/adr/0014-sqlite-service-and-cold-lifecycle.md)，增量持久化、按库执行与连接复用见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
 
 ## 验证
 

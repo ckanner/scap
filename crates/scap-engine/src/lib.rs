@@ -1,64 +1,23 @@
-//! Bounded physical SQLite images and deterministic recovery.
+//! Authoritative cell binding for shared bounded physical SQLite recovery.
 //!
-//! An image is an execution cache, not a replacement for the cell's authority.
-//! The native adapter must exclusively own its SQLite connection and path,
-//! reconstruct a fresh file on every restart, and advance its image only after
-//! an accepted transaction has completed native publication. The cell's commit
-//! hash and this module's complete-image digest are deliberately different.
-//! There is no business-schema metadata table or independently trusted sidecar.
+//! Native execution caches are rebuilt from a quorum-bound baseline and tail.
+//! Page encoding/replay is shared with cell compaction in scap_core::physical;
+//! this adapter additionally requires fresh Safe ReadIndex, current admission,
+//! exact applied position and the authoritative cell commit hash.
 
-use scap_cell::{Admission, CellIdentity, CellState, DatabaseIdentity, Position, Reject};
+use scap_cell::{Admission, CellState, Position, Reject};
+use scap_core::physical;
 use scap_core::{CommitReceipt, CommitTicket, PreparedWrite};
-use sha2::{Digest, Sha256};
 
-pub const PAGE_SIZE: usize = 4096;
-pub const HEADER_SIZE: usize = 152;
-pub const MAX_DATABASE_PAGES: u32 = 262_144;
-const MAGIC: &[u8; 8] = b"SCAPIMG!";
-const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EngineIdentity {
-    pub cell: CellIdentity,
-    pub database: DatabaseIdentity,
-}
-
-/// Limits apply before copying pages or allocating a candidate database image.
-/// The implementation keeps complete images; the cap is a format bound, not a
-/// measured throughput, memory-budget, or production-size recommendation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Limits {
-    pub max_database_pages: u32,
-    pub max_changed_pages: u32,
-    pub max_transaction_bytes: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Head {
-    pub identity: EngineIdentity,
-    pub revision: u64,
-    pub image_digest: [u8; 32],
-}
+pub use physical::{
+    EngineIdentity, Head, Limits, PageBatch, PageChange, HEADER_SIZE, MAX_DATABASE_PAGES, PAGE_SIZE,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecoveryTarget {
     pub position: Position,
     pub revision: u64,
     pub commit_hash: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PageChange {
-    pub number: u32,
-    pub bytes: Vec<u8>,
-}
-
-/// Pages must be strictly ordered and unique. Empty changes are valid only for
-/// an unchanged file size; they still require a durable cell transaction.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PageBatch {
-    pub size_after: u32,
-    pub pages: Vec<PageChange>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,87 +37,65 @@ pub enum Error {
     Authorization(Reject),
 }
 
-/// Only construction from the empty baseline, validated page transitions, or
-/// the bound authoritative recovery path can create this immutable capability.
+impl From<physical::Error> for Error {
+    fn from(value: physical::Error) -> Self {
+        match value {
+            physical::Error::Limits => Self::Limits,
+            physical::Error::Identity => Self::Identity,
+            physical::Error::Ticket => Self::Ticket,
+            physical::Error::Receipt => Self::Receipt,
+            physical::Error::Exhausted => Self::Exhausted,
+            physical::Error::TooLarge => Self::TooLarge,
+            physical::Error::Malformed => Self::Malformed,
+            physical::Error::PageOrder => Self::PageOrder,
+            physical::Error::MissingPage => Self::MissingPage,
+            physical::Error::SqliteHeader => Self::SqliteHeader,
+            physical::Error::Head => Self::Head,
+            physical::Error::Integrity => Self::Integrity,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Image {
-    head: Head,
-    bytes: Vec<u8>,
-    limits: Limits,
+    inner: physical::Image,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Prepared {
-    write: PreparedWrite,
-    image: Image,
+    inner: physical::Prepared,
 }
 
 impl Image {
     pub fn empty(identity: EngineIdentity, limits: Limits) -> Result<Self, Error> {
-        if limits.max_database_pages == 0
-            || limits.max_database_pages > MAX_DATABASE_PAGES
-            || limits.max_changed_pages == 0
-            || limits.max_changed_pages > limits.max_database_pages
-            || limits.max_transaction_bytes < HEADER_SIZE as u32
-        {
-            return Err(Error::Limits);
-        }
-        if identity.cell.cell_id == 0
-            || identity.cell.cell_incarnation == 0
-            || identity.database.database_id == 0
-            || identity.database.incarnation == 0
-            || identity.database.placement_generation == 0
-        {
-            return Err(Error::Identity);
-        }
-        Ok(Self {
-            head: Head {
-                identity,
-                revision: 0,
-                image_digest: digest(&[]),
-            },
-            bytes: Vec::new(),
-            limits,
-        })
+        physical::Image::empty(identity, limits)
+            .map(|inner| Self { inner })
+            .map_err(Into::into)
     }
 
     pub fn head(&self) -> Head {
-        self.head
+        self.inner.head()
     }
 
     pub fn bytes(&self) -> &[u8] {
-        &self.bytes
+        self.inner.bytes()
     }
 
     pub fn limits(&self) -> Limits {
-        self.limits
+        self.inner.limits()
     }
 
-    /// `payload_digest` must be the zero placeholder. All other immutable
-    /// ticket fields are validated; the encoded physical digest is then bound.
-    pub fn prepare(&self, mut ticket: CommitTicket, batch: PageBatch) -> Result<Prepared, Error> {
-        self.validate_ticket(&ticket)?;
-        if ticket.payload_digest != [0; 32] {
-            return Err(Error::Ticket);
-        }
-        let image = self.apply_batch(&batch)?;
-        let physical_changes = self.encode(&batch, image.head.image_digest);
-        ticket.payload_digest = digest(&physical_changes);
-        Ok(Prepared {
-            write: PreparedWrite {
-                ticket,
-                physical_changes,
-            },
-            image,
-        })
+    pub fn prepare(&self, ticket: CommitTicket, batch: PageBatch) -> Result<Prepared, Error> {
+        self.inner
+            .prepare(ticket, batch)
+            .map(|inner| Prepared { inner })
+            .map_err(Into::into)
     }
 
-    /// Internal trusted-worker recovery only. The caller must first complete a
-    /// fresh Safe ReadIndex and `CellState::decode_bound`, and bind the target to
-    /// that same durable view. This is not a public user READ/export endpoint:
-    /// retained history can include other principals' data and original results.
-    /// The output is a full image for a NEW file, never permission to reopen a
-    /// pre-existing SQLite/WAL cache. Native fsync and integrity_check follow.
+    /// Requires a fresh Safe ReadIndex and decode_bound of the same durable
+    /// view. The resulting image is for a NEW execution file, never permission
+    /// to reopen an untrusted prior SQLite/WAL cache. Native fsync and
+    /// integrity_check remain separate requirements before activation.
     pub fn recover(
         state: &CellState,
         identity: EngineIdentity,
@@ -166,189 +103,53 @@ impl Image {
         expected: RecoveryTarget,
         limits: Limits,
     ) -> Result<Self, Error> {
-        let mut image = Self::empty(identity, limits)?;
+        let mut image = physical::Image::empty(identity, limits)?;
         if state.identity() != identity.cell || state.position() != expected.position {
             return Err(Error::Head);
         }
-        let history = state
-            .recovery_transactions(identity.database, admission)
+        let recovery = state
+            .recovery_source(identity.database, admission)
             .map_err(Error::Authorization)?;
-        // Successful recovery_transactions above proves this exact database
-        // exists. CellState's private, validated representation also binds the
-        // complete ordered history to revision and the cell commit-hash chain.
+        // Successful recovery_source proves the exact database exists, and
+        // CellState validates its base anchor and contiguous physical tail
+        // against the complete retained commit/result chain.
         let database = state.database(identity.database.database_id).unwrap();
         if database.revision != expected.revision || database.commit_hash != expected.commit_hash {
             return Err(Error::Head);
         }
-        for transaction in history {
+        if let Some(base) = recovery.base {
+            image = physical::Image::from_snapshot(
+                physical::Snapshot {
+                    head: Head {
+                        identity,
+                        revision: base.revision,
+                        image_digest: base.image_digest,
+                    },
+                    bytes: base.bytes.clone(),
+                },
+                limits,
+            )?;
+        }
+        for transaction in recovery.tail {
             image = image.replay(&transaction.commit.receipt, &transaction.physical_changes)?;
         }
-        Ok(image)
-    }
-
-    fn validate_ticket(&self, ticket: &CommitTicket) -> Result<(), Error> {
-        let identity = self.head.identity;
-        if ticket.cell_id != identity.cell.cell_id
-            || ticket.cell_incarnation != identity.cell.cell_incarnation
-            || ticket.database_id != identity.database.database_id
-            || ticket.incarnation != identity.database.incarnation
-            || ticket.placement_generation != identity.database.placement_generation
-            || ticket.predecessor != self.head.revision
-            || ticket.owner_epoch == 0
-            || ticket.worker_instance_id == 0
-            || ticket.auth_epoch == 0
-            || ticket.request_id == 0
-        {
-            return Err(Error::Ticket);
-        }
-        Ok(())
-    }
-
-    fn apply_batch(&self, batch: &PageBatch) -> Result<Self, Error> {
-        let count = batch.pages.len();
-        if batch.size_after > self.limits.max_database_pages
-            || count > self.limits.max_changed_pages as usize
-            || HEADER_SIZE + count * (4 + PAGE_SIZE) > self.limits.max_transaction_bytes as usize
-        {
-            return Err(Error::TooLarge);
-        }
-        let base_pages = self.bytes.len() / PAGE_SIZE;
-        if count == 0 && batch.size_after as usize != base_pages {
-            return Err(Error::MissingPage);
-        }
-        let mut previous = 0;
-        let mut next_new = base_pages + 1;
-        for page in &batch.pages {
-            if page.number == 0 || page.number > batch.size_after || page.bytes.len() != PAGE_SIZE {
-                return Err(Error::Malformed);
-            }
-            if page.number <= previous {
-                return Err(Error::PageOrder);
-            }
-            previous = page.number;
-            if page.number as usize > base_pages {
-                if page.number as usize != next_new {
-                    return Err(Error::MissingPage);
-                }
-                next_new += 1;
-            }
-        }
-        if batch.size_after as usize > base_pages && next_new != batch.size_after as usize + 1 {
-            return Err(Error::MissingPage);
-        }
-        let revision = self.head.revision.checked_add(1).ok_or(Error::Exhausted)?;
-        let mut bytes = self.bytes.clone();
-        bytes.resize(batch.size_after as usize * PAGE_SIZE, 0);
-        for page in &batch.pages {
-            let offset = (page.number as usize - 1) * PAGE_SIZE;
-            bytes[offset..offset + PAGE_SIZE].copy_from_slice(&page.bytes);
-        }
-        if !bytes.is_empty() && (&bytes[..16] != SQLITE_MAGIC || bytes[16..18] != [0x10, 0]) {
-            return Err(Error::SqliteHeader);
-        }
-        Ok(Self {
-            head: Head {
-                identity: self.head.identity,
-                revision,
-                image_digest: digest(&bytes),
-            },
-            bytes,
-            limits: self.limits,
-        })
-    }
-
-    fn encode(&self, batch: &PageBatch, image_digest: [u8; 32]) -> Vec<u8> {
-        let identity = self.head.identity;
-        let mut bytes = Vec::with_capacity(HEADER_SIZE + batch.pages.len() * (4 + PAGE_SIZE));
-        bytes.extend_from_slice(MAGIC);
-        bytes.extend_from_slice(&1_u32.to_le_bytes());
-        bytes.extend_from_slice(&(PAGE_SIZE as u32).to_le_bytes());
-        bytes.extend_from_slice(&identity.cell.cell_id.to_le_bytes());
-        bytes.extend_from_slice(&identity.cell.cell_incarnation.to_le_bytes());
-        bytes.extend_from_slice(&identity.database.database_id.to_le_bytes());
-        bytes.extend_from_slice(&identity.database.incarnation.to_le_bytes());
-        bytes.extend_from_slice(&identity.database.placement_generation.to_le_bytes());
-        bytes.extend_from_slice(&self.head.revision.to_le_bytes());
-        bytes.extend_from_slice(&self.head.image_digest);
-        bytes.extend_from_slice(&image_digest);
-        bytes.extend_from_slice(&batch.size_after.to_le_bytes());
-        bytes.extend_from_slice(&(batch.pages.len() as u32).to_le_bytes());
-        for page in &batch.pages {
-            bytes.extend_from_slice(&page.number.to_le_bytes());
-            bytes.extend_from_slice(&page.bytes);
-        }
-        bytes
-    }
-
-    fn replay(&self, receipt: &CommitReceipt, changes: &[u8]) -> Result<Self, Error> {
-        self.validate_ticket(&receipt.ticket)?;
-        if self.head.revision.checked_add(1) != Some(receipt.sequence) {
-            return Err(Error::Receipt);
-        }
-        if changes.len() < HEADER_SIZE || changes.len() > self.limits.max_transaction_bytes as usize
-        {
-            return Err(Error::TooLarge);
-        }
-        if digest(changes) != receipt.ticket.payload_digest {
-            return Err(Error::Integrity);
-        }
-        if &changes[..8] != MAGIC
-            || changes[8..12] != 1_u32.to_le_bytes()
-            || changes[12..16] != (PAGE_SIZE as u32).to_le_bytes()
-        {
-            return Err(Error::Malformed);
-        }
-        let identity = self.head.identity;
-        if changes[16..32] != identity.cell.cell_id.to_le_bytes()
-            || changes[32..40] != identity.cell.cell_incarnation.to_le_bytes()
-            || changes[40..56] != identity.database.database_id.to_le_bytes()
-            || changes[56..64] != identity.database.incarnation.to_le_bytes()
-            || changes[64..72] != identity.database.placement_generation.to_le_bytes()
-            || changes[72..80] != self.head.revision.to_le_bytes()
-            || changes[80..112] != self.head.image_digest
-        {
-            return Err(Error::Head);
-        }
-        let size_after = u32::from_le_bytes(changes[144..148].try_into().unwrap());
-        let count = u32::from_le_bytes(changes[148..152].try_into().unwrap()) as usize;
-        if count > self.limits.max_changed_pages as usize
-            || changes.len() != HEADER_SIZE + count * (4 + PAGE_SIZE)
-        {
-            return Err(Error::Malformed);
-        }
-        let pages = changes[HEADER_SIZE..]
-            .chunks_exact(4 + PAGE_SIZE)
-            .map(|record| PageChange {
-                number: u32::from_le_bytes(record[..4].try_into().unwrap()),
-                bytes: record[4..].to_vec(),
-            })
-            .collect();
-        let image = self.apply_batch(&PageBatch { size_after, pages })?;
-        if changes[112..144] != image.head.image_digest {
-            return Err(Error::Integrity);
-        }
-        Ok(image)
+        Ok(Self { inner: image })
     }
 }
 
 impl Prepared {
     pub fn write(&self) -> &PreparedWrite {
-        &self.write
+        self.inner.write()
     }
 
-    /// Validates an exact NEW acceptance and consumes the staged image. The
-    /// native owner may install it as its local head only after final SQLite
-    /// COMMIT success. A historical dedup hit must discard the entire Prepared.
+    /// Only a new, exact durable acceptance may publish these staged pages.
+    /// Historical deduplication must discard this Prepared and recover authority.
     pub fn accepted(self, receipt: &CommitReceipt) -> Result<Image, Error> {
-        if receipt.ticket != self.write.ticket || receipt.sequence != self.image.head.revision {
-            return Err(Error::Receipt);
-        }
-        Ok(self.image)
+        self.inner
+            .accepted(receipt)
+            .map(|inner| Image { inner })
+            .map_err(Into::into)
     }
-}
-
-fn digest(bytes: &[u8]) -> [u8; 32] {
-    Sha256::digest(bytes).into()
 }
 
 #[cfg(test)]

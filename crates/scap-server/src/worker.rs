@@ -111,6 +111,7 @@ pub(crate) struct Worker<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>>
     boot: u128,
     sequence: u64,
     term: u64,
+    history_active: bool,
     cursor: usize,
     writers: BTreeMap<u128, Slot<P, F::Engine>>,
     cache_failed: Arc<AtomicBool>,
@@ -150,6 +151,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             boot,
             sequence: 0,
             term: 0,
+            history_active: false,
             cursor: 0,
             writers: BTreeMap::new(),
             cache_failed: Arc::new(AtomicBool::new(false)),
@@ -206,9 +208,59 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
 
     fn state(&mut self, deadline: Instant) -> Result<scap_cell::CellState, ServiceError> {
         let context = self.admin(1, deadline)?;
-        let result = self.client.read(&context);
-        self.ready.store(result.is_ok(), Ordering::Release);
-        result.map_err(|_| failure("COMMIT_UNKNOWN"))
+        self.active_state(&context)
+    }
+
+    fn observe_history(
+        &mut self,
+        state: scap_cell::CellState,
+    ) -> Result<scap_cell::CellState, ServiceError> {
+        if state.physical_history_version() != 3 {
+            self.history_active = false;
+            self.writers.clear();
+            self.ready.store(false, Ordering::Release);
+            return Err(failure("COMMIT_UNKNOWN"));
+        }
+        // Activation is a monotonic, durable property of this fixed scope.
+        // Each new lane still proves it once before accepting any operation.
+        self.history_active = true;
+        self.ready.store(true, Ordering::Release);
+        Ok(state)
+    }
+
+    fn active_state(
+        &mut self,
+        context: &RequestContext,
+    ) -> Result<scap_cell::CellState, ServiceError> {
+        let state = self.client.read(context).map_err(|_| {
+            self.ready.store(false, Ordering::Release);
+            failure("COMMIT_UNKNOWN")
+        })?;
+        self.observe_history(state)
+    }
+
+    /// Only the catalogue upgrades a legacy application. Ordinary lanes refuse
+    /// phase 2; they cannot initiate migration through tenant requests.
+    fn activate_history(&mut self, deadline: Instant) -> Result<(), ServiceError> {
+        if self.history_active {
+            return Ok(());
+        }
+        self.ready.store(false, Ordering::Release);
+        let context = self.admin(1, deadline)?;
+        let state = self
+            .client
+            .read(&context)
+            .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+        if state.physical_history_version() != 3 {
+            self.client
+                .activate_history(&context)
+                .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+        }
+        // Either the fresh view was already active, or the client proved the
+        // exact applied entry and a subsequent phase-3 view under this budget.
+        self.history_active = true;
+        self.ready.store(true, Ordering::Release);
+        Ok(())
     }
 
     fn database(
@@ -383,6 +435,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
     /// Requests can independently schedule their own database between scans.
     pub(crate) fn scan(&mut self) -> Result<Option<DatabaseConfig>, ServiceError> {
         let (_, deadline) = self.begin_tick()?;
+        self.activate_history(deadline)?;
         let (database, view) = self.next_database(deadline)?;
         if !view.suspended {
             return Ok(Some(database));
@@ -473,6 +526,9 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             return Err(failure("COMMIT_UNKNOWN"));
         }
         self.leader(context.deadline)?;
+        if !self.history_active {
+            self.active_state(context)?;
+        }
         match request.operation {
             Operation::Status => {
                 let state = self
@@ -484,6 +540,9 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                     .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
                 Ok(Reply::Status(scap_service::DatabaseStatus {
                     revision: view.revision,
+                    base_revision: view.base_revision,
+                    tail_entries: view.tail_entries,
+                    tail_bytes: view.tail_bytes,
                     suspended: view.suspended,
                     cold: view.cold,
                     owner_active: view.active,

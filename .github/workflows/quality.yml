@@ -324,7 +324,7 @@ jobs:
           cargo +1.90.0 clippy --manifest-path experiments/sqlite-network/Cargo.toml --all-targets --locked -- -D warnings
       - name: Execute real SQL and mTLS process contracts separately
         run: cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
-      - name: Verify all eight SQLite network histories completed
+      - name: Verify all nine SQLite network histories completed
         run: |
           python3 - <<'PY'
           import os
@@ -332,13 +332,13 @@ jobs:
 
           directory = Path(os.environ["SCAP_SQL_NETWORK_EVIDENCE_DIR"])
           histories = sorted(directory.glob("*.log"))
-          if len(histories) != 8:
-              raise SystemExit(f"Expected eight SQL network histories, found {len(histories)}")
+          if len(histories) != 9:
+              raise SystemExit(f"Expected nine SQL network histories, found {len(histories)}")
           for history in histories:
               lines = history.read_text(encoding="utf-8").splitlines()
               if not lines or not lines[-1].endswith(" verification passed"):
                   raise SystemExit(f"Incomplete SQL network history: {history.name}")
-          print("Verified eight completed SQL network histories; test success is a separate gate.")
+          print("Verified nine completed SQL network histories; test success is a separate gate.")
           PY
       - name: Retain SQL commit and recovery histories
         if: always()
@@ -429,7 +429,7 @@ jobs:
   sqlite-service-probe:
     name: Real SQL service SDK S3 and automatic recovery
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
@@ -437,6 +437,8 @@ jobs:
       SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
       SCAP_SERVICE_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-service
       SCAP_MEMBERSHIP_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/membership-network
+      SCAP_HISTORY_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/history-network
+      SCAP_OLD_SERVER_SOURCE_COMMIT: 662f04133f6a869d0dae5b05467656e6deca5c12
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -449,6 +451,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libclang-18-dev
           rustup toolchain install 1.90.0 --profile minimal
+      - name: Check out the exact V2 producer for the disk upgrade contract
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 662f04133f6a869d0dae5b05467656e6deca5c12
+          path: target/legacy-server-source
+          persist-credentials: false
+      - name: Build and freeze the old production binary before the current build
+        run: |
+          test "$(git -C target/legacy-server-source rev-parse HEAD)" = "$SCAP_OLD_SERVER_SOURCE_COMMIT"
+          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo +1.90.0 build --manifest-path target/legacy-server-source/Cargo.toml --release -p scap-server --locked
+          cp target/release/scap-server "$RUNNER_TEMP/scap-history-old-server"
+          chmod 0555 "$RUNNER_TEMP/scap-history-old-server"
+          printf '%s\n' "SCAP_OLD_SERVER_BIN=$RUNNER_TEMP/scap-history-old-server" >> "$GITHUB_ENV"
+          printf 'SCAP_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-history-old-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
       - name: Build the production release binary and real SDK
         run: |
           cargo +1.90.0 build --release -p scap-server --locked
@@ -567,6 +583,11 @@ jobs:
                   raise SystemExit(f"Failed membership history: {name}")
           print("Learner, joint restart, replacement quorum and ACK retention verified locally.")
           PY
+      - name: Execute real V2 upgrade and bounded physical history contracts
+        run: |
+          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
+          node experiments/history-network/run.mjs
+          python3 experiments/history-network/check_evidence.py "$SCAP_HISTORY_EVIDENCE_DIR"
       - name: Retain all service outcomes and local measurement samples
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -575,4 +596,5 @@ jobs:
           path: |
             target/evidence/sqlite-service
             target/evidence/membership-network
+            target/evidence/history-network
           if-no-files-found: warn

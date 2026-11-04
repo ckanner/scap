@@ -120,6 +120,19 @@ fn bootstrap() -> CellState {
 }
 
 fn apply_bytes(state: &mut CellState, data: Vec<u8>) -> AppliedOutcome {
+    let result = apply_raw(state, data);
+    scap_cell::decode_applied_outcome(
+        &result.data,
+        Position {
+            term: result.term,
+            index: result.index,
+        },
+    )
+    .unwrap()
+}
+
+fn apply_raw(state: &mut CellState, data: Vec<u8>) -> ProposalResult {
+    let cell = state.identity();
     let position = Position {
         term: state.position().term,
         index: state.position().index + 1,
@@ -130,12 +143,20 @@ fn apply_bytes(state: &mut CellState, data: Vec<u8>) -> AppliedOutcome {
         data: data.into(),
         ..Entry::default()
     };
-    let batch = CellApplication::new(cell(), limits())
+    let batch = CellApplication::new(cell, limits())
         .unwrap()
         .apply_with_results(&state.encode(), &[entry], &[position.index])
         .unwrap();
-    *state = CellState::decode_bound(&batch.state, cell(), position, limits()).unwrap();
-    scap_cell::decode_applied_outcome(&batch.results[0], position).unwrap()
+    *state = CellState::decode_bound(&batch.state, cell, position, limits()).unwrap();
+    ProposalResult {
+        ticket: ProposalTicket {
+            boot_id: 90,
+            sequence: 1,
+        },
+        index: position.index,
+        term: position.term,
+        data: batch.results.into_iter().next().unwrap(),
+    }
 }
 
 fn apply(state: &mut CellState, kind: CommandKind) -> AppliedOutcome {
@@ -340,7 +361,7 @@ impl CellPort for Port {
             let result = state
                 .proposals
                 .pop_front()
-                .unwrap_or_else(|| Ok(reply(apply_bytes(&mut state.state, data))));
+                .unwrap_or_else(|| Ok(apply_raw(&mut state.state, data)));
             (result, state.after_proposal.take())
         };
         if let Some(hook) = hook {
@@ -579,6 +600,179 @@ fn deadline_expiring_during_command_encoding_does_not_admit_a_late_proposal() {
         Err(Error::Unknown)
     );
     assert!(port.0.borrow().sent.is_empty());
+}
+
+#[test]
+fn history_activation_requires_exact_durable_completion_and_a_fresh_active_view() {
+    let (mut client, port, _, context) = build();
+    port.0.borrow_mut().state =
+        CellState::bootstrap_legacy(cell(), 11, Position { term: 1, index: 1 }, limits()).unwrap();
+    assert_eq!(port.0.borrow().state.physical_history_version(), 2);
+    let activated = client.activate_history(&context).unwrap();
+    assert_eq!(activated.physical_history_version(), 3);
+    assert_eq!(activated.position(), Position { term: 1, index: 2 });
+    assert_eq!(activated.encode(), port.0.borrow().state.encode());
+    assert_eq!(port.0.borrow().read_calls, 1);
+    assert_eq!(
+        port.0.borrow().sent,
+        vec![scap_cell::encode_history_activation(cell(), 11)]
+    );
+    // An explicit repeated internal entry is idempotent, but its own tracked
+    // result and fresh barrier are still required; it is not an HTTP retry.
+    let repeated = client.activate_history(&context).unwrap();
+    assert_eq!(repeated.physical_history_version(), 3);
+    assert_eq!(repeated.position().index, 3);
+    let held = port.0.borrow();
+    assert_eq!(held.read_calls, 2);
+    assert_eq!(held.sent.len(), 2);
+    assert!(held
+        .deadlines
+        .iter()
+        .all(|deadline| *deadline == context.deadline));
+    assert!(held
+        .cancel_pointers
+        .iter()
+        .all(|pointer| *pointer == Arc::as_ptr(&context.cancelled) as usize));
+}
+
+#[test]
+fn history_activation_never_accepts_admission_rejection_or_mismatched_results() {
+    let legacy =
+        CellState::bootstrap_legacy(cell(), 11, Position { term: 1, index: 1 }, limits()).unwrap();
+    let valid = apply_raw(
+        &mut legacy.clone(),
+        scap_cell::encode_history_activation(cell(), 11),
+    );
+    let (mut client, port, _, mut context) = build();
+    port.0.borrow_mut().state = legacy.clone();
+    for field in 0..7 {
+        let mut result = valid.clone();
+        match field {
+            0 => result.ticket.boot_id = 0,
+            1 => result.ticket.sequence = 0,
+            2 => result.data.clear(),
+            3 => result.index += 1,
+            4 => result.term += 1,
+            5 => result.index = 0,
+            _ => result.term = 0,
+        }
+        port.0.borrow_mut().proposals.push_back(Ok(result));
+        assert!(matches!(
+            client.activate_history(&context),
+            Err(Error::Unknown)
+        ));
+    }
+    for error in [RuntimeError::Unknown, RuntimeError::NotLeader] {
+        port.0.borrow_mut().proposals.push_back(Err(error));
+        assert!(matches!(
+            client.activate_history(&context),
+            Err(Error::Unknown)
+        ));
+    }
+    let other_cell = CellIdentity {
+        cell_incarnation: 31,
+        ..cell()
+    };
+    let mut other =
+        CellState::bootstrap_legacy(other_cell, 11, Position { term: 1, index: 1 }, limits())
+            .unwrap();
+    let wrong_scope = apply_raw(
+        &mut other,
+        scap_cell::encode_history_activation(other_cell, 11),
+    );
+    port.0.borrow_mut().proposals.push_back(Ok(wrong_scope));
+    assert!(matches!(
+        client.activate_history(&context),
+        Err(Error::Unknown)
+    ));
+    // The real state machine rejects another principal, even though this is
+    // an internal API and that principal could otherwise have tenant rights.
+    context.admission.principal_id = 22;
+    assert!(matches!(
+        client.activate_history(&context),
+        Err(Error::Unknown)
+    ));
+    let held = port.0.borrow();
+    assert_eq!(held.state.physical_history_version(), 2);
+    assert_eq!(held.read_calls, 0);
+    assert_eq!(held.state.position().index, 2);
+}
+
+#[test]
+fn history_activation_stale_or_unavailable_confirmation_is_unknown_after_apply() {
+    for stale in [
+        CellState::bootstrap_legacy(cell(), 11, Position { term: 2, index: 6 }, limits()).unwrap(),
+        CellState::bootstrap(cell(), 11, Position { term: 2, index: 5 }, limits()).unwrap(),
+        CellState::bootstrap(cell(), 11, Position { term: 1, index: 6 }, limits()).unwrap(),
+    ] {
+        let (mut client, port, _, context) = build();
+        port.0.borrow_mut().state =
+            CellState::bootstrap_legacy(cell(), 11, Position { term: 2, index: 5 }, limits())
+                .unwrap();
+        port.0.borrow_mut().reads.push_back(Ok(view(&stale)));
+        assert!(matches!(
+            client.activate_history(&context),
+            Err(Error::Unknown)
+        ));
+        assert_eq!(port.0.borrow().state.physical_history_version(), 3);
+        assert_eq!(port.0.borrow().sent.len(), 1);
+        // A separate fresh query can confirm the durable transition without
+        // repeating the proposal or replacing the original deadline.
+        assert_eq!(
+            client.read(&context).unwrap().position(),
+            Position { term: 2, index: 6 }
+        );
+        assert_eq!(port.0.borrow().sent.len(), 1);
+    }
+    let (mut client, port, _, context) = build();
+    port.0
+        .borrow_mut()
+        .reads
+        .push_back(Err(RuntimeError::Unknown));
+    assert!(matches!(
+        client.activate_history(&context),
+        Err(Error::Unknown)
+    ));
+    assert_eq!(port.0.borrow().sent.len(), 1);
+    assert_eq!(port.0.borrow().read_calls, 1);
+}
+
+#[test]
+fn history_activation_preserves_cancellation_and_deadline_at_every_wait() {
+    for expire_on_check in 1..=2 {
+        let (mut client, port, clock, context) = build();
+        clock.expire_on_call.store(
+            clock.calls.load(Ordering::Acquire) + expire_on_check,
+            Ordering::Release,
+        );
+        assert!(matches!(
+            client.activate_history(&context),
+            Err(Error::Unknown)
+        ));
+        assert!(port.0.borrow().sent.is_empty());
+    }
+    for after_read in [false, true] {
+        let (mut client, port, _, context) = build();
+        port.0.borrow_mut().state =
+            CellState::bootstrap_legacy(cell(), 11, Position { term: 1, index: 1 }, limits())
+                .unwrap();
+        let cancelled = context.cancelled.clone();
+        let hook: Box<dyn FnOnce()> = Box::new(move || cancelled.store(true, Ordering::Release));
+        if after_read {
+            port.0.borrow_mut().after_read = Some(hook);
+        } else {
+            port.0.borrow_mut().after_proposal = Some(hook);
+        }
+        assert!(matches!(
+            client.activate_history(&context),
+            Err(Error::Unknown)
+        ));
+        assert_eq!(port.0.borrow().state.physical_history_version(), 3);
+        assert_eq!(port.0.borrow().read_calls, usize::from(after_read));
+        assert_eq!(port.0.borrow().sent.len(), 1);
+        context.cancelled.store(false, Ordering::Release);
+        assert_eq!(client.read(&context).unwrap().physical_history_version(), 3);
+    }
 }
 
 #[test]
@@ -975,6 +1169,123 @@ fn duplicate_after_preflight_fetches_original_result_from_a_fresh_authorized_vie
         .deadlines
         .iter()
         .all(|deadline| deadline == &context.deadline));
+}
+
+#[test]
+fn folded_physical_prefix_keeps_exact_results_cancellation_and_current_authority() {
+    use scap_core::physical::{EngineIdentity, Image, PageBatch};
+
+    let (mut gate, _guard, port, _, context) = prepared_gate();
+    let mut image = Image::empty(
+        EngineIdentity {
+            cell: cell(),
+            database: db(),
+        },
+        scap_core::physical::Limits {
+            max_database_pages: 1,
+            max_changed_pages: 1,
+            max_transaction_bytes: limits().max_transaction_bytes,
+        },
+    )
+    .unwrap();
+    let mut original = None;
+    {
+        let state = &mut port.0.borrow_mut().state;
+        apply(
+            state,
+            CommandKind::ResolveOrCancel {
+                request_id: 500,
+                request_fingerprint: [5; 32],
+            },
+        );
+        for sequence in 1..=9 {
+            let prepared = image
+                .prepare(
+                    CommitTicket {
+                        request_id: if sequence == 1 { 88 } else { 88 + sequence },
+                        predecessor: sequence as u64 - 1,
+                        ..ticket()
+                    },
+                    PageBatch {
+                        size_after: 0,
+                        pages: vec![],
+                    },
+                )
+                .unwrap();
+            let applied = apply(
+                state,
+                CommandKind::Commit {
+                    write: prepared.write().clone(),
+                    request_fingerprint: FINGERPRINT,
+                    result: ORIGINAL_RESULT.to_vec(),
+                },
+            );
+            let Outcome::Accepted(commit) = applied.outcome else {
+                panic!("valid physical transition rejected");
+            };
+            image = prepared.accepted(&commit.receipt).unwrap();
+            if sequence == 1 {
+                original = Some(commit);
+            }
+        }
+        let source = state.recovery_source(db(), admission()).unwrap();
+        assert_eq!(source.base.unwrap().revision, 8);
+        assert_eq!(source.tail.len(), 1);
+        assert_eq!(source.tail[0].commit.receipt.sequence, 9);
+        assert!(matches!(
+            state.lookup(db(), admission(), 500, [5; 32]).unwrap(),
+            Lookup::Cancelled { .. }
+        ));
+    }
+    let original = original.unwrap();
+    let GateDecision::AlreadyCommitted { receipt, result } = gate.propose(
+        &write(),
+        FINGERPRINT,
+        b"must never replace the stored result",
+    ) else {
+        panic!("historical completion must survive physical folding");
+    };
+    assert_eq!(receipt, original.receipt);
+    assert_eq!(result, ORIGINAL_RESULT);
+    assert_eq!(
+        port.0
+            .borrow()
+            .state
+            .database(db().database_id)
+            .unwrap()
+            .revision,
+        9
+    );
+
+    apply(
+        &mut port.0.borrow_mut().state,
+        CommandKind::AuthFence {
+            operation_id: 20,
+            expected_epoch: 1,
+            policy: policy(),
+        },
+    );
+    let mut shared = gate.shared.borrow_mut();
+    assert_eq!(
+        shared
+            .client
+            .history(&context, &ticket(), FINGERPRINT, &original),
+        Err(Error::Unknown)
+    );
+    let mut current = context;
+    current.admission.auth_epoch = 2;
+    assert_eq!(
+        shared
+            .client
+            .history(&current, &ticket(), FINGERPRINT, &original),
+        Ok(ORIGINAL_RESULT.to_vec())
+    );
+    assert_eq!(
+        shared
+            .client
+            .history(&current, &ticket(), [8; 32], &original),
+        Err(Error::Unknown)
+    );
 }
 
 #[test]

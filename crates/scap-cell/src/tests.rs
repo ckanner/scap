@@ -1,5 +1,33 @@
 use super::*;
 
+mod activation;
+mod history;
+
+fn apply_activation(state: &mut CellState, data: Vec<u8>) -> HistoryActivationOutcome {
+    let position = Position {
+        term: state.position.term,
+        index: state.position.index + 1,
+    };
+    let entry = Entry {
+        term: position.term,
+        index: position.index,
+        data: data.into(),
+        ..Entry::default()
+    };
+    let batch = CellApplication::new(state.identity, state.limits)
+        .unwrap()
+        .apply_with_results(&state.encode(), &[entry], &[position.index])
+        .unwrap();
+    *state = CellState::decode_bound(&batch.state, state.identity, position, state.limits).unwrap();
+    assert_eq!(batch.results.len(), 1);
+    decode_history_activation_outcome(&batch.results[0], state.identity, position).unwrap()
+}
+
+fn activate_history(state: &mut CellState) -> HistoryActivationOutcome {
+    let data = encode_history_activation(state.identity, state.bootstrap_admin);
+    apply_activation(state, data)
+}
+
 fn suspend(state: &CellState, id: u128) -> Command {
     let view = state.database(database().database_id).unwrap();
     command(CommandKind::SuspendDb {
@@ -39,7 +67,8 @@ fn cold_archive_roundtrip_preserves_receipts_results_cancel_and_revokes_writer()
         .lookup(database(), admission(), request(1), [1; 32])
         .unwrap();
     let history = state
-        .recovery_transactions(database(), admission())
+        .recovery_source(database(), admission())
+        .map(|source| source.tail)
         .unwrap()
         .to_vec();
     let (mut state, archive, bytes) = published(state);
@@ -87,7 +116,9 @@ fn cold_archive_roundtrip_preserves_receipts_results_cancel_and_revokes_writer()
         Ok(Lookup::Cancelled { .. })
     ));
     assert_eq!(
-        state.recovery_transactions(database(), admission()),
+        state
+            .recovery_source(database(), admission())
+            .map(|source| source.tail),
         Err(Reject::Cold)
     );
     assert_eq!(
@@ -120,7 +151,8 @@ fn cold_archive_roundtrip_preserves_receipts_results_cancel_and_revokes_writer()
     );
     assert_eq!(
         state
-            .recovery_transactions(database(), admission())
+            .recovery_source(database(), admission())
+            .map(|source| source.tail)
             .unwrap(),
         history
     );
@@ -387,7 +419,7 @@ fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwritin
             6 => target.identity.incarnation += 1,
             _ => target.identity.placement_generation += 1,
         }
-        assert!(codec::decode_archive(&bytes, identity(), &target, archive, limits()).is_err());
+        assert!(codec::decode_archive(&bytes, identity(), &target, archive, limits(), 3).is_err());
     }
     assert!(codec::decode_archive(
         &bytes,
@@ -397,7 +429,8 @@ fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwritin
         },
         &state.databases[&database().database_id],
         archive,
-        limits()
+        limits(),
+        3
     )
     .is_err());
     let mut wrong_ref = archive;
@@ -407,7 +440,8 @@ fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwritin
         identity(),
         &state.databases[&database().database_id],
         wrong_ref,
-        limits()
+        limits(),
+        3
     )
     .is_err());
     let mut changed = state.clone();
@@ -434,7 +468,8 @@ fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwritin
             identity(),
             &state.databases[&database().database_id],
             archive,
-            limits()
+            limits(),
+            3
         )
         .is_err());
     }
@@ -444,7 +479,8 @@ fn hydrate_rejects_unpublished_damaged_or_cross_scope_archive_without_overwritin
         identity(),
         &state.databases[&database().database_id],
         archive,
-        limits()
+        limits(),
+        3
     )
     .is_err());
 }
@@ -455,19 +491,46 @@ fn v1_hot_state_and_old_commands_upgrade_explicitly_without_cold_defaults() {
         let mut template = state.encode();
         template[8] = 1;
         let mut bytes = body(&template).to_vec();
-        // v2 adds three flags for this unarchived database immediately before
-        // the administrative count. All original hashes stay unchanged.
-        let extension = unique_offset(&bytes, &operation(1).to_be_bytes()) - 8 - 3;
-        assert_eq!(&bytes[extension..extension + 3], &[0, 0, 0]);
-        bytes.drain(extension..extension + 3);
+        // v2 adds three lifecycle flags; v3 adds the absent-base flag.
+        // This synthetic v1 decoder case preserves all original logical hashes.
+        let extension = unique_offset(&bytes, &operation(1).to_be_bytes()) - 8 - 4;
+        assert_eq!(&bytes[extension..extension + 4], &[0, 0, 0, 0]);
+        bytes.drain(extension..extension + 4);
         envelope(&template, &bytes)
     }
     let original = rich();
     let legacy = legacy_state(&original);
     let decoded =
         CellState::decode_bound(&legacy, identity(), original.position, limits()).unwrap();
-    assert_eq!(decoded, original);
+    assert_eq!(decoded.position, original.position);
+    assert_eq!(decoded.administration, original.administration);
+    assert_eq!(decoded.last_outcome, original.last_outcome);
+    let prior = &original.databases[&database().database_id];
+    let migrated = &decoded.databases[&database().database_id];
+    assert_eq!(migrated.requests, prior.requests);
+    assert_eq!(
+        codec::archive_metadata(migrated),
+        codec::archive_metadata(prior)
+    );
+    assert!(migrated.base.is_none());
+    assert_eq!(migrated.transactions, prior.transactions);
     assert_eq!(decoded.encode()[8], 2);
+    assert_eq!(decoded.physical_history_version(), 2);
+    // The v1 envelope may fit exactly while the three lifecycle flags required
+    // by its v2 representation do not. Decoding must not silently expand the
+    // replicated state budget merely to adopt those defaults.
+    let mut exact_budget = original.clone();
+    exact_budget.limits.max_state_bytes =
+        (codec::encode_state(&exact_budget, false).len() - 4 + RESERVED_BYTES) as u32;
+    assert_eq!(
+        CellState::decode_bound(
+            &legacy_state(&exact_budget),
+            identity(),
+            exact_budget.position,
+            exact_budget.limits,
+        ),
+        Err(Error::Limit)
+    );
     // v2 envelope headers do not change the existing administrative intent
     // bytes: old durable IDs must still resolve after an upgrade.
     let mut replayed = decoded.clone();
@@ -644,7 +707,8 @@ fn v1_hot_state_and_old_commands_upgrade_explicitly_without_cold_defaults() {
         identity(),
         &state.databases[&database().database_id],
         archive,
-        limits()
+        limits(),
+        3
     )
     .is_err());
 }
@@ -705,9 +769,9 @@ fn cold_snapshot_rejects_partial_payload_and_broken_reference_or_metadata() {
             1 => source.transactions[0].physical_changes[0] ^= 1,
             _ => source.transactions[0].commit_hash = [42; 32],
         }
-        let bytes = codec::encode_archive(identity(), &source, archive.source);
+        let bytes = codec::encode_archive(identity(), &source, archive.source, 3);
         let retained = if index == 2 { &source } else { target };
-        assert!(codec::decode_archive(&bytes, identity(), retained, archive, limits()).is_err());
+        assert!(codec::decode_archive(&bytes, identity(), retained, archive, limits(), 3).is_err());
     }
     let mut damaged = state.clone();
     damaged
@@ -753,7 +817,7 @@ fn lifecycle_codec_truncation_and_ordering_guards_cover_full_archive_and_outcome
     apply(&mut state, &write(1, 0));
     let (state, archive, bytes) = published(state);
     let db = &state.databases[&database().database_id];
-    assert!(codec::decode_archive(&[], identity(), db, archive, limits()).is_err());
+    assert!(codec::decode_archive(&[], identity(), db, archive, limits(), 3).is_err());
     for end in 0..body(&state.encode()).len() {
         let image = state.encode();
         assert!(CellState::decode_bound(
@@ -1189,24 +1253,45 @@ fn cancel(id: u128) -> Command {
     })
 }
 fn write(id: u128, predecessor: u64) -> Command {
-    let physical_changes = vec![0, 255, id as u8, 42];
-    command(CommandKind::Commit {
-        write: PreparedWrite {
-            ticket: CommitTicket {
-                cell_id: identity().cell_id,
-                cell_incarnation: identity().cell_incarnation,
-                database_id: database().database_id,
-                incarnation: database().incarnation,
-                placement_generation: database().placement_generation,
+    let identity = physical::EngineIdentity {
+        cell: identity(),
+        database: database(),
+    };
+    let image = physical::Image::from_snapshot(
+        physical::Snapshot {
+            head: physical::Head {
+                identity,
+                revision: predecessor,
+                image_digest: payload_digest(&[]),
+            },
+            bytes: Vec::new(),
+        },
+        physical_limits(limits()),
+    )
+    .unwrap();
+    let prepared = image
+        .prepare(
+            CommitTicket {
+                cell_id: identity.cell.cell_id,
+                cell_incarnation: identity.cell.cell_incarnation,
+                database_id: identity.database.database_id,
+                incarnation: identity.database.incarnation,
+                placement_generation: identity.database.placement_generation,
                 owner_epoch: 1,
                 worker_instance_id: WORKER,
                 auth_epoch: 1,
                 request_id: request(id),
                 predecessor,
-                payload_digest: payload_digest(&physical_changes),
+                payload_digest: [0; 32],
             },
-            physical_changes,
-        },
+            physical::PageBatch {
+                size_after: 0,
+                pages: Vec::new(),
+            },
+        )
+        .unwrap();
+    command(CommandKind::Commit {
+        write: prepared.write().clone(),
         request_fingerprint: [id as u8; 32],
         result: vec![id as u8, 0, 255],
     })
@@ -1626,17 +1711,19 @@ fn physical_acceptance_rejection_and_original_result_identity() {
     );
     assert_eq!(
         state
-            .recovery_transactions(database(), admission())
+            .recovery_source(database(), admission())
+            .map(|source| source.tail)
             .unwrap()
             .len(),
         1
     );
     assert_eq!(
         state
-            .recovery_transactions(database(), admission())
+            .recovery_source(database(), admission())
+            .map(|source| source.tail)
             .unwrap()[0]
             .physical_changes,
-        vec![0, 255, 1, 42]
+        commit_parts(&mut cmd.clone()).0.physical_changes.clone()
     );
     assert_eq!(
         state
@@ -1762,7 +1849,8 @@ fn auth_fence_rechecks_current_permission_before_historical_results() {
         Err(Reject::Unauthorized)
     );
     assert!(state
-        .recovery_transactions(database(), admission())
+        .recovery_source(database(), admission())
+        .map(|source| source.tail)
         .is_err());
     assert!(state
         .authorize_read(
@@ -2064,7 +2152,8 @@ fn snapshot_contains_all_physical_bytes_results_fences_and_read_authority() {
     assert_eq!(view.database.revision, 2);
     assert_ne!(view.database.commit_hash, [0; 32]);
     let transactions = reopened
-        .recovery_transactions(database(), current_admission(2))
+        .recovery_source(database(), current_admission(2))
+        .map(|source| source.tail)
         .unwrap();
     assert_eq!(transactions.len(), 2);
     assert_eq!(transactions[1].result, vec![2, 0, 255]);

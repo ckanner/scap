@@ -14,7 +14,7 @@
 
 已有组必须走 `open_existing`，不能因业务状态 decode 失败重新 bootstrap。Store 格式继续为既有 v1；新增非空应用初始化不改变已有空应用数据的表示。
 
-业务状态和命令使用分别标识的版本化二进制 envelope：`SCAPCELL` / `SCAPCMD!`、版本 1、明确长度与 SHA-256。状态包含 cell 身份、完整限额、bootstrap 管理员、应用位置、数据库元数据、管理操作记录、接受的事务与取消 fence。格式校验与一致性校验都须通过；SHA-256 是损坏检测，不是认证或外部回滚防护。
+业务状态和命令使用分别标识的版本化二进制 envelope：`SCAPCELL` / `SCAPCMD!`、明确长度与 SHA-256。初始版本为 1；已激活状态写入 v3，未激活的 phase 2 状态仍写入 v2，命令仍写入 v2，升级规则见本页后续章节。状态包含 cell 身份、完整限额、bootstrap 管理员、应用位置、数据库元数据、管理操作记录、接受的事务与取消 fence。格式校验与一致性校验都须通过；SHA-256 是损坏检测，不是认证或外部回滚防护。
 
 恢复使用 `decode_bound(bytes, cell_identity, position, limits)`，必须匹配**同一个外层 Store 持久视图**的 term/index。snapshot-only Ready 不调用业务 `apply`，所以快照安装后也不能跳过这项读取校验。应用内旧水位不能借用外层较新的 applied 对外授权。
 
@@ -39,7 +39,7 @@
 
 原始准入标识随接受事务、取消 fence 和管理记录保留；不保存可直接使用的秘密凭据。重复请求使用新的合法准入进行检查，但不能覆盖历史记录的原始准入身份。
 
-bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录和更细粒度权限模型尚未实现。当前 HTTP 服务验证静态 token 的 SHA256 映射，每次操作仍按复制状态的当前 policy/auth_epoch 判定；不把本模块的 Admission 当作可由用户提供的凭证。内部 `database` 检查不能直接暴露为未受保护的用户 API。`recovery_transactions` 包含整库物理内容及各主体的原事务结果/元数据，即使用户具有 READ 权限也不能作为用户导出接口；它只供可信内部 worker 在绑定经过验证的恢复身份后调用。
+bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录和更细粒度权限模型尚未实现。当前 HTTP 服务验证静态 token 的 SHA256 映射，每次操作仍按复制状态的当前 policy/auth_epoch 判定；不把本模块的 Admission 当作可由用户提供的凭证。内部 `database` 检查不能直接暴露为未受保护的用户 API。`recovery_source` 包含整库物理基线、tail 及各主体的事务元数据，即使用户具有 READ 权限也不能作为用户导出接口；它只供可信内部 worker 在绑定经过验证的恢复身份后调用。原结果查询使用独立 Lookup，不能因物理前缀已折叠就报告结果缺失。
 
 ## 4. 所有权与激活
 
@@ -72,7 +72,7 @@ bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录
 
 普通 Rejected 只裁决该 term/index 对应的这一次命令，不自动建立永久请求取消 fence。状态变化之后，同 ID 的另一条提案仍须按当时规则判定；若要保证迟到重提以后也不能接受，必须完成 `ResolveOrCancel`，不能将一次拒绝扩大解释为永久取消。
 
-该模块目前把物理事务作为有界 opaque bytes 保存并校验摘要。SQLite page format、引擎配置、正确基线、精确快照和 native publish 仍由引擎适配层验证，不能把摘要匹配理解为 SQL 语义已通过验证。
+普通 Commit 继续先把物理事务作为有界 opaque bytes 校验摘要；达到 v3 折叠阈值时，用正式共享物理算法验证并折叠整个 tail，失败则原子拒绝候选。SQLite 的 native 执行与 publication 仍由引擎适配层负责，不能把摘要匹配或生成基线理解为 native 提交已完成。
 
 ## 6. UNKNOWN、取消与结果观察
 
@@ -102,6 +102,14 @@ bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录
 
 ## 后续 v2 冷生命周期（2026-11-02）
 
-`SCAPCELL` 与 `SCAPCMD!` 当前写入 version 2；Store、SCAPIMG、SCAPRES 与逐 entry outcome 的版本没有因此自动改变。v2 接受相同 identity/持久化 limits 下合法的 v1 数据和旧命令，旧行政 intent digest 不依赖 envelope version，因此合法重试仍是 AlreadyApplied。当前没有反向降级、混版本滚动协议或自动 limits 迁移。
+本阶段曾将 `SCAPCELL` 与 `SCAPCMD!` 升到 version 2；后续 v3 状态升级见下节。v2 接受相同 identity/持久化 limits 下合法的 v1 数据和旧命令，旧行政 intent digest 不依赖 envelope version，因此合法重试仍是 AlreadyApplied。没有反向降级、混版本滚动协议或自动 limits 迁移。
 
 Suspend 撤销 owner/active 权限，PublishArchive 记录精确物理 head、对象与元数据摘要；PruneArchive 必须匹配发布的精确 head 和 expected_owner，且对象可以在当前 command 上限内完整 Hydrate，才裁剪物理 payload。权限、结果、取消和行政记录不裁剪。Hydrate 按已发布摘要验证所有内容，不替换当前权威元数据。后台旧任务不能在 wake→suspend 换 owner 后裁剪新世代。实现、边界和真实故障合同以 [正式服务](sqlite-service.md)为准。
+
+## 后续 v3 物理历史（2026-11-04）
+
+[ADR-0017](../adr/0017-bounded-physical-history.md)将恢复材料分为 quorum 持久基线与连续有限 tail。每次 Commit 的候选 tail 达到 8 条或 `min(max_state_bytes / 4, max_transaction_bytes * 4)` bytes 时，使用 `scap_core::physical` 的同一个算法重放并折叠；基线绑定原 source position、revision、commit hash 与 image digest。已覆盖记录只清空物理 bytes，原 receipt、结果、请求身份、取消和管理记录继续保留。
+
+已激活的 cell/archive 写入 v3；读取旧状态先保留原 v2 完整历史、容量裁决和准确归档 bytes，重放完旧日志后，通过独立内部 Raft entry 原子激活。激活候选使用逐次提交的相同规则迁移，避免不同旧 applied 导致状态或归档分歧；失败保留旧材料与 phase 2，结果绑定精确应用位置。旧 Cold 保留引用，激活后准确 hydrate 再恢复物理材料；当前权限和新取消不被替换。wire envelope version 2 隔离旧、新程序，部署要求全停全部 voter 升级并等待激活确认，不能把磁盘读取兼容解释为混代 quorum 兼容。
+
+`DatabaseView` 增加 base revision、resident tail 条数与 bytes。完整状态编码和逻辑记录保留仍有成本，所有旧容量上限保持不变；本项不实现结果退休或对象 GC。完整本地验证状态以 ADR 和执行证据为准。

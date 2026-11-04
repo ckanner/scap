@@ -21,7 +21,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use libsql_sys::rusqlite::{Connection, OpenFlags};
-use scap_cell::{CellState, Lookup, Position};
+use scap_cell::{CellState, Lookup, Position, Reject};
 use scap_raft_rocks::RocksBackend;
 use scap_raft_store::Store;
 use scap_sql::{Statement, TransactionResult, Value};
@@ -401,9 +401,23 @@ fn sigkill_after_accepted_before_native_publish_recovers_on_another_process() {
     }
     let (mut cluster, old, path, original) =
         initialized("sigkill_after_accepted_before_native_publish_recovers_on_another_process");
+    let mut previous = payload(&original.result);
+    for request in 610..=615 {
+        previous = payload(&completed(cluster.sql(old, request, 1, &update())).result);
+    }
+    let before = cluster.try_read(old, 2000).unwrap();
+    let before_db = before.database(common::DATABASE.database_id).unwrap();
+    assert_eq!(before_db.revision, 7);
+    assert_eq!(before_db.base_revision, 0);
+    assert_eq!(before_db.tail_entries, 7);
     cluster.begin_sql(old, 60, 1, "accepted", &update());
     assert!(cluster.wait_hook(old, 60).contains("Accepted"));
-    assert_eq!(read_payload(&path), payload(&original.result));
+    let folded = cluster.try_read(old, 2000).unwrap();
+    let folded_db = folded.database(common::DATABASE.database_id).unwrap();
+    assert_eq!(folded_db.revision, 8);
+    assert_eq!(folded_db.base_revision, 8);
+    assert_eq!((folded_db.tail_entries, folded_db.tail_bytes), (0, 0));
+    assert_eq!(read_payload(&path), previous);
     cluster.nodes[&old].assert_no_reply();
     cluster.kill(old);
     let others = (1..=3).filter(|id| *id != old).collect::<Vec<_>>();
@@ -412,7 +426,16 @@ fn sigkill_after_accepted_before_native_publish_recovers_on_another_process() {
     let Lookup::Committed { commit, result } = lookup(&state, 60, &update(), 1) else {
         panic!("quorum-accepted write lost after SIGKILL")
     };
-    assert_eq!(commit.receipt.sequence, 2);
+    assert_eq!(commit.receipt.sequence, 8);
+    let source = state
+        .recovery_source(common::DATABASE, common::admission())
+        .unwrap();
+    assert_eq!(source.base.unwrap().revision, 8);
+    assert!(source.tail.is_empty());
+    let Lookup::Committed { result: first, .. } = lookup(&state, 10, &seed(), 1) else {
+        panic!("physical folding discarded the original logical result")
+    };
+    assert_eq!(first, original.encoded);
     let durable = scap_sql::decode_result(&result, common::writer_limits().sql).unwrap();
     let new_path = cluster.recover(leader, 1004, 1, 1);
     assert_ne!(new_path, path);
@@ -425,7 +448,7 @@ fn sigkill_after_accepted_before_native_publish_recovers_on_another_process() {
     cluster.restart(old);
     let state = cluster.try_read(leader, 2000).unwrap();
     caught_up(&mut cluster, old, state.position().index);
-    cluster.record("SIGKILL signal=9 killed writer and its voter after durable Accepted but before native publish or SQL ACK; surviving voters elected a new leader; formal claim/recover/activate in a new directory reconstructed exact physical pages and original result, with no SQL replay");
+    cluster.record("eighth native SQL transaction durably folded all physical tail into base_revision=8 while the Accepted gate was paused before native publication; old native bytes and absence of SQL ACK were observed; SIGKILL signal=9 killed writer and its voter; surviving majority recovered exact random result from that base in a new owner directory; original revision1 result remained retained, without SQL replay");
     cluster.finish();
 }
 
@@ -440,7 +463,7 @@ fn physical_history_and_cancellation_survive_network_snapshot_and_full_restart()
     let previous = cluster.status(lagging);
     cluster.kill(lagging);
     let mut last = original;
-    for request in 70..=75 {
+    for request in 70..=77 {
         last = completed(cluster.sql(leader, request, 1, &update()));
     }
     assert!(resolve(&mut cluster, leader, 79, &update()).contains("Cancelled"));
@@ -452,6 +475,12 @@ fn physical_history_and_cancellation_survive_network_snapshot_and_full_restart()
     assert_eq!(reply.kind, "checkpoint", "{reply:?}");
     let checkpoint = cluster.status(leader);
     assert!(checkpoint.snapshot > previous.last);
+    let source_state = cluster.try_read(leader, 2000).unwrap();
+    let source_recovery = source_state
+        .recovery_source(common::DATABASE, common::admission())
+        .unwrap();
+    assert_eq!(source_recovery.base.unwrap().revision, 8);
+    assert_eq!(source_recovery.tail.len(), 1);
     cluster.restart(lagging);
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
@@ -490,7 +519,14 @@ fn physical_history_and_cancellation_survive_network_snapshot_and_full_restart()
         lookup(&installed, 79, &update(), 1),
         Lookup::Cancelled { .. }
     ));
-    let Lookup::Committed { result, .. } = lookup(&installed, 75, &update(), 1) else {
+    assert_eq!(
+        installed
+            .recovery_source(common::DATABASE, common::admission())
+            .unwrap(),
+        source_recovery,
+        "the real receiver's persisted snapshot must contain the exact base and contiguous tail"
+    );
+    let Lookup::Committed { result, .. } = lookup(&installed, 77, &update(), 1) else {
         panic!("snapshot omitted the final physical transaction")
     };
     assert_eq!(result, last.encoded);
@@ -513,9 +549,223 @@ fn physical_history_and_cancellation_survive_network_snapshot_and_full_restart()
     ));
     let new_path = cluster.recover(leader, 1005, 1, 1);
     assert_eq!(read_payload(&new_path), payload(&last.result));
-    let duplicate = completed(cluster.sql(leader, 75, 1, &update()));
+    let duplicate = completed(cluster.sql(leader, 77, 1, &update()));
     assert!(duplicate.replayed);
     assert_eq!(duplicate.encoded, last.encoded);
-    cluster.record("actual mTLS MsgSnapshot installed complete accepted physical history plus cancellation on a lagging replica; receiver snapshot was inspected after SIGKILL; all three voters then reopened original RocksDB paths; fresh owner recovered exact native SQLite state in a new directory");
+    cluster.record("actual mTLS MsgSnapshot installed base_revision=8, one physical tail entry and retained cancellation on a lagging replica; receiver snapshot was inspected through the production bound decoder after SIGKILL and matched the exact source base/tail; all three voters then reopened original RocksDB paths; fresh owner recovered exact native SQLite state and original result in a new directory");
+    cluster.finish();
+}
+
+#[test]
+fn folded_archive_hydration_preserves_later_auth_and_cancel_through_network_restart() {
+    if child::maybe_run() {
+        return;
+    }
+    let (mut cluster, leader, _path, original) = initialized(
+        "folded_archive_hydration_preserves_later_auth_and_cancel_through_network_restart",
+    );
+    assert!(cluster
+        .apply(leader, "reader", "5000 1 9200")
+        .contains("AuthChanged(2)"));
+    let mut retained = vec![(10, seed(), original.encoded)];
+    let mut last = Vec::new();
+    for request in 800..=807 {
+        let completed = completed(cluster.sql(leader, request, 2, &update()));
+        last = payload(&completed.result);
+        retained.push((request, update(), completed.encoded));
+    }
+    let before = cluster.try_read(leader, 2000).unwrap();
+    let view = before.database(common::DATABASE.database_id).unwrap();
+    assert_eq!(
+        (view.revision, view.base_revision, view.tail_entries),
+        (9, 8, 1)
+    );
+    assert!(cluster
+        .apply(
+            leader,
+            "archive_suspend",
+            &format!(
+                "5000 2 9300 {} {} {}",
+                view.owner.epoch, view.owner.worker_instance_id, view.revision
+            ),
+        )
+        .contains("Suspended(2)"));
+    let suspended = cluster.try_read(leader, 2000).unwrap();
+    let view = suspended.database(common::DATABASE.database_id).unwrap();
+    let mut admission = common::admission();
+    admission.auth_epoch = 2;
+    let (archive, bytes) = suspended
+        .archive_snapshot(common::DATABASE, admission)
+        .unwrap();
+    assert_eq!(&bytes[..9], b"SCAPARC!\x03");
+    let source = suspended
+        .recovery_source(common::DATABASE, admission)
+        .unwrap();
+    assert_eq!(source.base.unwrap().revision, 8);
+    assert_eq!(source.tail.len(), 1);
+    assert!(cluster
+        .apply(
+            leader,
+            "archive_publish",
+            &format!(
+                "5000 2 9301 {} {} - {} {} {} {} {} {} {}",
+                view.owner.epoch,
+                view.owner.worker_instance_id,
+                archive.source.term,
+                archive.source.index,
+                archive.revision,
+                hex(&archive.commit_hash),
+                hex(&archive.object_digest),
+                archive.object_bytes,
+                hex(&archive.metadata_digest),
+            ),
+        )
+        .contains("ArchivePublished"));
+    assert!(cluster
+        .apply(
+            leader,
+            "archive_prune",
+            &format!(
+                "5000 2 9302 {} {} {}",
+                view.owner.epoch,
+                view.owner.worker_instance_id,
+                hex(&archive.object_digest)
+            ),
+        )
+        .contains("ArchivePruned"));
+    let cold = cluster.try_read(leader, 2000).unwrap();
+    assert!(cold.database(common::DATABASE.database_id).unwrap().cold);
+    assert_eq!(
+        cold.recovery_source(common::DATABASE, admission),
+        Err(Reject::Cold)
+    );
+
+    // Archive bytes predate both these durable changes. Importing physical
+    // bytes is never permission to overwrite current policy or request fences.
+    assert!(cluster
+        .apply(leader, "auth", "5000 2 9303")
+        .contains("AuthChanged(3)"));
+    let fingerprint =
+        scap_sql::request_fingerprint(&update(), common::writer_limits().sql).unwrap();
+    assert!(cluster
+        .apply(
+            leader,
+            "resolve",
+            &format!("5000 3 809 {}", hex(&fingerprint))
+        )
+        .contains("Cancelled"));
+    let current = cluster.try_read(leader, 2000).unwrap();
+    assert_eq!(
+        current.metadata(common::DATABASE, admission),
+        Err(Reject::Unauthorized)
+    );
+    let mut revoked_reader = admission;
+    revoked_reader.auth_epoch = 3;
+    revoked_reader.principal_id = common::READER;
+    assert_eq!(
+        current.metadata(common::DATABASE, revoked_reader),
+        Err(Reject::Unauthorized)
+    );
+    assert!(cluster
+        .apply(
+            leader,
+            "archive_hydrate",
+            &format!("5000 2 9304 {}", hex(&bytes))
+        )
+        .contains("Unauthorized"));
+    assert!(
+        cluster
+            .try_read(leader, 2000)
+            .unwrap()
+            .database(common::DATABASE.database_id)
+            .unwrap()
+            .cold
+    );
+    assert!(cluster
+        .apply(
+            leader,
+            "archive_hydrate",
+            &format!("5000 3 9305 {}", hex(&bytes))
+        )
+        .contains("ArchiveHydrated"));
+    admission.auth_epoch = 3;
+    let hydrated = cluster.try_read(leader, 2000).unwrap();
+    let view = hydrated.database(common::DATABASE.database_id).unwrap();
+    assert!(!view.cold && view.suspended && !view.active);
+    assert_eq!(
+        (view.auth_epoch, view.revision, view.base_revision),
+        (3, 9, 8)
+    );
+    assert_eq!(
+        hydrated
+            .recovery_source(common::DATABASE, admission)
+            .unwrap(),
+        source
+    );
+    assert!(matches!(
+        lookup(&hydrated, 809, &update(), 3),
+        Lookup::Cancelled { .. }
+    ));
+    assert_eq!(
+        hydrated.metadata(common::DATABASE, revoked_reader),
+        Err(Reject::Unauthorized)
+    );
+    for (request, statements, expected) in &retained {
+        let Lookup::Committed { result, .. } = lookup(&hydrated, *request, statements, 3) else {
+            panic!("hydration lost an acknowledged original result")
+        };
+        assert_eq!(&result, expected);
+    }
+    let path = cluster.recover(leader, 1006, 2, 3);
+    assert_eq!(read_payload(&path), last);
+    rejected(cluster.sql(leader, 809, 3, &update()), "Conflict");
+    assert_eq!(read_payload(&path), last);
+
+    assert_eq!(
+        cluster
+            .nodes
+            .get_mut(&leader)
+            .unwrap()
+            .command("checkpoint", "5000")
+            .kind,
+        "checkpoint"
+    );
+    let applied = cluster.status(leader).applied;
+    for node in 1..=3 {
+        caught_up(&mut cluster, node, applied);
+    }
+    for node in 1..=3 {
+        cluster.kill(node);
+    }
+    for node in 1..=3 {
+        cluster.restart(node);
+    }
+    let leader = cluster.leader(&[1, 2, 3]);
+    let reopened = cluster.try_read(leader, 2000).unwrap();
+    assert_eq!(
+        reopened
+            .database(common::DATABASE.database_id)
+            .unwrap()
+            .auth_epoch,
+        3
+    );
+    assert_eq!(
+        reopened.metadata(common::DATABASE, revoked_reader),
+        Err(Reject::Unauthorized)
+    );
+    assert!(matches!(
+        lookup(&reopened, 809, &update(), 3),
+        Lookup::Cancelled { .. }
+    ));
+    for (request, statements, expected) in &retained {
+        let Lookup::Committed { result, .. } = lookup(&reopened, *request, statements, 3) else {
+            panic!("full restart lost an acknowledged original result")
+        };
+        assert_eq!(&result, expected);
+    }
+    let restored = cluster.recover(leader, 1007, 3, 3);
+    assert_ne!(restored, path);
+    assert_eq!(read_payload(&restored), last);
+    cluster.record("production archive_snapshot captured base_revision=8 plus tail revision9; formal Client over real three-process RocksDB/mTLS quorum published and pruned it; cold-state AuthFence revoked a reader and a later ResolveOrCancel added a fence; stale epoch hydration was rejected, current epoch hydration imported only exact physical bytes, preserving both newer metadata changes; all nine original ACK results and exact native SQL bytes survived checkpoint and full SIGKILL/restart; this contract uses captured immutable bytes, not an S3 backend (signed old/new S3 object upgrades are a separate history-network contract)");
     cluster.finish();
 }

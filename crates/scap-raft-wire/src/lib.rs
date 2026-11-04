@@ -20,7 +20,10 @@ use sha2::{Digest, Sha256};
 pub use certificate::{certificate_identity, CertificateIdentity};
 pub use codec::{decode_envelope, encode_envelope, HEADER_BYTES};
 
-pub const VERSION: u32 = 1;
+/// Generation 2 requires the bounded physical-history state machine on every
+/// participating peer. Generation 1 can make different capacity decisions for
+/// the same Commit, so mixed generations must fail before Raft message decode.
+pub const VERSION: u32 = 2;
 /// Fixed raft-rs ad13f3d9 / rust-protobuf 2.28 opaque bytes, without compression.
 pub const CODEC: u32 = 1;
 

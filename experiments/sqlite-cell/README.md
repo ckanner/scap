@@ -21,7 +21,8 @@ SQL writer 则是真实独立 OS 子进程，使用真实 libSQL 连接、真实
 | virtual WAL gate | 直接复用 [`wal-gate/src/probe.rs`](../wal-gate/src/probe.rs) 的真实 `WrapWal::insert_frames` wrapper；没有普通提交后 `sqlite3_wal_hook` |
 | raft-rs | 固定 TiKV [`ad13f3d90780f53aea2488c6a4b76c0d334bf136`](https://github.com/tikv/raft-rs/commit/ad13f3d90780f53aea2488c6a4b76c0d334bf136)，使用正式 driver 的 PreVote、CheckQuorum、Safe ReadIndex 策略 |
 | RocksDB | 正式 `scap-raft-rocks`，锁定 `rocksdb 0.24.0` / `librocksdb-sys 0.17.3+10.4.2`，保留其 strict WAL 与持久化语义 |
-| 业务规则 | 正式 `scap-cell`：owner / auth fencing、请求去重、持久取消、完整物理事务和结果保留 |
+| 业务规则 | 正式 `scap-cell`：owner / auth fencing、请求去重、持久取消、有界物理 base/tail 和完整逻辑结果保留 |
+| 物理编码与恢复 | 正式 `scap-engine::Image` / `scap_core::physical`；实验仅将真实 native 捕获页转成正式 PageBatch，不再自行实现恢复算法 |
 | 提交屏障 | 正式 `scap-core::CommitCoordinator` 和窄 `ConsensusPort` / `VisibilityPort`；重新执行 SQL 的业务去重另有明确边界，见下文 |
 | 测试 IPC | 私有有界二进制 stdin/stdout 帧；没有 Hrana、HTTP、RPC 服务或 Node SDK |
 
@@ -48,11 +49,11 @@ SQL writer 则是真实独立 OS 子进程，使用真实 libSQL 连接、真实
 
 1. 获取新的 Safe ReadIndex 完成结果，确认应用位置不落后，再读取正式 cell 状态。
 2. 用 `CellState::decode_bound` 校验 cell 身份和真实 durable applied 位置；term 来自 applied entry 或 snapshot boundary，不能使用可能更大的当前选举 term。
-3. 由可信 fixture 内部恢复角色，在当前授权校验后调用 `recovery_transactions`，按接受顺序核对每个物理 payload 的 SHA-256、长度、页面号和范围。这不是仅凭用户 READ 权限对外开放的恢复 API；独立生产恢复凭据与能力边界尚未交付。
-4. 向新建零长度文件写每个完整 4096 字节页面，按事务的 `size_after` 截断；每一步都要求已有页面覆盖 `1..=size_after`，不存在依赖外部基线的空洞。
+3. 由可信 fixture 内部恢复角色，在当前授权下调用正式 `Image::recover`；它绑定该 fresh view 的身份、position、revision 和 commit hash，从 `recovery_source` 提供的 base 和连续 tail 恢复，正式共享物理算法校验格式、页面和摘要。
+4. 把正式 Image 返回的完整字节写到新建零长度文件。实验不再独立循环重放页，也不把私有 IPC 格式当成生产恢复格式。
 5. 同步恢复文件及父目录，再用只读 SQLite 检查 `PRAGMA integrity_check`、实际 revision 和原始随机结果。
 
-恢复路径只写 cell 中的真实物理页，不重新执行 `CREATE`、`INSERT`、`UPDATE` 或 `randomblob`。DDL 也在已经持久化的页面里。当前证明范围仍是受限 fixture 的完整历史：没有生产 baseline manifest、engine-format 身份、数据库迁移、删除、对象存储归档或恢复数据回收协议；不能据此宣称大数据库的通用恢复已完成。
+恢复路径只写 cell 中的真实物理页，不重新执行 `CREATE`、`INSERT`、`UPDATE` 或 `randomblob`。DDL 也在已经持久化的页面里。此早期组合夹具仍不提供数据库迁移、删除或真实 S3 网络合同；有界 base/tail 与跨版本服务恢复分别由相邻正式引擎、[网络 SQL](../sqlite-network/README.md) 和 [旧盘升级](../history-network/README.md) 合同覆盖，不能据此宣称大数据库的通用恢复已完成。
 
 ## 提交协调器和业务请求去重的边界
 
@@ -69,7 +70,7 @@ SQL writer 则是真实独立 OS 子进程，使用真实 libSQL 连接、真实
 | 页格式 | 4096 字节；其他页大小在遍历上游 `PageHeaders` 之前拒绝 |
 | spill | `cache_spill=OFF`；任何 non-commit `insert_frames` 仍明确拒绝，不声称支持通用 spill |
 | gate 捕获 | 复用 probe 在复制时最多 1024 页；此 fixture 在编码 / 发 IPC 前进一步要求 batch 与文件均最多 64 页 |
-| 物理帧 | `16 + 64 * (4 + 4096)` 字节；`SCAPPG01`、`size_after`、数量、页号及整页字节，仅为实验私有格式 |
+| IPC 页捕获帧 | `16 + 64 * (4 + 4096)` 字节；`SCAPPG01`、`size_after`、数量、页号及整页字节，仅为实验父子进程私有格式；父进程用正式 Image::prepare 编成 `SCAPIMG!` 后才提交 cell |
 | 结果 | 最大 1024 字节；本实验 UPDATE 恰为 32 字节，初始化为空 |
 | IPC | 总帧在读取分配前检查上限；输入、输出 channel 容量均为 1；send 使用 `try_send`，父子往返共享最多 20 秒的绝对 deadline |
 | 收敛工作 | 消息队列最多 4096 条；每轮最多处理 4096 条；driver drain 最多 64 轮，预算耗尽即失败 |

@@ -181,6 +181,9 @@ impl<B: Backend> Service<B> {
                 let status = self.backend.status(context).await?;
                 return Ok(json!({
                     "revision": status.revision.to_string(),
+                    "base_revision": status.base_revision.to_string(),
+                    "tail_entries": status.tail_entries.to_string(),
+                    "tail_bytes": status.tail_bytes.to_string(),
                     "suspended": status.suspended,
                     "cold": status.cold,
                     "owner_active": status.owner_active,
