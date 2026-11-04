@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台。多个独立数据库共享一个三副本存储 cell；活跃库使用私有 SQLite 连接，休眠库把可恢复的物理历史归档到 S3 兼容对象存储。
 
-**当前已经有可运行的三节点数据库服务、Node.js 客户端、自动 writer 接管、独立强读，以及休眠、归档、裁剪和唤醒。** 正式实现与真实故障测试使用同一套引擎、状态机和网络代码。当前发布范围仍是有明确容量上限的 G0 实现，生产规模、三 AZ 性能、动态成员、多 cell 调度、GC/PITR/区域灾备尚未验收；不是通用 SQLite 文件挂载服务，也没有对外 SLA。
+**当前已经有可运行的三节点数据库服务、Node.js 客户端、自动 writer 接管、独立强读，以及休眠、归档、裁剪和唤醒。** 本轮新增受控 Join、learner 追赶和显式 joint 成员替换，验收状态见 [ADR-0016](docs/adr/0016-durable-membership-replacement.md)。正式实现与真实故障测试使用同一套引擎、状态机和网络代码。当前发布范围仍是有明确容量上限的 G0 实现，生产规模、三 AZ 性能、多 cell 调度、GC/PITR/区域灾备尚未验收；不是通用 SQLite 文件挂载服务，也没有对外 SLA。
 
 ## 已实现的完整请求路径
 
@@ -12,6 +12,7 @@
 | Node.js 入口 | TypeScript `sdk/node`；标准 execute/batch，显式强读、原结果查询和有序取消 |
 | 本地引擎 | 固定 libSQL 的 SQLite C 内核及提交前 WAL gate；私有连接，不向用户暴露可绕过复制的文件路径 |
 | 共识 | 固定 TiKV `raft-rs`，三个 voter；PreVote、check_quorum、Safe ReadIndex；关闭租约读 |
+| 成员替换 | 保持三个 voter；新身份 Join、唯一 learner 追赶、JointExplicit 替换、显式 LeaveJoint；独立 loopback 管理鉴权、完整配置 CAS 与精确持久完成 |
 | 成功写 | 同一个 cell 的 durable quorum、状态机接受、native SQLite publication 均完成后才 ACK |
 | 自动接管 | 仅当前 leader 恢复 writer；新 owner epoch、新 worker ID、新目录；从权威物理历史恢复并激活 |
 | 分区 | CP；少数派拒绝新的强读和写，没有本地成功或陈旧读降级 |
@@ -26,7 +27,7 @@
 
 ## 当前上限与适用范围
 
-当前一个进程只承载一个固定成员 cell，每个节点按需创建独占数据库的 SQL 线程，活动与退出中的线程合计最多 32 条，休眠且无排队请求后释放。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。数据库最多保留 128 个请求身份记录，cell 最多保留 4096 个行政操作记录。达到容量时拒绝新工作，不驱逐幂等记录或取消 fence。
+当前一个进程只承载一个 cell。成员管理保持三个 voter、至多一个 learner，可信通信目录最多 16 个身份；旧三 peer 配置默认保留固定模式。每个节点按需创建独占数据库的 SQL 线程，活动与退出中的线程合计最多 32 条，休眠且无排队请求后释放。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。数据库最多保留 128 个请求身份记录，cell 最多保留 4096 个行政操作记录。达到容量时拒绝新工作，不驱逐幂等记录或取消 fence。
 
 这些限额用于验证完整协议。它们没有满足最初规划的 10,000 个冷库、100 个热库、500 req/s 或 GiB 级库；也不能仅通过调大常数就变成该规模的系统。native 持久化已改为同一同步 WriteBatch 内的内容块增量更新；逻辑状态的完整编码、全历史恢复、全量归档以及强读的历史校验仍有放大成本。下一步需要逻辑分段日志与快照、可证明的保留策略、多 cell 公平调度，并保持全部故障门禁。
 
@@ -81,13 +82,14 @@ python3 scripts/check_repo.py
 
 100% Rust 门禁使用固定 nightly 和 cargo-llvm-cov，核对每个正式源文件的精确分母，见 [覆盖率规范](docs/engineering/testability-and-coverage.md)。运行测试不会把 coverage、数据库、生成的证书或进程日志提交到仓库。
 
-独立验证分三层：
+独立真实验证包括：
 
 - [真实 SQLite/mTLS 合同](experiments/sqlite-network/README.md)：native 发布边界、owner/auth fence、UNKNOWN、snapshot 与完整重启，另含独立强读合同。
 - [真实 S3 对象合同](experiments/archive-s3/README.md)：签名、不可变条件写、大小校验、故障和同目录重启。
 - [三节点服务/SDK/冷生命周期](experiments/service-network/README.md)：真实 daemon、真实 Node SDK、leader SIGKILL、网络黑洞、全组重启、S3 黑洞、热库继续服务及冷库恢复；另保留完整 360 个本机负载样本和 30 秒恢复窗口。
+- [成员变更与副本替换](experiments/membership-network/README.md)：四个真实 daemon，管理权限/CAS、落后 learner、压缩后的 snapshot 追赶、joint 全组重启、旧 ID 拒绝、新 voter 磁盘保留 ACK 与少数派拒绝。
 
-正式源码最新全工作区报告为 **396 个 Rust 单元测试，47 个生产源文件，10151 行 / 932 函数 / 14890 regions / 2214 branches 全部覆盖**。SDK 有 11 个单元测试；仓库门禁有 58 个 Python 单元测试。故障合同独立执行，不计入这些单元覆盖率。完整证据、失败样本和适用边界见 [执行证据](docs/engineering/g0-evidence.md)。
+本轮全工作区报告为 **452 个 Rust 单元测试，51 个生产源文件，11424 行 / 1075 函数 / 16778 regions / 2486 branches 全部覆盖**。SDK 的 11 个单元测试及四维覆盖率、仓库门禁的 58 个 Python 单元测试及覆盖率也全部通过。新增成员、Join 和管理代码完整进入原生产分母；精确计数与失败尝试见 [执行证据](docs/engineering/g0-evidence.md)。故障合同独立执行，不计入单元覆盖率。
 
 ## 性能和可靠性合同
 
@@ -101,6 +103,7 @@ python3 scripts/check_repo.py
 | --- | --- |
 | 总体架构、需求与一致性 | [总体架构](docs/architecture/overview.md)、[需求合同](docs/architecture/requirements.md)、[一致性协议](docs/architecture/consistency.md) |
 | 当前服务与配置 | [SQLite 服务](docs/engineering/sqlite-service.md)、[server README](crates/scap-server/README.md) |
+| 成员管理与替换 | [操作流程](docs/engineering/membership-operations.md)、[ADR-0016](docs/adr/0016-durable-membership-replacement.md) |
 | 客户端与隔离 | [API 契约](docs/architecture/api-contracts.md)、[租户与安全](docs/architecture/tenancy-security.md) |
 | 存储和故障 | [生命周期](docs/architecture/storage-lifecycle.md)、[故障矩阵](docs/operations/failure-matrix.md)、[恢复手册](docs/operations/runbooks.md) |
 | Raft 与持久化 | [Raft 安全边界](docs/engineering/raft-safety.md)、[持久 Store](docs/engineering/durable-store.md)、[网络运行时](docs/engineering/raft-network-runtime.md) |

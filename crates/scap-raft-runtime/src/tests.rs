@@ -5,6 +5,8 @@ use scap_raft_store::{AtomicBackend, Limits, LoadState, Store};
 use scap_raft_wire::{certificate_identity, Binding, Limits as WireLimits};
 use std::sync::atomic::{AtomicU8, AtomicUsize};
 
+mod membership;
+
 #[derive(Clone, Default)]
 struct Backend {
     image: Arc<Mutex<Option<Vec<u8>>>>,
@@ -871,6 +873,7 @@ struct FaultDriver {
     stopped: AtomicBool,
     more_ready_once: bool,
     extra_proposals: Vec<ProposalResult>,
+    extra_memberships: Vec<MembershipResult>,
 }
 
 impl FaultDriver {
@@ -881,6 +884,7 @@ impl FaultDriver {
             stopped: AtomicBool::new(false),
             more_ready_once: false,
             extra_proposals: Vec::new(),
+            extra_memberships: Vec::new(),
         }
     }
     fn fail(&self, operation: &'static str, skip: usize, fatal: bool) {
@@ -919,6 +923,25 @@ impl RaftDriver for FaultDriver {
         self.guard("status")?;
         RaftDriver::status(&self.inner)
     }
+    fn membership_status(&self) -> Result<MembershipStatus, scap_raft_driver::Error> {
+        self.guard("membership_status")?;
+        RaftDriver::membership_status(&self.inner)
+    }
+    fn change_membership(
+        &mut self,
+        expected: &ConfState,
+        change: MembershipChange,
+    ) -> Result<MembershipTicket, scap_raft_driver::Error> {
+        self.guard("change_membership")?;
+        RaftDriver::change_membership(&mut self.inner, expected, change)
+    }
+    fn cancel_membership(
+        &mut self,
+        ticket: MembershipTicket,
+    ) -> Result<bool, scap_raft_driver::Error> {
+        self.guard("cancel_membership")?;
+        RaftDriver::cancel_membership(&mut self.inner, ticket)
+    }
     fn drain(&mut self) -> Result<scap_raft_driver::Output, scap_raft_driver::Error> {
         self.guard("drain")?;
         let mut output = RaftDriver::drain(&mut self.inner)?;
@@ -926,6 +949,9 @@ impl RaftDriver for FaultDriver {
         output
             .proposals
             .extend(std::mem::take(&mut self.extra_proposals));
+        output
+            .memberships
+            .extend(std::mem::take(&mut self.extra_memberships));
         Ok(output)
     }
     fn tick(&mut self) -> Result<(), scap_raft_driver::Error> {

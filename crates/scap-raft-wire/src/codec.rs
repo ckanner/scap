@@ -66,6 +66,8 @@ enum Kind {
     Snapshot,
     Metadata,
     Configuration,
+    ConfChange,
+    ConfChangeSingle,
 }
 
 /// A zero-allocation framing pass before generated protobuf decoding. Bytes
@@ -75,6 +77,14 @@ pub(crate) fn preflight_raft(bytes: &[u8], limits: Limits) -> Result<(), Error> 
     let mut fields = limits.max_fields;
     let mut entries = limits.max_entries;
     scan(bytes, Kind::Message, &mut fields, &mut entries)
+}
+
+/// ConfChangeV2 is carried in opaque Entry.data. Bound its repeated structures
+/// before invoking the generated decoder, independently of the outer message.
+pub(crate) fn preflight_conf_change(bytes: &[u8], limits: Limits) -> Result<(), Error> {
+    let mut fields = limits.max_fields;
+    let mut changes = limits.max_bindings;
+    scan(bytes, Kind::ConfChange, &mut fields, &mut changes)
 }
 
 fn scan(
@@ -100,6 +110,12 @@ fn scan(
                     (Kind::Entry, 1) if value > 2 => {
                         return Err(Error::Unsupported("Raft entry enum"));
                     }
+                    (Kind::ConfChange, 1) if value > 2 => {
+                        return Err(Error::Unsupported("configuration transition enum"));
+                    }
+                    (Kind::ConfChangeSingle, 1) if value > 2 => {
+                        return Err(Error::Unsupported("configuration change enum"));
+                    }
                     _ => {}
                 }
             }
@@ -117,6 +133,10 @@ fn scan(
                     (Kind::Message, 9) => scan(nested, Kind::Snapshot, fields, entries)?,
                     (Kind::Snapshot, 2) => scan(nested, Kind::Metadata, fields, entries)?,
                     (Kind::Metadata, 1) => scan(nested, Kind::Configuration, fields, entries)?,
+                    (Kind::ConfChange, 2) => {
+                        spend(entries, "configuration changes")?;
+                        scan(nested, Kind::ConfChangeSingle, fields, entries)?;
+                    }
                     (Kind::Configuration, 1..=4) => {
                         let mut packed = nested;
                         while !packed.is_empty() {

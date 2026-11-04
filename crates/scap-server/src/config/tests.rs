@@ -25,6 +25,8 @@ fn decoded_identity_paths_limits_and_boundaries_remain_explicit() {
         }
     );
     assert_eq!(parsed.node_id, 1);
+    assert_eq!(parsed.bootstrap_voters, vec![1, 2, 3]);
+    assert!(parsed.management.is_none());
     assert_eq!(parsed.administrator_id, 100);
     assert_eq!(parsed.service_credential_id, 101);
     assert_eq!(
@@ -144,7 +146,7 @@ fn fixed_membership_and_all_bounded_collections_are_checked() {
         rejects(path, json!([]), "CONFIG_LIMIT");
         let mut value = config_json();
         let array = value.pointer_mut(path).unwrap().as_array_mut().unwrap();
-        let limit = if path == "/peers" { 3 } else { 32 };
+        let limit = if path == "/peers" { 16 } else { 32 };
         array.resize(limit + 1, array[0].clone());
         assert_eq!(decode(&value).unwrap_err().code, "CONFIG_LIMIT");
     }
@@ -165,6 +167,75 @@ fn fixed_membership_and_all_bounded_collections_are_checked() {
     // Different names/IDs cannot share one bearer token across databases.
     value["databases"][1]["database_id"] = json!(format!("{:032x}", 4));
     assert_eq!(decode(&value).unwrap_err().code, "CONFIG_TOKEN");
+}
+
+#[test]
+fn trusted_pool_is_distinct_from_exact_three_bootstrap_voters() {
+    let mut value = config_json();
+    let mut duplicate = value.clone();
+    let peer = duplicate["peers"][0].clone();
+    duplicate["peers"].as_array_mut().unwrap().push(peer);
+    assert_eq!(decode(&duplicate).unwrap_err().code, "CONFIG_MEMBERS");
+    for id in 4..=16 {
+        let mut peer = value["peers"][0].clone();
+        peer["node_id"] = json!(id);
+        value["peers"].as_array_mut().unwrap().push(peer);
+    }
+    assert_eq!(decode(&value).unwrap_err().code, "CONFIG_BOOTSTRAP");
+    value["bootstrap_voters"] = json!([3, 1, 2]);
+    value["node_id"] = json!(16);
+    let config = decode(&value).unwrap();
+    assert_eq!(config.peers.len(), 16);
+    assert_eq!(config.bootstrap_voters, vec![1, 2, 3]);
+    for voters in [
+        json!(false),
+        json!([1, 2, "3"]),
+        json!([1, 2]),
+        json!([1, 2, 3, 4]),
+        json!([1, 2, 2]),
+        json!([1, 2, 17]),
+    ] {
+        value["bootstrap_voters"] = voters;
+        assert_eq!(decode(&value).unwrap_err().code, "CONFIG_BOOTSTRAP");
+    }
+}
+
+#[test]
+fn management_requires_an_independent_secret_and_loopback_listener() {
+    let mut value = config_json();
+    value["management"] = json!(false);
+    assert!(decode(&value).unwrap().management.is_none());
+    value["management"] = json!({
+        "listen":"127.0.0.1:9099",
+        "token_sha256":"ab".repeat(32),
+    });
+    let config = decode(&value).unwrap();
+    let management = config.management.unwrap();
+    assert_eq!(management.listen, "127.0.0.1:9099".parse().unwrap());
+    assert_eq!(management.token_digest, [0xab; 32]);
+    value["management"]["listen"] = json!("[::1]:9099");
+    assert!(decode(&value).is_ok());
+    for address in ["not-an-address", "0.0.0.0:9099", "[::]:9099"] {
+        value["management"]["listen"] = json!(address);
+        assert_eq!(
+            decode(&value).unwrap_err().code,
+            "CONFIG_MANAGEMENT_ADDRESS"
+        );
+    }
+    value["management"]["listen"] = json!("127.0.0.1:9099");
+    for token in [
+        json!("00".repeat(32)),
+        value["databases"][0]["tokens"][0]["sha256"].clone(),
+    ] {
+        value["management"]["token_sha256"] = token;
+        assert_eq!(decode(&value).unwrap_err().code, "CONFIG_MANAGEMENT_TOKEN");
+    }
+    value["management"]["token_sha256"] = json!("invalid");
+    assert_eq!(decode(&value).unwrap_err().code, "CONFIG_DIGEST");
+    value["management"]["token_sha256"] = Value::Null;
+    assert_eq!(decode(&value).unwrap_err().code, "CONFIG_STRING");
+    value["management"] = json!(true);
+    assert_eq!(decode(&value).unwrap_err().code, "CONFIG_STRING");
 }
 
 #[test]

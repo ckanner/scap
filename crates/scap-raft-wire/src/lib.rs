@@ -12,7 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Display};
 
 use protobuf::Message as ProtobufMessage;
-use raft::eraftpb::{EntryType, Message, MessageType};
+use raft::eraftpb::{
+    ConfChangeTransition, ConfChangeV2, ConfState, EntryType, Message, MessageType,
+};
 use sha2::{Digest, Sha256};
 
 pub use certificate::{certificate_identity, CertificateIdentity};
@@ -55,7 +57,7 @@ pub struct Limits {
     /// Counts tags in known nested messages and packed configuration members.
     pub max_fields: usize,
     pub max_certificate_bytes: usize,
-    /// Bounds the immutable bootstrap member set and active certificate pins.
+    /// Bounds the immutable trusted peer set and active certificate pins.
     pub max_bindings: usize,
 }
 
@@ -79,17 +81,20 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-/// A fixed bootstrap membership with replaceable certificate authorization.
+/// An immutable trusted peer directory with replaceable certificate pins.
 ///
-/// Membership changes are not implemented here. In particular, a stale local
-/// Raft ConfState is not used as a transport trust directory: it can omit a
-/// newly elected member before a lagging replica receives the intervening log.
+/// `new` retains the fixed bootstrap membership contract. The explicit
+/// `with_trusted_peers` mode admits bounded membership changes within that
+/// directory, without granting voting rights. A stale local Raft ConfState is
+/// never used as the trust directory: it can omit a newly elected member before
+/// a lagging replica receives the intervening log.
 /// A containing lock must cover both policy admission and queue reservation;
 /// consumers revalidate under the same lock before handing input to RawNode.
 pub struct Policy {
     scope: Scope,
     members: BTreeSet<u64>,
     membership: [u8; 32],
+    allow_changes: bool,
     bindings: BTreeMap<[u8; 32], u64>,
     limits: Limits,
     revision: u64,
@@ -159,15 +164,31 @@ impl Policy {
             return Err(Error::Invalid("local node is not a bootstrap member"));
         }
         let bindings = validate_bindings(bindings, &members, limits.max_bindings)?;
-        let membership = membership_fingerprint(&members);
+        let membership = membership_fingerprint(&members, false);
         Ok(Self {
             scope,
             members,
             membership,
+            allow_changes: false,
             bindings,
             limits,
             revision: 1,
         })
+    }
+
+    /// Admit Raft membership changes only among these pre-registered peers.
+    /// This does not initialize, replace or enlarge the actual Raft ConfState.
+    /// The local node must be registered even before it joins as a learner.
+    pub fn with_trusted_peers(
+        scope: Scope,
+        trusted_peer_ids: Vec<u64>,
+        bindings: Vec<Binding>,
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        let mut policy = Self::new(scope, trusted_peer_ids, bindings, limits)?;
+        policy.allow_changes = true;
+        policy.membership = membership_fingerprint(&policy.members, true);
+        Ok(policy)
     }
 
     pub fn scope(&self) -> Scope {
@@ -178,8 +199,13 @@ impl Policy {
         self.limits
     }
 
+    /// The immutable communication allowlist, not the currently applied voters.
     pub fn members(&self) -> &BTreeSet<u64> {
         &self.members
+    }
+
+    pub fn allows_membership_changes(&self) -> bool {
+        self.allow_changes
     }
 
     pub fn revision(&self) -> u64 {
@@ -266,17 +292,11 @@ impl Policy {
         self.check_peer(accepted.certificate, now_unix_seconds, &accepted.envelope)
     }
 
-    fn check_membership(&self, message: &Message) -> Result<(), Error> {
-        if message
-            .entries
-            .iter()
-            .any(|entry| entry.get_entry_type() != EntryType::EntryNormal)
-        {
-            return Err(Error::Unsupported("Raft membership changes"));
-        }
-        let snapshot = message.get_snapshot();
-        if !snapshot.is_empty() {
-            let conf = snapshot.get_metadata().get_conf_state();
+    /// Check a nonempty, applied configuration or a snapshot configuration.
+    /// An uninitialized joining node needs a separate explicit startup mode;
+    /// an empty configuration is never a valid installed snapshot.
+    pub fn validate_configuration(&self, conf: &ConfState) -> Result<(), Error> {
+        if !self.allow_changes {
             if conf.voters.len() != self.members.len()
                 || conf.voters.iter().copied().collect::<BTreeSet<_>>() != self.members
                 || !conf.learners.is_empty()
@@ -286,6 +306,82 @@ impl Policy {
             {
                 return Err(Error::Unsupported("snapshot bootstrap membership"));
             }
+            return Ok(());
+        }
+        if conf.voters.is_empty() {
+            return Err(Error::Invalid("empty voters"));
+        }
+        let voters = self.configuration_members(&conf.voters)?;
+        let outgoing = self.configuration_members(&conf.voters_outgoing)?;
+        let learners = self.configuration_members(&conf.learners)?;
+        let next = self.configuration_members(&conf.learners_next)?;
+        if !learners.is_disjoint(&voters)
+            || !learners.is_disjoint(&outgoing)
+            || !next.is_subset(&outgoing)
+            || !next.is_disjoint(&voters)
+        {
+            return Err(Error::Invalid("overlapping configuration roles"));
+        }
+        if outgoing.is_empty() && conf.auto_leave {
+            return Err(Error::Invalid("auto leave outside joint configuration"));
+        }
+        Ok(())
+    }
+
+    /// Decode the bounded V2 administrative entry format before proposing or
+    /// accepting replication. This validates trusted identities and framing;
+    /// the driver must still authorize the operator and validate the transition
+    /// against its current applied configuration before proposing it.
+    pub fn decode_membership_change(&self, bytes: &[u8]) -> Result<ConfChangeV2, Error> {
+        if !self.allow_changes {
+            return Err(Error::Unsupported("Raft membership changes"));
+        }
+        if bytes.len() > self.limits.max_payload_bytes {
+            return Err(Error::Limit("configuration change bytes"));
+        }
+        codec::preflight_conf_change(bytes, self.limits)?;
+        let change = ConfChangeV2::parse_from_bytes(bytes)
+            .map_err(|_| Error::Malformed("configuration change protobuf"))?;
+        if change.changes.is_empty() && change.get_transition() != ConfChangeTransition::Auto {
+            return Err(Error::Invalid("empty joint change"));
+        }
+        let mut nodes = BTreeSet::new();
+        for single in &change.changes {
+            if !self.members.contains(&single.node_id) || !nodes.insert(single.node_id) {
+                return Err(Error::Invalid("configuration change peer identity"));
+            }
+        }
+        Ok(change)
+    }
+
+    fn configuration_members(&self, ids: &[u64]) -> Result<BTreeSet<u64>, Error> {
+        if ids.len() > self.members.len() {
+            return Err(Error::Limit("configuration members"));
+        }
+        let mut members = BTreeSet::new();
+        for id in ids {
+            if !self.members.contains(id) || !members.insert(*id) {
+                return Err(Error::Invalid("configuration peer identity"));
+            }
+        }
+        Ok(members)
+    }
+
+    fn check_membership(&self, message: &Message) -> Result<(), Error> {
+        for entry in &message.entries {
+            match entry.get_entry_type() {
+                EntryType::EntryNormal => (),
+                EntryType::EntryConfChange => {
+                    return Err(Error::Unsupported("Raft membership changes"));
+                }
+                EntryType::EntryConfChangeV2 => {
+                    self.decode_membership_change(&entry.data)?;
+                }
+            }
+        }
+        let snapshot = message.get_snapshot();
+        if !snapshot.is_empty() {
+            self.validate_configuration(snapshot.get_metadata().get_conf_state())?;
         }
         Ok(())
     }
@@ -346,9 +442,10 @@ fn validate_bindings(
     Ok(result)
 }
 
-fn membership_fingerprint(members: &BTreeSet<u64>) -> [u8; 32] {
+fn membership_fingerprint(members: &BTreeSet<u64>, allow_changes: bool) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(b"SCAPMEM1");
+    digest.update([u8::from(allow_changes)]);
     digest.update((members.len() as u64).to_le_bytes());
     for member in members {
         digest.update(member.to_le_bytes());

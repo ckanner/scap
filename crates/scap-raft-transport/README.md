@@ -35,7 +35,9 @@ node-{node_id}.cluster-{cluster_id:032x}.scap.internal
 
 当前是有界完整消息协议；没有大 snapshot 分片或多 cell 公平性实现。限制范围不是部署推荐默认值或已经测得的安全容量。
 
-连接复用的变更理由、安全边界与独立验证要求见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。每节点 `max_connections` 至少容纳 `2 × (voters − 1)` 条稳定 peer lane；这只是启动下界，不包含旧半开连接、连接重建、身份轮换和运维流量需要的余量，不能当作故障恢复容量已验收。
+连接复用的变更理由、安全边界与独立验证要求见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。每节点 `max_connections` 至少容纳 `2 × (trusted_peers − 1)` 条稳定 peer lane；固定成员模式下 trusted peers 就是 bootstrap voters，动态模式则包含预注册 learner/替换候选。这个值只是启动下界，不包含旧半开连接、连接重建、身份轮换和运维流量需要的余量，不能当作故障恢复容量已验收。
+
+transport 不根据 Raft 的当前 voters/learners 自动授予或撤销 TLS 身份。可信 peer 目录、V2 配置 entry 及 joint snapshot 的验证由 wire policy 完成，实际 membership 的持久应用由 driver 负责。peer 角色变化不延长证书有效期，也不跳过每 RPC 的当前 pin 检查。
 
 ## 验证范围
 

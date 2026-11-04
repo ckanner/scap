@@ -44,6 +44,13 @@ pub struct ArchiveConfig {
 }
 
 #[derive(Clone, Debug)]
+pub struct ManagementConfig {
+    /// Management is deliberately separate from the tenant HTTP listener.
+    pub listen: SocketAddr,
+    pub token_digest: [u8; 32],
+}
+
+#[derive(Clone, Debug)]
 pub struct Config {
     pub cluster_id: u128,
     pub cell: CellIdentity,
@@ -57,9 +64,12 @@ pub struct Config {
     pub private_key_pem: PathBuf,
     pub ca_pem: PathBuf,
     pub peers: Vec<PeerConfig>,
+    /// Initial voters only. Existing storage always uses its durable ConfState.
+    pub bootstrap_voters: Vec<u64>,
     pub databases: Vec<DatabaseConfig>,
     pub idle_timeout: Duration,
     pub archive: Option<ArchiveConfig>,
+    pub management: Option<ManagementConfig>,
 }
 
 impl Config {
@@ -76,7 +86,7 @@ impl Config {
         let cluster_id = identity(&value, "cluster_id")?;
         let node_id = integer(&value, "node_id")?;
         let administrator_id = identity(&value, "administrator_id")?;
-        let peers = array(&value, "peers", 3)?
+        let peers = array(&value, "peers", 16)?
             .iter()
             .map(|peer| {
                 Ok(PeerConfig {
@@ -87,9 +97,14 @@ impl Config {
             })
             .collect::<Result<Vec<_>, ServiceError>>()?;
         let members: BTreeSet<_> = peers.iter().map(|peer| peer.node_id).collect();
-        if members.len() != 3 || members.contains(&0) || !members.contains(&node_id) {
+        if members.len() < 3
+            || members.len() != peers.len()
+            || members.contains(&0)
+            || !members.contains(&node_id)
+        {
             return Err(failure("CONFIG_MEMBERS"));
         }
+        let bootstrap_voters = bootstrap_voters(&value, &members)?;
         for peer in &peers {
             scap_raft_transport::PeerEndpoint {
                 uri: peer.uri.clone(),
@@ -163,6 +178,7 @@ impl Config {
         if !(5..=86_400).contains(&idle_seconds) {
             return Err(failure("CONFIG_IDLE"));
         }
+        let management = management(&value, &digests)?;
         Ok(Self {
             cluster_id,
             cell: CellIdentity {
@@ -181,6 +197,7 @@ impl Config {
             private_key_pem: path(&value, "private_key_pem")?,
             ca_pem: path(&value, "ca_pem")?,
             peers,
+            bootstrap_voters,
             databases: configured,
             idle_timeout: Duration::from_secs(idle_seconds),
             archive: value
@@ -197,8 +214,49 @@ impl Config {
                     })
                 })
                 .transpose()?,
+            management,
         })
     }
+}
+
+fn bootstrap_voters(value: &Value, peers: &BTreeSet<u64>) -> Result<Vec<u64>, ServiceError> {
+    let voters = match value.get("bootstrap_voters") {
+        None if peers.len() == 3 => peers.iter().copied().collect(),
+        Some(Value::Array(voters)) => voters
+            .iter()
+            .map(|node| node.as_u64().ok_or_else(|| failure("CONFIG_BOOTSTRAP")))
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => return Err(failure("CONFIG_BOOTSTRAP")),
+    };
+    let unique: BTreeSet<_> = voters.iter().copied().collect();
+    if voters.len() != 3 || unique.len() != 3 || !unique.is_subset(peers) {
+        return Err(failure("CONFIG_BOOTSTRAP"));
+    }
+    Ok(unique.into_iter().collect())
+}
+
+fn management(
+    value: &Value,
+    tenant_tokens: &BTreeSet<[u8; 32]>,
+) -> Result<Option<ManagementConfig>, ServiceError> {
+    let value = match value.get("management") {
+        None | Some(Value::Bool(false)) => return Ok(None),
+        Some(value) => value,
+    };
+    let listen: SocketAddr = string(value, "listen")?
+        .parse()
+        .map_err(|_| failure("CONFIG_MANAGEMENT_ADDRESS"))?;
+    if !listen.ip().is_loopback() {
+        return Err(failure("CONFIG_MANAGEMENT_ADDRESS"));
+    }
+    let token_digest = digest(string(value, "token_sha256")?)?;
+    if token_digest == [0; 32] || tenant_tokens.contains(&token_digest) {
+        return Err(failure("CONFIG_MANAGEMENT_TOKEN"));
+    }
+    Ok(Some(ManagementConfig {
+        listen,
+        token_digest,
+    }))
 }
 
 fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, ServiceError> {

@@ -4,7 +4,7 @@
 
 ## 1. 部署单元与技术栈
 
-当前一个部署单元是一个固定三 voter 的 cell。三个 `scap-server` 进程分别拥有私有 RocksDB 目录、节点证书、peer 监听地址和 HTTP 地址。它们共享相同 cluster/cell 身份、数据库目录和配置策略；每个进程的 node ID、私钥与数据目录不同。多个小数据库共享这个 Raft 组，不为每个数据库再建立三节点集群。
+当前一个部署单元是一个保持三 voter 的 cell，支持显式 learner/joint 副本替换。三个 voter 的 `scap-server` 进程分别拥有私有 RocksDB 目录、节点证书、peer 监听地址和 HTTP 地址；替换时先启动一个不投票的新节点。它们共享相同 cluster/cell 身份、原始 genesis、数据库目录和配置策略；每个进程的 node ID、私钥与数据目录不同。多个小数据库共享这个 Raft 组，不为每个数据库再建立三节点集群。
 
 | 模块 | 正式职责 | 已锁定的基础 |
 | --- | --- | --- |
@@ -93,6 +93,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 | 本地 SQLite cache 缺失 | 从已确认物理历史重建新目录；旧 cache 不充当权威恢复来源 |
 | cache 命名、目录或清理异常 | 停止相应服务准入并要求检查，不沿未知 symlink 删除外部路径，也不继续无界创建缓存 |
 | RocksDB、WAL、快照损坏或身份不符 | 拒绝打开；不自动创建空 cell，不扫描 S3 伪装成零丢失恢复 |
+| 健康多数派下替换一个故障副本 | 新 ID/新目录 Join，核对新鲜成员视图与完整 genesis；唯一 learner 追赶后经 JointExplicit 和 LeaveJoint 替换；旧 ID 不重用 |
 | S3 不可用 | 热写仍通过原 durable quorum；后台任务有界失败/退避；未验证发布的数据不会裁剪；已冷库需要的唤醒失败 |
 | 丢失多数派或不能持久化 | 不确认新写，不提供无屏障的强读；不隐式改为异步复制 |
 | 原响应丢失 / deadline 到期 | 保留 UNKNOWN；可显式 Lookup，必要时 ResolveOrCancel；不会自动重执行原业务 SQL |
@@ -109,7 +110,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 
 | 项目 | 当前上限或实现 |
 | --- | --- |
-| 拓扑 | 静态三个 voter，一个 cell，最多 32 个配置数据库 |
+| 拓扑 | 三个 voter、至多一个 learner，一个 cell，可信 peer 目录 3–16 个身份；最多 32 个配置数据库 |
 | 单库逻辑 SQLite 镜像 | 64 个 4096-byte page，即 256 KiB；不包含 WAL、快照、历史与缓存额外空间 |
 | 每库请求记录 | 最多 128 个 accepted/cancel 记录；不自动淘汰 |
 | cell 管理操作 | 最多 4096 条；owner/归档操作持续占用预算 |
@@ -123,7 +124,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 
 达到容量上限会拒绝继续增长，不能静默丢弃旧结果、取消 fence 或唯一恢复数据。Prune 后如果其他库占用了 cell 空间，Hydrate 也可能因总体容量不足拒绝；本版本没有恢复容量预留与跨 cell 自动搬迁。
 
-未实现的规模化能力包括动态数据库目录、动态 Raft 成员、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段/保留、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
+受控成员操作的配置、认证、CAS、UNKNOWN 和升级顺序见 [成员管理](membership-operations.md)与 [ADR-0016](../adr/0016-durable-membership-replacement.md)。未实现的规模化能力包括动态数据库目录、自动坏盘发现与调度、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段/保留、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
 
 本 profile 的 256 KiB 逻辑镜像不能用于宣称 1 GiB 恢复目标达标。协议正确性、资源有界和小规模故障通过也不能替代生产负载、跨 AZ 与长期可用性验证。
 
@@ -176,7 +177,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 }
 ```
 
-`permissions=1` 允许 READ，`3` 允许 READ+WRITE；公开令牌不能成为配置的 administrator。数据库名只使用 ASCII 字母、数字、下划线或连字符。每个 token digest 在整个配置中唯一，节点集合必须恰好三个互异非零 node ID，并包含本机。
+`permissions=1` 允许 READ，`3` 允许 READ+WRITE；公开令牌不能成为配置的 administrator。数据库名只使用 ASCII 字母、数字、下划线或连字符。每个 token digest 在整个配置中唯一。上述兼容配置有恰好三个互异非零 peer，并包含本机；扩展到最多 16 个 peer 时必须显式指定原始三个 `bootstrap_voters`，预注册不等于加入 Raft。
 
 node 2/3 复制相同 cluster/cell/database/peers 配置，只分别修改 node ID、data_dir、监听端口和本机 PEM/key 路径。所有节点都读取三个公开 leaf DER；不能把 node 1 私钥复制成另外两个节点的身份。当前配置不提供热更新；改变本地 token 表不能自动替代 cell 中的 AuthFence。
 

@@ -101,9 +101,10 @@ pub struct NetworkWorkers {
 }
 
 impl NetworkWorkers {
-    /// Call inside the node's Tokio runtime. Only configured fixed peers are
-    /// accepted. No connection is required at startup: healthy peers can form
-    /// a quorum while another endpoint is unavailable.
+    /// Call inside the node's Tokio runtime. Endpoints cover the immutable
+    /// trusted peer pool, independently of the applied voting configuration.
+    /// No connection is required at startup: healthy voters can form a quorum
+    /// while an unused or unavailable endpoint has no connection.
     pub fn start(
         handle: Handle,
         endpoints: Vec<PeerEndpoint>,

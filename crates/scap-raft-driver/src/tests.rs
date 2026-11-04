@@ -6,6 +6,8 @@ use std::cell::{Cell, RefCell};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 
+mod membership;
+
 #[derive(Clone, Copy, Default)]
 enum Fault {
     #[default]
@@ -181,6 +183,7 @@ fn drain(node: &mut Node) -> Output {
         messages: Vec::new(),
         reads: Vec::new(),
         proposals: Vec::new(),
+        memberships: Vec::new(),
         more_ready: false,
     };
     for _ in 0..100 {
@@ -188,6 +191,7 @@ fn drain(node: &mut Node) -> Output {
         output.messages.extend(next.messages);
         output.reads.extend(next.reads);
         output.proposals.extend(next.proposals);
+        output.memberships.extend(next.memberships);
         if !next.more_ready {
             return output;
         }

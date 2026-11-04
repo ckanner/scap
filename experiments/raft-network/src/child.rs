@@ -222,6 +222,9 @@ pub fn maybe_run() -> bool {
                     Ok(Answer::Applied(_)) => {
                         panic!("ordinary-proposal fixture received a tracked application result")
                     }
+                    Ok(Answer::Membership(_) | Answer::MembershipChanged(_)) => {
+                        panic!("fixed-membership fixture received a membership result")
+                    }
                     Ok(Answer::Checkpointed) => emit(sequence, "checkpoint", "-"),
                     Ok(Answer::Status(status)) => {
                         emit(

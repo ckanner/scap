@@ -10,8 +10,11 @@ pub(crate) struct Fixture {
 
 impl Fixture {
     pub(crate) fn new() -> Self {
+        Self::with_config(crate::tests::config())
+    }
+
+    fn with_config(mut config: Config) -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let mut config = crate::tests::config();
         config.data_dir = directory.path().join("data");
         let ca_key = KeyPair::generate().unwrap();
         let mut ca_params = CertificateParams::new(Vec::new()).unwrap();
@@ -101,6 +104,9 @@ async fn bind_after_cancellation(address: std::net::SocketAddr, deadline: Instan
 }
 
 struct Faults {
+    environment: std::collections::BTreeMap<String, String>,
+    join_expiry: Option<usize>,
+    clock_reads: AtomicUsize,
     entropy: bool,
     directory: Option<&'static str>,
     thread: Option<&'static str>,
@@ -112,6 +118,9 @@ struct Faults {
 impl Default for Faults {
     fn default() -> Self {
         Self {
+            environment: Default::default(),
+            join_expiry: None,
+            clock_reads: AtomicUsize::new(0),
             entropy: false,
             directory: None,
             thread: None,
@@ -123,6 +132,17 @@ impl Default for Faults {
 }
 
 impl System for Faults {
+    fn now(&self) -> Instant {
+        let call = self.clock_reads.fetch_add(1, Ordering::Relaxed) + 1;
+        if self.join_expiry == Some(call) {
+            Native.now() + Duration::from_secs(6)
+        } else {
+            Native.now()
+        }
+    }
+    fn environment(&self, name: &str) -> Option<String> {
+        self.environment.get(name).cloned()
+    }
     fn entropy(&self, bytes: &mut [u8]) -> Result<(), getrandom::Error> {
         if self.entropy {
             Err(getrandom::Error::UNSUPPORTED)
@@ -430,10 +450,234 @@ fn explicit_storage_creation_never_replaces_or_repairs_existing_authority() {
     }
 }
 
+fn fourth_peer() -> Config {
+    let mut config = crate::tests::config();
+    config.peers.push(crate::PeerConfig {
+        node_id: 4,
+        uri: "https://127.0.0.1:30104".into(),
+        certificate_der: "/tmp/scap-server-unit/4.der".into(),
+    });
+    config
+}
+
+#[test]
+fn join_is_explicit_fresh_and_never_creates_an_additional_voter() {
+    let bootstrap = Fixture::new();
+    assert_eq!(
+        open_store_with(&bootstrap.config, StartMode::Join, &Native)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG_START_MODE"
+    );
+    assert!(!bootstrap.config.data_dir.exists());
+    let original = open_store_with(&bootstrap.config, StartMode::Initialize, &Native).unwrap();
+    let genesis = original.view().unwrap().application.clone();
+    let mut config = fourth_peer();
+    config.node_id = 4;
+    let joiner = Fixture::with_config(config);
+    assert_eq!(
+        open_store_with(&joiner.config, StartMode::Initialize, &Native)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG_START_MODE"
+    );
+    assert!(!joiner.config.data_dir.exists());
+    let store = open_store_with(&joiner.config, StartMode::Join, &Native).unwrap();
+    assert_eq!(store.view().unwrap().conf_state.voters, vec![1, 2, 3]);
+    assert_eq!(store.view().unwrap().application, genesis);
+    let application = CellApplication::new(joiner.config.cell, cell_limits()).unwrap();
+    let mut driver = Native.driver(store, application, 8001).unwrap();
+    assert!(!driver.status().unwrap().is_voter);
+    assert!(driver.campaign().is_err());
+    drop(driver);
+    let store = open_store_with(&joiner.config, StartMode::OpenExisting, &Native).unwrap();
+    assert_eq!(store.view().unwrap().conf_state.voters, vec![1, 2, 3]);
+    drop(store);
+    assert_eq!(
+        open_store_with(&joiner.config, StartMode::Join, &Native)
+            .err()
+            .unwrap()
+            .code,
+        "DATA_DIRECTORY"
+    );
+}
+
+#[test]
+fn reopening_checks_durable_application_binding_and_immutable_administrator() {
+    use scap_raft_driver::Application;
+    let fixture = Fixture::new();
+    let mut store = open_store_with(&fixture.config, StartMode::Initialize, &Native).unwrap();
+    let mut corrupt = store.view().unwrap().clone();
+    corrupt.application.clear();
+    assert_eq!(
+        validate_application(&fixture.config, &corrupt)
+            .unwrap_err()
+            .code,
+        "STORE_APPLICATION"
+    );
+    let entry = raft::eraftpb::Entry {
+        term: 1,
+        index: 2,
+        ..Default::default()
+    };
+    let hard = raft::eraftpb::HardState {
+        term: 1,
+        commit: 2,
+        ..Default::default()
+    };
+    let mut application = CellApplication::new(fixture.config.cell, cell_limits()).unwrap();
+    let bytes = application
+        .apply(
+            &store.view().unwrap().application,
+            std::slice::from_ref(&entry),
+        )
+        .unwrap();
+    let members = store.view().unwrap().conf_state.clone();
+    store
+        .persist_ready(std::slice::from_ref(&entry), Some(&hard), None)
+        .unwrap();
+    store
+        .apply_committed(2, &[entry], &bytes, &members)
+        .unwrap();
+    drop(store);
+    let mut wrong = fixture.config.clone();
+    wrong.administrator_id += 1;
+    assert_eq!(
+        open_store_with(&wrong, StartMode::OpenExisting, &Native)
+            .err()
+            .unwrap()
+            .code,
+        "STORE_ADMINISTRATOR"
+    );
+    let store = open_store_with(&fixture.config, StartMode::OpenExisting, &Native).unwrap();
+    assert_eq!(store.view().unwrap().applied, 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn joining_node_requires_fresh_leader_permission_before_any_data_or_listener() {
+    let bootstrap = Fixture::new();
+    assert_eq!(
+        run(bootstrap.config.clone(), StartMode::Join, async {})
+            .await
+            .unwrap_err()
+            .code,
+        "CONFIG_START_MODE"
+    );
+    assert!(!bootstrap.config.data_dir.exists());
+    let mut config = fourth_peer();
+    config.node_id = 4;
+    let mut fixture = Fixture::with_config(config);
+    (fixture.config.http_listen, fixture.config.peer_listen) = free_addresses();
+    assert_eq!(
+        run_with(
+            fixture.config.clone(),
+            StartMode::Join,
+            Box::pin(async {}),
+            &Faults::default(),
+            &Native
+        )
+        .await
+        .unwrap_err()
+        .code,
+        "JOIN_MANAGEMENT_URL"
+    );
+    assert!(!fixture.config.data_dir.exists());
+    let available = TcpListener::bind(fixture.config.http_listen).await.unwrap();
+    drop(available);
+    let mut view = crate::join::tests::view(&fixture.config);
+    view["membership"]["conf_state"]["learners"] = serde_json::json!([4]);
+    let (endpoint, owner) = crate::join::tests::server(200, view);
+    let mut system = Faults::default();
+    system
+        .environment
+        .insert("SCAP_JOIN_MANAGEMENT_URL".into(), endpoint);
+    system
+        .environment
+        .insert("SCAP_MANAGEMENT_TOKEN".into(), "join-unit-secret".into());
+    assert_eq!(
+        run_with(
+            fixture.config.clone(),
+            StartMode::Join,
+            Box::pin(async {}),
+            &system,
+            &Native
+        )
+        .await
+        .unwrap_err()
+        .code,
+        "JOIN_ID_REUSED"
+    );
+    owner.join().unwrap();
+    assert!(!fixture.config.data_dir.exists());
+    let (endpoint, owner) =
+        crate::join::tests::server(200, crate::join::tests::view(&fixture.config));
+    system
+        .environment
+        .insert("SCAP_JOIN_MANAGEMENT_URL".into(), endpoint);
+    run_with(
+        fixture.config.clone(),
+        StartMode::Join,
+        Box::pin(async { http_ready(fixture.config.http_listen).await }),
+        &system,
+        &Native,
+    )
+    .await
+    .unwrap();
+    owner.join().unwrap();
+    assert!(fixture.config.data_dir.join("raft").is_dir());
+    let store = open_store_with(&fixture.config, StartMode::OpenExisting, &Native).unwrap();
+    assert_eq!(store.view().unwrap().conf_state.voters, vec![1, 2, 3]);
+    let _ = Native.environment("SCAP_UNIT_ENVIRONMENT_BOUNDARY");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn join_deadline_is_rechecked_before_storage_listeners_and_service_start() {
+    for phase in 1..=3 {
+        let mut config = fourth_peer();
+        config.node_id = 4;
+        let mut fixture = Fixture::with_config(config);
+        (fixture.config.http_listen, fixture.config.peer_listen) = free_addresses();
+        let (endpoint, owner) =
+            crate::join::tests::server(200, crate::join::tests::view(&fixture.config));
+        let mut system = Faults {
+            join_expiry: Some(phase),
+            ..Faults::default()
+        };
+        system
+            .environment
+            .insert("SCAP_JOIN_MANAGEMENT_URL".into(), endpoint);
+        system
+            .environment
+            .insert("SCAP_MANAGEMENT_TOKEN".into(), "join-unit-secret".into());
+        assert_eq!(
+            run_with(
+                fixture.config.clone(),
+                StartMode::Join,
+                Box::pin(async {}),
+                &system,
+                &Native
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "JOIN_EXPIRED"
+        );
+        owner.join().unwrap();
+        assert_eq!(fixture.config.data_dir.exists(), phase > 1);
+        assert_eq!(system.clock_reads.load(Ordering::Relaxed), phase);
+        let http = TcpListener::bind(fixture.config.http_listen).await.unwrap();
+        let peer = TcpListener::bind(fixture.config.peer_listen).await.unwrap();
+        drop((http, peer));
+    }
+}
+
 #[test]
 fn pinned_security_requires_every_local_material_and_exact_peer_scope() {
     let fixture = Fixture::new();
     let material = security(&fixture.config).unwrap();
+    assert!(!material.policy.allows_membership_changes());
     assert_eq!(material.endpoints.len(), 2);
     assert!(material
         .endpoints
@@ -457,6 +701,56 @@ fn pinned_security_requires_every_local_material_and_exact_peer_scope() {
     assert_eq!(
         security(&fixture.config).err().unwrap().code,
         "PEER_CERTIFICATE"
+    );
+}
+
+#[test]
+fn membership_transport_is_enabled_only_by_explicit_management_or_a_larger_pool() {
+    let mut fixture = Fixture::new();
+    fixture.config.management = Some(crate::ManagementConfig {
+        listen: "127.0.0.1:0".parse().unwrap(),
+        token_digest: [7; 32],
+    });
+    assert!(security(&fixture.config)
+        .unwrap()
+        .policy
+        .allows_membership_changes());
+    let fixture = Fixture::with_config(fourth_peer());
+    let material = security(&fixture.config).unwrap();
+    assert!(material.policy.allows_membership_changes());
+    assert_eq!(material.endpoints.len(), 3);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn management_listener_is_separate_authenticated_and_owned_until_shutdown() {
+    let mut fixture = Fixture::new();
+    (fixture.config.http_listen, fixture.config.peer_listen) = free_addresses();
+    let (management, _) = free_addresses();
+    fixture.config.management = Some(crate::ManagementConfig {
+        listen: management,
+        token_digest: [7; 32],
+    });
+    run(fixture.config.clone(), StartMode::Initialize, async {
+        http_response(management, crate::management::PATH, 401).await;
+        http_response(fixture.config.http_listen, crate::management::PATH, 404).await;
+    })
+    .await
+    .unwrap();
+    let listener = TcpListener::bind(management).await.unwrap();
+    drop(listener);
+
+    let mut fixture = Fixture::new();
+    let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    fixture.config.management = Some(crate::ManagementConfig {
+        listen: occupied.local_addr().unwrap(),
+        token_digest: [7; 32],
+    });
+    assert_eq!(
+        run(fixture.config, StartMode::Initialize, async {})
+            .await
+            .unwrap_err()
+            .code,
+        "MANAGEMENT_BIND"
     );
 }
 
@@ -608,6 +902,7 @@ async fn supervision_identifies_every_exit_and_bounded_join_never_hides_failure(
         (3, Some("RAFT_STOPPED")),
         (4, Some("SQL_STOPPED")),
         (5, Some("ARCHIVE_STOPPED")),
+        (6, Some("MANAGEMENT_STOPPED")),
     ] {
         let result = supervise(
             selected(case, 0),
@@ -616,6 +911,7 @@ async fn supervision_identifies_every_exit_and_bounded_join_never_hides_failure(
             selected(case, 3),
             selected(case, 4),
             selected(case, 5),
+            selected(case, 6),
         )
         .await;
         assert_eq!(

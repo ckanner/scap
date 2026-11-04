@@ -10,15 +10,20 @@ mod auth;
 mod cache;
 mod cli;
 mod config;
+mod join;
 mod lanes;
 mod listener;
 mod local;
 mod mailbox;
+mod management;
+mod management_cli;
 mod node;
 mod worker;
 
 pub use cli::command;
-pub use config::{ArchiveConfig, Config, DatabaseConfig, PeerConfig, TokenConfig};
+pub use config::{
+    ArchiveConfig, Config, DatabaseConfig, ManagementConfig, PeerConfig, TokenConfig,
+};
 pub use node::{run, StartMode};
 
 use scap_service::ServiceError;

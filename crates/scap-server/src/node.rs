@@ -29,6 +29,7 @@ use scap_raft_transport::{
 use scap_raft_wire::{certificate_identity, Binding, Policy, Scope};
 use scap_service::{Service, ServiceError};
 use scap_sql_worker::NativeFactory;
+use sha2::{Digest, Sha256};
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, watch};
 
@@ -44,6 +45,7 @@ use crate::worker::{LocalPort, Worker};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartMode {
     Initialize,
+    Join,
     OpenExisting,
 }
 
@@ -68,6 +70,8 @@ impl Drop for Stop {
 }
 
 trait System: Sync {
+    fn now(&self) -> Instant;
+    fn environment(&self, name: &str) -> Option<String>;
     fn entropy(&self, bytes: &mut [u8]) -> Result<(), getrandom::Error>;
     fn create_directory(&self, path: &Path) -> std::io::Result<()>;
     fn sync_parent(&self, path: &Path) -> std::io::Result<()>;
@@ -80,6 +84,12 @@ trait System: Sync {
 
 struct Native;
 impl System for Native {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+    fn environment(&self, name: &str) -> Option<String> {
+        std::env::var(name).ok()
+    }
     fn entropy(&self, bytes: &mut [u8]) -> Result<(), getrandom::Error> {
         getrandom::fill(bytes)
     }
@@ -242,8 +252,8 @@ fn mapped<T, E>(result: Result<T, E>, code: &str) -> Result<T, ServiceError> {
     result.map_err(|_| failure(code))
 }
 
-/// Run one configured voter and its leader-owned SQL service. Each deployment
-/// uses three independently configured processes and three private directories.
+/// Run one trusted peer and its leader-owned SQL service. Bootstrap has exactly
+/// three voters; a fresh joining peer starts outside that durable voter set.
 /// Creation is explicit; missing/corrupt existing storage never creates a cell.
 pub async fn run(
     config: Config,
@@ -263,12 +273,30 @@ async fn run_with(
     if config.databases.is_empty() || config.databases.len() > 32 {
         return Err(failure("CONFIG_DATABASE"));
     }
+    let joining = if mode == StartMode::Join {
+        if config.bootstrap_voters.contains(&config.node_id) {
+            return Err(failure("CONFIG_START_MODE"));
+        }
+        Some(
+            crate::join::verify(
+                &config,
+                system.environment("SCAP_JOIN_MANAGEMENT_URL"),
+                system.environment("SCAP_MANAGEMENT_TOKEN"),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let boot = boot_id(|bytes| system.entropy(bytes))?;
     let application = mapped(
         CellApplication::new(config.cell, cell_limits()),
         "CELL_CONFIG",
     )?;
     let material = security(&config)?;
+    if let Some(permit) = &joining {
+        permit.current_at(system.now())?;
+    }
     let store = open_store_with(&config, mode, system)?;
     // Acquiring the exclusive RocksDB lock precedes touching writer caches.
     // No other live process may own this node's private data namespace.
@@ -288,8 +316,30 @@ async fn run_with(
         threads: Vec::new(),
         archive: None,
     };
+    if let Some(permit) = &joining {
+        permit.current_at(system.now())?;
+    }
     let http_listener = mapped(TcpListener::bind(config.http_listen).await, "HTTP_BIND")?;
     let peer_listener = mapped(TcpListener::bind(config.peer_listen).await, "PEER_BIND")?;
+    let management = match config.management.as_ref() {
+        Some(management) => Some((
+            mapped(
+                TcpListener::bind(management.listen).await,
+                "MANAGEMENT_BIND",
+            )?,
+            crate::management::router(
+                management,
+                handle.clone(),
+                &config.bootstrap_voters,
+                // Successful Store/application validation already proved the
+                // same immutable identity, administrator and limits valid.
+                genesis(&config, cell_limits())
+                    .expect("opened store binds valid genesis configuration")
+                    .digest,
+            ),
+        )),
+        None => None,
+    };
     let server = mapped(
         PeerServer::new(
             Arc::new(handle.clone()),
@@ -333,7 +383,11 @@ async fn run_with(
         .route("/livez", get(|| async { StatusCode::OK }))
         .layer(map_response(close_connection));
     let http_stop = stop_signal.clone();
+    let management_stop = stop_signal.clone();
     let peer_stop = stop_signal;
+    if let Some(permit) = &joining {
+        permit.current_at(system.now())?;
+    }
     let mut http = Task(tokio::spawn(async move {
         axum::serve(Bounded::with_stop(http_listener, http_stop.clone()), routes)
             .with_graceful_shutdown(wait_stop(http_stop))
@@ -342,6 +396,7 @@ async fn run_with(
     let mut peer = Task(tokio::spawn(async move {
         server.serve(peer_listener, wait_stop(peer_stop)).await
     }));
+    let mut management = Task(tokio::spawn(serve_management(management, management_stop)));
     let (raft_complete, mut raft_completed) = oneshot::channel();
     let (sql_complete, mut sql_completed) = oneshot::channel();
     let result = async {
@@ -380,6 +435,7 @@ async fn run_with(
             &mut raft_completed,
             &mut sql_completed,
             owners.archive.as_mut().unwrap().completed(),
+            &mut management.0,
         )
         .await
     }
@@ -389,11 +445,29 @@ async fn run_with(
     let _ = network.shutdown(deadline).await;
     drain(&mut http.0, deadline).await;
     drain(&mut peer.0, deadline).await;
+    drain(&mut management.0, deadline).await;
     // Synchronous disk calls cannot be force-cancelled. Process supervision may
     // terminate a stuck shutdown; an unfinished drain is never a commit ACK.
     let joined = tokio::task::spawn_blocking(move || owners.finish());
     finish_join(joined, deadline).await?;
     result
+}
+
+async fn serve_management(
+    endpoint: Option<(TcpListener, axum::Router)>,
+    stop: watch::Receiver<bool>,
+) -> std::io::Result<()> {
+    match endpoint {
+        Some((listener, routes)) => {
+            axum::serve(Bounded::with_stop(listener, stop.clone()), routes)
+                .with_graceful_shutdown(wait_stop(stop))
+                .await
+        }
+        None => {
+            wait_stop(stop).await;
+            Ok(())
+        }
+    }
 }
 
 struct SqlOwner {
@@ -484,6 +558,7 @@ async fn supervise(
     raft: impl Future,
     sql: impl Future,
     archive: impl Future,
+    management: impl Future,
 ) -> Result<(), ServiceError> {
     tokio::select! {
         _ = shutdown => Ok(()),
@@ -492,6 +567,7 @@ async fn supervise(
         _ = raft => Err(failure("RAFT_STOPPED")),
         _ = sql => Err(failure("SQL_STOPPED")),
         _ = archive => Err(failure("ARCHIVE_STOPPED")),
+        _ = management => Err(failure("MANAGEMENT_STOPPED")),
     }
 }
 
@@ -622,7 +698,14 @@ fn security(config: &Config) -> Result<Security, ServiceError> {
             })
         })
         .collect::<Result<Vec<_>, ServiceError>>()?;
-    let policy = Policy::new(
+    let construct = if config.management.is_some() || config.peers.len() > 3 {
+        Policy::with_trusted_peers
+    } else {
+        // The original three-peer configuration remains fixed unless local
+        // management or an explicitly larger trusted pool enables changes.
+        Policy::new
+    };
+    let policy = construct(
         Scope {
             cluster_id: config.cluster_id,
             cell_id: config.cell.cell_id,
@@ -636,7 +719,7 @@ fn security(config: &Config) -> Result<Security, ServiceError> {
             max_entries: 1024,
             max_fields: 64 * 1024,
             max_certificate_bytes: 16 * 1024,
-            max_bindings: 3,
+            max_bindings: config.peers.len() * 2,
         },
     )
     .map_err(|_| failure("PEER_POLICY"))?;
@@ -683,8 +766,12 @@ fn open_store_with(
         max_entries: 1024,
         max_application_bytes: cell_limits().max_state_bytes as usize,
     };
-    match mode {
-        StartMode::Initialize => {
+    let store = match mode {
+        StartMode::Initialize | StartMode::Join => {
+            if (mode == StartMode::Initialize) != config.bootstrap_voters.contains(&config.node_id)
+            {
+                return Err(failure("CONFIG_START_MODE"));
+            }
             system
                 .create_directory(&config.data_dir)
                 .map_err(|_| failure("DATA_DIRECTORY"))?;
@@ -692,18 +779,15 @@ fn open_store_with(
                 .sync_parent(&config.data_dir)
                 .map_err(|_| failure("DATA_DIRECTORY_SYNC"))?;
             let backend = RocksBackend::create_new(&path).map_err(|_| failure("STORE_CREATE"))?;
-            let mut membership = ConfState::default();
-            membership.set_voters(config.peers.iter().map(|peer| peer.node_id).collect());
-            let application = CellState::bootstrap(
-                config.cell,
-                config.administrator_id,
-                Position { term: 1, index: 1 },
-                cell_limits(),
+            let genesis = genesis(config, cell_limits())?;
+            Store::create_new_with_application(
+                backend,
+                identity,
+                genesis.membership,
+                limits,
+                genesis.application,
             )
-            .map_err(|_| failure("CELL_GENESIS"))?
-            .encode();
-            Store::create_new_with_application(backend, identity, membership, limits, application)
-                .map_err(|_| failure("STORE_GENESIS"))
+            .map_err(|_| failure("STORE_GENESIS"))
         }
         StartMode::OpenExisting => Store::open_existing(
             RocksBackend::open_existing(&path).map_err(|_| failure("STORE_OPEN"))?,
@@ -711,7 +795,72 @@ fn open_store_with(
             limits,
         )
         .map_err(|_| failure("STORE_IDENTITY")),
+    }?;
+    // Every successful create/open yields a validated, healthy private Store.
+    validate_application(config, store.view().expect("opened store is healthy"))?;
+    Ok(store)
+}
+
+pub(crate) struct Genesis {
+    membership: ConfState,
+    application: Vec<u8>,
+    pub(crate) digest: [u8; 32],
+}
+
+pub(crate) fn genesis(config: &Config, limits: scap_cell::Limits) -> Result<Genesis, ServiceError> {
+    let mut voters = config.bootstrap_voters.clone();
+    voters.sort_unstable();
+    let mut membership = ConfState::default();
+    membership.set_voters(voters.clone());
+    let application = CellState::bootstrap(
+        config.cell,
+        config.administrator_id,
+        Position { term: 1, index: 1 },
+        limits,
+    )
+    .map_err(|_| failure("CELL_GENESIS"))?
+    .encode();
+    let mut hash = Sha256::new();
+    hash.update(b"SCAP deterministic cell genesis v1\0");
+    hash.update(config.cluster_id.to_be_bytes());
+    hash.update(config.cell.cell_id.to_be_bytes());
+    hash.update(config.cell.cell_incarnation.to_be_bytes());
+    hash.update((voters.len() as u64).to_be_bytes());
+    for voter in voters {
+        hash.update(voter.to_be_bytes());
     }
+    hash.update((application.len() as u64).to_be_bytes());
+    hash.update(&application);
+    Ok(Genesis {
+        membership,
+        application,
+        digest: hash.finalize().into(),
+    })
+}
+
+fn validate_application(
+    config: &Config,
+    state: &scap_raft_store::State,
+) -> Result<(), ServiceError> {
+    let term = state
+        .entries
+        .iter()
+        .find(|entry| entry.index == state.applied)
+        .map_or(state.snapshot.get_metadata().term, |entry| entry.term);
+    let application = CellState::decode_bound(
+        &state.application,
+        config.cell,
+        Position {
+            term,
+            index: state.applied,
+        },
+        cell_limits(),
+    )
+    .map_err(|_| failure("STORE_APPLICATION"))?;
+    if application.bootstrap_administrator() != config.administrator_id {
+        return Err(failure("STORE_ADMINISTRATOR"));
+    }
+    Ok(())
 }
 
 fn driver_config(boot: u128) -> DriverConfig {

@@ -28,7 +28,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 | 范围 | 已有正式实现 | 仍待完成的目标 |
 | --- | --- | --- |
-| 共识与服务 | 固定三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon | 跨 AZ/设备故障、动态成员、逻辑分段与保留、多 cell |
+| 共识与服务 | 三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon；本轮加入受控 learner/joint 替换，验收见 ADR-0016 | 跨 AZ/设备故障、自动坏盘运维、逻辑分段与保留、多 cell |
 | SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、稳定请求结果查证 | 完整 ORM/同步驱动、交互式事务、生产规模的调度验收 |
 | 多租户与恢复 | 静态最多 32 库、token/当前 auth_epoch、leader 自动接管、新目录恢复、按库惰性 lane/准入配额 | 动态目录、外部身份源、每租户公平性、坏盘成员自动重建 |
 | 冷生命周期 | Suspend、不可变 S3 发布、受覆盖 Prune、精确 hydrate、全 cell Checkpoint | GC/结果退休、PITR/DR、分块归档、恢复空间预留和成本收敛 |
@@ -60,7 +60,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 早期 `raft-rpc` 实验仅验证外层 Prost envelope 透传内层 raft-rs `protobuf-codec` 原始字节、字段/版本/大小拒绝与真实 loopback 往返。2026-11-01 的正式 wire/transport/runtime 已补齐固定成员的 mTLS、实际 leaf pin 与 node/cell 授权、有限消息解析、连接/RPC/inbox/发送预算和绝对 deadline。`Received` 只表示排队成功，尚未保证交给 driver，消费时还要复核授权和有效期。
 
-[真实网络契约](../../experiments/raft-network/README.md)使用三个独立 RawNode/RocksDB 进程与合成 payload；[SQLite 网络](../../experiments/sqlite-network/README.md)和 [服务实验](../../experiments/service-network/README.md)进一步装配正式 SQL/SDK。后续按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)补证书控制面、慢盘/丢盘、动态成员及容量证据。当前每个发送 lane 有界复用一个 TLS 连接，每次 RPC 前后重新验证实际证书链和当前 pin；握手摊销、socket 和尾延迟仍需实测，不能把某次场景通过当成性能达标。禁止由 gRPC Received 推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。
+[真实网络契约](../../experiments/raft-network/README.md)使用三个独立 RawNode/RocksDB 进程与合成 payload；[SQLite 网络](../../experiments/sqlite-network/README.md)和 [服务实验](../../experiments/service-network/README.md)进一步装配正式 SQL/SDK；[成员实验](../../experiments/membership-network/README.md)验证受控 learner/joint 替换。后续按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)补证书控制面、慢盘/丢盘、自动坏盘运维及容量证据。当前每个发送 lane 有界复用一个 TLS 连接，每次 RPC 前后重新验证实际证书链和当前 pin；握手摊销、socket 和尾延迟仍需实测，不能把某次场景通过当成性能达标。禁止由 gRPC Received 推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。
 
 ### 3.4 客户端与备选基线
 
@@ -72,7 +72,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 如果 WAL 接口不能安全控制可见性，或持久存储契约无法证明，停止扩展产品功能，重新选择底座。可选择缩小兼容范围、集中维护引擎 patch，或重评已有复制引擎；不得在提交后上传数据来假装满足门禁。
 
-当前固定成员、静态身份、外部 SQL/SDK、强读、自动 owner 接管与有限冷生命周期已形成可部署闭环。G0 整体仍未宣布通过：完整业务兼容、规模化持久布局、动态平台、租户公平性及生产故障/性能 profile 仍有门禁；当前 256 KiB profile 不等于 1 GiB 目标。功能证据不豁免动态成员、证书控制面、多 cell、设备故障或 SLO 验收，也不自动产生对外 SLA。
+当前同 cell、静态身份、外部 SQL/SDK、强读、自动 owner 接管、有限冷生命周期和受控成员替换已形成有界闭环。G0 整体仍未宣布通过：完整业务兼容、规模化持久布局、动态平台、租户公平性及生产故障/性能 profile 仍有门禁；当前 256 KiB profile 不等于 1 GiB 目标。功能证据不豁免自动坏盘运维、证书控制面、多 cell、设备故障或 SLO 验收，也不自动产生对外 SLA。
 
 ## 4. G1–G3 的实现顺序
 
@@ -81,7 +81,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 3. 已有 HTTP/SDK、静态鉴权、请求结果查询和错误边界；后续加入外部身份、动态目录、公平调度及经验证的事务会话。
 4. 已有 idle 休眠、不可变归档、Publish/Prune/Hydrate 和全 cell Checkpoint；先永久保留对象与结果，继续扩展块级恢复和前景隔离。
 5. 设计并实现可证明的 GC、结果退休、恢复容量预留和删除，之后才能评价持续运行的冷存成本与容量收敛。
-6. 再加入跨 cell 离线迁移、动态成员、版本升级及带来源证明的灾难恢复自动化。
+6. 受控成员替换按 [ADR-0016](../adr/0016-durable-membership-replacement.md)先补齐同 cell 冗余修复；继续实现跨 cell 离线迁移、混版本升级及带来源证明的灾难恢复自动化。
 
 禁止从一开始同时实现所有优化：按页远读、多写者、跨库事务、跨区同步、跨库对象打包、无限事务分块均留待后续 ADR。
 

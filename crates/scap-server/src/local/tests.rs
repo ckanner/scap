@@ -154,7 +154,19 @@ fn status_at(applied: u64, snapshot_index: u64) -> Status {
         applied,
         last_index: applied,
         snapshot_index,
+        is_voter: true,
     }
+}
+
+#[test]
+fn removed_or_learner_nodes_never_report_sql_leadership() {
+    let mut state = status_at(5, 1);
+    assert_eq!(leadership(state.clone()), (true, 2));
+    state.is_voter = false;
+    assert_eq!(leadership(state.clone()), (false, 2));
+    state.role = raft::StateRole::Follower;
+    state.is_voter = true;
+    assert_eq!(leadership(state), (false, 2));
 }
 
 fn control_replies(

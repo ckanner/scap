@@ -436,6 +436,7 @@ jobs:
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
       SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
       SCAP_SERVICE_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-service
+      SCAP_MEMBERSHIP_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/membership-network
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -528,10 +529,50 @@ jobs:
               raise SystemExit("The complete two-database hot and recovery schedule must be retained")
           print("Service correctness and local recovery window verified; production SLO remains unvalidated.")
           PY
+      - name: Execute real learner and joint replacement contracts
+        run: node experiments/membership-network/run.mjs
+      - name: Verify complete membership replacement evidence
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          directory = Path(os.environ["SCAP_MEMBERSHIP_EVIDENCE_DIR"])
+          summary = json.loads((directory / "summary.json").read_text())
+          expected = [
+              "01-original-quorum-and-unjoined-node",
+              "02-management-authorization-and-cas",
+              "03-lagging-learner-cannot-be-promoted",
+              "04-compacted-history-catches-up-new-replica",
+              "05-joint-configuration-survives-process-restart",
+              "06-final-membership-and-old-node-return",
+              "07-new-voter-quorum-preserves-acknowledged-sql",
+              "08-no-quorum-never-forces-membership",
+          ]
+          if summary["completed"] != expected or summary["all_contracts_passed"] is not True:
+              raise SystemExit("Every independent membership contract must complete in order")
+          if summary["lost_acknowledgements"] != 0 or summary["production_slo_passed"] is not False:
+              raise SystemExit("Membership correctness and production SLO boundaries must remain explicit")
+          for name in expected:
+              lines = (directory / f"{name}.history.jsonl").read_text().splitlines()
+              if not lines or lines[-1] != "verification passed":
+                  raise SystemExit(f"Incomplete membership history: {name}")
+              events = [json.loads(line) for line in lines[:-1]]
+              if sum(event["event"] == "contract_started" for event in events) != 1:
+                  raise SystemExit(f"Invalid membership start count: {name}")
+              if sum(event["event"] == "contract_completed" for event in events) != 1:
+                  raise SystemExit(f"Invalid membership completion count: {name}")
+              if any(event["event"] == "contract_failed" for event in events):
+                  raise SystemExit(f"Failed membership history: {name}")
+          print("Learner, joint restart, replacement quorum and ACK retention verified locally.")
+          PY
       - name: Retain all service outcomes and local measurement samples
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sqlite-service-evidence
-          path: target/evidence/sqlite-service
+          path: |
+            target/evidence/sqlite-service
+            target/evidence/membership-network
           if-no-files-found: warn

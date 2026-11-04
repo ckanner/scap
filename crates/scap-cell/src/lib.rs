@@ -408,6 +408,12 @@ impl CellState {
         self.identity
     }
 
+    /// Immutable administrator retained in every durable application snapshot.
+    /// Startup uses this to reject local genesis-configuration drift.
+    pub fn bootstrap_administrator(&self) -> u128 {
+        self.bootstrap_admin
+    }
+
     pub fn position(&self) -> Position {
         self.position
     }

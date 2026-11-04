@@ -62,7 +62,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 
 下表中的“自动”描述目标行为。实现前必须通过 [验证规范](../engineering/validation.md) 中对应场景。
 
-独立 Gateway/控制服务、etcd、成员替换、磁盘百分比背压、GC/PITR/DR 等行仍为 planned；不要把目标矩阵当作当前已安装的组件清单。当前服务的准确自动行为单列于第 3.2 节。
+独立 Gateway/控制服务、etcd、自动坏盘调度、磁盘百分比背压、GC/PITR/DR 等行仍为 planned；不要把目标矩阵当作当前已安装的组件清单。受控成员替换按 [ADR-0016](../adr/0016-durable-membership-replacement.md)提供，当前服务的准确行为单列于第 3.2 节。
 
 | 故障 | 写入与标准读取 | 自动处理目标 | 运维边界 / 禁止行为 |
 | --- | --- | --- | --- |
@@ -125,7 +125,9 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 少数派继续收到 SQL | 新提交/强读仍须 durable quorum / Safe ReadIndex，不能由 ready、旧文件或本地租约授权 | 没有 stale read/离线写降级；已接受请求可能为 UNKNOWN |
 | 所有进程重启、原 RocksDB 完好 | OpenExisting 验证持久身份、limits、镜像及应用位置；重选 leader 后恢复活跃库，休眠状态保留 | 进程重开证据不等于设备断电、跨 AZ 或介质损失验证 |
 | SQLite cache 丢失或页面不匹配 | 停用失效 writer，后续从相同已确认历史重建新目录；不以本地页覆盖权威 | 命名、symlink 或清理异常会停止准入要求人工检查 |
-| RocksDB/WAL/状态镜像坏、目录丢失或身份不符 | OpenExisting 拒绝，保全介质；其他健康多数派可继续 | 没有坏盘自动重建或动态成员替换；不自动 Initialize 空 cell |
+| RocksDB/WAL/状态镜像坏、目录丢失或身份不符 | OpenExisting 拒绝，保全介质；其他健康多数派可继续；operator 可用新身份经过 learner/joint 替换 | 不自动发现/采购替换机器，不在坏目录 Initialize；无 quorum 时不强开 |
+| learner 落后或 joint 期间进程退出 | 未追到 commit 拒绝晋升；ConfState 与 applied 原子持久，原目录重启保留 joint；同时满足两组多数派后退出 | 管理超时可能已提交，必须强读查证，不能盲重发或删减成员 |
+| 被替换旧节点重现 / 旧 ID 换空目录 | 真实成员资格约束选举与 SQL；新 ID 单调递增；Join 在建目录前核对健康 leader 新鲜配置及完整 genesis | 源 bootstrap 配置和单实例私钥由部署者保证；不提供拜占庭防护或旧身份强制复用 |
 | S3 后台上传遇拒绝、黑洞或停机 | 有界后台任务失败/退避，保持未覆盖物理历史；健康热库继续原 quorum 提交 | 热服务仍受 cell 空间、CPU 和磁盘边界约束，没有无限积压 |
 | 已 Cold 数据库在 S3 故障时唤醒 | 在该库独占 lane 等待精确对象或在原 deadline 内失败；不建空、不用更老对象；其他库可独立服务 | 全局与单库准入配额同时生效；未实现加权公平或恢复空间预留，dispatcher 元数据仍可能等待 cell |
 | 归档上传后进程退出，尚未发布 | 对象保留但不成为恢复入口；重启按 cell 状态重建任务 | 所有对象保留，无 orphan GC 和成本收敛保证 |

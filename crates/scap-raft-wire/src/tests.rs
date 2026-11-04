@@ -1,6 +1,6 @@
 use super::*;
 use protobuf::ProtobufEnum;
-use raft::eraftpb::{Entry, EntryType, Snapshot};
+use raft::eraftpb::{ConfChangeSingle, ConfChangeType, Entry, EntryType, Snapshot};
 
 fn scope() -> Scope {
     Scope {
@@ -38,6 +38,42 @@ fn bindings() -> Vec<Binding> {
 
 fn policy() -> Policy {
     Policy::new(scope(), vec![1, 2, 3], bindings(), limits()).unwrap()
+}
+
+fn dynamic_policy() -> Policy {
+    Policy::with_trusted_peers(scope(), vec![1, 2, 3, 4, 5, 6], bindings(), limits()).unwrap()
+}
+
+fn configuration_message(conf: ConfState) -> Message {
+    let mut snapshot = Snapshot::default();
+    snapshot.mut_metadata().index = 10;
+    snapshot.mut_metadata().term = 3;
+    snapshot.mut_metadata().set_conf_state(conf);
+    let mut inner = message(MessageType::MsgSnapshot);
+    inner.set_snapshot(snapshot);
+    inner
+}
+
+fn membership_change(changes: &[(u64, ConfChangeType)]) -> ConfChangeV2 {
+    let mut value = ConfChangeV2::default();
+    for &(node_id, change_type) in changes {
+        let mut single = ConfChangeSingle {
+            node_id,
+            ..ConfChangeSingle::default()
+        };
+        single.set_change_type(change_type);
+        value.mut_changes().push(single);
+    }
+    value
+}
+
+fn change_message(change: &ConfChangeV2) -> Message {
+    let mut inner = message(MessageType::MsgAppend);
+    let mut entry = Entry::default();
+    entry.set_entry_type(EntryType::EntryConfChangeV2);
+    entry.data = change.write_to_bytes().unwrap().into();
+    inner.mut_entries().push(entry);
+    inner
 }
 
 fn message(kind: MessageType) -> Message {
@@ -260,9 +296,17 @@ fn untrusted_version_route_and_certificate_are_rejected_before_payload_decode() 
         } else {
             Error::Unauthorized
         };
+        assert_eq!(
+            dynamic_policy().authorize(cert, 150, request.clone()),
+            Err(expected)
+        );
         assert_eq!(policy().authorize(cert, 150, request), Err(expected));
     }
     for now in [99, 201] {
+        assert_eq!(
+            dynamic_policy().authorize(certificate(), now, envelope()),
+            Err(Error::CertificateTime)
+        );
         assert_eq!(
             policy().authorize(certificate(), now, envelope()),
             Err(Error::CertificateTime)
@@ -616,6 +660,271 @@ fn packed_configuration_members_share_the_nested_field_budget() {
     assert_eq!(
         authorize(request(&[0x0a, 1, 0x80])),
         Err(Error::Malformed("Raft truncated varint"))
+    );
+}
+
+#[test]
+fn trusted_pool_is_explicit_and_does_not_replace_the_actual_configuration() {
+    let mut p = dynamic_policy();
+    assert!(p.allows_membership_changes());
+    assert!(!policy().allows_membership_changes());
+    assert_eq!(p.members(), &BTreeSet::from([1, 2, 3, 4, 5, 6]));
+    assert!(matches!(
+        Policy::with_trusted_peers(scope(), vec![], bindings(), limits()),
+        Err(Error::Limit("bootstrap members"))
+    ));
+    let current = ConfState {
+        voters: vec![1, 2, 3],
+        ..ConfState::default()
+    };
+    assert_eq!(p.validate_configuration(&current), Ok(()));
+    let before_join = CertificateIdentity {
+        fingerprint: [4; 32],
+        ..certificate()
+    };
+    let mut pins = bindings();
+    pins.push(Binding {
+        node_id: 4,
+        fingerprint: before_join.fingerprint,
+    });
+    p.replace_bindings(pins).unwrap();
+    let mut request = message(MessageType::MsgAppendResponse);
+    request.from = 4;
+    let accepted = p.authorize(before_join, 150, wrap(&request)).unwrap();
+    assert_eq!(p.revalidate(&accepted, 150), Ok(()));
+    assert_eq!(p.revalidate(&accepted, 201), Err(Error::CertificateTime));
+    assert_eq!(p.validate_configuration(&current), Ok(()));
+    p.replace_bindings(bindings()).unwrap();
+    assert_eq!(p.revalidate(&accepted, 150), Err(Error::PolicyChanged));
+    assert_eq!(
+        p.authorize(before_join, 150, wrap(&request)),
+        Err(Error::Unauthorized)
+    );
+
+    let fixed = Policy::new(scope(), vec![1, 2, 3, 4, 5, 6], bindings(), limits()).unwrap();
+    let dynamic = dynamic_policy();
+    let accepted = fixed.authorize(certificate(), 150, envelope()).unwrap();
+    assert_eq!(
+        dynamic.revalidate(&accepted, 150),
+        Err(Error::PolicyChanged)
+    );
+    let accepted = dynamic.authorize(certificate(), 150, envelope()).unwrap();
+    assert_eq!(fixed.revalidate(&accepted, 150), Err(Error::PolicyChanged));
+}
+
+#[test]
+fn registered_learner_joint_and_demoted_learner_snapshots_are_admitted() {
+    let simple = ConfState {
+        voters: vec![1, 2, 3],
+        learners: vec![4],
+        ..ConfState::default()
+    };
+    let joint = ConfState {
+        voters: vec![1, 2, 4],
+        learners: vec![5],
+        voters_outgoing: vec![1, 2, 3],
+        learners_next: vec![3],
+        ..ConfState::default()
+    };
+    let automatic = ConfState {
+        auto_leave: true,
+        ..joint.clone()
+    };
+    // A pre-registered local node need not already be a member; this permits
+    // legitimate join and lagging/removed-node recovery without using ConfState
+    // as the transport certificate directory.
+    let other_voters = ConfState {
+        voters: vec![2, 3, 4],
+        ..ConfState::default()
+    };
+    for conf in [simple, joint, automatic, other_voters] {
+        let inner = configuration_message(conf);
+        let accepted = dynamic_policy()
+            .authorize(certificate(), 150, wrap(&inner))
+            .unwrap();
+        assert_eq!(accepted.message(), &inner);
+        assert_eq!(dynamic_policy().revalidate(&accepted, 150), Ok(()));
+        assert!(matches!(
+            policy().authorize(certificate(), 150, wrap(&inner)),
+            Err(Error::Unsupported("snapshot bootstrap membership"))
+        ));
+    }
+}
+
+#[test]
+fn snapshot_members_are_bounded_registered_unique_and_have_consistent_roles() {
+    let valid = ConfState {
+        voters: vec![1, 2, 4],
+        learners: vec![5],
+        voters_outgoing: vec![1, 2, 3],
+        learners_next: vec![3],
+        ..ConfState::default()
+    };
+    for case in 0..16 {
+        let mut conf = valid.clone();
+        match case {
+            0 => conf.voters.clear(),
+            1 => conf.voters = vec![0],
+            2 => conf.voters = vec![7],
+            3 => conf.voters = vec![1, 1],
+            4 => conf.voters = vec![1, 2, 3, 4, 5, 6, 6],
+            5 => conf.voters_outgoing = vec![7],
+            6 => conf.voters_outgoing = vec![3, 3],
+            7 => conf.learners = vec![7],
+            8 => conf.learners = vec![5, 5],
+            9 => conf.learners_next = vec![7],
+            10 => conf.learners_next = vec![3, 3],
+            11 => conf.learners = vec![4],
+            12 => conf.learners = vec![3],
+            13 => conf.learners_next = vec![5],
+            14 => conf.learners_next = vec![2],
+            _ => {
+                conf.voters_outgoing.clear();
+                conf.learners_next.clear();
+                conf.auto_leave = true;
+            }
+        }
+        let expected = match case {
+            0 => Error::Invalid("empty voters"),
+            4 => Error::Limit("configuration members"),
+            11..=14 => Error::Invalid("overlapping configuration roles"),
+            15 => Error::Invalid("auto leave outside joint configuration"),
+            _ => Error::Invalid("configuration peer identity"),
+        };
+        let inner = configuration_message(conf.clone());
+        assert_eq!(
+            dynamic_policy().validate_configuration(&conf),
+            Err(expected)
+        );
+        assert_eq!(
+            dynamic_policy().authorize(certificate(), 150, wrap(&inner)),
+            Err(expected)
+        );
+    }
+}
+
+#[test]
+fn v2_changes_accept_registered_nodes_and_leave_joint_but_never_legacy_entries() {
+    for transition in [
+        ConfChangeTransition::Auto,
+        ConfChangeTransition::Implicit,
+        ConfChangeTransition::Explicit,
+    ] {
+        let mut change = membership_change(&[
+            (4, ConfChangeType::AddNode),
+            (3, ConfChangeType::RemoveNode),
+        ]);
+        change.set_transition(transition);
+        change.context = vec![0xff, 0xff].into();
+        let inner = change_message(&change);
+        let accepted = dynamic_policy()
+            .authorize(certificate(), 150, wrap(&inner))
+            .unwrap();
+        assert_eq!(accepted.message(), &inner);
+        assert_eq!(
+            dynamic_policy().decode_membership_change(&inner.entries[0].data),
+            Ok(change)
+        );
+        assert_eq!(
+            policy().authorize(certificate(), 150, wrap(&inner)),
+            Err(Error::Unsupported("Raft membership changes"))
+        );
+    }
+    for change in [
+        ConfChangeV2::default(),
+        ConfChangeV2 {
+            context: vec![0xff].into(),
+            ..ConfChangeV2::default()
+        },
+        membership_change(&[(4, ConfChangeType::AddLearnerNode)]),
+    ] {
+        assert!(dynamic_policy()
+            .authorize(certificate(), 150, wrap(&change_message(&change)))
+            .is_ok());
+    }
+    let mut inner = change_message(&ConfChangeV2::default());
+    inner.mut_entries()[0].set_entry_type(EntryType::EntryConfChange);
+    assert_eq!(
+        dynamic_policy().authorize(certificate(), 150, wrap(&inner)),
+        Err(Error::Unsupported("Raft membership changes"))
+    );
+}
+
+#[test]
+fn v2_changes_reject_unregistered_duplicate_zero_and_ambiguous_empty_changes() {
+    for nodes in [vec![0], vec![7], vec![4, 4]] {
+        let changes: Vec<_> = nodes
+            .iter()
+            .map(|node| (*node, ConfChangeType::AddLearnerNode))
+            .collect();
+        let inner = change_message(&membership_change(&changes));
+        assert_eq!(
+            dynamic_policy().authorize(certificate(), 150, wrap(&inner)),
+            Err(Error::Invalid("configuration change peer identity"))
+        );
+    }
+    for transition in [
+        ConfChangeTransition::Implicit,
+        ConfChangeTransition::Explicit,
+    ] {
+        let mut change = ConfChangeV2::default();
+        change.set_transition(transition);
+        assert_eq!(
+            dynamic_policy().decode_membership_change(&change.write_to_bytes().unwrap()),
+            Err(Error::Invalid("empty joint change"))
+        );
+    }
+}
+
+#[test]
+fn v2_configuration_decoder_bounds_allocation_and_rejects_unknown_enums() {
+    let p = dynamic_policy();
+    for (bytes, error) in [
+        (
+            vec![0x08, 3],
+            Error::Unsupported("configuration transition enum"),
+        ),
+        (
+            vec![0x12, 2, 0x08, 3],
+            Error::Unsupported("configuration change enum"),
+        ),
+        (
+            vec![0x12, 1, 0xff],
+            Error::Malformed("Raft truncated varint"),
+        ),
+        (
+            vec![0x0a, 0],
+            Error::Malformed("configuration change protobuf"),
+        ),
+        (
+            vec![0x12, 2, 0x12, 0],
+            Error::Malformed("configuration change protobuf"),
+        ),
+        ([0x12, 0].repeat(9), Error::Limit("configuration changes")),
+    ] {
+        assert_eq!(p.decode_membership_change(&bytes), Err(error));
+    }
+    let mut p = dynamic_policy();
+    p.limits.max_payload_bytes = 1;
+    assert_eq!(
+        p.decode_membership_change(&[0x08, 0]),
+        Err(Error::Limit("configuration change bytes"))
+    );
+    let mut p = dynamic_policy();
+    p.limits.max_fields = 1;
+    assert_eq!(
+        p.decode_membership_change(&[0x12, 2, 0x10, 4]),
+        Err(Error::Limit("Raft fields"))
+    );
+    // Noncanonical varints and ordinary unknown fields retain the pinned
+    // protobuf semantics; unknown enum values cannot silently become AddNode.
+    let raw = [0x08, 0, 0x12, 5, 0x08, 0, 0x10, 0x84, 0, 0xa0, 0x06, 1];
+    let change = dynamic_policy().decode_membership_change(&raw).unwrap();
+    assert_eq!(change.changes[0].node_id, 4);
+    assert_eq!(change.changes[0].get_change_type(), ConfChangeType::AddNode);
+    assert_eq!(
+        change.get_unknown_fields().get(100).unwrap().varint,
+        vec![1]
     );
 }
 

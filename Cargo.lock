@@ -2051,6 +2051,8 @@ dependencies = [
  "parking_lot",
  "raft",
  "rcgen",
+ "reqwest",
+ "rustls",
  "scap-archive",
  "scap-cell",
  "scap-cell-client",
