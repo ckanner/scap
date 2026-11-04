@@ -113,9 +113,9 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | inbox 数量/字节用尽、发送 deadline 已过 | 明确拒绝额外准入；过期发送不占新槽；只有 Received 的消息可在持久应用前消失 | 真实契约；Received 只是内存排队，不能当作已交 driver、durable quorum 或 SQL ACK |
 | 迟到/重复反馈、取消和关闭 | attempt ID、deadline、term 与 snapshot attempt 过滤；实际 worker payload 预算保持到释放；关闭新准入并取消 async 任务 | 独立受控单元与正常真实退出；同步 fsync/应用回调无法被网络 shutdown deadline 强制中断 |
 
-正式 worker 每条 delivery 新建 mTLS 连接，对端证书在新握手中验证；入站旧连接仍按每请求和消费时的当前 pin/日期检查。每次握手的 CPU、连接 churn、TIME_WAIT 与资源释放成本仍待生产负载验证。自供 incoming 的 accepted socket 已显式开启 NODELAY，设置失败拒绝连接；这次真实网络缺陷修复不构成吞吐或 p99 证明。故障检测到稳定业务窗口的 RTO 仍须按第 2 节独立测量。
+2026-11-04 起，正式 worker 按 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)在每个 peer 的 ordinary/snapshot lane 各有界复用一个 mTLS client，RPC 前后重新检查实际证书链、DNS、时间与当前 pin；失败、取消、超龄和迟到均丢弃。入站旧连接仍按每请求和消费时的当前 pin/日期检查。握手 CPU、连接 churn、TIME_WAIT 与资源释放成本仍待生产负载验证。自供 incoming 的 accepted socket 已显式开启 NODELAY，设置失败拒绝连接；复用和 NODELAY 均不构成吞吐或 p99 证明。故障检测到稳定业务窗口的 RTO 仍须按第 2 节独立测量。
 
-### 3.2 当前正式服务的故障行为（2026-11-02）
+### 3.2 当前正式服务的故障行为（2026-11-04）
 
 本节对应正式 `scap-server`、`scap-service`、`sdk/node` 和 `scap-archive`，不是实验专用恢复算法。测试场景、原始证据及测量限制分别见 [service-network](../../experiments/service-network/README.md)与 [archive-s3](../../experiments/archive-s3/README.md)；此表描述实现合同，不自动宣称每个云产品、故障域或 SLO 已验证。
 
@@ -127,7 +127,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | SQLite cache 丢失或页面不匹配 | 停用失效 writer，后续从相同已确认历史重建新目录；不以本地页覆盖权威 | 命名、symlink 或清理异常会停止准入要求人工检查 |
 | RocksDB/WAL/状态镜像坏、目录丢失或身份不符 | OpenExisting 拒绝，保全介质；其他健康多数派可继续 | 没有坏盘自动重建或动态成员替换；不自动 Initialize 空 cell |
 | S3 后台上传遇拒绝、黑洞或停机 | 有界后台任务失败/退避，保持未覆盖物理历史；健康热库继续原 quorum 提交 | 热服务仍受 cell 空间、CPU 和磁盘边界约束，没有无限积压 |
-| 已 Cold 数据库在 S3 故障时唤醒 | 等待精确对象或在原 deadline 内失败；不建空、不用更老对象 | 前景 hydrate 仍占单 SQL actor，可推迟同进程其他热库请求 |
+| 已 Cold 数据库在 S3 故障时唤醒 | 在该库独占 lane 等待精确对象或在原 deadline 内失败；不建空、不用更老对象；其他库可独立服务 | 全局与单库准入配额同时生效；未实现加权公平或恢复空间预留，dispatcher 元数据仍可能等待 cell |
 | 归档上传后进程退出，尚未发布 | 对象保留但不成为恢复入口；重启按 cell 状态重建任务 | 所有对象保留，无 orphan GC 和成本收敛保证 |
 | I/O 期间 owner/head 改变 | 原 Publish/Prune 的 owner/head/auth 条件拒绝迟到任务 | 队列丢弃或任务失败不等于撤销已经提交的管理命令 |
 | Prune 恰好先于新请求 Claim | 明确 Cold 且 SQL 尚未执行时，原 deadline 下仅一次 fresh/hydrate/恢复 | 其他错误和 Unknown 不自动重试 SQL |

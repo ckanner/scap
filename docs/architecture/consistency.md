@@ -4,6 +4,8 @@
 
 正式 driver/Store/native 后端、PreVote、check_quorum、Safe ReadIndex 与完整有界 snapshot 已接入 mTLS peer runtime。`scap-cell` 在同一全序内处理 owner/auth、事务接受、去重、取消和 Suspend/Publish/Prune/Hydrate；`scap-sqlite` 在发布页面前等待精确持久裁决并缓冲完整结果。`query` 建立独立只读 SQLite 事务，不增加 accepted-write 历史；第三方 SDK 的普通 execute SELECT 保留兼容事务路径。
 
+2026-11-04 的 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md) 将执行改为按需创建的每库串行 lane，并加入每库准入预算；不同库的 SQL 与前景 hydrate 可独立推进。同库顺序、owner/auth fencing、ReadIndex、ACK 和 UNKNOWN 合同不变。
+
 实际装配、重启与故障边界见 [SQLite 服务实现](../engineering/sqlite-service.md)，底层读选举边界见 [Raft 安全合同](../engineering/raft-safety.md)。已执行场景以 [真实服务实验](../../experiments/service-network/README.md)、[对象实验](../../experiments/archive-s3/README.md)及 [G0 证据](../engineering/g0-evidence.md)为准，本文保留的协议模型并非每项都有公开 API。
 
 字段别名：本文的 `database_id` 等同于其他文档的 `db_id`，`revision` 等同于 `db_seq`；`owner_epoch` 是所有权世代简写 `epoch` 的规范名。权限世代单独命名为 `auth_epoch`，与 `owner_epoch` 不可互换。最终代码、持久格式与 wire protocol 的字段名在 `G0` 冻结，本文中的结构是协议模型，不是已冻结的接口定义。
@@ -218,7 +220,11 @@ PageChange {
 
 ### 4.3 执行环境限制
 
-当前每个 daemon 只有一个 SQL actor，全部本地 SQLite connection 在该线程内执行，有界 mailbox 控制排队。每库最多一个尚未判定结果的 mutating transaction；并行读或按库 actor 是后续优化，不能把“单库单写者”误读成当前已实现跨库并行执行。
+当前每个 daemon 由 dispatcher 路由至按需创建的每库串行 lane，每个 SQLite connection 只在所属 lane 线程内创建、使用和关闭。不同库可并行执行 SQL 或等待前景 hydrate；同库按队列顺序执行，每库最多一个尚未判定结果的 mutating transaction，同库并行连接和并行读尚未实现。
+
+活动与退出中的 lane 合计最多 32 个；全局 SQL 准入为 32 个请求 / 8 MiB，每库为 8 个请求 / 2 MiB，排队与执行共同占用 reservation。原 deadline 与取消信号不重置。lane 只有在 writer 已关闭且队列为空时才能退休；退休与入队使用同一锁，旧线程 join 完成前不启动重叠 writer。重建使用新 boot/worker 身份并经过既有 owner 恢复协议；冷库不保留专用 SQL 线程。
+
+目录轮询不打开 SQLite 或触发冷库前景 hydrate，但仍在 dispatcher 上执行同步元数据检查与维护，活动 lane 也定期维护。每库配额限制单库占用，尚无加权公平调度、独立恢复资源预留或跨库尾延迟保证；共识、CPU 与磁盘仍是共享资源。
 
 必须固定并验证 journaling、checkpoint 和共享缓存设置，禁止 `read_uncommitted` 或其他暴露未提交数据的路径。外部文件型 virtual table、可产生外部副作用的扩展、未适配的写入 API，以及会绕过虚拟 WAL 的恢复或替换文件操作，不在首版支持范围。
 
@@ -388,7 +394,7 @@ ReadBarrier {
 
 只有 `applied_revision >= target_revision` 还不够：它说明没有落后，不能单独证明 SQL 连接实际读到哪个 revision。首版采用精确 revision 规则，避免在 owner 校验和读取新版本之间引入额外证明义务。
 
-当前以 SQL actor 对 writer 的独占访问串行化本地发布与快照建立，核验完整保留历史后固定只读事务的精确镜像；SQL C 调用不放在网络异步线程。未来增加并行连接或快照起始锁时须重新验证锁顺序，不能仅凭现有串行测试推导新调度模型正确。
+当前以每库 SQL lane 对该库 writer 的独占访问串行化本地发布与快照建立，核验完整保留历史后固定只读事务的精确镜像；不同库的并行 lane 不共享 SQLite connection，SQL C 调用不放在网络异步线程。未来增加同库并行连接或快照起始锁时须重新验证锁顺序，不能仅凭现有同库串行测试推导新调度模型正确。
 
 该 gate 必须在安全的引擎调度点取得：已有提交若尚未完成本地发布，应先完成判定与发布；结果未知时先冻结或重建执行实例。不能持有 gate 等待一个同样需要该 gate 才能完成的写事务。首版可以保守地等待当前私有写事务结束后再建立新读快照，已经固定快照的读仍可继续。
 
@@ -497,7 +503,7 @@ request_digest = hash(canonical transaction intent and bound inputs)
 
 ### 10.1 S3 不在正常事务的同步提交路径上
 
-当前 `scap-archive` 和后台 Jobs 已接入真实 S3 兼容客户端。对象是完整单库事务历史与原结果；上传/发布不在热写 ACK 链上。后台 I/O 有独立有界线程，S3 黑洞时不会同步占住 SQL 维护线程；前景 cold hydrate 仍占用单 SQL actor，其他库可能因此排队。
+当前 `scap-archive` 和后台 Jobs 已接入真实 S3 兼容客户端。对象是完整单库事务历史与原结果；上传/发布不在热写 ACK 链上。后台 I/O 有独立有界线程，S3 黑洞时不会同步占住 SQL 维护线程；前景 cold hydrate 占用该库独占 SQL lane，其他库可独立服务；全局与每库准入预算同时限制在途和排队工作。
 
 新事务的同步耐久性来自 cell 的 durable quorum。S3 异步保存不可变数据库快照和事务段，用于冷数据、恢复与历史保留。S3 暂时不可用时，已提交事务仍由 cell 持有；随着归档积压接近安全容量，系统必须背压或拒绝新写，不能先删日志再期待稍后补传。
 

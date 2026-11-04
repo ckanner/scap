@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 scap-raft-store = { path = "../scap-raft-store" }
 rocksdb = { version = "=0.24.0", default-features = false, features = ["bindgen-runtime"] }
+sha2 = "=0.10.9"
 
 [dev-dependencies]
 tempfile = "=3.27.0"

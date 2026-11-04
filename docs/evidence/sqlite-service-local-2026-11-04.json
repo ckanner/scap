@@ -1,0 +1,2109 @@
+{
+  "version": 1,
+  "recorded_date_utc": "2026-11-04",
+  "scope": "Local release-binary service correctness, cold-wake regression controls, and one baseline/final small-data recovery event each.",
+  "production_slo_passed": false,
+  "limitations": [
+    "One host, loopback TCP/HTTP/mTLS and ephemeral local disk; no AZ fault or production placement validation.",
+    "Four scheduled measurement requests per second across two databases, not the 500 requests/second reference load.",
+    "Each build has one leader-loss measurement; these are observations, not an RTO percentile or causal single-change performance study.",
+    "Latency percentiles describe successful samples. Every planned failure, UNKNOWN and rejection remains in its original denominator.",
+    "The native backend is the same pinned O3 archive. Rust release linking uses an explicit C++ runtime flag on the final prebuilt-native path.",
+    "Full private fixture logs, generated credentials and configuration are excluded; the public raw-artifact index retains immutable hashes."
+  ],
+  "build_identity": {
+    "baseline_upstream_commit": "466973d1a9516426ccb27519b17f93a420255b60",
+    "baseline_upstream_tree": "bcc465b9ecb05fc138a140d54979d1d51f710783",
+    "baseline_binary_sha256": "e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786",
+    "before_readiness_and_retirement_fixes_binary_sha256": "a24e0bee2ae054d50b33ef831bbd4b842859b663ae57fb2f2920a064a804c438",
+    "final_binary_sha256": "f7b150027e365e69f0722930a81aabf4f4fed3280704ef7bfa77aa5c5c92e488",
+    "profile": "release",
+    "rustc": "1.90.0 (1159e78c4 2025-09-14)",
+    "llvm": "20.1.8",
+    "target": "x86_64-unknown-linux-gnu",
+    "native_rocks": {
+      "package": "librocksdb-sys 0.17.3+10.4.2",
+      "rust_binding": "rocksdb 0.24.0",
+      "sha256": "4998da12e679834d39b191009ae67fcd6e1377853bed855d29dd0ad0a8f657b5",
+      "optimization": 3,
+      "cxxflags": "-g0",
+      "compiler": "GCC 13.3.0",
+      "same_archive_for_both_releases": true
+    },
+    "final_rustflags": "-C link-arg=-lstdc++",
+    "source_manifest_method": "Sorted repository-relative path and SHA256 records; aggregate SHA256 over UTF-8 JSON with sorted object keys and compact separators. Includes root/crate Cargo files, lockfile, toolchain, Rust/proto production compilation files, and SDK source/package/tsconfig inputs; separate test files are excluded.",
+    "source_manifests": {
+      "baseline": {
+        "count": 69,
+        "sha256": "a49c497f78e99a37218411663b3306472c55eafd4a41448cec812f0c3cd765e5",
+        "files": [
+          {
+            "path": "Cargo.lock",
+            "sha256": "9a22ff95a14f90231885a5ae5be73374cd99d17511f4c4fa9c01d86518aba585"
+          },
+          {
+            "path": "Cargo.toml",
+            "sha256": "52ec3dfeaac2d9a27251c9b49d98c500ea88665b5cff3547966e67fa14826210"
+          },
+          {
+            "path": "crates/scap-archive/Cargo.toml",
+            "sha256": "715215d171843064420595e1034c760b1b6a994101f1c70729b508f6ca40116a"
+          },
+          {
+            "path": "crates/scap-archive/src/lib.rs",
+            "sha256": "3c4b99be229302b0cc977b30f547fdee617c0968f0dc9b410f17940dc28ac319"
+          },
+          {
+            "path": "crates/scap-archive/src/s3.rs",
+            "sha256": "679060782fa59e2bca29afa30809d7735e0e55e9abbf92a4996c3573e9e710d2"
+          },
+          {
+            "path": "crates/scap-cell/Cargo.toml",
+            "sha256": "d418eb8fc739bc9fa64cf90c8f186f8f075f9ac894449138c4e82e4695f345cf"
+          },
+          {
+            "path": "crates/scap-cell/src/codec.rs",
+            "sha256": "a101c8ba5373ba6529a56894aeb10b2eb6c75624455c1a9d2bcd8561e971af3a"
+          },
+          {
+            "path": "crates/scap-cell/src/lib.rs",
+            "sha256": "70496ecfa91bba27982279b5d7edef79478da486db3baa5a9a4336d98ea5963d"
+          },
+          {
+            "path": "crates/scap-cell-client/Cargo.toml",
+            "sha256": "9e48e913dc5549ecd6ffcd261536f4ab1be240695b341bfda8734d93216c1f42"
+          },
+          {
+            "path": "crates/scap-cell-client/src/lib.rs",
+            "sha256": "86f2d696a3ed11e47a3e4fa90ae4fd5a618638ce417d93b95db036e4fc6547ac"
+          },
+          {
+            "path": "crates/scap-cell-client/src/runtime.rs",
+            "sha256": "ea139d7c7bd612af6d358ac4661feb03c5864730cdba29e40ca4c7c389af0ae9"
+          },
+          {
+            "path": "crates/scap-core/Cargo.toml",
+            "sha256": "bb8ae87a9063007933e4391a39f47fbcc8d6dd445cd7dedf416d8796d1cb747b"
+          },
+          {
+            "path": "crates/scap-core/src/lib.rs",
+            "sha256": "0a67f6ddba1e9ed6865605f96f3bdc29904ddd0b3bec1b19e9dddf0dd01a73be"
+          },
+          {
+            "path": "crates/scap-engine/Cargo.toml",
+            "sha256": "44e679e084793ecc9bc6152b2e4196f249fc5f8b158a3e3415d104262b5e2a10"
+          },
+          {
+            "path": "crates/scap-engine/src/lib.rs",
+            "sha256": "fdb824ece07a5ca8081045411d2f0490d8677bde4eef5e39bbdfe85b246a1a19"
+          },
+          {
+            "path": "crates/scap-raft-driver/Cargo.toml",
+            "sha256": "4f3af9e942ea6ba3168b64d5026a43d3333f0fd6463cd3740c9b724e04272812"
+          },
+          {
+            "path": "crates/scap-raft-driver/src/lib.rs",
+            "sha256": "2c1108708b2cff1370c850129841857288a3db516ff22690afc0f97a95e95e5a"
+          },
+          {
+            "path": "crates/scap-raft-rocks/Cargo.toml",
+            "sha256": "4f422ca8d08ebaedc78ebe5b71cd4174eacc21e38f67375ea4e0ebf7fe1841da"
+          },
+          {
+            "path": "crates/scap-raft-rocks/src/lib.rs",
+            "sha256": "8f490b550376aaad38cb7c31ce4d92b8a6abade2995effb75e57d36927da347f"
+          },
+          {
+            "path": "crates/scap-raft-runtime/Cargo.toml",
+            "sha256": "843ee6ea35519b76865f7750302ea63ce2696483900bc300b3abc8b221cff3ea"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/driver.rs",
+            "sha256": "1b3cb9f8687d5e394aa3a9345a12cd4fd20394cfda61ccf59a2ce6c690bed109"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/lib.rs",
+            "sha256": "df244a5c03b298e0990a30815925ad93e9c56dcd4cdcb1881835da4e4a49c04d"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/workers.rs",
+            "sha256": "23fd3ae6b25eecbc9dd980ec5cdc7f23d665160efe69ebfc4a101853cbf60e7a"
+          },
+          {
+            "path": "crates/scap-raft-store/Cargo.toml",
+            "sha256": "e8c31eeb23fc01c1dd23b1afbe1a9c2e7d23a46e8383dfcff0689748e70ad3c1"
+          },
+          {
+            "path": "crates/scap-raft-store/src/lib.rs",
+            "sha256": "9c34a3123f1b7ddfcabc560b4aabc74d44ebf5d640357e59d7e9bd359f2fa4e5"
+          },
+          {
+            "path": "crates/scap-raft-transport/Cargo.toml",
+            "sha256": "fecb3a598f5e45827ff691c7f1692104f2bbc027be8241d3cf4aec2f3ccc8b31"
+          },
+          {
+            "path": "crates/scap-raft-transport/proto/peer.proto",
+            "sha256": "4b49580c34f866a9bb08ccee84b39ac96910b7dccb722a2939d4c7c4e3e16502"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/client.rs",
+            "sha256": "0b5e26a50a26b0511aa003f6c7b16d3c2144c70f5e1a53a7c41a02ed0e503e0e"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/incoming.rs",
+            "sha256": "7b36ee6afa2f50df6fcbc74963d9401d178e0c4b63ed17716f8fa190b963eae2"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/lib.rs",
+            "sha256": "828daba47dfb4fbd7f91cef6f66024f53be596f7403e2f6be96e44b682518b44"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/server.rs",
+            "sha256": "3b55bd21042e0c0272a3a1c862877c4b1619057741ecd46a8b1280c81ec1e1f1"
+          },
+          {
+            "path": "crates/scap-raft-wire/Cargo.toml",
+            "sha256": "bbae7c0c42e14c5128554baab3a7a65c1edbdeae846372247af4757bf2be908d"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/certificate.rs",
+            "sha256": "2028731ad3e78d5c9ed6bf455f4b5f17eca8a7bbc8555f28031a3632f8d1ccf6"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/codec.rs",
+            "sha256": "4d85ae39e2a2cea1da445f51dc2476213ba11118024d1aca1f49a669abb69e85"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/lib.rs",
+            "sha256": "04b8bc6ec77ef2d00b8eca485a377d4952480b8dc5a7808f6304421629806030"
+          },
+          {
+            "path": "crates/scap-server/Cargo.toml",
+            "sha256": "fcb0292e3595e1de7eeee4bfca8c71de4b087fee9222136557c455eb537d4511"
+          },
+          {
+            "path": "crates/scap-server/src/archive.rs",
+            "sha256": "f103df40c7b0770f52aa5478ce4dc94bbeed7501d0e9d7e134ddc6a33e6945db"
+          },
+          {
+            "path": "crates/scap-server/src/archive_jobs.rs",
+            "sha256": "0504b68b9a60cb5700095d3190bb3d55350466c3fac697da7c7fc692da5da4be"
+          },
+          {
+            "path": "crates/scap-server/src/auth.rs",
+            "sha256": "9a24bb9cbd9b6d5b77304d5b646d0711eb17296f1162c7aabfa9370de065dbe2"
+          },
+          {
+            "path": "crates/scap-server/src/cache.rs",
+            "sha256": "aa6bd669108c80e96574ed43f29e07612918442cf61d5f2eb7e6f10498c1903c"
+          },
+          {
+            "path": "crates/scap-server/src/cli.rs",
+            "sha256": "b24e504e8f71be7782f816bcb4ba5b9716e43c6edb4844f72a6f844bf59db95f"
+          },
+          {
+            "path": "crates/scap-server/src/config.rs",
+            "sha256": "880675fbb8a5666568df833e1e6b87d0019cbc843efcd285364ae36720c8e0a4"
+          },
+          {
+            "path": "crates/scap-server/src/lib.rs",
+            "sha256": "eb802d0a5692f99485a9d76854439f78216a305173cfce6692e19acdd94f1d01"
+          },
+          {
+            "path": "crates/scap-server/src/listener.rs",
+            "sha256": "bc1d63004af75212bf531b0481875b64626219f20cdaf3e50f77ce658c9c5f6f"
+          },
+          {
+            "path": "crates/scap-server/src/local.rs",
+            "sha256": "75cc4de553b5a1f13a6089a23638e64dfc04601df990edf338580bf2255922e2"
+          },
+          {
+            "path": "crates/scap-server/src/mailbox.rs",
+            "sha256": "eb8116631aedb909a33071f851ed6f19f0a4f0cb51004bf951d9a283950b017c"
+          },
+          {
+            "path": "crates/scap-server/src/main.rs",
+            "sha256": "d5d20d11219a532a1ef3e53f0db7a7775f28b967e31698b1c483339d83090a96"
+          },
+          {
+            "path": "crates/scap-server/src/node.rs",
+            "sha256": "62a1cda6b184db7c600970a1b911ecdb74983517671e0900d6a964e9ea7c0449"
+          },
+          {
+            "path": "crates/scap-server/src/worker.rs",
+            "sha256": "9d1fbb22f5750d32bdc29f520e0e300d1f27afcdaf7b65e6f69ef2f6fd9daa45"
+          },
+          {
+            "path": "crates/scap-service/Cargo.toml",
+            "sha256": "14650868f26b292c63332a0e3d6099bcf42b7e27f551ad22de20aff1bd33ea44"
+          },
+          {
+            "path": "crates/scap-service/src/http.rs",
+            "sha256": "135f70e59d403d8a2d4fccdc9d276c1015ac304fe6ab94cc7c841ad7d251b90a"
+          },
+          {
+            "path": "crates/scap-service/src/lib.rs",
+            "sha256": "f27c204dde19581c0478b323f60edbd68775e3bfd458a75e50bfedce94da26ff"
+          },
+          {
+            "path": "crates/scap-service/src/protocol.rs",
+            "sha256": "e23cf1f32d797bda96f66fc4b20c48bc1320f4ae668e0aa20aae0dfe04c9114c"
+          },
+          {
+            "path": "crates/scap-sql/Cargo.toml",
+            "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+          },
+          {
+            "path": "crates/scap-sql/src/lib.rs",
+            "sha256": "192480bd34b8eab644d7385ddc2ff030277c21476a3a42bb360e7b278d8a648b"
+          },
+          {
+            "path": "crates/scap-sql-worker/Cargo.toml",
+            "sha256": "fafcb1d25ff7cf5862ee0e61e5bec0f8c6d1cd00fda2b1566c19116f62d44c0f"
+          },
+          {
+            "path": "crates/scap-sql-worker/src/lib.rs",
+            "sha256": "4b111697a5241352f605ae6b0a50e49aceb6606f33de0a1cff2465cdae1dadf6"
+          },
+          {
+            "path": "crates/scap-sqlite/Cargo.toml",
+            "sha256": "7d2d78809579e5e474ec9aaf6b174d767a598cbdda51abc76ddf117d83ac24c1"
+          },
+          {
+            "path": "crates/scap-sqlite/src/config.rs",
+            "sha256": "0a145dacca1859389d9cadb87ef712be0224575c2960a11fe3d5a4226e6f9ff0"
+          },
+          {
+            "path": "crates/scap-sqlite/src/file.rs",
+            "sha256": "974cddaeccfa57140790b16180b1704383dc6d9558d412c77032dc98e1d6fcb5"
+          },
+          {
+            "path": "crates/scap-sqlite/src/gate.rs",
+            "sha256": "70e5077e782c40ef48e37eedb02b4962c6471c5ed6d37d7a899ac962950d1f37"
+          },
+          {
+            "path": "crates/scap-sqlite/src/lib.rs",
+            "sha256": "d28c96c0ea54674f6e309f6b2f69409dd6060f5e018421385ac310e335b25351"
+          },
+          {
+            "path": "crates/scap-sqlite/src/query.rs",
+            "sha256": "484e088a6d3d32fffb50378b4e0e1e421a94a08d2c957759ccdf6f04327b452e"
+          },
+          {
+            "path": "crates/scap-sqlite/src/sql.rs",
+            "sha256": "200cc0f18b5118ddfaed12a18daedccd659b548975c13a5db7d565ac76027d34"
+          },
+          {
+            "path": "rust-toolchain.toml",
+            "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+          },
+          {
+            "path": "sdk/node/package-lock.json",
+            "sha256": "b85e2d1b9af4d23fbc046c41768d9b221cf6b9705775f173b77318826df85a80"
+          },
+          {
+            "path": "sdk/node/package.json",
+            "sha256": "86b7beb5d69c2f906e1dd720910d025643a00c91d3663a75573d9b079d944da1"
+          },
+          {
+            "path": "sdk/node/src/client.ts",
+            "sha256": "3db0347c38945400c4c770d895a06f9f06a0ccb882957befde62df6773324a0a"
+          },
+          {
+            "path": "sdk/node/tsconfig.json",
+            "sha256": "62e6fd4262b144db132efc9b040d812c68fed72f3fbc6c2b128583cd4acff122"
+          }
+        ]
+      },
+      "before_readiness_and_retirement_fixes": {
+        "count": 71,
+        "sha256": "33a9a29f64ed28d313398a3e881f6640ba520fb7856449538e8b0b5ab4cc71de",
+        "files": [
+          {
+            "path": "Cargo.lock",
+            "sha256": "292915f798dedaf6f26d1fead5109ffa40497f0349c25f933c7b41fae472316a"
+          },
+          {
+            "path": "Cargo.toml",
+            "sha256": "52ec3dfeaac2d9a27251c9b49d98c500ea88665b5cff3547966e67fa14826210"
+          },
+          {
+            "path": "crates/scap-archive/Cargo.toml",
+            "sha256": "715215d171843064420595e1034c760b1b6a994101f1c70729b508f6ca40116a"
+          },
+          {
+            "path": "crates/scap-archive/src/lib.rs",
+            "sha256": "3c4b99be229302b0cc977b30f547fdee617c0968f0dc9b410f17940dc28ac319"
+          },
+          {
+            "path": "crates/scap-archive/src/s3.rs",
+            "sha256": "679060782fa59e2bca29afa30809d7735e0e55e9abbf92a4996c3573e9e710d2"
+          },
+          {
+            "path": "crates/scap-cell/Cargo.toml",
+            "sha256": "d418eb8fc739bc9fa64cf90c8f186f8f075f9ac894449138c4e82e4695f345cf"
+          },
+          {
+            "path": "crates/scap-cell/src/codec.rs",
+            "sha256": "a101c8ba5373ba6529a56894aeb10b2eb6c75624455c1a9d2bcd8561e971af3a"
+          },
+          {
+            "path": "crates/scap-cell/src/lib.rs",
+            "sha256": "70496ecfa91bba27982279b5d7edef79478da486db3baa5a9a4336d98ea5963d"
+          },
+          {
+            "path": "crates/scap-cell-client/Cargo.toml",
+            "sha256": "9e48e913dc5549ecd6ffcd261536f4ab1be240695b341bfda8734d93216c1f42"
+          },
+          {
+            "path": "crates/scap-cell-client/src/lib.rs",
+            "sha256": "86f2d696a3ed11e47a3e4fa90ae4fd5a618638ce417d93b95db036e4fc6547ac"
+          },
+          {
+            "path": "crates/scap-cell-client/src/runtime.rs",
+            "sha256": "ea139d7c7bd612af6d358ac4661feb03c5864730cdba29e40ca4c7c389af0ae9"
+          },
+          {
+            "path": "crates/scap-core/Cargo.toml",
+            "sha256": "bb8ae87a9063007933e4391a39f47fbcc8d6dd445cd7dedf416d8796d1cb747b"
+          },
+          {
+            "path": "crates/scap-core/src/lib.rs",
+            "sha256": "0a67f6ddba1e9ed6865605f96f3bdc29904ddd0b3bec1b19e9dddf0dd01a73be"
+          },
+          {
+            "path": "crates/scap-engine/Cargo.toml",
+            "sha256": "44e679e084793ecc9bc6152b2e4196f249fc5f8b158a3e3415d104262b5e2a10"
+          },
+          {
+            "path": "crates/scap-engine/src/lib.rs",
+            "sha256": "fdb824ece07a5ca8081045411d2f0490d8677bde4eef5e39bbdfe85b246a1a19"
+          },
+          {
+            "path": "crates/scap-raft-driver/Cargo.toml",
+            "sha256": "4f3af9e942ea6ba3168b64d5026a43d3333f0fd6463cd3740c9b724e04272812"
+          },
+          {
+            "path": "crates/scap-raft-driver/src/lib.rs",
+            "sha256": "2c1108708b2cff1370c850129841857288a3db516ff22690afc0f97a95e95e5a"
+          },
+          {
+            "path": "crates/scap-raft-rocks/Cargo.toml",
+            "sha256": "614db77d3ed3d5716b46a453d68e8963c69fad72f9c5bc3b0712fac0d8892b23"
+          },
+          {
+            "path": "crates/scap-raft-rocks/src/layout.rs",
+            "sha256": "a2d0235ce6cca2b4e82484c09d024a597f8dd3e430f176b917488fda8651c1b5"
+          },
+          {
+            "path": "crates/scap-raft-rocks/src/lib.rs",
+            "sha256": "0fc09686e5eb99c2531a5801461c4e773af2a08b0e35d315524f6d3ea1ce4705"
+          },
+          {
+            "path": "crates/scap-raft-runtime/Cargo.toml",
+            "sha256": "843ee6ea35519b76865f7750302ea63ce2696483900bc300b3abc8b221cff3ea"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/driver.rs",
+            "sha256": "1b3cb9f8687d5e394aa3a9345a12cd4fd20394cfda61ccf59a2ce6c690bed109"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/lib.rs",
+            "sha256": "df244a5c03b298e0990a30815925ad93e9c56dcd4cdcb1881835da4e4a49c04d"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/workers.rs",
+            "sha256": "91ba7b88b78f95bf01f28f33dced4aa0c670b76795afaacffe7f7d780410c937"
+          },
+          {
+            "path": "crates/scap-raft-store/Cargo.toml",
+            "sha256": "e8c31eeb23fc01c1dd23b1afbe1a9c2e7d23a46e8383dfcff0689748e70ad3c1"
+          },
+          {
+            "path": "crates/scap-raft-store/src/lib.rs",
+            "sha256": "9c34a3123f1b7ddfcabc560b4aabc74d44ebf5d640357e59d7e9bd359f2fa4e5"
+          },
+          {
+            "path": "crates/scap-raft-transport/Cargo.toml",
+            "sha256": "7db38d63476952d3bd0bd1ea2515383c17b9ecfc35793e3f8630b3f55af0eae9"
+          },
+          {
+            "path": "crates/scap-raft-transport/proto/peer.proto",
+            "sha256": "4b49580c34f866a9bb08ccee84b39ac96910b7dccb722a2939d4c7c4e3e16502"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/client.rs",
+            "sha256": "5083c2b4cdaf40af6edbd62608a8a1d58aee84c7d1c4997525b0916f08541d1f"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/incoming.rs",
+            "sha256": "7b36ee6afa2f50df6fcbc74963d9401d178e0c4b63ed17716f8fa190b963eae2"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/lib.rs",
+            "sha256": "da018b22f65c1c63684d9674a072b55616c02a81385b708c012a6ba4fba7198e"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/server.rs",
+            "sha256": "3b55bd21042e0c0272a3a1c862877c4b1619057741ecd46a8b1280c81ec1e1f1"
+          },
+          {
+            "path": "crates/scap-raft-wire/Cargo.toml",
+            "sha256": "bbae7c0c42e14c5128554baab3a7a65c1edbdeae846372247af4757bf2be908d"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/certificate.rs",
+            "sha256": "2028731ad3e78d5c9ed6bf455f4b5f17eca8a7bbc8555f28031a3632f8d1ccf6"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/codec.rs",
+            "sha256": "4d85ae39e2a2cea1da445f51dc2476213ba11118024d1aca1f49a669abb69e85"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/lib.rs",
+            "sha256": "bc0d98457aecee3a6b879ecc76c2d83b067f2c01673bd5092c79ff1cb1ff40a5"
+          },
+          {
+            "path": "crates/scap-server/Cargo.toml",
+            "sha256": "fcb0292e3595e1de7eeee4bfca8c71de4b087fee9222136557c455eb537d4511"
+          },
+          {
+            "path": "crates/scap-server/src/archive.rs",
+            "sha256": "f103df40c7b0770f52aa5478ce4dc94bbeed7501d0e9d7e134ddc6a33e6945db"
+          },
+          {
+            "path": "crates/scap-server/src/archive_jobs.rs",
+            "sha256": "99b8279cc7eb14fd47d77ccb9419ef4aab60f697a9f30173a963715e7948e46d"
+          },
+          {
+            "path": "crates/scap-server/src/auth.rs",
+            "sha256": "9a24bb9cbd9b6d5b77304d5b646d0711eb17296f1162c7aabfa9370de065dbe2"
+          },
+          {
+            "path": "crates/scap-server/src/cache.rs",
+            "sha256": "aa6bd669108c80e96574ed43f29e07612918442cf61d5f2eb7e6f10498c1903c"
+          },
+          {
+            "path": "crates/scap-server/src/cli.rs",
+            "sha256": "b24e504e8f71be7782f816bcb4ba5b9716e43c6edb4844f72a6f844bf59db95f"
+          },
+          {
+            "path": "crates/scap-server/src/config.rs",
+            "sha256": "880675fbb8a5666568df833e1e6b87d0019cbc843efcd285364ae36720c8e0a4"
+          },
+          {
+            "path": "crates/scap-server/src/lanes.rs",
+            "sha256": "843209ff9abd98bda226f6f48f9245e59a3137e15e2116120b44f1d84d86302f"
+          },
+          {
+            "path": "crates/scap-server/src/lib.rs",
+            "sha256": "bb7e50a902a83e506676513f544a4da8fa78dab08fae2b18b54bf0b3a50c700a"
+          },
+          {
+            "path": "crates/scap-server/src/listener.rs",
+            "sha256": "bc1d63004af75212bf531b0481875b64626219f20cdaf3e50f77ce658c9c5f6f"
+          },
+          {
+            "path": "crates/scap-server/src/local.rs",
+            "sha256": "c8c4911517142110d283c994003dc9e2cf1e1ce67f1f338ae2a6753e269d69c5"
+          },
+          {
+            "path": "crates/scap-server/src/mailbox.rs",
+            "sha256": "d74fc0210a9e3df3740ee02c4bf17d941b75ce49638d1198e1261b239f45480d"
+          },
+          {
+            "path": "crates/scap-server/src/main.rs",
+            "sha256": "d5d20d11219a532a1ef3e53f0db7a7775f28b967e31698b1c483339d83090a96"
+          },
+          {
+            "path": "crates/scap-server/src/node.rs",
+            "sha256": "2a00cfa608b78db6d650a9a4fd2119ed11f80690962cae580a1832beac46fb9f"
+          },
+          {
+            "path": "crates/scap-server/src/worker.rs",
+            "sha256": "d37e079b226ce1e426f946739a8002b6bf9ec61986be858b8c5c1947150d8359"
+          },
+          {
+            "path": "crates/scap-service/Cargo.toml",
+            "sha256": "14650868f26b292c63332a0e3d6099bcf42b7e27f551ad22de20aff1bd33ea44"
+          },
+          {
+            "path": "crates/scap-service/src/http.rs",
+            "sha256": "135f70e59d403d8a2d4fccdc9d276c1015ac304fe6ab94cc7c841ad7d251b90a"
+          },
+          {
+            "path": "crates/scap-service/src/lib.rs",
+            "sha256": "f27c204dde19581c0478b323f60edbd68775e3bfd458a75e50bfedce94da26ff"
+          },
+          {
+            "path": "crates/scap-service/src/protocol.rs",
+            "sha256": "e23cf1f32d797bda96f66fc4b20c48bc1320f4ae668e0aa20aae0dfe04c9114c"
+          },
+          {
+            "path": "crates/scap-sql/Cargo.toml",
+            "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+          },
+          {
+            "path": "crates/scap-sql/src/lib.rs",
+            "sha256": "192480bd34b8eab644d7385ddc2ff030277c21476a3a42bb360e7b278d8a648b"
+          },
+          {
+            "path": "crates/scap-sql-worker/Cargo.toml",
+            "sha256": "fafcb1d25ff7cf5862ee0e61e5bec0f8c6d1cd00fda2b1566c19116f62d44c0f"
+          },
+          {
+            "path": "crates/scap-sql-worker/src/lib.rs",
+            "sha256": "4b111697a5241352f605ae6b0a50e49aceb6606f33de0a1cff2465cdae1dadf6"
+          },
+          {
+            "path": "crates/scap-sqlite/Cargo.toml",
+            "sha256": "7d2d78809579e5e474ec9aaf6b174d767a598cbdda51abc76ddf117d83ac24c1"
+          },
+          {
+            "path": "crates/scap-sqlite/src/config.rs",
+            "sha256": "0a145dacca1859389d9cadb87ef712be0224575c2960a11fe3d5a4226e6f9ff0"
+          },
+          {
+            "path": "crates/scap-sqlite/src/file.rs",
+            "sha256": "974cddaeccfa57140790b16180b1704383dc6d9558d412c77032dc98e1d6fcb5"
+          },
+          {
+            "path": "crates/scap-sqlite/src/gate.rs",
+            "sha256": "70e5077e782c40ef48e37eedb02b4962c6471c5ed6d37d7a899ac962950d1f37"
+          },
+          {
+            "path": "crates/scap-sqlite/src/lib.rs",
+            "sha256": "d28c96c0ea54674f6e309f6b2f69409dd6060f5e018421385ac310e335b25351"
+          },
+          {
+            "path": "crates/scap-sqlite/src/query.rs",
+            "sha256": "484e088a6d3d32fffb50378b4e0e1e421a94a08d2c957759ccdf6f04327b452e"
+          },
+          {
+            "path": "crates/scap-sqlite/src/sql.rs",
+            "sha256": "200cc0f18b5118ddfaed12a18daedccd659b548975c13a5db7d565ac76027d34"
+          },
+          {
+            "path": "rust-toolchain.toml",
+            "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+          },
+          {
+            "path": "sdk/node/package-lock.json",
+            "sha256": "b85e2d1b9af4d23fbc046c41768d9b221cf6b9705775f173b77318826df85a80"
+          },
+          {
+            "path": "sdk/node/package.json",
+            "sha256": "86b7beb5d69c2f906e1dd720910d025643a00c91d3663a75573d9b079d944da1"
+          },
+          {
+            "path": "sdk/node/src/client.ts",
+            "sha256": "3db0347c38945400c4c770d895a06f9f06a0ccb882957befde62df6773324a0a"
+          },
+          {
+            "path": "sdk/node/tsconfig.json",
+            "sha256": "62e6fd4262b144db132efc9b040d812c68fed72f3fbc6c2b128583cd4acff122"
+          }
+        ]
+      },
+      "final": {
+        "count": 71,
+        "sha256": "750892e547d34a355668592056f6cb6fe7f962f583e0127f631272d3a47127c2",
+        "files": [
+          {
+            "path": "Cargo.lock",
+            "sha256": "292915f798dedaf6f26d1fead5109ffa40497f0349c25f933c7b41fae472316a"
+          },
+          {
+            "path": "Cargo.toml",
+            "sha256": "52ec3dfeaac2d9a27251c9b49d98c500ea88665b5cff3547966e67fa14826210"
+          },
+          {
+            "path": "crates/scap-archive/Cargo.toml",
+            "sha256": "715215d171843064420595e1034c760b1b6a994101f1c70729b508f6ca40116a"
+          },
+          {
+            "path": "crates/scap-archive/src/lib.rs",
+            "sha256": "3c4b99be229302b0cc977b30f547fdee617c0968f0dc9b410f17940dc28ac319"
+          },
+          {
+            "path": "crates/scap-archive/src/s3.rs",
+            "sha256": "679060782fa59e2bca29afa30809d7735e0e55e9abbf92a4996c3573e9e710d2"
+          },
+          {
+            "path": "crates/scap-cell/Cargo.toml",
+            "sha256": "d418eb8fc739bc9fa64cf90c8f186f8f075f9ac894449138c4e82e4695f345cf"
+          },
+          {
+            "path": "crates/scap-cell/src/codec.rs",
+            "sha256": "a101c8ba5373ba6529a56894aeb10b2eb6c75624455c1a9d2bcd8561e971af3a"
+          },
+          {
+            "path": "crates/scap-cell/src/lib.rs",
+            "sha256": "70496ecfa91bba27982279b5d7edef79478da486db3baa5a9a4336d98ea5963d"
+          },
+          {
+            "path": "crates/scap-cell-client/Cargo.toml",
+            "sha256": "9e48e913dc5549ecd6ffcd261536f4ab1be240695b341bfda8734d93216c1f42"
+          },
+          {
+            "path": "crates/scap-cell-client/src/lib.rs",
+            "sha256": "86f2d696a3ed11e47a3e4fa90ae4fd5a618638ce417d93b95db036e4fc6547ac"
+          },
+          {
+            "path": "crates/scap-cell-client/src/runtime.rs",
+            "sha256": "ea139d7c7bd612af6d358ac4661feb03c5864730cdba29e40ca4c7c389af0ae9"
+          },
+          {
+            "path": "crates/scap-core/Cargo.toml",
+            "sha256": "bb8ae87a9063007933e4391a39f47fbcc8d6dd445cd7dedf416d8796d1cb747b"
+          },
+          {
+            "path": "crates/scap-core/src/lib.rs",
+            "sha256": "0a67f6ddba1e9ed6865605f96f3bdc29904ddd0b3bec1b19e9dddf0dd01a73be"
+          },
+          {
+            "path": "crates/scap-engine/Cargo.toml",
+            "sha256": "44e679e084793ecc9bc6152b2e4196f249fc5f8b158a3e3415d104262b5e2a10"
+          },
+          {
+            "path": "crates/scap-engine/src/lib.rs",
+            "sha256": "fdb824ece07a5ca8081045411d2f0490d8677bde4eef5e39bbdfe85b246a1a19"
+          },
+          {
+            "path": "crates/scap-raft-driver/Cargo.toml",
+            "sha256": "4f3af9e942ea6ba3168b64d5026a43d3333f0fd6463cd3740c9b724e04272812"
+          },
+          {
+            "path": "crates/scap-raft-driver/src/lib.rs",
+            "sha256": "2c1108708b2cff1370c850129841857288a3db516ff22690afc0f97a95e95e5a"
+          },
+          {
+            "path": "crates/scap-raft-rocks/Cargo.toml",
+            "sha256": "614db77d3ed3d5716b46a453d68e8963c69fad72f9c5bc3b0712fac0d8892b23"
+          },
+          {
+            "path": "crates/scap-raft-rocks/src/layout.rs",
+            "sha256": "a2d0235ce6cca2b4e82484c09d024a597f8dd3e430f176b917488fda8651c1b5"
+          },
+          {
+            "path": "crates/scap-raft-rocks/src/lib.rs",
+            "sha256": "0fc09686e5eb99c2531a5801461c4e773af2a08b0e35d315524f6d3ea1ce4705"
+          },
+          {
+            "path": "crates/scap-raft-runtime/Cargo.toml",
+            "sha256": "843ee6ea35519b76865f7750302ea63ce2696483900bc300b3abc8b221cff3ea"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/driver.rs",
+            "sha256": "1b3cb9f8687d5e394aa3a9345a12cd4fd20394cfda61ccf59a2ce6c690bed109"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/lib.rs",
+            "sha256": "df244a5c03b298e0990a30815925ad93e9c56dcd4cdcb1881835da4e4a49c04d"
+          },
+          {
+            "path": "crates/scap-raft-runtime/src/workers.rs",
+            "sha256": "91ba7b88b78f95bf01f28f33dced4aa0c670b76795afaacffe7f7d780410c937"
+          },
+          {
+            "path": "crates/scap-raft-store/Cargo.toml",
+            "sha256": "e8c31eeb23fc01c1dd23b1afbe1a9c2e7d23a46e8383dfcff0689748e70ad3c1"
+          },
+          {
+            "path": "crates/scap-raft-store/src/lib.rs",
+            "sha256": "9c34a3123f1b7ddfcabc560b4aabc74d44ebf5d640357e59d7e9bd359f2fa4e5"
+          },
+          {
+            "path": "crates/scap-raft-transport/Cargo.toml",
+            "sha256": "7db38d63476952d3bd0bd1ea2515383c17b9ecfc35793e3f8630b3f55af0eae9"
+          },
+          {
+            "path": "crates/scap-raft-transport/proto/peer.proto",
+            "sha256": "4b49580c34f866a9bb08ccee84b39ac96910b7dccb722a2939d4c7c4e3e16502"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/client.rs",
+            "sha256": "5083c2b4cdaf40af6edbd62608a8a1d58aee84c7d1c4997525b0916f08541d1f"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/incoming.rs",
+            "sha256": "7b36ee6afa2f50df6fcbc74963d9401d178e0c4b63ed17716f8fa190b963eae2"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/lib.rs",
+            "sha256": "da018b22f65c1c63684d9674a072b55616c02a81385b708c012a6ba4fba7198e"
+          },
+          {
+            "path": "crates/scap-raft-transport/src/server.rs",
+            "sha256": "3b55bd21042e0c0272a3a1c862877c4b1619057741ecd46a8b1280c81ec1e1f1"
+          },
+          {
+            "path": "crates/scap-raft-wire/Cargo.toml",
+            "sha256": "bbae7c0c42e14c5128554baab3a7a65c1edbdeae846372247af4757bf2be908d"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/certificate.rs",
+            "sha256": "2028731ad3e78d5c9ed6bf455f4b5f17eca8a7bbc8555f28031a3632f8d1ccf6"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/codec.rs",
+            "sha256": "4d85ae39e2a2cea1da445f51dc2476213ba11118024d1aca1f49a669abb69e85"
+          },
+          {
+            "path": "crates/scap-raft-wire/src/lib.rs",
+            "sha256": "bc0d98457aecee3a6b879ecc76c2d83b067f2c01673bd5092c79ff1cb1ff40a5"
+          },
+          {
+            "path": "crates/scap-server/Cargo.toml",
+            "sha256": "fcb0292e3595e1de7eeee4bfca8c71de4b087fee9222136557c455eb537d4511"
+          },
+          {
+            "path": "crates/scap-server/src/archive.rs",
+            "sha256": "f103df40c7b0770f52aa5478ce4dc94bbeed7501d0e9d7e134ddc6a33e6945db"
+          },
+          {
+            "path": "crates/scap-server/src/archive_jobs.rs",
+            "sha256": "99b8279cc7eb14fd47d77ccb9419ef4aab60f697a9f30173a963715e7948e46d"
+          },
+          {
+            "path": "crates/scap-server/src/auth.rs",
+            "sha256": "9a24bb9cbd9b6d5b77304d5b646d0711eb17296f1162c7aabfa9370de065dbe2"
+          },
+          {
+            "path": "crates/scap-server/src/cache.rs",
+            "sha256": "aa6bd669108c80e96574ed43f29e07612918442cf61d5f2eb7e6f10498c1903c"
+          },
+          {
+            "path": "crates/scap-server/src/cli.rs",
+            "sha256": "b24e504e8f71be7782f816bcb4ba5b9716e43c6edb4844f72a6f844bf59db95f"
+          },
+          {
+            "path": "crates/scap-server/src/config.rs",
+            "sha256": "880675fbb8a5666568df833e1e6b87d0019cbc843efcd285364ae36720c8e0a4"
+          },
+          {
+            "path": "crates/scap-server/src/lanes.rs",
+            "sha256": "f17d19da165c064fd9cbaaca3ea07a590c114f724270cbaaa6b8108150616730"
+          },
+          {
+            "path": "crates/scap-server/src/lib.rs",
+            "sha256": "bb7e50a902a83e506676513f544a4da8fa78dab08fae2b18b54bf0b3a50c700a"
+          },
+          {
+            "path": "crates/scap-server/src/listener.rs",
+            "sha256": "bc1d63004af75212bf531b0481875b64626219f20cdaf3e50f77ce658c9c5f6f"
+          },
+          {
+            "path": "crates/scap-server/src/local.rs",
+            "sha256": "c8c4911517142110d283c994003dc9e2cf1e1ce67f1f338ae2a6753e269d69c5"
+          },
+          {
+            "path": "crates/scap-server/src/mailbox.rs",
+            "sha256": "d74fc0210a9e3df3740ee02c4bf17d941b75ce49638d1198e1261b239f45480d"
+          },
+          {
+            "path": "crates/scap-server/src/main.rs",
+            "sha256": "d5d20d11219a532a1ef3e53f0db7a7775f28b967e31698b1c483339d83090a96"
+          },
+          {
+            "path": "crates/scap-server/src/node.rs",
+            "sha256": "98e7767627eae8afb6091b9b24178c125197492f2a517f3f165128d7ab742451"
+          },
+          {
+            "path": "crates/scap-server/src/worker.rs",
+            "sha256": "d37e079b226ce1e426f946739a8002b6bf9ec61986be858b8c5c1947150d8359"
+          },
+          {
+            "path": "crates/scap-service/Cargo.toml",
+            "sha256": "14650868f26b292c63332a0e3d6099bcf42b7e27f551ad22de20aff1bd33ea44"
+          },
+          {
+            "path": "crates/scap-service/src/http.rs",
+            "sha256": "135f70e59d403d8a2d4fccdc9d276c1015ac304fe6ab94cc7c841ad7d251b90a"
+          },
+          {
+            "path": "crates/scap-service/src/lib.rs",
+            "sha256": "f27c204dde19581c0478b323f60edbd68775e3bfd458a75e50bfedce94da26ff"
+          },
+          {
+            "path": "crates/scap-service/src/protocol.rs",
+            "sha256": "e23cf1f32d797bda96f66fc4b20c48bc1320f4ae668e0aa20aae0dfe04c9114c"
+          },
+          {
+            "path": "crates/scap-sql/Cargo.toml",
+            "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+          },
+          {
+            "path": "crates/scap-sql/src/lib.rs",
+            "sha256": "192480bd34b8eab644d7385ddc2ff030277c21476a3a42bb360e7b278d8a648b"
+          },
+          {
+            "path": "crates/scap-sql-worker/Cargo.toml",
+            "sha256": "fafcb1d25ff7cf5862ee0e61e5bec0f8c6d1cd00fda2b1566c19116f62d44c0f"
+          },
+          {
+            "path": "crates/scap-sql-worker/src/lib.rs",
+            "sha256": "4b111697a5241352f605ae6b0a50e49aceb6606f33de0a1cff2465cdae1dadf6"
+          },
+          {
+            "path": "crates/scap-sqlite/Cargo.toml",
+            "sha256": "7d2d78809579e5e474ec9aaf6b174d767a598cbdda51abc76ddf117d83ac24c1"
+          },
+          {
+            "path": "crates/scap-sqlite/src/config.rs",
+            "sha256": "0a145dacca1859389d9cadb87ef712be0224575c2960a11fe3d5a4226e6f9ff0"
+          },
+          {
+            "path": "crates/scap-sqlite/src/file.rs",
+            "sha256": "974cddaeccfa57140790b16180b1704383dc6d9558d412c77032dc98e1d6fcb5"
+          },
+          {
+            "path": "crates/scap-sqlite/src/gate.rs",
+            "sha256": "70e5077e782c40ef48e37eedb02b4962c6471c5ed6d37d7a899ac962950d1f37"
+          },
+          {
+            "path": "crates/scap-sqlite/src/lib.rs",
+            "sha256": "d28c96c0ea54674f6e309f6b2f69409dd6060f5e018421385ac310e335b25351"
+          },
+          {
+            "path": "crates/scap-sqlite/src/query.rs",
+            "sha256": "484e088a6d3d32fffb50378b4e0e1e421a94a08d2c957759ccdf6f04327b452e"
+          },
+          {
+            "path": "crates/scap-sqlite/src/sql.rs",
+            "sha256": "200cc0f18b5118ddfaed12a18daedccd659b548975c13a5db7d565ac76027d34"
+          },
+          {
+            "path": "rust-toolchain.toml",
+            "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+          },
+          {
+            "path": "sdk/node/package-lock.json",
+            "sha256": "b85e2d1b9af4d23fbc046c41768d9b221cf6b9705775f173b77318826df85a80"
+          },
+          {
+            "path": "sdk/node/package.json",
+            "sha256": "86b7beb5d69c2f906e1dd720910d025643a00c91d3663a75573d9b079d944da1"
+          },
+          {
+            "path": "sdk/node/src/client.ts",
+            "sha256": "3db0347c38945400c4c770d895a06f9f06a0ccb882957befde62df6773324a0a"
+          },
+          {
+            "path": "sdk/node/tsconfig.json",
+            "sha256": "62e6fd4262b144db132efc9b040d812c68fed72f3fbc6c2b128583cd4acff122"
+          }
+        ]
+      }
+    },
+    "verification": {
+      "source_inputs_matched_before_and_after_build": true,
+      "source_inputs_matched_before_and_after_service_run": true,
+      "harness_matched_before_and_after_service_run": true,
+      "binary_matched_before_and_after_service_run": true,
+      "native_archive_matched_before_and_after_service_run": true,
+      "source_input_sha256": "750892e547d34a355668592056f6cb6fe7f962f583e0127f631272d3a47127c2",
+      "source_file_count": 71,
+      "harness_sha256": "eb5d7ee9884d078efcb66298d92bc5294bf934081413087b1e0a48243b8dc0af",
+      "baseline_harness_sha256": "162a644dfa87dcf69ed31630e30123aedba63e64d10d34009de4b95317234fec",
+      "measurement_function_sha256": "2caa4b91c07359c80116662cd5ce85c0a8ba1a8be43cb9ed808e9c581d8bf0a4",
+      "baseline_and_final_measurement_function_identical": true,
+      "binary_sha256": "f7b150027e365e69f0722930a81aabf4f4fed3280704ef7bfa77aa5c5c92e488",
+      "native_rocks_archive_sha256": "4998da12e679834d39b191009ae67fcd6e1377853bed855d29dd0ad0a8f657b5"
+    },
+    "build_record_hashes": [
+      {
+        "name": "baseline/build.json",
+        "sha256": "ba50bb5a00f49fe948a78f6895e93341cf7887571f075f42a62b42b88f7a0e86"
+      },
+      {
+        "name": "baseline/source-inputs.json",
+        "sha256": "4d0e05401aee371a031a468229d6fab1d5cc32f94aa502088fe1e174ec51fee2"
+      },
+      {
+        "name": "changed-before-readiness-fix/build.json",
+        "sha256": "67a0ec9c0783e7b4c02c9402b9fec94626fca05eb69bd9fc2969305d3ddead21"
+      },
+      {
+        "name": "changed-before-readiness-fix/source-inputs.json",
+        "sha256": "6e307edb0459bf34ecc9c019bcbc845006b47e0ebe375a251da22718f0c287f4"
+      },
+      {
+        "name": "final-fixed-1/build.json",
+        "sha256": "42963246ede5a5969e6fc345021b26aaca85daa2db3b9390d2df53b17d31aa7b"
+      },
+      {
+        "name": "final-fixed-1/source-inputs.json",
+        "sha256": "eee0fca15b40c51bdb54911eb0430850b58edaae3d7f4b5e2811ddfcb4af35b8"
+      }
+    ],
+    "successful_build_log_hashes": [
+      {
+        "name": "baseline-release-build.log",
+        "sha256": "48372f1bb23954d2ba36c44ef01c11c024426ce3eba9cd693896d1a08a34d1e6"
+      },
+      {
+        "name": "final-fixed-1-release-build.log",
+        "sha256": "30df1c721bf7a2c27dcd98c48d0c594f6718deeaa8becdba3387bc4faae94950"
+      }
+    ]
+  },
+  "environment": {
+    "platform": "linux",
+    "release": "6.18.57",
+    "arch": "x64",
+    "node": "v24.22.1",
+    "cpus": 9,
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "memory_bytes": 10451427328,
+    "topology": "one host, loopback HTTP and mTLS TCP, three real daemons, ephemeral local disk",
+    "proxy_nodelay": true,
+    "request_deadline_ms": 8000,
+    "probe_period_ms": 1000,
+    "affected_databases": [
+      "alpha",
+      "beta"
+    ],
+    "cgroup_cpu_quota_cores": 8,
+    "cgroup_cpuset": "0-8",
+    "cgroup_memory_limit_bytes": 8589934592,
+    "baseline_and_final_measurements_compiler_idle": true,
+    "s3_backend_version": "4.51",
+    "s3_backend_commit": "153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "s3_mode": "separate"
+  },
+  "workload": {
+    "databases": [
+      "alpha",
+      "beta"
+    ],
+    "per_database_per_second": {
+      "strong_reads": 1,
+      "stable_id_writes": 1
+    },
+    "hot_seconds": 30,
+    "post_kill_seconds": 60,
+    "request_deadline_ms": 8000,
+    "planned_samples_per_measurement": 360,
+    "cold_isolation_planned_samples": 17,
+    "cold_isolation_beta_reads": 13,
+    "cold_isolation_alpha_writes": 2,
+    "cold_isolation_alpha_strong_reads": 2,
+    "cold_beta_deadline_ms": 5000,
+    "hot_alpha_deadline_ms": 1500
+  },
+  "baseline_measurement": {
+    "artifact_set": "baseline-measurement-idle-1",
+    "binary_sha256": "e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786",
+    "complete_marker_present": true,
+    "contracts": [
+      {
+        "contract": "08-local-recovery-measurement",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      }
+    ],
+    "raw_artifacts": [
+      {
+        "name": "08-local-recovery-measurement.history.jsonl",
+        "bytes": 785,
+        "sha256": "fff03f6e267200d9bca10c08694347b95d78e67efc8c04ec841a259023fbda6d"
+      },
+      {
+        "name": "binary.json",
+        "bytes": 312,
+        "sha256": "2f61762379482272a0c7700daa1f673bb5b30babb69d166449694f510f752174"
+      },
+      {
+        "name": "complete.txt",
+        "bytes": 20,
+        "sha256": "fbaacd1df6f28aa2ed91cd75533e1fb2844323408cf6057423cae3e0387ea0dc"
+      },
+      {
+        "name": "completed.json",
+        "bytes": 132,
+        "sha256": "090969b1211018572b3f79a1ebd55ad3bb162f08b3ceb0718e408c71c1c0efbf"
+      },
+      {
+        "name": "latency.samples.jsonl",
+        "bytes": 88198,
+        "sha256": "b4d3c3b626cd4873efb41a59a0fd4291089a604476cfdd5b1b75bec91a90f03e"
+      },
+      {
+        "name": "measurement.json",
+        "bytes": 4604,
+        "sha256": "eeb7b40c2ca7dcce40141e0854b1e5968582f3944e7bcd3dced8d7e4b33d7d84"
+      }
+    ],
+    "console_log_sha256": "3d6af32a0d296beac0437588f873421de9b37374fc8a2e170da1bff3481b1d1a",
+    "planned_samples": 360,
+    "observed_samples": 360,
+    "unique_request_ids": 360,
+    "exact_phase_round_database_kind_inventory": true,
+    "timestamp_validation": {
+      "finite": true,
+      "invoked_not_after_result": true,
+      "scheduled_timer_early_invocations": 78,
+      "scheduling_offset_ms": {
+        "min": -1.227,
+        "max": 4.561
+      },
+      "note": "The unchanged one-second measurement timer can fire slightly before its planned timestamp; original timestamps and planned-time latency remain unmodified."
+    },
+    "all_failures_retained": true,
+    "reported_percentiles_verified_against_raw_samples": true,
+    "stable_window_120_raw_samples_verified": true,
+    "outcomes": {
+      "success": 348,
+      "platform_error": 12
+    },
+    "codes": {
+      "NO_LEADER": 12
+    },
+    "summaries": [
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 24.992,
+          "p50": 33.425,
+          "p95": 127.068,
+          "p99": 143.292,
+          "max": 143.292
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 64.217,
+          "p50": 82.117,
+          "p95": 137.053,
+          "p99": 198.445,
+          "max": 198.445
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 29.175,
+          "p50": 93.509,
+          "p95": 151.839,
+          "p99": 155.903,
+          "max": 155.903
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 42.836,
+          "p50": 125.677,
+          "p95": 154.542,
+          "p99": 157.911,
+          "max": 157.911
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 25.994,
+          "p50": 53.078,
+          "p95": 325.925,
+          "p99": 372.527,
+          "max": 372.527
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 50.73,
+          "p50": 148.715,
+          "p95": 336.114,
+          "p99": 387.537,
+          "max": 387.537
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 52.706,
+          "p50": 170.855,
+          "p95": 369.896,
+          "p99": 396.091,
+          "max": 396.091
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 70.436,
+          "p50": 166.53,
+          "p95": 345.375,
+          "p99": 509.087,
+          "max": 509.087
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      }
+    ],
+    "recovery": {
+      "fault_ms": 30424.981,
+      "first_success_ms": 3035.7850000000035,
+      "stable_window_start_round": 3,
+      "stable_window_seconds": 30,
+      "samples_per_database_per_kind": 30,
+      "local_recovery_window_start_ms": 3009.1589999999997,
+      "stable_window_confirmation_ms": 33009.159,
+      "first_success_per_database_ms": {
+        "alpha": 3035.7850000000035,
+        "beta": 3270.9559999999983
+      },
+      "observation_end_ms": 90436.493,
+      "production_slo_passed": false,
+      "limitations": "One small-data loopback event; four probes/s, not the 500 requests/s reference load. No AZ failures, no latency-SLO or percentile-RTO claim. Build profile and exact binary hash are recorded; failures and UNKNOWN remain in the sample denominator."
+    },
+    "acknowledged_rows_lost": 0
+  },
+  "final_service_suite_and_measurement": {
+    "artifact_set": "final-fixed-full-idle-1",
+    "binary_sha256": "f7b150027e365e69f0722930a81aabf4f4fed3280704ef7bfa77aa5c5c92e488",
+    "complete_marker_present": true,
+    "contracts": [
+      {
+        "contract": "01-three-real-daemons",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "02-real-node-sdk",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "03-tenant-and-read-permissions",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "04-acknowledged-write-leader-kill",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "05-real-minority-tcp-blackhole",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "06-all-processes-reopen",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "07-s3-cold-publication-and-wake",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      },
+      {
+        "contract": "08-local-recovery-measurement",
+        "started": true,
+        "completed": true,
+        "failed": false,
+        "verification_passed": true
+      }
+    ],
+    "raw_artifacts": [
+      {
+        "name": "01-three-real-daemons.history.jsonl",
+        "bytes": 260,
+        "sha256": "e20bc09aa7f5d8d5a211023a573fe7630e07e4059d4365e1a8c420b82afdc0f9"
+      },
+      {
+        "name": "02-real-node-sdk.history.jsonl",
+        "bytes": 259,
+        "sha256": "8fdc0fbce9e00e2958a3071046eef7a56938a8aac081e827598e2df08ea7e53c"
+      },
+      {
+        "name": "03-tenant-and-read-permissions.history.jsonl",
+        "bytes": 360,
+        "sha256": "fbb64318eae0c95f658385fb308c2a707f4deff37fc7a3d632ab00d132ab5bb3"
+      },
+      {
+        "name": "04-acknowledged-write-leader-kill.history.jsonl",
+        "bytes": 515,
+        "sha256": "955fb4e40811d7ef987390d8b77af59eaaaf71ddb74802e68efc0966b7e8a72c"
+      },
+      {
+        "name": "05-real-minority-tcp-blackhole.history.jsonl",
+        "bytes": 377,
+        "sha256": "c65cd0bd7814b18e2edf005113fccd1474e65b2278f95c077a74137f1a8a001f"
+      },
+      {
+        "name": "06-all-processes-reopen.history.jsonl",
+        "bytes": 338,
+        "sha256": "caa923318d322b2cd9ba938304f1aa71ec75f49b3a5a672c64c50776a5fd05ce"
+      },
+      {
+        "name": "07-s3-cold-publication-and-wake.history.jsonl",
+        "bytes": 1359,
+        "sha256": "78625dcdf092bf84bdc0cf1897136017a940a9e49cd9acfee08a06e12c222063"
+      },
+      {
+        "name": "08-local-recovery-measurement.history.jsonl",
+        "bytes": 791,
+        "sha256": "99555c7018dc3949d930ec1731902204c0ce70e3c4821b84db5aa63c3469aba7"
+      },
+      {
+        "name": "binary.json",
+        "bytes": 344,
+        "sha256": "6cd00098cadb4514ac0aa56fd607b4c1ea1e64f6966eae378065e148022937a0"
+      },
+      {
+        "name": "cold-wake.samples.jsonl",
+        "bytes": 4118,
+        "sha256": "8a0f66d4f39daae00b48a6b04298ae1c71e2a4afb21f39e107cba488ce253e30"
+      },
+      {
+        "name": "complete.txt",
+        "bytes": 20,
+        "sha256": "fbaacd1df6f28aa2ed91cd75533e1fb2844323408cf6057423cae3e0387ea0dc"
+      },
+      {
+        "name": "completed.json",
+        "bytes": 364,
+        "sha256": "c602917cb40cc884cc96fa1abff16226e2cadcf6c341218fa1273d65c856702a"
+      },
+      {
+        "name": "latency.samples.jsonl",
+        "bytes": 88408,
+        "sha256": "f092b94c67c1ffe9e7c0692a45ae4b322529def8ec7b35bce1a8f9b276d76615"
+      },
+      {
+        "name": "measurement.json",
+        "bytes": 4633,
+        "sha256": "6d6c182ca9f22d35837dc97f2ba37e3b63a9ebaf9fd0ece37a3998425ae4c2bd"
+      },
+      {
+        "name": "s3-backend.json",
+        "bytes": 241,
+        "sha256": "c92dc72f7231575b7973f5a8849d82b08c57153136826110be50acfd978e973f"
+      },
+      {
+        "name": "sdk-integration.log",
+        "bytes": 660,
+        "sha256": "7aeb2680a3f2ce96277504466bb353cba34ec2c387aa82b9b683f4f23cfbfe27"
+      }
+    ],
+    "console_log_sha256": "a55b50004a7f32991e0d14f076e33d7c7fb15e5aaf55d47f7f3ebb137ecb6db0",
+    "planned_samples": 360,
+    "observed_samples": 360,
+    "unique_request_ids": 360,
+    "exact_phase_round_database_kind_inventory": true,
+    "timestamp_validation": {
+      "finite": true,
+      "invoked_not_after_result": true,
+      "scheduled_timer_early_invocations": 75,
+      "scheduling_offset_ms": {
+        "min": -0.981,
+        "max": 3.349
+      },
+      "note": "The unchanged one-second measurement timer can fire slightly before its planned timestamp; original timestamps and planned-time latency remain unmodified."
+    },
+    "all_failures_retained": true,
+    "reported_percentiles_verified_against_raw_samples": true,
+    "stable_window_120_raw_samples_verified": true,
+    "outcomes": {
+      "success": 348,
+      "platform_error": 12
+    },
+    "codes": {
+      "NO_LEADER": 12
+    },
+    "summaries": [
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 18.397,
+          "p50": 33.534,
+          "p95": 165.582,
+          "p99": 232.295,
+          "max": 232.295
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 28.161,
+          "p50": 75.388,
+          "p95": 168.481,
+          "p99": 177.311,
+          "max": 177.311
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 19.028,
+          "p50": 64.45,
+          "p95": 162.864,
+          "p99": 241.075,
+          "max": 241.075
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 39.264,
+          "p50": 75.765,
+          "p95": 197.553,
+          "p99": 226.373,
+          "max": 226.373
+        },
+        "failed_requests_not_removed": true,
+        "codes": {}
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 26.633,
+          "p50": 52.205,
+          "p95": 195.475,
+          "p99": 253.219,
+          "max": 253.219
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 82.915,
+          "p50": 148.628,
+          "p95": 225.229,
+          "p99": 281.618,
+          "max": 281.618
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 29.783,
+          "p50": 72.421,
+          "p95": 269.369,
+          "p99": 322.185,
+          "max": 322.185
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 62.599,
+          "p50": 144.051,
+          "p95": 232.341,
+          "p99": 281.181,
+          "max": 281.181
+        },
+        "failed_requests_not_removed": true,
+        "codes": {
+          "NO_LEADER": 3
+        }
+      }
+    ],
+    "recovery": {
+      "fault_ms": 30167.124,
+      "first_success_ms": 3150.278000000002,
+      "stable_window_start_round": 3,
+      "stable_window_seconds": 30,
+      "samples_per_database_per_kind": 30,
+      "local_recovery_window_start_ms": 3005.0879999999997,
+      "stable_window_confirmation_ms": 33005.088,
+      "first_success_per_database_ms": {
+        "alpha": 3150.278000000002,
+        "beta": 3286.2689999999966
+      },
+      "observation_end_ms": 90176.133,
+      "production_slo_passed": false,
+      "limitations": "One small-data loopback event; four probes/s, not the 500 requests/s reference load. No AZ failures, no latency-SLO or percentile-RTO claim. Build profile and exact binary hash are recorded; failures and UNKNOWN remain in the sample denominator."
+    },
+    "acknowledged_rows_lost": 0,
+    "isolation": {
+      "planned_samples": 17,
+      "observed_samples": 17,
+      "unique_request_ids": 17,
+      "exact_ordinal_database_kind_inventory": true,
+      "finite_monotonic_timestamps": true,
+      "cold_state_proven": {
+        "revision": "2",
+        "archived_revision": "2",
+        "suspended": true,
+        "owner_active": false
+      },
+      "observed_blocked_s3_connections": 1,
+      "cold_attempts": 13,
+      "cold_outcomes": {
+        "platform_error": 2,
+        "unknown": 6,
+        "admission_rejected": 5
+      },
+      "cold_codes": {
+        "ARCHIVE_UNAVAILABLE": 2,
+        "COMMIT_UNKNOWN": 6,
+        "OVERLOADED": 5
+      },
+      "hot_attempts": 4,
+      "hot_outcomes": {
+        "success": 4
+      },
+      "hot_codes": {},
+      "hot_all_succeeded": true,
+      "hot_all_before_original_deadline": true,
+      "hot_all_before_original_cold_result": true,
+      "beta_at_least_five_admission_rejections": true,
+      "all_attempts_retained": true,
+      "original_cold_sample": {
+        "ordinal": 0,
+        "database": "beta",
+        "kind": "read",
+        "request_id": "ef189edbf2a546d4959385e7896ae15d",
+        "scheduled_ms": 19.073,
+        "invoked_ms": 19.121,
+        "deadline_ms": 5019.073,
+        "code": "ARCHIVE_UNAVAILABLE",
+        "outcome": "platform_error",
+        "result_ms": 2050.56,
+        "latency_ms": 2031.487
+      },
+      "hot_samples": [
+        {
+          "ordinal": 13,
+          "database": "alpha",
+          "kind": "write",
+          "request_id": "10c7bcbbad094287b43d6e1fc87ac2b9",
+          "scheduled_ms": 53.111,
+          "invoked_ms": 53.119,
+          "deadline_ms": 1553.111,
+          "outcome": "success",
+          "result_ms": 104.635,
+          "latency_ms": 51.524
+        },
+        {
+          "ordinal": 14,
+          "database": "alpha",
+          "kind": "read",
+          "request_id": "43ca696d920949248d8117006550783b",
+          "scheduled_ms": 105.014,
+          "invoked_ms": 105.019,
+          "deadline_ms": 1605.014,
+          "outcome": "success",
+          "result_ms": 116.985,
+          "latency_ms": 11.971
+        },
+        {
+          "ordinal": 15,
+          "database": "alpha",
+          "kind": "write",
+          "request_id": "54b2020b1eb646c49045b91006539a89",
+          "scheduled_ms": 117.35,
+          "invoked_ms": 117.355,
+          "deadline_ms": 1617.35,
+          "outcome": "success",
+          "result_ms": 135.362,
+          "latency_ms": 18.012
+        },
+        {
+          "ordinal": 16,
+          "database": "alpha",
+          "kind": "read",
+          "request_id": "9cc504473e60481fbcc8fd3bea754e19",
+          "scheduled_ms": 135.91,
+          "invoked_ms": 135.916,
+          "deadline_ms": 1635.91,
+          "outcome": "success",
+          "result_ms": 145.024,
+          "latency_ms": 9.114
+        }
+      ],
+      "all_samples_sha256": "8a0f66d4f39daae00b48a6b04298ae1c71e2a4afb21f39e107cba488ce253e30",
+      "production_slo_passed": false
+    },
+    "s3_backend": {
+      "version": "4.51",
+      "commit": "153ab668c99731a6d29492bf6c61d0b4fa701101",
+      "mode": "separate",
+      "processes": [
+        "master",
+        "volume",
+        "filer",
+        "s3"
+      ],
+      "transport": "explicit loopback TCP between component processes"
+    },
+    "sdk_tests": {
+      "planned": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "preserved_failed_attempts": [
+    {
+      "artifact_set": "baseline-negative-control",
+      "binary_sha256": "e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786",
+      "complete_marker_present": false,
+      "contracts": [],
+      "raw_artifacts": [
+        {
+          "name": "binary.json",
+          "bytes": 308,
+          "sha256": "f342d4c57936179e3e9a449caede08fc85de6c9e405fddac26e5d4ec7cf47d0e"
+        }
+      ],
+      "console_log_sha256": "365c70877f22752a4422b492b45c4df2ff1e0b97d0a4b3a31ec7562f0f6ae554",
+      "status": "environment_startup_failure",
+      "reason": "Pinned SeaweedFS mini cannot create its Unix gRPC socket in this executor; authenticated S3 startup did not finish. No service contract started.",
+      "resolution": "Use the same pinned backend's supported independent TCP master/volume/filer/s3 processes; do not modify permissions or upstream source."
+    },
+    {
+      "artifact_set": "baseline-negative-control-tcp",
+      "binary_sha256": "e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786",
+      "complete_marker_present": false,
+      "contracts": [
+        {
+          "contract": "07-s3-cold-publication-and-wake",
+          "started": true,
+          "completed": false,
+          "failed": true,
+          "verification_passed": false
+        }
+      ],
+      "raw_artifacts": [
+        {
+          "name": "07-s3-cold-publication-and-wake.history.jsonl",
+          "bytes": 534,
+          "sha256": "28fa41df5f7c43ca994ff26dc7da8dd9f2c0f5b543d77995d182532966ee48df"
+        },
+        {
+          "name": "binary.json",
+          "bytes": 307,
+          "sha256": "25494aea1c01195c0c9f3249d7df6fa7d0bbc3560e0e77eeb55589e390f2c516"
+        },
+        {
+          "name": "cold-wake.samples.jsonl",
+          "bytes": 4219,
+          "sha256": "3aafdb4ccc4e6c6f56185cdb4488bb2a83225c5dde98978db5ab2097708f72d4"
+        },
+        {
+          "name": "s3-backend.json",
+          "bytes": 241,
+          "sha256": "c92dc72f7231575b7973f5a8849d82b08c57153136826110be50acfd978e973f"
+        }
+      ],
+      "console_log_sha256": "4760803c177f826a632aa1b3302d9cdc7af418feddea2b6744cfdaffc02a3089",
+      "status": "expected_regression_failure",
+      "reason": "Original shared SQL owner blocks alpha behind the blackholed cold beta wake; three of four alpha probes fail and beta has no per-database admission rejection.",
+      "isolation": {
+        "planned_samples": 17,
+        "observed_samples": 17,
+        "unique_request_ids": 17,
+        "exact_ordinal_database_kind_inventory": true,
+        "finite_monotonic_timestamps": true,
+        "cold_state_proven": {
+          "revision": "2",
+          "archived_revision": "2",
+          "suspended": true,
+          "owner_active": false
+        },
+        "observed_blocked_s3_connections": 1,
+        "cold_attempts": 13,
+        "cold_outcomes": {
+          "platform_error": 2,
+          "unknown": 11
+        },
+        "cold_codes": {
+          "ARCHIVE_UNAVAILABLE": 2,
+          "COMMIT_UNKNOWN": 11
+        },
+        "hot_attempts": 4,
+        "hot_outcomes": {
+          "unknown": 3,
+          "success": 1
+        },
+        "hot_codes": {
+          "COMMIT_UNKNOWN": 3
+        },
+        "hot_all_succeeded": false,
+        "hot_all_before_original_deadline": false,
+        "hot_all_before_original_cold_result": false,
+        "beta_at_least_five_admission_rejections": false,
+        "all_attempts_retained": true,
+        "original_cold_sample": {
+          "ordinal": 0,
+          "database": "beta",
+          "kind": "read",
+          "request_id": "f7c49841cc5d4aa2af7c5eebcb4c37b0",
+          "scheduled_ms": 44.913,
+          "invoked_ms": 44.969,
+          "deadline_ms": 5044.913,
+          "code": "ARCHIVE_UNAVAILABLE",
+          "outcome": "platform_error",
+          "result_ms": 2126.18,
+          "latency_ms": 2081.267
+        },
+        "hot_samples": [
+          {
+            "ordinal": 13,
+            "database": "alpha",
+            "kind": "write",
+            "request_id": "dfce4b3c4c0b4670aac0b80467972770",
+            "scheduled_ms": 131.042,
+            "invoked_ms": 131.047,
+            "deadline_ms": 1631.042,
+            "code": "COMMIT_UNKNOWN",
+            "outcome": "unknown",
+            "result_ms": 1635.233,
+            "latency_ms": 1504.191
+          },
+          {
+            "ordinal": 14,
+            "database": "alpha",
+            "kind": "read",
+            "request_id": "f55577826e854fe998aab9e8bec7b360",
+            "scheduled_ms": 1638.559,
+            "invoked_ms": 1638.567,
+            "deadline_ms": 3138.559,
+            "code": "COMMIT_UNKNOWN",
+            "outcome": "unknown",
+            "result_ms": 3143.702,
+            "latency_ms": 1505.143
+          },
+          {
+            "ordinal": 15,
+            "database": "alpha",
+            "kind": "write",
+            "request_id": "3ab9ea9f4ed5482aaec0dee15161f84c",
+            "scheduled_ms": 3146.875,
+            "invoked_ms": 3146.883,
+            "deadline_ms": 4646.875,
+            "code": "COMMIT_UNKNOWN",
+            "outcome": "unknown",
+            "result_ms": 4647.908,
+            "latency_ms": 1501.033
+          },
+          {
+            "ordinal": 16,
+            "database": "alpha",
+            "kind": "read",
+            "request_id": "f29687a9c3204f7abc24198f59969d9d",
+            "scheduled_ms": 4654.887,
+            "invoked_ms": 4654.898,
+            "deadline_ms": 6154.887,
+            "outcome": "success",
+            "result_ms": 5181.167,
+            "latency_ms": 526.28
+          }
+        ],
+        "all_samples_sha256": "3aafdb4ccc4e6c6f56185cdb4488bb2a83225c5dde98978db5ab2097708f72d4",
+        "production_slo_passed": false
+      },
+      "concurrent_compiler_workloads": true,
+      "used_for_latency_comparison": false
+    },
+    {
+      "artifact_set": "changed-positive-control-1",
+      "binary_sha256": "a24e0bee2ae054d50b33ef831bbd4b842859b663ae57fb2f2920a064a804c438",
+      "complete_marker_present": false,
+      "contracts": [
+        {
+          "contract": "07-s3-cold-publication-and-wake",
+          "started": true,
+          "completed": false,
+          "failed": true,
+          "verification_passed": false
+        }
+      ],
+      "raw_artifacts": [
+        {
+          "name": "07-s3-cold-publication-and-wake.history.jsonl",
+          "bytes": 470,
+          "sha256": "ec33fbc074b5a364e4c9e1219684ee11db90c2395b82ed9e27d18c83f417bfff"
+        },
+        {
+          "name": "binary.json",
+          "bytes": 316,
+          "sha256": "082c70a6d39347e32eb5c0923d1ae6da45046d43cd08f9fb66c7c191e88ad783"
+        },
+        {
+          "name": "cold-wake.samples.jsonl",
+          "bytes": 4127,
+          "sha256": "a9e76b0b63db8d1a9b670eabdb3caf96cac17ff88e1e3df015aed9050c8437c7"
+        },
+        {
+          "name": "s3-backend.json",
+          "bytes": 241,
+          "sha256": "c92dc72f7231575b7973f5a8849d82b08c57153136826110be50acfd978e973f"
+        }
+      ],
+      "console_log_sha256": "371737cfaa3318cb6dd414879e98481f856e06e22116c5d242eaa42cd442329e",
+      "status": "unexpected_failure",
+      "reason": "All foreground isolation probes and quota checks passed, but the following fresh cold-status request returned NO_LEADER; the lifecycle contract did not complete.",
+      "diagnosis": "Source review found that deadline failures in a database worker could clear node-wide readiness shared by other databases; compiler and memory pressure were also present, so the sample is not an idle latency comparison.",
+      "isolation": {
+        "planned_samples": 17,
+        "observed_samples": 17,
+        "unique_request_ids": 17,
+        "exact_ordinal_database_kind_inventory": true,
+        "finite_monotonic_timestamps": true,
+        "cold_state_proven": {
+          "revision": "2",
+          "archived_revision": "2",
+          "suspended": true,
+          "owner_active": false
+        },
+        "observed_blocked_s3_connections": 1,
+        "cold_attempts": 13,
+        "cold_outcomes": {
+          "platform_error": 2,
+          "unknown": 6,
+          "admission_rejected": 5
+        },
+        "cold_codes": {
+          "ARCHIVE_UNAVAILABLE": 2,
+          "COMMIT_UNKNOWN": 6,
+          "OVERLOADED": 5
+        },
+        "hot_attempts": 4,
+        "hot_outcomes": {
+          "success": 4
+        },
+        "hot_codes": {},
+        "hot_all_succeeded": true,
+        "hot_all_before_original_deadline": true,
+        "hot_all_before_original_cold_result": true,
+        "beta_at_least_five_admission_rejections": true,
+        "all_attempts_retained": true,
+        "original_cold_sample": {
+          "ordinal": 0,
+          "database": "beta",
+          "kind": "read",
+          "request_id": "3b11c1efbbee4729b77ce21b5edd63e7",
+          "scheduled_ms": 21.596,
+          "invoked_ms": 21.645,
+          "deadline_ms": 5021.596,
+          "code": "ARCHIVE_UNAVAILABLE",
+          "outcome": "platform_error",
+          "result_ms": 2057.92,
+          "latency_ms": 2036.324
+        },
+        "hot_samples": [
+          {
+            "ordinal": 13,
+            "database": "alpha",
+            "kind": "write",
+            "request_id": "9f09e1904cf14358beca49d3e98fa361",
+            "scheduled_ms": 65.748,
+            "invoked_ms": 65.751,
+            "deadline_ms": 1565.748,
+            "outcome": "success",
+            "result_ms": 138.042,
+            "latency_ms": 72.294
+          },
+          {
+            "ordinal": 14,
+            "database": "alpha",
+            "kind": "read",
+            "request_id": "9f7e9cec2199456eb2e55f1961e5e79e",
+            "scheduled_ms": 138.525,
+            "invoked_ms": 138.533,
+            "deadline_ms": 1638.525,
+            "outcome": "success",
+            "result_ms": 150.926,
+            "latency_ms": 12.401
+          },
+          {
+            "ordinal": 15,
+            "database": "alpha",
+            "kind": "write",
+            "request_id": "369a31593e2240af8d334eb093bccc37",
+            "scheduled_ms": 151.32,
+            "invoked_ms": 151.326,
+            "deadline_ms": 1651.32,
+            "outcome": "success",
+            "result_ms": 170.921,
+            "latency_ms": 19.601
+          },
+          {
+            "ordinal": 16,
+            "database": "alpha",
+            "kind": "read",
+            "request_id": "4ef691d21b9f42d1a48307f3c1803f42",
+            "scheduled_ms": 171.757,
+            "invoked_ms": 171.764,
+            "deadline_ms": 1671.757,
+            "outcome": "success",
+            "result_ms": 182.812,
+            "latency_ms": 11.055
+          }
+        ],
+        "all_samples_sha256": "a9e76b0b63db8d1a9b670eabdb3caf96cac17ff88e1e3df015aed9050c8437c7",
+        "production_slo_passed": false
+      },
+      "concurrent_compiler_workloads": true,
+      "used_for_latency_comparison": false
+    },
+    {
+      "artifact_set": "final-full-idle-1",
+      "binary_sha256": "a24e0bee2ae054d50b33ef831bbd4b842859b663ae57fb2f2920a064a804c438",
+      "complete_marker_present": false,
+      "contracts": [
+        {
+          "contract": "01-three-real-daemons",
+          "started": true,
+          "completed": true,
+          "failed": false,
+          "verification_passed": true
+        },
+        {
+          "contract": "02-real-node-sdk",
+          "started": true,
+          "completed": false,
+          "failed": true,
+          "verification_passed": false
+        }
+      ],
+      "raw_artifacts": [
+        {
+          "name": "01-three-real-daemons.history.jsonl",
+          "bytes": 260,
+          "sha256": "dec7449d04a1a559f5e90dd7cbd7179801ff64fd2ca115448b9b2b6518ac9cb1"
+        },
+        {
+          "name": "02-real-node-sdk.history.jsonl",
+          "bytes": 4133,
+          "sha256": "a1dacd517c214c2da3dd9db65f0837e9aca638e4af74e5d601ad1ae37c5e4639"
+        },
+        {
+          "name": "binary.json",
+          "bytes": 338,
+          "sha256": "f878282588761497fc96d95a56f6da793d08254d97872b41c9492a428c80da60"
+        }
+      ],
+      "console_log_sha256": "0173b2477f011a5c3773f14a1016053b67dda6e25fae3aeed79867f2199e0ba5",
+      "status": "unexpected_failure",
+      "reason": "Contract01 completed; contract02 had one SDK test pass and four OVERLOADED failures following sequential calls. Contracts03 through08 were not reached.",
+      "sdk_tests": {
+        "planned": 5,
+        "passed": 1,
+        "failed": 4,
+        "skipped": 0
+      },
+      "diagnosis": "An empty SQL lane could still be retiring when a subsequent request arrived; the dispatcher rejected the request instead of handing it to the replacement bounded lane.",
+      "concurrent_compiler_workloads": false
+    }
+  ],
+  "resolved_build_failures": [
+    {
+      "logs": [
+        {
+          "name": "cargo-check.log",
+          "sha256": "0d9e6f5f611f65c479a6782b9100643bc545951a1eab19811f4fc5b5b39ad1b1"
+        }
+      ],
+      "reason": "The libclang wheel lacked builtin C headers, so RocksDB bindgen failed on stdbool.h.",
+      "resolution": "Point bindgen at the installed GCC13 builtin include directory; do not change RocksDB or libSQL source."
+    },
+    {
+      "logs": [
+        {
+          "name": "cargo-check-retry.log",
+          "sha256": "36e32f20924f38b38e49e663b72fd6a29f5b99f8364216c8bfdc8384145a3788"
+        }
+      ],
+      "reason": "The in-flight first-party dependency edit required its lockfile update and the locked build refused to proceed.",
+      "resolution": "Update all workspace/experiment lockfiles to the already pinned dependency version, then keep --locked on subsequent builds."
+    },
+    {
+      "logs": [
+        {
+          "name": "changed-release-build.log",
+          "sha256": "c12bb8ea92a64a3c8bc42e80d8edebc4f0eddcd1c33b2e6505a5816a440b8422"
+        },
+        {
+          "name": "changed-release-build-2.log",
+          "sha256": "b2983ea0482eec2258616843bd2278d7d3e866daef295b9b45d8b0803d973bce"
+        }
+      ],
+      "reason": "A shared baseline/current target retained stale wire metadata during live edits, so runtime could not see the new authorize_peer method.",
+      "resolution": "Retain the reviewed authorization contract; rebuild current sources in an isolated release target."
+    },
+    {
+      "logs": [
+        {
+          "name": "changed-release-build-clean.log",
+          "sha256": "6405dc79c7b8a7918f150bd9c99301ece47f2ae39e3bcc2d060306618adf7c6d"
+        },
+        {
+          "name": "changed-release-build-clean-both.log",
+          "sha256": "74a25c0f609641bccf4ecd69f8dd978a92c5063ee2b956296c401d091d7e9f14"
+        }
+      ],
+      "reason": "Cleaning first-party artifacts in the shared worktree target still left incompatible metadata references and missing rlib-form dependencies.",
+      "resolution": "Build the complete changed Rust dependency graph in a dedicated target while reusing only the exact pinned O3 RocksDB archive through its supported static-link environment variables."
+    }
+  ]
+}

@@ -13,7 +13,7 @@ use crate::config::cell_limits;
 use crate::tests::config;
 
 #[derive(Default)]
-struct Memory(Mutex<Option<Vec<u8>>>);
+pub(crate) struct Memory(Mutex<Option<Vec<u8>>>);
 impl AtomicBackend for Memory {
     type Error = &'static str;
     fn load(&mut self, _: usize) -> Result<LoadState, Self::Error> {
@@ -37,7 +37,7 @@ impl Network for NoNetwork {
     }
 }
 
-fn runtime(elect: bool) -> (Runtime<Driver<Memory, CellApplication>>, LocalPort) {
+pub(crate) fn runtime(elect: bool) -> (Runtime<Driver<Memory, CellApplication>>, LocalPort) {
     let config = config();
     let identity = Identity {
         cluster_id: config.cluster_id,

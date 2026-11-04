@@ -338,6 +338,62 @@ fn rotation_and_revocation_recheck_queued_and_existing_connection_messages() {
 }
 
 #[test]
+fn outgoing_peers_share_current_pin_and_time_policy_without_caching_permission() {
+    let mut p = policy();
+    for now in [100, 150, 200] {
+        assert_eq!(p.authorize_peer(certificate(), 2, now), Ok(()));
+    }
+    for now in [99, 201] {
+        assert_eq!(
+            p.authorize_peer(certificate(), 2, now),
+            Err(Error::CertificateTime)
+        );
+    }
+    for node in [0, 1, 3, 99] {
+        assert_eq!(
+            p.authorize_peer(certificate(), node, 150),
+            Err(Error::Unauthorized)
+        );
+    }
+    // Even a pin for our own certificate never authorizes a remote peer as us.
+    p.replace_bindings(vec![Binding {
+        node_id: 1,
+        fingerprint: certificate().fingerprint,
+    }])
+    .unwrap();
+    assert_eq!(
+        p.authorize_peer(certificate(), 1, 150),
+        Err(Error::Unauthorized)
+    );
+    let rotated = CertificateIdentity {
+        fingerprint: [4; 32],
+        ..certificate()
+    };
+    p.replace_bindings(vec![
+        bindings()[0],
+        Binding {
+            node_id: 2,
+            fingerprint: rotated.fingerprint,
+        },
+    ])
+    .unwrap();
+    assert_eq!(p.authorize_peer(certificate(), 2, 150), Ok(()));
+    assert_eq!(p.authorize_peer(rotated, 2, 150), Ok(()));
+    p.replace_bindings(vec![Binding {
+        node_id: 2,
+        fingerprint: rotated.fingerprint,
+    }])
+    .unwrap();
+    assert_eq!(
+        p.authorize_peer(certificate(), 2, 150),
+        Err(Error::Unauthorized)
+    );
+    assert_eq!(p.authorize_peer(rotated, 2, 150), Ok(()));
+    p.replace_bindings(vec![]).unwrap();
+    assert_eq!(p.authorize_peer(rotated, 2, 150), Err(Error::Unauthorized));
+}
+
+#[test]
 fn only_pinned_network_message_kinds_are_admitted() {
     for value in 0..=18 {
         let kind = MessageType::from_i32(value).unwrap();

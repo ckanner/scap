@@ -463,6 +463,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
+          import math
           import os
           from pathlib import Path
 
@@ -483,6 +484,35 @@ jobs:
               lines = (directory / f"{name}.history.jsonl").read_text().splitlines()
               if not lines or lines[-1] != "verification passed":
                   raise SystemExit(f"Incomplete service history: {name}")
+          cold = [json.loads(line) for line in (directory / "cold-wake.samples.jsonl").read_text().splitlines()]
+          if len(cold) != 17 or len({sample["request_id"] for sample in cold}) != 17:
+              raise SystemExit("All 17 cold-isolation attempts must be retained")
+          if {sample["ordinal"] for sample in cold} != set(range(17)):
+              raise SystemExit("Cold-isolation schedule is incomplete")
+          for sample in cold:
+              if sample["database"] != ("beta" if sample["ordinal"] < 13 else "alpha"):
+                  raise SystemExit("Cold-isolation database schedule is invalid")
+              expected_kind = "read" if sample["ordinal"] < 13 or sample["ordinal"] % 2 == 0 else "write"
+              if sample["kind"] != expected_kind:
+                  raise SystemExit("Cold-isolation operation schedule is invalid")
+              for key in ("scheduled_ms", "invoked_ms", "deadline_ms", "result_ms", "latency_ms"):
+                  if type(sample[key]) not in (int, float) or not math.isfinite(sample[key]):
+                      raise SystemExit("Cold-isolation timestamp is invalid")
+              if not sample["scheduled_ms"] <= sample["invoked_ms"] <= sample["result_ms"] or sample["scheduled_ms"] >= sample["deadline_ms"]:
+                  raise SystemExit("Cold-isolation timestamp order is invalid")
+          beta = [sample for sample in cold if sample["database"] == "beta"]
+          alpha = [sample for sample in cold if sample["database"] == "alpha"]
+          first = next(sample for sample in cold if sample["ordinal"] == 0)
+          if len(beta) != 13 or len(alpha) != 4 or first["database"] != "beta":
+              raise SystemExit("Cold-isolation database inventory is invalid")
+          if any(sample["outcome"] != "success" or sample["result_ms"] >= first["result_ms"] for sample in alpha):
+              raise SystemExit("Hot reads and writes must complete while the first cold wake is pending")
+          if any(sample["result_ms"] >= sample["deadline_ms"] for sample in alpha):
+              raise SystemExit("Hot results must arrive before their original recorded deadlines")
+          if any(sample["outcome"] in ("success", "correctness_error") for sample in beta):
+              raise SystemExit("Cold reads cannot succeed without their exact archive")
+          if sum(sample.get("code") == "OVERLOADED" for sample in beta) < 5:
+              raise SystemExit("Per-database admission must reject the excess cold requests")
           samples = [json.loads(line) for line in (directory / "latency.samples.jsonl").read_text().splitlines()]
           if len(samples) != 360 or len({sample["request_id"] for sample in samples}) != 360:
               raise SystemExit("All 360 distinct scheduled requests, including failures, must be retained")

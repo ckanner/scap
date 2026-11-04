@@ -50,7 +50,9 @@ async function contract(name, action) {
     await appendFile(currentHistory, "verification passed\n");
     completed.push(name);
   } catch (error) {
-    await event("contract_failed", { name, message: error.message });
+    const replicas = resources.filter((resource) => resource instanceof Cluster).flatMap((cluster) =>
+      cluster.processes.map((state, node) => ({ cluster: cluster.name, replica: node + 1, pid: state?.child.pid ?? null, exit: state?.exit ?? null })));
+    await event("contract_failed", { name, message: error.message, replicas });
     throw error;
   } finally { currentHistory = undefined; }
 }
@@ -94,13 +96,14 @@ async function freePort() {
 
 class Proxy {
   blocked = false;
+  blockedConnections = 0;
   sockets = new Set();
   constructor(source, destination, port) {
     this.source = source; this.destination = destination;
     this.server = net.createServer((client) => {
       client.setNoDelay(true);
       this.track(client);
-      if (this.blocked) { client.pause(); return; }
+      if (this.blocked) { this.blockedConnections++; client.pause(); return; }
       const upstream = net.connect({ host: "127.0.0.1", port });
       upstream.setNoDelay(true);
       this.track(upstream);
@@ -336,6 +339,8 @@ class Seaweed {
     assert.ok(executable && path.isAbsolute(executable), "SCAP_SEAWEEDFS_BIN is required for the actual S3 lifecycle contract");
     const version = await command(executable, ["version"]);
     assert.match(version, /4\.51 153ab668c99731a6d29492bf6c61d0b4fa701101/);
+    this.mode = process.env.SCAP_SEAWEEDFS_MODE ?? "mini";
+    assert.ok(this.mode === "mini" || this.mode === "separate", "Unknown SeaweedFS deployment mode");
     this.executable = executable; this.directory = path.join(scratch, "s3");
     await mkdir(this.directory, { mode: 0o700 });
     this.access = randomBytes(16).toString("hex"); this.secret = randomBytes(32).toString("hex");
@@ -348,28 +353,130 @@ class Seaweed {
     this.endpoint = `http://127.0.0.1:${ports["s3.port"]}`;
     this.proxy = new Proxy(-1, -1, ports["s3.port"]);
     await this.proxy.listen();
-    this.args = ["mini", `-dir=${this.directory}`, "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-admin.ui=false", "-webdav=false", "-s3.port.iceberg=0", "-s3.port.lance=0", "-volume.max=2", "-master.volumeSizeLimitMB=64", "-bucket=scap-test", `-s3.config=${identityFile}`, ...Object.entries(ports).map(([flag, value]) => `-${flag}=${value}`)];
+    const mini = ["mini", `-dir=${this.directory}`, "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-admin.ui=false", "-webdav=false", "-s3.port.iceberg=0", "-s3.port.lance=0", "-volume.max=2", "-master.volumeSizeLimitMB=64", "-bucket=scap-test", `-s3.config=${identityFile}`, ...Object.entries(ports).map(([flag, value]) => `-${flag}=${value}`)];
+    this.commands = [{ name: "backend", args: mini }];
+    if (this.mode === "separate") {
+      // Supported upstream component processes use ordinary peer TCP. This
+      // avoids mini's optional same-process Unix gRPC fast path on hosts that
+      // cannot create Unix sockets; no permission or upstream code is changed.
+      const master = `127.0.0.1:${ports["master.port"]}.${ports["master.port.grpc"]}`;
+      const filer = `127.0.0.1:${ports["filer.port"]}.${ports["filer.port.grpc"]}`;
+      for (const name of ["master", "volume", "filer"]) await mkdir(path.join(this.directory, name), { mode: 0o700 });
+      const listen = (name) => ["-ip=127.0.0.1", "-ip.bind=127.0.0.1", `-port=${ports[`${name}.port`]}`, `-port.grpc=${ports[`${name}.port.grpc`]}`];
+      this.commands = [
+        { name: "master", args: ["master", ...listen("master"), `-mdir=${path.join(this.directory, "master")}`, "-peers=none", "-telemetry=false", "-volumeSizeLimitMB=64"] },
+        { name: "volume", args: ["volume", ...listen("volume"), `-dir=${path.join(this.directory, "volume")}`, `-master=${master}`, "-max=2"] },
+        { name: "filer", args: ["filer", ...listen("filer"), `-defaultStoreDir=${path.join(this.directory, "filer")}`, `-master=${master}`] },
+        { name: "s3", args: ["s3", ...listen("s3"), `-filer=${filer}`, `-config=${identityFile}`, "-port.iceberg=0", "-port.lance=0"] },
+      ];
+    }
+    await writeFile(path.join(evidence, "s3-backend.json"), JSON.stringify({ version: "4.51", commit: "153ab668c99731a6d29492bf6c61d0b4fa701101", mode: this.mode, processes: this.commands.map((entry) => entry.name), transport: this.mode === "separate" ? "explicit loopback TCP between component processes" : "upstream mini defaults" }, null, 2), { flag: "wx", mode: 0o600 });
     this.config = { endpoint: `http://127.0.0.1:${this.proxy.port}`, region: "us-east-1", bucket: "scap-test", access_key_env: "SCAP_CONTRACT_S3_ACCESS", secret_key_env: "SCAP_CONTRACT_S3_SECRET", allow_http: true };
     this.env = { SCAP_CONTRACT_S3_ACCESS: this.access, SCAP_CONTRACT_S3_SECRET: this.secret };
     resources.push({ stop: () => this.close() }); await this.launch();
   }
   async launch() {
-    this.process = await loggedProcess(this.executable, this.args, path.join(this.directory, "backend.private.log"));
+    this.processes = [];
+    for (const entry of this.commands) this.processes.push(await loggedProcess(this.executable, entry.args, path.join(this.directory, `${entry.name}.private.log`)));
     const deadline = performance.now() + 30_000;
     while (performance.now() < deadline) {
-      if (this.process.exit) throw new Error("S3 backend exited during startup");
+      if (this.processes.some((entry) => entry.exit)) throw new Error("S3 backend exited during startup");
       try {
+        if (this.mode === "separate") {
+          const signed = ["--silent", "--show-error", "--fail", "--max-time", "1", "--noproxy", "*", "--aws-sigv4", "aws:amz:us-east-1:s3", "--user", `${this.access}:${this.secret}`];
+          try { await command("curl", [...signed, "--head", `${this.endpoint}/scap-test`], { private: true }); }
+          catch { await command("curl", [...signed, "-X", "PUT", "--data-binary", "", `${this.endpoint}/scap-test`], { private: true }); }
+        }
         await command("curl", ["--silent", "--show-error", "--fail", "--max-time", "1", "--noproxy", "*", "--aws-sigv4", "aws:amz:us-east-1:s3", "--user", `${this.access}:${this.secret}`, "-X", "PUT", "--data-binary", "ready", `${this.endpoint}/scap-test/contract-ready`], { private: true });
         return;
       } catch { await delay(150); }
     }
     throw new Error("S3 did not accept an authenticated object within startup budget");
   }
-  async stop() { await this.process?.stop("SIGKILL"); }
+  async stop() { for (const process of [...(this.processes ?? [])].reverse()) await process.stop("SIGKILL"); }
   blackhole(blocked) { this.proxy.block(blocked); }
   async close() {
     await this.stop();
     if (this.proxy) { const proxy = this.proxy; this.proxy = undefined; await proxy.close(); }
+  }
+}
+
+async function coldWakeIsolation(s3, hot, cold) {
+  // A refused connection finishes quickly and does not prove queue isolation.
+  // Observe an accepted, blackholed S3 connection before issuing hot traffic.
+  // Every planned request is retained, including admission rejection/timeouts.
+  const sampleFile = path.join(evidence, "cold-wake.samples.jsonl");
+  await writeFile(sampleFile, "", { flag: "wx", mode: 0o600 });
+  const origin = performance.now();
+  const samples = [], pending = [];
+  let ordinal = 0;
+  const relative = (value) => Math.round((value - origin) * 1000) / 1000;
+  const sample = async (database, kind, client, statement, budget, verify) => {
+    const requestId = id();
+    const scheduled = performance.now();
+    const record = { ordinal: ordinal++, database, kind, request_id: requestId, scheduled_ms: relative(scheduled), invoked_ms: relative(performance.now()), deadline_ms: relative(scheduled + budget) };
+    try {
+      const result = await client[kind === "write" ? "execute" : "query"](statement, { requestId, timeoutMs: budget });
+      verify?.(result);
+      record.outcome = "success";
+    } catch (error) {
+      record.code = error.code ?? "ASSERTION";
+      record.outcome = error instanceof ScapError ? ({ COMMIT_UNKNOWN: "unknown", EXPIRED: "expired", OVERLOADED: "admission_rejected" }[error.code] ?? "platform_error") : "correctness_error";
+      if (!(error instanceof ScapError)) record.failure = error.message;
+    }
+    record.result_ms = relative(performance.now());
+    record.latency_ms = Math.round((record.result_ms - record.scheduled_ms) * 1000) / 1000;
+    samples.push(record);
+    await appendFile(sampleFile, `${JSON.stringify(record)}\n`);
+    return record;
+  };
+  await hot.execute("CREATE TABLE hot_isolation_probe(id INTEGER PRIMARY KEY, value TEXT)");
+  const before = s3.proxy.blockedConnections;
+  let firstWakeFinished = false;
+  s3.blackhole(true);
+  try {
+    const firstWake = sample("beta", "read", cold, "SELECT nonce FROM cold_probe WHERE id=1", 5000)
+      .then((record) => { firstWakeFinished = true; return record; });
+    pending.push(firstWake);
+    const observingUntil = performance.now() + 1500;
+    while (s3.proxy.blockedConnections === before && !firstWakeFinished && performance.now() < observingUntil) await delay(10);
+    assert.ok(s3.proxy.blockedConnections > before, "Cold beta must actually reach the blackholed S3 endpoint");
+    assert.equal(firstWakeFinished, false, "Cold wake must still be pending before hot requests start");
+    await event("cold_wake_blocked", { database: "beta", request_deadline_ms: 5000, observed_blocked_s3_connections: s3.proxy.blockedConnections - before });
+    // Thirteen overlapping beta requests exceed its eight-request quota while
+    // staying well below the cell's global quota. They must not starve alpha.
+    for (let attempt = 0; attempt < 12; attempt++) pending.push(sample("beta", "read", cold, "SELECT nonce FROM cold_probe WHERE id=1", 5000));
+    for (let row = 1; row <= 2; row++) {
+      const value = `hot-during-cold-${row}`;
+      const written = await sample("alpha", "write", hot, { sql: "INSERT INTO hot_isolation_probe VALUES(?, ?) RETURNING value", args: [BigInt(row), value] }, 1500, (result) => assert.equal(result.rows[0].value, value));
+      // Still issue the remaining probes if one fails, preserving the fixed
+      // denominator. Only ACKed writes impose a subsequent row-retention check.
+      await sample("alpha", "read", hot, { sql: "SELECT value FROM hot_isolation_probe WHERE id=?", args: [BigInt(row)] }, 1500, (result) => {
+        if (written.outcome === "success") assert.equal(result.rows[0].value, value);
+      });
+    }
+    const coldResults = await Promise.all(pending);
+    assert.equal(coldResults.length, 13);
+    const hotResults = samples.filter((record) => record.database === "alpha");
+    for (const record of samples) {
+      assert.ok([record.scheduled_ms, record.invoked_ms, record.deadline_ms, record.result_ms, record.latency_ms].every(Number.isFinite), "Every isolation attempt needs finite observation timestamps");
+      assert.ok(record.scheduled_ms <= record.invoked_ms && record.invoked_ms <= record.result_ms && record.scheduled_ms < record.deadline_ms, "Isolation observation timestamps must retain their original order");
+      assert.equal(record.database, record.ordinal < 13 ? "beta" : "alpha");
+      assert.equal(record.kind, record.ordinal < 13 || record.ordinal % 2 === 0 ? "read" : "write");
+    }
+    assert.ok(hotResults.every((record) => record.outcome === "success"), "Every hot write and strong read must complete within its original budget during cold hydration");
+    assert.ok(hotResults.every((record) => record.result_ms < record.deadline_ms), "Every hot result must arrive before its original recorded deadline");
+    assert.ok(hotResults.every((record) => record.result_ms < coldResults[0].result_ms), "Every hot result must precede the original cold result, using recorded observation timestamps");
+    assert.ok(coldResults.every((record) => record.outcome !== "success" && record.outcome !== "correctness_error"), "No cold read may succeed without its exact archive");
+    const rejected = coldResults.filter((record) => record.code === "OVERLOADED").length;
+    assert.ok(rejected >= 5, "The per-database quota must reject at least five of thirteen overlapping cold requests");
+    assert.equal(samples.length, 17);
+    assert.equal(new Set(samples.map((record) => record.request_id)).size, 17);
+    assert.equal((await cold.status()).cold, true);
+    await event("cold_wake_isolated", { cold_attempts: 13, cold_admission_rejections: rejected, hot_attempts: 4, hot_successes: 4, hot_completed_before_cold: true, per_hot_request_deadline_ms: 1500, all_attempts_retained: samples.length, production_slo_passed: false });
+  } finally {
+    await Promise.allSettled(pending);
+    s3.blackhole(false);
   }
 }
 
@@ -403,6 +510,7 @@ async function lifecycle() {
       assert.equal(status.archivedRevision, status.revision);
       assert.equal((await hot.status()).cold, false);
       await event("cold_proven", { revision: status.revision.toString(), archived_revision: status.archivedRevision.toString(), suspended: status.suspended, owner_active: status.ownerActive });
+      await coldWakeIsolation(s3, hot, cold);
       await s3.stop();
       await hot.execute("INSERT INTO hot_probe VALUES(1)");
       assert.equal((await hot.query("SELECT count(*) AS n FROM hot_probe")).rows[0].n, 1n);

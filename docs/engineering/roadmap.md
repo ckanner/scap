@@ -1,6 +1,6 @@
 # 实施路线与发布门禁
 
-状态：G0 整体仍未关闭，已完成可部署的有界 SQLite 服务闭环。2026-11-02 的正式 `scap-server` 已连接三副本共识、HTTP/Node SDK、独立强读、自动 owner 恢复与 S3 冷生命周期；这不等于完整平台、规模或生产 SLO 已通过。当前实现见 [服务说明](sqlite-service.md)和 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，执行证据见 [g0-evidence.md](g0-evidence.md)。
+状态：G0 整体仍未关闭，已完成可部署的有界 SQLite 服务闭环。2026-11-02 的正式 `scap-server` 已连接三副本共识、HTTP/Node SDK、独立强读、自动 owner 恢复与 S3 冷生命周期；这不等于完整平台、规模或生产 SLO 已通过。2026-11-04 新增内容块增量持久化、按库惰性执行和重新授权的连接复用，见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。当前实现见 [服务说明](sqlite-service.md)和 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，执行证据见 [g0-evidence.md](g0-evidence.md)。
 
 ## 1. 原则
 
@@ -28,9 +28,9 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 | 范围 | 已有正式实现 | 仍待完成的目标 |
 | --- | --- | --- |
-| 共识与服务 | 固定三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon | 跨 AZ/设备故障、动态成员、增量持久布局、多 cell |
-| SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、稳定请求结果查证 | 完整 ORM/同步驱动、交互式事务、并行 SQL actor |
-| 多租户与恢复 | 静态最多 32 库、token/当前 auth_epoch、leader 自动接管、新目录恢复 | 动态目录、外部身份源、每租户公平性、坏盘成员自动重建 |
+| 共识与服务 | 固定三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon | 跨 AZ/设备故障、动态成员、逻辑分段与保留、多 cell |
+| SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、稳定请求结果查证 | 完整 ORM/同步驱动、交互式事务、生产规模的调度验收 |
+| 多租户与恢复 | 静态最多 32 库、token/当前 auth_epoch、leader 自动接管、新目录恢复、按库惰性 lane/准入配额 | 动态目录、外部身份源、每租户公平性、坏盘成员自动重建 |
 | 冷生命周期 | Suspend、不可变 S3 发布、受覆盖 Prune、精确 hydrate、全 cell Checkpoint | GC/结果退休、PITR/DR、分块归档、恢复空间预留和成本收敛 |
 | 验证与运营 | 独立 unit 门禁、实际进程/TCP/S3/SDK 场景及可复现命令 | 生产规模分母、稳定恢复窗口、长期运行、SLO 与故障域认证 |
 
@@ -60,7 +60,7 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 早期 `raft-rpc` 实验仅验证外层 Prost envelope 透传内层 raft-rs `protobuf-codec` 原始字节、字段/版本/大小拒绝与真实 loopback 往返。2026-11-01 的正式 wire/transport/runtime 已补齐固定成员的 mTLS、实际 leaf pin 与 node/cell 授权、有限消息解析、连接/RPC/inbox/发送预算和绝对 deadline。`Received` 只表示排队成功，尚未保证交给 driver，消费时还要复核授权和有效期。
 
-[真实网络契约](../../experiments/raft-network/README.md)使用三个独立 RawNode/RocksDB 进程与合成 payload；[SQLite 网络](../../experiments/sqlite-network/README.md)和 [服务实验](../../experiments/service-network/README.md)进一步装配正式 SQL/SDK。后续按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)补证书控制面、慢盘/丢盘、动态成员及容量证据。当前每条 peer delivery 新建 TLS 连接，握手 CPU、socket/TIME_WAIT 和尾延迟必须实测，不能把某次场景通过当成性能达标。禁止由 gRPC Received 推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。
+[真实网络契约](../../experiments/raft-network/README.md)使用三个独立 RawNode/RocksDB 进程与合成 payload；[SQLite 网络](../../experiments/sqlite-network/README.md)和 [服务实验](../../experiments/service-network/README.md)进一步装配正式 SQL/SDK。后续按 [运行与 RPC 契约](runtime-and-rpc.md)和 [Ready 门禁](raft-rs-integration.md)补证书控制面、慢盘/丢盘、动态成员及容量证据。当前每个发送 lane 有界复用一个 TLS 连接，每次 RPC 前后重新验证实际证书链和当前 pin；握手摊销、socket 和尾延迟仍需实测，不能把某次场景通过当成性能达标。禁止由 gRPC Received 推导 SQL 成功，也不能在超时后无条件重放未知结果的业务写入。
 
 ### 3.4 客户端与备选基线
 

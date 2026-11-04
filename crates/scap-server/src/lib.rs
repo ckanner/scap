@@ -10,6 +10,7 @@ mod auth;
 mod cache;
 mod cli;
 mod config;
+mod lanes;
 mod listener;
 mod local;
 mod mailbox;

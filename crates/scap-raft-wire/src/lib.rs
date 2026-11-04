@@ -186,6 +186,27 @@ impl Policy {
         self.revision
     }
 
+    /// Check a cryptographically verified peer against the current pins and
+    /// certificate time. Outgoing connection reuse must call this for every
+    /// request; a prior handshake or a saved policy revision grants no lease.
+    /// The caller binds its endpoint to this policy's cluster before calling.
+    pub fn authorize_peer(
+        &self,
+        certificate: CertificateIdentity,
+        peer_node: u64,
+        now: i64,
+    ) -> Result<(), Error> {
+        if now < certificate.not_before || now > certificate.not_after {
+            return Err(Error::CertificateTime);
+        }
+        if peer_node == self.scope.node_id
+            || self.bindings.get(&certificate.fingerprint) != Some(&peer_node)
+        {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+
     /// Atomically replace certificate pins after validating the whole candidate.
     /// Multiple pins can overlap during rotation. Empty pins revoke all peers.
     /// Any successful replacement invalidates messages already waiting in queues.
@@ -286,13 +307,7 @@ impl Policy {
         {
             return Err(Error::Unauthorized);
         }
-        if now < certificate.not_before || now > certificate.not_after {
-            return Err(Error::CertificateTime);
-        }
-        if self.bindings.get(&certificate.fingerprint) != Some(&envelope.from_node) {
-            return Err(Error::Unauthorized);
-        }
-        Ok(())
+        self.authorize_peer(certificate, envelope.from_node, now)
     }
 }
 

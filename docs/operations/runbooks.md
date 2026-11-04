@@ -12,6 +12,8 @@
 
 当前可运行命令、完整配置和证书要求见 [服务工程说明](../engineering/sqlite-service.md)及 [server README](../../crates/scap-server/README.md)。下表区分自动流程、已公开接口与尚无工具的目标；不能因为 cell 内已有命令就假定存在同名外部管理 API。
 
+2026-11-04 的按库执行、增量磁盘块和 peer 连接复用边界见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。下表中的 SQL 调度采用按需创建的每库串行 lane；目录检查、cell 与宿主资源仍共享。
+
 | 能力 | 当前状态 | 完成条件与边界 |
 | --- | --- | --- |
 | live/ready 与数据库 status | 已实现 | status 经 READ/ReadIndex 返回有限元数据；ready 只是节点选择提示，没有公开全量 Raft/owner 管理查询 |
@@ -19,8 +21,9 @@
 | 进程关闭 | 已实现 SIGTERM/Ctrl-C 的停止准入、取消和 join | 关键线程异常退出使节点整体停止；没有通用按库排空管理接口 |
 | owner 栅栏与接管 | 已实现同 cell leader 自动恢复 | Claim、新视图、新目录、Activate 与最终校验；手工迁移/跨 cell 调度 planned |
 | 授权撤销 | cell AuthFence 已实现，外部管理 API planned | 静态旧 auth_epoch 不能绕过当前策略；改 JSON 不等于完成复制授权变更 |
-| 冷唤醒 | 已实现请求驱动 | 先复核调用者，精确 hydrate 后 Claim/Activate；status/lookup 不唤醒 |
-| Suspend / 释放 worker | 已实现 idle 维护 | owner/head 匹配且 Suspend 已接受才释放；不等待 S3 |
+| SQL 准入 / 执行隔离 | 已实现按库 lane 与双层额度 | 最多 32 个活动/退出中 lane；全局 32 请求 / 8 MiB、每库 8 请求 / 2 MiB，排队和执行共同计量；无加权公平保证 |
+| 冷唤醒 | 已实现请求驱动 | 本库 lane 先复核调用者，精确 hydrate 后 Claim/Activate；status/lookup 不唤醒 |
+| Suspend / 释放 worker | 已实现 idle 维护 | owner/head 匹配且 Suspend 已接受才释放；不等待 S3，writer 关闭且队列为空后 lane 退出 |
 | Cold / 物理历史卸载 | 已实现有界 Publish/Prune | 保留 receipt/result/fence；共享日志另经全 cell Checkpoint，所有对象不删除 |
 | 归档检查 / 重试 | 已实现精确对象校验与后台有限退避 | status 可见冷状态/归档 revision；没有通用任务查询或人工重传 API |
 | 副本重建 / 成员替换 | planned | 必须经过安全成员变更及追赶；坏目录不能自行 Initialize |
@@ -112,7 +115,9 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 **触发：** 对象存储超时/拒绝、凭证故障、manifest 不推进、GC/compaction 停滞或磁盘达到告警线。
 
-**当前实现：** 后台归档在独立有界线程执行，S3 黑洞时任务失败/退避并保留未归档物理历史，热库仍走原 durable quorum。已 cold 的前景 hydrate 等待对象或在原 deadline 内失败；它仍占单 SQL actor，会使同进程其他库排队。status/lookup 不访问 S3。当前没有 GC、DR checkpoint、百分比磁盘自动背压或恢复空间预留，下面相关步骤是目标运营要求，不是已有命令。
+**当前实现：** 后台归档在独立有界线程执行，S3 黑洞时任务失败/退避并保留未归档物理历史，热库仍走原 durable quorum。已 cold 的前景 hydrate 在本库 lane 等待对象或在原 deadline 内失败，对象 I/O 不持有共享任务队列锁；其他库可通过自己的 lane 继续服务。status/lookup 不访问 S3。
+
+排队和执行中的请求共同计入全局 32 请求 / 8 MiB、每库 8 请求 / 2 MiB 的预算，额度用尽返回 `OVERLOADED`。本库 lane 正在退出时，已准入请求保留原预算，等待成功 join 后由新 lane 按序执行，等待也受原 deadline 和取消约束；这些等待不允许启动重叠 writer。UNKNOWN 仍按 RB-06 查证。目录扫描及活动 lane 的维护仍同步访问 cell，排障应同时检查元数据延迟、quorum、CPU 和磁盘，不能只观察 S3。当前没有加权公平调度、GC、DR checkpoint、百分比磁盘自动背压或恢复空间预留，下面相关步骤是目标运营要求，不是已有命令。
 
 1. 检查 PUT、GET、校验、manifest 发布和 DR checkpoint 生成分别是否成功，区分“对象上传慢”与“已经上传但发布失败”。分别记录普通归档位置与最后完成态 DR checkpoint 的可恢复位置，不能只记录最后 PUT 时间。
 2. 查询每个 cell 的本地使用率、绝对剩余空间、未归档字节、增长速度、最大事务和预留预算。估算到停写线的时间并更新影响范围。
@@ -239,7 +244,7 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 ## 12. RB-11：监控中断或就绪探针异常
 
-当前 `/livez` 表示进程入口存活，`/readyz` 用于候选路由，不代替实际请求的 quorum/权限判断；数据库状态使用受鉴权 `status`。生产指标/告警平台尚未装配，以下记录和降级规则保留为运营要求。
+当前 `/livez` 表示进程入口存活，`/readyz` 用于候选路由，不代替实际请求的 quorum/权限判断；数据库状态使用受鉴权 `status`。只有目录维护更新公开就绪提示，每库 lane 的私有就绪状态不覆盖该提示，关闭时始终未就绪。单库超时仍需检查该库的原请求结果；实际目录检查失败也不能由另一个库的成功请求掩盖。生产指标/告警平台尚未装配，以下记录和降级规则保留为运营要求。
 
 1. 区分观测系统失联与数据面不可用，使用独立授权的只读健康检查；不得依赖缺失的监控自动判断数据丢失。
 2. 确认磁盘背压、quorum ACK、epoch fencing、认证到期等安全保护由服务内执行。

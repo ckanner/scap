@@ -1,6 +1,6 @@
 # G0 持久存储、快照与恢复边界
 
-初始日期：2026-10-29；非空业务 genesis 更新：2026-10-31。实现与验证范围见 [G0 证据](g0-evidence.md)；决策见 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。本模块是有界存储策略，尚未组成可部署的数据库服务。
+初始日期：2026-10-29；非空业务 genesis 更新：2026-10-31。实现与验证范围见 [G0 证据](g0-evidence.md)；决策见 [ADR-0008](../adr/0008-bounded-durable-store-g0.md)与 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)。本模块是有界存储策略，已接入正式数据库服务；2026-11-04 的 native 增量布局见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。
 
 ## 1. 代码职责
 
@@ -66,7 +66,7 @@ G0 镜像包含 `SCAPRAFT` magic、u32 格式版本 1、cluster/cell/实例/node
 
 资源预算分别限制整个镜像、单条记录、日志条目数量和应用数据，正式 API 要求显式传入，未设置生产默认。真实契约夹具采用 8 MiB image、1 MiB entry、4096 entries、1 MiB application；这些是 G0 测试参数，不修改现有 64 KiB 小事务性能负载定义。
 
-该布局每次保存可能复制和序列化整个有界状态，保留了明显的写放大成本。它用于先证明原子恢复，不作为大量活跃库或长期日志的容量结论。增量布局、外部 snapshot 文件与日志回收均须保留同样的恢复不变量，并提供新的格式/升级与崩溃证据。
+逻辑层每次保存仍可能复制和序列化整个有界状态。native 层现使用内容确定边界的 4–32 KiB 块和版本化清单，只写新块；清单发布和失去引用的旧块删除处于同一 WAL+sync WriteBatch。加载先校验长度和覆盖，再校验每块及完整镜像；未知 key、缺块和损坏拒绝恢复。旧单 key 格式只读兼容，首次写入原子迁移，旧二进制必须拒绝新 namespace。详情见 ADR-0015。该改进不构成大量活跃库或长期日志的容量结论，完整序列化、内存复制和历史保留成本仍存在。
 
 checkpoint 不保证缩小镜像：当前 application 会复制进 snapshot，而当前 application 和尚未压缩的日志仍要保留。因此，即使各字段分别没有超限，checkpoint 后的完整镜像也可能超过总预算。实现必须在写后端前拒绝，保留原有磁盘镜像并停止当前实例；不能把 checkpoint 当成必定成功的容量救援操作。单元测试分别验证 persist、apply 和 checkpoint 的总预算失败路径。格式的固定开销为 120 字节，此外还要计入各 protobuf 字段、应用数据以及每条 entry 的长度前缀和内容。
 

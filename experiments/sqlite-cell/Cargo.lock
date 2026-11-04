@@ -767,6 +767,7 @@ version = "0.0.0"
 dependencies = [
  "rocksdb",
  "scap-raft-store",
+ "sha2",
 ]
 
 [[package]]

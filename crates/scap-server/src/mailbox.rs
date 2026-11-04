@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 
@@ -18,14 +19,19 @@ use crate::worker::{Operation, Reply, Request};
 const MAX_QUEUED: usize = 32;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_DATABASE_QUEUED: usize = 8;
+const MAX_DATABASE_BYTES: usize = 2 * 1024 * 1024;
 
+#[derive(Default)]
 struct Usage {
     count: usize,
     bytes: usize,
+    databases: BTreeMap<u128, (usize, usize)>,
 }
 
 struct Reservation {
     usage: Arc<Mutex<Usage>>,
+    database: u128,
     bytes: usize,
 }
 impl Drop for Reservation {
@@ -33,6 +39,12 @@ impl Drop for Reservation {
         let mut usage = self.usage.lock();
         usage.count -= 1;
         usage.bytes -= self.bytes;
+        let database = usage.databases.get_mut(&self.database).unwrap();
+        database.0 -= 1;
+        database.1 -= self.bytes;
+        if database.0 == 0 {
+            usage.databases.remove(&self.database);
+        }
     }
 }
 
@@ -75,7 +87,7 @@ impl Mailbox {
             Self(Arc::new(Inner {
                 verifier: Verifier::new(databases),
                 sender,
-                usage: Arc::new(Mutex::new(Usage { count: 0, bytes: 0 })),
+                usage: Arc::new(Mutex::new(Usage::default())),
                 stopped,
             })),
             receiver,
@@ -110,11 +122,18 @@ impl Mailbox {
         {
             return Err(failure("OVERLOADED"));
         }
+        let id = database.identity.database_id;
+        let &(count, used) = usage.databases.get(&id).unwrap_or(&(0, 0));
+        if count >= MAX_DATABASE_QUEUED || bytes > MAX_DATABASE_BYTES - used {
+            return Err(failure("OVERLOADED"));
+        }
         usage.count += 1;
         usage.bytes += bytes;
+        usage.databases.insert(id, (count + 1, used + bytes));
         drop(usage);
         let reservation = Reservation {
             usage: self.0.usage.clone(),
+            database: id,
             bytes,
         };
         let cancellation = Cancellation(context.cancelled.clone());
