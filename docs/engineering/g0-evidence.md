@@ -620,7 +620,9 @@ SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口
 
 原三进程 WAL 破坏 fixture 初次失败：它仍寻找 `scap/g0/atomic-image`，因此在注入前就退出。更新为同时寻找实际 G1 manifest、chunk key 与原操作字节后，完整 **8 项 Raft cluster 合同通过**。CRC32C 单比特破坏、native `Corruption` 拒绝、保留 IDENTITY/CURRENT/损坏 WAL 和健康多数派继续推进的断言都没有放宽。该失败是旧格式 fixture 假设失效，不计为持久性测试通过。
 
-本机随后完成 8 套独立 Rust 回归，共 **78 passed，0 failed / ignored**：WAL 13、RPC 8、Store 16、Raft cluster 8、SQLite cell 6、SQLite engine 11、Raft network 8、SQLite network 8。网络合同包含现存连接撤销 pin、真实 mTLS 快照、TCP 黑洞、少数派拒绝强读、ACK 后进程故障、原结果恢复与全组重开。单元报告不含这些样本。新增 Store fixture 与修改后的 cluster fixture 分别再次通过格式及严格 Clippy。
+本机随后完成 9 套独立 Rust 回归，共 **80 passed，0 failed / ignored**：WAL 13、RPC 8、Store 16、Raft cluster 8、SQLite cell 6、SQLite engine 11、Raft network 8、SQLite network 8、S3 2。网络合同包含现存连接撤销 pin、真实 mTLS 快照、TCP 黑洞、少数派拒绝强读、ACK 后进程故障、原结果恢复与全组重开。单元报告不含这些样本。全部 9 套独立实验均通过各自 manifest 的格式检查与严格 Clippy（all targets / locked / `-D warnings`）。
+
+独立 S3 fixture 新增与完整服务相同的可选四进程 TCP 模式，使用固定 SeaweedFS 4.51；默认仍为 `mini`。两项合同在 **46.69 s** 内通过，包含签名条件 PUT、不同内容不覆盖、HEAD 大小限制、错误凭据拒绝、停机期间已过期 PUT 不创建对象，以及原目录重启后的精确字节核验。故障前确认四个组件仍在运行，逐个 SIGKILL 并核对信号 9；重启后同时核对 `published/older` 与 `orphan/newer` 的原始完整字节。两个历史文件均以 `verification passed` 结束。测试输入在执行前后相同；该补充只修改实验夹具和说明，71 个生产输入的摘要仍与最终完整服务运行一致。
 
 ### 14.3 冷唤醒隔离的负对照与证据约束
 
@@ -641,7 +643,7 @@ SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口
 
 ### 14.5 最终冻结构建与同机对照
 
-修正后的 release 二进制 SHA-256 为 `f7b150027e365e69f0722930a81aabf4f4fed3280704ef7bfa77aa5c5c92e488`。71 个生产构建输入的摘要为 `750892e547d34a355668592056f6cb6fe7f962f583e0127f631272d3a47127c2`，构建前后与完整运行前后均匹配；fixture 未再修改。原 main release 摘要为 `e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786`，以相同清单规则记录 69 个输入。两者复用同一固定源码生成的 O3 native RocksDB 库，SHA-256 为 `4998da12e679834d39b191009ae67fcd6e1377853bed855d29dd0ad0a8f657b5`；正式 Rust 分别重建。原、新构建都在无并行编译的窗口测量。
+修正后的 release 二进制 SHA-256 为 `f7b150027e365e69f0722930a81aabf4f4fed3280704ef7bfa77aa5c5c92e488`。71 个生产构建输入的摘要为 `750892e547d34a355668592056f6cb6fe7f962f583e0127f631272d3a47127c2`，构建前后与完整运行前后均匹配；服务 fixture 未再修改。原 main release 摘要为 `e48686f164a32a799d53392048c19960d9f94ca7c7a212e0f8091045a6da5786`，以相同清单规则记录 69 个输入。两者复用同一固定源码生成的 O3 native RocksDB 库，SHA-256 为 `4998da12e679834d39b191009ae67fcd6e1377853bed855d29dd0ad0a8f657b5`；正式 Rust 分别重建。原、新构建都在无并行编译的窗口测量。
 
 最终完整服务运行 **8/8 合同通过**，实际 Node SDK **5/5 用例通过**。前景 cold 隔离记录完整 17 次：beta 的 13 次中 5 次 `OVERLOADED`、2 次 `ARCHIVE_UNAVAILABLE`、6 次 `COMMIT_UNKNOWN`；alpha 的四次成功依次为 **51.524、11.971、18.012、9.114 ms**，均早于各自 1500 ms deadline 和原 beta 的 **2050.560 ms** 完成时刻。后续状态查询、真实 S3 SIGKILL/重启、精确 hydrate、后台黑洞、归档恢复到 revision 3 与原随机结果均通过；后台黑洞期间另五组热写/读也按原预算完成。
 
@@ -657,6 +659,12 @@ SDK 的 **11 个单元测试**使用真实固定 `@libsql/client`，依赖端口
 热尾延迟结果有升有降，三组 p99 更高；不能把本次改动描述为整体延迟优化成功。恢复阶段各组成功 p99 从 **372.527/387.537/396.091/509.087 ms** 变为 **253.219/281.618/322.185/281.181 ms**，但每组仍保留 3/60 的失败分母，也不构成生产性能验收。调度器 timer 在少数计划点提前约毫秒唤醒，原始 scheduled/invoked 值及偏差统计完整保留，没有改写样本。
 
 精确来源清单、环境、全部分组分母/分位、失败尝试、17 条隔离样本与原始 artifact 摘要在 [2026-11-04 可复核证据](../evidence/sqlite-service-local-2026-11-04.json)。该摘要明确 `production_slo_passed=false`。native 减少重复块写入和冷库隔离已有实现/反例证据；热读 50 ms、热写 100 ms、GiB 恢复与三 AZ/500 请求每秒 profile 仍未通过。
+
+### 14.6 首次远端检查未执行
+
+[PR #11](https://github.com/ckanner/scap/pull/11) 的首次提交 `512467a9e91c729eed35b8c29807cd1a369c6958` 同时触发 push 和 pull request workflows，均很快结束为 failure。逐项读取 PR 的 [quality run](https://github.com/ckanner/scap/actions/runs/41826281700) 与 [documentation run](https://github.com/ckanner/scap/actions/runs/41826281801) 后，13 项质量 job 与 1 项文档 job 的步骤列表全部为空，Rust 单元 job 的日志读取返回 BlobNotFound。因此当前没有远端测试执行结果，不能把它记为代码测试失败或 CI 通过。
+
+检查元数据表明每个 check 有一条 annotation，但当前连接器不能读取该注释正文；失败的具体原因尚未确认。没有据此推定账单、配额、平台故障或 runner 分配状态，也没有改低门禁或绕过检查合并。本地成功记录与远端未执行状态分开保留，后续提交须重新核对其完整 CI。
 
 ## 15. 仍然阻断生产规模和完整平台目标的工作
 
