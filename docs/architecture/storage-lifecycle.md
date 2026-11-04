@@ -2,6 +2,8 @@
 
 状态：2026-11-02 已实现有界的 Suspend、S3 归档发布、物理数据 Prune、Cold 唤醒与全 cell checkpoint；增量分段、对象 GC、删除、迁移、PITR 和仅剩 S3 的 DR checkpoint 仍为 planned。本文受 [一致性协议](consistency.md) 约束，当前源码与部署边界见 [SQLite 服务实现](../engineering/sqlite-service.md)及 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
+2026-11-04 已将 SQL 与前景 hydrate 按数据库隔离到按需创建的串行 lane，并改用增量磁盘块布局；详见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。S3 仍保存有界完整单库对象，增量磁盘块不代表已实现分段对象恢复或更大数据库 profile。
+
 ## 1. 三层数据及其权威
 
 | 层 | 保存内容 | 数据丢失时如何处理 |
@@ -133,6 +135,8 @@ Suspend 不要求先将最新事务上传到 S3。必要的 committed tail 继�
 
 当前 daemon 按 `idle_seconds` 检查本地 slot；只有 slot 的 owner、active 和 revision 与新权威 view 相同，才能依据其 last_use 休眠。旧 slot 先退休，不能用旧空闲时间撤销新 owner。重复休眠不重复增加 epoch；从未 Claim 的初始库保持合法的零 owner。
 
+本库 writer 关闭且队列为空后，其 SQL lane 停止准入并退出，冷库不保留专用线程。退休判断与入队使用同一锁；线程仍计入 32 个 lane 的全局上限，直到 join 完成。目录轮询只维护权威状态和后台归档提示，不为休眠/冷库创建 SQLite connection 或发起前景 hydrate。
+
 ### 7.2 Cold：完成冷数据卸载
 
 数据库处于 `SUSPENDED` 后，归档任务可以为固定 head 生成并发布完整恢复对象。只有当前世代/owner 未变、库仍休眠且已发布对象完整覆盖当前 head 时，才允许有序 Prune 并标记 `Cold`。这个标记表示应用状态里的物理历史可由精确归档恢复；共享日志及旧快照字节仍须等第 5 节的完整 cell snapshot 覆盖与持久回收条件，不能由 Cold 单独授权清除。
@@ -149,15 +153,19 @@ Suspend 不要求先将最新事务上传到 S3。必要的 committed tail 继�
 
 Worker 重启后使用新的进程实例身份。当前 daemon 不复用旧 SQLite cache：OpenExisting 校验原 cell 后，由 leader 从权威历史构造新目录和新 writer。旧 cache 缺失或内容损坏不改变已提交 head；目录命名、symlink 或清理异常则停止相应准入要求检查。有效缓存加速是后续优化，不能替代恢复证明。
 
+同一进程内重新创建已退休的 lane 也使用新的 boot/worker 身份，必须重新 Claim/Activate，不能复用旧 writer 授权。旧 lane 尚未完成 join 时，已准入请求保留原额度和上下文，在独立有界 FIFO 中等待成功 join 后交给新 lane；不会为同库启动重叠 writer。等待期间到期或取消的请求释放额度，旧线程失败则取消等待工作，不自动重放原来已经执行的请求。
+
 后续可从已验证缓存、其他有效副本或对象存储选择最快来源，但最终必须到达 cell 要求的提交位置。缺一段日志、checksum 不匹配或无法判定 head 时保持不可用，不创建一个同名空库。RocksDB/WAL/完整 cell 镜像损坏或丢失也不会自动 Initialize；该故障与可丢弃 SQLite cache 不同。
 
-后台 Prune 可能发生在请求读取非冷状态后、Claim 前。只有 Claim 路径明确返回 `Rejected(Cold)` 且 SQL 尚未执行，服务才以原 deadline 进行一次 fresh view/hydrate/恢复；其他错误和 UNKNOWN 不自动重试。前景 hydrate 当前仍同步占用单 SQL actor，可能推迟同进程其他热库请求；总体 cell 容量不足也会拒绝 hydrate，当前尚无恢复空间预留或自动搬迁。
+后台 Prune 可能发生在请求读取非冷状态后、Claim 前。只有 Claim 路径明确返回 `Rejected(Cold)` 且 SQL 尚未执行，服务才以原 deadline 进行一次 fresh view/hydrate/恢复；其他错误和 UNKNOWN 不自动重试。前景 hydrate 在本库 lane 内同步执行，使用独立 Controller 且不持有后台任务队列锁，其他库的 lane 可独立推进。
+
+恢复受固定 32 个活动/退出中 lane、全局 32 个请求 / 8 MiB 和每库 8 个请求 / 2 MiB 的准入预算约束，排队与执行都占预算，原 deadline 不重置。目录维护仍同步访问 cell，整体 CPU、磁盘和 quorum 压力仍可能影响其他库。总体 cell 容量不足会拒绝 hydrate；当前尚无独立恢复空间预留、带宽公平调度或自动搬迁。
 
 ## 9. S3 中断与空间背压
 
 S3 中断时，热库可在 cell 仍有持久多数派且有安全空间时继续提交；需要对象的唤醒、节点重建、归档和相应 GC 暂停。满足第 7.1 节条件的库仍可进入 `Suspended`，但不能通过删除唯一的 committed tail 来完成 `Cold` 卸载。
 
-当前后台归档与热 SQL actor 分离，S3 连接黑洞不会让一次后台上传阻塞整个热请求队列；已经 cold 的前景请求仍需等待对象读取或在原预算内失败。真实对象与三 daemon 故障场景见 [S3 实验](../../experiments/archive-s3/README.md)和 [服务实验](../../experiments/service-network/README.md)，它们不替代云产品持久性及生产 SLO 认证。
+当前后台归档使用独立有界线程，已 cold 的前景请求只在本库 lane 等待对象读取或在原预算内失败；每库准入上限为其他库保留部分全局请求额度。S3 黑洞不会通过共享 SQL actor 或对象队列锁串行阻塞其他库，但共享元数据与资源压力仍需观测。真实对象与三 daemon 故障场景见 [S3 实验](../../experiments/archive-s3/README.md)和 [服务实验](../../experiments/service-network/README.md)，它们不替代云产品持久性及生产 SLO 认证。
 
 必须保留未归档数据。当前通过固定 command/state/history/queue 上限拒绝继续增长；按磁盘百分比水位分级限流、fencing/恢复预留和容量治理仍待实现。具体目标阈值见 [故障矩阵](../operations/failure-matrix.md)，不得把目标阈值描述为已启用的磁盘监控。任何阶段都不得删除未归档尾部、改成内存确认或伪报归档完成。
 

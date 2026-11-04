@@ -1,6 +1,6 @@
 # SQLite 服务、自动接管与冷生命周期
 
-日期：2026-11-02（UTC）。本文记录当前正式源码中的有界服务实现，配套决策见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。部署入口已经连接真实 SQLite、三副本 Raft、HTTP/Hrana、Node SDK 和 S3 兼容归档；容量、协议与恢复档位仍受本文列出的边界约束。性能验收采用[性能与恢复规范](performance-slo.md)，具体执行证据以[真实服务实验](../../experiments/service-network/README.md)和 [G0 执行记录](g0-evidence.md)为准。
+实现更新：2026-11-04；原服务基线：2026-11-02。本文记录当前正式源码中的有界服务实现，配套决策见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)与 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。部署入口已经连接真实 SQLite、三副本 Raft、HTTP/Hrana、Node SDK 和 S3 兼容归档；容量、协议与恢复档位仍受本文列出的边界约束。性能验收采用[性能与恢复规范](performance-slo.md)，具体执行证据以[真实服务实验](../../experiments/service-network/README.md)和 [G0 执行记录](g0-evidence.md)为准。
 
 ## 1. 部署单元与技术栈
 
@@ -14,13 +14,13 @@
 | `scap-sql-worker` / `scap-cell-client` | 独占 writer、Claim/Activate、当前权限、ReadIndex、逐请求 tracked 裁决 | 正式窄端口与 native adapter |
 | `scap-cell` | owner/auth fencing、事务去重、结果与取消记录、冷生命周期 | 确定性状态机；apply 不执行 SQL 或 S3 I/O |
 | `scap-raft-driver` / `scap-raft-runtime` | 串行 Ready、持久提交、自动 tick、等待票据、快照与有界队列 | TiKV `raft-rs` 固定提交 `ad13f3d90780f53aea2488c6a4b76c0d334bf136` |
-| `scap-raft-store` / `scap-raft-rocks` | 校验的完整持久镜像、日志与应用位置、同步 WriteBatch | RocksDB Rust binding 0.24.0；完整解析依赖见 Cargo.lock |
+| `scap-raft-store` / `scap-raft-rocks` | 校验的逻辑镜像、内容块增量布局、日志/应用位置、同步 WriteBatch | RocksDB Rust binding 0.24.0；完整解析依赖见 Cargo.lock |
 | `scap-raft-wire` / `scap-raft-transport` | 身份绑定、证书 pin、有限消息、mTLS peer RPC | Tonic 0.14.6、Prost 0.14.3、rustls/ring |
 | `scap-archive` | 不可变归档、签名 PUT/HEAD/GET、完整校验和有序发布/卸载/恢复 | object_store 0.14.2、reqwest 0.13.2、显式 S3 配置 |
 
 具体依赖来自各 crate 的 Cargo.toml 和根 [Cargo.lock](../../Cargo.lock)。这里复用 TiKV 的共识内核，没有引入 TiKV 的完整存储服务器；SQLite 执行也没有切换为 Turso 的 Rust 重写引擎。
 
-每个 daemon 的 SQL 线程独占全部本地 SQLite connection，另有独立 Raft owner 线程。Tokio 承担 HTTP 与 peer 网络；启用 S3 时再增加一个受监督的归档线程。SQLite connection 不跨线程迁移。数据复制传输的是一次执行后确定的物理变更和原结果，不在多个副本重新执行 SQL。
+每个 daemon 按需创建按数据库隔离的 SQL lane，每个 lane 线程独占该库的 SQLite connection；休眠且无排队请求后释放。另有独立 Raft owner 线程。Tokio 承担 HTTP 与 peer 网络；启用 S3 时再增加一个受监督的归档线程。SQLite connection 不跨线程迁移。数据复制传输的是一次执行后确定的物理变更和原结果，不在多个副本重新执行 SQL。
 
 ## 2. 请求、ACK 与强读
 
@@ -78,7 +78,7 @@ Prune 保留全部已接受请求的身份、receipt、原结果、取消记录�
 
 失败后至少等到该次原 deadline 加 5 秒才接受该库新的归档任务。下一轮任务从新权威视图出发，不延长旧任务 deadline，也不把 UNKNOWN 当作未执行。排队时的 owner/head/auth epoch 通过 `publish_bound`、`prune_bound` 和最终状态机检查保留；I/O 期间即使同一个 head 经历唤醒再休眠，旧 owner 的任务也不能发布或裁剪。
 
-SQL 维护线程只 enqueue/poll，不等待后台 S3 I/O。前景 cold hydrate 仍同步占用当前 SQL actor，并共享请求原 deadline；因此一个冷库唤醒仍可能推迟同进程其他库，后续需要按库分片执行器和恢复调度。
+catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库。前景 cold hydrate 在该库自己的 lane 中等待，沿用原请求 deadline；其他库可继续处理请求。共享归档队列的锁只保护入队/取结果，不覆盖对象 I/O。
 
 单库 Prune 不授权截断共享 Raft 日志。成功 prune 通知请求一次正式全 cell checkpoint；所有 voter 还在 applied 距 snapshot 达到 128 条时，以及每 30 次维护轮的强制检查中尝试 checkpoint。只有 applied 已前进才创建新快照。复制状态、membership 和 applied position 被完整持久化后，才能按 Store 的既有协议回收日志。旧快照或物理引擎文件释放时机与逻辑 Prune 不是同一个事件。
 
@@ -116,14 +116,14 @@ SQL 维护线程只 enqueue/poll，不等待后台 S3 I/O。前景 cold hydrate 
 | cell 状态 / command | 8 MiB / 4 MiB；归档正文加 192-byte hydrate 预算必须装进 command |
 | 单事务物理变更 / SQL 原结果 | 300 KiB / 64 KiB |
 | SQL 批次 / 参数 / 列 / 行 | 32 statements / 128 parameters / 64 columns / 1024 rows；其他值大小仍有独立限制 |
-| SQL mailbox | 至多 32 个请求、合计 8 MiB 计量；单请求计量 1 MiB |
+| SQL mailbox | 全局至多 32 个在途/排队请求、8 MiB；单库 8 个/2 MiB；单请求 1 MiB |
 | HTTP | body 1 MiB、response 512 KiB、在途 32；服务端单请求最大预算 10 秒；当前 HTTP/1 每个请求结束关闭连接 |
-| 后台维护 | 一个 SQL actor、一个归档线程；维护请求原预算 2 秒；任务有界排队 |
-| 持久布局 | RocksDB 内保存并同步替换完整有界 Store 镜像；强读也核验完整保留历史 |
+| SQL/后台维护 | 至多 32 个活动或退出中数据库 lane；冷库无专用线程；一个 catalogue dispatcher、一个归档线程；维护原预算 2 秒 |
+| 持久布局 | RocksDB 同一同步 WriteBatch 发布清单/新块/旧块删除；未变化块复用；逻辑编码和强读仍处理完整保留历史 |
 
 达到容量上限会拒绝继续增长，不能静默丢弃旧结果、取消 fence 或唯一恢复数据。Prune 后如果其他库占用了 cell 空间，Hydrate 也可能因总体容量不足拒绝；本版本没有恢复容量预留与跨 cell 自动搬迁。
 
-未实现的规模化能力包括动态数据库目录、动态 Raft 成员、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、增量本地持久布局、每库独立 actor、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
+未实现的规模化能力包括动态数据库目录、动态 Raft 成员、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段/保留、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
 
 本 profile 的 256 KiB 逻辑镜像不能用于宣称 1 GiB 恢复目标达标。协议正确性、资源有界和小规模故障通过也不能替代生产负载、跨 AZ 与长期可用性验证。
 

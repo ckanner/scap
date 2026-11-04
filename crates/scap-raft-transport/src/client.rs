@@ -1,13 +1,23 @@
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use scap_raft_wire::Envelope;
+use tokio_rustls::rustls::{
+    self,
+    client::{
+        danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+        WebPkiServerVerifier,
+    },
+    pki_types::{pem::PemObject, CertificateDer, ServerName, UnixTime},
+    DigitallySignedStruct, RootCertStore, SignatureScheme,
+};
 use tonic::codegen::http;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity};
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Identity};
 use tonic::Request;
 
 use crate::{
-    check_pem, transport_error, Error, Packet, Received, TransportLimits, RECEIVED_VERSION,
-    RPC_PATH,
+    check_pem, transport_error, AdmissionError, Error, Packet, Received, TransportLimits,
+    MAX_PEM_BYTES, RECEIVED_VERSION, RPC_PATH,
 };
 
 pub struct ClientSecurity {
@@ -70,34 +80,215 @@ impl PeerEndpoint {
     }
 }
 
+/// Current authorization for the actual server leaf verified by TLS. The
+/// runtime supplies its live pin policy; implementations must not cache a
+/// prior grant. This runs during each handshake and before/after every RPC.
+pub trait PeerAuthorizer: Send + Sync + 'static {
+    fn authorize(
+        &self,
+        endpoint: &PeerEndpoint,
+        verified_leaf_der: &[u8],
+    ) -> Result<(), AdmissionError>;
+}
+
+// Rustls authenticates the handshake signature. Retaining its verified chain
+// lets each RPC repeat the native chain/name/time verification without another
+// network handshake. An established TLS channel is never an authorization lease.
+struct Evidence {
+    leaf: CertificateDer<'static>,
+    intermediates: Vec<CertificateDer<'static>>,
+    server_name: ServerName<'static>,
+    ocsp: Vec<u8>,
+}
+
+struct PeerVerifier {
+    verifier: Arc<WebPkiServerVerifier>,
+    endpoint: PeerEndpoint,
+    authorizer: Option<Arc<dyn PeerAuthorizer>>,
+    evidence: Mutex<Option<Arc<Evidence>>>,
+}
+
+impl std::fmt::Debug for PeerVerifier {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PeerVerifier")
+            .finish_non_exhaustive()
+    }
+}
+
+impl PeerVerifier {
+    fn new(
+        ca_pem: &[u8],
+        endpoint: PeerEndpoint,
+        authorizer: Option<Arc<dyn PeerAuthorizer>>,
+    ) -> Result<Self, Error> {
+        let mut roots = RootCertStore::empty();
+        for certificate in CertificateDer::pem_slice_iter(ca_pem) {
+            roots
+                .add(certificate.map_err(transport_error)?)
+                .map_err(transport_error)?;
+        }
+        let verifier = WebPkiServerVerifier::builder_with_provider(
+            Arc::new(roots),
+            Arc::new(rustls::crypto::ring::default_provider()),
+        )
+        .build()
+        .map_err(transport_error)?;
+        Ok(Self {
+            verifier,
+            endpoint,
+            authorizer,
+            evidence: Mutex::new(None),
+        })
+    }
+
+    fn authorize(&self, leaf: &[u8]) -> Result<(), rustls::Error> {
+        if let Some(authorizer) = &self.authorizer {
+            authorizer
+                .authorize(&self.endpoint, leaf)
+                .map_err(|error| {
+                    rustls::Error::General(format!("peer authorization: {error:?}"))
+                })?;
+        }
+        Ok(())
+    }
+
+    fn revalidate(&self, now: UnixTime) -> Result<(), Error> {
+        let evidence = self
+            .evidence
+            .lock()
+            .expect("peer evidence lock")
+            .clone()
+            .ok_or(Error::Invalid("channel has no authenticated peer"))?;
+        self.verifier
+            .verify_server_cert(
+                &evidence.leaf,
+                &evidence.intermediates,
+                &evidence.server_name,
+                &evidence.ocsp,
+                now,
+            )
+            .map_err(transport_error)?;
+        self.authorize(&evidence.leaf).map_err(transport_error)
+    }
+}
+
+impl ServerCertVerifier for PeerVerifier {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        let bytes = intermediates.iter().fold(
+            end_entity.len().saturating_add(ocsp_response.len()),
+            |total, certificate| total.saturating_add(certificate.len()),
+        );
+        if bytes > MAX_PEM_BYTES || intermediates.len() > 32 {
+            return Err(rustls::Error::General(
+                "server certificate chain limit".into(),
+            ));
+        }
+        let verified = self.verifier.verify_server_cert(
+            end_entity,
+            intermediates,
+            server_name,
+            ocsp_response,
+            now,
+        )?;
+        self.authorize(end_entity)?;
+        *self.evidence.lock().expect("peer evidence lock") = Some(Arc::new(Evidence {
+            leaf: end_entity.clone().into_owned(),
+            intermediates: intermediates
+                .iter()
+                .map(|certificate| certificate.clone().into_owned())
+                .collect(),
+            server_name: server_name.to_owned(),
+            ocsp: ocsp_response.to_vec(),
+        }));
+        Ok(verified)
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        certificate: &CertificateDer<'_>,
+        signature: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.verifier
+            .verify_tls12_signature(message, certificate, signature)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        certificate: &CertificateDer<'_>,
+        signature: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.verifier
+            .verify_tls13_signature(message, certificate, signature)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.verifier.supported_verify_schemes()
+    }
+}
+
 /// One serial outgoing channel. Do not create unbounded clients or tasks: the
 /// runtime owns the finite route set and outstanding message/byte admission.
 pub struct PeerClient {
     grpc: tonic::client::Grpc<Channel>,
     endpoint: PeerEndpoint,
     max_wire_bytes: usize,
+    verifier: Arc<PeerVerifier>,
 }
 
 impl PeerClient {
+    /// Chain/DNS verified standalone client. The production runtime uses
+    /// connect_authorized so its replaceable node pins also apply to sends.
     pub async fn connect(
         endpoint: PeerEndpoint,
         security: ClientSecurity,
         limits: TransportLimits,
     ) -> Result<Self, Error> {
+        Self::connect_inner(endpoint, security, limits, None).await
+    }
+
+    pub async fn connect_authorized(
+        endpoint: PeerEndpoint,
+        security: ClientSecurity,
+        limits: TransportLimits,
+        authorizer: Arc<dyn PeerAuthorizer>,
+    ) -> Result<Self, Error> {
+        Self::connect_inner(endpoint, security, limits, Some(authorizer)).await
+    }
+
+    async fn connect_inner(
+        endpoint: PeerEndpoint,
+        security: ClientSecurity,
+        limits: TransportLimits,
+        authorizer: Option<Arc<dyn PeerAuthorizer>>,
+    ) -> Result<Self, Error> {
         limits.validate()?;
         let deadline = tokio::time::Instant::now() + limits.connect_timeout;
         let transport = endpoint.transport_endpoint()?;
         security.validate()?;
+        let verifier = Arc::new(PeerVerifier::new(
+            &security.server_ca_pem,
+            endpoint.clone(),
+            authorizer,
+        )?);
         let tls = ClientTlsConfig::new()
             .domain_name(endpoint.server_name())
             .identity(Identity::from_pem(
                 security.certificate_pem,
                 security.private_key_pem,
             ))
-            .ca_certificate(Certificate::from_pem(security.server_ca_pem))
             .timeout(limits.handshake_timeout);
         let transport = transport
-            .tls_config(tls)
+            .tls_config_with_verifier(tls, verifier.clone())
             .map_err(transport_error)?
             .connect_timeout(limits.connect_timeout)
             .buffer_size(1)
@@ -110,6 +301,7 @@ impl PeerClient {
                 .max_encoding_message_size(limits.grpc_bytes()),
             endpoint,
             max_wire_bytes: limits.max_wire_bytes as usize,
+            verifier,
         })
     }
 
@@ -128,6 +320,8 @@ impl PeerClient {
             &mut self.grpc,
             bytes,
             tokio::time::Instant::from_std(deadline),
+            || self.verifier.revalidate(UnixTime::now()),
+            tokio::time::Instant::now,
         )
         .await
     }
@@ -137,6 +331,8 @@ async fn send_before<T>(
     grpc: &mut tonic::client::Grpc<T>,
     bytes: Vec<u8>,
     deadline: tokio::time::Instant,
+    mut authorize: impl FnMut() -> Result<(), Error>,
+    mut now: impl FnMut() -> tokio::time::Instant,
 ) -> Result<(), Error>
 where
     T: tonic::client::GrpcService<tonic::body::Body>,
@@ -146,8 +342,9 @@ where
 {
     let call = async {
         grpc.ready().await.map_err(transport_error)?;
+        authorize()?;
         let remaining = deadline
-            .checked_duration_since(tokio::time::Instant::now())
+            .checked_duration_since(now())
             .filter(|value| !value.is_zero())
             .ok_or(Error::Deadline)?;
         let mut request = Request::new(Packet { data: bytes });
@@ -162,6 +359,10 @@ where
             .map_err(Error::Rpc)?;
         if response.into_inner().version != RECEIVED_VERSION {
             return Err(Error::UnexpectedReceipt);
+        }
+        authorize()?;
+        if now() >= deadline {
+            return Err(Error::Deadline);
         }
         Ok(())
     };

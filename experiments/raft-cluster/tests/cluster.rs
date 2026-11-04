@@ -1092,13 +1092,16 @@ fn corrupt_wal_is_rejected_without_reinitializing_the_replica() {
             let size = file.metadata().unwrap().len();
             assert!(size <= 8 * 1024 * 1024, "bounded synthetic WAL inspection");
             let bytes = std::fs::read(&file).unwrap();
-            let carries_image = bytes
-                .windows(b"scap/g0/atomic-image".len())
-                .any(|window| window == b"scap/g0/atomic-image");
+            let carries_manifest = bytes
+                .windows(b"scap/g1/0-manifest".len())
+                .any(|window| window == b"scap/g1/0-manifest");
+            let carries_chunk = bytes
+                .windows(b"scap/g1/1-chunk/".len())
+                .any(|window| window == b"scap/g1/1-chunk/");
             let carries_operation = bytes
                 .windows(16)
                 .any(|window| window == synced_operation.as_slice());
-            (carries_image && carries_operation).then_some((file, bytes))
+            (carries_manifest && carries_chunk && carries_operation).then_some((file, bytes))
         })
         .expect("SIGKILL must leave a real nonempty WAL containing the synced operation");
     assert!(contents.len() > 7);

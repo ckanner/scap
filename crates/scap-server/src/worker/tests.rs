@@ -1218,3 +1218,100 @@ fn exhaustion_and_failed_authority_reads_stop_each_maintenance_transition() {
     );
     assert!(port.effects.borrow().state.database(3).unwrap().cold);
 }
+
+#[test]
+fn catalogue_scanning_never_opens_engines_or_hydrates_suspended_databases() {
+    let (mut worker, port, clock, directory) = build();
+    assert!(worker.dormant());
+    // Creation and archival can progress without constructing a SQL owner.
+    assert!(worker.scan().unwrap().is_none());
+    assert!(worker.writers.is_empty());
+    assert_eq!(
+        std::fs::read_dir(directory.path().join("writers"))
+            .unwrap()
+            .count(),
+        0
+    );
+    assert!(port.effects.borrow().state.database(3).unwrap().cold);
+    worker.cold.fail_hydrate = true;
+    assert!(worker.scan().unwrap().is_none());
+    assert!(worker.dormant());
+
+    worker.cold.fail_hydrate = false;
+    execute(
+        &mut worker,
+        49_100,
+        "CREATE TABLE durable(value)",
+        Mode::Write,
+    )
+    .unwrap();
+    let owner = port.effects.borrow().state.database(3).unwrap().owner;
+    assert!(!worker.dormant());
+    // Only existing unsuspended authority is returned as a recovery candidate;
+    // scanning does not claim a replacement owner or mutate a live connection.
+    let candidate = worker.scan().unwrap().unwrap();
+    assert_eq!(candidate.identity.database_id, 3);
+    assert_eq!(
+        port.effects.borrow().state.database(3).unwrap().owner,
+        owner
+    );
+    clock.elapsed.store(6, Ordering::Release);
+    worker.cold.fail_archive = true;
+    assert_eq!(worker.tick().unwrap_err().code, "ARCHIVE_UNAVAILABLE");
+    assert!(worker.dormant());
+    assert_eq!(worker.scan().unwrap_err().code, "ARCHIVE_UNAVAILABLE");
+    worker.cold.fail_archive = false;
+    assert!(worker.scan().unwrap().is_none());
+    assert!(worker.dormant());
+    worker.cache_failed.store(true, Ordering::Release);
+    assert!(!worker.dormant());
+    assert_eq!(worker.scan().unwrap_err().code, "CACHE_CLEANUP_REQUIRED");
+}
+
+#[test]
+fn catalogue_scan_preserves_failed_reads_and_every_administrative_id_boundary() {
+    for remaining in 0..=4 {
+        let (mut worker, port, _clock, _directory) = build();
+        worker.cold.controller = None;
+        worker.tick().unwrap();
+        let before = port.effects.borrow().state.database(3).unwrap();
+        assert!(before.suspended && !before.cold);
+        worker.sequence = u64::MAX - remaining;
+        let result = worker.scan();
+        if remaining < 4 {
+            assert_eq!(result.unwrap_err().code, "IDENTITY_EXHAUSTED");
+        } else {
+            assert!(result.unwrap().is_none());
+        }
+        assert!(worker.writers.is_empty());
+        assert_eq!(port.effects.borrow().state.database(3).unwrap(), before);
+    }
+    let (mut worker, port, _clock, _directory) = build();
+    port.effects.borrow_mut().read_error = Some(1);
+    assert_eq!(worker.scan().unwrap_err().code, "COMMIT_UNKNOWN");
+    assert!(worker.writers.is_empty());
+    assert!(port.effects.borrow().state.database(3).is_none());
+}
+
+#[test]
+fn lane_executor_adapter_preserves_worker_authority_and_native_thread_confinement() {
+    use crate::lanes::Executor;
+    let (mut worker, port, _clock, _directory) = build();
+    assert!(Executor::dormant(&worker));
+    Executor::tick(&mut worker);
+    let request = request(
+        &worker,
+        49_200,
+        Operation::Execute {
+            mode: Mode::Read,
+            statements: vec![sql("SELECT 17")],
+        },
+    );
+    assert!(
+        matches!(Executor::request(&mut worker, request).unwrap(), Reply::Sql(result) if result.statements[0].rows == vec![vec![scap_sql::Value::Integer(17)]])
+    );
+    assert!(!Executor::dormant(&worker));
+    port.effects.borrow_mut().leader = false;
+    Executor::tick(&mut worker);
+    assert!(Executor::dormant(&worker));
+}

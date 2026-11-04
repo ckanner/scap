@@ -1875,6 +1875,7 @@ dependencies = [
  "prost",
  "scap-raft-wire",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tokio-util",
  "tonic",

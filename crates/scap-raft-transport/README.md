@@ -18,7 +18,11 @@ node-{node_id}.cluster-{cluster_id:032x}.scap.internal
 
 证书必须具有该精确 DNS SAN。连接地址可以是 IP，但不能把验证名称改成通用 localhost。这里信任给定 CA 正确签发此命名空间；不把“同一个 CA”本身当作完整节点身份。
 
-服务端收到的客户端证书须由 Ingress 在每次请求和消费时重新检查有效期及当前 pin。出站服务器证书的链、DNS 和有效期由 TLS 握手验证；本模块独立 `PeerClient` 支持串行复用，因此不声称复用连接会每请求重新校验服务器证书。`max_connection_age` 与 `connection_grace` 限制已有连接寿命；更严格的出站策略由运行层采用新连接或另行验证过的连接池实现。修改服务端 TLS 身份/CA 需要重建 server；入站 pin 撤销由运行层当前 policy 立即生效。
+服务端收到的客户端证书仍由 Ingress 在每次请求和消费时重新检查有效期及当前 pin。出站 `PeerClient` 通过固定 Tonic 的 `tls_config_with_verifier` 接入 Rustls 原生 `WebPkiServerVerifier`：链、DNS、时间以及 TLS 1.2/1.3 握手签名均委托给原生验证器，没有跳过证书验证。客户端保存本次 TLS 握手实际验证的有界证书链，在每次 RPC readiness 之后、发送之前重新验证链、名称和当前时间，收到合法回执后再复核一次。
+
+正式运行层使用 `connect_authorized` 并提供实时 `PeerAuthorizer`，在握手以及每次 RPC 前后核对当前 cluster/node、leaf pin、有效期和关闭状态；任何历史握手或 policy revision 都不授予继续发送的租约。独立 `connect` 入口保留显式私有 CA/DNS 的验证模式，供不持有运行层 pin policy 的直接 transport 调用者使用；正式 runtime 不使用该入口。保存的证书链和 OCSP 数据合计至多 1 MiB，中间证书至多 32 个；pin 撤销仍由当前策略决定，不依赖在线 OCSP。
+
+`max_connection_age` 与 `connection_grace` 限制服务端已有连接寿命；运行层在下次使用前也淘汰超过该年龄的缓存 channel，失败或取消立即丢弃缓存。修改 TLS 身份/CA 需要重建对应 client/server；当前 pin 的轮换和撤销无需重建连接。
 
 ## 有限资源与 deadline
 
@@ -26,13 +30,15 @@ node-{node_id}.cluster-{cluster_id:032x}.scap.internal
 - 正式 listener 对每个 accepted socket 显式设置 `TCP_NODELAY`；设置失败即拒绝该连接。Tonic 的 builder TCP 配置不作用于自供 incoming stream，不能依赖该默认值避免小 Raft 消息受到 Nagle/delayed ACK 延迟影响。
 - 全局 in-flight RPC permit 在 gRPC body 解码前取得；服务端同时设置每连接请求与 HTTP/2 stream 上限、header 上限及 request timeout。per-connection 限额不替代全局限额。
 - 外层 gRPC 最多 `max_wire_bytes + 6` 字节，wire 层再次限制确切 envelope 长度；响应最多 16 字节。压缩关闭。每次请求的解码缓冲、原始 envelope 和 payload 可能同时存在，部署预算须计入这些副本及 TLS/HTTP2 开销。
-- `PeerClient::connect` 设置整个连接尝试 deadline，TLS handshake 和连接子步骤也有界。`send` 接受运行层在排队前分配的绝对 `std::time::Instant` deadline，readiness 与发送共用预算，无自动重试。
+- `PeerClient::connect` / `connect_authorized` 设置整个连接尝试 deadline，TLS handshake 和连接子步骤也有界。`send` 接受运行层在排队前分配的绝对 `std::time::Instant` deadline，readiness 与发送共用预算，无自动重试。
 - 运行层必须限制客户端/发送任务总数、排队字节和每对端预算；单个 `PeerClient` 不负责跨实例的全局出站调度。
 
 当前是有界完整消息协议；没有大 snapshot 分片或多 cell 公平性实现。限制范围不是部署推荐默认值或已经测得的安全容量。
 
+连接复用的变更理由、安全边界与独立验证要求见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。每节点 `max_connections` 至少容纳 `2 × (voters − 1)` 条稳定 peer lane；这只是启动下界，不包含旧半开连接、连接重建、身份轮换和运维流量需要的余量，不能当作故障恢复容量已验收。
+
 ## 验证范围
 
-正式单元测试覆盖参数、配置、路由、错误转换、全部 IO 委托、连接 permit 生命周期、解码前全局准入、绝对 deadline 和 receipt 校验。可控依赖端口注入 readiness、native 完成和 HTTP/2 调用失败；一次隔离 native mTLS 往返只验证实际连接 metadata 到有界 Ingress 的委托，不运行 Raft、不使用持久数据、不构成 quorum 或分区证据。
+正式单元测试覆盖参数、配置、路由、错误转换、全部 IO 委托、连接 permit 生命周期、解码前全局准入、绝对 deadline 和 receipt 校验；新增复用验证覆盖原生链/DNS/有效期拒绝、实时 pin 撤销、每 RPC 前后复核及 TLS 1.2 签名委托。可控依赖端口注入 readiness、native 完成和 HTTP/2 调用失败；一次隔离 native mTLS 往返只验证实际连接 metadata 到有界 Ingress 的委托，不运行 Raft、不使用持久数据、不构成 quorum 或分区证据。
 
 真实三节点、多进程、分区和恢复证据由独立契约测试记录，不补单元覆盖率。精确最终计数由仓库覆盖率门禁和执行证据统一维护。

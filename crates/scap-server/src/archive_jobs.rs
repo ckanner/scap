@@ -305,9 +305,14 @@ fn start(
     ))
 }
 
+#[derive(Clone)]
 pub(crate) struct Jobs<P, S> {
-    foreground: Option<Controller<P, S>>,
-    queue: Queue,
+    client: Client<P>,
+    foreground: Option<S>,
+    // Enqueue/poll hold this lock only for bounded in-memory bookkeeping. No
+    // S3 or cell request runs while it is held. Every SQL lane therefore has
+    // independent foreground hydration but shares one archival owner.
+    queue: Arc<Mutex<Queue>>,
     clock: Arc<dyn Clock>,
 }
 
@@ -323,25 +328,25 @@ where
     P: ControlPort + Send,
     S: Objects + Clone + Send + 'static,
 {
-    let foreground = objects
-        .clone()
-        .map(|objects| Controller::new(client.clone(), objects));
-    let runner = objects
-        .map(|objects| Box::new(BoundRunner(Controller::new(client, objects))) as Box<dyn Runner>);
+    let foreground = objects.clone();
+    let runner = objects.map(|objects| {
+        Box::new(BoundRunner(Controller::new(client.clone(), objects))) as Box<dyn Runner>
+    });
     let (queue, supervisor) = start(runner, max_databases, native_spawn)?;
     Ok((
         Jobs {
+            client,
             foreground,
-            queue,
+            queue: Arc::new(Mutex::new(queue)),
             clock,
         },
         supervisor,
     ))
 }
 
-impl<P: ControlPort, S: Objects> ColdStorage<P> for Jobs<P, S> {
+impl<P: ControlPort, S: Objects + Clone> ColdStorage<P> for Jobs<P, S> {
     fn poll(&mut self) -> bool {
-        self.queue.poll()
+        self.queue.lock().poll()
     }
     fn hydrate(
         &mut self,
@@ -350,9 +355,11 @@ impl<P: ControlPort, S: Objects> ColdStorage<P> for Jobs<P, S> {
         database: &DatabaseView,
         operation: u128,
     ) -> Result<(), ServiceError> {
-        self.foreground
-            .as_mut()
-            .ok_or_else(|| failure("ARCHIVE_UNAVAILABLE"))?
+        let objects = self
+            .foreground
+            .clone()
+            .ok_or_else(|| failure("ARCHIVE_UNAVAILABLE"))?;
+        Controller::new(self.client.clone(), objects)
             .hydrate(context, database.identity, operation)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))
     }
@@ -365,7 +372,7 @@ impl<P: ControlPort, S: Objects> ColdStorage<P> for Jobs<P, S> {
         prune: u128,
     ) -> Result<bool, ServiceError> {
         let now = self.clock.now().map_err(|_| failure("CLOCK"))?.instant;
-        self.queue.enqueue(
+        self.queue.lock().enqueue(
             Job {
                 database: database.clone(),
                 context: context.clone(),

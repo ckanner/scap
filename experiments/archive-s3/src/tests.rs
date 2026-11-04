@@ -1,5 +1,7 @@
 use std::fs;
 use std::net::TcpListener;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
@@ -10,6 +12,30 @@ use std::time::{Duration, Instant};
 use scap_archive::{Error, Objects, S3Config, S3};
 use scap_cell::Admission;
 use scap_cell_client::RequestContext;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    Mini,
+    Separate,
+}
+
+impl Mode {
+    fn environment() -> Self {
+        match std::env::var_os("SCAP_SEAWEEDFS_MODE") {
+            None => Self::Mini,
+            Some(value) if value == "mini" => Self::Mini,
+            Some(value) if value == "separate" => Self::Separate,
+            Some(_) => panic!("SCAP_SEAWEEDFS_MODE must be mini or separate"),
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            Self::Mini => "mini; one upstream process",
+            Self::Separate => "separate; master, volume, filer, s3; explicit loopback TCP",
+        }
+    }
+}
 
 fn port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
@@ -36,7 +62,8 @@ struct Backend {
     directory: PathBuf,
     config: PathBuf,
     ports: [u16; 8],
-    child: Option<Child>,
+    mode: Mode,
+    children: Vec<(&'static str, Child)>,
     runtime: tokio::runtime::Runtime,
     evidence: Vec<String>,
 }
@@ -58,18 +85,29 @@ impl Backend {
         fs::create_dir(&directory).unwrap();
         let config = directory.join("s3-test-identity.json");
         fs::write(&config, br#"{"identities":[{"name":"scap-test","credentials":[{"accessKey":"scap-test-key","secretKey":"scap-test-secret"}],"actions":["Admin","Read","Write","List","Tagging"]}]}"#).unwrap();
+        let mode = Mode::environment();
+        let mut used = std::collections::BTreeSet::new();
         let mut backend = Self {
             executable,
             directory,
             config,
-            ports: std::array::from_fn(|_| port()),
-            child: None,
+            ports: std::array::from_fn(|_| loop {
+                let candidate = port();
+                if used.insert(candidate) {
+                    break candidate;
+                }
+            }),
+            mode,
+            children: Vec::new(),
             runtime: tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(1)
                 .enable_all()
                 .build()
                 .unwrap(),
-            evidence: Vec::new(),
+            evidence: vec![format!(
+                "SeaweedFS 4.51 153ab668c99731a6d29492bf6c61d0b4fa701101; {}",
+                mode.description()
+            )],
         };
         backend.start();
         backend
@@ -97,13 +135,23 @@ impl Backend {
         )
         .unwrap()
     }
-    fn start(&mut self) {
-        assert!(self.child.is_none());
+    fn launch(&mut self, name: &'static str, mut command: Command) {
         let log = fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.directory.join("seaweedfs.log"))
+            .open(self.directory.join(format!("{name}.log")))
             .unwrap();
+        self.children.push((
+            name,
+            command
+                .stdout(log.try_clone().unwrap())
+                .stderr(log)
+                .stdin(Stdio::null())
+                .spawn()
+                .unwrap(),
+        ));
+    }
+    fn start_mini(&mut self) {
         let mut command = Command::new(&self.executable);
         command
             .arg("mini")
@@ -133,41 +181,138 @@ impl Backend {
         {
             command.arg(format!("-{key}={port}"));
         }
-        self.child = Some(
+        self.launch("seaweedfs", command);
+    }
+    fn start_separate(&mut self) {
+        // Upstream component processes use explicit HTTP/gRPC TCP addresses.
+        // No Unix-socket permission or upstream implementation is changed.
+        let master = format!("127.0.0.1:{}.{}", self.ports[0], self.ports[1]);
+        let filer = format!("127.0.0.1:{}.{}", self.ports[4], self.ports[5]);
+        for (index, name) in ["master", "volume", "filer", "s3"].into_iter().enumerate() {
+            let directory = self.directory.join(name);
+            fs::create_dir_all(&directory).unwrap();
+            let mut command = Command::new(&self.executable);
             command
-                .stdout(log.try_clone().unwrap())
-                .stderr(log)
+                .arg(name)
+                .args(["-ip=127.0.0.1", "-ip.bind=127.0.0.1"])
+                .arg(format!("-port={}", self.ports[index * 2]))
+                .arg(format!("-port.grpc={}", self.ports[index * 2 + 1]));
+            match name {
+                "master" => {
+                    command.arg(format!("-mdir={}", directory.display())).args([
+                        "-peers=none",
+                        "-telemetry=false",
+                        "-volumeSizeLimitMB=64",
+                    ]);
+                }
+                "volume" => {
+                    command
+                        .arg(format!("-dir={}", directory.display()))
+                        .arg(format!("-master={master}"))
+                        .arg("-max=2");
+                }
+                "filer" => {
+                    command
+                        .arg(format!("-defaultStoreDir={}", directory.display()))
+                        .arg(format!("-master={master}"));
+                }
+                "s3" => {
+                    command
+                        .arg(format!("-filer={filer}"))
+                        .arg(format!("-config={}", self.config.display()))
+                        .args(["-port.iceberg=0", "-port.lance=0"]);
+                }
+                _ => unreachable!(),
+            }
+            self.launch(name, command);
+        }
+    }
+    fn ensure_bucket(&self) -> bool {
+        let request = |head| {
+            let mut command = Command::new("curl");
+            command.args([
+                "--silent",
+                "--show-error",
+                "--fail",
+                "--max-time",
+                "1",
+                "--noproxy",
+                "*",
+                "--aws-sigv4",
+                "aws:amz:us-east-1:s3",
+                "--user",
+                "scap-test-key:scap-test-secret",
+            ]);
+            if head {
+                command.arg("--head");
+            } else {
+                command.args(["-X", "PUT", "--data-binary", ""]);
+            }
+            command
+                .arg(format!("{}/scap-test", self.endpoint()))
                 .stdin(Stdio::null())
-                .spawn()
-                .unwrap(),
-        );
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success())
+        };
+        request(true) || request(false)
+    }
+    fn start(&mut self) {
+        assert!(self.children.is_empty());
+        match self.mode {
+            Mode::Mini => self.start_mini(),
+            Mode::Separate => self.start_separate(),
+        }
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut store = self.store();
         loop {
-            if store.put("startup/readiness", b"ready", &context()).is_ok() {
+            for (name, child) in &mut self.children {
+                if let Some(status) = child.try_wait().unwrap() {
+                    panic!(
+                        "S3 component {name} exited {status}; inspect {}",
+                        self.directory.join(format!("{name}.log")).display()
+                    );
+                }
+            }
+            if (self.mode == Mode::Mini || self.ensure_bucket())
+                && store.put("startup/readiness", b"ready", &context()).is_ok()
+            {
                 break;
             }
             assert!(
                 Instant::now() < deadline,
-                "S3 startup failed; inspect {}",
-                self.directory.join("seaweedfs.log").display()
+                "S3 startup failed; inspect component logs in {}",
+                self.directory.display()
             );
-            if let Some(status) = self.child.as_mut().unwrap().try_wait().unwrap() {
-                panic!(
-                    "S3 exited {status}: {}",
-                    fs::read_to_string(self.directory.join("seaweedfs.log")).unwrap()
-                );
-            }
             thread::sleep(Duration::from_millis(100));
         }
-        self.evidence
-            .push("SeaweedFS process ready through signed conditional PUT".into());
+        self.evidence.push(format!(
+            "SeaweedFS backend ready through production signed conditional PUT; processes={}",
+            self.children.len()
+        ));
     }
     fn kill(&mut self) {
-        let mut child = self.child.take().unwrap();
-        child.kill().unwrap();
-        child.wait().unwrap();
-        self.evidence.push("S3 process SIGKILL completed".into());
+        assert!(!self.children.is_empty());
+        let count = self.children.len();
+        for (name, child) in &mut self.children {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "S3 component {name} exited before the injected fault"
+            );
+        }
+        for (_, child) in self.children.iter_mut().rev() {
+            child.kill().unwrap();
+            let status = child.wait().unwrap();
+            #[cfg(unix)]
+            assert_eq!(status.signal(), Some(9));
+            #[cfg(not(unix))]
+            assert!(!status.success());
+        }
+        self.children.clear();
+        self.evidence.push(format!(
+            "All S3 backend processes SIGKILL completed; processes={count}"
+        ));
     }
     fn finish(&mut self, name: &str) {
         self.evidence.push("verification passed".into());
@@ -184,7 +329,7 @@ impl Backend {
 }
 impl Drop for Backend {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
+        while let Some((_, mut child)) = self.children.pop() {
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -265,6 +410,10 @@ fn expired_upload_during_outage_preserves_existing_objects_without_creating_new_
     assert_eq!(
         store.get("published/older", 128, &context()).unwrap(),
         b"authoritative object"
+    );
+    assert_eq!(
+        store.get("orphan/newer", 128, &context()).unwrap(),
+        b"uploaded but unpublished"
     );
     assert!(store.get("orphan/never", 128, &context()).is_err());
     backend.evidence.push("original key survived outage; expired upload produced no object; separate uploaded keys retained independent bytes".into());

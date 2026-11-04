@@ -36,6 +36,7 @@ use crate::archive;
 use crate::archive_jobs::{self, Jobs, Supervisor};
 use crate::config::{cell_limits, worker_limits, Config};
 use crate::failure;
+use crate::lanes::{Executor, Lanes};
 use crate::listener::Bounded;
 use crate::mailbox::{Envelope, Mailbox};
 use crate::worker::{LocalPort, Worker};
@@ -323,10 +324,11 @@ async fn run_with(
     let (mailbox, receiver) = Mailbox::new(&config.databases, stopped.clone());
     let service = Arc::new(assembly.service(mailbox, config.databases[0].name.clone(), boot)?);
     let readiness = ready.clone();
+    let readiness_stopped = stopped.clone();
     let routes = scap_service::router(service)
         .route(
             "/readyz",
-            get(move || readiness_response(readiness.clone())),
+            get(move || readiness_response(readiness.clone(), readiness_stopped.clone())),
         )
         .route("/livez", get(|| async { StatusCode::OK }))
         .layer(map_response(close_connection));
@@ -357,9 +359,15 @@ async fn run_with(
             system.spawn(
                 "scap-sql",
                 Box::new(move || {
-                    let result =
-                        Worker::new(config, sql_port, NativeFactory, cold, clock, ready, boot);
-                    let result = result.map(|mut worker| sql_loop(&mut worker, &receiver, stopped));
+                    let result = SqlOwner {
+                        config,
+                        sql_port,
+                        cold,
+                        clock,
+                        ready,
+                        boot,
+                    }
+                    .run(&receiver, stopped);
                     let _ = sql_complete.send(result);
                 }),
             ),
@@ -386,6 +394,78 @@ async fn run_with(
     let joined = tokio::task::spawn_blocking(move || owners.finish());
     finish_join(joined, deadline).await?;
     result
+}
+
+struct SqlOwner {
+    config: Config,
+    sql_port: LocalPort,
+    cold: ArchiveJobs,
+    clock: Arc<dyn Clock>,
+    ready: Arc<AtomicBool>,
+    boot: u128,
+}
+
+impl SqlOwner {
+    fn run(self, receiver: &dyn Inbox, stopped: Arc<AtomicBool>) -> Result<(), ServiceError> {
+        let Self {
+            config,
+            sql_port,
+            cold,
+            clock,
+            ready,
+            boot,
+        } = self;
+        let lane_config = config.clone();
+        let lane_port = sql_port.clone();
+        let lane_cold = cold.clone();
+        let lane_clock = clock.clone();
+        Lanes::new(
+            boot,
+            stopped.clone(),
+            Box::new(move |database, boot| {
+                let mut config = lane_config.clone();
+                config.databases = vec![database];
+                let port = lane_port.clone();
+                let cold = lane_cold.clone();
+                let clock = lane_clock.clone();
+                Box::new(move || {
+                    database_worker(config, port, cold, clock, boot)
+                        .map(|worker| Box::new(worker) as Box<dyn Executor>)
+                })
+            }),
+        )
+        .and_then(|mut lanes| {
+            let mut catalog =
+                Worker::new(config, sql_port, NativeFactory, cold, clock, ready, boot)?;
+            let result = sql_loop(&mut catalog, receiver, stopped, &mut lanes);
+            let joined = lanes.finish();
+            joined.and(result)
+        })
+    }
+}
+
+/// Per-request deadlines and recovery failures affect only this database's
+/// worker. Only the catalogue publishes the node's routing readiness hint.
+fn database_worker<P, C>(
+    config: Config,
+    port: P,
+    cold: C,
+    clock: Arc<dyn Clock>,
+    boot: u128,
+) -> Result<Worker<P, NativeFactory, C>, ServiceError>
+where
+    P: crate::worker::ControlPort,
+    C: crate::worker::ColdStorage<P>,
+{
+    Worker::new(
+        config,
+        port,
+        NativeFactory,
+        cold,
+        clock,
+        Arc::new(AtomicBool::new(false)),
+        boot,
+    )
 }
 
 async fn close_connection(mut response: Response) -> Response {
@@ -438,8 +518,8 @@ async fn drain<T>(task: &mut tokio::task::JoinHandle<T>, deadline: Instant) {
     }
 }
 
-async fn readiness_response(ready: Arc<AtomicBool>) -> StatusCode {
-    if ready.load(Ordering::Acquire) {
+async fn readiness_response(ready: Arc<AtomicBool>, stopped: Arc<AtomicBool>) -> StatusCode {
+    if !stopped.load(Ordering::Acquire) && ready.load(Ordering::Acquire) {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
@@ -464,7 +544,12 @@ impl Inbox for mpsc::Receiver<Envelope> {
     }
 }
 
-fn sql_loop<P, F, C>(worker: &mut Worker<P, F, C>, receiver: &dyn Inbox, stopped: Arc<AtomicBool>)
+fn sql_loop<P, F, C>(
+    catalog: &mut Worker<P, F, C>,
+    receiver: &dyn Inbox,
+    stopped: Arc<AtomicBool>,
+    lanes: &mut Lanes,
+) -> Result<(), ServiceError>
 where
     P: crate::worker::ControlPort,
     F: scap_sql_worker::EngineFactory<P>,
@@ -472,19 +557,22 @@ where
 {
     let mut maintenance = Instant::now();
     while !stopped.load(Ordering::Acquire) {
+        lanes.reap()?;
         if Instant::now() >= maintenance {
-            let _ = worker.tick();
+            if let Ok(Some(database)) = catalog.scan() {
+                lanes.recover(database)?;
+            }
             maintenance = Instant::now() + Duration::from_secs(1);
         }
         match receiver.receive() {
             Ok(envelope) => {
-                let result = worker.request(envelope.request);
-                let _ = envelope.reply.send(result);
+                lanes.dispatch(envelope)?;
             }
             Err(mpsc::RecvTimeoutError::Timeout) => (),
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
+    Ok(())
 }
 
 pub(crate) fn read_file(path: &Path, max: u64) -> Result<Vec<u8>, ServiceError> {

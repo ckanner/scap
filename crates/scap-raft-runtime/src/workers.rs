@@ -1,8 +1,9 @@
 //! A finite pair of async senders per configured peer. Snapshot traffic does
 //! not occupy the ordinary-message worker, and one unavailable peer cannot
-//! occupy the worker for another peer. Each attempt performs a fresh mTLS
-//! handshake within its original absolute deadline; no SQL or Raft retry is
-//! hidden inside this adapter.
+//! occupy the worker for another peer. Each lane reuses at most one mTLS
+//! channel; every RPC revalidates the actual server chain and current pins.
+//! Failure, cancellation or bounded connection age discards the channel.
+//! No SQL or Raft retry is hidden inside this adapter.
 
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -10,7 +11,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use parking_lot::Mutex;
-use scap_raft_transport::{ClientSecurity, PeerClient, PeerEndpoint, TransportLimits};
+use scap_raft_transport::{
+    AdmissionError, ClientSecurity, PeerAuthorizer, PeerClient, PeerEndpoint, TransportLimits,
+};
 use scap_raft_wire::HEADER_BYTES;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -126,6 +129,11 @@ impl NetworkWorkers {
         if endpoints.len() != expected.len() {
             return Err(Error::Invalid("peer endpoint set"));
         }
+        if endpoints.len().saturating_mul(2) > limits.max_connections as usize {
+            return Err(Error::Invalid(
+                "connection budget does not cover peer lanes",
+            ));
+        }
         for endpoint in &endpoints {
             endpoint.validate().map_err(network_error)?;
             if endpoint.cluster_id != scope.cluster_id || !expected.remove(&endpoint.node_id) {
@@ -151,6 +159,8 @@ impl NetworkWorkers {
                     endpoint: endpoint.clone(),
                     security: Arc::clone(&security),
                     limits: limits.clone(),
+                    authorizer: Arc::new(handle.clone()),
+                    cached: None,
                 };
                 tasks.push(executor.spawn(send_loop(handle.clone(), receiver, stop.clone(), link)));
             }
@@ -194,21 +204,88 @@ struct TonicDelivery {
     endpoint: PeerEndpoint,
     security: Arc<ClientSecurity>,
     limits: TransportLimits,
+    authorizer: Arc<dyn PeerAuthorizer>,
+    cached: Option<CachedPeer>,
+}
+
+struct CachedPeer {
+    client: PeerClient,
+    connected: Instant,
+}
+
+impl PeerAuthorizer for Handle {
+    fn authorize(
+        &self,
+        endpoint: &PeerEndpoint,
+        verified_leaf_der: &[u8],
+    ) -> Result<(), AdmissionError> {
+        let now = self
+            .mailbox
+            .clock
+            .now()
+            .map_err(|_| AdmissionError::Unavailable)?;
+        let shared = self.mailbox.state.lock();
+        if shared.closed {
+            return Err(AdmissionError::Unavailable);
+        }
+        if endpoint.cluster_id != shared.policy.scope().cluster_id {
+            return Err(AdmissionError::PermissionDenied);
+        }
+        let certificate = scap_raft_wire::certificate_identity(
+            verified_leaf_der,
+            shared.policy.limits().max_certificate_bytes,
+        )
+        .map_err(crate::admission_error)?;
+        shared
+            .policy
+            .authorize_peer(certificate, endpoint.node_id, now.unix_seconds)
+            .map_err(crate::admission_error)
+    }
 }
 
 impl Deliver for TonicDelivery {
     async fn deliver(&mut self, delivery: Delivery) -> bool {
+        // Move the channel out before awaiting. Cancellation drops the in-flight
+        // channel instead of leaving a partially used one in the cache.
+        let now = Instant::now();
+        let cached = self.cached.take().filter(|cached| {
+            now.saturating_duration_since(cached.connected) < self.limits.max_connection_age
+        });
+        let mut completed = None;
         let call = async {
-            let security = ClientSecurity {
-                certificate_pem: self.security.certificate_pem.clone(),
-                private_key_pem: self.security.private_key_pem.clone(),
-                server_ca_pem: self.security.server_ca_pem.clone(),
+            let mut cached = match cached {
+                Some(cached) => cached,
+                None => {
+                    let security = ClientSecurity {
+                        certificate_pem: self.security.certificate_pem.clone(),
+                        private_key_pem: self.security.private_key_pem.clone(),
+                        server_ca_pem: self.security.server_ca_pem.clone(),
+                    };
+                    let client = PeerClient::connect_authorized(
+                        self.endpoint.clone(),
+                        security,
+                        self.limits.clone(),
+                        Arc::clone(&self.authorizer),
+                    )
+                    .await?;
+                    CachedPeer {
+                        client,
+                        connected: now,
+                    }
+                }
             };
-            let mut client =
-                PeerClient::connect(self.endpoint.clone(), security, self.limits.clone()).await?;
-            client.send(delivery.envelope, delivery.deadline).await
+            cached
+                .client
+                .send(delivery.envelope, delivery.deadline)
+                .await?;
+            completed = Some(cached);
+            Ok(())
         };
-        attempt_before(delivery.deadline, call, Instant::now).await
+        let received = attempt_before(delivery.deadline, call, Instant::now).await;
+        if received {
+            self.cached = completed;
+        }
+        received
     }
 }
 

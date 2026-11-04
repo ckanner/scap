@@ -209,6 +209,12 @@ fn startup_rejects_invalid_limits_identities_and_missing_executor_before_spawnin
         start_error(make(), peers(), bounded_security(), limits, 1),
         Error::Network(_)
     ));
+    let mut limits = transport_limits();
+    limits.max_connections = 3;
+    assert_eq!(
+        start_error(make(), peers(), bounded_security(), limits, 1),
+        Error::Invalid("connection budget does not cover peer lanes")
+    );
     let mut security = bounded_security();
     security.certificate_pem.clear();
     assert!(matches!(
@@ -649,6 +655,77 @@ struct Authority {
     key: KeyPair,
 }
 
+struct FixedClock(Result<crate::ClockReading, Error>);
+
+impl crate::Clock for FixedClock {
+    fn now(&self) -> Result<crate::ClockReading, Error> {
+        self.0.clone()
+    }
+}
+
+#[test]
+fn outgoing_authorization_uses_current_scope_pin_time_and_stopped_state() {
+    let authority = Authority::new();
+    let (_, _, der) = authority.credentials(2);
+    let mut node = handle(&[1, 2, 3], config());
+    let identity = scap_raft_wire::certificate_identity(&der, 8192).unwrap();
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(2), &der),
+        Err(AdmissionError::PermissionDenied)
+    );
+    node.replace_bindings(vec![scap_raft_wire::Binding {
+        node_id: 2,
+        fingerprint: identity.fingerprint,
+    }])
+    .unwrap();
+    assert_eq!(PeerAuthorizer::authorize(&node, &endpoint(2), &der), Ok(()));
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(3), &der),
+        Err(AdmissionError::PermissionDenied)
+    );
+    assert_eq!(
+        PeerAuthorizer::authorize(
+            &node,
+            &PeerEndpoint {
+                cluster_id: 18,
+                ..endpoint(2)
+            },
+            &der
+        ),
+        Err(AdmissionError::PermissionDenied)
+    );
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(2), &[1]),
+        Err(AdmissionError::Invalid)
+    );
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(2), &vec![0; 8193]),
+        Err(AdmissionError::Limit)
+    );
+    for unix_seconds in [identity.not_before - 1, identity.not_after + 1] {
+        Arc::get_mut(&mut node.mailbox).unwrap().clock =
+            Arc::new(FixedClock(Ok(crate::ClockReading {
+                instant: Instant::now(),
+                unix_seconds,
+            })));
+        assert_eq!(
+            PeerAuthorizer::authorize(&node, &endpoint(2), &der),
+            Err(AdmissionError::Unauthenticated)
+        );
+    }
+    Arc::get_mut(&mut node.mailbox).unwrap().clock = Arc::new(FixedClock(Err(Error::Clock)));
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(2), &der),
+        Err(AdmissionError::Unavailable)
+    );
+    Arc::get_mut(&mut node.mailbox).unwrap().clock = Arc::new(SystemClock);
+    node.stop();
+    assert_eq!(
+        PeerAuthorizer::authorize(&node, &endpoint(2), &der),
+        Err(AdmissionError::Unavailable)
+    );
+}
+
 impl Authority {
     fn new() -> Self {
         let mut parameters = CertificateParams::new(Vec::new()).unwrap();
@@ -695,12 +772,12 @@ impl Ingress for Sink {
 }
 
 // This is one native adapter boundary, with no Raft simulation or quorum.
-// Counting TCP accepts proves that attempts do not reuse an authenticated
-// channel whose certificate validity/authorization may have changed.
+// Counting TCP accepts proves reuse without substituting a fake transport;
+// current outbound pins and inbound policy still apply on the same socket.
 #[tokio::test]
-async fn native_delivery_reauthenticates_each_attempt_and_maps_admission_failure() {
+async fn native_delivery_reuses_a_bounded_channel_and_revalidates_current_authority() {
     let authority = Authority::new();
-    let (certificate_pem, private_key_pem, _) = authority.credentials(2);
+    let (certificate_pem, private_key_pem, server_der) = authority.credentials(2);
     let sink = Arc::new(Sink::default());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -737,6 +814,14 @@ async fn native_delivery_reauthenticates_each_attempt_and_maps_admission_failure
         tunnels.abort_all();
     });
     let (certificate_pem, private_key_pem, expected_der) = authority.credentials(1);
+    let node = handle(&[1, 2], config());
+    let binding = scap_raft_wire::Binding {
+        node_id: 2,
+        fingerprint: scap_raft_wire::certificate_identity(&server_der, 8192)
+            .unwrap()
+            .fingerprint,
+    };
+    node.replace_bindings(vec![binding]).unwrap();
     let mut link = TonicDelivery {
         endpoint: PeerEndpoint {
             uri: format!("https://{proxy_address}"),
@@ -748,8 +833,9 @@ async fn native_delivery_reauthenticates_each_attempt_and_maps_admission_failure
             server_ca_pem: authority.certificate.pem().into_bytes(),
         }),
         limits: transport_limits(),
+        authorizer: Arc::new(node.clone()),
+        cached: None,
     };
-    let node = handle(&[1, 2], config());
     register(&node, &[1, 2]);
     let held = budget(2, 4096);
     let (sender, receiver) = mpsc::channel(2);
@@ -768,6 +854,8 @@ async fn native_delivery_reauthenticates_each_attempt_and_maps_admission_failure
             endpoint: link.endpoint.clone(),
             security: Arc::clone(&link.security),
             limits: link.limits.clone(),
+            authorizer: Arc::clone(&link.authorizer),
+            cached: None,
         },
     )
     .await;
@@ -777,17 +865,40 @@ async fn native_delivery_reauthenticates_each_attempt_and_maps_admission_failure
         BTreeMap::from([(1, DeliveryResult::Received), (2, DeliveryResult::Received)])
     );
     assert_eq!(retained(&held), (0, 0));
-    assert_eq!(accepted.load(Ordering::SeqCst), 2);
+    assert_eq!(accepted.load(Ordering::SeqCst), 1);
     sink.reject.store(true, Ordering::SeqCst);
     assert!(!link.deliver(delivery(3, 2, false)).await);
-    assert_eq!(accepted.load(Ordering::SeqCst), 3);
+    assert_eq!(accepted.load(Ordering::SeqCst), 2);
+    assert!(link.cached.is_none());
     assert_eq!(sink.seen.lock().len(), 2);
-    let mut expired = delivery(4, 2, false);
+    sink.reject.store(false, Ordering::SeqCst);
+    assert!(link.deliver(delivery(4, 2, false)).await);
+    assert!(link.deliver(delivery(5, 2, false)).await);
+    assert_eq!(accepted.load(Ordering::SeqCst), 3);
+    assert!(link.cached.is_some());
+    assert_eq!(sink.seen.lock().len(), 4);
+    node.replace_bindings(vec![]).unwrap();
+    assert!(!link.deliver(delivery(6, 2, false)).await);
+    assert_eq!(accepted.load(Ordering::SeqCst), 3);
+    assert!(link.cached.is_none());
+    assert_eq!(sink.seen.lock().len(), 4);
+    // New handshakes also consult the current pins. Restoring a pin permits a
+    // new delivery, never silently retries the one whose outcome failed.
+    assert!(!link.deliver(delivery(7, 2, false)).await);
+    assert_eq!(accepted.load(Ordering::SeqCst), 4);
+    node.replace_bindings(vec![binding]).unwrap();
+    assert!(link.deliver(delivery(8, 2, false)).await);
+    assert_eq!(accepted.load(Ordering::SeqCst), 5);
+    link.cached.as_mut().unwrap().connected = Instant::now() - link.limits.max_connection_age;
+    assert!(link.deliver(delivery(9, 2, false)).await);
+    assert_eq!(accepted.load(Ordering::SeqCst), 6);
+    let mut expired = delivery(10, 2, false);
     expired.deadline = Instant::now();
     assert!(!link.deliver(expired).await);
-    assert_eq!(accepted.load(Ordering::SeqCst), 3);
+    assert_eq!(accepted.load(Ordering::SeqCst), 6);
+    assert!(link.cached.is_none());
     link.endpoint.uri = "http://127.0.0.1:9".into();
-    assert!(!link.deliver(delivery(5, 2, false)).await);
+    assert!(!link.deliver(delivery(11, 2, false)).await);
     proxy_stop.cancel();
     proxy_task.await.unwrap();
     server_stop.cancel();
@@ -818,6 +929,7 @@ async fn deadline_and_shutdown_cancel_a_native_tls_connect_that_never_finishes()
             entered.send(()).unwrap();
             peer_cancel.cancelled().await;
         });
+        let node = handle(&[1, 2], config());
         let link = TonicDelivery {
             endpoint: PeerEndpoint {
                 uri: format!("https://{address}"),
@@ -825,8 +937,9 @@ async fn deadline_and_shutdown_cancel_a_native_tls_connect_that_never_finishes()
             },
             security: Arc::clone(&security),
             limits: transport_limits(),
+            authorizer: Arc::new(node.clone()),
+            cached: None,
         };
-        let node = handle(&[1, 2], config());
         register(&node, &[1]);
         let held = budget(1, 4096);
         let (sender, receiver) = mpsc::channel(1);

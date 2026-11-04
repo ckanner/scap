@@ -221,7 +221,7 @@ SQLite 文件 API、SQL 方言、C API 和远程 SDK 是不同兼容层；只通
 | 租户基数 | 库总量、活跃比例、每库大小、保留历史 | 目录、调度、Raft 状态、manifest、缓存的固定内存/磁盘成本 |
 | 事务 | 小写、批量写、最大允许事务、读写比例 | quorum fsync 延迟、排队、apply 延迟、成功/拒绝/未知率 |
 | 单 cell 共享 Raft | 热点库比例、活跃库数、事务大小偏斜 | head-of-line 阻塞、公平性、跨库尾延迟、控制记录预留能力 |
-| peer 网络实现 | 每 delivery 新 TLS、证书轮换、连接 churn、普通消息/snapshot 并发、黑洞和取消 | 握手 CPU、socket/TIME_WAIT、队列持有字节、deadline 失败和释放时间；修复 NODELAY 不等于容量验收 |
+| peer 网络实现 | 有界 TLS 复用、逐 RPC 重新授权、连接年龄上限、证书轮换、普通消息/snapshot 并发、黑洞和取消 | 握手 CPU、socket/TIME_WAIT、队列持有字节、deadline 失败和释放时间；复用或修复 NODELAY 不等于容量验收 |
 | 冷唤醒 | 缓存命中、快照大小、增量链长度、并发唤醒 | 排队、调度、对象读取、重放、ready 各阶段 p50/p95/p99 |
 | 归档 | S3 时延、吞吐、错误率、PUT/GET 成本 | 归档积压、完整可恢复位置滞后、磁盘压力 |
 | 故障恢复 | 数据量、日志 tail、剩余 AZ 容量 | 检测、栅栏、重建、重连阶段的实测 RTO |

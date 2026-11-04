@@ -471,6 +471,26 @@ async fn native_assembly_opens_serves_and_joins_before_reopening_existing_store(
         http_ready(http).await;
         http_response(http, "/livez", 200).await;
         http_response(http, "/db/alpha/v1/status", 401).await;
+        // Exercise the actual lazy native lane assembly with an authenticated
+        // request. One isolated voter must still reject it as NOT_LEADER.
+        let mut stream = tokio::net::TcpStream::connect(http).await.unwrap();
+        stream
+            .write_all(
+                format!(
+                    "GET /db/alpha/v1/status HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\nConnection: close\r\n\r\n",
+                    crate::tests::TOKEN
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let mut response = String::new();
+        tokio::time::timeout(Duration::from_secs(2), stream.read_to_string(&mut response))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(response.starts_with("HTTP/1.1 503"), "{response}");
+        assert!(response.contains("NOT_LEADER"), "{response}");
         http_response(http, "/missing", 404).await;
         http_ready(http).await;
     })
@@ -674,32 +694,33 @@ async fn cancelling_run_reclaims_tasks_native_owners_and_exclusive_store_lock() 
     drop((http, peer));
 }
 
+struct Disabled;
+impl<P: crate::worker::ControlPort> crate::worker::ColdStorage<P> for Disabled {
+    fn hydrate(
+        &mut self,
+        _: &mut Client<P>,
+        _: &scap_cell_client::RequestContext,
+        _: &scap_cell::DatabaseView,
+        _: u128,
+    ) -> Result<(), ServiceError> {
+        Err(failure("ARCHIVE_UNAVAILABLE"))
+    }
+    fn archive(
+        &mut self,
+        _: &mut Client<P>,
+        _: &scap_cell_client::RequestContext,
+        _: &scap_cell::DatabaseView,
+        _: u128,
+        _: u128,
+    ) -> Result<bool, ServiceError> {
+        Ok(false)
+    }
+}
+
 #[test]
 fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
     use crate::worker::tests::{Port, TestClock};
     use scap_service::{Backend, Call, Mode};
-    struct Disabled;
-    impl crate::worker::ColdStorage<Port> for Disabled {
-        fn hydrate(
-            &mut self,
-            _: &mut Client<Port>,
-            _: &scap_cell_client::RequestContext,
-            _: &scap_cell::DatabaseView,
-            _: u128,
-        ) -> Result<(), ServiceError> {
-            Err(failure("ARCHIVE_UNAVAILABLE"))
-        }
-        fn archive(
-            &mut self,
-            _: &mut Client<Port>,
-            _: &scap_cell_client::RequestContext,
-            _: &scap_cell::DatabaseView,
-            _: u128,
-            _: u128,
-        ) -> Result<bool, ServiceError> {
-            Ok(false)
-        }
-    }
     let directory = tempfile::tempdir().unwrap();
     let mut config = crate::tests::config();
     config.data_dir = directory.path().to_owned();
@@ -715,6 +736,31 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
         statements: vec![crate::tests::sql("SELECT 42")],
     });
     drop(mailbox);
+    let lane_config = config.clone();
+    let mut lanes = Lanes::new(
+        5,
+        stopped.clone(),
+        Box::new(move |database, boot| {
+            let mut config = lane_config.clone();
+            config.databases = vec![database];
+            Box::new(move || {
+                let port = Port::new(&config);
+                Worker::new(
+                    config,
+                    port,
+                    NativeFactory,
+                    Disabled,
+                    Arc::new(TestClock::new()),
+                    Arc::new(AtomicBool::new(false)),
+                    boot,
+                )
+                .map(|worker| Box::new(worker) as Box<dyn Executor>)
+            })
+        }),
+    )
+    .unwrap();
+    let test_config = config.clone();
+    let catalogue_port = port.clone();
     let mut worker = Worker::new(config, port, NativeFactory, Disabled, clock, ready, 5).unwrap();
     struct Scripted(
         std::cell::RefCell<std::collections::VecDeque<Result<Envelope, mpsc::RecvTimeoutError>>>,
@@ -732,7 +778,7 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
         ]
         .into(),
     ));
-    sql_loop(&mut worker, &scripted, stopped);
+    sql_loop(&mut worker, &scripted, stopped, &mut lanes).unwrap();
     assert!(scripted.0.borrow().is_empty());
     let runtime = tokio::runtime::Runtime::new().unwrap();
     assert_eq!(
@@ -740,7 +786,246 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
         vec![vec![scap_sql::Value::Integer(42)]]
     );
     let (_sender, receiver) = mpsc::sync_channel(1);
-    sql_loop(&mut worker, &receiver, Arc::new(AtomicBool::new(true)));
+    sql_loop(
+        &mut worker,
+        &receiver,
+        Arc::new(AtomicBool::new(true)),
+        &mut lanes,
+    )
+    .unwrap();
+    lanes.finish().unwrap();
+
+    // A persisted unsuspended owner requires automatic recovery even when no
+    // client happens to arrive. The dispatcher delegates that work to a lane.
+    let view = catalogue_port.effects.borrow().state.database(3).unwrap();
+    let outcome = catalogue_port.apply(scap_cell::Command {
+        cell: test_config.cell,
+        database: view.identity,
+        admission: scap_cell::Admission {
+            principal_id: test_config.administrator_id,
+            credential_id: test_config.service_credential_id,
+            admission_id: 5000,
+            auth_epoch: view.auth_epoch,
+        },
+        kind: scap_cell::CommandKind::ClaimOwner {
+            operation_id: 5001,
+            expected_epoch: view.owner.epoch,
+            worker_instance_id: 6000,
+        },
+    });
+    assert!(matches!(
+        outcome.outcome,
+        scap_cell::Outcome::Administrative(_)
+    ));
+    let disconnected = Scripted(std::cell::RefCell::new(
+        [Err(mpsc::RecvTimeoutError::Disconnected)].into(),
+    ));
+    sql_loop(
+        &mut worker,
+        &disconnected,
+        Arc::new(AtomicBool::new(false)),
+        &mut lanes,
+    )
+    .unwrap();
+    lanes.finish().unwrap();
+
+    fn reject_spawn(_: Box<dyn FnOnce() + Send>) -> std::io::Result<thread::JoinHandle<()>> {
+        Err(std::io::Error::other("injected SQL lane admission failure"))
+    }
+    let refused = || {
+        Lanes::with_spawn(
+            7,
+            Arc::new(AtomicBool::new(false)),
+            Box::new(|_, _| Box::new(|| Err(failure("TEST_BUILD")))),
+            1,
+            reject_spawn,
+        )
+        .unwrap()
+    };
+    let mut failed = refused();
+    // The original dispatcher surfaces a recovery spawn failure, rather than
+    // leaving an apparently running service with no owner or retry boundary.
+    assert_eq!(
+        sql_loop(
+            &mut worker,
+            &disconnected,
+            Arc::new(AtomicBool::new(false)),
+            &mut failed
+        )
+        .unwrap_err()
+        .code,
+        "SQL_LANE_SPAWN"
+    );
+
+    catalogue_port.effects.borrow_mut().leader = false;
+    let (mailbox, received) =
+        Mailbox::new(&test_config.databases, Arc::new(AtomicBool::new(false)));
+    let response = mailbox.execute(Call {
+        context: crate::tests::context("alpha", 7000),
+        mode: Mode::Write,
+        statements: vec![crate::tests::sql("SELECT 7")],
+    });
+    let request = Scripted(std::cell::RefCell::new(
+        [Ok(received.recv().unwrap())].into(),
+    ));
+    let mut failed = refused();
+    assert_eq!(
+        sql_loop(
+            &mut worker,
+            &request,
+            Arc::new(AtomicBool::new(false)),
+            &mut failed
+        )
+        .unwrap_err()
+        .code,
+        "SQL_LANE_SPAWN"
+    );
+    assert_eq!(
+        runtime.block_on(response).unwrap_err().code,
+        "COMMIT_UNKNOWN"
+    );
+
+    struct Polling(Instant);
+    impl Inbox for Polling {
+        fn receive(&self) -> Result<Envelope, mpsc::RecvTimeoutError> {
+            assert!(
+                Instant::now() < self.0,
+                "failed SQL lane was not supervised"
+            );
+            thread::sleep(Duration::from_millis(1));
+            Err(mpsc::RecvTimeoutError::Timeout)
+        }
+    }
+    let mut failed = Lanes::new(
+        8,
+        Arc::new(AtomicBool::new(false)),
+        Box::new(|_, _| Box::new(|| Err(failure("TEST_BUILD")))),
+    )
+    .unwrap();
+    failed.recover(test_config.databases[0].clone()).unwrap();
+    assert_eq!(
+        sql_loop(
+            &mut worker,
+            &Polling(Instant::now() + Duration::from_secs(2)),
+            Arc::new(AtomicBool::new(false)),
+            &mut failed,
+        )
+        .unwrap_err()
+        .code,
+        "TEST_BUILD"
+    );
+}
+
+#[test]
+fn sql_owner_assembly_rejects_invalid_scope_and_boot_before_opening_an_engine() {
+    for case in 0..3 {
+        let (_runtime, sql_port) = crate::local::tests::runtime(false);
+        let mut config = crate::tests::config();
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let client = Native
+            .client(&config, sql_port.clone(), clock.clone())
+            .unwrap();
+        let (cold, supervisor) = archive_jobs::spawn::<_, scap_archive::S3>(
+            client,
+            None,
+            config.databases.len(),
+            clock.clone(),
+        )
+        .unwrap();
+        if case == 1 {
+            config.cluster_id += 1;
+        }
+        let owner = SqlOwner {
+            config,
+            sql_port,
+            cold,
+            clock,
+            ready: Arc::new(AtomicBool::new(false)),
+            boot: if case == 0 { 0 } else { 1 },
+        };
+        let (_sender, receiver) = mpsc::sync_channel(1);
+        let result = owner.run(&receiver, Arc::new(AtomicBool::new(true)));
+        match case {
+            0 => assert_eq!(result.unwrap_err().code, "SQL_LANE_CONFIG"),
+            1 => assert_eq!(result.unwrap_err().code, "CELL_SCOPE"),
+            _ => result.unwrap(),
+        }
+        supervisor.join().unwrap();
+    }
+}
+
+#[test]
+fn only_catalogue_checks_publish_node_readiness_across_lane_errors_and_successes() {
+    use crate::worker::tests::{Port, TestClock};
+    use scap_service::Backend;
+
+    let config = crate::tests::config();
+    let port = Port::new(&config);
+    let clock = Arc::new(TestClock::new());
+    let ready = Arc::new(AtomicBool::new(false));
+    let mut catalog = Worker::new(
+        config.clone(),
+        port.clone(),
+        NativeFactory,
+        Disabled,
+        clock.clone(),
+        ready.clone(),
+        80,
+    )
+    .unwrap();
+    assert!(catalog.scan().unwrap().is_none());
+    assert!(ready.load(Ordering::Acquire));
+    // Exercise the production lane constructor; it owns a private readiness
+    // cell, while the catalogue above owns the HTTP routing hint.
+    let mut lane =
+        database_worker(config.clone(), port.clone(), Disabled, clock.clone(), 81).unwrap();
+    let (mailbox, receiver) = Mailbox::new(&config.databases, Arc::new(AtomicBool::new(false)));
+    {
+        let mut status = |id| {
+            let response = mailbox.status(crate::tests::context("alpha", id));
+            let envelope = receiver.recv().unwrap();
+            let result = lane.request(envelope.request);
+            drop(response);
+            result
+        };
+        // A fresh lane observes its first term without clearing catalogue readiness.
+        assert!(matches!(
+            status(1).unwrap(),
+            crate::worker::Reply::Status(_)
+        ));
+        assert!(ready.load(Ordering::Acquire));
+        port.effects.borrow_mut().status_error = true;
+        assert_eq!(status(2).err().unwrap().code, "UNAVAILABLE");
+        assert!(ready.load(Ordering::Acquire));
+        port.effects.borrow_mut().status_error = false;
+    }
+
+    let next_read = port.effects.borrow().reads + 1;
+    port.effects.borrow_mut().read_error = Some(next_read);
+    assert_eq!(lane.tick().unwrap_err().code, "COMMIT_UNKNOWN");
+    assert!(ready.load(Ordering::Acquire));
+    port.effects.borrow_mut().read_error = None;
+
+    // Actual catalogue leadership loss withdraws the hint. A later successful
+    // lane check cannot publish node readiness on the catalogue's behalf.
+    port.effects.borrow_mut().leader = false;
+    assert_eq!(catalog.scan().unwrap_err().code, "NOT_LEADER");
+    assert!(!ready.load(Ordering::Acquire));
+    port.effects.borrow_mut().leader = true;
+    lane.tick().unwrap();
+    assert!(!ready.load(Ordering::Acquire));
+    catalog.scan().unwrap();
+    assert!(ready.load(Ordering::Acquire));
+
+    let response = mailbox.status(crate::tests::context("alpha", 3));
+    let mut envelope = receiver.recv().unwrap();
+    envelope.request.context.deadline = clock.now().unwrap().instant;
+    assert_eq!(
+        lane.request(envelope.request).err().unwrap().code,
+        "COMMIT_UNKNOWN"
+    );
+    assert!(ready.load(Ordering::Acquire));
+    drop(response);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -788,12 +1073,22 @@ async fn shutdown_closes_an_accepted_incomplete_body_and_releases_the_connection
 #[tokio::test]
 async fn readiness_stop_and_drain_are_bounded() {
     let ready = Arc::new(AtomicBool::new(false));
+    let stopped = Arc::new(AtomicBool::new(false));
     assert_eq!(
-        readiness_response(ready.clone()).await,
+        readiness_response(ready.clone(), stopped.clone()).await,
         StatusCode::SERVICE_UNAVAILABLE
     );
     ready.store(true, Ordering::Release);
-    assert_eq!(readiness_response(ready).await, StatusCode::OK);
+    assert_eq!(
+        readiness_response(ready.clone(), stopped.clone()).await,
+        StatusCode::OK
+    );
+    // Even a catalogue completion racing shutdown cannot advertise readiness.
+    stopped.store(true, Ordering::Release);
+    assert_eq!(
+        readiness_response(ready, stopped).await,
+        StatusCode::SERVICE_UNAVAILABLE
+    );
     let (sender, receiver) = watch::channel(false);
     let wait = tokio::spawn(wait_stop(receiver));
     sender.send(true).unwrap();

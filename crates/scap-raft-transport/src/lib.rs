@@ -14,7 +14,7 @@ use std::time::Duration;
 use scap_raft_wire::Envelope;
 use tonic::Status;
 
-pub use client::{ClientSecurity, PeerClient, PeerEndpoint};
+pub use client::{ClientSecurity, PeerAuthorizer, PeerClient, PeerEndpoint};
 pub use server::{PeerServer, ServerSecurity};
 
 pub const RPC_PATH: &str = "/scap.raft.peer.v1.Peer/Deliver";

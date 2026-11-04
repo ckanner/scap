@@ -96,9 +96,10 @@ fn current_owner(owner: scap_cell::OwnerToken, revision: u64, view: &DatabaseVie
     owner == view.owner && view.active && revision == view.revision
 }
 
-/// One bounded SQL owner thread. All native connections are constructed and
-/// used here. Only the Raft leader recovers owners; a change of term retires all
-/// local writers. ReadIndex and final ordered acceptance remain the authority.
+/// Thread-confined SQL ownership and catalogue maintenance. The dispatcher uses
+/// `scan` without opening an engine; each lazy database lane uses `tick` and
+/// `request`. Only the Raft leader recovers owners. A change of term retires the
+/// local writers; ReadIndex and ordered acceptance remain the authority.
 pub(crate) struct Worker<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> {
     config: Config,
     port: P,
@@ -342,10 +343,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
         Ok(())
     }
 
-    /// A single bounded maintenance action per tick prevents a cold catalogue
-    /// from creating one unbounded startup/recovery queue. Suspended databases
-    /// stay asleep until an authenticated request explicitly needs them.
-    pub(crate) fn tick(&mut self) -> Result<(), ServiceError> {
+    fn begin_tick(&mut self) -> Result<(Instant, Instant), ServiceError> {
         self.check_cache()?;
         let now = self
             .clock
@@ -366,9 +364,52 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             .inspect_err(|_| self.ready.store(false, Ordering::Release))?;
         self.checkpoint_needed = false;
         self.leader(deadline)?;
+        Ok((now, deadline))
+    }
+
+    fn next_database(
+        &mut self,
+        deadline: Instant,
+    ) -> Result<(DatabaseConfig, DatabaseView), ServiceError> {
         let database = self.config.databases[self.cursor].clone();
         self.cursor = (self.cursor + 1) % self.config.databases.len();
         let view = self.database(&database, deadline)?;
+        Ok((database, view))
+    }
+
+    /// Inspect one catalogue entry without creating a SQLite connection or
+    /// performing foreground object I/O. Suspended entries can enqueue bounded
+    /// background archival; only unsuspended entries ask for a recovery lane.
+    /// Requests can independently schedule their own database between scans.
+    pub(crate) fn scan(&mut self) -> Result<Option<DatabaseConfig>, ServiceError> {
+        let (_, deadline) = self.begin_tick()?;
+        let (database, view) = self.next_database(deadline)?;
+        if !view.suspended {
+            return Ok(Some(database));
+        }
+        if !view.cold {
+            let context = self.admin(view.auth_epoch, deadline)?;
+            let publish = self.id()?;
+            let prune = self.id()?;
+            self.checkpoint_needed |=
+                self.cold
+                    .archive(&mut self.client, &context, &view, publish, prune)?;
+        }
+        Ok(None)
+    }
+
+    /// A lane can retire only after native writers have closed. Failed cleanup
+    /// remains attached to this lane so a restart cannot hide that failure.
+    pub(crate) fn dormant(&self) -> bool {
+        self.writers.is_empty() && !self.cache_failed.load(Ordering::Acquire)
+    }
+
+    /// A single bounded maintenance action per tick prevents a cold catalogue
+    /// from creating one unbounded startup/recovery queue. Suspended databases
+    /// stay asleep until an authenticated request explicitly needs them.
+    pub(crate) fn tick(&mut self) -> Result<(), ServiceError> {
+        let (now, deadline) = self.begin_tick()?;
+        let (database, view) = self.next_database(deadline)?;
         let id = database.identity.database_id;
         if self.writers.get(&id).is_some_and(|slot| {
             !current_owner(slot.writer.owner(), slot.writer.head().revision, &view)

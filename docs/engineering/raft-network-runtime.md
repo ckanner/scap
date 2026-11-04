@@ -42,7 +42,7 @@ TransferLeader 在上游可能保留原 from 转发，与本阶段逐跳证书�
 | 路径 | 认证与授权 |
 | --- | --- |
 | 服务端验证调用者 | rustls 验证显式 client CA、证书链和客户端身份；transport 从已验证 TLS metadata 提取 leaf DER；wire/runtime 每次核对证书日期、leaf SHA-256 → node 映射、固定成员和完整 cell 路由 |
-| 客户端验证服务端 | 显式 server CA，精确 DNS SAN 为 `node-{node_id}.cluster-{cluster_id:032x}.scap.internal`；连接地址可为 IP，验证名不能换成通用 localhost；正式 sender 每次 delivery 都新建连接并重新握手 |
+| 客户端验证服务端 | 显式 server CA，精确 DNS SAN 为 `node-{node_id}.cluster-{cluster_id:032x}.scap.internal`；连接地址可为 IP，验证名不能换成通用 localhost；正式 sender 可按 lane 有界复用，RPC 前后重新验证实际链/DNS/日期/current pin |
 
 外层 from 必须等于证书绑定 node，内层 from/to 必须等于外层 from/to；证书不能来自自报 header。x509-parser 在 wire 层只提取 DER 指纹与有效期，不承担 TLS 签名、证书链、用途或 DNS 验证。Unix 秒数由运行时显式提供；单调时钟承担 deadline 与 tick，墙钟只用于证书日期，不能替代 Raft quorum。
 
@@ -97,7 +97,7 @@ owner 运行在调用方提供的专用阻塞线程。它串行 drain Ready、�
 
 发送回执只对应本地 attempt：重复、未知、旧 term 或迟到的反馈不能完成新 snapshot attempt。snapshot 反馈按 peer、attempt ID、term 对照后调用 driver；超出原始 deadline 的 Received 按失败处理。它只影响 Raft 的发送进度反馈，不产生伪造的 append acknowledgment，更不会给业务提交 ACK。
 
-每次 delivery 新建 mTLS channel，建连、握手、readiness 和 RPC 使用同一个排队前分配的绝对 deadline。已经到期的工作不发起连接；future 完成后还会检查实际完成时间，防止不让出执行权的步骤迟到却被判为成功。协作式取消不构成硬实时 CPU 抢占保证。
+每个 ordinary/snapshot lane 至多复用一个 mTLS channel，并在 RPC 前后重新校验证书链与当前授权；必要的建连、握手、readiness 和 RPC 使用同一个排队前分配的绝对 deadline。失败、取消或达到最大龄期后丢弃缓存；连接配额需为正常 lane 与故障重连分别预留容量。已经到期的工作不发起连接；future 完成后还会检查实际完成时间，防止不让出执行权的步骤迟到却被判为成功。协作式取消不构成硬实时 CPU 抢占保证。
 
 ## 7. 分区、故障、重启与停止
 

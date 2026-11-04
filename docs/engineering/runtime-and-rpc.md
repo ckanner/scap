@@ -95,7 +95,7 @@ Tonic 允许设置收发消息上限，其[默认值][tonic]不构成 SCAP 的�
 
 正式 peer RPC 强制 mTLS，Tonic 0.14.6 显式启用 `tls-ring`，只信任配置的私有 CA，禁止匿名客户端。服务端从经过 TLS 验证的 connection extensions 获取 leaf DER，由当前 policy 绑定 SHA-256 pin、node 和 cell，并在每次准入及消费前检查有效期。证书链、节点身份映射、cell 成员权限和外层字段一致性是不同步骤；字段写了正确 node ID 不代表调用者被授权。
 
-出站验证名称固定为 `node-{node_id}.cluster-{cluster_id:032x}.scap.internal`，不能用通用 localhost 身份替代。正式 worker 每条 delivery 建立新 `PeerClient`，因此每次消息重新完成服务端证书链、DNS 和日期检查；独立 `PeerClient` 的串行复用仍只在握手时验服务端证书，不能宣称每请求验时。每条消息的 TCP/TLS 建连、socket/TIME_WAIT 和 CPU 成本尚未通过生产吞吐与 p99 验收，后续池化必须保留明确的过期/撤销边界。
+出站验证名称固定为 `node-{node_id}.cluster-{cluster_id:032x}.scap.internal`，不能用通用 localhost 身份替代。正式 worker 每个 ordinary/snapshot lane 至多缓存一个有龄期上限的 `PeerClient`。实际握手链通过 Rustls 原生验证器校验；每次 RPC 前后重新验证链、DNS、日期，正式 runtime 另以当前 policy 复核 leaf pin/node。失败、取消和到期丢弃连接，不在 transport 内隐藏重试。该改进见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)，生产吞吐与 p99 仍待验收。
 
 当前 pin policy 由可信调用方提供并在进程内替换，重启必须重新提供最新授权；签发、CA 轮换、持久分发和动态 Raft 成员管理尚无生产控制面实现。替换 pins 不会自动替换 server 或 workers 的 TLS 身份/CA。
 

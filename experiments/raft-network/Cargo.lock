@@ -1223,6 +1223,7 @@ version = "0.0.0"
 dependencies = [
  "rocksdb",
  "scap-raft-store",
+ "sha2",
 ]
 
 [[package]]
@@ -1256,6 +1257,7 @@ dependencies = [
  "prost",
  "scap-raft-wire",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tokio-util",
  "tonic",

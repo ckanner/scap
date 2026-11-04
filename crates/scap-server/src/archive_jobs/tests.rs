@@ -558,6 +558,8 @@ fn jobs_adapter_enqueues_without_waiting_and_foreground_hydrate_keeps_deadline()
     let mut client = client(&port, clock.clone());
     let (mut jobs, supervisor) =
         spawn(client.clone(), Some(Memory::default()), 1, clock.clone()).unwrap();
+    let mut sibling = jobs.clone();
+    assert!(Arc::ptr_eq(&jobs.queue, &sibling.queue));
     let request = job(3, clock.now().unwrap().instant);
     assert!(!jobs
         .archive(
@@ -573,6 +575,7 @@ fn jobs_adapter_enqueues_without_waiting_and_foreground_hydrate_keeps_deadline()
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(1));
     }
+    assert!(!sibling.poll()); // one shared completion, not one archive per lane
     assert!(port.state.lock().database(3).unwrap().cold);
     let cold = port.state.lock().database(3).unwrap();
     let mut unauthorized = request.context.clone();
@@ -584,7 +587,8 @@ fn jobs_adapter_enqueues_without_waiting_and_foreground_hydrate_keeps_deadline()
         "ARCHIVE_UNAVAILABLE"
     );
     assert!(port.state.lock().database(3).unwrap().cold);
-    jobs.hydrate(&mut client, &request.context, &cold, 90)
+    sibling
+        .hydrate(&mut client, &request.context, &cold, 90)
         .unwrap();
     assert!(!port.state.lock().database(3).unwrap().cold);
     clock.fail.store(true, Ordering::Release);
@@ -622,4 +626,88 @@ fn jobs_adapter_enqueues_without_waiting_and_foreground_hydrate_keeps_deadline()
             .code,
         "ARCHIVE_CAPACITY"
     );
+}
+
+#[derive(Clone)]
+struct PausedObjects {
+    memory: Memory,
+    pause: Arc<AtomicBool>,
+    entered: SyncSender<Instant>,
+    released: Arc<Mutex<Receiver<()>>>,
+}
+
+impl scap_archive::Objects for PausedObjects {
+    fn put(
+        &mut self,
+        key: &str,
+        bytes: &[u8],
+        context: &RequestContext,
+    ) -> Result<(), scap_archive::Error> {
+        self.memory.put(key, bytes, context)
+    }
+
+    fn get(
+        &mut self,
+        key: &str,
+        max_bytes: u32,
+        context: &RequestContext,
+    ) -> Result<Vec<u8>, scap_archive::Error> {
+        if self.pause.load(Ordering::Acquire) {
+            self.entered.send(context.deadline).unwrap();
+            self.released
+                .lock()
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap();
+        }
+        self.memory.get(key, max_bytes, context)
+    }
+}
+
+#[test]
+fn foreground_object_wait_never_holds_the_shared_archive_queue_lock() {
+    let port = Port::new();
+    port.create();
+    let clock = Arc::new(SystemClock);
+    let mut client = client(&port, clock.clone());
+    let (entered, entering) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
+    let pause = Arc::new(AtomicBool::new(false));
+    let objects = PausedObjects {
+        memory: Memory::default(),
+        pause: pause.clone(),
+        entered,
+        released: Arc::new(Mutex::new(released)),
+    };
+    let (mut jobs, supervisor) = spawn(client.clone(), Some(objects), 1, clock).unwrap();
+    let request = job(3, Instant::now());
+    jobs.archive(
+        &mut client,
+        &request.context,
+        &request.database,
+        request.publish,
+        request.prune,
+    )
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !jobs.poll() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(1));
+    }
+    let cold = port.state.lock().database(3).unwrap();
+    assert!(cold.cold);
+    pause.store(true, Ordering::Release);
+    let mut sibling = jobs.clone();
+    let original_deadline = request.context.deadline;
+    let hydrating =
+        thread::spawn(move || sibling.hydrate(&mut client, &request.context, &cold, 99));
+    assert_eq!(
+        entering.recv_timeout(Duration::from_secs(1)).unwrap(),
+        original_deadline
+    );
+    assert!(jobs.queue.try_lock().is_some());
+    assert!(!jobs.poll());
+    release.send(()).unwrap();
+    hydrating.join().unwrap().unwrap();
+    assert!(!port.state.lock().database(3).unwrap().cold);
+    supervisor.join().unwrap();
 }

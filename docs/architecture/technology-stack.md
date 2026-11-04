@@ -33,7 +33,7 @@ SCAP 首期只实现 SQLite 平台。目标是让 Node.js 应用通过现有 lib
 
 SQLite C 调用、RocksDB 同步写、压缩和大对象处理不得长时间占用负责心跳、选举和网络的 runtime worker。SQL 连接放在有界执行池或专用 worker 线程中，由队列控制并发；同一数据库的写入按单 writer 规则调度。RocksDB 同步 I/O 也要通过有序、有限并发的存储执行路径完成。
 
-当前每个 daemon 使用一个专用 SQL actor、一个 Raft owner 线程，S3 启用时还有一个受监督的归档线程。后台上传不会同步阻塞 SQL 维护；前景 cold hydrate 仍占用 SQL actor，尚未做到跨库执行公平性。节点 supervisor 监视关键线程/任务的异常退出并停止整体准入，停止时取消和 join，不留下 detached owner。native 同步 I/O 不能被异步取消强制中断。
+当前每个 daemon 按需为需要执行/恢复的数据库创建独占 SQL lane，活动与退出中的 lane 合计不超过 32；休眠且无排队请求后释放。Raft owner 和 catalogue dispatcher 独立，S3 启用时还有一个受监督的归档线程。前景 cold hydrate 只占用自己的数据库 lane；全局和每库请求/字节配额共同限制资源。节点 supervisor 监视关键线程/任务的异常退出并停止整体准入，停止时取消和 join，不留下 detached owner。native 同步 I/O 不能被异步取消强制中断。
 
 `spawn_blocking` 只是可用机制，不是取消或资源隔离方案。Tokio 官方说明已开始的 blocking task 不能通过普通 abort 停止。SQL 超时应配合引擎 interrupt/progress 控制，RPC 取消必须区分“尚未执行”“已执行但未确认”“已提交但响应丢失”；不得把请求连接断开解释成数据库事务必然回滚。
 
@@ -41,7 +41,7 @@ SQLite C 调用、RocksDB 同步写、压缩和大对象处理不得长时间占
 
 队列同时按数量和字节限额；Raft 控制流、SQL、持久化、归档与管理接口有各自资源预算。独立线程或 HTTP/2 stream 不自动证明隔离，必须验证过载和大流量下的心跳、管理与租户尾延迟。编码、mTLS 身份、deadline、健康检查、日志桥接与配置的完整约束见 [运行与 RPC 契约](../engineering/runtime-and-rpc.md)。
 
-当前 peer runtime 使用调用方提供的专用阻塞 owner 线程，每个 peer 的 ordinary/snapshot 各有一个异步 worker，所有发送共享有限实际 payload 预算。每条 delivery 新建 mTLS 连接，在同一绝对 deadline 内完成排队、握手和发送；这使出站服务端证书每次握手重新验证，也增加 TCP/TLS、socket 与 TIME_WAIT 成本，尚未证明生产吞吐或 p99。server 的自供 incoming 对 accepted socket 显式设置 NODELAY；全局连接预算在 accept 前预留，RPC 预算在解码前预留。`Received` 只表示进入有限 inbox，消息消费时还要复核权限，不能当作已经交给 driver 或已持久化。详细实现与限制见 [网络运行层](../engineering/raft-network-runtime.md)。
+当前 peer runtime 使用调用方提供的专用阻塞 owner 线程，每个 peer 的 ordinary/snapshot 各有一个异步 worker，所有发送共享有限实际 payload 预算。每个发送 lane 至多复用一个有龄期上限的 mTLS client；RPC 前后重新验证实际服务端证书链、DNS、日期和当前 pin 授权。排队、必要的握手和发送共享同一原绝对 deadline，失败/取消即丢弃缓存；生产吞吐和 p99 仍需测量。server 的自供 incoming 对 accepted socket 显式设置 NODELAY；全局连接预算在 accept 前预留，RPC 预算在解码前预留。`Received` 只表示进入有限 inbox，消息消费时还要复核权限，不能当作已经交给 driver 或已持久化。详细实现与限制见 [网络运行层](../engineering/raft-network-runtime.md)。
 
 ## 3. SQL 引擎、协议与客户端
 

@@ -546,6 +546,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "scap-raft-rocks"
+version = "0.0.0"
+dependencies = [
+ "rocksdb",
+ "scap-raft-store",
+ "sha2",
+]
+
+[[package]]
 name = "scap-raft-store"
 version = "0.0.0"
 dependencies = [
@@ -561,6 +570,7 @@ dependencies = [
  "protobuf",
  "raft",
  "rocksdb",
+ "scap-raft-rocks",
  "scap-raft-store",
  "slog",
  "tempfile",

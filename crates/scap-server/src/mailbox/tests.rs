@@ -105,14 +105,14 @@ fn bounded_admission_verifies_identity_input_and_original_request_budget() {
 fn request_count_includes_work_dequeued_but_not_yet_released() {
     let (mailbox, receiver) = setup();
     let mut pending = Vec::new();
-    for id in 1..=MAX_QUEUED {
+    for id in 1..=MAX_DATABASE_QUEUED {
         pending.push(
             mailbox
                 .enqueue(context("alpha", id as u128), Mode::Write, operation())
                 .unwrap(),
         );
     }
-    assert_eq!(mailbox.0.usage.lock().count, MAX_QUEUED);
+    assert_eq!(mailbox.0.usage.lock().count, MAX_DATABASE_QUEUED);
     let in_progress = receiver.recv().unwrap();
     assert_eq!(
         code(mailbox.enqueue(context("alpha", 100), Mode::Write, operation())),
@@ -124,9 +124,110 @@ fn request_count_includes_work_dequeued_but_not_yet_released() {
             .enqueue(context("alpha", 101), Mode::Write, operation())
             .unwrap(),
     );
-    assert_eq!(mailbox.0.usage.lock().count, MAX_QUEUED);
+    assert_eq!(mailbox.0.usage.lock().count, MAX_DATABASE_QUEUED);
     drop(receiver);
     assert_eq!(mailbox.0.usage.lock().count, 0);
+    assert_eq!(mailbox.0.usage.lock().bytes, 0);
+    drop(pending);
+}
+
+#[test]
+fn database_quota_leaves_admission_for_other_databases_and_global_limits_remain_hard() {
+    use sha2::{Digest, Sha256};
+    fn scoped_context(database: &str, id: u128) -> RequestContext {
+        let mut request = context(database, id);
+        request.credential = format!("unit-token-{database}");
+        request
+    }
+    let mut databases = Vec::new();
+    for id in 1..=6 {
+        let mut database = config().databases.remove(0);
+        database.name = format!("db-{id}");
+        database.identity.database_id = id;
+        database.tokens[0].digest =
+            Sha256::digest(format!("unit-token-{}", database.name).as_bytes()).into();
+        databases.push(database);
+    }
+    let (mailbox, receiver) = Mailbox::new(&databases, Arc::new(AtomicBool::new(false)));
+    let mut pending = Vec::new();
+    for id in 1..=MAX_DATABASE_QUEUED {
+        pending.push(
+            mailbox
+                .enqueue(scoped_context("db-1", id as u128), Mode::Write, operation())
+                .unwrap(),
+        );
+    }
+    assert_eq!(
+        code(mailbox.enqueue(scoped_context("db-1", 100), Mode::Write, operation())),
+        "OVERLOADED"
+    );
+    for database in 2..=4 {
+        for id in 1..=MAX_DATABASE_QUEUED {
+            pending.push(
+                mailbox
+                    .enqueue(
+                        scoped_context(&format!("db-{database}"), id as u128),
+                        Mode::Write,
+                        operation(),
+                    )
+                    .unwrap(),
+            );
+        }
+    }
+    assert_eq!(mailbox.0.usage.lock().count, MAX_QUEUED);
+    assert_eq!(
+        code(mailbox.enqueue(scoped_context("db-5", 100), Mode::Write, operation())),
+        "OVERLOADED"
+    );
+    let active = receiver.recv().unwrap();
+    assert_eq!(mailbox.0.usage.lock().count, MAX_QUEUED);
+    drop(active);
+    pending.push(
+        mailbox
+            .enqueue(scoped_context("db-5", 101), Mode::Write, operation())
+            .unwrap(),
+    );
+    drop(receiver);
+    assert!(mailbox.0.usage.lock().databases.is_empty());
+    assert_eq!(mailbox.0.usage.lock().count, 0);
+    drop(pending);
+
+    let (mailbox, receiver) = Mailbox::new(&databases, Arc::new(AtomicBool::new(false)));
+    let statement = Statement {
+        sql: "SELECT ?1".into(),
+        parameters: vec![Value::Blob(vec![1; 32 * 1024]); 27],
+    };
+    let bytes = request_bytes(std::slice::from_ref(&statement), &databases[0]);
+    let capacity = MAX_BYTES / bytes;
+    let mut pending = Vec::new();
+    for index in 0..capacity {
+        pending.push(
+            mailbox
+                .enqueue(
+                    scoped_context(&format!("db-{}", index / 2 + 1), index as u128 + 1),
+                    Mode::Write,
+                    Operation::Execute {
+                        mode: Mode::Write,
+                        statements: vec![statement.clone()],
+                    },
+                )
+                .unwrap(),
+        );
+    }
+    assert_eq!(mailbox.0.usage.lock().bytes, capacity * bytes);
+    assert_eq!(
+        code(mailbox.enqueue(
+            scoped_context("db-6", 100),
+            Mode::Write,
+            Operation::Execute {
+                mode: Mode::Write,
+                statements: vec![statement]
+            },
+        )),
+        "OVERLOADED"
+    );
+    drop(receiver);
+    assert!(mailbox.0.usage.lock().databases.is_empty());
     assert_eq!(mailbox.0.usage.lock().bytes, 0);
     drop(pending);
 }
@@ -158,7 +259,7 @@ fn byte_reservations_include_policy_and_typed_parameter_allocations() {
     };
     let bytes = request_bytes(std::slice::from_ref(&large), &database);
     assert!(bytes < MAX_REQUEST_BYTES);
-    let capacity = MAX_BYTES / bytes;
+    let capacity = MAX_DATABASE_BYTES / bytes;
     assert!(capacity < MAX_QUEUED);
     let (mailbox, receiver) = setup();
     let mut pending = Vec::new();

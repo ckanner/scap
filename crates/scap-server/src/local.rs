@@ -76,4 +76,4 @@ impl ControlPort for LocalPort {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

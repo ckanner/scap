@@ -15,14 +15,16 @@ Cold 库不能 ClaimOwner、ActivateOwner 或产生新成功写。结果未知�
 
 ## 有界后台维护
 
-服务的 `archive_jobs` adapter 将归档放在一个受 supervisor 管理的后台线程执行。SQL owner 线程只使用非阻塞 enqueue/poll；S3 故障时后台维护不会以同步对象 I/O 占用热 SQL 执行线程。
+服务的 `archive_jobs` adapter 将归档放在一个受 supervisor 管理的后台线程执行。目录维护与每库 SQL lane 通过短临界区 enqueue/poll，共享队列锁内不执行对象 I/O 或 cell RPC；S3 故障时后台维护不会以同步对象 I/O 占用热 SQL 执行线程。
 
 - 任务和完成通知各最多 8 个；每个 database ID 同时最多一个 pending。任务仅保存固定大小的 `DatabaseView`、原 `RequestContext` 和 operation IDs，队列不保存对象正文。
 - 重试登记表最多包含配置中的数据库数量，不能随错误累积增长。失败后到该次原 deadline 加 5 秒前不再排队；下一轮维护重新检查状态、获得新的请求身份，并不自动重放旧的未知结果。
 - `publish_bound` / `prune_bound` 在读取、对象 I/O 和最终有序命令之间保留排队时的身份、owner、head、auth epoch 和前序归档。即使 I/O 期间发生相同 head 的唤醒再休眠，旧 token 也不能发布或卸载。
 - 成功 prune 的通知触发服务请求正式的全 cell checkpoint；完成通知自身不能删日志。后台线程异常退出通过 oneshot 通知 supervisor，panic 由 join 报告；关闭会取消当前任务并回收线程，不把停止解释成命令已回滚。
 
-冷请求的 `hydrate` 仍在调用方的原 deadline 内同步执行。当前单 SQL owner 线程上，一个冷库的前景唤醒仍可能推迟其他库的请求；后台归档隔离没有消除该项限制，后续需按库分片执行器与独立恢复调度。
+冷请求的 `hydrate` 在该库独占的 SQL lane 内，以原 deadline 同步执行。每次前景恢复构造独立 Controller，不占后台队列锁；一个库等待对象读取时，其他库的 lane 可继续服务。服务最多保留 32 个活动或退出中的 lane，全局 SQL 准入为 32 个请求 / 8 MiB，每库为 8 个请求 / 2 MiB，排队和执行中的请求都计入预算；冷库空闲时不保留专用线程。实现及退休/join 合同见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
+
+这些边界隔离单库的 SQL/对象等待与请求占用，但不提供加权公平调度、独立恢复带宽或容量预留。目录扫描仍同步访问 cell 元数据，lane 也定期维护；共享 cell、磁盘与 CPU 的压力仍可能影响其他库。
 
 ## 资源与恢复边界
 
