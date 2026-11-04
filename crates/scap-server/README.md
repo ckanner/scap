@@ -1,6 +1,6 @@
 # 有界三节点 SQLite daemon
 
-`scap-server` 是正式运行入口，连接 HTTP/Hrana、Node SDK、当前权限、SQLite writer、固定三副本 Raft、RocksDB 和可选 S3 归档。它为一个静态 cell 服务最多 32 个配置数据库，当前属于有明确容量边界的实现，不提供生产 SLO 承诺。
+`scap-server` 是正式运行入口，连接 HTTP/Hrana、Node SDK、当前权限、SQLite writer、三 voter Raft、RocksDB 和可选 S3 归档。它为一个静态 cell 服务最多 32 个配置数据库，支持在预注册可信 peer 池内通过 learner 追赶与 joint consensus 替换 voter，当前仍有明确容量边界，不提供生产 SLO 承诺。
 
 ## 启动
 
@@ -12,7 +12,7 @@ npm --prefix sdk/node ci --ignore-scripts
 npm --prefix sdk/node run build
 ```
 
-每个节点使用不同的私有 data_dir、node ID、peer 地址、HTTP 地址与证书私钥。三个节点的 cluster/cell 身份、静态 membership、数据库与令牌配置一致。完整可解析 JSON、临时证书生成和三个节点的配置方式见[工程说明](../../docs/engineering/sqlite-service.md)。
+每个节点使用不同的私有 data_dir、node ID、peer 地址、HTTP 地址与证书私钥。所有节点的 cluster/cell 身份、bootstrap voters、可信 peer 池、数据库与令牌配置一致。完整基础 JSON、临时证书生成和节点配置方式见[工程说明](../../docs/engineering/sqlite-service.md)。
 
 新部署明确 Initialize；目标 data_dir 必须尚不存在：
 
@@ -26,7 +26,57 @@ npm --prefix sdk/node run build
 ./target/release/scap-server /absolute/path/node-1.json
 ```
 
-CLI 只接受上述两种形式。OpenExisting 拒绝缺失、损坏或身份不匹配的数据，不创建同名空库。启动先取得 RocksDB 独占锁，再检查 disposable writer namespace。Peer mTLS 同时校验 CA、作用域 DNS 身份和配置中的 leaf DER pin；本机 HTTP 可监听 loopback，非 loopback 地址需要明确的外部 TLS 代理配置。
+首次加入的非 bootstrap 节点使用明确的 Join；目标目录也必须不存在：
+
+```bash
+./target/release/scap-server --join /absolute/path/node-4.json
+```
+
+Join 还必须提供 `SCAP_JOIN_MANAGEMENT_URL`（健康 leader 的 loopback 管理 URL，可经 SSH 转发）和 `SCAP_MANAGEMENT_TOKEN`。启动会先进行新的 Safe ReadIndex 管理 GET，校验 cluster/cell/incarnation、规范化的原 bootstrap voters 和完整确定性 genesis 摘要，并要求新 node ID 严格大于当前全部 voters、learners、outgoing 与 next learners 的最大 ID；存在未应用配置变更时拒绝加入。genesis 摘要与初始化复用同一构造函数，包含原始 administrator、状态限额、term/index 1/1、三 voter 配置和完整初始应用字节。URL 仅接受字面 loopback HTTP，没有代理、重定向、userinfo、query 或 fragment。这个授权只有原 5 秒启动预算内有效，不接受离线授权文件。远端或输入预检失败不会创建 data_dir 或打开服务端口；预检成功后，在建目录前、打开监听前和开始服务前仍复核原截止时间。后续阶段失败会保留已创建的目录供诊断，不能通过换新目录复用旧 ID 再次 Join。
+
+正常顺序是先成功 Join，再由现有 leader 执行 add learner。曾经使用的节点丢盘不能换一个空目录后重新 Join 同 ID；必须使用新的单调 ID。已有合法数据的原节点仍按 OpenExisting 重开。该协议依赖受控运维和节点凭据，不能宣称防止恶意克隆相同身份与私钥的部署。
+
+Initialize 只允许本机 ID 属于三个 bootstrap voters，Join 只允许本机 ID 不属于它们。Join 保存相同的 genesis 和初始三 voter 配置，本机尚无投票权；它不是单节点新集群。重启仍使用 OpenExisting，采用磁盘上的实际 ConfState，绝不把配置中的 bootstrap voters 重新写回。OpenExisting 同时解码绑定 durable application，校验不可变的 bootstrap administrator 与配置一致；拒绝缺失、损坏或身份不匹配的数据，不创建同名空库。原 bootstrap voters 仍是必须保留的可信部署输入，不能在替换成员后把它改成当前 voters；本轮没有另加可独立证明历史 genesis 的磁盘字段。启动先取得 RocksDB 独占锁，再检查 disposable writer namespace。Peer mTLS 同时校验 CA、作用域 DNS 身份和配置中的 leaf DER pin；本机 HTTP 可监听 loopback，非 loopback 地址需要明确的外部 TLS 代理配置。
+
+## 受限成员管理
+
+`peers` 是 3–16 个预注册通信身份，不等于当前 voters。可选 `bootstrap_voters` 必须是其中恰好三个不同 ID。旧的三 peer 配置省略该字段时沿用这三个 ID；更大的池必须显式填写。三个 peer 且管理缺省/关闭时仍使用原固定成员通信策略。启用管理或显式扩大可信池才允许配置条目；是否有投票权仍由已应用的 ConfState 判定。
+
+变更前必须把候选节点的 ID、endpoint 与证书 pin 部署到所有继续服务及参与追赶的节点。只在 leader 增加配置不够。可信池在进程生命期内固定；移除 voter 不自动撤销其通信证书，也不从池中删掉历史配置可能引用的 ID。需要撤销通信时另行撤销 pin，不能把更改目录误当成成员变更完成。
+
+管理通过独立 loopback listener 开启；`management` 缺省或 `false` 表示关闭。配置对象包含 `listen`（例如 `127.0.0.1:9091`）与 `token_sha256`（64 位十六进制 SHA-256）。管理 token 必须独立于全部租户 token，禁止零摘要或复用租户摘要；租户拥有数据库 ADMIN 也不能使用此入口。它没有公共 SQL listener 上的管理路由。
+
+`GET /v1/admin/membership` 使用 Safe ReadIndex，返回 `scope`（cluster_id、cell_id、cell_incarnation、bootstrap_voters、genesis_sha256）和 `membership`，其中 `conf_state` 包含 `voters`、`learners`、`voters_outgoing`、`learners_next`、`auto_leave`。同时返回 term、applied、commit、snapshot_index、leader_id、pending_conf_index 和每节点 matched/is_learner 进度。
+
+`POST /v1/admin/membership` 接收以下形状。每次都应把新鲜 GET 返回的完整 `conf_state` 原样放入 `expected_conf_state`：
+
+```json
+{
+  "action": "add_learner",
+  "node_id": 4,
+  "expected_conf_state": {
+    "voters": [1, 2, 3],
+    "learners": [],
+    "voters_outgoing": [],
+    "learners_next": [],
+    "auto_leave": false
+  },
+  "deadline_ms": 5000
+}
+```
+
+先 `add_learner`，待其追赶后再提交 `replace_voter`（`node_id` 为 learner，`remove_id` 为被替换 voter），最后以当前 joint 配置提交 `leave_joint`（不携带 `node_id` 或 `remove_id`）。请求与完整 ConfState 都拒绝未知字段。运行时拒绝未追赶的晋升、CAS 不符和并发未完成变更。只有精确的本次配置条目已持久应用，才返回 `outcome: "applied"`；排队或成功发送不算完成。超时和结果不确定返回 `MEMBERSHIP_UNKNOWN`，必须 GET 核对当前权威配置，不自动重发 POST。deadline 缺省 5000 ms，允许 1–30000 ms；读取 body、排队、共识等待共用原截止时间。
+
+`GET /v1/admin/status` 使用同一独立管理 token，返回 `{authoritative:false,node_id,status:{role,term,leader_id,commit,applied,snapshot_index,is_voter}}`。它仅是本节点观测，用于验证 learner 安装快照和移除后的本地状态，不能替代强读配置或证明变更完成。`role` 为小写字符串；上游 Raft 的被移除 leader 可能短暂保留 role 名称，`is_voter=false` 时服务仍拒绝 SQL leadership。
+
+所有管理请求使用 `Authorization: Bearer ...`。CLI 从 `SCAP_MANAGEMENT_TOKEN` 环境变量读取秘密，不接受命令行 token，不使用环境代理、不跟随重定向，也不自动重试：
+
+```bash
+./target/release/scap-server --membership /absolute/path/node-1.json
+./target/release/scap-server --membership /absolute/path/node-1.json /absolute/path/change.json
+```
+
+CLI 输出完整 JSON；非成功 HTTP、超时或不确定结果都以非零状态退出。管理最多 4 个在途调用，body 上限 16 KiB，CLI 响应上限 64 KiB。关闭服务同时停止管理 listener 并 drain 请求；本轮没有远程公共管理入口、自动成员重建或自动缩容。
 
 ## 应用入口
 
@@ -39,14 +89,15 @@ CLI 只接受上述两种形式。OpenExisting 拒绝缺失、损坏或身份不
 | 文件 | 职责 |
 | --- | --- |
 | `config.rs` / `auth.rs` | 显式静态作用域、限额、token digest 与 principal 映射 |
-| `cli.rs` / `node.rs` | Initialize/OpenExisting、启动装配、mTLS/HTTP、信号和完整资源监督 |
+| `cli.rs` / `node.rs` | Initialize/Join/OpenExisting、启动装配、mTLS/HTTP、信号和完整资源监督 |
+| `management.rs` / `management_cli.rs` | 独立管理鉴权、强读配置、本地进度、CAS 变更、原 deadline 和显式 CLI |
 | `mailbox.rs` / `listener.rs` | 全局及每库有界 SQL 准入、请求字节计量、原 deadline 与连接生命周期 |
 | `lanes.rs` | 按需创建每库串行执行线程、固定 lane 预算、排队与退休同步、取消和 join |
 | `worker.rs` / `local.rs` | 目录轮询、每库 leader owner 恢复、当前状态、SQL 执行、休眠、正式 checkpoint |
 | `cache.rs` | 新 writer 目录生命周期与关闭后清理；旧缓存不充当权威 |
 | `archive.rs` / `archive_jobs.rs` | 显式 S3 配置、有界后台归档、前景 hydrate、完成通知和线程回收 |
 
-只有当前 Raft leader 恢复 SQL owner；term 改变立即退休旧 writers。恢复依次 Claim、校验物理历史、新目录构造、Activate 和最终确认。正常超时选举使用 PreVote/check_quorum；独立强读使用 Safe ReadIndex，不采用 lease read。
+只有当前有投票权的 Raft leader 恢复 SQL owner；term 改变或本节点不再是 voter 时退休旧 writers。learner 和已移除节点不能宣告 SQL leadership；readiness 的目录轮询也必须满足这一条件。恢复依次 Claim、校验物理历史、新目录构造、Activate 和最终确认。正常超时选举使用 PreVote/check_quorum；独立强读使用 Safe ReadIndex，不采用 lease read。
 
 SQL dispatcher 将请求交给按需创建的每库串行 lane；SQLite connection 在所属 lane 线程内创建、使用和关闭。不同库可分别执行 SQL 或等待前景 hydrate，同库仍按队列顺序执行。最多 32 个活动或退出中的 lane；休眠库关闭 writer 且队列为空后退出，冷库不保留专用 SQL 线程。退休与入队使用同一锁，旧线程 join 完成前不创建替代 writer；再次启动使用新的 boot/worker 身份并重新取得 owner 权限。
 
@@ -62,7 +113,7 @@ S3 归档采用 `Suspend → upload/verify → Publish → Prune`，唤醒为当
 
 ## 当前边界
 
-- 一个 cell、三个静态 voter、最多 32 个库；不提供动态成员、迁移或多 cell 路由。
+- 一个 cell、bootstrap 恰好三个 voter、最多 32 个库；成员替换限于 3–16 个预注册 peer，不能动态信任陌生证书，也不提供迁移或多 cell 路由。
 - 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库最多 128 条 accepted/cancel 记录，cell 最多 4096 条管理记录。
 - Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；强读与恢复仍核验保留的完整物理历史；不能由此推断大库吞吐或延迟。
 - 按库 lazy lane 隔离 SQL 与前景 hydrate；全局线程/准入预算固定，尚无加权公平调度、独立恢复容量预留或跨库性能保证。

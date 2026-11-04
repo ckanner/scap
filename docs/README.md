@@ -24,7 +24,8 @@
 - [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
 - [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
 - [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：平台执行、RPC、健康检查和 sqld 依赖设计；peer 网络的当前实现见下一项。
-- [raft-network-runtime.md](engineering/raft-network-runtime.md)：正式 wire/mTLS/runtime、固定成员与撤销复核、RAII 配额、Safe ReadIndex、停止和真实网络证据边界。
+- [raft-network-runtime.md](engineering/raft-network-runtime.md)：正式 wire/mTLS/runtime、固定与动态成员、撤销复核、RAII 配额、Safe ReadIndex、停止和真实网络证据边界。
+- [membership-operations.md](engineering/membership-operations.md)：受控 Join、learner 追赶、joint 副本替换、管理鉴权和 UNKNOWN 查证。
 - [durable-store.md](engineering/durable-store.md)：正式持久存储策略、磁盘格式、失败后停止、应用与 checkpoint，以及真实契约测试边界。
 - [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
 - [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
@@ -37,6 +38,7 @@
 - [ADR 索引](adr/README.md)。
 - [ADR-0007](adr/0007-tikv-stack-and-rpc-boundaries.md)：参考 TiKV 技术栈，明确采用方向与运行/RPC 边界。
 - [ADR-0012](adr/0012-bounded-raft-network-runtime.md)：正式单 cell 网络运行时、逐次 mTLS、有限资源与回执语义。
+- [ADR-0016](adr/0016-durable-membership-replacement.md)：保持三个 voter 的持久成员变更与故障副本替换。
 - [开源组件调查](research/components.md)。
 - [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
 - [TiKV Rust 技术栈审计](research/tikv-rust-stack.md)：固定发布源码、实际调用路径与锁文件；区分直接候选、借鉴设计和暂不引入。
@@ -50,6 +52,8 @@
 
 - [正式 SQLite adapter 实验](../experiments/sqlite-engine/README.md)：正式模块与真实 cell 的提交、分区、幂等、快照和进程退出恢复合同。
 - [真实 mTLS 网络实验](../experiments/raft-network/README.md)：八项正式网络/runtime 三进程合同；含分区、重启、snapshot、pin 撤销与非持久回执，不执行 SQLite SQL。
+- [真实成员替换实验](../experiments/membership-network/README.md)：四 daemon 的快照追赶、joint 重启、新 voter 的 ACK 恢复与少数派 UNKNOWN。
+- [2026-11-04 成员替换完整本地证据](evidence/membership-local-2026-11-04.json)：精确单元计数、构建身份、实际故障结果与原始收据哈希。
 
 ## 文档解释规则
 
@@ -60,4 +64,4 @@
 5. 修改协议时，同时检查 API、故障矩阵、验证计划和相关 ADR。
 6. 实验锁定的依赖与结果只适用于所测范围；平台与 sqld 的 fork、模块提取或独立进程边界仍须通过 G0 验证。
 
-最新实现：[正式 SQLite 服务、自动接管与冷生命周期](engineering/sqlite-service.md)、[服务配置与运行](../crates/scap-server/README.md)、[Node SDK](../sdk/node/README.md)，以及 [ADR-0014](adr/0014-sqlite-service-and-cold-lifecycle.md)。它们更新此前 ADR-0013 的“服务/SDK/S3 尚待实现”状态；生产规模与 SLO 仍未验收。
+最新实现：[正式 SQLite 服务、自动接管与冷生命周期](engineering/sqlite-service.md)、[服务配置与运行](../crates/scap-server/README.md)、[Node SDK](../sdk/node/README.md)，以及 [ADR-0014](adr/0014-sqlite-service-and-cold-lifecycle.md)、[ADR-0015](adr/0015-incremental-blocks-and-isolated-execution.md)和 [ADR-0016](adr/0016-durable-membership-replacement.md)。后续 ADR 分别补齐增量持久块、按库执行隔离与受控副本替换；早期阶段的未实现说明不覆盖这些后续结果，生产规模与 SLO 仍未验收。

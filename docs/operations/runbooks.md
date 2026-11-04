@@ -1,6 +1,6 @@
 # 运维手册
 
-> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。2026-11-02 已实现三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果与状态查询、leader owner 恢复、idle Suspend 和有界 S3 归档/冷唤醒。通用管理 API/控制台、成员替换、PITR/DR 和 GC 仍为 planned；下文已标明边界，不能把计划动作名称当作 CLI。实际故障记录见 [服务实验](../../experiments/service-network/README.md)。
+> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。已有三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果查询、leader owner 恢复和有界 S3 冷生命周期；本轮受控 Join/成员替换的验收状态见 [ADR-0016](../adr/0016-durable-membership-replacement.md)。通用控制台、自动坏盘运维、PITR/DR 和 GC 仍为 planned。实际故障记录见 [服务实验](../../experiments/service-network/README.md)与 [成员实验](../../experiments/membership-network/README.md)。
 
 ## 1. 使用规则
 
@@ -26,7 +26,7 @@
 | Suspend / 释放 worker | 已实现 idle 维护 | owner/head 匹配且 Suspend 已接受才释放；不等待 S3，writer 关闭且队列为空后 lane 退出 |
 | Cold / 物理历史卸载 | 已实现有界 Publish/Prune | 保留 receipt/result/fence；共享日志另经全 cell Checkpoint，所有对象不删除 |
 | 归档检查 / 重试 | 已实现精确对象校验与后台有限退避 | status 可见冷状态/归档 revision；没有通用任务查询或人工重传 API |
-| 副本重建 / 成员替换 | planned | 必须经过安全成员变更及追赶；坏目录不能自行 Initialize |
+| 副本加入 / 成员替换 | 已有受控 CLI 和独立 loopback 管理 API | 新 ID/新目录 Join，完整 genesis 核对、learner 追赶、joint 替换；精确持久完成才成功；自动坏盘发现和采购未实现 |
 | DR checkpoint / S3-only 恢复 | planned | 完整身份、应用位置、来源和引用闭包可独立验证；单库归档不足 |
 | GC、PITR、删除、按库历史切换 | planned | 必须先完成保留/pin、tombstone、新身份与恢复证明 |
 | 滚动升级和能力协商 | planned | v2 写入后不支持旧 binary 降级，当前无混版本协商 |
@@ -81,14 +81,14 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 **触发：** 一个存储副本失联、日志持久化失败，或整个 AZ 中的节点不可用。
 
-**当前边界：** 原目录有效的固定成员可以按 OpenExisting 重开、日志追赶或接收完整 snapshot；动态增加/替换成员没有可执行管理接口。三个本机进程的故障测试不是跨 AZ 故障域认证。无法安全恢复原节点时保持降级，不能编辑 peers 伪装已完成成员变更。
+**当前边界：** 原目录有效的成员按 OpenExisting 重开、日志追赶或接收完整 snapshot；永久损坏副本在仍有健康多数派时，按 [成员操作流程](../engineering/membership-operations.md)使用新身份替换。本机进程测试不是跨 AZ 故障域认证。新身份、证书与故障域放置由 operator 准备，不能编辑 peers 伪装已完成成员变更。
 
 1. 记录 leader、term、三成员位置及 AZ 分布。确认其余两个成员构成健康 quorum；只见到两个 Pod “Running”不足以证明 quorum。
 2. 宣布冗余降级，暂停该 cell 的滚动升级、计划搬迁和其他成员变更。检查剩余两 AZ 容量是否承受 worker 接管和副本 I/O。若发生实际 fsync 失败，确认故障成员已经停止投票及服务，不能只从负载均衡摘除。
 3. 若 leader 丢失，等待正常 Raft 选主；通过线性化健康查询验证新 leader，不手动指定一份旧日志为主。
 4. 对丢失 AZ 内的 worker 按 RB-01 恢复 owner。对仍健康的 owner 避免无意义迁移。
 5. 若故障短暂，优先恢复原成员并追赶；确认其持久身份、日志和成员资格一致。若盘损坏，先保全证据再重建。
-6. 需要更换成员时，通过计划成员变更能力串行执行：准备新副本、追赶、验证持久化和故障域，按实现的 Raft 安全成员变更流程替换。不得把普通配置编辑当作安全成员变更。
+6. 需要更换成员时，先在所有原 voter 部署支持 ADR-0016 的版本并预注册身份，再串行执行新目录 Join、AddLearner、追赶、ReplaceVoter、LeaveJoint。每次使用新鲜完整配置 CAS，未知结果先查询；不得重用旧 ID、降低 quorum 或把普通配置编辑当作成员变更。
 7. 仅在新成员追赶到规定位置、稳定观察期通过、AZ 冗余恢复后，解除维护禁令。
 
 **完成标准：** 三成员有效、AZ 分布合规、已确认事务保留、无异常 tail、写入和强读正常。记录选主和 owner 恢复的实测 RTO，不宣称固定秒数。

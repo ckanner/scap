@@ -5,11 +5,18 @@
 //! Returned messages are handed to a separately bounded transport; transport
 //! receipt is never a durable or business acknowledgement.
 
+mod membership;
+
+pub use membership::{
+    MemberProgress, MembershipChange, MembershipResult, MembershipStatus, MembershipTicket,
+    MAX_MEMBERS, MEMBERSHIP_BYTES,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Display};
 
 use protobuf::Message as ProtobufMessage;
-use raft::eraftpb::{ConfChange, ConfChangeV2, Entry, EntryType, Message, MessageType};
+use raft::eraftpb::{ConfChange, ConfChangeV2, ConfState, Entry, EntryType, Message, MessageType};
 use raft::{RawNode, ReadOnlyOption, SnapshotStatus, StateRole};
 use scap_raft_store::{AtomicBackend, State, Store};
 
@@ -73,6 +80,10 @@ pub enum Error {
     ReadIdExhausted,
     ProposalLimit,
     ProposalIdExhausted,
+    MembershipConflict,
+    MembershipPending,
+    MembershipInvalid(&'static str),
+    LearnerNotCaughtUp,
     /// Detected after work may have become durable: fatal, never an admission
     /// rejection that permits blind replay of an unknown business proposal.
     OutputLimit,
@@ -127,12 +138,16 @@ pub struct Output {
     pub messages: Vec<Message>,
     pub reads: Vec<ReadBarrier>,
     pub proposals: Vec<ProposalResult>,
+    pub memberships: Vec<MembershipResult>,
     pub more_ready: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct Status {
     pub role: StateRole,
+    /// Actual voting eligibility, including either side of a joint quorum.
+    /// A trusted transport identity or a learner is not a voter.
+    pub is_voter: bool,
     pub leader_id: u64,
     /// Current protocol term; durable term is available in `view()`.
     pub term: u64,
@@ -156,7 +171,17 @@ struct PendingProposal {
     result: Option<ProposalResult>,
 }
 
+struct PendingMembership {
+    ticket: MembershipTicket,
+    context: Vec<u8>,
+    data: Vec<u8>,
+    term: u64,
+    target: ConfState,
+    result: Option<MembershipResult>,
+}
+
 const PROPOSAL_CONTEXT: &[u8] = b"SCAPAPPL";
+const MEMBERSHIP_CONTEXT: &[u8] = b"SCAPCONF";
 const PROPOSAL_RESULT_BYTES: usize = 40;
 
 pub struct Driver<B: AtomicBackend, A: Application> {
@@ -169,6 +194,8 @@ pub struct Driver<B: AtomicBackend, A: Application> {
     next_proposal: u64,
     pending_proposals: BTreeMap<u64, PendingProposal>,
     pending_proposal_bytes: usize,
+    next_membership: u64,
+    pending_membership: Option<PendingMembership>,
     stopped: bool,
 }
 
@@ -206,6 +233,8 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
             next_proposal: 1,
             pending_proposals: BTreeMap::new(),
             pending_proposal_bytes: 0,
+            next_membership: 1,
+            pending_membership: None,
             stopped: false,
         })
     }
@@ -224,6 +253,7 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         let snapshot_index = state.snapshot.get_metadata().index;
         Ok(Status {
             role: self.node.raft.state,
+            is_voter: self.node.raft.promotable(),
             leader_id: self.node.raft.leader_id,
             term: self.node.raft.term,
             commit: state.hard_state.commit,
@@ -236,6 +266,120 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         })
     }
 
+    /// A local durable configuration and bounded protocol observations. A
+    /// caller requiring an authoritative read must first finish Safe ReadIndex.
+    pub fn membership_status(&self) -> Result<MembershipStatus, Error> {
+        let status = self.status()?;
+        let conf_state = membership::canonical(&self.durable_view().conf_state)?;
+        if self.node.raft.prs().iter().len() > MAX_MEMBERS {
+            return Err(Error::InputLimit);
+        }
+        let mut progress: Vec<_> = self
+            .node
+            .raft
+            .prs()
+            .iter()
+            .map(|(&node_id, progress)| MemberProgress {
+                node_id,
+                matched: progress.matched,
+                is_learner: conf_state.learners.contains(&node_id),
+            })
+            .collect();
+        progress.sort_unstable_by_key(|peer| peer.node_id);
+        Ok(MembershipStatus {
+            conf_state,
+            term: status.term,
+            applied: status.applied,
+            commit: status.commit,
+            snapshot_index: status.snapshot_index,
+            leader_id: status.leader_id,
+            pending_conf_index: self.node.raft.pending_conf_index,
+            progress,
+        })
+    }
+
+    /// Submit one bounded membership CAS. Success is admission only. The exact
+    /// configuration entry is reported by drain only after atomic durable apply.
+    /// Cancellation removes the waiter, never the proposed Raft transition.
+    pub fn change_membership(
+        &mut self,
+        expected: &ConfState,
+        change: MembershipChange,
+    ) -> Result<MembershipTicket, Error> {
+        self.ensure_leader()?;
+        if self.node.raft.has_pending_conf() || self.pending_membership.is_some() {
+            return Err(Error::MembershipPending);
+        }
+        let target = membership::target(
+            &self.durable_view().conf_state,
+            expected,
+            change,
+            self.node.raft.id,
+        )?;
+        if let MembershipChange::ReplaceVoter { learner_id, .. } = change {
+            let caught_up = self
+                .node
+                .raft
+                .prs()
+                .get(learner_id)
+                .is_some_and(|progress| progress.matched >= self.node.raft.raft_log.committed);
+            if !caught_up {
+                return Err(Error::LearnerNotCaughtUp);
+            }
+        }
+        let next = self
+            .next_membership
+            .checked_add(1)
+            .ok_or(Error::ProposalIdExhausted)?;
+        let ticket = MembershipTicket {
+            boot_id: self.config.boot_id,
+            sequence: self.next_membership,
+        };
+        let mut context = self.context_prefix.clone();
+        context[..MEMBERSHIP_CONTEXT.len()].copy_from_slice(MEMBERSHIP_CONTEXT);
+        context.extend_from_slice(&ticket.sequence.to_be_bytes());
+        let change = change.to_conf_change();
+        // This constructor emits at most two initialized protobuf records and
+        // no caller-controlled opaque fields. Encoding into Vec cannot fail.
+        let data = change
+            .write_to_bytes()
+            .expect("bounded membership action has a valid protobuf encoding");
+        if context.len().saturating_add(data.len()) > self.config.max_input_bytes
+            || self.config.max_output_bytes < MEMBERSHIP_BYTES
+        {
+            return Err(Error::InputLimit);
+        }
+        self.next_membership = next;
+        self.stopped = true;
+        if let Err(error) = self.node.propose_conf_change(context.clone(), change) {
+            self.stopped = error != raft::Error::ProposalDropped;
+            return Err(Error::Raft(error));
+        }
+        self.pending_membership = Some(PendingMembership {
+            ticket,
+            context,
+            data,
+            term: self.node.raft.term,
+            target,
+            result: None,
+        });
+        self.stopped = false;
+        Ok(ticket)
+    }
+
+    pub fn cancel_membership(&mut self, ticket: MembershipTicket) -> Result<bool, Error> {
+        self.ensure_running()?;
+        if self
+            .pending_membership
+            .as_ref()
+            .is_some_and(|pending| pending.ticket == ticket)
+        {
+            self.pending_membership = None;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     pub fn tick(&mut self) -> Result<(), Error> {
         self.ensure_input()?;
         self.stopped = true;
@@ -246,6 +390,9 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
 
     pub fn campaign(&mut self) -> Result<(), Error> {
         self.ensure_input()?;
+        if !self.node.raft.promotable() {
+            return Err(Error::NotLeader);
+        }
         self.stopped = true;
         let result = self.node.campaign().map_err(Error::Raft);
         self.stopped = result.is_err();
@@ -479,6 +626,7 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
             let commit = light.commit_index().unwrap_or(current.hard_state.commit);
             let previous = current.application.clone();
             let mut conf = current.conf_state.clone();
+            let mut membership = None;
             for entry in &committed {
                 match entry.get_entry_type() {
                     EntryType::EntryNormal => {}
@@ -493,6 +641,7 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
                             .map_err(raft::Error::from)
                             .map_err(Error::Raft)?;
                         conf = self.node.apply_conf_change(&change).map_err(Error::Raft)?;
+                        membership = self.match_membership(entry, &conf).or(membership);
                     }
                 }
             }
@@ -539,6 +688,27 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
                 .map_err(Error::Store)?;
             let applied = self.durable_view().applied;
             self.node.advance_apply_to(applied);
+            // The pinned Raft core updates promotable but leaves a removed
+            // leader's role unchanged. Step down only after durable ConfState
+            // publication; otherwise stale heartbeats could suppress elections.
+            if self.node.raft.state == StateRole::Leader && !self.node.raft.promotable() {
+                self.node.raft.become_follower(self.node.raft.term, 0);
+                messages.retain(|message| {
+                    !matches!(
+                        message.get_msg_type(),
+                        MessageType::MsgAppend
+                            | MessageType::MsgHeartbeat
+                            | MessageType::MsgSnapshot
+                    )
+                });
+                bytes = message_bytes(&messages);
+            }
+            if let Some(result) = membership {
+                self.pending_membership
+                    .as_mut()
+                    .expect("matched live membership")
+                    .result = Some(result);
+            }
             for ((sequence, index, term), data) in matched.into_iter().zip(application.results) {
                 self.pending_proposals
                     .get_mut(&sequence)
@@ -611,14 +781,26 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
             self.pending_proposal_bytes -= pending.reserved_bytes;
             proposals.push(pending.result.expect("completed application result"));
         }
+        let mut memberships = Vec::new();
+        if self.has_completed_membership()
+            && bytes.saturating_add(MEMBERSHIP_BYTES) <= self.config.max_output_bytes
+        {
+            let pending = self
+                .pending_membership
+                .take()
+                .expect("completed membership");
+            memberships.push(pending.result.expect("completed membership result"));
+        }
         let more_ready = self.node.has_ready()
             || self.has_completed_read(applied)
-            || self.has_completed_proposal();
+            || self.has_completed_proposal()
+            || self.has_completed_membership();
         self.stopped = false;
         Ok(Output {
             messages,
             reads,
             proposals,
+            memberships,
             more_ready,
         })
     }
@@ -646,6 +828,7 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         if self.node.has_ready()
             || self.has_completed_read(self.durable_view().applied)
             || self.has_completed_proposal()
+            || self.has_completed_membership()
         {
             return Err(Error::NeedsDrain);
         }
@@ -654,7 +837,7 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
 
     fn ensure_leader(&self) -> Result<(), Error> {
         self.ensure_input()?;
-        if self.node.raft.state != StateRole::Leader {
+        if self.node.raft.state != StateRole::Leader || !self.node.raft.promotable() {
             return Err(Error::NotLeader);
         }
         Ok(())
@@ -670,6 +853,32 @@ impl<B: AtomicBackend, A: Application> Driver<B, A> {
         self.pending_proposals
             .values()
             .any(|pending| pending.result.is_some())
+    }
+
+    fn has_completed_membership(&self) -> bool {
+        self.pending_membership
+            .as_ref()
+            .is_some_and(|pending| pending.result.is_some())
+    }
+
+    fn match_membership(&self, entry: &Entry, conf: &ConfState) -> Option<MembershipResult> {
+        let pending = self.pending_membership.as_ref()?;
+        let conf = membership::canonical(conf).ok()?;
+        if pending.result.is_none()
+            && pending.term == entry.term
+            && pending.context == entry.context
+            && pending.data == entry.data
+            && pending.target == conf
+        {
+            Some(MembershipResult {
+                ticket: pending.ticket,
+                index: entry.index,
+                term: entry.term,
+                conf_state: conf,
+            })
+        } else {
+            None
+        }
     }
 
     fn match_proposal(&self, entry: &Entry) -> Option<u64> {

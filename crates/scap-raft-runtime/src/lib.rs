@@ -16,9 +16,12 @@ use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use parking_lot::{Condvar, Mutex};
 use protobuf::Message as ProtobufMessage;
-use raft::eraftpb::MessageType;
+use raft::eraftpb::{ConfState, MessageType};
 use raft::SnapshotStatus;
-use scap_raft_driver::{ProposalResult, ProposalTicket, ReadBarrier, ReadTicket, Status};
+use scap_raft_driver::{
+    MembershipChange, MembershipResult, MembershipStatus, MembershipTicket, ProposalResult,
+    ProposalTicket, ReadBarrier, ReadTicket, Status, MAX_MEMBERS, MEMBERSHIP_BYTES,
+};
 use scap_raft_store::Identity;
 use scap_raft_transport::{AdmissionError, Ingress};
 use scap_raft_wire::{
@@ -37,6 +40,9 @@ pub enum Error {
     Unknown,
     NotLeader,
     ReadNotReady,
+    MembershipConflict,
+    MembershipPending,
+    LearnerNotCaughtUp,
     InputLimit,
     Clock,
     Driver(String),
@@ -123,6 +129,14 @@ pub enum Input {
         data: Vec<u8>,
     },
     Read,
+    /// A fresh Safe ReadIndex followed by the durable full ConfState.
+    Membership,
+    /// One exact configuration CAS. Success means durable application, not
+    /// proposal admission; timeout/cancellation leaves the outcome unknown.
+    ChangeMembership {
+        expected: ConfState,
+        change: MembershipChange,
+    },
     Status,
     Checkpoint,
 }
@@ -141,6 +155,8 @@ pub enum Answer {
     Admitted,
     Applied(ProposalResult),
     Read(ReadView),
+    Membership(MembershipStatus),
+    MembershipChanged(MembershipStatus),
     Status(Status),
     Checkpointed,
 }
@@ -312,6 +328,8 @@ impl Handle {
                 .saturating_add(self.mailbox.config.max_result_bytes)
                 .saturating_add(256),
             Input::Read => self.mailbox.config.max_view_bytes.saturating_add(256),
+            Input::Membership => MEMBERSHIP_BYTES + 256,
+            Input::ChangeMembership { expected, .. } => membership_request_bytes(expected)?,
             _ => 256,
         };
         let mut shared = self.mailbox.state.lock();
@@ -503,6 +521,11 @@ struct ProposalRequest {
     request: Request,
 }
 
+struct MembershipRequest {
+    ticket: MembershipTicket,
+    request: Request,
+}
+
 pub struct Runtime<D: RaftDriver> {
     driver: D,
     handle: Handle,
@@ -515,6 +538,7 @@ pub struct Runtime<D: RaftDriver> {
     latest_snapshot: BTreeMap<u64, (u64, u64)>,
     reads: BTreeMap<u64, ReadRequest>,
     proposals: BTreeMap<u64, ProposalRequest>,
+    membership: Option<MembershipRequest>,
     prefer_request: bool,
     stopped: bool,
 }
@@ -580,6 +604,7 @@ impl<D: RaftDriver> Runtime<D> {
                 latest_snapshot: BTreeMap::new(),
                 reads: BTreeMap::new(),
                 proposals: BTreeMap::new(),
+                membership: None,
                 prefer_request: false,
                 stopped: false,
             },
@@ -659,8 +684,12 @@ impl<D: RaftDriver> Runtime<D> {
                     let _ = pending.request.reply.try_send(answer);
                 }
             }
+            for result in output.memberships {
+                self.complete_membership(result, now.instant)?;
+            }
             self.cancel_reads(now.instant)?;
             self.cancel_proposals(now.instant)?;
+            self.cancel_membership(now.instant)?;
             if output.more_ready {
                 work += 1;
                 continue;
@@ -754,7 +783,35 @@ impl<D: RaftDriver> Runtime<D> {
             }
             Input::Status => self.driver.status().map(Answer::Status),
             Input::Checkpoint => self.driver.checkpoint().map(|()| Answer::Checkpointed),
-            Input::Read => {
+            Input::ChangeMembership { expected, change } => {
+                if self.membership.is_some() {
+                    let _ = request.reply.try_send(Err(Error::MembershipPending));
+                    return Ok(true);
+                }
+                let encoded = change
+                    .to_conf_change()
+                    .write_to_bytes()
+                    .expect("bounded membership action has a valid protobuf encoding");
+                let authorized = self
+                    .handle
+                    .mailbox
+                    .state
+                    .lock()
+                    .policy
+                    .decode_membership_change(&encoded);
+                if let Err(error) = authorized {
+                    let _ = request.reply.try_send(Err(Error::Wire(error)));
+                    return Ok(true);
+                }
+                match self.driver.change_membership(expected, *change) {
+                    Ok(ticket) => {
+                        self.membership = Some(MembershipRequest { ticket, request });
+                        return Ok(true);
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            Input::Read | Input::Membership => {
                 if self.reads.len() >= self.config.max_pending_reads {
                     let _ = request.reply.try_send(Err(Error::Full));
                     return Ok(true);
@@ -788,6 +845,13 @@ impl<D: RaftDriver> Runtime<D> {
     ) -> Result<Answer, Error> {
         if pending.request.cancelled.load(Ordering::Acquire) || now >= pending.request.deadline {
             return Err(Error::Unknown);
+        }
+        if matches!(pending.request.input, Input::Membership) {
+            return self
+                .driver
+                .membership_status()
+                .map(Answer::Membership)
+                .map_err(driver_error);
         }
         let state = self.driver.view().map_err(driver_error)?;
         if state.application.len() > self.config.max_view_bytes {
@@ -842,6 +906,54 @@ impl<D: RaftDriver> Runtime<D> {
             let pending = self.proposals.remove(&id).expect("collected live proposal");
             self.driver
                 .cancel_proposal(pending.ticket)
+                .map_err(driver_error)?;
+            let _ = pending.request.reply.try_send(Err(Error::Unknown));
+        }
+        Ok(())
+    }
+
+    fn complete_membership(&mut self, result: MembershipResult, now: Instant) -> Result<(), Error> {
+        if !self
+            .membership
+            .as_ref()
+            .is_some_and(|pending| pending.ticket == result.ticket)
+        {
+            return Ok(());
+        }
+        let pending = self.membership.take().expect("matched live membership");
+        let answer = if pending.request.cancelled.load(Ordering::Acquire)
+            || now >= pending.request.deadline
+        {
+            Err(Error::Unknown)
+        } else {
+            self.driver
+                .membership_status()
+                .map_err(driver_error)
+                .and_then(|status| {
+                    if status.applied < result.index || status.conf_state != result.conf_state {
+                        Err(Error::Unknown)
+                    } else {
+                        Ok(Answer::MembershipChanged(status))
+                    }
+                })
+        };
+        if self.driver.is_stopped() {
+            let error = answer.unwrap_err();
+            let _ = pending.request.reply.try_send(Err(error.clone()));
+            return Err(error);
+        }
+        let _ = pending.request.reply.try_send(answer);
+        Ok(())
+    }
+
+    fn cancel_membership(&mut self, now: Instant) -> Result<(), Error> {
+        let expired = self.membership.as_ref().is_some_and(|pending| {
+            pending.request.cancelled.load(Ordering::Acquire) || now >= pending.request.deadline
+        });
+        if expired {
+            let pending = self.membership.take().expect("expired live membership");
+            self.driver
+                .cancel_membership(pending.ticket)
                 .map_err(driver_error)?;
             let _ = pending.request.reply.try_send(Err(Error::Unknown));
         }
@@ -1026,6 +1138,9 @@ impl<D: RaftDriver> Runtime<D> {
         for (_, pending) in std::mem::take(&mut self.proposals) {
             let _ = pending.request.reply.try_send(Err(Error::Unknown));
         }
+        if let Some(pending) = self.membership.take() {
+            let _ = pending.request.reply.try_send(Err(Error::Unknown));
+        }
     }
 }
 
@@ -1040,6 +1155,10 @@ fn driver_error(error: scap_raft_driver::Error) -> Error {
     match error {
         scap_raft_driver::Error::NotLeader => Error::NotLeader,
         scap_raft_driver::Error::ReadNotReady => Error::ReadNotReady,
+        scap_raft_driver::Error::MembershipConflict => Error::MembershipConflict,
+        scap_raft_driver::Error::MembershipPending => Error::MembershipPending,
+        scap_raft_driver::Error::LearnerNotCaughtUp => Error::LearnerNotCaughtUp,
+        scap_raft_driver::Error::MembershipInvalid(message) => Error::Invalid(message),
         scap_raft_driver::Error::ProposalLimit => Error::Full,
         scap_raft_driver::Error::InputLimit | scap_raft_driver::Error::ReadLimit => {
             Error::InputLimit
@@ -1053,22 +1172,26 @@ fn codec_error(error: protobuf::ProtobufError) -> Error {
 }
 
 fn validate_members(conf: &raft::eraftpb::ConfState, policy: &Policy) -> Result<(), Error> {
-    if conf
-        .voters
-        .iter()
-        .copied()
-        .collect::<std::collections::BTreeSet<_>>()
-        != *policy.members()
-        || !conf.learners.is_empty()
-        || !conf.voters_outgoing.is_empty()
-        || !conf.learners_next.is_empty()
-        || conf.auto_leave
-    {
-        return Err(Error::Invalid(
-            "runtime requires its fixed bootstrap voters",
-        ));
+    policy.validate_configuration(conf).map_err(Error::Wire)
+}
+
+fn membership_request_bytes(conf: &ConfState) -> Result<usize, Error> {
+    if conf.get_unknown_fields().iter().next().is_some() {
+        return Err(Error::Invalid("unknown membership fields"));
     }
-    Ok(())
+    let mut count = 0;
+    for group in [
+        &conf.voters,
+        &conf.learners,
+        &conf.voters_outgoing,
+        &conf.learners_next,
+    ] {
+        if group.len() > MAX_MEMBERS {
+            return Err(Error::InputLimit);
+        }
+        count += group.len();
+    }
+    Ok(MEMBERSHIP_BYTES + 256 + count * 16)
 }
 
 impl Mailbox {

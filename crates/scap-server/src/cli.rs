@@ -11,6 +11,10 @@ type SignalFuture<'a> = Pin<Box<dyn Future<Output = std::io::Result<()>> + Send 
 type TerminationFuture<'a> = Pin<Box<dyn Future<Output = Option<()>> + Send + 'a>>;
 
 pub fn command(args: impl IntoIterator<Item = OsString>) -> Result<(), ServiceError> {
+    let args: Vec<_> = args.into_iter().take(4).collect();
+    if args.first().is_some_and(|flag| flag == "--membership") {
+        return crate::management_cli::command(&args[1..]);
+    }
     command_with(args, |config, mode| {
         execute(
             config,
@@ -71,9 +75,10 @@ fn arguments(args: &[OsString]) -> Result<(StartMode, &OsString), ServiceError> 
     let (mode, path) = match args {
         [path] => (StartMode::OpenExisting, path),
         [flag, path] if flag == "--initialize" => (StartMode::Initialize, path),
+        [flag, path] if flag == "--join" => (StartMode::Join, path),
         _ => {
             return Err(failure(
-                "USAGE: scap-server [--initialize] /absolute/config.json",
+                "USAGE: scap-server [--initialize|--join] /absolute/config.json",
             ))
         }
     };

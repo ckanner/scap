@@ -269,6 +269,9 @@ pub fn maybe_run() -> bool {
                 match answer {
                     Ok(Answer::Admitted) => emit(sequence, "admitted", "-"),
                     Ok(Answer::Applied(outcome)) => emit(sequence, "applied", &hex(&outcome.data)),
+                    Ok(Answer::Membership(_) | Answer::MembershipChanged(_)) => {
+                        panic!("fixed-membership fixture received a membership result")
+                    }
                     Ok(Answer::Checkpointed) => emit(sequence, "checkpoint", "-"),
                     Ok(Answer::Status(status)) => {
                         emit(

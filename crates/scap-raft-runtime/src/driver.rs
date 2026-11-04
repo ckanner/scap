@@ -2,9 +2,12 @@
 //! internals. The production adapter delegates every operation to the durable
 //! driver; tests can fail one operation without replacing Raft or persistence.
 
-use raft::eraftpb::Message;
+use raft::eraftpb::{ConfState, Message};
 use raft::SnapshotStatus;
-use scap_raft_driver::{Application, Driver, Error, Output, ProposalTicket, ReadTicket, Status};
+use scap_raft_driver::{
+    Application, Driver, Error, MembershipChange, MembershipStatus, MembershipTicket, Output,
+    ProposalTicket, ReadTicket, Status,
+};
 use scap_raft_store::{AtomicBackend, State};
 
 /// A fatal operation returns an error and leaves `is_stopped()` true. Once
@@ -14,6 +17,13 @@ pub trait RaftDriver {
     fn is_stopped(&self) -> bool;
     fn view(&self) -> Result<&State, Error>;
     fn status(&self) -> Result<Status, Error>;
+    fn membership_status(&self) -> Result<MembershipStatus, Error>;
+    fn change_membership(
+        &mut self,
+        expected: &ConfState,
+        change: MembershipChange,
+    ) -> Result<MembershipTicket, Error>;
+    fn cancel_membership(&mut self, ticket: MembershipTicket) -> Result<bool, Error>;
     fn drain(&mut self) -> Result<Output, Error>;
     fn tick(&mut self) -> Result<(), Error>;
     fn step(&mut self, message: Message) -> Result<(), Error>;
@@ -40,6 +50,19 @@ impl<B: AtomicBackend, A: Application> RaftDriver for Driver<B, A> {
     }
     fn status(&self) -> Result<Status, Error> {
         self.status()
+    }
+    fn membership_status(&self) -> Result<MembershipStatus, Error> {
+        self.membership_status()
+    }
+    fn change_membership(
+        &mut self,
+        expected: &ConfState,
+        change: MembershipChange,
+    ) -> Result<MembershipTicket, Error> {
+        self.change_membership(expected, change)
+    }
+    fn cancel_membership(&mut self, ticket: MembershipTicket) -> Result<bool, Error> {
+        self.cancel_membership(ticket)
     }
     fn drain(&mut self) -> Result<Output, Error> {
         self.drain()

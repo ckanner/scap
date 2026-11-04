@@ -47,6 +47,13 @@ fn status(answer: Result<Answer, Error>) -> Result<Status, ServiceError> {
     }
 }
 
+fn leadership(status: Status) -> (bool, u64) {
+    (
+        status.role == raft::StateRole::Leader && status.is_voter,
+        status.term,
+    )
+}
+
 /// Checkpoint policy and reply validation are independent of thread scheduling.
 /// A failed checkpoint must reach supervision rather than silently retaining an
 /// ever-growing log after archive completion.
@@ -68,7 +75,7 @@ fn maintain(
 impl ControlPort for LocalPort {
     fn leadership(&self, deadline: Instant) -> Result<(bool, u64), ServiceError> {
         let status = status(self.request(Input::Status, deadline))?;
-        Ok((status.role == raft::StateRole::Leader, status.term))
+        Ok(leadership(status))
     }
     fn maintain(&self, deadline: Instant, force: bool) -> Result<(), ServiceError> {
         maintain(force, |input| self.request(input, deadline))

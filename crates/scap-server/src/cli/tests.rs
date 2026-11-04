@@ -15,6 +15,10 @@ fn explicit_initialization_and_existing_open_are_distinct() {
             vec!["--initialize".into(), file.as_os_str().to_owned()],
             StartMode::Initialize,
         ),
+        (
+            vec!["--join".into(), file.as_os_str().to_owned()],
+            StartMode::Join,
+        ),
     ] {
         command_with(args, |config, mode| {
             assert_eq!(mode, expected);

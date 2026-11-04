@@ -1336,6 +1336,10 @@ fn decode_snapshot(state: &CellState) -> Result<CellState, Error> {
 fn explicit_bootstrap_configuration_and_snapshot_binding() {
     let state = boot();
     assert_eq!(state.position(), GENESIS);
+    assert_eq!(
+        decode_snapshot(&state).unwrap().bootstrap_administrator(),
+        PRINCIPAL
+    );
     assert!(state.last_outcome().is_none());
     assert!(state.database(999).is_none());
     assert_eq!(decode_snapshot(&state).unwrap(), state);

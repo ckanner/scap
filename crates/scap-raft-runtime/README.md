@@ -6,13 +6,13 @@
 
 | 接口 | 职责 |
 | --- | --- |
-| `Runtime::new` | 验证配置、持久身份与固定 voters；返回串行 owner 和可 clone 的 Handle |
+| `Runtime::new` | 验证配置、持久身份与完整 ConfState；按 policy 区分固定 bootstrap 与预注册 trusted peer pool，返回串行 owner 和可 clone 的 Handle |
 | `Runtime::poll / run` | 在专用阻塞线程 drain Ready、tick、处理请求/入站消息/反馈与 Safe ReadIndex |
 | `RaftDriver` | 调度层依赖的窄 port；正式 Driver 完整委托，保留原共识与持久行为 |
-| `Handle::submit` | 本地可信准入 Propose、Read、Status、Checkpoint；返回有取消和绝对 deadline 的 Pending |
+| `Handle::submit` | 本地可信准入 Propose、Read、Status、Checkpoint、Membership 和 ChangeMembership；返回有取消和绝对 deadline 的 Pending |
 | `Handle: Ingress` | 从 transport 接收已验证 peer leaf DER，每 RPC 授权并预留有界 inbox |
-| `Handle::replace_bindings` | 原子替换固定成员的 leaf pins、推进 revision；消费前复核旧排队消息 |
-| `NetworkWorkers::start` | 在 Tokio runtime 中为每个固定 peer 建立独立普通/snapshot 发送任务 |
+| `Handle::replace_bindings` | 原子替换 trusted peer pool 的 leaf pins、推进 revision；消费前复核旧排队消息，实际投票资格仍由 Raft 决定 |
+| `NetworkWorkers::start` | 在 Tokio runtime 中为每个预注册 peer 建立独立普通/snapshot 发送任务，未被 Raft 使用的身份不会因此成为成员 |
 | `NetworkSender: Network` | 立即返回准入结果；满、关闭、未知 route 明确失败 |
 | `Handle::stop / NetworkWorkers::shutdown` | 关闭 owner 入口与有界等待网络任务；调用方负责停止 server 和 join owner 线程 |
 
@@ -22,7 +22,7 @@
 
 - `Answer::Admitted` 是本地 proposal 准入，`Received` 是远端认证并入内存队列；二者都不是 durable quorum、业务 Accepted 或 SQL 成功。
 - `ReadView` 绑定当前请求的 boot/sequence、Safe ReadIndex 与 durable applied；它是 application 视图，不是公开 SQLite 结果集或完整 SQL 读授权。
-- runtime 只接受固定 bootstrap voters；endpoint 必须完整覆盖其他 voters。ConfChange、joint/learner snapshot、网络转发 Propose/ReadIndex 和 TransferLeader 在 wire 边界拒绝。
+- `Policy::new` 保留固定 bootstrap 行为；`Policy::with_trusted_peers` 接受由原 bootstrap3 衍生的合法 full ConfState，包含 learner/joint。endpoint 覆盖其他 trusted peers；预注册身份不扩大 actual quorum。网络只允许已认证的 V2 配置复制与合法 snapshot，仍拒绝 legacy V1、网络转发 Propose/ReadIndex 和 TransferLeader。
 - allowlist 撤销在每次 RPC 与队列消费前检查，握手成功不缓存后续授权。policy 本身不持久化，重启时最新可信配置由调用方提供。
 - 每个 peer 的普通/snapshot lane 各缓存至多一个 mTLS channel，超过 `max_connection_age` 时下次使用前淘汰；TLS 链/DNS/时间验证与当前 pin、node/cluster 授权在握手及每 RPC 前后执行。接收端仍在入队与消费前核对当前 policy/revision。失败、取消或超过原始 deadline 均丢弃缓存，不隐式重试该 delivery；后续 Raft 消息可以重新建连。
 - 排队、连接、握手、readiness、认证复核和发送共用原始绝对 deadline；到期或取消不会证明业务未提交，也不触发隐式业务重放。缓存 channel 在 await 前移出，只有成功且未过期的回执才允许放回，shutdown/drop 同时释放缓存。
@@ -31,7 +31,21 @@
 
 没有经过生产容量验证的默认参数。调用方必须显式设置 inbox、请求、pending delivery/read、view、poll rounds、tick、delivery deadline 和 inbound age，并与 driver、wire、transport 限额一起校验。消息计费是保守资源预算，不是进程 RSS 上界。
 
-连接复用的变更理由、安全边界与独立验证要求见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。每节点 `max_connections` 至少容纳 `2 × (voters − 1)` 条稳定 peer lane；这只是启动下界，不包含旧半开连接、连接重建、身份轮换和运维流量需要的余量，不能当作故障恢复容量已验收。
+连接复用的变更理由、安全边界与独立验证要求见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。每节点 `max_connections` 至少容纳 `2 × (trusted peers − 1)` 条稳定 peer lane；这只是启动下界，不包含旧半开连接、连接重建、身份轮换和运维流量需要的余量，不能当作故障恢复容量已验收。
+
+## 有界成员替换
+
+管理入口由装配方独立鉴权。`Input::Membership` 完成当前请求自己的 Safe ReadIndex 后才返回 `Answer::Membership`，包含完整 `ConfState`、term、commit/applied、snapshot index、pending configuration index 及有界 leader replication progress。普通 `Status` 是本机观察，不能替代该 fresh read。
+
+`Input::ChangeMembership { expected, change }` 使用完整 ConfState CAS，集合顺序不影响比较，重复/零 ID、未知 protobuf 字段及超限输入在复制前拒绝。正式 driver 仅支持三步：
+
+1. 稳定三 voters 且无 learner 时添加一个 learner。新 ID 必须严格大于当前最大成员 ID，并已在 trusted pool 注册；因此已移除身份不能经此 API 重新加入。
+2. 唯一 learner 的 `matched >= 当前 commit` 后，使用同一 `ConfChangeV2` 的显式 joint 同时 promote learner、remove 另一 voter。不能在这一步主动移除本 leader，也不提供直接缩为两 voters 的接口。
+3. 显式 `LeaveJoint`。中途换主后，新 leader 即使是 outgoing-only 的待移除 voter，也可以完成合法退出；配置原子落盘后 driver 退为 follower，并撤去本次尚未释放的旧 leader 消息。
+
+每次只有一个有界配置 waiter，等待期间保留原始 request quota 与绝对 deadline。driver 按 boot/sequence context、entry term、完整编码及目标 ConfState 匹配本次配置条目，application、ConfState 和 applied 原子保存成功后才输出 result，runtime 才能返回 `Answer::MembershipChanged`。`UNKNOWN`、取消或超时不撤销 Raft 变更；调用方须对健康 leader 发 fresh membership read，确认当前阶段后使用新的 CAS，不能盲重放。快照可以证明当前配置，但不能虚构已经遗失的本次提交回执。
+
+这些约束及 fresh Join 前检查见 [ADR-0016](../../docs/adr/0016-durable-membership-replacement.md)。运行时不会把未在实际 ConfState 内的注册节点自动加入，也不把损坏数据目录当空盘重建。稳定配置仍为三 voters；本轮不提供任意增减 voter、取消 learner、自动缩 quorum、跨 cell placement 或自动 repair controller。
 
 ## 验证
 

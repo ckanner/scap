@@ -23,17 +23,40 @@ SQL data、context 和 snapshot application bytes 保持 opaque。
 来自请求 header 或用户可构造的身份字段。证书日期采用显式传入的 Unix 秒数，
 不在策略中读取墙钟；有效期两端均包含。
 
-## 授权与固定成员
+## 授权目录与 Raft 成员
 
 `Policy::new` 固定完整 cell 身份、本节点和 bootstrap 成员集合。transport 证书
 allowlist 与 Raft ConfState 分开：仅用落后副本的旧 ConfState 鉴权，会导致其拒绝
-后来加入并当选的合法 leader，无法追赶。本阶段运行时采用固定成员配置，动态
-Raft 成员管理不属于本 crate。
+后来加入并当选的合法 leader，无法追赶。默认构造器继续采用固定成员合同。
 
 持续网络准入同样拒绝两种 ConfChange entry。非空 snapshot 的配置必须精确等于
 固定 voters，不能带重复/未知成员、learner、joint configuration 或 auto-leave。
-已授权消息同时绑定固定成员集摘要，不能在相同 revision、不同成员配置的另一个
-policy 中复用。
+已授权消息同时绑定成员集及模式摘要，不能在相同 revision、不同允许集或模式的
+另一个 policy 中复用。
+
+显式的 `Policy::with_trusted_peers` 将传入集合解释为不可变、预注册的可信 peer
+目录。目录受 `max_bindings` 约束，本节点必须在其中，但不必已是当前 voter 或
+learner；实际 Raft 成员只能来自经过持久化与 apply 的 ConfState。该目录只授予
+通信资格，不将所有预注册节点自动加入 quorum。运行时仍须对运维请求做独立授权、
+当前配置 CAS、追赶进度和变更次序检查；本 crate 不提供管理 API。
+
+这个模式接收 `EntryConfChangeV2`，继续拒绝旧 `EntryConfChange`。配置 entry 的
+`data` 在生成式 decoder 前单独进行零分配 framing 扫描，限制为至多
+`max_bindings` 个变更、`max_fields` 个字段及 `max_payload_bytes` 字节；这不放宽
+外层消息原有的 entry/field/bytes 上限。未知 transition/change enum、未注册/零
+node、同批重复 node 和没有变更的非 Auto joint 请求均拒绝。空 Auto 请求（可以
+带 context）保留为 leave-joint；应用数据和 context 仍为 opaque bytes。
+
+`validate_configuration` 可供运行时启动/恢复复用，也用于所有非空 snapshot：
+incoming voters 必须非空；各成员列表不能重复或超出可信目录；learners 与任一
+voter 集互斥，learners_next 必须属于 outgoing voters 且不属于 incoming voters，
+auto_leave 只能用于 joint 配置。合法 learner、joint 和 demotion snapshot 均可
+接收。该验证不证明 snapshot 已提交，也不允许绕过 Store、Raft 和应用恢复校验。
+
+可信 peer 目录是运维信任边界，不是普通客户端名单；本协议不提供恶意 Raft 成员
+的拜占庭容错。改变目录需要显式重建 policy/运行配置，不能从收到的 snapshot 或
+ConfChange 自动学习证书授权。改变实际 membership 不隐式撤销旧节点的 pin；
+独立撤销后，旧连接的新 RPC 与队列里的旧 revision 都必须被拒绝。
 
 每次请求先检查版本、路由、证书日期和当前 leaf fingerprint 到 node 的绑定，再
 解码 Raft。外层 from/to 必须与内层一致，from 必须等于证书绑定节点。允许普通
@@ -41,7 +64,7 @@ policy 中复用。
 Propose、ReadIndex、ReadIndexResp 和 TransferLeader。最后一种在上游可保留原
 from 转发，与逐跳 TLS 源绑定不兼容；本阶段不提供该转发或领导权转移 API。
 
-`replace_bindings` 完整校验候选后原子替换，仅允许固定 bootstrap 节点。
+`replace_bindings` 完整校验候选后原子替换，仅允许该 policy 的可信目录内节点。
 同节点可临时使用多个 pin 完成重叠轮换，空 allowlist 表示全部撤销。成功替换
 推进 revision，排队中的旧 revision 消息必须丢弃，让 Raft 自身重传。
 `AuthorizedMessage` 不允许修改字段；`revalidate` 在消费前复核 revision、

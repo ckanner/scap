@@ -313,6 +313,6 @@ SQLite 文件 API、SQL 方言、C API 和远程 SDK 是不同兼容层；只通
 
 尚无对应执行证据的项目保持为 **未执行**。后续实现不能通过把该文档中的勾选项改为“完成”替代实际运行记录，也不能把局部通过或设计目标转述成已经达到的服务 SLA。
 
-## SQLite 网络提交实现更新（2026-11-02 UTC）
+## SQLite 网络提交实现更新（原基线 2026-11-02；成员扩展 2026-11-04 UTC）
 
-正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和固定三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。现有 `scap-server` 已提供静态凭据映射、HTTP/Hrana 与 Node SDK，并在固定三节点 cell 内随 leader 变化自动恢复 owner；完整运行与冷生命周期见 [服务方案](sqlite-service.md)。动态成员、多 cell 调度和自动更换损坏副本仍待实现，生产性能目标未通过。
+正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。现有 `scap-server` 已提供静态凭据映射、HTTP/Hrana 与 Node SDK，在同一 cell 内随 leader 变化自动恢复 owner；完整运行与冷生命周期见 [服务方案](sqlite-service.md)。受控 learner/joint 替换及其独立门禁见 [ADR-0016](../adr/0016-durable-membership-replacement.md)和 [真实成员实验](../../experiments/membership-network/README.md)。多 cell 调度、自动坏盘运维和生产性能目标仍未完成。
