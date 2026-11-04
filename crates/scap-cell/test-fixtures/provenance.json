@@ -1,0 +1,89 @@
+{
+  "source_git_revision": "662f04133f6a869d0dae5b05467656e6deca5c12",
+  "producer_sha256": "7dbd53ce99f584a105fe434abd7036bc91523addabed6268a8023491b9d207bc",
+  "generated_using_unchanged_legacy_rlibs": true,
+  "new_encoder_used": false,
+  "fixtures": [
+    {
+      "path": "hot-v2.hex",
+      "decoded_bytes": 6455,
+      "decoded_sha256": "88d8ee6ab390d645df9fca1761cc5afc15a88f7a47fbd54a7674df8299ce9b8b"
+    },
+    {
+      "path": "cold-v2.hex",
+      "decoded_bytes": 2236,
+      "decoded_sha256": "c12754df2872c6406fbfedbf5b1befeb2c797f806bbd45bad280561f7d98192a"
+    },
+    {
+      "path": "archive-v2.hex",
+      "decoded_bytes": 5147,
+      "decoded_sha256": "2d6e686ee49d78386fe6df7e45dd0ff460422399e1845672b87edad57d3dc4e6"
+    },
+    {
+      "path": "image.hex",
+      "decoded_bytes": 4096,
+      "decoded_sha256": "7c63cb397a6b9cec05521c4b801352611637598d0897032fb1ef61aa46e290c2"
+    }
+  ],
+  "cell": {
+    "cell_id": 7,
+    "cell_incarnation": 8
+  },
+  "database": {
+    "database_id": 9,
+    "incarnation": 10,
+    "placement_generation": 11
+  },
+  "admission": {
+    "principal_id": 12,
+    "credential_id": 13,
+    "admission_id": 14,
+    "auth_epoch": 1
+  },
+  "owner": {
+    "epoch": 2,
+    "worker_instance_id": 15
+  },
+  "positions": {
+    "hot": {
+      "term": 1,
+      "index": 9
+    },
+    "cold": {
+      "term": 1,
+      "index": 10
+    }
+  },
+  "revision": 2,
+  "request_ids": {
+    "accepted": [
+      101,
+      102
+    ],
+    "cancelled": 103
+  },
+  "fingerprints": "Each request suffix (1,2,3) repeated 32 bytes",
+  "results": {
+    "101": [
+      1,
+      0,
+      255
+    ],
+    "102": [
+      2,
+      0,
+      255
+    ]
+  },
+  "limits": {
+    "max_state_bytes": 65536,
+    "max_command_bytes": 16384,
+    "max_databases": 4,
+    "max_policy_grants": 4,
+    "max_admin_operations": 64,
+    "max_requests_per_database": 16,
+    "max_transaction_bytes": 8192,
+    "max_result_bytes": 1024
+  },
+  "scope": "Immutable old cell codec and pure physical-image fixtures; native SQLite upgrade is separately verified by the real daemon experiment."
+}

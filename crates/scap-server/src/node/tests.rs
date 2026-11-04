@@ -555,6 +555,131 @@ fn reopening_checks_durable_application_binding_and_immutable_administrator() {
     assert_eq!(store.view().unwrap().applied, 2);
 }
 
+#[test]
+fn open_existing_reads_genuine_v2_hot_and_cold_applications_without_reinitializing() {
+    for (fixture, index, cold) in [
+        (
+            include_str!("../../../scap-cell/test-fixtures/server-hot-v2.hex"),
+            9,
+            false,
+        ),
+        (
+            include_str!("../../../scap-cell/test-fixtures/server-cold-v2.hex"),
+            10,
+            true,
+        ),
+    ] {
+        let mut config = crate::tests::config();
+        config.cell = scap_cell::CellIdentity {
+            cell_id: 7,
+            cell_incarnation: 8,
+        };
+        config.administrator_id = 12;
+        let fixture_directory = Fixture::with_config(config);
+        let config = &fixture_directory.config;
+        let hex: String = fixture.split_whitespace().collect();
+        let legacy: Vec<u8> = hex
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|part| u8::from_str_radix(std::str::from_utf8(part).unwrap(), 16).unwrap())
+            .collect();
+        assert_eq!(legacy[8], 2);
+        assert_eq!(genesis(config, cell_limits()).unwrap().application[8], 2);
+        let mut store = open_store_with(config, StartMode::Initialize, &Native).unwrap();
+        let entries: Vec<_> = (2..=index)
+            .map(|index| raft::eraftpb::Entry {
+                term: 1,
+                index,
+                ..Default::default()
+            })
+            .collect();
+        let hard = raft::eraftpb::HardState {
+            term: 1,
+            commit: index,
+            ..Default::default()
+        };
+        store.persist_ready(&entries, Some(&hard), None).unwrap();
+        let members = store.view().unwrap().conf_state.clone();
+        store
+            .apply_committed(index, &entries, &legacy, &members)
+            .unwrap();
+        drop(store);
+
+        let store = open_store_with(config, StartMode::OpenExisting, &Native).unwrap();
+        assert_eq!(store.view().unwrap().application, legacy);
+        assert_eq!(store.view().unwrap().applied, index);
+        assert_eq!(store.view().unwrap().conf_state, members);
+        let state = CellState::decode_bound(
+            &store.view().unwrap().application,
+            config.cell,
+            Position { term: 1, index },
+            cell_limits(),
+        )
+        .unwrap();
+        assert_eq!(state.bootstrap_administrator(), 12);
+        let database = state.database(9).unwrap();
+        assert_eq!(database.revision, 2);
+        assert_eq!(database.cold, cold);
+        assert_eq!(database.archive.unwrap().revision, 2);
+        let admission = scap_cell::Admission {
+            principal_id: 12,
+            credential_id: 13,
+            admission_id: 14,
+            auth_epoch: 1,
+        };
+        assert!(matches!(
+            state.lookup(database.identity, admission, 101, [1; 32]).unwrap(),
+            scap_cell::Lookup::Committed { result, .. } if result == [1, 0, 255]
+        ));
+        assert!(matches!(
+            state
+                .lookup(database.identity, admission, 103, [3; 32])
+                .unwrap(),
+            scap_cell::Lookup::Cancelled { .. }
+        ));
+        assert_eq!(state.physical_history_version(), 2);
+        assert_eq!(state.encode(), legacy);
+        drop(store);
+        let mut wrong = config.clone();
+        wrong.administrator_id += 1;
+        assert_eq!(
+            open_store_with(&wrong, StartMode::OpenExisting, &Native)
+                .err()
+                .unwrap()
+                .code,
+            "STORE_ADMINISTRATOR"
+        );
+    }
+}
+
+#[test]
+fn initialize_and_join_genesis_remain_exactly_the_genuine_legacy_application() {
+    let mut config = crate::tests::config();
+    config.cell = scap_cell::CellIdentity {
+        cell_id: 7,
+        cell_incarnation: 8,
+    };
+    config.administrator_id = 12;
+    let hex: String = include_str!("../../../scap-cell/test-fixtures/server-genesis-v2.hex")
+        .split_whitespace()
+        .collect();
+    let original: Vec<u8> = hex
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|part| u8::from_str_radix(std::str::from_utf8(part).unwrap(), 16).unwrap())
+        .collect();
+    assert_eq!(original[8], 2);
+    let bootstrap = genesis(&config, cell_limits()).unwrap();
+    assert_eq!(bootstrap.application, original);
+    // The candidate node ID is excluded from the shared genesis: replaying an
+    // old committed suffix must see the same pre-activation budget and bytes.
+    config.node_id = 4;
+    let candidate = genesis(&config, cell_limits()).unwrap();
+    assert_eq!(candidate.application, bootstrap.application);
+    assert_eq!(candidate.membership, bootstrap.membership);
+    assert_eq!(candidate.digest, bootstrap.digest);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn joining_node_requires_fresh_leader_permission_before_any_data_or_listener() {
     let bootstrap = Fixture::new();

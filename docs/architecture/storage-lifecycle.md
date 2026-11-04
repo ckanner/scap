@@ -173,7 +173,9 @@ S3 恢复后先追赶归档、校验发布链并降低积压，再逐步恢复�
 
 ## 10. 删除、恢复与迁移
 
-本节全部为 planned。当前 cold hydrate 恢复同一数据库的当前 head，不提供用户选择历史时间点、删除/重建或跨 cell 迁移的管理 API。
+当前的热物理历史已按 [ADR-0017](../adr/0017-bounded-physical-history.md)采用持久基线与连续有限 tail。每次折叠与当前 Commit 同一原子应用，基线绑定原提交位置、revision、逻辑 commit hash 和物理 image digest；原结果、取消、权限及管理记录继续保留。Cold 的准确对象覆盖和 Prune/Hydrate 次序不变，旧 v2 对象按同一规范规则迁移，不用旧对象覆盖新权限。物理折叠不等同于下述逻辑删除、请求退休或对象 GC，也不提高原有数据库/状态预算。
+
+下述删除、历史时间点恢复和跨 cell 迁移为 planned。当前 cold hydrate 恢复同一数据库的当前 head，不提供用户选择历史时间点、删除/重建或跨 cell 迁移的管理 API。
 
 ### 删除
 

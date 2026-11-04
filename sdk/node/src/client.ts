@@ -41,6 +41,10 @@ export type RequestOutcome = { state: "unknown" | "cancelled" }
 
 export interface DatabaseStatus {
   revision: bigint;
+  /** Null only when the connected legacy service exposes no physical watermarks. */
+  baseRevision: bigint | null;
+  tailEntries: bigint | null;
+  tailBytes: bigint | null;
   suspended: boolean;
   cold: boolean;
   ownerActive: boolean;
@@ -181,7 +185,12 @@ function retainedOutcome(value: any): RequestOutcome {
 function databaseStatus(value: any): DatabaseStatus {
   if (value === null || typeof value !== "object" || typeof value.suspended !== "boolean"
     || typeof value.cold !== "boolean" || typeof value.owner_active !== "boolean") throw new Error("Invalid database status");
+  const physicalFields = ["base_revision", "tail_entries", "tail_bytes"].filter((field) => Object.hasOwn(value, field)).length;
+  if (physicalFields !== 0 && physicalFields !== 3) throw new Error("Incomplete physical recovery status");
   return { revision: integer(value.revision, false, true), suspended: value.suspended, cold: value.cold,
+    baseRevision: physicalFields === 0 ? null : integer(value.base_revision, false, true),
+    tailEntries: physicalFields === 0 ? null : integer(value.tail_entries, false, true),
+    tailBytes: physicalFields === 0 ? null : integer(value.tail_bytes, false, true),
     ownerActive: value.owner_active, archivedRevision: value.archived_revision === null ? null : integer(value.archived_revision, false, true) };
 }
 

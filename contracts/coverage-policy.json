@@ -14,7 +14,10 @@
     "crates/scap-cell-client/src/runtime/tests.rs",
     "crates/scap-cell-client/src/tests.rs",
     "crates/scap-cell/src/tests.rs",
+    "crates/scap-cell/src/tests/activation.rs",
+    "crates/scap-cell/src/tests/history.rs",
     "crates/scap-core/src/tests.rs",
+    "crates/scap-core/src/physical/tests.rs",
     "crates/scap-engine/src/tests.rs",
     "crates/scap-raft-driver/src/membership/tests.rs",
     "crates/scap-raft-driver/src/tests.rs",
@@ -69,7 +72,8 @@
     "experiments/sqlite-network",
     "experiments/archive-s3",
     "experiments/service-network",
-    "experiments/membership-network"
+    "experiments/membership-network",
+    "experiments/history-network"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

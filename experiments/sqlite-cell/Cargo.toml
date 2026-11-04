@@ -27,6 +27,7 @@ libsql-sys = { git = "https://github.com/tursodatabase/libsql", rev = "d8bc862d2
 [dev-dependencies]
 scap-core = { path = "../../crates/scap-core" }
 scap-cell = { path = "../../crates/scap-cell" }
+scap-engine = { path = "../../crates/scap-engine" }
 scap-raft-driver = { path = "../../crates/scap-raft-driver" }
 scap-raft-rocks = { path = "../../crates/scap-raft-rocks" }
 scap-raft-store = { path = "../../crates/scap-raft-store" }

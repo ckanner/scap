@@ -14,11 +14,13 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
 use raft::eraftpb::{Entry, EntryType};
-use scap_core::{CommitReceipt, CommitTicket, PreparedWrite};
+use scap_core::{physical, CommitReceipt, CommitTicket, PreparedWrite};
 use scap_raft_driver::{Application, AppliedBatch};
 use sha2::{Digest, Sha256};
 
 mod codec;
+
+pub use scap_core::{CellIdentity, DatabaseIdentity};
 
 pub const READ: u8 = 1;
 pub const WRITE: u8 = 2;
@@ -30,22 +32,9 @@ pub const MAX_APPLIED_OUTCOME_BYTES: u32 = 512;
 const RESERVED_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CellIdentity {
-    pub cell_id: u128,
-    pub cell_incarnation: u64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Position {
     pub term: u64,
     pub index: u64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DatabaseIdentity {
-    pub database_id: u128,
-    pub incarnation: u64,
-    pub placement_generation: u64,
 }
 
 /// Replicated limits: changing the local limits cannot silently change apply.
@@ -81,7 +70,7 @@ pub struct OwnerToken {
     pub worker_instance_id: u128,
 }
 
-/// Immutable, content-addressed full physical-history archive. The cell remains
+/// Immutable, content-addressed physical recovery archive. The cell remains
 /// authoritative for permissions, ownership, request results and cancellations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArchiveRef {
@@ -221,6 +210,16 @@ pub struct AppliedOutcome {
     pub outcome: Outcome,
 }
 
+/// Result of one exact, durably applied internal history-format activation.
+/// This is a separate protocol from business command outcomes. A rejected
+/// activation leaves the legacy format and all recovery bytes intact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HistoryActivationOutcome {
+    pub cell: CellIdentity,
+    pub position: Position,
+    pub result: Result<(), Reject>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AcceptedTransaction {
     pub admission: Admission,
@@ -229,6 +228,26 @@ pub struct AcceptedTransaction {
     pub physical_changes: Vec<u8>,
     pub result: Vec<u8>,
     pub commit_hash: [u8; 32],
+}
+
+/// A verified physical baseline, published only with the same durable cell
+/// application that retires its covered physical deltas. Logical receipts,
+/// original results and cancellation fences remain in the cell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryBase {
+    pub source: Position,
+    pub revision: u64,
+    pub commit_hash: [u8; 32],
+    pub image_digest: [u8; 32],
+    pub bytes: Vec<u8>,
+}
+
+/// Trusted recovery source from one bound cell view. The tail begins exactly
+/// after the optional base; it is never a complete history from revision zero.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecoverySource<'a> {
+    pub base: Option<&'a RecoveryBase>,
+    pub tail: &'a [AcceptedTransaction],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -255,6 +274,9 @@ pub struct DatabaseView {
     pub suspended: bool,
     pub cold: bool,
     pub archive: Option<ArchiveRef>,
+    pub base_revision: u64,
+    pub tail_entries: u64,
+    pub tail_bytes: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -287,6 +309,7 @@ struct Database {
     suspended: bool,
     cold: bool,
     archive: Option<ArchiveRef>,
+    base: Option<RecoveryBase>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -302,6 +325,7 @@ struct AdminRecord {
 pub struct CellState {
     identity: CellIdentity,
     bootstrap_admin: u128,
+    physical_history_version: u8,
     limits: Limits,
     position: Position,
     databases: BTreeMap<u128, Database>,
@@ -358,6 +382,22 @@ pub fn decode_applied_outcome(bytes: &[u8], expected: Position) -> Result<Applie
     codec::decode_applied_outcome(bytes, expected)
 }
 
+/// Trusted catalogue control only, never tenant HTTP input. The replicated
+/// bootstrap administrator and cell scope are checked again during apply.
+pub fn encode_history_activation(cell: CellIdentity, bootstrap_administrator: u128) -> Vec<u8> {
+    codec::encode_history_activation(cell, bootstrap_administrator)
+}
+
+/// Bind the internal result to the exact tracked driver attempt, then perform
+/// a fresh read before opening business admission for the active format.
+pub fn decode_history_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<HistoryActivationOutcome, Error> {
+    codec::decode_history_activation_outcome(bytes, expected_cell, expected)
+}
+
 impl CellState {
     /// Only explicit authorized new-group bootstrap may call this constructor.
     /// Genesis must equal the enclosing Store's durable application position.
@@ -376,12 +416,27 @@ impl CellState {
         Ok(Self {
             identity,
             bootstrap_admin,
+            physical_history_version: 3,
             limits,
             position: genesis,
             databases: BTreeMap::new(),
             administration: BTreeMap::new(),
             last_outcome: None,
         })
+    }
+
+    /// Fixed pre-activation genesis for a service group or a fresh learner
+    /// which may replay a legacy log prefix. This constructor must never be
+    /// used to replace an existing replica's durable application state.
+    pub fn bootstrap_legacy(
+        identity: CellIdentity,
+        bootstrap_admin: u128,
+        genesis: Position,
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        let mut state = Self::bootstrap(identity, bootstrap_admin, genesis, limits)?;
+        state.physical_history_version = 2;
+        Ok(state)
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -412,6 +467,12 @@ impl CellState {
     /// Startup uses this to reject local genesis-configuration drift.
     pub fn bootstrap_administrator(&self) -> u128 {
         self.bootstrap_admin
+    }
+
+    /// Legacy snapshots keep version 2 semantics until an explicit ordered
+    /// activation entry succeeds. Fresh groups start at version 3.
+    pub fn physical_history_version(&self) -> u8 {
+        self.physical_history_version
     }
 
     pub fn position(&self) -> Position {
@@ -488,21 +549,24 @@ impl CellState {
     }
 
     /// Trusted internal recovery only, never a public READ endpoint. This exposes
-    /// all retained physical transactions and original results, including those
-    /// from other principals. The caller must bind a validated recovery worker;
+    /// the verified physical base and its contiguous tail. The tail may include
+    /// other principals' original results. Bind a validated recovery worker;
     /// it must not export these records based only on user READ permission.
     /// Consumers also validate position/identity and the engine's physical format
     /// before rebuilding an isolated SQLite instance.
-    pub fn recovery_transactions(
+    pub fn recovery_source(
         &self,
         identity: DatabaseIdentity,
         admission: Admission,
-    ) -> Result<&[AcceptedTransaction], Reject> {
+    ) -> Result<RecoverySource<'_>, Reject> {
         let database = self.authorized(identity, admission, READ)?;
         if database.cold {
             return Err(Reject::Cold);
         }
-        Ok(&database.transactions)
+        Ok(RecoverySource {
+            base: database.base.as_ref(),
+            tail: &database.transactions[database.base_revision() as usize..],
+        })
     }
 
     /// Trusted archiver only, after a fresh bound ReadIndex. The exact bytes must
@@ -517,7 +581,12 @@ impl CellState {
         if database.cold {
             return Err(Reject::Cold);
         }
-        let bytes = codec::encode_archive(self.identity, database, self.position);
+        let bytes = codec::encode_archive(
+            self.identity,
+            database,
+            self.position,
+            self.physical_history_version,
+        );
         // A future hydration must fit one bounded ordered command. Oversized
         // databases remain hot until a separately verified chunk protocol exists.
         if bytes.len().saturating_add(192) > self.limits.max_command_bytes as usize {
@@ -578,7 +647,7 @@ impl CellState {
         Ok(db)
     }
 
-    fn advance(&mut self, entry: &Entry) -> Result<(), Error> {
+    fn advance(&mut self, entry: &Entry) -> Result<Option<HistoryActivationOutcome>, Error> {
         let position = Position {
             term: entry.term,
             index: entry.index,
@@ -590,7 +659,16 @@ impl CellState {
         }
         if entry.get_entry_type() != EntryType::EntryNormal || entry.data.is_empty() {
             self.position = position;
-            return Ok(());
+            return Ok(None);
+        }
+        if codec::is_history_activation(&entry.data) {
+            let result = self.activate_history(&entry.data);
+            self.position = position;
+            return Ok(Some(HistoryActivationOutcome {
+                cell: self.identity,
+                position,
+                result,
+            }));
         }
         let outcome = if entry.data.len() > self.limits.max_command_bytes as usize {
             Outcome::Rejected(Reject::TooLarge)
@@ -611,6 +689,35 @@ impl CellState {
         };
         self.position = position;
         self.last_outcome = Some(AppliedOutcome { position, outcome });
+        Ok(None)
+    }
+
+    fn activate_history(&mut self, bytes: &[u8]) -> Result<(), Reject> {
+        if bytes.len() > self.limits.max_command_bytes as usize {
+            return Err(Reject::TooLarge);
+        }
+        let (cell, administrator) =
+            codec::decode_history_activation(bytes).map_err(|_| Reject::Invalid)?;
+        if cell != self.identity {
+            return Err(Reject::Fenced);
+        }
+        if administrator != self.bootstrap_admin {
+            return Err(Reject::Unauthorized);
+        }
+        if self.physical_history_version == 3 {
+            return Ok(());
+        }
+        let mut candidate = self.clone();
+        for database in candidate.databases.values_mut() {
+            if !database.cold {
+                database.migrate_legacy(self.identity, self.limits)?;
+            }
+        }
+        candidate.physical_history_version = 3;
+        if !candidate.fits() {
+            return Err(Reject::Capacity);
+        }
+        *self = candidate;
         Ok(())
     }
 
@@ -795,6 +902,7 @@ impl CellState {
                         suspended: true,
                         cold: false,
                         archive: None,
+                        base: None,
                     },
                 );
                 AdminResult::Created
@@ -908,7 +1016,12 @@ impl CellState {
                 {
                     return Err(Reject::Conflict);
                 }
-                let expected = codec::encode_archive(self.identity, db, archive.source);
+                let expected = codec::encode_archive(
+                    self.identity,
+                    db,
+                    archive.source,
+                    self.physical_history_version,
+                );
                 if archive.object_bytes as usize != expected.len()
                     || archive.object_digest != payload_digest(&expected)
                     || archive.metadata_digest != codec::archive_metadata(db)
@@ -938,6 +1051,9 @@ impl CellState {
                 for transaction in &mut db.transactions {
                     transaction.physical_changes.clear();
                 }
+                if let Some(base) = &mut db.base {
+                    base.bytes.clear();
+                }
                 db.cold = true;
                 AdminResult::ArchivePruned(digest)
             }
@@ -955,14 +1071,21 @@ impl CellState {
                 {
                     return Err(Reject::Invalid);
                 }
-                let restored =
-                    codec::decode_archive(bytes, self.identity, db, archive, self.limits)
-                        .map_err(|_| Reject::Invalid)?;
+                let restored = codec::decode_archive(
+                    bytes,
+                    self.identity,
+                    db,
+                    archive,
+                    self.limits,
+                    self.physical_history_version,
+                )
+                .map_err(|_| Reject::Invalid)?;
                 // Only missing physical bytes are copied; current metadata,
                 // results, request identities, policy and fences are preserved.
-                for (target, source) in db.transactions.iter_mut().zip(restored) {
+                for (target, source) in db.transactions.iter_mut().zip(restored.transactions) {
                     target.physical_changes = source.physical_changes;
                 }
+                db.base = restored.base;
                 db.cold = false;
                 AdminResult::ArchiveHydrated(archive.object_digest)
             }
@@ -1061,6 +1184,9 @@ impl CellState {
         db.transactions.push(tx);
         db.requests
             .insert(ticket.request_id, RequestRecord::Accepted(sequence));
+        if self.physical_history_version == 3 {
+            db.compact(self.identity, self.limits)?;
+        }
         Ok(Outcome::Accepted(commit))
     }
 
@@ -1101,6 +1227,23 @@ impl CellState {
 }
 
 impl Database {
+    fn base_revision(&self) -> u64 {
+        self.base.as_ref().map_or(0, |base| base.revision)
+    }
+
+    fn tail_bytes(&self) -> u64 {
+        self.transactions
+            .iter()
+            .skip(self.base_revision() as usize)
+            .map(|transaction| transaction.physical_changes.len() as u64)
+            .sum()
+    }
+
+    fn compaction_due(&self, limits: Limits) -> bool {
+        let count = (self.transactions.len() as u64).saturating_sub(self.base_revision());
+        physical_tail_due(count, self.tail_bytes(), limits)
+    }
+
     fn view(&self) -> DatabaseView {
         DatabaseView {
             identity: self.identity,
@@ -1115,7 +1258,97 @@ impl Database {
             suspended: self.suspended,
             cold: self.cold,
             archive: self.archive,
+            base_revision: self.base_revision(),
+            tail_entries: if self.cold {
+                0
+            } else {
+                (self.transactions.len() as u64).saturating_sub(self.base_revision())
+            },
+            tail_bytes: self.tail_bytes(),
         }
+    }
+
+    /// The limits and thresholds are derived exclusively from the replicated
+    /// cell limits and the v3 format. No worker-local setting changes apply.
+    fn compact(&mut self, cell: CellIdentity, limits: Limits) -> Result<(), Reject> {
+        let start = self.base_revision() as usize;
+        let count = self.transactions.len() - start;
+        if count == 0 || !self.compaction_due(limits) {
+            return Ok(());
+        }
+        let identity = physical::EngineIdentity {
+            cell,
+            database: self.identity,
+        };
+        let limits = physical_limits(limits);
+        let mut image = if let Some(base) = &self.base {
+            physical::Image::from_snapshot(
+                physical::Snapshot {
+                    head: physical::Head {
+                        identity,
+                        revision: base.revision,
+                        image_digest: base.image_digest,
+                    },
+                    bytes: base.bytes.clone(),
+                },
+                limits,
+            )
+        } else {
+            physical::Image::empty(identity, limits)
+        }
+        .map_err(physical_rejection)?;
+        for transaction in &self.transactions[start..] {
+            image = image
+                .replay(&transaction.commit.receipt, &transaction.physical_changes)
+                .map_err(physical_rejection)?;
+        }
+        let transaction = self.transactions.last().expect("nonempty physical tail");
+        self.base = Some(recovery_base(transaction, &image));
+        for transaction in &mut self.transactions {
+            transaction.physical_changes.clear();
+        }
+        Ok(())
+    }
+
+    /// Called only by an ordered format activation or by hydration of an old
+    /// archive after activation, never by legacy snapshot decoding or restart.
+    /// Reproduce every v3 fold boundary to keep the physical representation
+    /// independent of a replica's earlier applied prefix. Validate the remaining
+    /// tail too; legacy opaque data is not a SQLite recovery source merely
+    /// because it has not yet reached a fold boundary.
+    fn migrate_legacy(&mut self, cell: CellIdentity, limits: Limits) -> Result<(), Reject> {
+        if self.transactions.is_empty() {
+            return Ok(());
+        }
+        let mut image = physical::Image::empty(
+            physical::EngineIdentity {
+                cell,
+                database: self.identity,
+            },
+            physical_limits(limits),
+        )
+        .map_err(physical_rejection)?;
+        let mut base = None;
+        let mut entries = 0;
+        let mut bytes = 0;
+        for transaction in &self.transactions {
+            image = image
+                .replay(&transaction.commit.receipt, &transaction.physical_changes)
+                .map_err(physical_rejection)?;
+            entries += 1;
+            bytes += transaction.physical_changes.len() as u64;
+            if physical_tail_due(entries, bytes, limits) {
+                base = Some(recovery_base(transaction, &image));
+                entries = 0;
+                bytes = 0;
+            }
+        }
+        let covered = base.as_ref().map_or(0, |base| base.revision as usize);
+        self.base = base;
+        for transaction in &mut self.transactions[..covered] {
+            transaction.physical_changes.clear();
+        }
+        Ok(())
     }
 
     fn permits(&self, principal: u128, permission: u8) -> bool {
@@ -1158,6 +1391,40 @@ impl Database {
     }
 }
 
+fn physical_tail_due(entries: u64, bytes: u64, limits: Limits) -> bool {
+    let threshold =
+        u64::from(limits.max_state_bytes / 4).min(u64::from(limits.max_transaction_bytes) * 4);
+    entries >= 8 || bytes >= threshold
+}
+
+fn recovery_base(transaction: &AcceptedTransaction, image: &physical::Image) -> RecoveryBase {
+    RecoveryBase {
+        source: transaction.commit.position,
+        revision: transaction.commit.receipt.sequence,
+        commit_hash: transaction.commit_hash,
+        image_digest: image.head().image_digest,
+        bytes: image.bytes().to_vec(),
+    }
+}
+
+fn physical_limits(limits: Limits) -> physical::Limits {
+    let pages =
+        (limits.max_state_bytes / physical::PAGE_SIZE as u32).min(physical::MAX_DATABASE_PAGES);
+    physical::Limits {
+        max_database_pages: pages,
+        max_changed_pages: pages,
+        max_transaction_bytes: limits.max_transaction_bytes,
+    }
+}
+
+fn physical_rejection(error: physical::Error) -> Reject {
+    match error {
+        physical::Error::Limits => Reject::Capacity,
+        physical::Error::TooLarge => Reject::TooLarge,
+        _ => Reject::Invalid,
+    }
+}
+
 impl CellApplication {
     pub fn new(identity: CellIdentity, limits: Limits) -> Result<Self, Error> {
         validate_config(identity, limits)?;
@@ -1185,13 +1452,17 @@ impl Application for CellApplication {
         let mut state = codec::decode_state(previous, self.identity, self.limits)?;
         let mut results = Vec::new();
         for entry in committed {
-            state.advance(entry)?;
+            let activation = state.advance(entry)?;
             if requested.get(results.len()) == Some(&entry.index) {
-                let outcome = state.last_outcome.as_ref().ok_or(Error::Position)?;
-                if outcome.position != state.position {
-                    return Err(Error::Position);
+                if let Some(activation) = activation {
+                    results.push(codec::encode_history_activation_outcome(&activation));
+                } else {
+                    let outcome = state.last_outcome.as_ref().ok_or(Error::Position)?;
+                    if outcome.position != state.position {
+                        return Err(Error::Position);
+                    }
+                    results.push(encode_applied_outcome(outcome));
                 }
-                results.push(encode_applied_outcome(outcome));
             }
         }
         if results.len() != requested.len() {
@@ -1286,6 +1557,7 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         if (database.suspended && database.active) || (database.cold && !database.suspended) {
             return Err(Error::Malformed("invalid cold lifecycle"));
         }
+        validate_base(database, state.identity, state.position, state.limits)?;
         if let Some(archive) = database.archive {
             let view = database.view();
             if !position_within(archive.source, state.position)
@@ -1350,10 +1622,10 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
             {
                 return Err(Error::Malformed("invalid accepted transaction identity"));
             }
-            if database.cold {
+            if database.cold || sequence <= database.base_revision() {
                 if !transaction.physical_changes.is_empty() {
                     return Err(Error::Malformed(
-                        "cold state retained partial physical data",
+                        "retired history retained partial physical data",
                     ));
                 }
             } else if transaction.physical_changes.is_empty()
@@ -1498,8 +1770,50 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
     } else if !state.databases.is_empty() {
         return Err(Error::Malformed("non-genesis state lost its outcome"));
     }
-    if !state.fits() {
-        return Err(Error::Limit);
+    Ok(())
+}
+
+fn validate_base(
+    database: &Database,
+    cell: CellIdentity,
+    position: Position,
+    limits: Limits,
+) -> Result<(), Error> {
+    let Some(base) = &database.base else {
+        return Ok(());
+    };
+    if base.revision == 0
+        || base.revision > database.transactions.len() as u64
+        || !position_within(base.source, position)
+    {
+        return Err(Error::Malformed("invalid recovery base position"));
+    }
+    let transaction = &database.transactions[base.revision as usize - 1];
+    if base.source != transaction.commit.position || base.commit_hash != transaction.commit_hash {
+        return Err(Error::Malformed(
+            "recovery base does not cover its logical prefix",
+        ));
+    }
+    if database.cold {
+        if !base.bytes.is_empty() {
+            return Err(Error::Malformed("cold state retained a physical base"));
+        }
+    } else {
+        physical::Image::from_snapshot(
+            physical::Snapshot {
+                head: physical::Head {
+                    identity: physical::EngineIdentity {
+                        cell,
+                        database: database.identity,
+                    },
+                    revision: base.revision,
+                    image_digest: base.image_digest,
+                },
+                bytes: base.bytes.clone(),
+            },
+            physical_limits(limits),
+        )
+        .map_err(|_| Error::Malformed("invalid recovery base image"))?;
     }
     Ok(())
 }

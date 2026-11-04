@@ -6,7 +6,8 @@ use scap_cell::{
     Admission, CellIdentity, Command, CommandKind, DatabaseIdentity, Grant, OwnerToken, Position,
     ADMIN, READ, WRITE,
 };
-use scap_core::{CommitTicket, PreparedWrite};
+use scap_core::physical::{EngineIdentity, Image, Limits, PageBatch};
+use scap_core::CommitTicket;
 use scap_raft_driver::DriverConfig;
 use scap_raft_store::Identity;
 use scap_raft_transport::TransportLimits;
@@ -176,10 +177,28 @@ pub fn initialization() -> Vec<Command> {
 }
 
 pub fn commit(request_id: u128, predecessor: u64) -> Command {
-    let changes = format!("physical-payload-{request_id}").into_bytes();
-    command(CommandKind::Commit {
-        write: PreparedWrite {
-            ticket: CommitTicket {
+    // This suite tests Raft/transport, not native SQLite. Its synthetic data is
+    // an unchanged empty image, encoded by the production physical codec so
+    // normal base folding exercises the same valid bytes as other consumers.
+    let limits = Limits {
+        max_database_pages: 1,
+        max_changed_pages: 1,
+        max_transaction_bytes: cell_limits().max_transaction_bytes,
+    };
+    let image = Image::empty(
+        EngineIdentity {
+            cell: cell(),
+            database: DATABASE,
+        },
+        limits,
+    )
+    .unwrap();
+    let mut snapshot = image.snapshot();
+    snapshot.head.revision = predecessor;
+    let image = Image::from_snapshot(snapshot, limits).unwrap();
+    let prepared = image
+        .prepare(
+            CommitTicket {
                 cell_id: CELL,
                 cell_incarnation: CELL_GENERATION,
                 database_id: DATABASE.database_id,
@@ -190,10 +209,16 @@ pub fn commit(request_id: u128, predecessor: u64) -> Command {
                 auth_epoch: 1,
                 request_id,
                 predecessor,
-                payload_digest: scap_cell::payload_digest(&changes),
+                payload_digest: [0; 32],
             },
-            physical_changes: changes,
-        },
+            PageBatch {
+                size_after: 0,
+                pages: Vec::new(),
+            },
+        )
+        .unwrap();
+    command(CommandKind::Commit {
+        write: prepared.write().clone(),
         request_fingerprint: scap_cell::payload_digest(&request_id.to_be_bytes()),
         result: format!("original-result-{request_id}").into_bytes(),
     })

@@ -1,9 +1,25 @@
 //! A narrow, synchronous commit-completion policy for the G0 architecture.
 //!
-//! The ports do not implement consensus, persistence, SQLite, or authentication.
+//! The ports do not implement consensus, persistence, SQL execution, or authentication.
+//! The physical module supplies the shared bounded page format and replay rules.
 //! Their contracts require independent integration and fault-injection evidence.
 //! In particular, an `Accepted` receipt is evidence supplied by a trusted adapter,
 //! not a proof that this crate has implemented durable quorum replication.
+
+pub mod physical;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellIdentity {
+    pub cell_id: u128,
+    pub cell_incarnation: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DatabaseIdentity {
+    pub database_id: u128,
+    pub incarnation: u64,
+    pub placement_generation: u64,
+}
 
 /// The complete authority and request binding for one immutable proposal.
 #[derive(Clone, Debug, PartialEq, Eq)]

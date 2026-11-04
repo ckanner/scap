@@ -9,7 +9,14 @@
 `SCAPRPC1` envelope 使用固定 80 字节头，依次为 magic（8）、version（4）、
 codec（4）、cluster ID（16）、cell ID（16）、cell incarnation（8）、from node（8）、
 to node（8）、payload 长度（8），随后为 opaque Raft bytes。整数采用 little endian。
-version 与 codec 初始均为 1。解码拒绝错误 magic、截断、尾随字节和超限长度。
+当前 version 为 2，codec 仍为 1；固定 magic 和 80 字节布局不变。解码拒绝错误
+magic、截断、尾随字节和超限长度。准入在解析内部 Raft 消息前拒绝非当前 version。
+
+version 2 隔离支持有界物理历史的状态机世代。旧 version 1 不进行基线折叠，对同一
+Commit 可能给出不同的容量裁决，因此两代节点不能互相参与复制、投票或快照安装。
+此处没有版本协商或自动降级；升级需要停止全部旧 voter，再以新二进制打开原目录。
+内层 command/outcome 仍为 v2，gRPC 入队回执 Received 的版本仍为 1，它们不能替代
+这个 peer 世代边界。详见 [ADR-0017](../../docs/adr/0017-bounded-physical-history.md)。
 
 codec 1 固定到 [raft-rs ad13f3d9][raft] 的 `protobuf-codec` 与 rust-protobuf 2.28.0。
 内层未知普通字段和可解析的非规范 varint 保留原始 bytes；未知消息/entry enum、

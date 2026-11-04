@@ -35,7 +35,7 @@
 
 唯一 RPC 是 `/scap.raft.peer.v1.Peer/Deliver`。外层 [peer.proto](../../crates/scap-raft-transport/proto/peer.proto)中的 `Packet.data` 承载完整 wire envelope，响应只有版本化 `Received`。不直接把不同版本 Prost 的类型拼接起来。
 
-`SCAPRPC1` envelope 有固定 80 字节头：magic、version、codec、两个 u128 的 cluster/cell ID、incarnation、from/to node 和 payload 长度，整数为 little endian；当前 version/codec 均为 1。解码拒绝错误 magic、版本、截断、尾随和超限。内层 raft-rs bytes 保持原样；零分配预检先限制字段和 entries 数，再调用固定 protobuf decoder。未知普通 protobuf 字段可保留，未知消息/entry enum、非法结构和本阶段禁止的消息不能通过授权。
+`SCAPRPC1` envelope 有固定 80 字节头：magic、version、codec、两个 u128 的 cluster/cell ID、incarnation、from/to node 和 payload 长度，整数为 little endian；当前 version 为 2，codec 仍为 1。解码拒绝错误 magic、截断、尾随和超限，准入在内部解析前拒绝非当前 version。这个世代边界隔离 [有界物理历史](../adr/0017-bounded-physical-history.md)与旧全历史状态机的不同容量裁决，不提供自动协商或降级。内层 raft-rs bytes 保持原样；零分配预检先限制字段和 entries 数，再调用固定 protobuf decoder。未知普通 protobuf 字段可保留，未知消息/entry enum、非法结构和本阶段禁止的消息不能通过授权。
 
 身份检查分为两条路径：
 

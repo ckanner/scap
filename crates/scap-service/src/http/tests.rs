@@ -64,6 +64,9 @@ impl Backend for TestBackend {
                 Some(error) => Err(error),
                 None => Ok(DatabaseStatus {
                     revision: u64::MAX,
+                    base_revision: u64::MAX,
+                    tail_entries: u64::MAX,
+                    tail_bytes: u64::MAX,
                     suspended: true,
                     cold: true,
                     owner_active: false,
@@ -285,7 +288,7 @@ async fn status_is_authenticated_bounded_and_does_not_call_sql() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         value,
-        json!({"revision":u64::MAX.to_string(),"suspended":true,"cold":true,"owner_active":false,"archived_revision":u64::MAX.to_string()})
+        json!({"revision":u64::MAX.to_string(),"base_revision":u64::MAX.to_string(),"tail_entries":u64::MAX.to_string(),"tail_bytes":u64::MAX.to_string(),"suspended":true,"cold":true,"owner_active":false,"archived_revision":u64::MAX.to_string()})
     );
     assert_eq!(headers["cache-control"], "no-store");
     assert!(backend.0.modes.lock().unwrap().is_empty());
@@ -314,6 +317,9 @@ async fn status_is_authenticated_bounded_and_does_not_call_sql() {
     ));
     let (_, value, _) = decode(router.oneshot(input()).await.unwrap()).await;
     assert_eq!(value["archived_revision"], Value::Null);
+    assert_eq!(value["base_revision"], "0");
+    assert_eq!(value["tail_entries"], "0");
+    assert_eq!(value["tail_bytes"], "0");
 }
 
 #[tokio::test]

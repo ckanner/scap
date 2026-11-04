@@ -812,7 +812,7 @@ pub(crate) fn genesis(config: &Config, limits: scap_cell::Limits) -> Result<Gene
     voters.sort_unstable();
     let mut membership = ConfState::default();
     membership.set_voters(voters.clone());
-    let application = CellState::bootstrap(
+    let application = CellState::bootstrap_legacy(
         config.cell,
         config.administrator_id,
         Position { term: 1, index: 1 },

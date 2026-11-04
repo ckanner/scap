@@ -80,7 +80,8 @@ impl<P: CellPort, S: Objects> Controller<P, S> {
         accepted(result.outcome, AdminResult::Suspended(epoch))
     }
 
-    /// Upload a complete physical-history object, verify exact readable bytes,
+    /// Upload a complete recovery-base, tail and retained-results object,
+    /// verify exact readable bytes,
     /// then publish the pointer through the same authoritative cell. Failure or
     /// UNKNOWN leaves every pre-existing recovery source protected.
     pub fn publish(
@@ -152,8 +153,9 @@ impl<P: CellPort, S: Objects> Controller<P, S> {
         Ok(archive)
     }
 
-    /// Removes only physical transaction bytes from replicated application
-    /// state. Shared Raft log truncation still requires its own durable snapshot.
+    /// Removes only recovery-base and physical-tail bytes from replicated
+    /// application state. Shared Raft log truncation still requires its own
+    /// durable snapshot; retained results and fences are not removed.
     pub fn prune(
         &mut self,
         context: &RequestContext,

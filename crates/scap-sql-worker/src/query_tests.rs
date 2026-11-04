@@ -259,6 +259,121 @@ fn physical_native_queries_need_read_permission_without_write_and_keep_original_
 }
 
 #[test]
+fn native_recovery_and_strong_reads_use_the_folded_base_and_keep_original_results() {
+    let mut kit = Kit::new();
+    let first_directory = Directory::new();
+    let mut writer = Writer::recover(
+        kit.client(),
+        &kit.context,
+        kit.request,
+        &first_directory.0,
+        limits(),
+        kit.clock.clone(),
+    )
+    .unwrap();
+    writer
+        .execute(
+            kit.context.clone(),
+            100,
+            &[Statement {
+                sql: "CREATE TABLE items(value INTEGER)".into(),
+                parameters: vec![],
+            }],
+        )
+        .unwrap();
+    let insert = [Statement {
+        sql: "INSERT INTO items VALUES(7) RETURNING value".into(),
+        parameters: vec![],
+    }];
+    let original = writer.execute(kit.context.clone(), 101, &insert).unwrap();
+    for request_id in 102..=108 {
+        writer
+            .execute(kit.context.clone(), request_id, &insert)
+            .unwrap();
+    }
+    let head = writer.head();
+    {
+        let state = &mut kit.port.0.borrow_mut().state;
+        let view = state.database(identity().database.database_id).unwrap();
+        assert_eq!(view.revision, 9);
+        assert_eq!(view.base_revision, 8);
+        assert_eq!(view.tail_entries, 1);
+        assert!(view.tail_bytes > 0);
+        apply(
+            state,
+            CommandKind::ResolveOrCancel {
+                request_id: 109,
+                request_fingerprint: [5; 32],
+            },
+        );
+        apply(
+            state,
+            CommandKind::AuthFence {
+                operation_id: 20,
+                expected_epoch: 1,
+                policy: vec![Grant {
+                    principal_id: 11,
+                    permissions: READ | WRITE | ADMIN,
+                }],
+            },
+        );
+    }
+    assert!(matches!(
+        writer.query(kit.context.clone(), &select()),
+        Err(Error::Rejected(Reject::Unauthorized))
+    ));
+    assert!(writer.is_stopped());
+    drop(writer);
+
+    kit.context.admission.auth_epoch = 2;
+    kit.request.expected_owner_epoch = 1;
+    kit.request.worker_instance_id = 88;
+    kit.request.claim_operation_id = 21;
+    kit.request.activate_operation_id = 22;
+    let recovered_directory = Directory::new();
+    let mut recovered = Writer::recover(
+        kit.client(),
+        &kit.context,
+        kit.request,
+        &recovered_directory.0,
+        limits(),
+        kit.clock.clone(),
+    )
+    .unwrap();
+    assert_eq!(recovered.head(), head);
+    assert_eq!(recovered.owner().epoch, 2);
+    let before = kit.port.0.borrow().state.encode();
+    let query = [Statement {
+        sql: "SELECT count(*), sum(value) FROM items".into(),
+        parameters: vec![],
+    }];
+    let read = recovered.query(kit.context.clone(), &query).unwrap();
+    assert_eq!(
+        read.result.statements[0].rows,
+        vec![vec![Value::Integer(8), Value::Integer(56)]]
+    );
+    assert_eq!(read.revision, 9);
+    assert_eq!(kit.port.0.borrow().state.encode(), before);
+    assert!(matches!(
+        kit.port
+            .0
+            .borrow()
+            .state
+            .lookup(identity().database, kit.context.admission, 109, [5; 32])
+            .unwrap(),
+        scap_cell::Lookup::Cancelled { .. }
+    ));
+    let replay = recovered
+        .execute(kit.context.clone(), 101, &insert)
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.receipt, original.receipt);
+    assert_eq!(replay.result, original.result);
+    assert!(recovered.is_stopped());
+    assert_eq!(kit.port.0.borrow().state.encode(), before);
+}
+
+#[test]
 fn legacy_write_only_engines_fail_closed_for_the_new_query_api() {
     struct Legacy;
     impl Engine for Legacy {

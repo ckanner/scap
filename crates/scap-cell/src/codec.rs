@@ -4,7 +4,11 @@ const STATE_MAGIC: &[u8; 8] = b"SCAPCELL";
 const COMMAND_MAGIC: &[u8; 8] = b"SCAPCMD!";
 const OUTCOME_MAGIC: &[u8; 8] = b"SCAPOUT!";
 const ARCHIVE_MAGIC: &[u8; 8] = b"SCAPARC!";
-const VERSION: u8 = 2;
+const ACTIVATION_MAGIC: &[u8; 8] = b"SCAPACT!";
+const ACTIVATION_OUTCOME_MAGIC: &[u8; 8] = b"SCAPACR!";
+const ACTIVATION_VERSION: u8 = 1;
+const WIRE_VERSION: u8 = 2;
+const STATE_VERSION: u8 = 3;
 
 struct Writer(Vec<u8>);
 
@@ -55,6 +59,16 @@ impl Writer {
         self.raw(&value.object_digest);
         self.u32(value.object_bytes);
         self.raw(&value.metadata_digest);
+    }
+    fn base(&mut self, value: Option<&RecoveryBase>) {
+        self.byte(u8::from(value.is_some()));
+        if let Some(value) = value {
+            self.position(value.source);
+            self.u64(value.revision);
+            self.raw(&value.commit_hash);
+            self.raw(&value.image_digest);
+            self.bytes(&value.bytes);
+        }
     }
     fn admission(&mut self, value: Admission) {
         self.u128(value.principal_id);
@@ -369,6 +383,18 @@ impl<'a> Reader<'a> {
             metadata_digest: self.take()?,
         })
     }
+    fn base(&mut self, limit: u32) -> Result<Option<RecoveryBase>, Error> {
+        if !self.boolean()? {
+            return Ok(None);
+        }
+        Ok(Some(RecoveryBase {
+            source: self.position()?,
+            revision: self.u64()?,
+            commit_hash: self.take()?,
+            image_digest: self.take()?,
+            bytes: self.bytes(limit)?,
+        }))
+    }
     fn admission(&mut self) -> Result<Admission, Error> {
         Ok(Admission {
             principal_id: self.u128()?,
@@ -455,22 +481,25 @@ impl<'a> Reader<'a> {
             3 => Ok(Outcome::AlreadyCommitted(self.commit()?)),
             4 => Ok(Outcome::Cancelled),
             5 => Ok(Outcome::AlreadyCancelled),
-            6 => Ok(Outcome::Rejected(match self.byte()? {
-                0 => Reject::Invalid,
-                1 => Reject::Fenced,
-                2 => Reject::Unauthorized,
-                3 => Reject::NotFound,
-                4 => Reject::Exists,
-                5 => Reject::Conflict,
-                6 => Reject::Cancelled,
-                7 => Reject::Capacity,
-                8 => Reject::TooLarge,
-                9 => Reject::Exhausted,
-                10 => Reject::Cold,
-                _ => return Err(Error::Malformed("unknown rejection")),
-            })),
+            6 => Ok(Outcome::Rejected(self.rejection()?)),
             _ => Err(Error::Malformed("unknown outcome")),
         }
+    }
+    fn rejection(&mut self) -> Result<Reject, Error> {
+        Ok(match self.byte()? {
+            0 => Reject::Invalid,
+            1 => Reject::Fenced,
+            2 => Reject::Unauthorized,
+            3 => Reject::NotFound,
+            4 => Reject::Exists,
+            5 => Reject::Conflict,
+            6 => Reject::Cancelled,
+            7 => Reject::Capacity,
+            8 => Reject::TooLarge,
+            9 => Reject::Exhausted,
+            10 => Reject::Cold,
+            _ => return Err(Error::Malformed("unknown rejection")),
+        })
     }
     fn kind(&mut self, limit: u32) -> Result<CommandKind, Error> {
         match self.byte()? {
@@ -535,17 +564,17 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn seal(magic: &[u8; 8], body: Vec<u8>) -> Vec<u8> {
+fn seal(magic: &[u8; 8], version: u8, body: Vec<u8>) -> Vec<u8> {
     let mut writer = Writer(Vec::new());
     writer.raw(magic);
-    writer.byte(VERSION);
+    writer.byte(version);
     writer.bytes(&body);
     let digest = payload_digest(&writer.0);
     writer.raw(&digest);
     writer.0
 }
 
-fn open<'a>(bytes: &'a [u8], magic: &[u8; 8], limit: u32) -> Result<&'a [u8], Error> {
+fn open<'a>(bytes: &'a [u8], magic: &[u8; 8], version: u8, limit: u32) -> Result<&'a [u8], Error> {
     if bytes.len() > limit as usize {
         return Err(Error::Limit);
     }
@@ -554,7 +583,7 @@ fn open<'a>(bytes: &'a [u8], magic: &[u8; 8], limit: u32) -> Result<&'a [u8], Er
     }
     // The minimum envelope guard proves these fixed header bytes exist. Keep
     // fallible reads for variable fields instead of inventing impossible EOFs.
-    if &bytes[..8] != magic || !matches!(bytes[8], 1 | VERSION) {
+    if &bytes[..8] != magic || bytes[8] == 0 || bytes[8] > version {
         return Err(Error::Malformed("unknown format"));
     }
     let mut reader = Reader { bytes, cursor: 9 };
@@ -588,7 +617,7 @@ pub(super) fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8
     writer.database(command.database);
     writer.admission(command.admission);
     writer.kind(&command.kind);
-    let encoded = seal(COMMAND_MAGIC, writer.0);
+    let encoded = seal(COMMAND_MAGIC, WIRE_VERSION, writer.0);
     if encoded.len() > limits.max_command_bytes as usize {
         return Err(Error::Limit);
     }
@@ -597,7 +626,7 @@ pub(super) fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8
 
 pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Error> {
     let mut reader = Reader {
-        bytes: open(bytes, COMMAND_MAGIC, limits.max_command_bytes)?,
+        bytes: open(bytes, COMMAND_MAGIC, WIRE_VERSION, limits.max_command_bytes)?,
         cursor: 0,
     };
     let command = Command {
@@ -625,7 +654,7 @@ pub(super) fn encode_applied_outcome(outcome: &AppliedOutcome) -> Vec<u8> {
     let mut writer = Writer(Vec::new());
     writer.position(outcome.position);
     writer.outcome(&outcome.outcome);
-    seal(OUTCOME_MAGIC, writer.0)
+    seal(OUTCOME_MAGIC, WIRE_VERSION, writer.0)
 }
 
 pub(super) fn decode_applied_outcome(
@@ -633,7 +662,12 @@ pub(super) fn decode_applied_outcome(
     expected: Position,
 ) -> Result<AppliedOutcome, Error> {
     let mut reader = Reader {
-        bytes: open(bytes, OUTCOME_MAGIC, MAX_APPLIED_OUTCOME_BYTES)?,
+        bytes: open(
+            bytes,
+            OUTCOME_MAGIC,
+            WIRE_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
         cursor: 0,
     };
     let outcome = AppliedOutcome {
@@ -648,6 +682,79 @@ pub(super) fn decode_applied_outcome(
         return Err(Error::Position);
     }
     Ok(outcome)
+}
+
+pub(super) fn is_history_activation(bytes: &[u8]) -> bool {
+    bytes.starts_with(ACTIVATION_MAGIC)
+}
+
+pub(super) fn encode_history_activation(cell: CellIdentity, administrator: u128) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(cell);
+    writer.u128(administrator);
+    seal(ACTIVATION_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_history_activation(bytes: &[u8]) -> Result<(CellIdentity, u128), Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            ACTIVATION_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let administrator = reader.u128()?;
+    reader.finish()?;
+    Ok((cell, administrator))
+}
+
+pub(super) fn encode_history_activation_outcome(outcome: &HistoryActivationOutcome) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(outcome.cell);
+    writer.position(outcome.position);
+    writer.byte(u8::from(outcome.result.is_ok()));
+    if let Err(reason) = outcome.result {
+        writer.byte(reason as u8);
+    }
+    seal(ACTIVATION_OUTCOME_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_history_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<HistoryActivationOutcome, Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            ACTIVATION_OUTCOME_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let position = reader.position()?;
+    let result = if reader.boolean()? {
+        Ok(())
+    } else {
+        Err(reader.rejection()?)
+    };
+    reader.finish()?;
+    if cell != expected_cell || cell.cell_id == 0 || cell.cell_incarnation == 0 {
+        return Err(Error::Binding);
+    }
+    if expected.term == 0 || expected.index == 0 || position != expected {
+        return Err(Error::Position);
+    }
+    Ok(HistoryActivationOutcome {
+        cell,
+        position,
+        result,
+    })
 }
 
 fn newer_outcome(outcome: &Outcome) -> bool {
@@ -700,7 +807,12 @@ pub(super) fn archive_metadata(database: &Database) -> [u8; 32] {
     payload_digest(&writer.0)
 }
 
-pub(super) fn encode_archive(cell: CellIdentity, database: &Database, source: Position) -> Vec<u8> {
+pub(super) fn encode_archive(
+    cell: CellIdentity,
+    database: &Database,
+    source: Position,
+    physical_history_version: u8,
+) -> Vec<u8> {
     let mut writer = Writer(Vec::new());
     writer.cell(cell);
     writer.database(database.identity);
@@ -709,7 +821,15 @@ pub(super) fn encode_archive(cell: CellIdentity, database: &Database, source: Po
     for transaction in &database.transactions {
         writer.transaction(transaction, true);
     }
-    seal(ARCHIVE_MAGIC, writer.0)
+    if physical_history_version == 3 {
+        writer.base(database.base.as_ref());
+    }
+    seal(ARCHIVE_MAGIC, physical_history_version, writer.0)
+}
+
+pub(super) struct RestoredArchive {
+    pub base: Option<RecoveryBase>,
+    pub transactions: Vec<AcceptedTransaction>,
 }
 
 pub(super) fn decode_archive(
@@ -718,12 +838,18 @@ pub(super) fn decode_archive(
     database: &Database,
     archive: ArchiveRef,
     limits: Limits,
-) -> Result<Vec<AcceptedTransaction>, Error> {
+    physical_history_version: u8,
+) -> Result<RestoredArchive, Error> {
     let mut reader = Reader {
-        bytes: open(bytes, ARCHIVE_MAGIC, limits.max_command_bytes)?,
+        bytes: open(
+            bytes,
+            ARCHIVE_MAGIC,
+            physical_history_version,
+            limits.max_command_bytes,
+        )?,
         cursor: 0,
     };
-    if bytes[8] != VERSION {
+    if bytes[8] < 2 {
         return Err(Error::Malformed("unknown archive version"));
     }
     if reader.cell()? != cell
@@ -737,7 +863,6 @@ pub(super) fn decode_archive(
         return Err(Error::Binding);
     }
     let mut transactions = Vec::new();
-    let mut previous = [0; 32];
     for retained in &database.transactions {
         let transaction = reader.transaction(limits)?;
         if transaction.admission != retained.admission
@@ -745,18 +870,50 @@ pub(super) fn decode_archive(
             || transaction.commit != retained.commit
             || transaction.result != retained.result
             || transaction.commit_hash != retained.commit_hash
-            || transaction.physical_changes.is_empty()
+        {
+            return Err(Error::Binding);
+        }
+        transactions.push(transaction);
+    }
+    let base = if bytes[8] >= 3 {
+        reader.base(limits.max_state_bytes)?
+    } else {
+        None
+    };
+    reader.finish()?;
+    let mut restored = Database {
+        transactions,
+        base,
+        cold: false,
+        ..database.clone()
+    };
+    validate_base(&restored, cell, archive.source, limits)?;
+    let mut previous = [0; 32];
+    for (index, transaction) in restored.transactions.iter().enumerate() {
+        if (index as u64) < restored.base_revision() {
+            if !transaction.physical_changes.is_empty() {
+                return Err(Error::Binding);
+            }
+        } else if transaction.physical_changes.is_empty()
             || payload_digest(&transaction.physical_changes)
                 != transaction.commit.receipt.ticket.payload_digest
-            || transaction_hash(previous, &transaction) != transaction.commit_hash
+            || transaction_hash(previous, transaction) != transaction.commit_hash
         {
             return Err(Error::Binding);
         }
         previous = transaction.commit_hash;
-        transactions.push(transaction);
     }
-    reader.finish()?;
-    Ok(transactions)
+    if bytes[8] == 2 && physical_history_version == 3 {
+        restored
+            .migrate_legacy(cell, limits)
+            .map_err(|_| Error::Binding)?;
+    } else if bytes[8] == 3 && restored.compaction_due(limits) {
+        return Err(Error::Malformed("archive physical tail exceeds v3 bound"));
+    }
+    Ok(RestoredArchive {
+        base: restored.base,
+        transactions: restored.transactions,
+    })
 }
 
 pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> {
@@ -802,6 +959,9 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
         if let Some(archive) = database.archive {
             writer.archive_ref(archive);
         }
+        if state.physical_history_version == 3 {
+            writer.base(database.base.as_ref());
+        }
     }
     writer.count(state.administration.len());
     for (&operation, record) in &state.administration {
@@ -824,7 +984,7 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
     } else {
         writer.byte(0);
     }
-    seal(STATE_MAGIC, writer.0)
+    seal(STATE_MAGIC, state.physical_history_version, writer.0)
 }
 
 pub(super) fn decode_state(
@@ -834,7 +994,7 @@ pub(super) fn decode_state(
 ) -> Result<CellState, Error> {
     validate_config(identity, limits)?;
     let mut reader = Reader {
-        bytes: open(bytes, STATE_MAGIC, limits.max_state_bytes)?,
+        bytes: open(bytes, STATE_MAGIC, STATE_VERSION, limits.max_state_bytes)?,
         cursor: 0,
     };
     let actual_identity = reader.cell()?;
@@ -846,6 +1006,7 @@ pub(super) fn decode_state(
         identity,
         limits,
         bootstrap_admin: reader.u128()?,
+        physical_history_version: bytes[8].max(2),
         position: reader.position()?,
         databases: BTreeMap::new(),
         administration: BTreeMap::new(),
@@ -865,6 +1026,7 @@ pub(super) fn decode_state(
             suspended: false,
             cold: false,
             archive: None,
+            base: None,
         };
         let count = reader.count(limits.max_requests_per_database)?;
         for _ in 0..count {
@@ -893,6 +1055,9 @@ pub(super) fn decode_state(
                 database.archive = Some(reader.archive_ref()?);
             }
         }
+        if bytes[8] >= 3 {
+            database.base = reader.base(limits.max_state_bytes)?;
+        }
         if state
             .databases
             .insert(identity.database_id, database)
@@ -920,6 +1085,15 @@ pub(super) fn decode_state(
             return Err(Error::Malformed("duplicate administrative operation"));
         }
     }
+    // Preserve the original envelope's rejection reserve before any rewrite.
+    if reader
+        .cursor
+        .saturating_add(50)
+        .saturating_add(RESERVED_BYTES)
+        > limits.max_state_bytes as usize
+    {
+        return Err(Error::Limit);
+    }
     if reader.boolean()? {
         let outcome = AppliedOutcome {
             position: reader.position()?,
@@ -932,5 +1106,13 @@ pub(super) fn decode_state(
     }
     reader.finish()?;
     validate_state(&state)?;
+    for database in state.databases.values() {
+        if bytes[8] == 3 && !database.cold && database.compaction_due(limits) {
+            return Err(Error::Malformed("physical tail exceeds v3 bound"));
+        }
+    }
+    if !state.fits() {
+        return Err(Error::Limit);
+    }
     Ok(state)
 }

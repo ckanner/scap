@@ -196,6 +196,41 @@ impl<P: CellPort> Client<P> {
         Ok(applied)
     }
 
+    /// Trusted catalogue-only upgrade, never a tenant command. The immutable
+    /// bootstrap administrator authorizes the separate internal entry. A
+    /// tracked durable result must be followed by a fresh view of phase 3 under
+    /// this same original deadline before the caller may enable service.
+    pub fn activate_history(&mut self, context: &RequestContext) -> Result<CellState, Error> {
+        self.check(context)?;
+        let data = scap_cell::encode_history_activation(self.cell, context.admission.principal_id);
+        self.check(context)?;
+        let result = self
+            .port
+            .propose(data, context.deadline, &context.cancelled)
+            .map_err(|_| Error::Unknown)?;
+        if result.ticket.boot_id == 0 || result.ticket.sequence == 0 {
+            return Err(Error::Unknown);
+        }
+        let position = Position {
+            term: result.term,
+            index: result.index,
+        };
+        let applied =
+            scap_cell::decode_history_activation_outcome(&result.data, self.cell, position)
+                .map_err(|_| Error::Unknown)?;
+        if applied.result.is_err() {
+            return Err(Error::Unknown);
+        }
+        let state = self.read(context)?;
+        if state.physical_history_version() != 3
+            || state.position().index < position.index
+            || state.position().term < position.term
+        {
+            return Err(Error::Unknown);
+        }
+        Ok(state)
+    }
+
     fn history(
         &mut self,
         context: &RequestContext,
@@ -212,6 +247,8 @@ impl<P: CellPort> Client<P> {
         // A concurrent accepted duplicate can advance revision after the
         // original preflight. Authorize the current owner/current view; the
         // historical receipt retains its own original predecessor and digest.
+        // Lookup uses retained request metadata, independently of the physical
+        // prefix that may already have been folded into a recovery base.
         state
             .authorize_write(database, context.admission, owner(ticket), revision)
             .map_err(|_| Error::Unknown)?;

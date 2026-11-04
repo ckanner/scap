@@ -218,16 +218,20 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 ## 11. RB-10：滚动升级、降级与版本门禁
 
-**当前格式边界：** cell state/command/outcome 写入 v2；仅在相同身份与持久化 limits 下读取合法 v1 热历史，原管理操作 ID 的幂等结果继续有效。没有 limits 自动迁移或混版本滚动协商；写入 v2 后禁止直接启动旧二进制。下面的 canary、能力协商和格式启用开关是 planned，当前升级应先在隔离数据副本和合法恢复流程上验证，不假装这些开关已存在。
+**当前格式边界：** 已激活的 cell state/archive 写入 v3，未激活的 phase 2 仍保持 v2；command/outcome 仍为 v2，Raft envelope version 为 2。仅在相同身份与持久化 limits 下读取可物理恢复的合法旧热历史及精确旧归档。旧历史先按 v2 追赶，在同一个有序激活条目中按与新 Commit 相同的阈值迁移，不能因各副本旧 applied 不同而产生不同的基线/尾部。原结果、取消和管理操作 ID 保留，参见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
 
-### 11.1 发布前
+**当前可执行流程：** 先停止业务准入，记录所有在途与 UNKNOWN；停止该 cell 的全部旧 voter，保留原盘与配置；使用新程序在每个原目录 OpenExisting；新 quorum 按原 v2 规则处理完旧日志，通过明确的内部 Raft 条目激活全 cell，再确认 fresh phase 3、最新 ACK、原结果、权限及 Cold hydration。server 在激活确认前保持未就绪并拒绝业务 lane 的直接请求。任何目录 decode 或激活预算失败都保留原状诊断，不重新 Initialize。两个通信世代会在 Raft 准入前互拒，因此不能用旧节点补新 quorum，不能串行升级来声称保持可用。
+
+写入 v3 后禁止直接启动旧二进制；没有 limits 自动迁移或回退转换工具。下面的 canary、能力协商、格式启用开关及不停机滚动步骤均为 planned，只在相应能力另行实现并验证后适用，不能替代本节当前全停升级流程。
+
+### 11.1 通用滚动协议的发布前要求（planned）
 
 1. 建立兼容矩阵：Gateway 协议、worker RPC、libSQL/WAL 格式、Raft entry/snapshot 格式、manifest、认证证明、控制面目录 schema。
 2. 标明支持的混合版本窗口、支持的升级路径以及首次不可逆格式写入的位置。仅“编译成功”不是兼容验证。
 3. 确认 [发布门禁](../engineering/validation.md#8-发布门禁与证据) 通过、恢复点有效、无 cell 处于冗余或空间降级。确定每一步回滚方式。
 4. 新 writer 格式默认关闭；先部署能够读取新旧格式的版本，再考虑启用新格式。未知必需字段/格式必须明确拒绝，而不是忽略后继续提交。
 
-### 11.2 分阶段执行
+### 11.2 通用滚动协议的分阶段执行（planned）
 
 1. 在隔离 cell 运行兼容性和故障回归，再选择少量低风险 tenant canary。
 2. Gateway 逐副本排空并更新，始终保留可用入口。旧连接通过正常断连/重连机制处理未知提交。

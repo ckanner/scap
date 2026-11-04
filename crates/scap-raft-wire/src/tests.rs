@@ -117,7 +117,7 @@ fn hexadecimal(value: &str) -> Vec<u8> {
 #[test]
 fn envelope_has_a_fixed_golden_layout_and_preserves_every_field() {
     let original = Envelope {
-        version: 1,
+        version: VERSION,
         codec: 1,
         cluster_id: 0x0f0e_0d0c_0b0a_0908_0706_0504_0302_0100,
         cell_id: 0x1f1e_1d1c_1b1a_1918_1716_1514_1312_1110,
@@ -128,7 +128,7 @@ fn envelope_has_a_fixed_golden_layout_and_preserves_every_field() {
     };
     let expected = hexadecimal(concat!(
         "5343415052504331",
-        "01000000",
+        "02000000",
         "01000000",
         "000102030405060708090a0b0c0d0e0f",
         "101112131415161718191a1b1c1d1e1f",
@@ -272,6 +272,24 @@ fn successful_authorization_returns_immutable_message_and_original_payload() {
     assert_eq!(accepted.message(), &message(MessageType::MsgHeartbeat));
     assert_eq!(policy().revalidate(&accepted, 150), Ok(()));
     assert_eq!(accepted.into_message(), message(MessageType::MsgHeartbeat));
+}
+
+#[test]
+fn generation_one_cannot_enter_either_policy_or_be_silently_upgraded() {
+    assert_eq!(VERSION, 2);
+    for payload in [envelope().payload, vec![0xff]] {
+        let mut legacy = envelope();
+        legacy.version = 1;
+        legacy.payload = payload;
+        let decoded = decode_envelope(&encode_envelope(&legacy, 4096).unwrap(), 4096).unwrap();
+        assert_eq!(decoded.version, 1);
+        for current in [policy(), dynamic_policy()] {
+            assert_eq!(
+                current.authorize(certificate(), 150, decoded.clone()),
+                Err(Error::Unsupported("peer wire version"))
+            );
+        }
+    }
 }
 
 #[test]

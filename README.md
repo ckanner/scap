@@ -17,6 +17,7 @@
 | 自动接管 | 仅当前 leader 恢复 writer；新 owner epoch、新 worker ID、新目录；从权威物理历史恢复并激活 |
 | 分区 | CP；少数派拒绝新的强读和写，没有本地成功或陈旧读降级 |
 | 原结果 | 请求 ID、SQL/参数指纹、原 receipt 和结果持久保留；UNKNOWN 不盲重放，Lookup 缺失不代表取消 |
+| 物理历史 | 达到复制的固定阈值时原子建立基线，恢复只重放连续有限 tail；原逻辑结果与取消记录保留，旧格式通过有序条目激活，完整本地验收见 ADR-0017 |
 | 强读 | 新鲜 Safe ReadIndex、当前 READ 权限、owner 与物理 head 绑定；不增加数据库 revision 或写结果记录 |
 | 冷生命周期 | 有序 Suspend → 不可变对象上传/核验 → PublishArchive → PruneArchive；唤醒先核验精确归档再恢复 owner |
 | S3 不可用 | 热库仍可在 quorum 正常时服务；未完成归档的历史不裁剪，冷库唤醒明确失败 |
@@ -29,7 +30,7 @@
 
 当前一个进程只承载一个 cell。成员管理保持三个 voter、至多一个 learner，可信通信目录最多 16 个身份；旧三 peer 配置默认保留固定模式。每个节点按需创建独占数据库的 SQL 线程，活动与退出中的线程合计最多 32 条，休眠且无排队请求后释放。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。数据库最多保留 128 个请求身份记录，cell 最多保留 4096 个行政操作记录。达到容量时拒绝新工作，不驱逐幂等记录或取消 fence。
 
-这些限额用于验证完整协议。它们没有满足最初规划的 10,000 个冷库、100 个热库、500 req/s 或 GiB 级库；也不能仅通过调大常数就变成该规模的系统。native 持久化已改为同一同步 WriteBatch 内的内容块增量更新；逻辑状态的完整编码、全历史恢复、全量归档以及强读的历史校验仍有放大成本。下一步需要逻辑分段日志与快照、可证明的保留策略、多 cell 公平调度，并保持全部故障门禁。
+这些限额用于验证完整协议。它们没有满足最初规划的 10,000 个冷库、100 个热库、500 req/s 或 GiB 级库；也不能仅通过调大常数就变成该规模的系统。native 持久化使用同一同步 WriteBatch 内的内容块增量更新；[有界物理历史](docs/adr/0017-bounded-physical-history.md)进一步从基线与有限 tail 恢复。完整逻辑 metadata/结果编码、全 cell checkpoint、归档和强读校验仍有放大成本。后续需要可证明的保留策略、多 cell 公平调度和规模验证，并保持全部故障门禁。
 
 后台 S3 归档使用独立、有界、可停止并显式 join 的线程，不占用 SQL 执行线程等待对象 I/O。前景冷库 hydration 在该库独占 lane 中等待，受原请求 deadline 限制；其他库可独立处理请求。全局 32 请求/8 MiB、单库 8 请求/2 MiB 的在途与排队配额同时生效。当前不删除任何 S3 对象，因此没有未经证明的 GC，但对象与幂等元数据成本也不会自动归零。
 
@@ -88,8 +89,9 @@ python3 scripts/check_repo.py
 - [真实 S3 对象合同](experiments/archive-s3/README.md)：签名、不可变条件写、大小校验、故障和同目录重启。
 - [三节点服务/SDK/冷生命周期](experiments/service-network/README.md)：真实 daemon、真实 Node SDK、leader SIGKILL、网络黑洞、全组重启、S3 黑洞、热库继续服务及冷库恢复；另保留完整 360 个本机负载样本和 30 秒恢复窗口。
 - [成员变更与副本替换](experiments/membership-network/README.md)：四个真实 daemon，管理权限/CAS、落后 learner、压缩后的 snapshot 追赶、joint 全组重启、旧 ID 拒绝、新 voter 磁盘保留 ACK 与少数派拒绝。
+- [有界历史与旧格式升级](experiments/history-network/README.md)：真实旧 daemon/S3 数据、不同旧 applied 的确定迁移、通信世代隔离、持续页面更新、跨基线原结果、全组 SIGKILL 和旧二进制拒绝新盘。
 
-本轮全工作区报告为 **452 个 Rust 单元测试，51 个生产源文件，11424 行 / 1075 函数 / 16778 regions / 2486 branches 全部覆盖**。SDK 的 11 个单元测试及四维覆盖率、仓库门禁的 58 个 Python 单元测试及覆盖率也全部通过。新增成员、Join 和管理代码完整进入原生产分母；精确计数与失败尝试见 [执行证据](docs/engineering/g0-evidence.md)。故障合同独立执行，不计入单元覆盖率。
+本轮全工作区报告为 **496 个 Rust 单元测试，52 个生产源文件，11984 行 / 1119 函数 / 17543 regions / 2626 branches 全部覆盖**。SDK 的 12 个单元测试及四维覆盖率、仓库门禁的 58 个 Python 单元测试及覆盖率也全部通过。共享物理算法、基线恢复、有序激活和调用方改动完整进入原生产分母；精确计数与失败尝试见 [执行证据](docs/engineering/g0-evidence.md)。故障合同独立执行，不计入单元覆盖率。
 
 ## 性能和可靠性合同
 
@@ -104,6 +106,7 @@ python3 scripts/check_repo.py
 | 总体架构、需求与一致性 | [总体架构](docs/architecture/overview.md)、[需求合同](docs/architecture/requirements.md)、[一致性协议](docs/architecture/consistency.md) |
 | 当前服务与配置 | [SQLite 服务](docs/engineering/sqlite-service.md)、[server README](crates/scap-server/README.md) |
 | 成员管理与替换 | [操作流程](docs/engineering/membership-operations.md)、[ADR-0016](docs/adr/0016-durable-membership-replacement.md) |
+| 物理历史与升级 | [cell 模块](crates/scap-cell/README.md)、[ADR-0017](docs/adr/0017-bounded-physical-history.md)、[升级手册](docs/operations/runbooks.md) |
 | 客户端与隔离 | [API 契约](docs/architecture/api-contracts.md)、[租户与安全](docs/architecture/tenancy-security.md) |
 | 存储和故障 | [生命周期](docs/architecture/storage-lifecycle.md)、[故障矩阵](docs/operations/failure-matrix.md)、[恢复手册](docs/operations/runbooks.md) |
 | Raft 与持久化 | [Raft 安全边界](docs/engineering/raft-safety.md)、[持久 Store](docs/engineering/durable-store.md)、[网络运行时](docs/engineering/raft-network-runtime.md) |

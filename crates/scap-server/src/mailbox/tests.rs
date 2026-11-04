@@ -472,6 +472,9 @@ async fn backend_reply_types_errors_and_outcome_permissions_are_checked() {
 async fn status_requires_read_scope_and_obeys_reply_type_cancellation_and_deadline() {
     let expected = DatabaseStatus {
         revision: 7,
+        base_revision: 7,
+        tail_entries: 0,
+        tail_bytes: 0,
         suspended: true,
         cold: true,
         owner_active: false,

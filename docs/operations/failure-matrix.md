@@ -8,7 +8,7 @@
 
 SCAP 的目标服务为每个逻辑数据库提供一个可写 owner。Rust worker 承载 libSQL 执行，事务先生成未对其他请求可见的 staged WAL；所属 storage cell 的 Raft 多数副本完成持久化并提交后，worker 才能发布该事务并向客户端返回成功。目标部署让一个 cell 的三个 Raft 副本跨三个可用区；当前本机三进程实验不代表三个故障域。同一 cell 中的数据库共享这一个 Raft 组，而不是每库建立一个 Raft 组。
 
-数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。当前目录/凭据由静态 JSON 配置，etcd 不参与启动；后续 etcd 目录、租约和调度也不能成为提交权威。当前 S3 保存完整单库事务历史及 manifest，Publish 经 Raft 接受后才能成为恢复入口；Prune 与共享日志 Checkpoint 分开，“上传完成”不等于获准删除数据。分段归档、对象 GC 与 DR checkpoint 尚未实现。
+数据库的 owner、epoch、incarnation、auth_epoch 和事务提交资格在同一 cell Raft 状态机内判定。当前目录/凭据由静态 JSON 配置，etcd 不参与启动；后续 etcd 目录、租约和调度也不能成为提交权威。当前 S3 保存完整逻辑记录、物理基线与有限 tail，Publish 经 Raft 接受后才能成为恢复入口；Prune 与共享日志 Checkpoint 分开，“上传完成”不等于获准删除数据。分块归档、对象 GC 与 DR checkpoint 尚未实现。
 
 共识库已按 [ADR 0006](../adr/0006-raft-rs-consensus-library.md) 采用 `raft-rs`，以下故障合同不因此降低。驱动循环、持久化、读取和恢复的具体约束见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
 
@@ -136,8 +136,12 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 错库 token、旧 auth_epoch 或越权结果查询 | 静态凭据绑定后仍由新 cell view 复核当前主体/权限；写 apply 再检查 | 没有外部身份源、JWT expiry、动态配置或 60 秒策略缓存 |
 | 关键 HTTP/peer/Raft/SQL/归档任务异常退出 | 节点 supervisor 停止整体服务，取消并回收其余资源 | native 同步 I/O 不能被异步 deadline 强制打断 |
 | SIGTERM/Ctrl-C | 停止准入、取消当前任务、在关闭预算内 drain/join | 超时不冒充完成；进程管理仍需处理卡住的底层 I/O |
+| 物理 tail 达到折叠阈值 | 同一 Commit 候选内建立已验证基线并退休覆盖的物理前缀；失败原子拒绝，不影响原 ACK/结果 | 保留全部逻辑请求与取消记录，仍受原状态预算限制 |
+| 旧副本处于不同 applied 后升级 | 先按 v2 追赶旧 suffix，再在同一个有序条目中按规范阈值激活；相同激活位置必须得到相同状态与归档 bytes | 不能在 decode 或各自旧 head 无条件生成基线；必须全停全部 voter 升级 |
+| 新旧状态机同时运行 | envelope version 1/2 在内部 Raft 解码前互拒，不能跨世代形成 quorum | 同世代两个旧 voter 仍可能服务，不构成无停机升级支持 |
+| 旧二进制打开已写入 v3 的盘 | application decode 失败，保留原目录 | 禁止清空、降级重写或 Initialize 原身份 |
 
-当前 Prune 仅移除数据库物理历史，完整请求结果、取消 fence、授权和 archive pointer 继续持久化。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像和有界记录，无 GC、恢复空间预留或无限长尾承诺。
+当前 Prune 仅移除数据库物理材料，完整请求结果、取消 fence、授权和 archive pointer 继续持久化；[ADR-0017](../adr/0017-bounded-physical-history.md)的热基线也不删除这些记录。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像和有界记录，无 GC、恢复空间预留或无限长尾承诺。该 ADR 的具体执行结果以完整本地证据为准。
 
 ## 4. 控制面与鉴权降级边界
 

@@ -19,13 +19,14 @@ use scap_core::{
     CommitCoordinator, CommitReceipt, CommitTicket, CompletionError, ConsensusPort, Decision,
     PreparedWrite, Rejection, VisibilityPort,
 };
+use scap_engine::{EngineIdentity, Image, PageBatch, PageChange, RecoveryTarget};
 use scap_raft_driver::{Driver, DriverConfig, ReadTicket};
 use scap_raft_rocks::RocksBackend;
 use scap_raft_store::{Identity, Limits as StoreLimits, Store};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, ExitStatus, Stdio};
@@ -66,6 +67,29 @@ fn cell_limits() -> CellLimits {
         max_transaction_bytes: 300 * 1024,
         max_result_bytes: 1024,
     }
+}
+
+fn recover_image(state: &CellState, admission: Admission) -> Image {
+    let database = state.database(DATABASE.database_id).unwrap();
+    Image::recover(
+        state,
+        EngineIdentity {
+            cell: CELL,
+            database: DATABASE,
+        },
+        admission,
+        RecoveryTarget {
+            position: state.position(),
+            revision: database.revision,
+            commit_hash: database.commit_hash,
+        },
+        scap_engine::Limits {
+            max_database_pages: MAX_PAGES as u32,
+            max_changed_pages: MAX_PAGES as u32,
+            max_transaction_bytes: cell_limits().max_transaction_bytes,
+        },
+    )
+    .unwrap()
 }
 
 fn store_limits() -> StoreLimits {
@@ -698,9 +722,21 @@ impl Fixture {
     }
 
     fn write(&self, changes: Vec<u8>, request_id: u128) -> (PreparedWrite, Admission) {
-        validate_physical(&changes);
+        // SCAPPG01 is only the private IPC capture of the real native gate.
+        // Encode accepted physical changes through the production image port;
+        // neither the cell nor recovery understands this fixture's IPC format.
+        let (size_after, captured) = validate_physical(&changes);
+        let mut pages: Vec<_> = captured
+            .into_iter()
+            .map(|(number, bytes)| PageChange {
+                number,
+                bytes: bytes.to_vec(),
+            })
+            .collect();
+        pages.sort_by_key(|page| page.number);
         let mut cluster = self.cell.borrow_mut();
-        let db = cluster.state(1).database(DATABASE.database_id).unwrap();
+        let state = cluster.state(1);
+        let db = state.database(DATABASE.database_id).unwrap();
         let admission = cluster.admission();
         let ticket = CommitTicket {
             cell_id: CELL.cell_id,
@@ -713,15 +749,12 @@ impl Fixture {
             auth_epoch: admission.auth_epoch,
             request_id,
             predecessor: db.revision,
-            payload_digest: payload_digest(&changes),
+            payload_digest: [0; 32],
         };
-        (
-            PreparedWrite {
-                ticket,
-                physical_changes: changes,
-            },
-            admission,
-        )
+        let prepared = recover_image(&state, admission)
+            .prepare(ticket, PageBatch { size_after, pages })
+            .unwrap();
+        (prepared.write().clone(), admission)
     }
 
     fn stage(&self, request_id: u128) -> Stage {
@@ -796,8 +829,9 @@ impl Fixture {
         let mut cluster = self.cell.borrow_mut();
         let state = cluster.read_state();
         let admission = cluster.admission();
-        let transactions = state.recovery_transactions(DATABASE, admission).unwrap();
-        assert!(!transactions.is_empty());
+        let source = state.recovery_source(DATABASE, admission).unwrap();
+        let image = recover_image(&state, admission);
+        assert!(!image.bytes().is_empty());
         let path = self.directory.path().join(name);
         let mut file = OpenOptions::new()
             .create_new(true)
@@ -806,27 +840,7 @@ impl Fixture {
             .open(&path)
             .unwrap();
         assert_eq!(file.metadata().unwrap().len(), 0);
-        let mut materialized = BTreeSet::new();
-        for transaction in transactions {
-            assert_eq!(
-                payload_digest(&transaction.physical_changes),
-                transaction.commit.receipt.ticket.payload_digest
-            );
-            let (size, pages) = validate_physical(&transaction.physical_changes);
-            for (number, bytes) in pages {
-                file.seek(SeekFrom::Start((u64::from(number) - 1) * PAGE_SIZE as u64))
-                    .unwrap();
-                file.write_all(bytes).unwrap();
-                materialized.insert(number);
-            }
-            file.set_len(u64::from(size) * PAGE_SIZE as u64).unwrap();
-            materialized.retain(|number| *number <= size);
-            assert_eq!(
-                materialized,
-                (1..=size).collect(),
-                "complete recovery may not depend on an external baseline or holes"
-            );
-        }
+        file.write_all(image.bytes()).unwrap();
         file.sync_all().unwrap();
         drop(file);
         File::open(self.directory.path())
@@ -842,7 +856,7 @@ impl Fixture {
             read_revision(&reader),
             state.database(DATABASE.database_id).unwrap().revision
         );
-        cluster.event(format!("rebuilt {name} from empty file using {} accepted physical batches; integrity_check=ok revision={}", transactions.len(), read_revision(&reader)));
+        cluster.event(format!("rebuilt {name} with production Image::recover base_revision={} tail_entries={}; integrity_check=ok revision={}", source.base.map_or(0, |base| base.revision), source.tail.len(), read_revision(&reader)));
         path
     }
 
@@ -854,7 +868,7 @@ impl Fixture {
             "libSQL=d8bc862d20bedc72945a1da27c8b7045414c0261 SQLite=3.47.0 page_size=4096 spill=reject\n",
             "raft-rs=ad13f3d90780f53aea2488c6a4b76c0d334bf136 native=RocksDB10.4.2 strict_WAL=true\n",
             "cell=real-scap-cell drivers=3 disks=3 raft_processes=1 SQL_writer=separate-OS-process\n",
-            "initialization=real-gated-DDL-and-base-through-cell recovery=empty-file-plus-retained-physical-transactions\n",
+            "initialization=real-gated-DDL-and-base-through-cell recovery=production-Image-from-authoritative-base-and-tail\n",
             "protocol=bounded-private-test-IPC not=SDK,Hrana,mTLS,TCP-faults,AZs,power-loss,RTO,production-engine-adapter\n",
         );
         fs::write(
@@ -1202,10 +1216,7 @@ fn cancellation_owner_auth_results_and_pages_survive_snapshot_install_and_reopen
     let original = fixture.lookup(601);
     let before = fixture.cell.borrow().state(1);
     let current = fixture.cell.borrow_mut().admission();
-    let retained = before
-        .recovery_transactions(DATABASE, current)
-        .unwrap()
-        .to_vec();
+    let retained = before.recovery_source(DATABASE, current).unwrap();
     fixture.cell.borrow_mut().checkpoint_install_and_reopen();
     let mut cluster = fixture.cell.borrow_mut();
     let after = cluster.read_state();
@@ -1214,10 +1225,7 @@ fn cancellation_owner_auth_results_and_pages_survive_snapshot_install_and_reopen
         after.database(DATABASE.database_id),
         before.database(DATABASE.database_id)
     );
-    assert_eq!(
-        after.recovery_transactions(DATABASE, current).unwrap(),
-        retained
-    );
+    assert_eq!(after.recovery_source(DATABASE, current).unwrap(), retained);
     assert_eq!(
         after
             .lookup(DATABASE, current, 601, payload_digest(SQL.as_bytes()))
@@ -1231,10 +1239,7 @@ fn cancellation_owner_auth_results_and_pages_survive_snapshot_install_and_reopen
         cancelled
     );
     assert_eq!(
-        cluster
-            .state(3)
-            .recovery_transactions(DATABASE, current)
-            .unwrap(),
+        cluster.state(3).recovery_source(DATABASE, current).unwrap(),
         retained
     );
     drop(cluster);

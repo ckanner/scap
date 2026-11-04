@@ -45,7 +45,7 @@ try {
 
 `lookup` / `resolveOrCancel` 要求原 ID 和原 SQL/参数，指纹由服务端重新计算。已提交结果会返回原始结果和序号；取消不会撤销已提交事务。保留结果的查询重新验证当前权限。调用方提供 `requestId` 时，只能复用到完全相同的业务操作。只读 `query` 不登记 accepted-write 结果，不能以其 ID 查询出一次写提交。
 
-`await db.status()` 使用受鉴权的强一致元数据查询，返回 `revision: bigint`、`suspended`、`cold`、`ownerActive` 和 `archivedRevision: bigint | null`。该操作不构建 SQLite writer，不使冷库恢复；可以用于验证归档和休眠状态。
+`await db.status()` 使用受鉴权的强一致元数据查询，返回 `revision: bigint`、`suspended`、`cold`、`ownerActive` 和 `archivedRevision: bigint | null`，以及 `baseRevision`、`tailEntries`、`tailBytes: bigint | null` 三个物理恢复计数。旧服务完全未提供这三个字段时统一返回 `null`，不会将未知水位伪装成零；部分缺失或非法值会拒绝解析。新服务返回精确 u64 计数，Cold 状态的尾部计数为零，保留的基座 revision 不代表镜像字节当前驻留。该操作不构建 SQLite writer，不使冷库恢复；可以用于验证归档和休眠状态。
 
 当前服务对部分原生 SQL 执行错误采用保守的 `COMMIT_UNKNOWN`，不承诺完整透传 SQLite 扩展错误码。应用若依赖约束错误的特定代码，需要显式查证终态并按当前支持的错误合同调整。
 

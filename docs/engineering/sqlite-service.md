@@ -299,9 +299,13 @@ JS
 
 ## 8. 格式升级与验证门禁
 
-Cell state/command/outcome 写入 v2。新 reader 支持绑定相同身份和限额的合法 v1 热状态和旧命令/结果，不为旧数据伪造冷引用；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧 Create/Claim/Activate/AuthFence intent hash 不包含 envelope version，原 operation ID 升级后仍解析为原 receipt。v1 envelope 中出现新生命周期命令或结果会被拒绝。
+已激活的 cell state 写入 v3，未激活的 phase 2 继续写入 v2；command/outcome 保持 v2。reader 支持绑定相同身份和限额、可经正式物理算法恢复的合法 v1/v2 热状态和原命令/结果，不为旧 Cold 伪造 bytes；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧 Create/Claim/Activate/AuthFence intent hash 不包含 envelope version，原 operation ID 升级后仍解析为原 receipt。v1 envelope 中出现新生命周期命令或结果会被拒绝。
 
-新归档对象使用 `SCAPARC!` v2；key 路径的 `scap/v1/` 是独立的路径布局版本。旧二进制不能直接读取新状态，不支持混合版本滚动协商或原地降级。升级需要停止写入、保留原版本备份并对完整副本集完成验证。限额也属于持久格式绑定；本实现没有把旧限额自动改写成新 profile 的离线迁移工具。
+激活后的新归档对象使用 `SCAPARC!` v3，并支持准确 v2 对象的确定迁移；phase 2 仍按原 v2 对象处理旧日志，key 路径的 `scap/v1/` 是独立的路径布局版本。v3 保留原结果，以物理基线与有限 tail 恢复，旧副本处于不同 applied 时也必须得到相同的规范表示，详见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
+
+Raft envelope version 2 隔离旧、新程序，禁止混合版本组成 quorum。升级必须停止全部旧 voter，保留原盘与配置，再让全部新 voter OpenExisting。新程序读取旧状态后继续按 v2 处理旧日志，明确的内部 Raft 激活条目才切换全 cell 物理历史语义；server 等待精确持久结果和 fresh phase 3 视图，业务 lane 同样拒绝未激活状态，不能只依赖 `/readyz`。没有混版本滚动协商或原地降级。旧二进制打开已经持久化 v3 的 application 必须失败。限额仍属于持久绑定，没有自动扩大旧 profile 的工具；极端满容量旧 metadata 不能容纳新格式固定开销时拒绝激活并保留旧材料。
+
+新鲜数据库 status 增加十进制 u64 字符串 `base_revision`、`tail_entries`、`tail_bytes`。SDK 映射为三个 `bigint | null` 字段；旧服务三项全缺失时返回 null，部分缺失或非法值拒绝。Cold 的 resident tail 为零不表示原请求结果丢失，也不允许绕过准确 archive hydration。
 
 单元测试单独收集 Rust 行、函数、region 和分支的精确整数计数；Node SDK 独立检查行、函数、语句和分支。窄端口用于验证线程、时钟、网络、对象、权限与异常分支，生产状态转换不能转移到实验目录。具体命令与门禁见[覆盖率规范](testability-and-coverage.md)。
 

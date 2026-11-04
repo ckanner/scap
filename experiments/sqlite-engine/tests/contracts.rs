@@ -697,15 +697,12 @@ fn snapshot_reopen_preserves_results_cancellation_and_physical_recovery() {
         assert_eq!(cluster.submit(command), Outcome::Cancelled);
         let before = cluster.state(1);
         let admission = cluster.admission();
-        let retained = before
-            .recovery_transactions(DATABASE, admission)
-            .unwrap()
-            .to_vec();
+        let retained = before.recovery_source(DATABASE, admission).unwrap();
         cluster.checkpoint_install_and_reopen();
         let state = cluster.read_state();
         let admission = cluster.admission();
         assert_eq!(
-            state.recovery_transactions(DATABASE, admission).unwrap(),
+            state.recovery_source(DATABASE, admission).unwrap(),
             retained
         );
         assert!(matches!(

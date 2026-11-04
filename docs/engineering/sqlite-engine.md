@@ -67,7 +67,7 @@ SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源
 
 ## 4. 恢复与重启
 
-恢复调用者先从权威 cell 取得新 Safe ReadIndex，使用同一 Store view 的实际 applied entry term/index 执行 `decode_bound`。`Image::recover` 再比较完整身份、目标 applied position、数据库 revision 和 cell commit hash，读取经过当前授权的完整内部恢复历史，从空镜像按物理页重建。该 API 只服务可信恢复 worker，不能把其他主体的历史结果作为普通 READ 导出。
+恢复调用者先从权威 cell 取得新 Safe ReadIndex，使用同一 Store view 的实际 applied entry term/index 执行 `decode_bound`。`Image::recover` 再比较完整身份、目标 applied position、数据库 revision 和 cell commit hash，读取经过当前 READ 授权的 `RecoverySource`。有基线时先装入经过校验的完整 image，再重放连续 tail；没有基线时从空镜像重放 tail。基线位置和逻辑前缀由 CellState 校验，实际物理算法由 `scap_core::physical` 统一提供。该 API 只服务可信恢复 worker，不能把其他主体的历史结果作为普通 READ 导出。
 
 首次初始化 DDL 也通过同一提交路径进入历史，恢复不需要未记录的 schema 基线。重建不会执行原 SQL，不重新产生随机值、时间或触发器效果。
 
@@ -75,7 +75,7 @@ SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源
 
 结构检查先安装安全配置、值/SQL/列/页数限额，再仅在私有检查阶段临时设置 `ignore_check_constraints=ON`；检查成功或失败后都恢复为 OFF，恢复失败不返回连接。原因是固定引擎允许 CHECK 使用连接状态或非确定函数，而默认 `integrity_check` 会重新求值这些表达式，可能错误拒绝合法的物理恢复。[表达式解析源码][resolve]与[检查源码][pragma]说明这一边界；真实回归验证换连接后原行可恢复，随后违反 CHECK 的业务 INSERT 仍被拒绝。
 
-旧本地缓存不在恢复权威之列。当前选择以全量恢复换取清楚的崩溃边界；尚未实现可安全复用缓存或增量追赶。正式服务后续已由 `scap-archive` 实现有界 S3 冷唤醒，仍从核验的权威历史在新目录重建。
+旧本地缓存不在恢复权威之列。当前从权威基线与有限 tail 生成完整 image，并在新目录物化；尚未实现直接复用旧本地缓存或按需远程页面读取。`scap-archive` 提供有界 S3 冷唤醒，准确对象核验与当前权限校验仍是恢复前置条件。原结果保留与物理前缀折叠独立，详见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
 
 ## 5. 失败语义
 
@@ -109,7 +109,7 @@ VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline�
 
 [ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)已将可信 `CommitGate`、native writer 的线程和取消边界接入正式网络运行时，保持 durable quorum、cell Accepted、native 发布及最终 COMMIT 的完整顺序。`Answer::Admitted` 与 peer `Received` 都不能替代 gate 的业务接受证明。明确的 owner 恢复和激活入口已实现。后续 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)继续接通独立 SQL 强读、闭合 Hrana/Node.js 入口和有界 leader-owned 自动恢复；动态多 cell 与容量调度仍待实现。
 
-完整镜像构建和每次启动全历史恢复尚未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，增量布局、对象 GC、长期容量和生产性能继续接受各自门禁；已有 S3 归档/恢复的有界实现与独立真实合同不能替代这些目标。
+基线与有限 tail 避免每次从最早事务重放，但完整镜像构建、逻辑 metadata 校验和物化仍未通过生产规模与延迟测量；不能把网络或 SQL 测试的执行时长报告为故障 RTO。当前性能目标保持原定义，对象 GC、长期容量和生产性能继续接受各自门禁；已有有界实现与独立真实合同不能替代这些目标。
 
 [libsql-sys]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sys/Cargo.toml
 [libsql-license]: https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/LICENSE.md

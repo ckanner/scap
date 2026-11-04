@@ -77,6 +77,18 @@ impl Port {
     }
 
     fn apply_bytes(&self, data: Vec<u8>) -> scap_cell::AppliedOutcome {
+        let result = self.apply_raw(data);
+        scap_cell::decode_applied_outcome(
+            &result.data,
+            Position {
+                term: result.term,
+                index: result.index,
+            },
+        )
+        .unwrap()
+    }
+
+    fn apply_raw(&self, data: Vec<u8>) -> ProposalResult {
         let mut held = self.effects.borrow_mut();
         let position = Position {
             term: held.term,
@@ -94,7 +106,15 @@ impl Port {
             .apply_with_results(&held.state.encode(), &[entry], &[position.index])
             .unwrap();
         held.state = CellState::decode_bound(&batch.state, cell, position, cell_limits()).unwrap();
-        scap_cell::decode_applied_outcome(&batch.results[0], position).unwrap()
+        ProposalResult {
+            ticket: ProposalTicket {
+                boot_id: 1,
+                sequence: position.index,
+            },
+            index: position.index,
+            term: position.term,
+            data: batch.results.into_iter().next().unwrap(),
+        }
     }
 }
 
@@ -156,22 +176,20 @@ impl CellPort for Port {
         if let Some((_, command)) = injection {
             assert!(!matches!(self.apply(command).outcome, Outcome::Rejected(_)));
         }
-        let mut applied = self.apply_bytes(data);
+        let mut result = self.apply_raw(data);
         if self.effects.borrow().lost_result {
             return Err(RuntimeError::Unknown);
         }
         if let Some(outcome) = self.effects.borrow_mut().outcome.take() {
-            applied.outcome = outcome;
+            result.data = scap_cell::encode_applied_outcome(&scap_cell::AppliedOutcome {
+                position: Position {
+                    term: result.term,
+                    index: result.index,
+                },
+                outcome,
+            });
         }
-        Ok(ProposalResult {
-            ticket: ProposalTicket {
-                boot_id: 1,
-                sequence: applied.position.index,
-            },
-            index: applied.position.index,
-            term: applied.position.term,
-            data: scap_cell::encode_applied_outcome(&applied),
-        })
+        Ok(result)
     }
 }
 
@@ -344,6 +362,16 @@ fn build() -> (TestWorker, Port, Arc<TestClock>, tempfile::TempDir) {
     (worker, port, clock, temp)
 }
 
+fn legacy(worker: &TestWorker) -> CellState {
+    CellState::bootstrap_legacy(
+        worker.config.cell,
+        worker.config.administrator_id,
+        Position { term: 1, index: 1 },
+        cell_limits(),
+    )
+    .unwrap()
+}
+
 fn request(worker: &TestWorker, id: u128, operation: Operation) -> Request {
     let database = worker.config.databases[0].clone();
     Request {
@@ -381,6 +409,168 @@ fn execute(
         Reply::Sql(result) => Ok(result),
         _ => panic!("SQL reply"),
     }
+}
+
+#[test]
+fn legacy_lanes_refuse_all_business_operations_before_owner_or_archive_effects() {
+    let (mut worker, port, _, directory) = build();
+    port.effects.borrow_mut().state = legacy(&worker);
+    let before = port.effects.borrow().state.encode();
+    worker.cold.fail_archive = true;
+    worker.cold.fail_hydrate = true;
+    worker.ready.store(true, Ordering::Release);
+    assert_eq!(worker.tick().unwrap_err().code, "COMMIT_UNKNOWN");
+    for operation in [
+        Operation::Status,
+        Operation::Execute {
+            mode: Mode::Read,
+            statements: vec![sql("SELECT 1")],
+        },
+        Operation::Execute {
+            mode: Mode::Write,
+            statements: vec![sql("CREATE TABLE denied(v)")],
+        },
+        Operation::Outcome {
+            resolve: false,
+            statements: vec![sql("SELECT 1")],
+        },
+        Operation::Outcome {
+            resolve: true,
+            statements: vec![sql("SELECT 1")],
+        },
+    ] {
+        let request = request(&worker, 88_100, operation);
+        assert_eq!(
+            worker.request(request).err().unwrap().code,
+            "COMMIT_UNKNOWN"
+        );
+    }
+    assert!(!worker.ready.load(Ordering::Acquire));
+    assert!(!worker.history_active);
+    assert!(worker.writers.is_empty());
+    assert_eq!(port.effects.borrow().proposals, 0);
+    assert_eq!(port.effects.borrow().state.encode(), before);
+    assert_eq!(
+        std::fs::read_dir(directory.path().join("writers"))
+            .unwrap()
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn catalogue_activates_before_mutation_and_restart_confirms_without_reproposal() {
+    let (mut worker, port, _, _directory) = build();
+    port.effects.borrow_mut().state = legacy(&worker);
+    worker.cold.controller = None;
+    worker.scan().unwrap();
+    assert!(worker.history_active);
+    assert!(worker.ready.load(Ordering::Acquire));
+    let held = port.effects.borrow();
+    assert_eq!(held.state.physical_history_version(), 3);
+    assert_eq!(held.proposals, 2); // Ordered activation, then catalogue Create.
+    assert_eq!(held.state.position().index, 3);
+    assert!(held.state.database(3).unwrap().suspended);
+    let position = held.state.position();
+    let encoded = held.state.encode();
+    drop(held);
+    worker.scan().unwrap();
+    assert_eq!(port.effects.borrow().proposals, 2);
+    assert!(worker.writers.is_empty());
+
+    let (mut restarted, restarted_port, _, _restarted_directory) = build();
+    restarted.cold.controller = None;
+    restarted_port.effects.borrow_mut().state =
+        CellState::decode_bound(&encoded, restarted.config.cell, position, cell_limits()).unwrap();
+    assert!(!restarted.history_active && !restarted.ready.load(Ordering::Acquire));
+    restarted.scan().unwrap();
+    assert!(restarted.history_active && restarted.ready.load(Ordering::Acquire));
+    assert_eq!(restarted_port.effects.borrow().proposals, 0);
+    assert_eq!(restarted_port.effects.borrow().state.encode(), encoded);
+}
+
+#[test]
+fn unknown_activation_or_failed_confirmation_never_creates_a_database_or_marks_ready() {
+    // A failed proposal may have applied. Both response loss and a failed
+    // fresh ReadIndex leave readiness false; the next scan queries first.
+    for failure_point in 0..3 {
+        let (mut worker, port, _, _directory) = build();
+        worker.cold.controller = None;
+        port.effects.borrow_mut().state = legacy(&worker);
+        {
+            let mut held = port.effects.borrow_mut();
+            held.proposal_error = failure_point == 0;
+            held.lost_result = failure_point == 1;
+            held.read_error = (failure_point == 2).then_some(2);
+        }
+        assert_eq!(worker.scan().unwrap_err().code, "COMMIT_UNKNOWN");
+        assert!(!worker.ready.load(Ordering::Acquire));
+        assert!(!worker.history_active);
+        assert!(worker.writers.is_empty());
+        {
+            let mut held = port.effects.borrow_mut();
+            assert_eq!(held.proposals, 1);
+            assert!(held.state.database(3).is_none());
+            assert_eq!(
+                held.state.physical_history_version(),
+                if failure_point == 0 { 2 } else { 3 }
+            );
+            held.proposal_error = false;
+            held.lost_result = false;
+            held.read_error = None;
+        }
+        worker.scan().unwrap();
+        assert!(worker.ready.load(Ordering::Acquire));
+        assert!(worker.history_active);
+        assert_eq!(
+            port.effects.borrow().proposals,
+            if failure_point == 0 { 3 } else { 2 }
+        );
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 3);
+        assert!(port.effects.borrow().state.database(3).is_some());
+    }
+}
+
+#[test]
+fn history_activation_requires_leadership_bootstrap_authority_and_bounded_identity() {
+    let (mut worker, port, _, _directory) = build();
+    port.effects.borrow_mut().state = legacy(&worker);
+    let before = port.effects.borrow().state.encode();
+    port.effects.borrow_mut().leader = false;
+    assert_eq!(worker.scan().unwrap_err().code, "NOT_LEADER");
+    assert_eq!(port.effects.borrow().proposals, 0);
+    assert_eq!(port.effects.borrow().state.encode(), before);
+    assert!(!worker.ready.load(Ordering::Acquire));
+    port.effects.borrow_mut().leader = true;
+    worker.sequence = u64::MAX;
+    assert_eq!(worker.scan().unwrap_err().code, "IDENTITY_EXHAUSTED");
+    assert_eq!(port.effects.borrow().proposals, 0);
+    worker.sequence = 0;
+    worker.config.administrator_id += 1;
+    assert_eq!(worker.scan().unwrap_err().code, "COMMIT_UNKNOWN");
+    assert_eq!(port.effects.borrow().proposals, 1);
+    assert_eq!(port.effects.borrow().state.physical_history_version(), 2);
+    assert!(port.effects.borrow().state.database(3).is_none());
+    assert!(!worker.ready.load(Ordering::Acquire));
+}
+
+#[test]
+fn a_legacy_view_retires_every_local_writer_and_clears_the_activation_hint() {
+    let (mut worker, port, clock, _directory) = build();
+    execute(&mut worker, 88_200, "CREATE TABLE durable(v)", Mode::Write).unwrap();
+    assert!(worker.history_active && !worker.writers.is_empty());
+    let next = port.effects.borrow().reads + 1;
+    port.effects.borrow_mut().read_override = Some((next, legacy(&worker)));
+    assert_eq!(
+        worker
+            .state(clock.now().unwrap().instant + Duration::from_secs(10))
+            .unwrap_err()
+            .code,
+        "COMMIT_UNKNOWN"
+    );
+    assert!(!worker.history_active);
+    assert!(!worker.ready.load(Ordering::Acquire));
+    assert!(worker.writers.is_empty());
 }
 
 #[test]
@@ -659,9 +849,12 @@ fn metadata_and_original_outcomes_remain_available_without_the_cold_object() {
     execute(&mut worker, 4100, "CREATE TABLE items(value)", Mode::Write).unwrap();
     let statement = "INSERT INTO items VALUES(randomblob(16)) RETURNING value";
     let original = execute(&mut worker, 4101, statement, Mode::Write).unwrap();
+    for request_id in 4200..4207 {
+        execute(&mut worker, request_id, "SELECT 1", Mode::Write).unwrap();
+    }
     let call = request(&worker, 4102, Operation::Status);
     assert!(
-        matches!(worker.request(call).unwrap(), Reply::Status(s) if s.revision == 2 && s.owner_active && !s.cold && !s.suspended && s.archived_revision == Some(0))
+        matches!(worker.request(call).unwrap(), Reply::Status(s) if s.revision == 9 && s.base_revision == 8 && s.tail_entries == 1 && s.tail_bytes > 0 && s.owner_active && !s.cold && !s.suspended && s.archived_revision == Some(0))
     );
     let mut denied = request(&worker, 4102, Operation::Status);
     denied.context.admission.auth_epoch = 2;
@@ -682,7 +875,7 @@ fn metadata_and_original_outcomes_remain_available_without_the_cold_object() {
     worker.cold.controller = None;
     let call = request(&worker, 4103, Operation::Status);
     assert!(
-        matches!(worker.request(call).unwrap(), Reply::Status(s) if s.revision == 2 && !s.owner_active && s.cold && s.suspended && s.archived_revision == Some(2))
+        matches!(worker.request(call).unwrap(), Reply::Status(s) if s.revision == 9 && s.base_revision == 8 && s.tail_entries == 0 && s.tail_bytes == 0 && !s.owner_active && s.cold && s.suspended && s.archived_revision == Some(9))
     );
     let lookup = request(
         &worker,

@@ -750,6 +750,17 @@ dependencies = [
 [[package]]
 name = "scap-core"
 version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "scap-engine"
+version = "0.0.0"
+dependencies = [
+ "scap-cell",
+ "scap-core",
+]
 
 [[package]]
 name = "scap-raft-driver"
@@ -788,6 +799,7 @@ dependencies = [
  "raft",
  "scap-cell",
  "scap-core",
+ "scap-engine",
  "scap-raft-driver",
  "scap-raft-rocks",
  "scap-raft-store",
