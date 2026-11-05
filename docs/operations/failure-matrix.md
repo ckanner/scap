@@ -1,5 +1,7 @@
 # 故障模型与组件可用性矩阵
 
+> **新目标路线：**对象原生系统采用[新的目标故障矩阵](<../architecture/object-storage-native-proposal.md#fault-matrix>)，不要求保留 Raft 行为或实现旧库迁移。下文是当前原型/历史路线的故障合同，不代表新系统已获得对应保障。
+
 > 状态：完整目标故障规范与当前有界实现并列。2026-11-02 已有可部署三节点 daemon、HTTP/Node SDK、独立强读、leader owner 恢复和 S3 冷生命周期。第 3.1 节保留底层 peer 实验证据，第 3.2 节说明当前服务行为；动态控制面、GC/DR 和完整生产矩阵仍为 planned。实际执行结果以实验记录为准，配置参数与功能测试不等于恢复 SLO 达标。
 
 正式引擎的当前边界见 [SQLite adapter 合同](../engineering/sqlite-engine.md)：失败停止相应 writer；已接受而 native/最终 COMMIT 失败保留 receipt 并报告已提交不可用；有效历史 receipt 的坏结果同样不伪装成未提交。当前 leader 已自动从权威物理历史创建新目录并恢复 owner，旧 SQLite cache/sidecar 不直接复用。完整服务流程与容量边界见 [SQLite 服务实现](../engineering/sqlite-service.md)。

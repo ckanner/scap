@@ -106,6 +106,7 @@ python3 scripts/check_repo.py
 
 | 主题 | 文档 |
 | --- | --- |
+| 对象存储原生新目标（greenfield，未实现） | [S3 权威持久化与可丢弃计算](<docs/architecture/object-storage-native-proposal.md>)、[ADR-0020](<docs/adr/0020-object-storage-native-authority.md>)；允许替换当前原型，无迁移、回退或旧接口/格式兼容要求 |
 | 总体架构、需求与一致性 | [总体架构](docs/architecture/overview.md)、[需求合同](docs/architecture/requirements.md)、[一致性协议](docs/architecture/consistency.md) |
 | 当前服务与配置 | [SQLite 服务](docs/engineering/sqlite-service.md)、[server README](crates/scap-server/README.md) |
 | 成员管理与替换 | [操作流程](docs/engineering/membership-operations.md)、[ADR-0016](docs/adr/0016-durable-membership-replacement.md) |

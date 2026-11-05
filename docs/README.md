@@ -12,6 +12,12 @@
 - [tenancy-security.md](architecture/tenancy-security.md)：权限、资源、安全边界与密钥。
 - [technology-stack.md](architecture/technology-stack.md)：语言、组件、工程模块与集成门槛。
 
+## 新目标架构（greenfield）
+
+- [对象存储原生详细方案](<architecture/object-storage-native-proposal.md>)：S3 权威持久化、可丢弃计算、HEAD 条件发布、故障与验证矩阵、GC/PITR、长期结果留存及 N0–N4 从零实施。
+- [ADR-0020](<adr/0020-object-storage-native-authority.md>)：用户已确认旧原型未使用，允许完整替换，无迁移、回退、旧格式/SDK 或双后端兼容要求；协议提案待评审，未实现、未验收。
+- 下方 Raft/cell 文档记录当前源码与历史研发路线，不是新目标的结构约束；旧 G0–G4 证据不能作为对象原生协议的通过记录。
+
 ## 运行与实施
 
 - [failure-matrix.md](operations/failure-matrix.md)：故障和分区行为。

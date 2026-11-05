@@ -1,5 +1,7 @@
 # 验证规范与发布门禁
 
+> **新目标路线：**按 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)从零重设计，新协议的独立 oracle、OT 合同和 Go/No-Go 见[对象原生验证计划](<../architecture/object-storage-native-proposal.md#validation>)。旧 Raft 验证不作为新协议证据，无旧系统兼容测试要求；严格生产覆盖率与真实故障验证原则保持。
+
 > 状态：完整验证计划；部分 G0 合同已执行，整个 G0/G1 尚未通过。本文列出的全部框架、故障矩阵和 oracle 不等于已实现的测试集，更不代表性能或 RPO / RTO 承诺。已执行范围以 [G0 证据](g0-evidence.md)中的版本、环境、命令、原始证据和结果为准。
 
 ## 1. 验证目标

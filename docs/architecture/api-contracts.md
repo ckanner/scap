@@ -1,5 +1,7 @@
 # 客户端、接口与错误契约
 
+> **新目标路线：**[新 API 设计](<object-storage-native-proposal.md#implementation>)按 greenfield 定义，不要求兼容本文的旧 SDK、Hrana 子集、回执或请求窗口接口。本文仅记录当前原型行为；新协议必须独立验收。
+
 状态：2026-11-04 实现更新；已有有界 HTTP/Hrana、Node SDK、独立强读、按原请求世代查询结果、显式确认与窗口退休，以及数据库状态接口。本轮验证状态见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)；通用管理 API 和跨请求事务会话仍为 planned。当前可调用接口以 [正式协议模块](../../crates/scap-service/README.md)、[Node 客户端](../../sdk/node/README.md)及 [SQLite 服务实现](../engineering/sqlite-service.md)为准，本文同时保留后续完整平台的语义约束。
 
 ## 1. 接入目标
