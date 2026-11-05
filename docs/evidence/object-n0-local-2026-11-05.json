@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "classification": "N0_BOUNDED_MODEL_LOCAL_VALIDATION_NOT_PRODUCTION_RUNTIME",
+  "date": "2026-11-05",
+  "passed": true,
+  "closed_at_utc": "2026-11-05T21:53:32.978209+00:00",
+  "baseline": {
+    "remote_main": "b4d9634096fe4be520d71914b1c869c7fae69a19",
+    "tree": "3154ae05189ff7981e04764795f6b9c1217b76fa",
+    "design_pr": 16
+  },
+  "source": {
+    "commit": "305c7d31a2d4416b60b4dddc6e1213d5c072d2c1",
+    "tree": "b6b2befe433254fcdb0150ba8e8cdb0bc324dc35",
+    "source_sha256": "65e43bfd0f47e03506efb1bf9ef1daf1927093269e059bbc6fa7ca0f020c9fd6"
+  },
+  "source_identity_before_after_match": true,
+  "evidence_copy_byte_verified": true,
+  "model_source_inputs": [
+    {
+      "path": "experiments/object-authority-model/explore.py",
+      "bytes": 39941,
+      "sha256": "2da6e8b2712356c6dde488a526a9545d4ca29b45116d001aca3c8530c4b92712"
+    },
+    {
+      "path": "experiments/object-authority-model/model.py",
+      "bytes": 34605,
+      "sha256": "3c005cdef628fc85269c3b995752541d0cf4ad28e71febdc56ef5aed48b149a1"
+    },
+    {
+      "path": "experiments/object-authority-model/oracle.py",
+      "bytes": 35188,
+      "sha256": "0f8f5576f707f03020b0b1fa09c4ef2b26e8806f3cd62a3681a951dc1e84e845"
+    },
+    {
+      "path": "experiments/object-authority-model/test_model.py",
+      "bytes": 25159,
+      "sha256": "2b77ea06717d303ec7aa2ebd480f5a18cbde5912750c491663d3476e933856a2"
+    },
+    {
+      "path": "experiments/object-authority-model/test_oracle.py",
+      "bytes": 5153,
+      "sha256": "493f4642eb2d7af360f1ff724755759da2d7baa8c0d15475a6eef66fd0f2b694"
+    }
+  ],
+  "commands": [
+    {
+      "name": "source-capture",
+      "exit": 0,
+      "seconds": 0.174
+    },
+    {
+      "name": "model-unit",
+      "exit": 0,
+      "seconds": 1.567
+    },
+    {
+      "name": "model-explore",
+      "exit": 0,
+      "seconds": 44.648
+    },
+    {
+      "name": "tooling-unit",
+      "exit": 0,
+      "seconds": 4.972
+    },
+    {
+      "name": "repository",
+      "exit": 0,
+      "seconds": 0.294
+    },
+    {
+      "name": "workflow",
+      "exit": 0,
+      "seconds": 0.044
+    },
+    {
+      "name": "whitespace",
+      "exit": 0,
+      "seconds": 0.008
+    },
+    {
+      "name": "source-verify",
+      "exit": 0,
+      "seconds": 0.25
+    }
+  ],
+  "unit_tests": {
+    "model": 25,
+    "oracle_positive": 26,
+    "oracle_negative": 30,
+    "oracle_evidence_boundaries": 8,
+    "total": 89,
+    "failed": 0
+  },
+  "tooling_tests": {
+    "passed": 85,
+    "failed": 0
+  },
+  "bounded_exploration": {
+    "positive_cases": 664,
+    "race_cases": 640,
+    "directed_cases": 24,
+    "negative_controls": 30,
+    "negative_controls_rejected": 30,
+    "context_qualified_scheduler_states": 2096,
+    "distinct_scheduler_transitions": 2344,
+    "executed_scheduler_steps": 14928,
+    "raw_events": 18702,
+    "observed_maxima": {
+      "events_per_history": 111,
+      "objects_including_head_and_orphans": 14,
+      "metadata_revision": 9
+    },
+    "enumeration": {
+      "random_seed": null,
+      "ordering": "fixed scenario order, lexicographic response choices, left-first depth-first linear extensions",
+      "race_scenarios": [
+        "commit",
+        "cancel",
+        "takeover",
+        "auth",
+        "maintenance",
+        "delete",
+        "close_takeover",
+        "activate_auth"
+      ],
+      "actors_per_race": 2,
+      "stages_per_actor": [
+        "invoke",
+        "effect",
+        "receive"
+      ],
+      "linear_extensions_per_response_choice": 20,
+      "response_choices": [
+        [
+          "ok",
+          "ok"
+        ],
+        [
+          "ok",
+          "lost_cas"
+        ],
+        [
+          "lost_cas",
+          "ok"
+        ],
+        [
+          "lost_cas",
+          "lost_cas"
+        ]
+      ],
+      "candidate_preparation": "both candidates and all dependencies completed before the six-stage race; receive expands to native publication and application reply without another scheduler actor between them",
+      "state_identity": "scenario + response choices + complete model.snapshot_state() + next raw event ordinal; this is not a count of all possible protocol states",
+      "window_limit": 2,
+      "product_candidate_window_limit": 128,
+      "keep_closed": 2,
+      "default_max_objects_including_head_and_orphans": 96,
+      "default_max_counter": 255,
+      "default_max_attempts": 8
+    },
+    "cases_by_scenario": {
+      "single_commit": 1,
+      "absent_inflight_then_lost_response": 1,
+      "lost_success_exact_transport_retry": 1,
+      "native_fail": 1,
+      "lost_reply": 1,
+      "crash_does_not_cancel_inflight_cas": 1,
+      "crash_after_0_of_3_uploads": 1,
+      "crash_after_1_of_3_uploads": 1,
+      "crash_after_2_of_3_uploads": 1,
+      "crash_after_3_of_3_uploads": 1,
+      "full_window_cancel_close_and_late_candidate": 1,
+      "nonfull_close_rejected": 1,
+      "lost_result_retained_for_two_closed_epochs": 1,
+      "principal_fingerprint_scope_and_auth": 1,
+      "new_reader_selects_new_head": 1,
+      "takeover_recovery_then_new_writer": 1,
+      "control_unknown_stable_across_restart": 1,
+      "maintenance_is_not_gc": 1,
+      "deleted_does_not_become_cancelled": 1,
+      "contract_drift_rejected": 1,
+      "all_orphans_consume_budget": 1,
+      "counter_exhaustion_fails_closed": 1,
+      "corrupt_dependency_fails_closed": 1,
+      "forget_and_reuse_local_nonce": 1,
+      "race_commit": 80,
+      "race_cancel": 80,
+      "race_takeover": 80,
+      "race_auth": 80,
+      "race_maintenance": 80,
+      "race_delete": 80,
+      "race_close_takeover": 80,
+      "race_activate_auth": 80
+    }
+  },
+  "raw_event_count_excludes_synthetic_negative_controls": true,
+  "artifacts": {
+    "raw_histories": 664,
+    "synthetic_counterexamples": 30,
+    "closed_collection_files": 706,
+    "manifest_sha256": "62a85cd09252a390535670828a2a02c90955f5b25ef3dbf52a8210414e40e0dd",
+    "summary_sha256": "1a36752b04cbea7e84d1a58994c410544dc49f00dcf3a401984af3d9a70a2f5d",
+    "source_manifest_sha256": "78c91044557b96fb166acd3bcad86fce6f11da74ad185e6197d2af8c52a57a3f"
+  },
+  "production_inputs_changed": false,
+  "production_runtime_tests_executed": false,
+  "real_s3_tested": false,
+  "real_sqlite_tested": false,
+  "wire_format_frozen": false,
+  "n0_phase_exit_claimed": false,
+  "production_slo_passed": false,
+  "remote_ci_pass_claimed": false,
+  "branch_protections_changed": false,
+  "merge_basis": "Maintainer explicitly authorized exact-candidate local validation without waiting for CI quota.",
+  "limitations": [
+    "Finite two-actor schedule matrix plus named directed cases, not an exhaustive or unbounded proof.",
+    "Atomic exact-key GET and opaque-ETag conditional PUT are assumptions of the in-memory Store, not verified AWS S3 behavior.",
+    "Integer effects and result tokens are synthetic; no SQLite, HTTP, wire codec, checksum adapter, time, scheduling fairness or throughput is exercised.",
+    "Upload interleavings, arbitrary numbers of concurrent clients, deadlines, real outages and every crash boundary are not exhaustively enumerated.",
+    "Two slots exercise boundaries but do not validate production sizing for 128 slots; the retention guarantee counts closed epochs and has no positive wall-clock minimum.",
+    "No object is deleted; HEAD, immutable objects and orphans consume the bounded budget. GC, pin, PITR, catalogue and multi-database coordination are not implemented."
+  ],
+  "next_gates": [
+    "formal codec and exact byte budgets",
+    "real AWS conditional-object contracts",
+    "production authority and SQLite precommit gate",
+    "SDK and multiprocess response-loss and total-compute-loss recovery",
+    "new production source exact unit coverage",
+    "multi-database directory and fairness",
+    "physical GC pins PITR and cost convergence"
+  ],
+  "independent_audit": {
+    "artifact": "independent-audit.json",
+    "sha256": "b5583035e6460d9e81eb33ae108dad3922262b6961f7df48a75123dcdc0af809",
+    "verdict": "PASS_WITH_EXPLICIT_BOUNDED_MODEL_LIMITS",
+    "model_safety_probes": 16,
+    "final_oracle_positive_probes": 7,
+    "final_oracle_negative_probes": 12,
+    "frozen_code_inputs_verified": 5,
+    "raw_histories_verified": 694,
+    "closed_manifest_entries_verified": 705,
+    "previous_model_probe_applicability": "Exact reverse-SHA proof that the final model differs only by adding the original control intent to its query trace; independent final oracle probes use final source."
+  }
+}

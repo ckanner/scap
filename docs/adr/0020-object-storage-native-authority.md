@@ -1,7 +1,7 @@
 # ADR-0020：按 greenfield 重新设计 S3 原生提交权威
 
 - 日期：2026-11-05。
-- 状态：**目标架构提案，待 PR 评审；greenfield 范围已由用户明确；协议未实现、未验收**。
+- 状态：**目标架构已合入；greenfield 范围已由用户明确；对象运行时未实现、未验收**。逻辑协议的研究模型见 [N0 工作](../engineering/object-authority-n0.md)，不等于整个 N0 或真实对象合同通过。
 - 完整方案：[S3 权威持久化与可丢弃计算](<../architecture/object-storage-native-proposal.md>)。
 - 历史背景：[ADR-0002](<0002-shared-quorum-cells.md>)、[ADR-0003](<0003-object-storage-and-cold-lifecycle.md>)、[ADR-0011](<0011-bounded-native-sqlite-adapter.md>)、[ADR-0019](<0019-explicit-request-result-retirement.md>)。
 
