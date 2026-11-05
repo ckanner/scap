@@ -9,6 +9,8 @@
   "technology_decisions": "contracts/technology-decisions.json",
   "status": "g0-prototype",
   "implementation_complete": false,
+  "target_protocol_contract": "contracts/object-authority-model.json",
+  "target_protocol_scope": "N0-bounded-research-model; current Rust runtime remains the separately recorded Raft prototype",
   "database_engine": "pinned-libsql-sqlite-c-fork",
   "server_language": "Rust",
   "client_language": "TypeScript",

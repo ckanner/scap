@@ -82,6 +82,26 @@ jobs:
           path: target/coverage/tooling.json
           if-no-files-found: error
 
+  object-authority-model:
+    name: Object authority bounded model and independent oracle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run protocol and negative-oracle unit tests
+        run: python3 -m unittest discover -s experiments/object-authority-model -p 'test_*.py' -v
+      - name: Explore bounded schedules and retain raw histories
+        run: python3 experiments/object-authority-model/explore.py --output target/evidence/object-authority-model
+      - name: Retain model evidence without claiming real S3 execution
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: object-authority-model
+          path: target/evidence/object-authority-model
+          if-no-files-found: warn
+
   engine-probe:
     name: Real libSQL WAL probes
     runs-on: ubuntu-24.04

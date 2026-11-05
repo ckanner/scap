@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "contract_id": "scap-object-authority-n0-generation-retention-v1",
+  "stage": "N0-bounded-executable-model",
+  "specification": "docs/engineering/object-authority-n0.md",
+  "model_directory": "experiments/object-authority-model",
+  "production_runtime_implemented": false,
+  "real_s3_contract_validated": false,
+  "wire_format_frozen": false,
+  "n0_phase_exit_claimed": false,
+  "production_slo_validated": false,
+  "scope": {
+    "database_engine_target": "SQLite",
+    "greenfield": true,
+    "legacy_migration_required": false,
+    "dual_authority_backend": false,
+    "authority": "single-database-object-head-conditional-replacement",
+    "local_state_is_disposable": true,
+    "byzantine_service_tolerance": false
+  },
+  "assumptions": [
+    "Exact-key reads return an atomic HEAD body and its same-response opaque comparison token.",
+    "Conditional replacement linearizes exactly once only against the expected current token.",
+    "Distinct legitimate HEAD bodies do not collide in the comparison-token abstraction.",
+    "Immutable dependency objects remain durable unless a modeled unavailable/corrupt fault is injected.",
+    "The service constructs legal candidates; the object store does not enforce database or permission rules.",
+    "No physical garbage collection is enabled in this model."
+  ],
+  "identity": {
+    "request": ["authority-scope", "request-epoch", "request-id", "principal", "fingerprint"],
+    "candidate": ["original-head", "original-etag", "transition-id", "dependency-closure"],
+    "transition_identity": ["authority-scope", "new-metadata-revision", "operation-nonce"],
+    "transition_id_model_encoding": "new_metadata_revision:operation_nonce; genesis is a separate sentinel",
+    "latest_control_proof": "exact expected revision, composite transition identity and full canonical ControlIntent digest",
+    "permanent_seen_nonce_registry": false,
+    "owner": ["owner-epoch", "worker-instance", "recovering-or-active"],
+    "unknown_identity_refresh_allowed": false,
+    "old_diff_new_etag_rebase_allowed": false,
+    "current_permission_required_for_historical_results": true
+  },
+  "retention": {
+    "unit": "completed-full-request-generations",
+    "keep_closed_generations": 2,
+    "current_generation_retained": true,
+    "close_requires_full_current_generation": true,
+    "close_requires_trusted_coordinator": true,
+    "close_is_single_head_cas": true,
+    "retired_floor_formula": "max(0, current_request_epoch - 3)",
+    "closed_epoch_accepts_new_identity": false,
+    "retired_epoch_accepts_new_identity": false,
+    "retired_missing_result_means_cancelled": false,
+    "closed_absent_result": "EPOCH_CLOSED",
+    "application_ack_required_for_lifetime_progress": false,
+    "wall_clock_minimum_guaranteed": false,
+    "configuration_bound_to_authority": true,
+    "cross_principal_traffic_consumes_same_database_budget": true
+  },
+  "model_profile": {
+    "window_limit": 2,
+    "keep_closed": 2,
+    "max_objects": 96,
+    "max_counter": 255,
+    "max_attempts": 8,
+    "max_principals": 4,
+    "max_token_characters": 64,
+    "delta_min": -16,
+    "delta_max": 16,
+    "max_absolute_value": 65535
+  },
+  "candidate_product_profile": {
+    "window_limit": 128,
+    "keep_closed": 2,
+    "numeric_head_and_index_byte_budgets_validated": false,
+    "deployed_daemon_or_sdk_implemented": false
+  },
+  "maintenance_scope": {
+    "physical_gc_freeze": false,
+    "commit_takeover_activate_recover_allowed": false,
+    "authorized_read_lookup_cancel_allowed": true,
+    "authorized_metadata_controls_allowed": true,
+    "trusted_full_window_close_allowed": true,
+    "physical_objects_deleted": false
+  },
+  "required_model_checks": [
+    "same-head-cas-race",
+    "commit-cancel-both-orders",
+    "absent-with-delayed-cas",
+    "lost-cas-and-business-responses",
+    "owner-auth-delete-maintenance-fences",
+    "current-permission-and-original-principal",
+    "atomic-data-result-publication",
+    "fresh-read-and-full-local-state-loss",
+    "missing-corrupt-or-unavailable-dependencies",
+    "full-window-close-and-two-closed-generations",
+    "old-identity-fence-after-retirement",
+    "resource-backpressure-and-overflow",
+    "independent-oracle-negative-controls"
+  ],
+  "not_proven_by_model": [
+    "unbounded-state-safety-or-liveness",
+    "real-AWS-S3-SDK-IAM-KMS-error-semantics",
+    "real-SQLite-physical-page-visibility-and-recovery",
+    "production-wire-format-and-byte-resource-reservation",
+    "multi-database-directory-and-scheduler",
+    "physical-GC-pins-PITR-or-cost-convergence",
+    "wall-clock-result-retention-or-production-latency-SLO"
+  ]
+}

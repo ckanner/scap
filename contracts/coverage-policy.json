@@ -75,7 +75,8 @@
     "experiments/service-network",
     "experiments/membership-network",
     "experiments/history-network",
-    "experiments/retention-network"
+    "experiments/retention-network",
+    "experiments/object-authority-model"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [
