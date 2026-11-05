@@ -16,7 +16,8 @@ fn configured_binding_preserves_immutable_scope_principal_credential_and_epoch()
                 principal_id: 200,
                 credential_id: 201,
                 admission_id: 42,
-                auth_epoch: 7
+                auth_epoch: 7,
+                request_epoch: 1,
             }
         );
     }
@@ -95,5 +96,47 @@ fn read_and_write_capabilities_are_separate_and_require_all_bits() {
             .1
             .admission_id,
         u128::MAX
+    );
+}
+
+#[test]
+fn request_generation_and_administrative_token_scope_are_not_refreshed_or_combined() {
+    let mut cfg = config();
+    let mut request = context("alpha", 88);
+    request.request_epoch = 17;
+    let verifier = Verifier::new(&cfg.databases);
+    assert_eq!(
+        verifier
+            .verify(&request, Mode::Write)
+            .unwrap()
+            .1
+            .request_epoch,
+        17
+    );
+    assert_eq!(
+        verifier.verify_administrator(&request).unwrap_err().code,
+        "UNAUTHORIZED"
+    );
+    // Another credential for this same principal must not lend ADMIN to a
+    // less privileged token, even though the replicated principal policy is a union.
+    let mut admin = cfg.databases[0].tokens[0].clone();
+    admin.digest = Sha256::digest(b"unit-dedicated-admin").into();
+    admin.permissions = scap_cell::READ | scap_cell::ADMIN;
+    cfg.databases[0].tokens.push(admin);
+    let verifier = Verifier::new(&cfg.databases);
+    assert!(verifier.verify_administrator(&request).is_err());
+    request.credential = "unit-dedicated-admin".into();
+    assert_eq!(
+        verifier
+            .verify_administrator(&request)
+            .unwrap()
+            .1
+            .request_epoch,
+        17
+    );
+    request.request_epoch = 0;
+    assert_eq!(
+        verifier.verify_administrator(&request).unwrap_err().code,
+        "UNAUTHORIZED"
     );
 }

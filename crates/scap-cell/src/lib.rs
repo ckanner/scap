@@ -5,8 +5,9 @@
 //! replicated policy; it does not authenticate callers, perform I/O, publish
 //! SQLite pages, or provide a transport. Reads require a fresh Raft read barrier
 //! and `decode_bound` against the same durable Store view before using this API.
-//! All accepted transactions, cancellation fences and administrative receipts
-//! are retained. Capacity exhaustion rejects new work; it never evicts a fence.
+//! Request records are retained until explicit acknowledgement and an ordered
+//! epoch rotation replace them with a permanent fence. Administrative receipts
+//! remain retained. Capacity exhaustion never silently evicts a fence.
 //! The cell bootstrap administrator is immutable in this G0 format; credential
 //! rotation, cell-admin rotation and a production admission service are absent.
 
@@ -56,6 +57,9 @@ pub struct Admission {
     pub credential_id: u128,
     pub admission_id: u128,
     pub auth_epoch: u64,
+    /// Original request namespace. Legacy wire/state records always mean 1;
+    /// credential refresh must never silently refresh this value on a retry.
+    pub request_epoch: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,6 +125,14 @@ pub enum CommandKind {
         request_id: u128,
         request_fingerprint: [u8; 32],
     },
+    AcknowledgeRequest {
+        request_id: u128,
+        request_fingerprint: [u8; 32],
+        expected: RequestTerminal,
+    },
+    RotateRequests {
+        expected_epoch: u64,
+    },
     SuspendDb {
         operation_id: u128,
         token: OwnerToken,
@@ -156,6 +168,15 @@ pub enum Reject {
     TooLarge,
     Exhausted,
     Cold,
+    Retired,
+}
+
+/// The caller explicitly relinquishes this exact terminal result. An unknown
+/// request cannot be acknowledged, and an acknowledgement does not cancel SQL.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RequestTerminal {
+    Committed { sequence: u64 },
+    Cancelled { position: Position },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -202,6 +223,8 @@ pub enum Outcome {
     Cancelled,
     AlreadyCancelled,
     Rejected(Reject),
+    RequestAcknowledged,
+    RequestsRotated { epoch: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -218,6 +241,19 @@ pub struct HistoryActivationOutcome {
     pub cell: CellIdentity,
     pub position: Position,
     pub result: Result<(), Reject>,
+}
+
+/// Exact durable result of the separate v4 request-retention activation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetentionActivationOutcome {
+    pub cell: CellIdentity,
+    pub position: Position,
+    pub result: Result<(), Reject>,
+}
+
+enum ActivationOutcome {
+    History(HistoryActivationOutcome),
+    Retention(RetentionActivationOutcome),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -257,10 +293,15 @@ pub enum Lookup {
     Committed {
         commit: CommitResult,
         result: Vec<u8>,
+        acknowledged: bool,
     },
     Cancelled {
         position: Position,
+        acknowledged: bool,
     },
+    /// The old namespace cannot execute again; its result was relinquished.
+    /// This is neither Unknown nor evidence that SQL was cancelled.
+    Retired { current_epoch: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -277,6 +318,10 @@ pub struct DatabaseView {
     pub base_revision: u64,
     pub tail_entries: u64,
     pub tail_bytes: u64,
+    pub request_epoch: u64,
+    pub retained_requests: u64,
+    pub unacknowledged_requests: u64,
+    pub retired_revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -297,6 +342,21 @@ enum RequestRecord {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RetiredPrefix {
+    revision: u64,
+    commit_hash: [u8; 32],
+    source: Position,
+}
+
+impl RetiredPrefix {
+    const EMPTY: Self = Self {
+        revision: 0,
+        commit_hash: [0; 32],
+        source: Position { term: 0, index: 0 },
+    };
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Database {
     identity: DatabaseIdentity,
@@ -310,6 +370,10 @@ struct Database {
     cold: bool,
     archive: Option<ArchiveRef>,
     base: Option<RecoveryBase>,
+    request_epoch: u64,
+    retired: RetiredPrefix,
+    retirement_position: Option<Position>,
+    acknowledged: BTreeMap<u128, Position>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -398,6 +462,20 @@ pub fn decode_history_activation_outcome(
     codec::decode_history_activation_outcome(bytes, expected_cell, expected)
 }
 
+/// Activate request-retention semantics only after the older history activation
+/// and every preceding legacy log entry have been durably applied.
+pub fn encode_retention_activation(cell: CellIdentity, bootstrap_administrator: u128) -> Vec<u8> {
+    codec::encode_retention_activation(cell, bootstrap_administrator)
+}
+
+pub fn decode_retention_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<RetentionActivationOutcome, Error> {
+    codec::decode_retention_activation_outcome(bytes, expected_cell, expected)
+}
+
 impl CellState {
     /// Only explicit authorized new-group bootstrap may call this constructor.
     /// Genesis must equal the enclosing Store's durable application position.
@@ -469,8 +547,9 @@ impl CellState {
         self.bootstrap_admin
     }
 
-    /// Legacy snapshots keep version 2 semantics until an explicit ordered
-    /// activation entry succeeds. Fresh groups start at version 3.
+    /// Legacy snapshots keep their version 2/3 semantics until the respective
+    /// ordered activation succeeds. Fresh generic groups start at version 3;
+    /// version 4 additionally supports acknowledged request retirement.
     pub fn physical_history_version(&self) -> u8 {
         self.physical_history_version
     }
@@ -533,16 +612,25 @@ impl CellState {
         fingerprint: [u8; 32],
     ) -> Result<Lookup, Reject> {
         let db = self.authorized(identity, admission, READ)?;
+        if admission.request_epoch < db.request_epoch {
+            return Ok(Lookup::Retired {
+                current_epoch: db.request_epoch,
+            });
+        }
+        db.check_request_epoch(admission.request_epoch)?;
+        let acknowledged = db.acknowledged.contains_key(&request_id);
         match db.resolve(admission.principal_id, request_id, fingerprint)? {
             Some(RequestRecord::Accepted(sequence)) => {
-                let tx = &db.transactions[*sequence as usize - 1];
+                let tx = db.transaction(*sequence);
                 Ok(Lookup::Committed {
                     commit: tx.commit.clone(),
                     result: tx.result.clone(),
+                    acknowledged,
                 })
             }
             Some(RequestRecord::Cancelled { position, .. }) => Ok(Lookup::Cancelled {
                 position: *position,
+                acknowledged,
             }),
             None => Ok(Lookup::Unknown),
         }
@@ -565,7 +653,7 @@ impl CellState {
         }
         Ok(RecoverySource {
             base: database.base.as_ref(),
-            tail: &database.transactions[database.base_revision() as usize..],
+            tail: &database.transactions[database.tail_start()..],
         })
     }
 
@@ -647,7 +735,7 @@ impl CellState {
         Ok(db)
     }
 
-    fn advance(&mut self, entry: &Entry) -> Result<Option<HistoryActivationOutcome>, Error> {
+    fn advance(&mut self, entry: &Entry) -> Result<Option<ActivationOutcome>, Error> {
         let position = Position {
             term: entry.term,
             index: entry.index,
@@ -664,11 +752,22 @@ impl CellState {
         if codec::is_history_activation(&entry.data) {
             let result = self.activate_history(&entry.data);
             self.position = position;
-            return Ok(Some(HistoryActivationOutcome {
+            return Ok(Some(ActivationOutcome::History(HistoryActivationOutcome {
                 cell: self.identity,
                 position,
                 result,
-            }));
+            })));
+        }
+        if codec::is_retention_activation(&entry.data) {
+            let result = self.activate_retention(&entry.data);
+            self.position = position;
+            return Ok(Some(ActivationOutcome::Retention(
+                RetentionActivationOutcome {
+                    cell: self.identity,
+                    position,
+                    result,
+                },
+            )));
         }
         let outcome = if entry.data.len() > self.limits.max_command_bytes as usize {
             Outcome::Rejected(Reject::TooLarge)
@@ -704,7 +803,7 @@ impl CellState {
         if administrator != self.bootstrap_admin {
             return Err(Reject::Unauthorized);
         }
-        if self.physical_history_version == 3 {
+        if self.physical_history_version >= 3 {
             return Ok(());
         }
         let mut candidate = self.clone();
@@ -721,9 +820,53 @@ impl CellState {
         Ok(())
     }
 
+    fn activate_retention(&mut self, bytes: &[u8]) -> Result<(), Reject> {
+        if bytes.len() > self.limits.max_command_bytes as usize {
+            return Err(Reject::TooLarge);
+        }
+        let (cell, administrator) =
+            codec::decode_retention_activation(bytes).map_err(|_| Reject::Invalid)?;
+        if cell != self.identity {
+            return Err(Reject::Fenced);
+        }
+        if administrator != self.bootstrap_admin {
+            return Err(Reject::Unauthorized);
+        }
+        if self.physical_history_version < 3 {
+            return Err(Reject::Conflict);
+        }
+        if self.physical_history_version == 4 {
+            return Ok(());
+        }
+        let mut candidate = self.clone();
+        candidate.physical_history_version = 4;
+        if !candidate.fits() {
+            return Err(Reject::Capacity);
+        }
+        *self = candidate;
+        Ok(())
+    }
+
     fn fits(&self) -> bool {
+        // Each unacknowledged retained request must already fund its future
+        // (u128 request id, term/index) acknowledgement. Otherwise a full window
+        // could accept SQL yet never make room for the confirmations to retire it.
+        let acknowledgements = if self.physical_history_version >= 4 {
+            self.databases.values().fold(0usize, |bytes, database| {
+                bytes.saturating_add(
+                    database
+                        .requests
+                        .len()
+                        .saturating_sub(database.acknowledged.len())
+                        .saturating_mul(32),
+                )
+            })
+        } else {
+            0
+        };
         codec::encode_state(self, false)
             .len()
+            .saturating_add(acknowledgements)
             .saturating_add(RESERVED_BYTES)
             <= self.limits.max_state_bytes as usize
     }
@@ -733,6 +876,9 @@ impl CellState {
             return Err(Reject::Fenced);
         }
         validate_admission(command.admission)?;
+        if self.physical_history_version < 4 && command.admission.request_epoch != 1 {
+            return Err(Reject::Conflict);
+        }
         match &command.kind {
             CommandKind::Commit {
                 write,
@@ -743,6 +889,20 @@ impl CellState {
                 request_id,
                 request_fingerprint,
             } => self.cancel(command, *request_id, *request_fingerprint, position),
+            CommandKind::AcknowledgeRequest {
+                request_id,
+                request_fingerprint,
+                expected,
+            } => self.acknowledge(
+                command,
+                *request_id,
+                *request_fingerprint,
+                *expected,
+                position,
+            ),
+            CommandKind::RotateRequests { expected_epoch } => {
+                self.rotate_requests(command, *expected_epoch, position)
+            }
             CommandKind::Create {
                 operation_id,
                 policy,
@@ -903,6 +1063,10 @@ impl CellState {
                         cold: false,
                         archive: None,
                         base: None,
+                        request_epoch: 1,
+                        retired: RetiredPrefix::EMPTY,
+                        retirement_position: None,
+                        acknowledged: BTreeMap::new(),
                     },
                 );
                 AdminResult::Created
@@ -1010,6 +1174,9 @@ impl CellState {
                     || archive.commit_hash != view.commit_hash
                     || !position_within(archive.source, self.position)
                     || db
+                        .retirement_position
+                        .is_some_and(|retired| !position_within(retired, archive.source))
+                    || db
                         .transactions
                         .last()
                         .is_some_and(|tx| !position_within(tx.commit.position, archive.source))
@@ -1112,6 +1279,7 @@ impl CellState {
         position: Position,
     ) -> Result<Outcome, Reject> {
         let db = self.authorized(command.database, command.admission, WRITE)?;
+        db.check_request_epoch(command.admission.request_epoch)?;
         let ticket = &write.ticket;
         if ticket.cell_id != self.identity.cell_id
             || ticket.cell_incarnation != self.identity.cell_incarnation
@@ -1129,7 +1297,7 @@ impl CellState {
         )? {
             Some(RequestRecord::Accepted(sequence)) => {
                 return Ok(Outcome::AlreadyCommitted(
-                    db.transactions[*sequence as usize - 1].commit.clone(),
+                    db.transaction(*sequence).commit.clone(),
                 ));
             }
             Some(RequestRecord::Cancelled { .. }) => return Err(Reject::Cancelled),
@@ -1159,8 +1327,7 @@ impl CellState {
         if db.requests.len() >= self.limits.max_requests_per_database as usize {
             return Err(Reject::Capacity);
         }
-        // The retained transaction count is bounded by the u32 request limit.
-        let sequence = previous.revision + 1;
+        let sequence = previous.revision.checked_add(1).ok_or(Reject::Exhausted)?;
         let commit = CommitResult {
             receipt: CommitReceipt {
                 ticket: ticket.clone(),
@@ -1184,7 +1351,7 @@ impl CellState {
         db.transactions.push(tx);
         db.requests
             .insert(ticket.request_id, RequestRecord::Accepted(sequence));
-        if self.physical_history_version == 3 {
+        if self.physical_history_version >= 3 {
             db.compact(self.identity, self.limits)?;
         }
         Ok(Outcome::Accepted(commit))
@@ -1198,10 +1365,11 @@ impl CellState {
         position: Position,
     ) -> Result<Outcome, Reject> {
         let db = self.authorized(command.database, command.admission, WRITE)?;
+        db.check_request_epoch(command.admission.request_epoch)?;
         match db.resolve(command.admission.principal_id, request_id, fingerprint)? {
             Some(RequestRecord::Accepted(sequence)) => {
                 return Ok(Outcome::AlreadyCommitted(
-                    db.transactions[*sequence as usize - 1].commit.clone(),
+                    db.transaction(*sequence).commit.clone(),
                 ));
             }
             Some(RequestRecord::Cancelled { .. }) => return Ok(Outcome::AlreadyCancelled),
@@ -1224,9 +1392,107 @@ impl CellState {
             );
         Ok(Outcome::Cancelled)
     }
+
+    fn acknowledge(
+        &mut self,
+        command: &Command,
+        request_id: u128,
+        fingerprint: [u8; 32],
+        expected: RequestTerminal,
+        position: Position,
+    ) -> Result<Outcome, Reject> {
+        let db = self.authorized(command.database, command.admission, WRITE)?;
+        db.check_request_epoch(command.admission.request_epoch)?;
+        if self.physical_history_version < 4 {
+            return Err(Reject::Conflict);
+        }
+        let record = db
+            .resolve(command.admission.principal_id, request_id, fingerprint)?
+            .ok_or(Reject::NotFound)?;
+        let actual = match record {
+            RequestRecord::Accepted(sequence) => RequestTerminal::Committed {
+                sequence: *sequence,
+            },
+            RequestRecord::Cancelled { position, .. } => RequestTerminal::Cancelled {
+                position: *position,
+            },
+        };
+        if actual != expected {
+            return Err(Reject::Conflict);
+        }
+        self.databases
+            .get_mut(&command.database.database_id)
+            .unwrap()
+            .acknowledged
+            .entry(request_id)
+            .or_insert(position);
+        Ok(Outcome::RequestAcknowledged)
+    }
+
+    fn rotate_requests(
+        &mut self,
+        command: &Command,
+        expected_epoch: u64,
+        position: Position,
+    ) -> Result<Outcome, Reject> {
+        let db = self.authorized(command.database, command.admission, ADMIN)?;
+        if self.physical_history_version < 4 {
+            return Err(Reject::Conflict);
+        }
+        db.check_request_epoch(command.admission.request_epoch)?;
+        db.check_request_epoch(expected_epoch)?;
+        if db.cold {
+            return Err(Reject::Cold);
+        }
+        if db.requests.is_empty() || db.acknowledged.len() != db.requests.len() {
+            return Err(Reject::Conflict);
+        }
+        let epoch = db.request_epoch.checked_add(1).ok_or(Reject::Exhausted)?;
+        let db = self
+            .databases
+            .get_mut(&command.database.database_id)
+            .unwrap();
+        // Materialize the exact head before releasing any metadata. A failed
+        // fold leaves the entire candidate unpublished, including the fence.
+        db.fold(self.identity, self.limits)?;
+        if let Some(base) = &db.base {
+            db.retired = RetiredPrefix {
+                revision: base.revision,
+                commit_hash: base.commit_hash,
+                source: base.source,
+            };
+        }
+        db.transactions.clear();
+        db.requests.clear();
+        db.acknowledged.clear();
+        db.request_epoch = epoch;
+        db.retirement_position = Some(position);
+        // An old archive has a different logical prefix/namespace. It remains
+        // immutable in S3 but is no longer a live prune or hydrate authority.
+        db.archive = None;
+        Ok(Outcome::RequestsRotated { epoch })
+    }
 }
 
 impl Database {
+    fn transaction(&self, sequence: u64) -> &AcceptedTransaction {
+        &self.transactions[(sequence - self.retired.revision - 1) as usize]
+    }
+
+    fn tail_start(&self) -> usize {
+        (self.base_revision() - self.retired.revision) as usize
+    }
+
+    fn check_request_epoch(&self, epoch: u64) -> Result<(), Reject> {
+        if epoch < self.request_epoch {
+            return Err(Reject::Retired);
+        }
+        if epoch > self.request_epoch {
+            return Err(Reject::Conflict);
+        }
+        Ok(())
+    }
+
     fn base_revision(&self) -> u64 {
         self.base.as_ref().map_or(0, |base| base.revision)
     }
@@ -1234,13 +1500,13 @@ impl Database {
     fn tail_bytes(&self) -> u64 {
         self.transactions
             .iter()
-            .skip(self.base_revision() as usize)
+            .skip(self.tail_start())
             .map(|transaction| transaction.physical_changes.len() as u64)
             .sum()
     }
 
     fn compaction_due(&self, limits: Limits) -> bool {
-        let count = (self.transactions.len() as u64).saturating_sub(self.base_revision());
+        let count = (self.transactions.len() - self.tail_start()) as u64;
         physical_tail_due(count, self.tail_bytes(), limits)
     }
 
@@ -1250,11 +1516,11 @@ impl Database {
             auth_epoch: self.auth_epoch,
             owner: self.owner,
             active: self.active,
-            revision: self.transactions.len() as u64,
+            revision: self.retired.revision + self.transactions.len() as u64,
             commit_hash: self
                 .transactions
                 .last()
-                .map_or([0; 32], |tx| tx.commit_hash),
+                .map_or(self.retired.commit_hash, |tx| tx.commit_hash),
             suspended: self.suspended,
             cold: self.cold,
             archive: self.archive,
@@ -1262,18 +1528,28 @@ impl Database {
             tail_entries: if self.cold {
                 0
             } else {
-                (self.transactions.len() as u64).saturating_sub(self.base_revision())
+                (self.transactions.len() - self.tail_start()) as u64
             },
             tail_bytes: self.tail_bytes(),
+            request_epoch: self.request_epoch,
+            retained_requests: self.requests.len() as u64,
+            unacknowledged_requests: (self.requests.len() - self.acknowledged.len()) as u64,
+            retired_revision: self.retired.revision,
         }
     }
 
     /// The limits and thresholds are derived exclusively from the replicated
     /// cell limits and the v3 format. No worker-local setting changes apply.
     fn compact(&mut self, cell: CellIdentity, limits: Limits) -> Result<(), Reject> {
-        let start = self.base_revision() as usize;
-        let count = self.transactions.len() - start;
-        if count == 0 || !self.compaction_due(limits) {
+        if !self.compaction_due(limits) {
+            return Ok(());
+        }
+        self.fold(cell, limits)
+    }
+
+    fn fold(&mut self, cell: CellIdentity, limits: Limits) -> Result<(), Reject> {
+        let start = self.tail_start();
+        if start == self.transactions.len() {
             return Ok(());
         }
         let identity = physical::EngineIdentity {
@@ -1369,7 +1645,7 @@ impl Database {
         let record = self.requests.get(&request_id);
         let binding = match record {
             Some(RequestRecord::Accepted(sequence)) => {
-                let tx = &self.transactions[*sequence as usize - 1];
+                let tx = self.transaction(*sequence);
                 Some((tx.admission.principal_id, tx.request_fingerprint))
             }
             Some(RequestRecord::Cancelled {
@@ -1455,7 +1731,14 @@ impl Application for CellApplication {
             let activation = state.advance(entry)?;
             if requested.get(results.len()) == Some(&entry.index) {
                 if let Some(activation) = activation {
-                    results.push(codec::encode_history_activation_outcome(&activation));
+                    results.push(match activation {
+                        ActivationOutcome::History(value) => {
+                            codec::encode_history_activation_outcome(&value)
+                        }
+                        ActivationOutcome::Retention(value) => {
+                            codec::encode_retention_activation_outcome(&value)
+                        }
+                    });
                 } else {
                     let outcome = state.last_outcome.as_ref().ok_or(Error::Position)?;
                     if outcome.position != state.position {
@@ -1484,6 +1767,7 @@ fn validate_admission(admission: Admission) -> Result<(), Reject> {
         || admission.credential_id == 0
         || admission.admission_id == 0
         || admission.auth_epoch == 0
+        || admission.request_epoch == 0
     {
         return Err(Reject::Unauthorized);
     }
@@ -1557,10 +1841,12 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         if (database.suspended && database.active) || (database.cold && !database.suspended) {
             return Err(Error::Malformed("invalid cold lifecycle"));
         }
+        validate_retirement(database, state.position)?;
         validate_base(database, state.identity, state.position, state.limits)?;
         if let Some(archive) = database.archive {
             let view = database.view();
             if !position_within(archive.source, state.position)
+                || archive.revision < database.retired.revision
                 || archive.revision > view.revision
                 || archive.object_bytes == 0
                 || (archive.object_bytes as usize).saturating_add(192)
@@ -1570,10 +1856,10 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
             {
                 return Err(Error::Malformed("invalid archive reference"));
             }
-            let archived_hash = if archive.revision == 0 {
-                [0; 32]
+            let archived_hash = if archive.revision == database.retired.revision {
+                database.retired.commit_hash
             } else {
-                let transaction = &database.transactions[archive.revision as usize - 1];
+                let transaction = database.transaction(archive.revision);
                 if !position_within(transaction.commit.position, archive.source) {
                     return Err(Error::Malformed("archive source precedes accepted history"));
                 }
@@ -1595,10 +1881,10 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         }
         validate_policy(&database.policy, state.limits)
             .map_err(|_| Error::Malformed("invalid stored policy"))?;
-        let mut previous_hash = [0; 32];
-        let mut previous_position = Position { term: 0, index: 0 };
+        let mut previous_hash = database.retired.commit_hash;
+        let mut previous_position = database.retired.source;
         for (index, transaction) in database.transactions.iter().enumerate() {
-            let sequence = index as u64 + 1;
+            let sequence = database.retired.revision + index as u64 + 1;
             let ticket = &transaction.commit.receipt.ticket;
             let position = transaction.commit.position;
             if ticket.cell_id != state.identity.cell_id
@@ -1612,13 +1898,17 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
                 || ticket.owner_epoch > database.owner.epoch
                 || ticket.worker_instance_id == 0
                 || ticket.request_id == 0
-                || ticket.predecessor != index as u64
+                || ticket.predecessor != sequence - 1
                 || transaction.commit.receipt.sequence != sequence
                 || validate_admission(transaction.admission).is_err()
                 || transaction.admission.auth_epoch != ticket.auth_epoch
+                || transaction.admission.request_epoch != database.request_epoch
                 || !position_within(position, state.position)
                 || position.index <= previous_position.index
                 || position.term < previous_position.term
+                || database.retirement_position.is_some_and(|retired| {
+                    !position_within(retired, position) || position.index == retired.index
+                })
             {
                 return Err(Error::Malformed("invalid accepted transaction identity"));
             }
@@ -1649,12 +1939,15 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
             }
             match record {
                 RequestRecord::Accepted(sequence) => {
-                    if *sequence == 0 || *sequence > database.transactions.len() as u64 {
+                    if *sequence <= database.retired.revision
+                        || *sequence > database.view().revision
+                    {
                         return Err(Error::Malformed(
                             "request points outside transaction history",
                         ));
                     }
-                    if database.transactions[*sequence as usize - 1]
+                    if database
+                        .transaction(*sequence)
                         .commit
                         .receipt
                         .ticket
@@ -1671,11 +1964,30 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
                 } => {
                     if validate_admission(*admission).is_err()
                         || admission.auth_epoch > database.auth_epoch
+                        || admission.request_epoch != database.request_epoch
                         || !position_within(*position, state.position)
+                        || database.retirement_position.is_some_and(|retired| {
+                            !position_within(retired, *position) || position.index == retired.index
+                        })
                     {
                         return Err(Error::Malformed("invalid cancellation fence"));
                     }
                 }
+            }
+        }
+        for (&request_id, &position) in &database.acknowledged {
+            let terminal = match database.requests.get(&request_id) {
+                Some(RequestRecord::Accepted(sequence)) => {
+                    database.transaction(*sequence).commit.position
+                }
+                Some(RequestRecord::Cancelled { position, .. }) => *position,
+                None => return Err(Error::Malformed("acknowledgement without request")),
+            };
+            if !position_within(position, state.position)
+                || !position_within(terminal, position)
+                || terminal.index == position.index
+            {
+                return Err(Error::Malformed("invalid request acknowledgement position"));
             }
         }
     }
@@ -1763,12 +2075,66 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
                 })
             }),
             Outcome::Rejected(_) => true,
+            Outcome::RequestAcknowledged => state.databases.values().any(|db| {
+                db.acknowledged
+                    .values()
+                    .any(|position| position_within(*position, last.position))
+            }),
+            Outcome::RequestsRotated { epoch } => state.databases.values().any(|db| {
+                db.request_epoch == *epoch && db.retirement_position == Some(last.position)
+            }),
         };
         if !matches {
             return Err(Error::Malformed("outcome has no matching durable record"));
         }
     } else if !state.databases.is_empty() {
         return Err(Error::Malformed("non-genesis state lost its outcome"));
+    }
+    Ok(())
+}
+
+fn validate_retirement(database: &Database, position: Position) -> Result<(), Error> {
+    if database.request_epoch == 0
+        || database
+            .retired
+            .revision
+            .checked_add(database.transactions.len() as u64)
+            .is_none()
+        || database.acknowledged.len() > database.requests.len()
+    {
+        return Err(Error::Malformed("invalid request retirement bounds"));
+    }
+    if database.retired.revision == 0 {
+        if database.retired != RetiredPrefix::EMPTY {
+            return Err(Error::Malformed("nonempty zero retired prefix"));
+        }
+    } else if !position_within(database.retired.source, position)
+        || database
+            .base
+            .as_ref()
+            .is_none_or(|base| base.revision < database.retired.revision)
+    {
+        return Err(Error::Malformed("retired prefix has no recoverable base"));
+    }
+    match database.retirement_position {
+        Some(retirement) => {
+            if database.request_epoch == 1
+                || !position_within(retirement, position)
+                || (database.retired.revision != 0
+                    && (!position_within(database.retired.source, retirement)
+                        || database.retired.source.index == retirement.index))
+                || database
+                    .archive
+                    .is_some_and(|archive| !position_within(retirement, archive.source))
+            {
+                return Err(Error::Malformed("invalid namespace retirement position"));
+            }
+        }
+        None => {
+            if database.request_epoch != 1 || database.retired != RetiredPrefix::EMPTY {
+                return Err(Error::Malformed("request epoch lost retirement fence"));
+            }
+        }
     }
     Ok(())
 }
@@ -1783,13 +2149,19 @@ fn validate_base(
         return Ok(());
     };
     if base.revision == 0
-        || base.revision > database.transactions.len() as u64
+        || base.revision < database.retired.revision
+        || base.revision > database.retired.revision + database.transactions.len() as u64
         || !position_within(base.source, position)
     {
         return Err(Error::Malformed("invalid recovery base position"));
     }
-    let transaction = &database.transactions[base.revision as usize - 1];
-    if base.source != transaction.commit.position || base.commit_hash != transaction.commit_hash {
+    let (source, hash) = if base.revision == database.retired.revision {
+        (database.retired.source, database.retired.commit_hash)
+    } else {
+        let transaction = database.transaction(base.revision);
+        (transaction.commit.position, transaction.commit_hash)
+    };
+    if base.source != source || base.commit_hash != hash {
         return Err(Error::Malformed(
             "recovery base does not cover its logical prefix",
         ));

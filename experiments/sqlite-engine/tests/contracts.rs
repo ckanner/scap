@@ -137,6 +137,7 @@ fn reject(reason: Reject) -> Rejection {
     match reason {
         Reject::Fenced => Rejection::Fenced,
         Reject::Unauthorized => Rejection::Unauthorized,
+        Reject::Retired => Rejection::Retired,
         Reject::Conflict | Reject::Cancelled => Rejection::Conflict,
         _ => Rejection::InvalidTransaction,
     }
@@ -164,11 +165,12 @@ fn lookup(cluster: &mut Cluster, ticket: &CommitTicket, fingerprint: [u8; 32]) -
     }
     match state.lookup(DATABASE, admission, ticket.request_id, fingerprint) {
         Ok(Lookup::Unknown) => LookupDecision::NotFound,
-        Ok(Lookup::Committed { commit, result }) => LookupDecision::AlreadyCommitted {
+        Ok(Lookup::Committed { commit, result, .. }) => LookupDecision::AlreadyCommitted {
             receipt: commit.receipt,
             result,
         },
         Ok(Lookup::Cancelled { .. }) => LookupDecision::Rejected(Rejection::Conflict),
+        Ok(Lookup::Retired { .. }) => LookupDecision::Rejected(Rejection::Retired),
         Err(error) => LookupDecision::Rejected(reject(error)),
     }
 }
@@ -202,6 +204,7 @@ fn propose(
             let Lookup::Committed {
                 commit: original,
                 result,
+                ..
             } = state
                 .lookup(DATABASE, admission, write.ticket.request_id, fingerprint)
                 .unwrap()
@@ -643,7 +646,7 @@ fn partition_returns_unknown_and_later_commit_is_recovered_without_sql_replay() 
         }
         let state = cluster.read_state();
         let admission = cluster.admission();
-        let Lookup::Committed { commit, result } = state
+        let Lookup::Committed { commit, result, .. } = state
             .lookup(
                 DATABASE,
                 admission,
@@ -1209,6 +1212,7 @@ impl Cluster {
             credential_id: 200,
             admission_id: self.next_admission,
             auth_epoch: epoch,
+            request_epoch: 1,
         };
         self.next_admission += 1;
         admission

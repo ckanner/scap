@@ -98,7 +98,8 @@ fn repeated_entry_folds_keep_every_result_cancellation_and_original_receipt() {
         state.lookup(database(), admission(), request(1), [1; 32]),
         Ok(Lookup::Committed {
             commit: first.clone(),
-            result: vec![1, 0, 255]
+            result: vec![1, 0, 255],
+            acknowledged: false,
         })
     );
     assert_eq!(
@@ -345,6 +346,7 @@ pub(super) fn legacy_admission(epoch: u64) -> Admission {
         credential_id: 13,
         admission_id: 14,
         auth_epoch: epoch,
+        request_epoch: 1,
     }
 }
 

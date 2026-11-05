@@ -46,7 +46,7 @@ fn lookup(state: &CellState, request: u128) -> Lookup {
 }
 
 fn assert_request(state: &CellState, request: u128, sequence: u64) {
-    let Lookup::Committed { commit, result } = lookup(state, request) else {
+    let Lookup::Committed { commit, result, .. } = lookup(state, request) else {
         panic!("acknowledged request disappeared: {request}");
     };
     assert_eq!(commit.receipt.sequence, sequence);

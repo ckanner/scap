@@ -6,9 +6,11 @@ const OUTCOME_MAGIC: &[u8; 8] = b"SCAPOUT!";
 const ARCHIVE_MAGIC: &[u8; 8] = b"SCAPARC!";
 const ACTIVATION_MAGIC: &[u8; 8] = b"SCAPACT!";
 const ACTIVATION_OUTCOME_MAGIC: &[u8; 8] = b"SCAPACR!";
+const RETENTION_MAGIC: &[u8; 8] = b"SCAPRET!";
+const RETENTION_OUTCOME_MAGIC: &[u8; 8] = b"SCAPRR!1";
 const ACTIVATION_VERSION: u8 = 1;
-const WIRE_VERSION: u8 = 2;
-const STATE_VERSION: u8 = 3;
+const WIRE_VERSION: u8 = 3;
+const STATE_VERSION: u8 = 4;
 
 struct Writer(Vec<u8>);
 
@@ -76,6 +78,17 @@ impl Writer {
         self.u128(value.admission_id);
         self.u64(value.auth_epoch);
     }
+    fn request_admission(&mut self, value: Admission, with_epoch: bool) {
+        self.admission(value);
+        if with_epoch {
+            self.u64(value.request_epoch);
+        }
+    }
+    fn retired(&mut self, value: RetiredPrefix) {
+        self.u64(value.revision);
+        self.raw(&value.commit_hash);
+        self.position(value.source);
+    }
     fn policy(&mut self, policy: &[Grant]) {
         self.count(policy.len());
         for grant in policy {
@@ -115,8 +128,8 @@ impl Writer {
         self.u64(value.receipt.sequence);
         self.position(value.position);
     }
-    fn transaction(&mut self, value: &AcceptedTransaction, include_hash: bool) {
-        self.admission(value.admission);
+    fn transaction(&mut self, value: &AcceptedTransaction, include_hash: bool, with_epoch: bool) {
+        self.request_admission(value.admission, with_epoch);
         self.raw(&value.request_fingerprint);
         self.commit(&value.commit);
         self.bytes(&value.physical_changes);
@@ -178,6 +191,11 @@ impl Writer {
             Outcome::Rejected(reason) => {
                 self.byte(6);
                 self.byte(*reason as u8);
+            }
+            Outcome::RequestAcknowledged => self.byte(7),
+            Outcome::RequestsRotated { epoch } => {
+                self.byte(8);
+                self.u64(*epoch);
             }
         }
     }
@@ -284,6 +302,29 @@ impl Writer {
                 self.byte(9);
                 self.u128(*operation_id);
                 self.bytes(archive);
+            }
+            CommandKind::AcknowledgeRequest {
+                request_id,
+                request_fingerprint,
+                expected,
+            } => {
+                self.byte(10);
+                self.u128(*request_id);
+                self.raw(request_fingerprint);
+                match expected {
+                    RequestTerminal::Committed { sequence } => {
+                        self.byte(0);
+                        self.u64(*sequence);
+                    }
+                    RequestTerminal::Cancelled { position } => {
+                        self.byte(1);
+                        self.position(*position);
+                    }
+                }
+            }
+            CommandKind::RotateRequests { expected_epoch } => {
+                self.byte(11);
+                self.u64(*expected_epoch);
             }
         }
     }
@@ -401,6 +442,21 @@ impl<'a> Reader<'a> {
             credential_id: self.u128()?,
             admission_id: self.u128()?,
             auth_epoch: self.u64()?,
+            request_epoch: 1,
+        })
+    }
+    fn request_admission(&mut self, with_epoch: bool) -> Result<Admission, Error> {
+        let mut admission = self.admission()?;
+        if with_epoch {
+            admission.request_epoch = self.u64()?;
+        }
+        Ok(admission)
+    }
+    fn retired(&mut self) -> Result<RetiredPrefix, Error> {
+        Ok(RetiredPrefix {
+            revision: self.u64()?,
+            commit_hash: self.take()?,
+            source: self.position()?,
         })
     }
     fn policy(&mut self, limit: u32) -> Result<Vec<Grant>, Error> {
@@ -450,9 +506,13 @@ impl<'a> Reader<'a> {
             position: self.position()?,
         })
     }
-    fn transaction(&mut self, limits: Limits) -> Result<AcceptedTransaction, Error> {
+    fn transaction(
+        &mut self,
+        limits: Limits,
+        with_epoch: bool,
+    ) -> Result<AcceptedTransaction, Error> {
         Ok(AcceptedTransaction {
-            admission: self.admission()?,
+            admission: self.request_admission(with_epoch)?,
             request_fingerprint: self.take()?,
             commit: self.commit()?,
             physical_changes: self.bytes(limits.max_transaction_bytes)?,
@@ -482,6 +542,8 @@ impl<'a> Reader<'a> {
             4 => Ok(Outcome::Cancelled),
             5 => Ok(Outcome::AlreadyCancelled),
             6 => Ok(Outcome::Rejected(self.rejection()?)),
+            7 => Ok(Outcome::RequestAcknowledged),
+            8 => Ok(Outcome::RequestsRotated { epoch: self.u64()? }),
             _ => Err(Error::Malformed("unknown outcome")),
         }
     }
@@ -498,6 +560,7 @@ impl<'a> Reader<'a> {
             8 => Reject::TooLarge,
             9 => Reject::Exhausted,
             10 => Reject::Cold,
+            11 => Reject::Retired,
             _ => return Err(Error::Malformed("unknown rejection")),
         })
     }
@@ -559,6 +622,22 @@ impl<'a> Reader<'a> {
                 operation_id: self.u128()?,
                 archive: self.bytes(limit)?,
             }),
+            10 => Ok(CommandKind::AcknowledgeRequest {
+                request_id: self.u128()?,
+                request_fingerprint: self.take()?,
+                expected: match self.byte()? {
+                    0 => RequestTerminal::Committed {
+                        sequence: self.u64()?,
+                    },
+                    1 => RequestTerminal::Cancelled {
+                        position: self.position()?,
+                    },
+                    _ => return Err(Error::Malformed("unknown request terminal")),
+                },
+            }),
+            11 => Ok(CommandKind::RotateRequests {
+                expected_epoch: self.u64()?,
+            }),
             _ => Err(Error::Malformed("unknown command")),
         }
     }
@@ -615,9 +694,14 @@ pub(super) fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8
     let mut writer = Writer(Vec::new());
     writer.cell(command.cell);
     writer.database(command.database);
-    writer.admission(command.admission);
+    let version = if command.admission.request_epoch != 1 || retention_command(&command.kind) {
+        WIRE_VERSION
+    } else {
+        2
+    };
+    writer.request_admission(command.admission, version >= 3);
     writer.kind(&command.kind);
-    let encoded = seal(COMMAND_MAGIC, WIRE_VERSION, writer.0);
+    let encoded = seal(COMMAND_MAGIC, version, writer.0);
     if encoded.len() > limits.max_command_bytes as usize {
         return Err(Error::Limit);
     }
@@ -632,7 +716,7 @@ pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Er
     let command = Command {
         cell: reader.cell()?,
         database: reader.database()?,
-        admission: reader.admission()?,
+        admission: reader.request_admission(bytes[8] >= 3)?,
         kind: reader.kind(limits.max_command_bytes)?,
     };
     if bytes[8] == 1
@@ -646,6 +730,9 @@ pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Er
     {
         return Err(Error::Malformed("new command in legacy envelope"));
     }
+    if bytes[8] < 3 && retention_command(&command.kind) {
+        return Err(Error::Malformed("retention command in legacy envelope"));
+    }
     reader.finish()?;
     Ok(command)
 }
@@ -654,7 +741,12 @@ pub(super) fn encode_applied_outcome(outcome: &AppliedOutcome) -> Vec<u8> {
     let mut writer = Writer(Vec::new());
     writer.position(outcome.position);
     writer.outcome(&outcome.outcome);
-    seal(OUTCOME_MAGIC, WIRE_VERSION, writer.0)
+    let version = if retention_outcome(&outcome.outcome) {
+        WIRE_VERSION
+    } else {
+        2
+    };
+    seal(OUTCOME_MAGIC, version, writer.0)
 }
 
 pub(super) fn decode_applied_outcome(
@@ -677,6 +769,9 @@ pub(super) fn decode_applied_outcome(
     reader.finish()?;
     if bytes[8] == 1 && newer_outcome(&outcome.outcome) {
         return Err(Error::Malformed("new outcome in legacy envelope"));
+    }
+    if bytes[8] < 3 && retention_outcome(&outcome.outcome) {
+        return Err(Error::Malformed("retention outcome in legacy envelope"));
     }
     if expected.term == 0 || expected.index == 0 || outcome.position != expected {
         return Err(Error::Position);
@@ -757,6 +852,79 @@ pub(super) fn decode_history_activation_outcome(
     })
 }
 
+pub(super) fn is_retention_activation(bytes: &[u8]) -> bool {
+    bytes.starts_with(RETENTION_MAGIC)
+}
+
+pub(super) fn encode_retention_activation(cell: CellIdentity, administrator: u128) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(cell);
+    writer.u128(administrator);
+    seal(RETENTION_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_retention_activation(bytes: &[u8]) -> Result<(CellIdentity, u128), Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            RETENTION_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let administrator = reader.u128()?;
+    reader.finish()?;
+    Ok((cell, administrator))
+}
+
+pub(super) fn encode_retention_activation_outcome(outcome: &RetentionActivationOutcome) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(outcome.cell);
+    writer.position(outcome.position);
+    writer.byte(u8::from(outcome.result.is_ok()));
+    if let Err(reason) = outcome.result {
+        writer.byte(reason as u8);
+    }
+    seal(RETENTION_OUTCOME_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_retention_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<RetentionActivationOutcome, Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            RETENTION_OUTCOME_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let position = reader.position()?;
+    let result = if reader.boolean()? {
+        Ok(())
+    } else {
+        Err(reader.rejection()?)
+    };
+    reader.finish()?;
+    if cell != expected_cell || cell.cell_id == 0 || cell.cell_incarnation == 0 {
+        return Err(Error::Binding);
+    }
+    if expected.term == 0 || expected.index == 0 || position != expected {
+        return Err(Error::Position);
+    }
+    Ok(RetentionActivationOutcome {
+        cell,
+        position,
+        result,
+    })
+}
+
 fn newer_outcome(outcome: &Outcome) -> bool {
     matches!(
         outcome,
@@ -774,6 +942,22 @@ fn newer_outcome(outcome: &Outcome) -> bool {
     )
 }
 
+fn retention_command(kind: &CommandKind) -> bool {
+    matches!(
+        kind,
+        CommandKind::AcknowledgeRequest { .. } | CommandKind::RotateRequests { .. }
+    )
+}
+
+fn retention_outcome(outcome: &Outcome) -> bool {
+    matches!(
+        outcome,
+        Outcome::RequestAcknowledged
+            | Outcome::RequestsRotated { .. }
+            | Outcome::Rejected(Reject::Retired)
+    )
+}
+
 pub(super) fn admin_digest(command: &Command) -> [u8; 32] {
     let mut writer = Writer(Vec::new());
     writer.raw(b"SCAP administrative intent v1");
@@ -786,19 +970,35 @@ pub(super) fn admin_digest(command: &Command) -> [u8; 32] {
 
 pub(super) fn transaction_hash(previous: [u8; 32], transaction: &AcceptedTransaction) -> [u8; 32] {
     let mut writer = Writer(Vec::new());
-    writer.raw(b"SCAP accepted transaction v1");
+    let scoped = transaction.admission.request_epoch != 1;
+    writer.raw(if scoped {
+        b"SCAP accepted transaction v2"
+    } else {
+        b"SCAP accepted transaction v1"
+    });
     writer.raw(&previous);
-    writer.transaction(transaction, false);
+    writer.transaction(transaction, false, scoped);
     payload_digest(&writer.0)
 }
 
 pub(super) fn archive_metadata(database: &Database) -> [u8; 32] {
     let mut writer = Writer(Vec::new());
-    writer.raw(b"SCAP archive retained metadata v1");
+    // Epoch 1 is byte-identical to old published archive coverage. Mutable
+    // acknowledgement state is deliberately not part of physical coverage.
+    let scoped = database.request_epoch != 1;
+    writer.raw(if scoped {
+        b"SCAP archive retained metadata v2"
+    } else {
+        b"SCAP archive retained metadata v1"
+    });
     writer.database(database.identity);
+    if scoped {
+        writer.u64(database.request_epoch);
+        writer.retired(database.retired);
+    }
     writer.count(database.transactions.len());
     for transaction in &database.transactions {
-        writer.admission(transaction.admission);
+        writer.request_admission(transaction.admission, scoped);
         writer.raw(&transaction.request_fingerprint);
         writer.commit(&transaction.commit);
         writer.bytes(&transaction.result);
@@ -817,11 +1017,15 @@ pub(super) fn encode_archive(
     writer.cell(cell);
     writer.database(database.identity);
     writer.position(source);
+    if physical_history_version >= 4 {
+        writer.u64(database.request_epoch);
+        writer.retired(database.retired);
+    }
     writer.count(database.transactions.len());
     for transaction in &database.transactions {
-        writer.transaction(transaction, true);
+        writer.transaction(transaction, true, physical_history_version >= 4);
     }
-    if physical_history_version == 3 {
+    if physical_history_version >= 3 {
         writer.base(database.base.as_ref());
     }
     seal(ARCHIVE_MAGIC, physical_history_version, writer.0)
@@ -858,13 +1062,20 @@ pub(super) fn decode_archive(
     {
         return Err(Error::Binding);
     }
+    if bytes[8] >= 4 {
+        if reader.u64()? != database.request_epoch || reader.retired()? != database.retired {
+            return Err(Error::Binding);
+        }
+    } else if database.request_epoch != 1 || database.retired != RetiredPrefix::EMPTY {
+        return Err(Error::Binding);
+    }
     let count = reader.count(limits.max_requests_per_database)?;
     if count != database.transactions.len() {
         return Err(Error::Binding);
     }
     let mut transactions = Vec::new();
     for retained in &database.transactions {
-        let transaction = reader.transaction(limits)?;
+        let transaction = reader.transaction(limits, bytes[8] >= 4)?;
         if transaction.admission != retained.admission
             || transaction.request_fingerprint != retained.request_fingerprint
             || transaction.commit != retained.commit
@@ -888,9 +1099,13 @@ pub(super) fn decode_archive(
         ..database.clone()
     };
     validate_base(&restored, cell, archive.source, limits)?;
-    let mut previous = [0; 32];
+    // The payload replaces the resident base. An absent base is valid only
+    // before SQL history has been retired; validate that anchor before any
+    // relative tail indexing, including archives with no retained transactions.
+    validate_retirement(&restored, archive.source)?;
+    let mut previous = restored.retired.commit_hash;
     for (index, transaction) in restored.transactions.iter().enumerate() {
-        if (index as u64) < restored.base_revision() {
+        if index < restored.tail_start() {
             if !transaction.physical_changes.is_empty() {
                 return Err(Error::Binding);
             }
@@ -903,11 +1118,11 @@ pub(super) fn decode_archive(
         }
         previous = transaction.commit_hash;
     }
-    if bytes[8] == 2 && physical_history_version == 3 {
+    if bytes[8] == 2 && physical_history_version >= 3 {
         restored
             .migrate_legacy(cell, limits)
             .map_err(|_| Error::Binding)?;
-    } else if bytes[8] == 3 && restored.compaction_due(limits) {
+    } else if bytes[8] >= 3 && restored.compaction_due(limits) {
         return Err(Error::Malformed("archive physical tail exceeds v3 bound"));
     }
     Ok(RestoredArchive {
@@ -929,9 +1144,17 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
         writer.owner(database.owner);
         writer.byte(u8::from(database.active));
         writer.policy(&database.policy);
+        if state.physical_history_version >= 4 {
+            writer.u64(database.request_epoch);
+            writer.retired(database.retired);
+            writer.byte(u8::from(database.retirement_position.is_some()));
+            if let Some(position) = database.retirement_position {
+                writer.position(position);
+            }
+        }
         writer.count(database.transactions.len());
         for transaction in &database.transactions {
-            writer.transaction(transaction, true);
+            writer.transaction(transaction, true, state.physical_history_version >= 4);
         }
         writer.count(database.requests.len());
         for (&request, record) in &database.requests {
@@ -947,7 +1170,7 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
                     position,
                 } => {
                     writer.byte(1);
-                    writer.admission(*admission);
+                    writer.request_admission(*admission, state.physical_history_version >= 4);
                     writer.raw(fingerprint);
                     writer.position(*position);
                 }
@@ -959,14 +1182,21 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
         if let Some(archive) = database.archive {
             writer.archive_ref(archive);
         }
-        if state.physical_history_version == 3 {
+        if state.physical_history_version >= 3 {
             writer.base(database.base.as_ref());
+        }
+        if state.physical_history_version >= 4 {
+            writer.count(database.acknowledged.len());
+            for (&request_id, &position) in &database.acknowledged {
+                writer.u128(request_id);
+                writer.position(position);
+            }
         }
     }
     writer.count(state.administration.len());
     for (&operation, record) in &state.administration {
         writer.u128(operation);
-        writer.admission(record.admission);
+        writer.request_admission(record.admission, state.physical_history_version >= 4);
         writer.database(record.database);
         writer.raw(&record.digest);
         writer.admin_result(&record.result);
@@ -1027,10 +1257,23 @@ pub(super) fn decode_state(
             cold: false,
             archive: None,
             base: None,
+            request_epoch: 1,
+            retired: RetiredPrefix::EMPTY,
+            retirement_position: None,
+            acknowledged: BTreeMap::new(),
         };
+        if bytes[8] >= 4 {
+            database.request_epoch = reader.u64()?;
+            database.retired = reader.retired()?;
+            if reader.boolean()? {
+                database.retirement_position = Some(reader.position()?);
+            }
+        }
         let count = reader.count(limits.max_requests_per_database)?;
         for _ in 0..count {
-            database.transactions.push(reader.transaction(limits)?);
+            database
+                .transactions
+                .push(reader.transaction(limits, bytes[8] >= 4)?);
         }
         let count = reader.count(limits.max_requests_per_database)?;
         for _ in 0..count {
@@ -1038,7 +1281,7 @@ pub(super) fn decode_state(
             let record = match reader.byte()? {
                 0 => RequestRecord::Accepted(reader.u64()?),
                 1 => RequestRecord::Cancelled {
-                    admission: reader.admission()?,
+                    admission: reader.request_admission(bytes[8] >= 4)?,
                     fingerprint: reader.take()?,
                     position: reader.position()?,
                 },
@@ -1058,6 +1301,16 @@ pub(super) fn decode_state(
         if bytes[8] >= 3 {
             database.base = reader.base(limits.max_state_bytes)?;
         }
+        if bytes[8] >= 4 {
+            let count = reader.count(limits.max_requests_per_database)?;
+            for _ in 0..count {
+                let request = reader.u128()?;
+                let position = reader.position()?;
+                if database.acknowledged.insert(request, position).is_some() {
+                    return Err(Error::Malformed("duplicate request acknowledgement"));
+                }
+            }
+        }
         if state
             .databases
             .insert(identity.database_id, database)
@@ -1070,7 +1323,7 @@ pub(super) fn decode_state(
     for _ in 0..count {
         let operation = reader.u128()?;
         let record = AdminRecord {
-            admission: reader.admission()?,
+            admission: reader.request_admission(bytes[8] >= 4)?,
             database: reader.database()?,
             digest: reader.take()?,
             result: reader.admin_result()?,
@@ -1102,12 +1355,15 @@ pub(super) fn decode_state(
         if bytes[8] == 1 && newer_outcome(&outcome.outcome) {
             return Err(Error::Malformed("new outcome in legacy state"));
         }
+        if bytes[8] < 4 && retention_outcome(&outcome.outcome) {
+            return Err(Error::Malformed("retention outcome in legacy state"));
+        }
         state.last_outcome = Some(outcome);
     }
     reader.finish()?;
     validate_state(&state)?;
     for database in state.databases.values() {
-        if bytes[8] == 3 && !database.cold && database.compaction_due(limits) {
+        if bytes[8] >= 3 && !database.cold && database.compaction_due(limits) {
             return Err(Error::Malformed("physical tail exceeds v3 bound"));
         }
     }

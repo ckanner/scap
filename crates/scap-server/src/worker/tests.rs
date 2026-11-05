@@ -38,7 +38,7 @@ pub(crate) struct Port {
 
 impl Port {
     pub(crate) fn new(config: &Config) -> Self {
-        Self {
+        let port = Self {
             identity: Identity {
                 cluster_id: config.cluster_id,
                 cell_id: config.cell.cell_id,
@@ -68,7 +68,12 @@ impl Port {
                 maintenance_error: false,
                 maintenance: vec![],
             })),
-        }
+        };
+        port.apply_raw(scap_cell::encode_retention_activation(
+            config.cell,
+            config.administrator_id,
+        ));
+        port
     }
 
     pub(crate) fn apply(&self, command: Command) -> scap_cell::AppliedOutcome {
@@ -382,6 +387,7 @@ fn request(worker: &TestWorker, id: u128, operation: Operation) -> Request {
                 credential_id: 201,
                 admission_id: id,
                 auth_epoch: 1,
+                request_epoch: 1,
             },
             deadline: worker.clock.now().unwrap().instant + Duration::from_secs(30),
             cancelled: Arc::new(AtomicBool::new(false)),
@@ -431,11 +437,11 @@ fn legacy_lanes_refuse_all_business_operations_before_owner_or_archive_effects()
             statements: vec![sql("CREATE TABLE denied(v)")],
         },
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql("SELECT 1")],
         },
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     ] {
@@ -467,15 +473,15 @@ fn catalogue_activates_before_mutation_and_restart_confirms_without_reproposal()
     assert!(worker.history_active);
     assert!(worker.ready.load(Ordering::Acquire));
     let held = port.effects.borrow();
-    assert_eq!(held.state.physical_history_version(), 3);
-    assert_eq!(held.proposals, 2); // Ordered activation, then catalogue Create.
-    assert_eq!(held.state.position().index, 3);
+    assert_eq!(held.state.physical_history_version(), 4);
+    assert_eq!(held.proposals, 3); // Ordered v3 and v4 activation, then Create.
+    assert_eq!(held.state.position().index, 4);
     assert!(held.state.database(3).unwrap().suspended);
     let position = held.state.position();
     let encoded = held.state.encode();
     drop(held);
     worker.scan().unwrap();
-    assert_eq!(port.effects.borrow().proposals, 2);
+    assert_eq!(port.effects.borrow().proposals, 3);
     assert!(worker.writers.is_empty());
 
     let (mut restarted, restarted_port, _, _restarted_directory) = build();
@@ -524,9 +530,9 @@ fn unknown_activation_or_failed_confirmation_never_creates_a_database_or_marks_r
         assert!(worker.history_active);
         assert_eq!(
             port.effects.borrow().proposals,
-            if failure_point == 0 { 3 } else { 2 }
+            if failure_point == 0 { 4 } else { 3 }
         );
-        assert_eq!(port.effects.borrow().state.physical_history_version(), 3);
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 4);
         assert!(port.effects.borrow().state.database(3).is_some());
     }
 }
@@ -600,19 +606,23 @@ fn native_queries_writes_outcomes_and_cold_recovery_use_one_authority() {
             &worker,
             1001,
             Operation::Outcome {
-                resolve,
+                action: if resolve {
+                    OutcomeAction::ResolveOrCancel
+                } else {
+                    OutcomeAction::Lookup
+                },
                 statements: vec![sql(statement)],
             },
         );
         assert!(
-            matches!(worker.request(call).unwrap(), Reply::Outcome(ServiceOutcome::Committed { result, sequence: 2 }) if result == original)
+            matches!(worker.request(call).unwrap(), Reply::Outcome(ServiceOutcome::Committed { result, sequence: 2, .. }) if result == original)
         );
     }
     let lookup = request(
         &worker,
         1010,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -624,13 +634,13 @@ fn native_queries_writes_outcomes_and_cold_recovery_use_one_authority() {
         &worker,
         1010,
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     );
     assert!(matches!(
         worker.request(cancel).unwrap(),
-        Reply::Outcome(ServiceOutcome::Cancelled)
+        Reply::Outcome(ServiceOutcome::Cancelled { .. })
     ));
     clock.elapsed.store(6, Ordering::Release);
     worker.tick().unwrap();
@@ -750,7 +760,7 @@ fn every_owner_and_outcome_wait_preserves_unknown_and_rejects_wrong_bindings() {
         &worker,
         20,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![],
         },
     );
@@ -763,7 +773,7 @@ fn every_owner_and_outcome_wait_preserves_unknown_and_rejects_wrong_bindings() {
         &worker,
         21,
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -776,7 +786,7 @@ fn every_owner_and_outcome_wait_preserves_unknown_and_rejects_wrong_bindings() {
         &worker,
         22,
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -797,6 +807,7 @@ fn administrative(worker: &TestWorker, kind: CommandKind) -> Command {
             credential_id: worker.config.service_credential_id,
             admission_id: 50_000,
             auth_epoch: 1,
+            request_epoch: 1,
         },
         kind,
     }
@@ -881,36 +892,36 @@ fn metadata_and_original_outcomes_remain_available_without_the_cold_object() {
         &worker,
         4101,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql(statement)],
         },
     );
     assert!(
-        matches!(worker.request(lookup).unwrap(), Reply::Outcome(ServiceOutcome::Committed { result, sequence: 2 }) if result == original)
+        matches!(worker.request(lookup).unwrap(), Reply::Outcome(ServiceOutcome::Committed { result, sequence: 2, .. }) if result == original)
     );
     let cancellation = request(
         &worker,
         4199,
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     );
     assert!(matches!(
         worker.request(cancellation).unwrap(),
-        Reply::Outcome(ServiceOutcome::Cancelled)
+        Reply::Outcome(ServiceOutcome::Cancelled { .. })
     ));
     let again = request(
         &worker,
         4199,
         Operation::Outcome {
-            resolve: true,
+            action: OutcomeAction::ResolveOrCancel,
             statements: vec![sql("SELECT 1")],
         },
     );
     assert!(matches!(
         worker.request(again).unwrap(),
-        Reply::Outcome(ServiceOutcome::Cancelled)
+        Reply::Outcome(ServiceOutcome::Cancelled { .. })
     ));
     assert_eq!(
         execute(&mut worker, 4104, "SELECT * FROM items", Mode::Read)
@@ -1054,7 +1065,7 @@ fn native_clock_failure_at_every_write_boundary_preserves_unknown_or_original_co
             &worker,
             4400,
             Operation::Outcome {
-                resolve: false,
+                action: OutcomeAction::Lookup,
                 statements: vec![sql("CREATE TABLE acknowledged(value)")],
             },
         );
@@ -1127,7 +1138,7 @@ fn status_lookup_and_hot_execution_recheck_scope_and_current_authorization() {
         &worker,
         4503,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -1142,7 +1153,7 @@ fn status_lookup_and_hot_execution_recheck_scope_and_current_authorization() {
         &worker,
         4504,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -1171,7 +1182,7 @@ fn corrupt_retained_result_is_never_returned_as_successful_sql() {
         &worker,
         4600,
         Operation::Outcome {
-            resolve: false,
+            action: OutcomeAction::Lookup,
             statements: vec![sql("SELECT 1")],
         },
     );
@@ -1507,4 +1518,411 @@ fn lane_executor_adapter_preserves_worker_authority_and_native_thread_confinemen
     port.effects.borrow_mut().leader = false;
     Executor::tick(&mut worker);
     assert!(Executor::dormant(&worker));
+}
+
+fn terminal_request(
+    worker: &TestWorker,
+    id: u128,
+    epoch: u64,
+    text: &str,
+    action: OutcomeAction,
+) -> Request {
+    let mut call = request(
+        worker,
+        id,
+        Operation::Outcome {
+            action,
+            statements: vec![sql(text)],
+        },
+    );
+    call.context.admission.request_epoch = epoch;
+    call
+}
+
+fn acknowledge(worker: &mut TestWorker, id: u128, epoch: u64, text: &str) {
+    let call = terminal_request(worker, id, epoch, text, OutcomeAction::Lookup);
+    let expected = match worker.request(call).unwrap() {
+        Reply::Outcome(ServiceOutcome::Committed { sequence, .. }) => {
+            ServiceTerminal::Committed { sequence }
+        }
+        Reply::Outcome(ServiceOutcome::Cancelled { position, .. }) => {
+            ServiceTerminal::Cancelled { position }
+        }
+        _ => panic!("a caller must know the original terminal outcome"),
+    };
+    let call = terminal_request(
+        worker,
+        id,
+        epoch,
+        text,
+        OutcomeAction::Acknowledge { expected },
+    );
+    assert!(matches!(
+        worker.request(call).unwrap(),
+        Reply::Outcome(ServiceOutcome::Acknowledged)
+    ));
+}
+
+fn rotate_request(worker: &TestWorker, epoch: u64) -> Request {
+    let mut call = request(
+        worker,
+        99_000,
+        Operation::Rotate {
+            expected_epoch: epoch,
+        },
+    );
+    call.context.admission.principal_id = worker.config.administrator_id;
+    call.context.admission.request_epoch = epoch;
+    call
+}
+
+#[test]
+fn result_retirement_preserves_live_sql_head_and_rejects_old_ids_before_recovery_or_execution() {
+    let (mut worker, port, clock, _temp) = build();
+    worker.tick().unwrap();
+    let ddl = "CREATE TABLE retained(id INTEGER PRIMARY KEY, value TEXT)";
+    let insert = "INSERT INTO retained VALUES(1,hex(randomblob(16))) RETURNING value";
+    execute(&mut worker, 91_001, ddl, Mode::Write).unwrap();
+    let original = execute(&mut worker, 91_002, insert, Mode::Write).unwrap();
+    let cancelled = "INSERT INTO retained VALUES(2,'must never execute')";
+    let call = terminal_request(
+        &worker,
+        91_003,
+        1,
+        cancelled,
+        OutcomeAction::ResolveOrCancel,
+    );
+    assert!(matches!(
+        worker.request(call).unwrap(),
+        Reply::Outcome(ServiceOutcome::Cancelled {
+            acknowledged: false,
+            ..
+        })
+    ));
+    let before = port.effects.borrow().state.database(3).unwrap();
+    assert_eq!(
+        (before.retained_requests, before.unacknowledged_requests),
+        (3, 3)
+    );
+    let call = rotate_request(&worker, 1);
+    assert_eq!(
+        worker.request(call).err().unwrap().code,
+        "RETIREMENT_REJECTED"
+    );
+    // A terminal proof from another result cannot release this request.
+    let call = terminal_request(
+        &worker,
+        91_001,
+        1,
+        ddl,
+        OutcomeAction::Acknowledge {
+            expected: ServiceTerminal::Committed { sequence: 2 },
+        },
+    );
+    assert_eq!(worker.request(call).err().unwrap().code, "RESOLVE_REJECTED");
+    for (id, text) in [(91_001, ddl), (91_002, insert), (91_003, cancelled)] {
+        acknowledge(&mut worker, id, 1, text);
+        acknowledge(&mut worker, id, 1, text);
+    }
+    let call = request(&worker, 99_002, Operation::Rotate { expected_epoch: 1 });
+    assert_eq!(
+        worker.request(call).err().unwrap().code,
+        "RETIREMENT_REJECTED"
+    );
+    let call = rotate_request(&worker, 1);
+    assert!(matches!(worker.request(call).unwrap(), Reply::Rotated(2)));
+    let after = port.effects.borrow().state.database(3).unwrap();
+    assert_eq!(
+        (
+            after.request_epoch,
+            after.retained_requests,
+            after.unacknowledged_requests
+        ),
+        (2, 0, 0)
+    );
+    assert_eq!(
+        (after.revision, after.commit_hash, after.owner),
+        (before.revision, before.commit_hash, before.owner)
+    );
+    assert_eq!(after.retired_revision, before.revision);
+    let current = execute(
+        &mut worker,
+        91_020,
+        "SELECT value FROM retained WHERE id=1",
+        Mode::Read,
+    )
+    .unwrap();
+    assert_eq!(current.statements[0].rows, original.statements[0].rows);
+    assert_eq!(
+        execute(&mut worker, 91_002, insert, Mode::Write)
+            .unwrap_err()
+            .code,
+        "REQUEST_RETIRED"
+    );
+    assert!(worker.writers.is_empty());
+    let owner = port.effects.borrow().state.database(3).unwrap().owner;
+    assert_eq!(
+        execute(&mut worker, 91_003, cancelled, Mode::Write)
+            .unwrap_err()
+            .code,
+        "REQUEST_RETIRED"
+    );
+    assert_eq!(
+        port.effects.borrow().state.database(3).unwrap().owner,
+        owner
+    );
+    let call = terminal_request(&worker, 91_002, 1, insert, OutcomeAction::Lookup);
+    assert!(matches!(
+        worker.request(call).unwrap(),
+        Reply::Outcome(ServiceOutcome::Retired { current_epoch: 2 })
+    ));
+    for action in [
+        OutcomeAction::ResolveOrCancel,
+        OutcomeAction::Acknowledge {
+            expected: ServiceTerminal::Committed { sequence: 2 },
+        },
+    ] {
+        let call = terminal_request(&worker, 91_002, 1, insert, action);
+        assert_eq!(worker.request(call).err().unwrap().code, "REQUEST_RETIRED");
+    }
+    let call = rotate_request(&worker, 1);
+    assert_eq!(worker.request(call).err().unwrap().code, "REQUEST_RETIRED");
+    let fresh = "INSERT INTO retained VALUES(3,'new generation')";
+    let mut call = request(
+        &worker,
+        91_002,
+        Operation::Execute {
+            mode: Mode::Write,
+            statements: vec![sql(fresh)],
+        },
+    );
+    call.context.admission.request_epoch = 2;
+    assert!(matches!(worker.request(call).unwrap(), Reply::Sql(_)));
+    assert_eq!(port.effects.borrow().state.database(3).unwrap().revision, 3);
+    // ACK while physically cold must survive hydration of an older archive.
+    clock.elapsed.store(6, Ordering::Release);
+    worker.tick().unwrap();
+    assert!(port.effects.borrow().state.database(3).unwrap().cold);
+    acknowledge(&mut worker, 91_002, 2, fresh);
+    let call = rotate_request(&worker, 2);
+    assert_eq!(
+        worker.request(call).err().unwrap().code,
+        "RETIREMENT_REJECTED"
+    );
+    execute(
+        &mut worker,
+        91_030,
+        "SELECT count(*) FROM retained",
+        Mode::Read,
+    )
+    .unwrap();
+    let call = terminal_request(&worker, 91_002, 2, fresh, OutcomeAction::Lookup);
+    assert!(matches!(
+        worker.request(call).unwrap(),
+        Reply::Outcome(ServiceOutcome::Committed {
+            acknowledged: true,
+            ..
+        })
+    ));
+    let call = rotate_request(&worker, 2);
+    assert!(matches!(worker.request(call).unwrap(), Reply::Rotated(3)));
+}
+
+#[test]
+fn retirement_unknown_completion_and_mismatched_reply_never_become_success_or_sql_retry() {
+    let (mut worker, port, _, _temp) = build();
+    worker.tick().unwrap();
+    let text = "CREATE TABLE acknowledgement(v)";
+    execute(&mut worker, 92_001, text, Mode::Write).unwrap();
+    let identity = worker.config.databases[0].identity;
+    let context = request(&worker, 92_001, Operation::Status).context;
+    let fingerprint =
+        scap_sql::request_fingerprint(&[sql(text)], worker_limits().sqlite.sql).unwrap();
+    let commit = match port
+        .effects
+        .borrow()
+        .state
+        .lookup(identity, context.admission, 92_001, fingerprint)
+        .unwrap()
+    {
+        Lookup::Committed { commit, .. } => commit,
+        _ => panic!("the original write must be committed"),
+    };
+    for outcome in [
+        Outcome::Cancelled,
+        Outcome::AlreadyCancelled,
+        Outcome::AlreadyCommitted(commit),
+    ] {
+        port.effects.borrow_mut().outcome = Some(outcome);
+        let call = terminal_request(
+            &worker,
+            92_001,
+            1,
+            text,
+            OutcomeAction::Acknowledge {
+                expected: ServiceTerminal::Committed { sequence: 1 },
+            },
+        );
+        assert_eq!(worker.request(call).err().unwrap().code, "RESOLVE_REJECTED");
+    }
+    port.effects.borrow_mut().outcome = Some(Outcome::RequestAcknowledged);
+    let call = terminal_request(&worker, 92_001, 1, text, OutcomeAction::ResolveOrCancel);
+    assert_eq!(worker.request(call).err().unwrap().code, "RESOLVE_REJECTED");
+    port.effects.borrow_mut().outcome = None;
+    acknowledge(&mut worker, 92_001, 1, text);
+    port.effects.borrow_mut().proposal_error = true;
+    let call = rotate_request(&worker, 1);
+    assert_eq!(worker.request(call).err().unwrap().code, "COMMIT_UNKNOWN");
+    assert_eq!(
+        port.effects
+            .borrow()
+            .state
+            .database(3)
+            .unwrap()
+            .request_epoch,
+        1
+    );
+    port.effects.borrow_mut().proposal_error = false;
+    port.effects.borrow_mut().lost_result = true;
+    let call = rotate_request(&worker, 1);
+    assert_eq!(worker.request(call).err().unwrap().code, "COMMIT_UNKNOWN");
+    assert_eq!(
+        port.effects
+            .borrow()
+            .state
+            .database(3)
+            .unwrap()
+            .request_epoch,
+        2
+    );
+    port.effects.borrow_mut().lost_result = false;
+    let call = request(&worker, 92_010, Operation::Status);
+    assert!(
+        matches!(worker.request(call).unwrap(), Reply::Status(status) if status.request_epoch == 2 && status.retained_requests == 0)
+    );
+}
+
+#[test]
+fn ordinary_reads_ignore_request_epochs_and_write_fingerprints_across_cold_recovery() {
+    let (mut worker, port, clock, _temp) = build();
+    worker.tick().unwrap();
+    execute(
+        &mut worker,
+        92_100,
+        "CREATE TABLE read_identity(v)",
+        Mode::Write,
+    )
+    .unwrap();
+    for stage in 0..3 {
+        if stage == 1 {
+            worker.writers.clear();
+        } else if stage == 2 {
+            clock.elapsed.store(6, Ordering::Release);
+            worker.tick().unwrap();
+            assert!(port.effects.borrow().state.database(3).unwrap().cold);
+        }
+        let mut call = request(
+            &worker,
+            92_100,
+            Operation::Execute {
+                mode: Mode::Read,
+                statements: vec![sql("SELECT count(*) FROM read_identity")],
+            },
+        );
+        call.context.admission.request_epoch = 999;
+        match worker.request(call).unwrap() {
+            Reply::Sql(result) => assert_eq!(
+                result.statements[0].rows,
+                vec![vec![scap_sql::Value::Integer(0)]]
+            ),
+            _ => panic!("an ordinary read must not use write identity resolution"),
+        }
+    }
+    assert_eq!(port.effects.borrow().state.database(3).unwrap().revision, 1);
+    worker.writers.clear();
+    let before = port.effects.borrow().state.database(3).unwrap().owner;
+    let mut call = request(
+        &worker,
+        92_100,
+        Operation::Execute {
+            mode: Mode::Read,
+            statements: vec![sql("SELECT count(*) FROM read_identity")],
+        },
+    );
+    call.context.admission.auth_epoch += 1;
+    assert_eq!(
+        worker.request(call).err().unwrap().code,
+        "OUTCOME_FORBIDDEN"
+    );
+    assert!(worker.writers.is_empty());
+    assert_eq!(
+        port.effects.borrow().state.database(3).unwrap().owner,
+        before
+    );
+}
+
+#[test]
+fn absent_writer_rejects_future_or_conflicting_write_identity_before_owner_recovery() {
+    let (mut worker, port, _, _temp) = build();
+    execute(
+        &mut worker,
+        92_200,
+        "CREATE TABLE write_identity(v)",
+        Mode::Write,
+    )
+    .unwrap();
+    worker.writers.clear();
+    let before = port.effects.borrow().state.database(3).unwrap();
+    let proposals = port.effects.borrow().proposals;
+    for (id, epoch) in [(92_200, 1), (92_201, 2)] {
+        let mut call = request(
+            &worker,
+            id,
+            Operation::Execute {
+                mode: Mode::Write,
+                statements: vec![sql("INSERT INTO write_identity VALUES(1)")],
+            },
+        );
+        call.context.admission.request_epoch = epoch;
+        assert_eq!(
+            worker.request(call).err().unwrap().code,
+            "OUTCOME_FORBIDDEN"
+        );
+        assert!(worker.writers.is_empty());
+        assert_eq!(port.effects.borrow().state.database(3).unwrap(), before);
+        assert_eq!(port.effects.borrow().proposals, proposals);
+    }
+}
+
+#[test]
+fn v3_requires_separate_durable_retention_activation_and_confirmation_before_readiness() {
+    for fail in 0..3 {
+        let (mut worker, port, _, _temp) = build();
+        port.effects.borrow_mut().state = CellState::bootstrap(
+            worker.config.cell,
+            worker.config.administrator_id,
+            Position { term: 1, index: 1 },
+            cell_limits(),
+        )
+        .unwrap();
+        worker.cold.controller = None;
+        {
+            let mut effects = port.effects.borrow_mut();
+            effects.proposal_error = fail == 0;
+            effects.lost_result = fail == 1;
+            effects.read_error = (fail == 2).then_some(2);
+        }
+        assert_eq!(worker.scan().unwrap_err().code, "COMMIT_UNKNOWN");
+        assert!(!worker.ready.load(Ordering::Acquire));
+        assert!(port.effects.borrow().state.database(3).is_none());
+        {
+            let mut effects = port.effects.borrow_mut();
+            effects.proposal_error = false;
+            effects.lost_result = false;
+            effects.read_error = None;
+        }
+        worker.scan().unwrap();
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 4);
+        assert!(worker.ready.load(Ordering::Acquire));
+    }
 }

@@ -34,6 +34,10 @@ impl Backend for EmptyBackend {
         Box::pin(async {
             Ok(DatabaseStatus {
                 revision: 0,
+                request_epoch: 1,
+                retained_requests: 0,
+                unacknowledged_requests: 0,
+                retired_revision: 0,
                 base_revision: 0,
                 tail_entries: 0,
                 tail_bytes: 0,
@@ -43,6 +47,9 @@ impl Backend for EmptyBackend {
                 archived_revision: None,
             })
         })
+    }
+    fn rotate(&self, call: RotateCall) -> BackendFuture<u64> {
+        Box::pin(async move { Ok(call.expected_epoch + 1) })
     }
 }
 
@@ -117,6 +124,30 @@ fn route_and_request_identity_validation() {
     assert_eq!(
         service.generate_request_id().unwrap_err().code,
         "OVERLOADED"
+    );
+}
+
+#[test]
+fn positive_unsigned_epochs_and_terminal_positions_reject_invalid_boundaries() {
+    for value in [
+        "",
+        "123456789012345678901",
+        "a",
+        "+1",
+        "-1",
+        "1.5",
+        " 1",
+        "0",
+        "000",
+        "18446744073709551616",
+    ] {
+        assert!(parse_positive_u64(value).is_err(), "{value}");
+    }
+    assert_eq!(parse_positive_u64("1").unwrap(), 1);
+    assert_eq!(parse_positive_u64("001").unwrap(), 1);
+    assert_eq!(
+        parse_positive_u64("18446744073709551615").unwrap(),
+        u64::MAX
     );
 }
 

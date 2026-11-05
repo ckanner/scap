@@ -51,6 +51,7 @@ fn context() -> RequestContext {
             credential_id: 2,
             admission_id: 3,
             auth_epoch: 1,
+            request_epoch: 1,
         },
         deadline: Instant::now() + Duration::from_secs(5),
         cancelled: Arc::new(AtomicBool::new(false)),

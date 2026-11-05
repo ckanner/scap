@@ -1,10 +1,10 @@
 # 客户端、接口与错误契约
 
-状态：2026-11-02 已实现有界 HTTP/Hrana、Node SDK、独立强读、请求结果查询及数据库状态接口；通用管理 API 和跨请求事务会话仍为 planned。当前可调用接口以 [正式协议模块](../../crates/scap-service/README.md)、[Node 客户端](../../sdk/node/README.md)及 [SQLite 服务实现](../engineering/sqlite-service.md)为准，本文同时保留后续完整平台的语义约束。
+状态：2026-11-04 实现更新；已有有界 HTTP/Hrana、Node SDK、独立强读、按原请求世代查询结果、显式确认与窗口退休，以及数据库状态接口。本轮验证状态见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)；通用管理 API 和跨请求事务会话仍为 planned。当前可调用接口以 [正式协议模块](../../crates/scap-service/README.md)、[Node 客户端](../../sdk/node/README.md)及 [SQLite 服务实现](../engineering/sqlite-service.md)为准，本文同时保留后续完整平台的语义约束。
 
 ## 1. 接入目标
 
-当前 `sdk/node` 是基于固定 `@libsql/client` 0.18.0 的薄 TypeScript 客户端，保留常用 `execute` / `batch` 输入和结果形态，并提供 `query`、稳定 request ID、`lookup`、`resolveOrCancel` 和 `status`。它使用明确配置的候选节点，只在确定未进入提交窗口的 `NOT_LEADER` 等安全边界上重新选择节点，不自动重放 UNKNOWN 写入。
+当前 `sdk/node` 是基于固定 `@libsql/client` 0.18.0 的薄 TypeScript 客户端，保留常用 `execute` / `batch` 输入和结果形态，并提供 `query`、稳定请求身份、`lookup`、`resolveOrCancel`、`status`、`executeTracked` / `batchTracked`、`acknowledge` 和 `rotateRequests`。它使用明确配置的候选节点，只在确定未进入提交窗口的 `NOT_LEADER` 等安全边界上重新选择节点，不自动重放 UNKNOWN 写入。
 
 直接使用该版本第三方 SDK 的 execute/batch 也可访问已经验证的 Hrana 子集；独立强读需选择 SCAP read 模式。Drizzle / Prisma、同步 `libsql` 包及 `better-sqlite3` 迁移仍需逐项验证，不承诺任意程序仅修改 import 即可迁移。
 
@@ -12,9 +12,9 @@ SQLite SQL 兼容、数据库文件兼容、驱动 API 兼容、分布式故障�
 
 ```ts
 // 从仓库根目录运行；先按 sdk/node/README.md 构建本地 SDK。
-import { createScapClient } from "./sdk/node/dist/client.js";
+import { createClient } from "./sdk/node/dist/client.js";
 
-const db = createScapClient({
+const db = createClient({
   endpoints: JSON.parse(process.env.SCAP_ENDPOINTS!),
   database: "agents",
   authToken: process.env.SCAP_TOKEN!,
@@ -46,16 +46,17 @@ const result = await db.query({
 | --- | --- |
 | `POST /v2/pipeline` | 使用配置的默认数据库执行有界 Hrana 程序 |
 | `POST /db/{database}/v2/pipeline` | 路由名经鉴权映射为不可变数据库身份 |
-| `POST /db/{database}/v1/requests/{request_id}` | 携带原 statements，执行 lookup 或 resolve_or_cancel |
+| `POST /db/{database}/v1/requests/{request_id}` | 携带原 statements，执行 lookup、resolve_or_cancel 或带原终态证明的 acknowledge |
+| `POST /db/{database}/v1/request-epoch` | 独立 ADMIN 凭证，CAS 推进已全部确认的非空请求窗口 |
 | `GET /db/{database}/v1/status` | 通过新的 ReadIndex 和当前 READ 权限返回有限元数据，不唤醒冷库 |
 
-请求必须携带 Bearer 凭据。`x-scap-request-id` 接受非零 128-bit 十六进制身份；`x-scap-deadline-unix-ms` 只能缩短预算；`x-scap-mode: read` 选择独立强读。status 只返回 revision、suspended、cold、owner_active、archived_revision，不泄露对象 key、其他数据库或完整状态机。SQL HTTP 默认只允许 loopback；非 loopback 必须显式配置 `proxy_terminates_tls=true` 并由部署提供 HTTPS 终止，开关本身不会启动 TLS 代理。Peer RPC 已使用 mTLS。
+请求必须携带 Bearer 凭据。`x-scap-request-id` 接受非零 128-bit 十六进制身份；`x-scap-deadline-unix-ms` 只能缩短预算；`x-scap-mode: read` 选择独立强读。`x-scap-request-epoch` 为正 u64 十进制，缺省固定为 1，不能自动刷新旧身份。status 只返回 revision、base/tail、请求世代/保留计数、suspended、cold、owner_active、archived_revision，不泄露对象 key、其他数据库或完整状态机。SQL HTTP 默认只允许 loopback；非 loopback 必须显式配置 `proxy_terminates_tls=true` 并由部署提供 HTTPS 终止，开关本身不会启动 TLS 代理。Peer RPC 已使用 mTLS。
 
 ## 3. 每次操作携带的身份
 
 当前静态 token 的 SHA-256 配置绑定数据库路由名、不可变 `db_id` / incarnation / placement、principal、credential、权限和 auth_epoch。每次数据操作、历史结果查询及 status 仍通过 cell 当前状态复核授权；客户端不能自行提供复制的 Admission。通用 tenant 目录、外部身份提供方、令牌到期与自动轮换属于后续控制面设计。
 
-客户端不自行决定 epoch，路由 header 也不是授权。真正写入仍由 cell 校验当前数据库代次、owner epoch、前序 `db_seq` 与有效权限状态。
+客户端不自行决定数据库 incarnation、owner epoch 或 auth epoch，路由 header 也不是授权。请求世代 `requestEpoch` 是另一项持久身份：新业务请求可以显式使用当前值，已有请求必须保留原值。真正写入仍由 cell 校验当前数据库代次、请求世代、owner epoch、前序 `db_seq` 与有效权限状态。
 
 不允许客户提交任意文件路径、S3 key 或 cell 管理命令。数据库显示名称可变，内部身份不可复用。
 
@@ -65,9 +66,11 @@ const result = await db.query({
 | --- | --- | --- |
 | 明确未提交 | 请求在权威接受前被拒绝，且能证明不会被迟到命令接受 | 按错误类别重试或修正 |
 | 明确已提交 | cell 已接受事务，数据与恢复信息满足持久化合同 | 使用结果或查询返回的提交标识 |
-| 结果未知 | 超时 / 断连发生在可能提交的窗口 | 查询提交状态或以稳定请求 ID 幂等重试；不能换 ID 盲目重放 |
+| 结果未知 | 超时 / 断连发生在可能提交的窗口 | 用原请求世代、ID 和 statements 查证；需要封闭迟到提交时有序 resolveOrCancel；不盲目重发 SQL |
 
 网络断开、请求取消、网关 502/503 不自动意味着事务未提交。错误状态与 transport status 必须分别编码，并尽可能保留 `request_id`、数据库代次、已知提交标识和重试建议。
+
+窗口退休后返回的 `retired` 描述历史结果已不再保留及旧身份空间永久封闭，不能将其归为“明确未提交”或“已取消”。需要原结果时由应用使用退休前保存的记录核对，不给同一未知操作更换请求世代重新执行。
 
 写成功的返回边界是完整事务已被 cell durable quorum 提交、状态机接受，并由 worker 完成已接受事务的本地发布。自动提交的写语句使用 `RETURNING` 时，所有结果行必须先进入有大小上限的暂存缓冲；在这一边界之前，Hrana 响应、游标或结果流均不得把行作为成功写入结果交给 SDK，也不能让 SDK 的成功 Promise 提前完成。结果超过限额应在权威提交前明确拒绝；已经进入可能提交的窗口时，不能再以结果过大为由声称必然回滚。
 
@@ -81,13 +84,13 @@ const result = await db.query({
 
 ### 4.2 已实现的 SCAP 请求封装
 
-`sdk/node` 已携带稳定 `request_id` 并保留原 SQL/参数，服务端重新计算业务指纹和绑定数据库身份。去重结果由同一 cell 状态机原子记录，客户端不能用自报指纹替换实际请求。
+`sdk/node` 已携带稳定 `request_id` 和原 `requestEpoch`，保留原 SQL/参数；服务端重新计算业务指纹并绑定数据库身份。去重结果由同一 cell 状态机原子记录，客户端不能用自报指纹替换实际请求。以下相同 ID 的规则均限定在同一数据库身份和同一请求世代内。
 
 - 相同 ID、相同请求指纹：返回原事务结果或状态，不再次接受写入。
 - 相同 ID、不同指纹：拒绝冲突，不覆盖原记录；具体 wire 错误以当前服务模块为准。
 - 并发重复请求：最多一个 accepted commit，其余引用该结果。
-- 当前 accepted/cancel 记录及原结果随 cell snapshot 保留，Prune 不删除它们；每库最多 128 条，到限拒绝新增，不自动过期或淘汰。
-- 可回收结果的保留窗口、退休边界和 `REQUEST_EXPIRED` 协议仍为 planned。未来实现时，不能把已删除记录的普通 UUID 当成可证明的新请求。
+- accepted/cancel 及原结果随 cell snapshot 保留，Prune 不删除它们；每库未退休窗口最多 128 条。显式终态确认且全部记录已确认后，ADMIN 才能原子推进世代并释放窗口，不自动过期或淘汰未确认记录。
+- 旧世代 lookup 返回 `retired`，旧写/取消/确认拒绝为 `REQUEST_RETIRED`。当前没有基于 TTL 的自动结果过期，也没有 `REQUEST_EXPIRED` wire 协议；不能把已删除记录的普通 UUID 当成可证明的新请求。
 
 请求指纹覆盖 SQL / 参数 / 事务边界或规范化操作，不用物理页面 hash 冒充业务请求指纹。SQL 重新执行可能生成不同的时间或随机值，但重复接受必须由同一请求身份阻止。
 
@@ -101,7 +104,7 @@ const result = await db.query({
 
 ## 5. 错误模型
 
-当前 wire 映射已由正式协议模块实现：`UNAUTHORIZED` 为 HTTP 401，`INVALID_REQUEST` / `UNSUPPORTED_FEATURE` 为 400，`EXPIRED` 为 408，`COMMIT_UNKNOWN` 为 504，`NOT_LEADER` / `OVERLOADED` / `COMMITTED_RESULT_UNAVAILABLE` 为 503。HTTP 状态不能独自证明提交结果，最终查证使用稳定请求身份。`NOT_LEADER` 必须表示本次尚未进入可能提交窗口；状态机已接受后响应过大或结果不可用也不能改报回滚。
+当前 wire 映射已由正式协议模块实现：`UNAUTHORIZED` 为 HTTP 401，`INVALID_REQUEST` / `UNSUPPORTED_FEATURE` 为 400，`EXPIRED` 为 408，`COMMIT_UNKNOWN` 为 504，`NOT_LEADER` / `OVERLOADED` / `COMMITTED_RESULT_UNAVAILABLE` 为 503，`REQUEST_RETIRED` 为 422。HTTP 状态不能独自证明提交结果，最终查证使用稳定请求身份。`NOT_LEADER` 必须表示本次尚未进入可能提交窗口；状态机已接受后响应过大或结果不可用也不能改报回滚。
 
 下表保留完整平台的目标语义类别，其中尚无当前 wire 映射的名称是 planned，不能当作已稳定的错误码。准确支持列表见 [HTTP 合同](../../crates/scap-service/README.md)。
 
@@ -110,7 +113,8 @@ const result = await db.query({
 | `DB_WAKING` | 唤醒尚未完成，SQL 未开始 | 有界退避或等待 operation |
 | `NO_QUORUM` | 无权威多数派 | 不降级为本地读写；区分本请求是否已进入未知窗口 |
 | `NOT_OWNER` / `STALE_EPOCH` | 路由或写者已过期 | 刷新路由；已经执行的写不盲目重放 |
-| `COMMIT_UNKNOWN` | 可能提交但未得到确定回复 | 查询 / 同 ID 重试 |
+| `COMMIT_UNKNOWN` | 可能提交但未得到确定回复 | 使用原请求身份查询或有序取消，不自动重发 SQL |
+| `REQUEST_RETIRED` | 原请求世代永久关闭，原结果不再保留 | 查询应用已保存的结果；不换新世代重试旧操作 |
 | `BACKPRESSURE` | 日志空间、吞吐或归档压力 | 返回有限 retry hint，不承诺无限排队 |
 | `TX_TOO_LARGE` | 暂存事务超过限制，未接受提交 | 回滚后让业务拆分 |
 | `TX_EXPIRED` | 事务超过限制 | 只有明确未提交才能报告已回滚 |
@@ -121,7 +125,7 @@ const result = await db.query({
 
 ## 6. 管理 API 草案
 
-所有有副作用的管理操作要求 operation ID、权限校验和审计；长任务返回任务身份与阶段，允许查询和幂等继续。没有跨 etcd / cell 事务，所以 API 不能在只写入意图后返回“数据库已就绪”。
+下列计划中的通用管理操作要求 operation ID、权限校验和审计；长任务返回任务身份与阶段，允许查询和幂等继续。当前请求窗口退休使用另一项有序世代 CAS，不产生永久行政 operation ID。没有跨 etcd / cell 事务，所以 API 不能在只写入意图后返回“数据库已就绪”。
 
 | 方法与路径（计划） | 行为 |
 | --- | --- |
@@ -158,3 +162,15 @@ const result = await db.query({
 当前不默认允许跨库 ATTACH、动态原生扩展、不受控 UDF 或改变平台 WAL / 同步 / 文件布局的 PRAGMA。范围和理由见 [租户隔离](tenancy-security.md)。
 
 部署 profile、leader 自动恢复、后台归档及并发 Prune 的有限刷新由 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)约束。当前接口可运行，不代表完整管理平台、无限历史或生产 SLO 已通过。
+
+## 9. 已实现的显式结果退休
+
+请求身份是原 `requestEpoch`、request ID 和 SQL/参数指纹。`executeTracked` / `batchTracked` 同时返回完整身份和结果；普通 execute/batch 不自动确认。应用先保存或处理结果，lookup 取得原 committed sequence 或 cancelled term/index 后，调用 `acknowledge(request, outcome)`。UNKNOWN、缺失终态证明和旧世代不能被当成合法确认。
+
+非 `1n` 世代的 write、resolveOrCancel、acknowledge 和 rotateRequests，在每个候选节点发出变更之前额外查询该节点的 status，确认支持退休协议。探测使用同一原请求 ID、世代和绝对 deadline，不跨节点或调用缓存，也不自动改变世代。探测失败或旧端点不理解协议时不会继续发送该变更；普通 query 不执行这一探测。Tracked 方法只增加本地身份返回，相较对应 execute/batch 不另增 RPC，但同样遵守上述能力探测。
+
+管理员通过 `rotateRequests(expectedEpoch)` 推进非空且全部确认的热窗口。成功返回新世代；响应丢失要用 fresh status 查证，原请求不得更换世代重试。旧身份 lookup 返回 `{state:"retired",current_epoch:"N"}`，旧写/取消/确认明确拒绝。`retired` 只说明这整个身份空间永久封闭，不宣称该请求取消，也不返回新世代同 ID 的结果。读取和 SQL 内容不会因退休回退，revision 继续单调。
+
+每库当前窗口仍至多 128 个 accepted/cancelled 记录；同库其他主体尚未确认的结果也会阻止轮转。结果确认与退休不消耗永久行政 operation ID，但不会释放已有的 4096 条 cell 行政记录预算，也不删除 S3 对象。Cold 可确认已有终态，轮转前必须先通过精确对象恢复到非 Cold；对象不可用时不能通过退休绕过恢复链。
+
+入口按具体 token 检查 scope，状态机检查当前 principal policy 与 auth_epoch。配置 `retention_admin:true` 的独立凭证仅绑定当前数据库、已有 bootstrap administrator、READ|ADMIN(5)，credential_id 必须不同于内部 service credential。它不允许 SQL 写或代其他主体确认结果。普通 token 原有 permissions 1–3 保持不变；具体配置和升级边界见 [server 说明](../../crates/scap-server/README.md)与 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。

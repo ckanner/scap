@@ -240,7 +240,7 @@ fn real_sql_returning_and_duplicate_ddl_keep_exact_original_results() {
     let (mut cluster, leader, path, original) =
         initialized("real_sql_returning_and_duplicate_ddl_keep_exact_original_results");
     let state = cluster.try_read(leader, 2000).unwrap();
-    let Lookup::Committed { commit, result } = lookup(&state, 10, &seed(), 1) else {
+    let Lookup::Committed { commit, result, .. } = lookup(&state, 10, &seed(), 1) else {
         panic!("SQL success did not have a durable cell record")
     };
     assert_eq!(commit.receipt.sequence, original.revision);
@@ -380,7 +380,7 @@ fn accepted_reply_after_deadline_stays_unknown_and_resolves_without_sql_replay()
     assert_eq!(read_payload(&path), payload(&original.result));
     assert!(resolve(&mut cluster, leader, 50, &update()).contains("AlreadyCommitted"));
     let state = cluster.try_read(leader, 2000).unwrap();
-    let Lookup::Committed { commit, result } = lookup(&state, 50, &update(), 1) else {
+    let Lookup::Committed { commit, result, .. } = lookup(&state, 50, &update(), 1) else {
         panic!("accepted request disappeared")
     };
     assert_eq!(commit.receipt.sequence, 2);
@@ -423,7 +423,7 @@ fn sigkill_after_accepted_before_native_publish_recovers_on_another_process() {
     let others = (1..=3).filter(|id| *id != old).collect::<Vec<_>>();
     let leader = cluster.leader(&others);
     let state = cluster.try_read(leader, 2000).unwrap();
-    let Lookup::Committed { commit, result } = lookup(&state, 60, &update(), 1) else {
+    let Lookup::Committed { commit, result, .. } = lookup(&state, 60, &update(), 1) else {
         panic!("quorum-accepted write lost after SIGKILL")
     };
     assert_eq!(commit.receipt.sequence, 8);

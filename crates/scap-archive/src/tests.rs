@@ -41,6 +41,7 @@ fn admission() -> Admission {
         principal_id: 11,
         credential_id: 12,
         admission_id: 13,
+        request_epoch: 1,
         auth_epoch: 1,
     }
 }
@@ -424,6 +425,7 @@ fn genuine_v2_hot_and_cold_archives_preserve_results_and_new_fences_during_upgra
             principal_id: 12,
             credential_id: 13,
             admission_id: 14,
+            request_epoch: 1,
             auth_epoch: 1,
         };
         let source = fixture_bytes(fixture);

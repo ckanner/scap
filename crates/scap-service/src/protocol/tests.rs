@@ -291,7 +291,10 @@ fn responses_retain_all_values_and_fail_closed_on_backend_mismatch() {
 
 #[test]
 fn outcome_protocol_preserves_explicit_resolution_and_unknown() {
-    for (action, resolve) in [("lookup", false), ("resolve_or_cancel", true)] {
+    for (action, resolve) in [
+        ("lookup", OutcomeAction::Lookup),
+        ("resolve_or_cancel", OutcomeAction::ResolveOrCancel),
+    ] {
         let (statements, actual) = outcome_request(
             &json!({"action":action,"statements":[{"sql":"SELECT 1"}]}),
             limits(),
@@ -315,13 +318,21 @@ fn outcome_protocol_preserves_explicit_resolution_and_unknown() {
         "unknown"
     );
     assert_eq!(
-        outcome_result(Outcome::Cancelled, limits()).unwrap()["state"],
+        outcome_result(
+            Outcome::Cancelled {
+                position: RequestPosition { term: 1, index: 2 },
+                acknowledged: false
+            },
+            limits()
+        )
+        .unwrap()["state"],
         "cancelled"
     );
     let response = outcome_result(
         Outcome::Committed {
             result: retained_result(),
             sequence: 9,
+            acknowledged: false,
         },
         limits(),
     )
@@ -333,9 +344,110 @@ fn outcome_protocol_preserves_explicit_resolution_and_unknown() {
     assert!(outcome_result(
         Outcome::Committed {
             result: bad,
-            sequence: 9
+            sequence: 9,
+            acknowledged: true
         },
         limits()
     )
     .is_err());
+}
+
+#[test]
+fn acknowledgements_require_explicit_exact_terminal_proofs() {
+    for (expected, proof) in [
+        (
+            json!({"state":"committed","sequence":"18446744073709551615"}),
+            RequestTerminal::Committed { sequence: u64::MAX },
+        ),
+        (
+            json!({"state":"cancelled","position":{"term":"1","index":"18446744073709551615"}}),
+            RequestTerminal::Cancelled {
+                position: RequestPosition {
+                    term: 1,
+                    index: u64::MAX,
+                },
+            },
+        ),
+    ] {
+        let (_, action) = outcome_request(
+            &json!({"action":"acknowledge","statements":[{"sql":"SELECT 1"}],"expected":expected}),
+            limits(),
+        )
+        .unwrap();
+        assert_eq!(action, OutcomeAction::Acknowledge { expected: proof });
+    }
+    for expected in [
+        Value::Null,
+        json!({"other":1}),
+        json!({"state":0}),
+        json!({"state":"unknown"}),
+        json!({"state":"retired","current_epoch":"2"}),
+        json!({"state":"committed"}),
+        json!({"state":"committed","sequence":1}),
+        json!({"state":"committed","sequence":"0"}),
+        json!({"state":"committed","sequence":"1","position":null}),
+        json!({"state":"cancelled","sequence":"1"}),
+        json!({"state":"cancelled","position":null}),
+        json!({"state":"cancelled","position":{"extra":1}}),
+        json!({"state":"cancelled","position":{"index":"1"}}),
+        json!({"state":"cancelled","position":{"term":"0","index":"1"}}),
+        json!({"state":"cancelled","position":{"term":"1"}}),
+        json!({"state":"cancelled","position":{"term":"1","index":"-1"}}),
+    ] {
+        assert!(outcome_request(&json!({"action":"acknowledge","statements":[{"sql":"SELECT 1"}],"expected":expected}), limits()).is_err(), "{expected}");
+    }
+    for action in ["lookup", "resolve_or_cancel"] {
+        assert!(outcome_request(
+            &json!({"action":action,"statements":[{"sql":"SELECT 1"}],"expected":null}),
+            limits()
+        )
+        .is_err());
+    }
+    assert_eq!(
+        outcome_result(Outcome::Acknowledged, limits()).unwrap(),
+        json!({"state":"acknowledged"})
+    );
+    assert_eq!(
+        outcome_result(
+            Outcome::Retired {
+                current_epoch: u64::MAX
+            },
+            limits()
+        )
+        .unwrap(),
+        json!({"state":"retired","current_epoch":u64::MAX.to_string()})
+    );
+    assert_eq!(
+        outcome_result(
+            Outcome::Cancelled {
+                position: RequestPosition {
+                    term: u64::MAX,
+                    index: u64::MAX
+                },
+                acknowledged: true
+            },
+            limits()
+        )
+        .unwrap(),
+        json!({"state":"cancelled","acknowledged":true,"position":{"term":u64::MAX.to_string(),"index":u64::MAX.to_string()}})
+    );
+}
+
+#[test]
+fn rotation_requires_an_explicit_unsigned_epoch_and_closed_request_schema() {
+    assert_eq!(
+        rotate_request(&json!({"action":"rotate","expected_epoch":"18446744073709551615"}))
+            .unwrap(),
+        u64::MAX
+    );
+    for body in [
+        Value::Null,
+        json!({"action":"rotate","expected_epoch":"1","other":0}),
+        json!({"action":0,"expected_epoch":"1"}),
+        json!({"action":"acknowledge","expected_epoch":"1"}),
+        json!({"action":"rotate","expected_epoch":1}),
+        json!({"action":"rotate","expected_epoch":"0"}),
+    ] {
+        assert!(rotate_request(&body).is_err(), "{body}");
+    }
 }

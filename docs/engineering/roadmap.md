@@ -2,6 +2,8 @@
 
 状态：G0 整体仍未关闭，已完成可部署的有界 SQLite 服务闭环。2026-11-02 的正式 `scap-server` 已连接三副本共识、HTTP/Node SDK、独立强读、自动 owner 恢复与 S3 冷生命周期；这不等于完整平台、规模或生产 SLO 已通过。2026-11-04 新增内容块增量持久化、按库惰性执行和重新授权的连接复用，见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。当前实现见 [服务说明](sqlite-service.md)和 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，执行证据见 [g0-evidence.md](g0-evidence.md)。
 
+之后已合并受控成员替换和有界物理历史；本轮继续实现 [显式结果确认与请求世代退休](../adr/0019-explicit-request-result-retirement.md)。该协议允许应用处理并确认原结果后释放 128 条请求窗口，仍保留 4096 条行政记录上限、所有 S3 对象及未确认结果，不构成无限运行或成本收敛证明。本轮单元门禁与真实故障验证分别记账。
+
 ## 1. 原则
 
 先验证最可能推翻架构的接口与故障边界，再扩展控制面和规模。客户端演示成功、容器能够重启、正常情况下三副本数据相同，都不足以证明高可用。
@@ -29,12 +31,12 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 | 范围 | 已有正式实现 | 仍待完成的目标 |
 | --- | --- | --- |
 | 共识与服务 | 三 voter 单 cell、持久 Ready/应用、PreVote/check_quorum、Safe ReadIndex、真实 daemon；受控 learner/joint 替换；有界物理基线与 tail 的验收见 ADR-0017 | 跨 AZ/设备故障、自动坏盘运维、逻辑 metadata 保留策略、多 cell |
-| SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、稳定请求结果查证 | 完整 ORM/同步驱动、交互式事务、生产规模的调度验收 |
+| SQL 与接入 | SQLite gate、独立强读、自包含 Hrana execute/batch、Node SDK、按原请求世代查证、显式结果确认与有序窗口退休 | 完整 ORM/同步驱动、交互式事务、生产规模的调度验收 |
 | 多租户与恢复 | 静态最多 32 库、token/当前 auth_epoch、leader 自动接管、新目录恢复、按库惰性 lane/准入配额 | 动态目录、外部身份源、每租户公平性、坏盘成员自动重建 |
-| 冷生命周期 | Suspend、不可变 S3 发布、受覆盖 Prune、精确 hydrate、全 cell Checkpoint | GC/结果退休、PITR/DR、分块归档、恢复空间预留和成本收敛 |
-| 验证与运营 | 独立 unit 门禁、实际进程/TCP/S3/SDK 场景及可复现命令 | 生产规模分母、稳定恢复窗口、长期运行、SLO 与故障域认证 |
+| 冷生命周期 | Suspend、不可变 S3 发布、受覆盖 Prune、精确 hydrate、全 cell Checkpoint | 对象 GC/行政记录退休、PITR/DR、分块归档、恢复空间预留和成本收敛 |
+| 验证与运营 | 独立 unit 门禁、实际进程/TCP/S3/SDK 场景及可复现命令 | 生产规模分母、跨 AZ 稳定恢复窗口、长期运行、SLO 与故障域认证 |
 
-当前单库逻辑镜像 256 KiB、每库 128 条 accepted/cancel 和 cell 4096 条管理记录，不能用该 profile 宣称 1 GiB 恢复目标或无限 Agent 密度达标；达到预算必须拒绝增长。已实现后续阶段的有界子集也不自动关闭该阶段全部 gate。
+当前单库逻辑镜像 256 KiB、每库未退休窗口 128 条 accepted/cancel 和 cell 4096 条管理记录，不能用该 profile 宣称 1 GiB 恢复目标或无限 Agent 密度达标；达到预算必须拒绝增长。已实现后续阶段的有界子集也不自动关闭该阶段全部 gate。
 
 ## 3. G0 的具体工作
 
@@ -72,15 +74,15 @@ TiKV 的运行、网络与工程组件已按固定版本完成 [技术栈审计]
 
 如果 WAL 接口不能安全控制可见性，或持久存储契约无法证明，停止扩展产品功能，重新选择底座。可选择缩小兼容范围、集中维护引擎 patch，或重评已有复制引擎；不得在提交后上传数据来假装满足门禁。
 
-当前同 cell、静态身份、外部 SQL/SDK、强读、自动 owner 接管、有限冷生命周期和受控成员替换已形成有界闭环。G0 整体仍未宣布通过：完整业务兼容、规模化持久布局、动态平台、租户公平性及生产故障/性能 profile 仍有门禁；当前 256 KiB profile 不等于 1 GiB 目标。功能证据不豁免自动坏盘运维、证书控制面、多 cell、设备故障或 SLO 验收，也不自动产生对外 SLA。
+当前同 cell、静态身份、外部 SQL/SDK、强读、自动 owner 接管、有限冷生命周期和受控成员替换已形成有界闭环。G0 整体仍未宣布通过：完整业务兼容、规模化持久布局、动态平台、租户公平性及生产故障/性能 profile 仍有门禁；当前 256 KiB profile 不等于 1 GiB 目标。显式请求结果退休由 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)定义，行政记录退休与对象 GC 仍未完成。功能证据不豁免自动坏盘运维、证书控制面、多 cell、设备故障或 SLO 验收，也不自动产生对外 SLA。
 
 ## 4. G1–G3 的实现顺序
 
 1. 已实现不依赖 S3 的最小可靠 cell、提交/强读和 owner fencing；继续补设备故障和更大 profile 证据。
 2. 已有有界每库元数据及静态目录、增量持久块；[ADR-0017](../adr/0017-bounded-physical-history.md)补充物理基线与有限 tail。后续验证更大密度、逻辑 metadata 分段与保留以及目标容量下的恢复。
 3. 已有 HTTP/SDK、静态鉴权、请求结果查询和错误边界；后续加入外部身份、动态目录、公平调度及经验证的事务会话。
-4. 已有 idle 休眠、不可变归档、Publish/Prune/Hydrate 和全 cell Checkpoint；先永久保留对象与结果，继续扩展块级恢复和前景隔离。
-5. 设计并实现可证明的 GC、结果退休、恢复容量预留和删除，之后才能评价持续运行的冷存成本与容量收敛。
+4. 已有 idle 休眠、不可变归档、Publish/Prune/Hydrate 和全 cell Checkpoint；对象继续永久保留；结果仅在应用显式确认并有序推进请求世代后退休，继续扩展块级恢复和前景隔离。
+5. 结果退休按 ADR-0019 接入显式应用确认；继续设计并实现可证明的对象 GC、行政记录退休、恢复容量预留和删除，之后才能评价持续运行的冷存成本与容量收敛。
 6. 受控成员替换按 [ADR-0016](../adr/0016-durable-membership-replacement.md)先补齐同 cell 冗余修复；继续实现跨 cell 离线迁移、混版本升级及带来源证明的灾难恢复自动化。
 
 禁止从一开始同时实现所有优化：按页远读、多写者、跨库事务、跨区同步、跨库对象打包、无限事务分块均留待后续 ADR。

@@ -1,6 +1,6 @@
 # SQLite 服务、自动接管与冷生命周期
 
-实现更新：2026-11-04；原服务基线：2026-11-02。本文记录当前正式源码中的有界服务实现，配套决策见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)与 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。部署入口已经连接真实 SQLite、三副本 Raft、HTTP/Hrana、Node SDK 和 S3 兼容归档；容量、协议与恢复档位仍受本文列出的边界约束。性能验收采用[性能与恢复规范](performance-slo.md)，具体执行证据以[真实服务实验](../../experiments/service-network/README.md)和 [G0 执行记录](g0-evidence.md)为准。
+实现更新：2026-11-04；原服务基线：2026-11-02。本文记录当前正式源码中的有界服务实现，服务与执行隔离见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)、[ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)，物理历史与显式结果退休见 [ADR-0017](../adr/0017-bounded-physical-history.md)、[ADR-0019](../adr/0019-explicit-request-result-retirement.md)。部署入口已经连接真实 SQLite、三副本 Raft、HTTP/Hrana、Node SDK 和 S3 兼容归档；容量、协议与恢复档位仍受本文列出的边界约束。性能验收采用[性能与恢复规范](performance-slo.md)，具体执行证据以[真实服务实验](../../experiments/service-network/README.md)和 [G0 执行记录](g0-evidence.md)为准。
 
 ## 1. 部署单元与技术栈
 
@@ -9,10 +9,10 @@
 | 模块 | 正式职责 | 已锁定的基础 |
 | --- | --- | --- |
 | `scap-server` | 配置、启动、监听、鉴权映射、SQL 调度、闲置休眠、后台归档与资源监督 | Rust 1.90.0、Tokio 1.50.0、Axum 0.8.9 |
-| `scap-service` / `sdk/node` | 有界 Hrana HTTP v2 子集、稳定请求身份、显式结果查证、候选节点选择 | TypeScript、Node.js 24、`@libsql/client` 0.18.0 |
+| `scap-service` / `sdk/node` | 有界 Hrana HTTP v2 子集、稳定请求身份、显式结果查证与确认、ADMIN 窗口退休、候选节点选择 | TypeScript、Node.js 24、`@libsql/client` 0.18.0 |
 | `scap-sqlite` / `scap-engine` / `scap-sql` | SQLite 执行、提交前 gate、物理镜像校验、结果编码、强读 | libSQL 固定提交 `d8bc862d20bedc72945a1da27c8b7045414c0261` 的 SQLite C 内核 |
 | `scap-sql-worker` / `scap-cell-client` | 独占 writer、Claim/Activate、当前权限、ReadIndex、逐请求 tracked 裁决 | 正式窄端口与 native adapter |
-| `scap-cell` | owner/auth fencing、事务去重、结果与取消记录、冷生命周期 | 确定性状态机；apply 不执行 SQL 或 S3 I/O |
+| `scap-cell` | owner/auth/request epoch fencing、事务去重、结果确认与有序退休、冷生命周期 | 确定性状态机；apply 不执行 SQL 或 S3 I/O |
 | `scap-raft-driver` / `scap-raft-runtime` | 串行 Ready、持久提交、自动 tick、等待票据、快照与有界队列 | TiKV `raft-rs` 固定提交 `ad13f3d90780f53aea2488c6a4b76c0d334bf136` |
 | `scap-raft-store` / `scap-raft-rocks` | 校验的逻辑镜像、内容块增量布局、日志/应用位置、同步 WriteBatch | RocksDB Rust binding 0.24.0；完整解析依赖见 Cargo.lock |
 | `scap-raft-wire` / `scap-raft-transport` | 身份绑定、证书 pin、有限消息、mTLS peer RPC | Tonic 0.14.6、Prost 0.14.3、rustls/ring |
@@ -28,14 +28,16 @@
 
 写入成功需要完成同一条裁决链：
 
-1. 生成或接受稳定 request ID，固定原始 SQL/参数及绝对 deadline。
-2. 使用新的 ReadIndex 查询原请求；已经提交时返回原始结果，取消 fence 则拒绝新执行。Lookup 未找到只表示当次视图没有记录。
+1. 生成或接受稳定 request ID，固定原请求世代、SQL/参数及绝对 deadline。
+2. 使用新的 ReadIndex 查询原请求；已经提交时返回原始结果，取消或退休 fence 则拒绝新执行。Lookup 未找到只表示当前请求世代的当次视图没有记录。
 3. 当前 owner 执行一次有界 SQLite 事务，缓冲完整结果并产生物理变更。
 4. 提交前 gate 将变更、request fingerprint、owner/auth 身份及前序 revision 交给 cell。
 5. Raft 达到持久多数派，cell 有序接受，并且对应应用状态持久化；tracked proposal 返回该条命令的精确裁决。
 6. native SQLite 按接受结果发布页面；完整结果在原 deadline 内交付，才形成客户端成功。
 
 网络层 `Received`、本机 `Admitted`、一次 S3 PUT 或 `/readyz` 都不具备这个 ACK 含义。持久接受后本地发布失败或响应丢失时，业务可能已经提交；系统保留原 receipt/result，返回保守错误并退休 writer。服务不会把该情况解释为回滚，也不会自动重跑未知 SQL。
+
+结果退休使用另一项显式应用确认：客户端收到或查到终态后，处理或持久保存原结果，再调用 acknowledge。成功写入的 ACK 不会自动生成该确认。所有当前窗口请求均已确认时，独立 ADMIN 凭证才能用 expected epoch CAS 推进世代；先完成物理基线再清除窗口，数据库内容与 revision 保持不变。
 
 `query` 和 `batch(..., "read")` 使用独立强读路径：Safe ReadIndex 绑定当前数据库、权限、owner 和精确 head；本地引擎镜像核验通过后，在只读 SQLite 事务中执行。读不追加 accepted-write 历史，不增加数据库 revision。当前核验会重放保留的物理历史，其开销随历史增长，不能用“ReadIndex 已实现”推断低延迟目标已达成。
 
@@ -82,7 +84,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 
 单库 Prune 不授权截断共享 Raft 日志。成功 prune 通知请求一次正式全 cell checkpoint；所有 voter 还在 applied 距 snapshot 达到 128 条时，以及每 30 次维护轮的强制检查中尝试 checkpoint。只有 applied 已前进才创建新快照。复制状态、membership 和 applied position 被完整持久化后，才能按 Store 的既有协议回收日志。旧快照或物理引擎文件释放时机与逻辑 Prune 不是同一个事件。
 
-当前全部 S3 对象永久保留，没有安全 GC、删除 tombstone 或历史保留期协议。精确已发布引用构成恢复根，桶生命周期策略不能擅自删除它。该闭环降低冷状态的物理历史驻留，但仍保留请求结果与审计元数据，也会留下未发布对象，不能据此宣称冷库零成本或无限数据库密度。
+当前全部 S3 对象永久保留，没有安全 GC、删除 tombstone 或对象历史保留期协议。精确已发布引用构成恢复根，桶生命周期策略不能擅自删除它。该闭环降低冷状态的物理历史驻留；请求结果在显式确认并退休前保留，行政记录仍持续累积，未发布对象也不删除，不能据此宣称冷库零成本或无限数据库密度。
 
 ## 5. 重启、故障与关闭
 
@@ -112,8 +114,8 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 | --- | --- |
 | 拓扑 | 三个 voter、至多一个 learner，一个 cell，可信 peer 目录 3–16 个身份；最多 32 个配置数据库 |
 | 单库逻辑 SQLite 镜像 | 64 个 4096-byte page，即 256 KiB；不包含 WAL、快照、历史与缓存额外空间 |
-| 每库请求记录 | 最多 128 个 accepted/cancel 记录；不自动淘汰 |
-| cell 管理操作 | 最多 4096 条；owner/归档操作持续占用预算 |
+| 每库请求记录 | 每个窗口最多 128 个 accepted/cancel 记录；全部显式确认后由管理员推进请求世代，不自动淘汰 |
+| cell 管理操作 | 最多 4096 条；owner/归档操作持续占用预算，尚无行政记录退休；结果确认与请求世代轮转不新增这类记录 |
 | cell 状态 / command | 8 MiB / 4 MiB；归档正文加 192-byte hydrate 预算必须装进 command |
 | 单事务物理变更 / SQL 原结果 | 300 KiB / 64 KiB |
 | SQL 批次 / 参数 / 列 / 行 | 32 statements / 128 parameters / 64 columns / 1024 rows；其他值大小仍有独立限制 |
@@ -124,7 +126,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 
 达到容量上限会拒绝继续增长，不能静默丢弃旧结果、取消 fence 或唯一恢复数据。Prune 后如果其他库占用了 cell 空间，Hydrate 也可能因总体容量不足拒绝；本版本没有恢复容量预留与跨 cell 自动搬迁。
 
-受控成员操作的配置、认证、CAS、UNKNOWN 和升级顺序见 [成员管理](membership-operations.md)与 [ADR-0016](../adr/0016-durable-membership-replacement.md)。未实现的规模化能力包括动态数据库目录、自动坏盘发现与调度、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段/保留、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
+受控成员操作的配置、认证、CAS、UNKNOWN 和升级顺序见 [成员管理](membership-operations.md)与 [ADR-0016](../adr/0016-durable-membership-replacement.md)。未实现的规模化能力包括动态数据库目录、自动坏盘发现与调度、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段与行政记录退休、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。显式请求结果退休不关闭这些独立目标。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
 
 本 profile 的 256 KiB 逻辑镜像不能用于宣称 1 GiB 恢复目标达标。协议正确性、资源有界和小规模故障通过也不能替代生产负载、跨 AZ 与长期可用性验证。
 
@@ -299,13 +301,17 @@ JS
 
 ## 8. 格式升级与验证门禁
 
-已激活的 cell state 写入 v3，未激活的 phase 2 继续写入 v2；command/outcome 保持 v2。reader 支持绑定相同身份和限额、可经正式物理算法恢复的合法 v1/v2 热状态和原命令/结果，不为旧 Cold 伪造 bytes；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧 Create/Claim/Activate/AuthFence intent hash 不包含 envelope version，原 operation ID 升级后仍解析为原 receipt。v1 envelope 中出现新生命周期命令或结果会被拒绝。
+正式服务依次完成物理历史 v3 和请求退休 v4 两个独立有序激活，持久状态写 v4；未激活的阶段仍按原版本重放、编码和裁决容量。epoch 1 的旧操作保持业务 envelope v2，新世代与确认、退休操作使用 v3。reader 支持绑定相同身份、限额和位置的合法 v1/v2/v3 状态，不为旧 Cold 伪造 bytes；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧行政 intent hash 不随 envelope version 改写，原 operation ID 仍解析为原 receipt。
 
-激活后的新归档对象使用 `SCAPARC!` v3，并支持准确 v2 对象的确定迁移；phase 2 仍按原 v2 对象处理旧日志，key 路径的 `scap/v1/` 是独立的路径布局版本。v3 保留原结果，以物理基线与有限 tail 恢复，旧副本处于不同 applied 时也必须得到相同的规范表示，详见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
+激活后的新归档对象使用 `SCAPARC!` v4，并支持准确 v2/v3 对象的确定迁移。key 路径的 `scap/v1/` 是独立的路径布局版本。物理基线与有限 tail 恢复见 [ADR-0017](../adr/0017-bounded-physical-history.md)。v4 将应用确认作为当前 cell 元数据，Hydrate 不能从旧 archive 覆盖它；退休后归档绑定新请求世代和原提交前缀，详见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。
 
-Raft envelope version 2 隔离旧、新程序，禁止混合版本组成 quorum。升级必须停止全部旧 voter，保留原盘与配置，再让全部新 voter OpenExisting。新程序读取旧状态后继续按 v2 处理旧日志，明确的内部 Raft 激活条目才切换全 cell 物理历史语义；server 等待精确持久结果和 fresh phase 3 视图，业务 lane 同样拒绝未激活状态，不能只依赖 `/readyz`。没有混版本滚动协商或原地降级。旧二进制打开已经持久化 v3 的 application 必须失败。限额仍属于持久绑定，没有自动扩大旧 profile 的工具；极端满容量旧 metadata 不能容纳新格式固定开销时拒绝激活并保留旧材料。
+Raft envelope version 3 隔离旧、新程序，禁止与 peer 版本 1/2 组成混合 quorum。升级必须停止全部旧 voter，保留原盘，再让全部新 voter OpenExisting。内部激活条目切换全 cell 的对应语义；server 等待精确持久结果和 fresh phase 4 视图，业务 lane 同样拒绝未激活状态，不能只依赖 `/readyz`。没有混版本滚动协商或原地降级。旧 v3 二进制打开已经持久化 v4 的 application 必须失败。限额仍属于持久绑定；旧 metadata 不能容纳新格式开销和未确认记录所需的确认空间预留时，拒绝激活并保留旧材料。配置显式退休管理员凭证时，遵守 [server 配置合同](../../crates/scap-server/README.md)，不把普通旧 token 自动升级为 ADMIN。
 
 新鲜数据库 status 增加十进制 u64 字符串 `base_revision`、`tail_entries`、`tail_bytes`。SDK 映射为三个 `bigint | null` 字段；旧服务三项全缺失时返回 null，部分缺失或非法值拒绝。Cold 的 resident tail 为零不表示原请求结果丢失，也不允许绕过准确 archive hydration。
+
+请求退休增加 `request_epoch`、`retained_requests`、`unacknowledged_requests`、`retired_revision`。应用保留 tracked write 的完整身份，处理或持久保存原结果后才显式确认；当前窗口全部终态均确认、物理数据可验证时，管理员用 expected epoch CAS 退休窗口。普通读取只检查当前 READ 权限，不查写请求身份；热态、无本地连接和 Cold 恢复路径对请求世代及重复 tracing ID 保持一致。旧写身份始终被退休屏障隔离，SDK 不自动改成当前世代重发。
+
+SDK 在每个候选节点发送非初始世代的写入、取消、确认或轮转之前，使用同一原身份和 deadline 额外读取该节点 status，验证请求世代协议能力。该探测不缓存、不延长预算，也不代表刷新了请求世代；不支持新协议的旧节点不会收到后续变更。mutation 响应丢失或身份回显异常仍按不确定结果处理，不自动重放。普通 query 不增加这一探测。
 
 单元测试单独收集 Rust 行、函数、region 和分支的精确整数计数；Node SDK 独立检查行、函数、语句和分支。窄端口用于验证线程、时钟、网络、对象、权限与异常分支，生产状态转换不能转移到实验目录。具体命令与门禁见[覆盖率规范](testability-and-coverage.md)。
 

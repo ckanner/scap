@@ -311,13 +311,13 @@ async function highAvailability() {
       await cluster.waitLeader([oldLeader]);
       const majority = cluster.client("alpha", { endpoints: cluster.endpoints.filter((_, node) => node !== oldLeader) });
       try {
-        assert.deepEqual(await majority.resolveOrCancel(fenced), { state: "cancelled" });
+        assert.equal((await majority.resolveOrCancel(fenced)).state, "cancelled");
         await majority.execute("INSERT INTO ha_probe VALUES(4, 'partition-majority')");
         assert.equal((await majority.query("SELECT count(*) AS n FROM ha_probe WHERE id=3")).rows[0].n, 0n);
       } finally { majority.close(); }
       cluster.isolate(oldLeader, false);
       await stableRead(cluster, "alpha", "SELECT id FROM ha_probe ORDER BY id", [[1n], [2n], [4n]]);
-      assert.deepEqual(await alpha.lookup(fenced), { state: "cancelled" });
+      assert.equal((await alpha.lookup(fenced)).state, "cancelled");
       await event("partition_fenced", { isolated: oldLeader + 1, fresh_read: "rejected", fresh_write: "rejected", majority_ack: true, old_request: "cancelled", fault_elapsed_ms: Math.round(performance.now() - fault) });
     });
     await contract("06-all-processes-reopen", async () => {
@@ -326,7 +326,7 @@ async function highAvailability() {
       await cluster.waitLeader();
       await stableRead(cluster, "alpha", "SELECT id FROM ha_probe ORDER BY id", [[1n], [2n], [4n]]);
       assert.equal((await alpha.lookup(ack)).results[0].rows[0][0], ack.nonce);
-      assert.deepEqual(await alpha.lookup(fenced), { state: "cancelled" });
+      assert.equal((await alpha.lookup(fenced)).state, "cancelled");
       assert.equal((await beta.query("SELECT value FROM private_beta WHERE id=1")).rows[0].value, "beta-only");
       await event("full_group_reopened", { replicas: 3, retained_original_result: true, cancel_fence_retained: true, both_databases_intact: true });
     });

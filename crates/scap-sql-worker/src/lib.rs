@@ -395,7 +395,15 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
         let completed = self
             .engine
             .execute(ticket, statements)
-            .map_err(Error::Native)?;
+            .map_err(|error| match error {
+                // The gate has current authorization and an authoritative
+                // generation fence. Preserve that definitive status without
+                // suggesting that the retired SQL never committed.
+                scap_sqlite::Error::Rejected(scap_core::Rejection::Retired) => {
+                    Error::Rejected(Reject::Retired)
+                }
+                other => Error::Native(other),
+            })?;
         if live(&context, self.clock.as_ref()).is_err() {
             return Err(Error::Native(scap_sqlite::Error::CommittedButUnavailable {
                 receipt: Box::new(completed.receipt),

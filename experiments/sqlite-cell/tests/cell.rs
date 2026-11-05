@@ -350,6 +350,7 @@ impl Cluster {
             credential_id: 200,
             admission_id: self.next_admission,
             auth_epoch: epoch,
+            request_epoch: 1,
         };
         self.next_admission += 1;
         admission
@@ -990,7 +991,7 @@ fn returning_is_buffered_until_real_quorum_acceptance_and_native_publication() {
     assert_eq!(fixture.lookup(101), Lookup::Unknown);
     let receipt = fixture.complete(&stage).unwrap();
     assert_eq!(receipt.sequence, stage.write.ticket.predecessor + 1);
-    let Lookup::Committed { commit, result } = fixture.lookup(101) else {
+    let Lookup::Committed { commit, result, .. } = fixture.lookup(101) else {
         panic!("accepted request missing");
     };
     assert_eq!(commit.receipt, receipt);
@@ -1090,6 +1091,7 @@ fn killed_sql_writer_recovers_random_result_from_cell_pages_without_sql_replay()
     let Lookup::Committed {
         commit: stored,
         result,
+        ..
     } = fixture.lookup(401)
     else {
         panic!("committed result missing");

@@ -242,6 +242,7 @@ fn native_runtime_delegates_tracked_commit_safe_read_status_and_checkpoint() {
             credential_id: config.service_credential_id,
             admission_id: 1000,
             auth_epoch: 1,
+            request_epoch: 1,
         },
         kind: CommandKind::Create {
             operation_id: 1000,

@@ -17,6 +17,10 @@ use crate::worker::tests::TestClock;
 fn job(id: u128, now: Instant) -> Job {
     Job {
         database: DatabaseView {
+            request_epoch: 1,
+            retained_requests: 0,
+            unacknowledged_requests: 0,
+            retired_revision: 0,
             identity: scap_cell::DatabaseIdentity {
                 database_id: id,
                 incarnation: 1,
@@ -43,6 +47,7 @@ fn job(id: u128, now: Instant) -> Job {
                 credential_id: 101,
                 admission_id: 102,
                 auth_epoch: 1,
+                request_epoch: 1,
             },
             deadline: now + Duration::from_secs(30),
             cancelled: Arc::new(AtomicBool::new(false)),

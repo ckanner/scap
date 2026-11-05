@@ -30,6 +30,54 @@ fn every_query_gets_new_authority_and_does_not_propose_a_transaction() {
 }
 
 #[test]
+fn request_epoch_retirement_does_not_revoke_an_authorized_strong_read() {
+    let kit = Kit::new();
+    let factory = kit.factory();
+    let effect = factory.effect.clone();
+    let mut writer = kit.recover(factory, limits()).unwrap();
+    {
+        let state = &mut kit.port.0.borrow_mut().state;
+        apply_data(
+            state,
+            scap_cell::encode_retention_activation(identity().cell, 11),
+        );
+        apply(
+            state,
+            CommandKind::ResolveOrCancel {
+                request_id: 55,
+                request_fingerprint: [9; 32],
+            },
+        );
+        let cancelled = state.position();
+        apply(
+            state,
+            CommandKind::AcknowledgeRequest {
+                request_id: 55,
+                request_fingerprint: [9; 32],
+                expected: scap_cell::RequestTerminal::Cancelled {
+                    position: cancelled,
+                },
+            },
+        );
+        apply(state, CommandKind::RotateRequests { expected_epoch: 1 });
+        assert_eq!(
+            state
+                .database(identity().database.database_id)
+                .unwrap()
+                .request_epoch,
+            2
+        );
+    }
+    assert_eq!(kit.context.admission.request_epoch, 1);
+    let result = writer.query(kit.context.clone(), &select()).unwrap();
+    assert_eq!(result.revision, 0);
+    assert_eq!(result.position, kit.port.0.borrow().state.position());
+    assert_eq!(effect.borrow().query_calls, 1);
+    assert_eq!(kit.port.0.borrow().proposals, 2);
+    assert!(!writer.is_stopped());
+}
+
+#[test]
 fn stale_local_identity_revision_or_digest_cannot_serve_a_strong_read() {
     for case in 0..3 {
         let kit = Kit::new();

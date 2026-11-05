@@ -1,6 +1,6 @@
 # 有界 HTTP 与 Hrana 接入
 
-正式 `scap-service` 将自包含 Hrana HTTP v2 程序翻译为一次类型化业务调用。`Backend` 必须完成真实凭证验证、数据库身份映射、当前复制权限、ReadIndex、提交及恢复；协议层不接受客户端自报的 tenant、epoch、cell、S3 key 或文件路径。
+正式 `scap-service` 将自包含 Hrana HTTP v2 程序翻译为一次类型化业务调用。`Backend` 必须完成真实凭证验证、数据库身份映射、当前复制权限、ReadIndex、提交及恢复；协议层不接受客户端自报的 tenant、owner epoch、cell、S3 key 或文件路径。客户端提交的 `request_epoch` 仅标识原请求世代，由状态机校验，不能改变权限或 writer 身份。
 
 ## 端点
 
@@ -8,12 +8,29 @@
 | --- | --- |
 | `POST /v2/pipeline` | 使用构造时固定的默认数据库 |
 | `POST /db/{database}/v2/pipeline` | 路由名经验证后交给 Backend 映射不可变身份 |
-| `POST /db/{database}/v1/requests/{request_id}` | 显式 `lookup` 或 `resolve_or_cancel`；提供原业务 statements |
+| `POST /db/{database}/v1/requests/{request_id}` | 显式 `lookup`、`resolve_or_cancel` 或 `acknowledge`；提供原业务 statements 与原请求世代 |
 | `GET /db/{database}/v1/status` | 新的 ReadIndex 与当前 READ 授权后返回有界元数据；不唤醒数据库 |
+| `POST /db/{database}/v1/request-epoch` | ADMIN 有序轮转；要求精确原世代和所有保留终态已确认 |
 
-必须携带 Bearer 凭证，POST 必须使用 `application/json`，GET status 的 body 必须为空。外部 TLS 和监听进程由服务装配层提供。可选的 `x-scap-request-id` 为非零 128-bit 十六进制；没有该头时根据独立服务 boot 身份和单调序号生成。`x-scap-deadline-unix-ms` 只能缩短服务端最大预算，入站时转换为单调绝对 deadline。`x-scap-mode: read` 选择 Backend 的独立 SQL 强读，默认 `write`。
+必须携带 Bearer 凭证，POST 必须使用 `application/json`，GET status 的 body 必须为空。外部 TLS 和监听进程由服务装配层提供。可选的 `x-scap-request-id` 为非零 128-bit 十六进制；没有该头时根据独立服务 boot 身份和单调序号生成。`x-scap-request-epoch` 是正 u64 十进制字符串，缺省**始终为 1**；服务端不会替旧请求换成当前世代。已准入响应回显原 ID 与原世代。`x-scap-deadline-unix-ms` 只能缩短服务端最大预算，入站时转换为单调绝对 deadline。`x-scap-mode: read` 选择 Backend 的独立 SQL 强读，默认 `write`。
 
-status 只返回 `revision`、`suspended`、`cold`、`owner_active` 和 `archived_revision`。两个 revision 使用十进制字符串，尚未归档时 `archived_revision` 为 null；不返回复制状态机全量内容、对象 key 或其他数据库信息。
+status 返回 `revision`、`base_revision`、`tail_entries`、`tail_bytes`、`request_epoch`、`retained_requests`、`unacknowledged_requests`、`retired_revision`、`suspended`、`cold`、`owner_active` 和 `archived_revision`。所有 u64 使用十进制字符串，尚未归档时 `archived_revision` 为 null；不返回复制状态机全量内容、对象 key 或其他数据库信息。读取 status 不要求请求世代等于当前世代，因而旧客户端仍可获知新世代；当前 READ 权限检查保持不变。
+
+## 显式结果确认与世代轮转
+
+`lookup` 的 committed 结果附带 `sequence` 与 `acknowledged`；cancelled 结果附带精确 `position: {term,index}` 和 `acknowledged`。调用者必须先取得终态并持久处理其业务结果，再显式发送：
+
+```json
+{
+  "action": "acknowledge",
+  "statements": [{"sql": "INSERT INTO items VALUES (1)"}],
+  "expected": {"state": "committed", "sequence": "42"}
+}
+```
+
+取消确认的 `expected` 使用 `{"state":"cancelled","position":{"term":"3","index":"80"}}`。请求仍使用原 ID、原世代、原 SQL/参数；该终态证明由 Backend 对照当前保留记录验证。协议拒绝 unknown、retired、缺失证明和非法位置。确认成功返回 `{"state":"acknowledged"}`，不会执行 SQL，也不会替调用方确认其他请求。
+
+轮转 body 为 `{"action":"rotate","expected_epoch":"7"}`，其世代必须与 `x-scap-request-epoch: 7` 一致。Backend 负责当前 ADMIN 权限、全部记录已确认、物理恢复条件及 Raft 有序 CAS；成功返回 `{"state":"rotated","request_epoch":"8"}`。轮转后的旧请求查询返回 `{"state":"retired","current_epoch":"8"}`，表示原世代已永久禁止接受，**不能解释为 unknown、取消或从未提交**。原请求的历史结果不再可查，不能改用新世代重新执行该未知业务操作。
 
 ## 精确的协议子集
 

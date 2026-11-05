@@ -37,12 +37,12 @@ python3 experiments/history-network/check_evidence.py /tmp/scap-history-evidence
 | `03-stop-upgrade-preserves-history` | 所有版本进程完整停止后，新 binary 只用 OpenExisting 打开同一组目录。落后目录实际追上旧 quorum 已确认的前缀，正式服务完成有序格式激活后，原结果、SQL revision、取消 fence 与精确恢复尾部保持；旧 beta 保留冷 archive 引用 |
 | `04-overwrite-exceeds-original-history-budget` | 8 行 × 24 KiB BLOB、64 次真实覆盖；只返回小结果，在原 128 请求和 256 KiB 库限制内，多次推进 base；观测到的未折叠 tail 正增量之和本身超过旧 8 MiB cell 预算 |
 | `05-old-s3-archive-hydrates-with-new-fence` | 旧 archive 产生之后再取消一个请求；错误租户不能唤醒；真实 S3 TCP 黑洞使 cold wake 失败，alpha 可读；恢复网络后精确 hydrate V2 对象，新 cancel 和原结果不回退 |
-| `06-new-v3-archive-roundtrip` | beta 新提交形成新 base，再经真实 S3 发布、裁剪和 hydrate V3 archive；旧 V2 对象未被覆盖或删除；旧结果和新 fence 保留 |
+| `06-new-v4-archive-roundtrip` | beta 新提交形成新 base，再经真实 S3 发布、裁剪和 hydrate V4 archive；旧 V2 对象未被覆盖或删除；旧结果和新 fence 保留 |
 | `07-sigkill-recovers-from-base-and-tail` | 全组三进程 SIGKILL；新 binary 同盘重开，正式 owner 恢复使用新的 worker instance 和私有目录，核对全部原结果、完整当前 BLOB 字节和 SQLite 文件大小 |
-| `08-old-binary-rejects-v3-storage` | 全部新进程停止后，每个节点只尝试旧 binary OpenExisting；必须因 `STORE_APPLICATION` 非零退出，锁冲突或端口冲突不算通过；不使用 initialize、不清空磁盘 |
+| `08-old-binary-rejects-v4-storage` | 全部新进程停止后，每个节点只尝试旧 binary OpenExisting；必须因 `STORE_APPLICATION` 非零退出，锁冲突或端口冲突不算通过；不使用 initialize、不清空磁盘 |
 | `09-new-binary-reopens-after-rejected-downgrade` | 旧版被拒后，新版仍可同盘重开并读回全部 ACK、当前 SQL 值和取消 fence；前后 old/new binary 与 harness SHA 一致 |
 
-混合版本阶段专门检验拒绝边界，不是滚动升级可用性承诺。旧、新 peer Envelope 版本分别为 1、2，TCP 代理在此阶段全部连通，没有用人为分区替代版本拒绝。直接 SQL 探针跳过 SDK `/readyz` 提示，仍使用真实 libSQL HTTP 协议、租户身份和固定 2,500 ms 服务 deadline；额外 1,500 ms 只用于读取实际错误响应，不改变服务 deadline。每个探针只发送一次 SQL POST。新写无论返回确定的路由拒绝或 UNKNOWN，都由旧 quorum 对原 ID 执行一次有序 ResolveOrCancel；如果实际已提交，立即保留该结果并让合同失败，不能改写为取消。
+混合版本阶段专门检验拒绝边界，不是滚动升级可用性承诺。旧、新 peer Envelope 版本分别为 1、3，TCP 代理在此阶段全部连通，没有用人为分区替代版本拒绝。直接 SQL 探针跳过 SDK `/readyz` 提示，仍使用真实 libSQL HTTP 协议、租户身份和固定 2,500 ms 服务 deadline；额外 1,500 ms 只用于读取实际错误响应，不改变服务 deadline。每个探针只发送一次 SQL POST。新写无论返回确定的路由拒绝或 UNKNOWN，都由旧 quorum 对原 ID 执行一次有序 ResolveOrCancel；如果实际已提交，立即保留该结果并让合同失败，不能改写为取消。
 
 拒绝必须有实际服务响应，HTTP 断线和无监听端口不算通过。新节点的两个探针只接受 `NOT_LEADER`、`COMMIT_UNKNOWN` 或 `EXPIRED`。旧节点已有 writer 在查询期间失去 ReadIndex quorum 时，原服务器可能映射为 `QUERY_FAILED`，因此仅“一旧一新时直接向旧节点强读”的断言额外允许此码；恢复旧 quorum 后，同一 SQL 必须成功并返回原 ACK 的值，不能把任意 SQL 错误当作隔离证据。
 

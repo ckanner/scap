@@ -75,7 +75,8 @@ fn bounded_admission_verifies_identity_input_and_original_request_budget() {
             principal_id: 200,
             credential_id: 201,
             admission_id: 8,
-            auth_epoch: 1
+            auth_epoch: 1,
+            request_epoch: 1,
         }
     );
     assert_eq!(envelope.request.context.deadline, deadline);
@@ -420,23 +421,27 @@ async fn backend_reply_types_errors_and_outcome_permissions_are_checked() {
         let future = mailbox.outcome(OutcomeCall {
             context: context("alpha", 1),
             statements: vec![sql("SELECT 1")],
-            resolve_or_cancel: resolve,
+            action: if resolve {
+                OutcomeAction::ResolveOrCancel
+            } else {
+                OutcomeAction::Lookup
+            },
         });
         let envelope = receiver.recv().unwrap();
         assert!(
-            matches!(envelope.request.operation, Operation::Outcome { resolve: actual, .. } if actual == resolve)
+            matches!(envelope.request.operation, Operation::Outcome { action: actual, .. } if actual == if resolve { OutcomeAction::ResolveOrCancel } else { OutcomeAction::Lookup })
         );
         assert!(envelope
             .reply
-            .send(Ok(Reply::Outcome(Outcome::Cancelled)))
+            .send(Ok(Reply::Outcome(cancelled_outcome())))
             .is_ok());
-        assert_eq!(future.await.unwrap(), Outcome::Cancelled);
+        assert_eq!(future.await.unwrap(), cancelled_outcome());
     }
     let (mailbox, receiver) = setup();
     let future = mailbox.outcome(OutcomeCall {
         context: context("alpha", 1),
         statements: vec![sql("SELECT 1")],
-        resolve_or_cancel: false,
+        action: OutcomeAction::Lookup,
     });
     assert!(receiver
         .recv()
@@ -451,7 +456,7 @@ async fn backend_reply_types_errors_and_outcome_permissions_are_checked() {
     let read = mailbox.outcome(OutcomeCall {
         context: context("alpha", 1),
         statements: vec![sql("SELECT 1")],
-        resolve_or_cancel: false,
+        action: OutcomeAction::Lookup,
     });
     assert!(receiver
         .recv()
@@ -463,7 +468,7 @@ async fn backend_reply_types_errors_and_outcome_permissions_are_checked() {
     let write = mailbox.outcome(OutcomeCall {
         context: context("alpha", 2),
         statements: vec![sql("SELECT 1")],
-        resolve_or_cancel: true,
+        action: OutcomeAction::ResolveOrCancel,
     });
     assert_eq!(write.await.unwrap_err().code, "UNAUTHORIZED");
 }
@@ -472,6 +477,10 @@ async fn backend_reply_types_errors_and_outcome_permissions_are_checked() {
 async fn status_requires_read_scope_and_obeys_reply_type_cancellation_and_deadline() {
     let expected = DatabaseStatus {
         revision: 7,
+        request_epoch: 1,
+        retained_requests: 7,
+        unacknowledged_requests: 7,
+        retired_revision: 0,
         base_revision: 7,
         tail_entries: 0,
         tail_bytes: 0,
@@ -532,4 +541,73 @@ async fn status_requires_read_scope_and_obeys_reply_type_cancellation_and_deadli
         }
         assert!(cancelled.load(Ordering::Acquire));
     }
+}
+
+fn cancelled_outcome() -> Outcome {
+    Outcome::Cancelled {
+        position: scap_service::RequestPosition { term: 1, index: 7 },
+        acknowledged: false,
+    }
+}
+
+#[tokio::test]
+async fn rotation_requires_scoped_admin_keeps_epoch_budget_and_checks_typed_completion() {
+    let (mailbox, receiver) = setup();
+    let denied = mailbox.rotate(RotateCall {
+        context: context("alpha", 71),
+        expected_epoch: 1,
+    });
+    assert_eq!(denied.await.unwrap_err().code, "UNAUTHORIZED");
+    assert!(receiver.try_recv().is_err());
+    assert_eq!(mailbox.0.usage.lock().count, 0);
+    for case in 0..3 {
+        let mut cfg = config();
+        cfg.databases[0].tokens[0].permissions |= scap_cell::ADMIN;
+        let (mailbox, receiver) = Mailbox::new(&cfg.databases, Arc::new(AtomicBool::new(false)));
+        let mut call = context("alpha", 72);
+        call.request_epoch = 9;
+        let deadline = call.deadline;
+        let future = mailbox.rotate(RotateCall {
+            context: call,
+            expected_epoch: 9,
+        });
+        let envelope = receiver.recv().unwrap();
+        assert_eq!(envelope.request.context.admission.request_epoch, 9);
+        assert_eq!(envelope.request.context.deadline, deadline);
+        assert!(matches!(
+            envelope.request.operation,
+            Operation::Rotate { expected_epoch: 9 }
+        ));
+        assert_eq!(mailbox.0.usage.lock().count, 1);
+        let reply = match case {
+            0 => Ok(Reply::Rotated(10)),
+            1 => Ok(Reply::Outcome(Outcome::Unknown)),
+            _ => Err(failure("COMMIT_UNKNOWN")),
+        };
+        assert!(envelope.reply.send(reply).is_ok());
+        match case {
+            0 => assert_eq!(future.await.unwrap(), 10),
+            1 => assert_eq!(future.await.unwrap_err().code, "INVALID_BACKEND_REPLY"),
+            _ => assert_eq!(future.await.unwrap_err().code, "COMMIT_UNKNOWN"),
+        }
+    }
+    let (mailbox, receiver) = setup();
+    let expected = scap_service::RequestTerminal::Committed { sequence: 8 };
+    let mut call = context("alpha", 73);
+    call.request_epoch = 9;
+    let future = mailbox.outcome(OutcomeCall {
+        context: call,
+        statements: vec![sql("INSERT INTO t VALUES(1)")],
+        action: OutcomeAction::Acknowledge { expected },
+    });
+    let envelope = receiver.recv().unwrap();
+    assert_eq!(envelope.request.context.admission.request_epoch, 9);
+    assert!(
+        matches!(envelope.request.operation, Operation::Outcome { action: OutcomeAction::Acknowledge { expected: actual }, .. } if actual == expected)
+    );
+    assert!(envelope
+        .reply
+        .send(Ok(Reply::Outcome(Outcome::Acknowledged)))
+        .is_ok());
+    assert_eq!(future.await.unwrap(), Outcome::Acknowledged);
 }

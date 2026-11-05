@@ -8,7 +8,10 @@ use scap_cell::{AdminResult, Admission, CommandKind, DatabaseView, Grant, Lookup
 use scap_cell_client::{CellPort, Client, RequestContext};
 use scap_engine::EngineIdentity;
 use scap_raft_runtime::Clock;
-use scap_service::{Mode, Outcome as ServiceOutcome, ServiceError};
+use scap_service::{
+    Mode, Outcome as ServiceOutcome, OutcomeAction, RequestPosition,
+    RequestTerminal as ServiceTerminal, ServiceError,
+};
 use scap_sql::{Statement, TransactionResult};
 use scap_sql_worker::{Engine, EngineFactory, OwnerRequest, Writer};
 use sha2::{Digest, Sha256};
@@ -29,8 +32,11 @@ pub(crate) enum Operation {
         statements: Vec<Statement>,
     },
     Outcome {
-        resolve: bool,
+        action: OutcomeAction,
         statements: Vec<Statement>,
+    },
+    Rotate {
+        expected_epoch: u64,
     },
 }
 
@@ -45,6 +51,7 @@ pub(crate) enum Reply {
     Status(scap_service::DatabaseStatus),
     Sql(TransactionResult),
     Outcome(ServiceOutcome),
+    Rotated(u64),
 }
 
 /// Object I/O is outside the ordered state machine. An implementation must use
@@ -184,6 +191,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 credential_id: self.config.service_credential_id,
                 admission_id: self.id()?,
                 auth_epoch,
+                request_epoch: 1,
             },
             deadline,
             cancelled: Arc::new(AtomicBool::new(false)),
@@ -215,7 +223,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
         &mut self,
         state: scap_cell::CellState,
     ) -> Result<scap_cell::CellState, ServiceError> {
-        if state.physical_history_version() != 3 {
+        if state.physical_history_version() != 4 {
             self.history_active = false;
             self.writers.clear();
             self.ready.store(false, Ordering::Release);
@@ -240,7 +248,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
     }
 
     /// Only the catalogue upgrades a legacy application. Ordinary lanes refuse
-    /// phase 2; they cannot initiate migration through tenant requests.
+    /// old phases; they cannot initiate migration through tenant requests.
     fn activate_history(&mut self, deadline: Instant) -> Result<(), ServiceError> {
         if self.history_active {
             return Ok(());
@@ -251,13 +259,18 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             .client
             .read(&context)
             .map_err(|_| failure("COMMIT_UNKNOWN"))?;
-        if state.physical_history_version() != 3 {
+        if state.physical_history_version() < 3 {
             self.client
                 .activate_history(&context)
                 .map_err(|_| failure("COMMIT_UNKNOWN"))?;
         }
-        // Either the fresh view was already active, or the client proved the
-        // exact applied entry and a subsequent phase-3 view under this budget.
+        if state.physical_history_version() < 4 {
+            self.client
+                .activate_retention(&context)
+                .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+        }
+        // The same original deadline covers ordered v3 then v4 activation.
+        // Only a tracked durable result and subsequent fresh v4 view opens SQL.
         self.history_active = true;
         self.ready.store(true, Ordering::Release);
         Ok(())
@@ -543,24 +556,42 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                     base_revision: view.base_revision,
                     tail_entries: view.tail_entries,
                     tail_bytes: view.tail_bytes,
+                    request_epoch: view.request_epoch,
+                    retained_requests: view.retained_requests,
+                    unacknowledged_requests: view.unacknowledged_requests,
+                    retired_revision: view.retired_revision,
                     suspended: view.suspended,
                     cold: view.cold,
                     owner_active: view.active,
                     archived_revision: view.archive.map(|archive| archive.revision),
                 }))
             }
-            Operation::Outcome {
-                resolve,
-                statements,
-            } => self
+            Operation::Outcome { action, statements } => self
                 .outcome(
                     &request.database,
                     context,
                     request.request_id,
-                    resolve,
+                    action,
                     &statements,
                 )
                 .map(Reply::Outcome),
+            Operation::Rotate { expected_epoch } => {
+                let applied = self
+                    .client
+                    .submit(
+                        context,
+                        request.database.identity,
+                        CommandKind::RotateRequests { expected_epoch },
+                    )
+                    .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+                match applied.outcome {
+                    Outcome::RequestsRotated { epoch } => Ok(Reply::Rotated(epoch)),
+                    Outcome::Rejected(scap_cell::Reject::Retired) => {
+                        Err(failure("REQUEST_RETIRED"))
+                    }
+                    _ => Err(failure("RETIREMENT_REJECTED")),
+                }
+            }
             Operation::Execute { mode, statements } => {
                 let id = request.database.identity.database_id;
                 if !self.writers.contains_key(&id) {
@@ -572,16 +603,30 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                     let fingerprint =
                         scap_sql::request_fingerprint(&statements, worker_limits().sqlite.sql)
                             .map_err(|_| failure("INVALID_REQUEST"))?;
-                    self.client
+                    let state = self
+                        .client
                         .read(context)
-                        .map_err(|_| failure("COMMIT_UNKNOWN"))?
-                        .lookup(
-                            request.database.identity,
-                            context.admission,
-                            request.request_id,
-                            fingerprint,
-                        )
-                        .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
+                        .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+                    if mode == Mode::Read {
+                        // Read identity is only tracing. Its epoch or an ID
+                        // shared with an earlier write cannot change the read
+                        // result when a cold database acquires a new owner.
+                        state
+                            .metadata(request.database.identity, context.admission)
+                            .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
+                    } else {
+                        let prior = state
+                            .lookup(
+                                request.database.identity,
+                                context.admission,
+                                request.request_id,
+                                fingerprint,
+                            )
+                            .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
+                        if matches!(prior, Lookup::Retired { .. }) {
+                            return Err(failure("REQUEST_RETIRED"));
+                        }
+                    }
                     self.recover(&request.database, view, context.deadline)?;
                 }
                 let slot = self.writers.get_mut(&id).unwrap();
@@ -608,6 +653,9 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 }
                 observed.map_err(|_| failure("CLOCK"))?;
                 result.map(Reply::Sql).map_err(|error| match error {
+                    scap_sql_worker::Error::Rejected(scap_cell::Reject::Retired) => {
+                        failure("REQUEST_RETIRED")
+                    }
                     scap_sql_worker::Error::Native(
                         scap_sqlite::Error::CommittedButUnavailable { .. },
                     ) => failure("COMMITTED_RESULT_UNAVAILABLE"),
@@ -623,25 +671,50 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
         database: &DatabaseConfig,
         context: &RequestContext,
         request_id: u128,
-        resolve: bool,
+        action: OutcomeAction,
         statements: &[Statement],
     ) -> Result<ServiceOutcome, ServiceError> {
         let fingerprint = scap_sql::request_fingerprint(statements, worker_limits().sqlite.sql)
             .map_err(|_| failure("INVALID_REQUEST"))?;
-        if resolve {
+        let acknowledging = matches!(action, OutcomeAction::Acknowledge { .. });
+        let kind = match action {
+            OutcomeAction::Lookup => None,
+            OutcomeAction::ResolveOrCancel => Some(CommandKind::ResolveOrCancel {
+                request_id,
+                request_fingerprint: fingerprint,
+            }),
+            OutcomeAction::Acknowledge { expected } => Some(CommandKind::AcknowledgeRequest {
+                request_id,
+                request_fingerprint: fingerprint,
+                expected: match expected {
+                    ServiceTerminal::Committed { sequence } => {
+                        scap_cell::RequestTerminal::Committed { sequence }
+                    }
+                    ServiceTerminal::Cancelled { position } => {
+                        scap_cell::RequestTerminal::Cancelled {
+                            position: scap_cell::Position {
+                                term: position.term,
+                                index: position.index,
+                            },
+                        }
+                    }
+                },
+            }),
+        };
+        if let Some(kind) = kind {
             let applied = self
                 .client
-                .submit(
-                    context,
-                    database.identity,
-                    CommandKind::ResolveOrCancel {
-                        request_id,
-                        request_fingerprint: fingerprint,
-                    },
-                )
+                .submit(context, database.identity, kind)
                 .map_err(|_| failure("COMMIT_UNKNOWN"))?;
             match applied.outcome {
-                Outcome::Cancelled | Outcome::AlreadyCancelled | Outcome::AlreadyCommitted(_) => (),
+                Outcome::Cancelled | Outcome::AlreadyCancelled | Outcome::AlreadyCommitted(_)
+                    if !acknowledging => {}
+                Outcome::RequestAcknowledged if acknowledging => {
+                    return Ok(ServiceOutcome::Acknowledged)
+                }
+                Outcome::Rejected(scap_cell::Reject::Retired) => {
+                    return Err(failure("REQUEST_RETIRED"))
+                }
                 _ => return Err(failure("RESOLVE_REJECTED")),
             }
         }
@@ -659,11 +732,26 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             .map_err(|_| failure("OUTCOME_FORBIDDEN"))?
         {
             Lookup::Unknown => Ok(ServiceOutcome::Unknown),
-            Lookup::Cancelled { .. } => Ok(ServiceOutcome::Cancelled),
-            Lookup::Committed { commit, result } => Ok(ServiceOutcome::Committed {
+            Lookup::Retired { current_epoch } => Ok(ServiceOutcome::Retired { current_epoch }),
+            Lookup::Cancelled {
+                position,
+                acknowledged,
+            } => Ok(ServiceOutcome::Cancelled {
+                position: RequestPosition {
+                    term: position.term,
+                    index: position.index,
+                },
+                acknowledged,
+            }),
+            Lookup::Committed {
+                commit,
+                result,
+                acknowledged,
+            } => Ok(ServiceOutcome::Committed {
                 result: scap_sql::decode_result(&result, worker_limits().sqlite.sql)
                     .map_err(|_| failure("RESULT_CORRUPT"))?,
                 sequence: commit.receipt.sequence,
+                acknowledged,
             }),
         }
     }

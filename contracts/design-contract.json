@@ -5,7 +5,7 @@
   "consensus_review_date": "2026-10-28",
   "technology_review_date": "2026-11-02",
   "cell_acceptance_review_date": "2026-10-31",
-  "peer_runtime_review_date": "2026-11-01",
+  "peer_runtime_review_date": "2026-11-04",
   "technology_decisions": "contracts/technology-decisions.json",
   "status": "g0-prototype",
   "implementation_complete": false,
@@ -36,14 +36,14 @@
     "peer_wire_module": "crates/scap-raft-wire",
     "peer_transport_module": "crates/scap-raft-transport",
     "cell_runtime_module": "crates/scap-raft-runtime",
-    "peer_runtime_scope": "bounded-single-cell-owner-fixed-voters-mtls-peer-rpc-automatic-ticks",
+    "peer_runtime_scope": "bounded-single-cell-three-voters-learner-joint-replacement-mtls-peer-rpc",
     "peer_runtime_evidence": "experiments/raft-network/README.md",
     "peer_rpc_success": "authenticated-bounded-memory-admission-only",
-    "dynamic_membership_runtime_added": false,
+    "dynamic_membership_runtime_added": true,
     "network_sql_service_assembled": true,
     "sql_state_machine_runtime_added": true,
     "sql_state_machine_module": "crates/scap-cell",
-    "sql_state_machine_scope": "bounded-deterministic-owner-auth-dedup-cancellation-and-cold-archive-lifecycle",
+    "sql_state_machine_scope": "bounded-owner-auth-request-epochs-explicit-ack-retirement-and-cold-archive-lifecycle",
     "sql_state_machine_complete": false,
     "sqlite_cell_evidence": "experiments/sqlite-cell/README.md",
     "production_sql_adapter_added": true,
@@ -74,7 +74,7 @@
       "crates/scap-sqlite"
     ],
     "sqlite_engine_evidence": "experiments/sqlite-engine/README.md",
-    "sqlite_adapter_scope": "bounded-private-connection-batch-gate-full-image-recovery",
+    "sqlite_adapter_scope": "bounded-private-connection-batch-gate-base-and-contiguous-tail-recovery",
     "sqlite_network_commit_assembled": true,
     "sqlite_network_modules": [
       "crates/scap-cell-client",
@@ -86,7 +86,8 @@
     "tracked_application_results": "exact-attempt-after-durable-application-state",
     "service_module": "crates/scap-server",
     "service_evidence": "experiments/service-network/README.md",
-    "production_scale_and_az_validation": false
+    "production_scale_and_az_validation": false,
+    "peer_envelope_version": 3
   },
   "consistency": {
     "partition_policy": "CP",
@@ -105,10 +106,13 @@
       "placement_generation",
       "owner_epoch",
       "worker_instance_id",
-      "auth_epoch"
+      "auth_epoch",
+      "request_epoch"
     ],
     "database_commit_position": "db_seq",
-    "implemented_sql_read_path": "fresh-Safe-ReadIndex-current-READ-active-owner-and-exact-native-head; no logged read result"
+    "implemented_sql_read_path": "fresh-Safe-ReadIndex-current-READ-active-owner-and-exact-native-head; no logged read result",
+    "request_result_retirement": "explicit-terminal-ack-all-records-then-ordered-admin-epoch-CAS",
+    "retired_request": "permanent-epoch-fence-no-sql-replay-no-unknown-or-cancelled-substitution"
   },
   "storage": {
     "s3_upload": "asynchronous-after-accepted-commit",
@@ -121,9 +125,11 @@
     "archive_module": "crates/scap-archive",
     "suspend_publish_prune_hydrate_implemented": true,
     "archive_background_queue_bound": 8,
-    "cold_hydration_shares_sql_thread": true,
+    "cold_hydration_shares_sql_thread": false,
     "object_garbage_collection_implemented": false,
-    "complete_s3_only_disaster_restore_implemented": false
+    "complete_s3_only_disaster_restore_implemented": false,
+    "request_result_retirement_implemented": true,
+    "administrative_receipt_retirement_implemented": false
   },
   "targets": {
     "single_az_acknowledged_write_rpo": 0,
@@ -180,13 +186,14 @@
     "max_command_bytes": 4194304,
     "max_requests_per_database": 128,
     "max_admin_operations": 4096,
-    "dynamic_membership": false,
+    "dynamic_membership": true,
     "multiple_cells": false,
-    "live_sql_owner_threads_per_node": 1,
+    "live_sql_owner_threads_per_node": 32,
     "node_sdk": "sdk/node",
     "hrana_scope": "self-contained-closed-HTTP-v2-pipeline",
     "interactive_transactions": false,
     "automatic_unknown_write_retry": false,
-    "production_ready": false
+    "production_ready": false,
+    "max_requests_per_database_scope": "retained-unretired-window; explicit-ack-and-admin-rotation-required"
   }
 }

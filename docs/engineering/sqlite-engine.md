@@ -1,6 +1,6 @@
 # 正式 SQLite adapter：提交、结果与恢复
 
-初版日期：2026-10-31；网络接合进展更新：2026-11-01。状态：有界正式运行模块；尚不是可部署 SQL 服务。决策见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)，实际测试计数见 [G0 执行证据](g0-evidence.md)。正式 peer mTLS/runtime 已由 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)落实，本文的 native SQLite 合同与完整 SQL 网络组合仍须区分。
+初版日期：2026-10-31。状态：有界正式运行模块，已接入 [SQLite 服务](sqlite-service.md)。本文限定 native adapter 的提交与恢复边界；部署、Hrana/SDK、生命周期及后续 request epoch 退休以服务文档和对应 ADR 为准。初始决策见 [ADR-0011](../adr/0011-bounded-native-sqlite-adapter.md)，实际测试计数见 [G0 执行证据](g0-evidence.md)。正式 peer mTLS/runtime 已由 [ADR-0012](../adr/0012-bounded-raft-network-runtime.md)落实，native 单元与完整 SQL 网络组合的验证范围仍须区分。
 
 ## 1. 模块与固定依赖
 
@@ -9,7 +9,7 @@
 | `scap-sql` | SQL/参数类型、请求 fingerprint、结果版本化 codec 与限额 | 执行 SQL、权限、共识 |
 | `scap-engine` | 规范物理页事务、完整逻辑镜像、精确基线/回执/恢复 tip 校验 | 文件 I/O、native publish、凭证认证 |
 | `scap-sqlite` | 私有 libSQL 连接、SQL 准入、结果缓冲、提交 gate、目录物化与 native 完成 | peer transport、quorum 调度、自动故障接管 |
-| `scap-cell` | 有序 owner/auth fencing、提交接受、请求去重/取消与完整恢复历史 | SQLite SQL 执行或物理格式解析 |
+| `scap-cell` | 有序 owner/auth/request epoch fencing、提交接受、请求去重/取消/退休与完整恢复来源 | native SQL 执行/发布、文件与对象 I/O |
 
 引擎固定为 [`libsql-sys` 的同一完整 revision][libsql-sys] `d8bc862d20bedc72945a1da27c8b7045414c0261`，开启默认 `api/wal` 与 `rusqlite`，完整解析依赖固定在根 `Cargo.lock`。底层 SQLite C 为 3.47.0；当前没有第一方引擎 patch，没有引入 Rust Turso rewrite，也没有把旧实验作为运行时依赖。构建采用 Rust 1.90.0、C/C++ 编译器与 Linux/Unix 文件系统；first-party `unsafe_code = forbid` 保持不变。
 
@@ -31,7 +31,7 @@ flowchart TD
 
 `execute(ticket, statements)` 是单个显式事务，不是逐语句 autocommit。request ticket 的 `payload_digest` 以零占位，engine 在生成规范页 envelope 后填入真实摘要；数据库身份与前序 revision 必须匹配当前 Image。SQL 以位置参数绑定，不能将参数拼入字符串。
 
-前置 `CommitGate::lookup` 必须在真实身份验证、当前权限检查及 Safe ReadIndex 后进行。`NotFound` 只是该视图没有记录；最终 gate 仍会再次去重。已提交的 DDL 重试直接返回原结果，不重新运行 `CREATE TABLE`。当前事务入口可包含读和写，上层必须验证所需 `READ | WRITE` 权限；不能把仅验证 `scap-cell::lookup` 的 READ 权限当成完整写准入。credential 与 admission 的真实性仍由生产服务负责。
+前置 `CommitGate::lookup` 必须在真实身份验证、当前权限检查及 Safe ReadIndex 后进行。`NotFound` 只表示原 request epoch 仍为当前窗口、该视图没有记录；最终 gate 仍会再次去重。已提交且尚未退休的 DDL 重试直接返回原结果，不重新运行 `CREATE TABLE`。旧窗口返回 `Retired`，不执行 SQL，也不能把原请求换成新 epoch 后重放。当前事务入口可包含读和写，上层必须验证所需 `READ | WRITE` 权限；不能把仅验证 `scap-cell::lookup` 的 READ 权限当成完整写准入。credential 与包含原 request epoch 的 admission 真实性仍由生产服务负责。
 
 执行开始后固定 WAL 模式和 4096 字节页，使用 `synchronous=FULL`、关闭 cache spill 与自动 checkpoint。结果先完整读取、限额检查和编码，再执行 COMMIT。真实 WAL 回调在调用 native `insert_frames` 前生成 `PreparedWrite`，连同准确的请求 fingerprint 与完整结果送至同一 cell。gate 的 `Accepted` 必须代表持久多数派上的业务接受，不能是 RPC 接收回执。
 
@@ -67,15 +67,15 @@ SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源
 
 ## 4. 恢复与重启
 
-恢复调用者先从权威 cell 取得新 Safe ReadIndex，使用同一 Store view 的实际 applied entry term/index 执行 `decode_bound`。`Image::recover` 再比较完整身份、目标 applied position、数据库 revision 和 cell commit hash，读取经过当前 READ 授权的 `RecoverySource`。有基线时先装入经过校验的完整 image，再重放连续 tail；没有基线时从空镜像重放 tail。基线位置和逻辑前缀由 CellState 校验，实际物理算法由 `scap_core::physical` 统一提供。该 API 只服务可信恢复 worker，不能把其他主体的历史结果作为普通 READ 导出。
+恢复调用者先从权威 cell 取得新 Safe ReadIndex，使用同一 Store view 的实际 applied entry term/index 执行 `decode_bound`。`Image::recover` 再比较完整身份、目标 applied position、数据库 revision 和 cell commit hash，读取经过当前 READ 授权的 `RecoverySource`。有基线时先装入经过校验的完整 image，再重放连续 tail；只有没有退休 SQL 前缀、也没有基线时，才可从空镜像重放完整 tail。请求窗口退休后即使当前事务记录为空，覆盖退休 SQL 前缀的物理基线仍不可缺失。基线位置和逻辑前缀由 CellState 校验，实际物理算法由 `scap_core::physical` 统一提供。该 API 只服务可信恢复 worker，不能把其他主体的历史结果作为普通 READ 导出。
 
 首次初始化 DDL 也通过同一提交路径进入历史，恢复不需要未记录的 schema 基线。重建不会执行原 SQL，不重新产生随机值、时间或触发器效果。
 
-物化依次完成：创建新目录、独占新文件、写完整镜像、sync 文件、sync 目录、sync 父目录。任何一步失败都不返回可用路径；留下的半成品目录不会被下一次 create_new 复用。随后通过 native 配置和完整性检查。恢复完成与 `ClaimOwner/ActivateOwner` 的生产调度仍需服务层装配；构造一个 Image 不能自行授予写权限。
+物化依次完成：创建新目录、独占新文件、写完整镜像、sync 文件、sync 目录、sync 父目录。任何一步失败都不返回可用路径；留下的半成品目录不会被下一次 create_new 复用。随后通过 native 配置和完整性检查。恢复完成与 `ClaimOwner/ActivateOwner` 的生产调度由服务层装配；构造一个 Image 不能自行授予写权限。
 
 结构检查先安装安全配置、值/SQL/列/页数限额，再仅在私有检查阶段临时设置 `ignore_check_constraints=ON`；检查成功或失败后都恢复为 OFF，恢复失败不返回连接。原因是固定引擎允许 CHECK 使用连接状态或非确定函数，而默认 `integrity_check` 会重新求值这些表达式，可能错误拒绝合法的物理恢复。[表达式解析源码][resolve]与[检查源码][pragma]说明这一边界；真实回归验证换连接后原行可恢复，随后违反 CHECK 的业务 INSERT 仍被拒绝。
 
-旧本地缓存不在恢复权威之列。当前从权威基线与有限 tail 生成完整 image，并在新目录物化；尚未实现直接复用旧本地缓存或按需远程页面读取。`scap-archive` 提供有界 S3 冷唤醒，准确对象核验与当前权限校验仍是恢复前置条件。原结果保留与物理前缀折叠独立，详见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
+旧本地缓存不在恢复权威之列。当前从权威基线与有限 tail 生成完整 image，并在新目录物化；尚未实现直接复用旧本地缓存或按需远程页面读取。`scap-archive` 提供有界 S3 冷唤醒，准确对象核验与当前权限校验仍是恢复前置条件。[ADR-0017](../adr/0017-bounded-physical-history.md)的物理前缀折叠本身不移除原结果；[ADR-0019](../adr/0019-explicit-request-result-retirement.md)只在当前窗口全部取得结果 ACK 且 ADMIN 成功推进 request epoch 后退休结果，保留完整 SQL 镜像、累计 revision 和永久旧请求 fence。
 
 ## 5. 失败语义
 
@@ -83,13 +83,14 @@ SQLite 可对无 dirty pages 的 COMMIT 不调用 WAL 回调。[锁定 pager 源
 | --- | --- | --- |
 | preflight 无法取得权威结果 | `OutcomeUnknown`，停止，不执行 SQL | 当前授权下查询或有序取消 |
 | SQL/参数/结果/VM 预算失败，尚未提议 | 本次执行错误，回滚并停止 | 不据此宣称同请求的所有在途尝试已取消 |
-| cell 明确拒绝 | `Rejected`，不发布，停止 | 拒绝只说明本次尝试 |
+| cell 普通业务拒绝 | `Rejected`，不发布，停止 | 拒绝只说明本次尝试 |
+| 原 request epoch 已退休 | `Rejected(Retired)`，不执行或发布新 SQL，停止 | 永久拒绝旧窗口，但不证明原请求曾取消或从未提交 |
 | proposal 超时、断连或 panic | `OutcomeUnknown`，不发布，停止 | 查询/取消；禁止盲目重放 |
 | 回执身份或序号错误 | `InvalidReceipt`，不发布，停止 | 重新核对权威；不能假定未提交 |
 | 已 Accepted，native 或最终 COMMIT 失败 | `CommittedButUnavailable`，保留 receipt，停止 | 从已接受物理历史重建 |
 | 合法历史 receipt 对应的结果过大或 codec 损坏 | `CommittedButUnavailable`，保留已提交 receipt，停止 | 在原身份下取得可验证结果；不把它报成提交前 SQL 错误 |
 | 历史去重命中 | 返回原 receipt/结果，丢弃新页，停止当前 writer | 重新恢复当前 head 后再执行后续请求 |
-| writer 在 Accepted 后被杀 | 无客户端完成响应；cell 历史仍可恢复原结果 | 全新目录物理恢复 |
+| writer 在 Accepted 后被杀 | 无客户端完成响应；尚未显式退休的 cell 请求记录仍可恢复原结果 | 全新目录物理恢复；物理数据不随请求退休删除 |
 
 WAL FFI callback 整体捕获 Rust panic；用户 gate panic 不能穿越 C ABI。[固定上游 frames 桥接][ffi]并不替 SCAP 提供这一隔离。捕获 panic 也不能推导 proposal 未生效。
 
@@ -97,7 +98,7 @@ WAL FFI callback 整体捕获 Rust panic；用户 gate panic 不能穿越 C ABI�
 
 支持受限的参数化 DDL/DML、普通表/index/view/trigger、完整事务批次和有界返回。authorizer 默认拒绝事务控制、PRAGMA、ATTACH/DETACH、临时库、虚表和未知函数；允许的无外部副作用 builtin 集合见正式源码。未提供扩展加载、用户注册 UDF 或 raw connection 绕过通道。
 
-当前每个 Statement 恰好一条 SQL；用户不能自行提交/回滚整个外层事务。interactive transaction、用户 savepoint、通用 VACUUM/import 与完整 SDK 兼容不在本轮接口中。跨 writer 重启不保留连接内的 `last_insert_rowid()` / `changes()` 会话上下文；已经接受的请求结果由 cell 原样保留。
+当前每个 Statement 恰好一条 SQL；用户不能自行提交/回滚整个外层事务。interactive transaction、用户 savepoint、通用 VACUUM/import 与完整 SDK 兼容不在本轮接口中。跨 writer 重启不保留连接内的 `last_insert_rowid()` / `changes()` 会话上下文；已经接受的请求结果由 cell 原样保留，直至该窗口通过显式 ACK 与 ADMIN 旋转完成退休。
 
 VM 指令预算用于限制 SQL 执行工作，不是全程 wall-clock deadline。COMMIT、同步文件和同步共识调用需要上层独立的有界执行与超时预算。SqliteWriter 线程受限，必须放在受控阻塞 worker；不能在处理心跳的网络 executor 内运行。
 

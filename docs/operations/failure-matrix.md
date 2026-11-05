@@ -137,11 +137,11 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 关键 HTTP/peer/Raft/SQL/归档任务异常退出 | 节点 supervisor 停止整体服务，取消并回收其余资源 | native 同步 I/O 不能被异步 deadline 强制打断 |
 | SIGTERM/Ctrl-C | 停止准入、取消当前任务、在关闭预算内 drain/join | 超时不冒充完成；进程管理仍需处理卡住的底层 I/O |
 | 物理 tail 达到折叠阈值 | 同一 Commit 候选内建立已验证基线并退休覆盖的物理前缀；失败原子拒绝，不影响原 ACK/结果 | 保留全部逻辑请求与取消记录，仍受原状态预算限制 |
-| 旧副本处于不同 applied 后升级 | 先按 v2 追赶旧 suffix，再在同一个有序条目中按规范阈值激活；相同激活位置必须得到相同状态与归档 bytes | 不能在 decode 或各自旧 head 无条件生成基线；必须全停全部 voter 升级 |
-| 新旧状态机同时运行 | envelope version 1/2 在内部 Raft 解码前互拒，不能跨世代形成 quorum | 同世代两个旧 voter 仍可能服务，不构成无停机升级支持 |
-| 旧二进制打开已写入 v3 的盘 | application decode 失败，保留原目录 | 禁止清空、降级重写或 Initialize 原身份 |
+| 旧副本处于不同 applied 后升级 | 先按原 v2/v3 阶段追赶旧 suffix，再依次完成有序的历史与退休激活；相同激活位置必须得到相同状态与归档 bytes | 不能在 decode 或各自旧 head 无条件生成基线；必须全停全部 voter 升级 |
+| 新旧状态机同时运行 | 当前 Raft peer envelope 3 与旧 1/2 在内部 Raft 解码前互拒，不能跨世代形成 quorum | 同世代两个旧 voter 仍可能服务，不构成无停机升级支持 |
+| 旧 v3 二进制打开已写入 v4 的盘 | application decode 失败，保留原目录 | 禁止清空、降级重写或 Initialize 原身份 |
 
-当前 Prune 仅移除数据库物理材料，完整请求结果、取消 fence、授权和 archive pointer 继续持久化；[ADR-0017](../adr/0017-bounded-physical-history.md)的热基线也不删除这些记录。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像和有界记录，无 GC、恢复空间预留或无限长尾承诺。该 ADR 的具体执行结果以完整本地证据为准。
+当前 Prune 仅移除数据库物理材料，完整请求结果、取消 fence、授权和 archive pointer 继续持久化；[ADR-0017](../adr/0017-bounded-physical-history.md)的热基线也不删除这些记录。请求结果仅在应用显式确认并经 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)的有序世代退休后释放，旧世代屏障仍永久保留。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像、每个未退休窗口 128 条请求及 cell 4096 条行政记录；没有行政记录退休、对象 GC、恢复空间预留或无限长尾承诺。具体执行结果以完整本地证据为准。
 
 ## 4. 控制面与鉴权降级边界
 
@@ -221,4 +221,20 @@ planned 的 v0 初始上限为 **60 秒**，允许配置得更短；当前静态
 
 常规故障处理见 [运维手册](runbooks.md)。任何改变恢复时间点、删除保留数据或接受归档缺口的动作，都必须留有操作者、批准者、恢复边界和影响范围的审计记录。
 
-版本升级须同时遵守 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)：新状态写入 v2，合法 v1 热历史仅在相同身份/limits 下兼容读取；无旧 binary 降级或混版本滚动协议。服务可部署与完整生产 SLO/故障矩阵通过是不同结论。
+版本升级以 [ADR-0017](../adr/0017-bounded-physical-history.md)、[ADR-0019](../adr/0019-explicit-request-result-retirement.md)及 [运维手册 RB-10](runbooks.md#11-rb-10滚动升级降级与版本门禁)为准：旧 v2/v3 阶段先按原规则追赶，两个独立有序激活完成后写入 v4；只在相同身份、位置和 limits 下兼容读取合法旧状态。当前 peer envelope 为 3，没有旧 binary 降级或混版本滚动协议。服务可部署与完整生产 SLO/故障矩阵通过是不同结论。
+
+## 6. 请求结果退休的已实现边界（ADR-0019）
+
+| 情况 | 实际规则 | 禁止推断 |
+| --- | --- | --- |
+| 写响应丢失但已提交 | 应用尚未确认的原结果继续占窗口，阻止整体退休 | UNKNOWN 不能直接确认或更换世代重试 |
+| 显式确认响应丢失 | 原终态和首次确认位置保留，可按原身份查证或幂等确认 | 不把未知响应当未生效；写成功 ACK 不等于显式结果确认 |
+| Rotate 响应丢失 | 通过 fresh status 确认世代，旧 expected_epoch 再次提交会被拒绝 | 不自动重发 SQL，不把 retired 当取消 |
+| 迟到旧命令与 Rotate 并发 | 先 Commit 则未确认记录阻止 Rotate；先 Rotate 则旧 epoch 拒绝 | 不因原 ID 在新窗口缺失就接受 |
+| Cold 时显式确认 | 只更新当前 cell 确认元数据，旧物理归档不覆盖它 | 不据此删除归档或轮转 Cold；精确对象不可用时保持恢复失败 |
+| 退休后 snapshot / 重启 | 持久前缀、当前 epoch 和 base 共同恢复 | 不恢复旧请求空间，不让 revision 回到 0 |
+| 归档缺失退休前缀所需的 base | 摘要正确也必须在相对 tail 索引和 Hydrate 安装前拒绝，保留原状态 | 不把空事务表当空库，不允许 panic 或先清除唯一恢复材料 |
+| 容量接近上限 | v4 提前保留后续确认编码空间，超限拒绝新接受或激活 | 不放宽原容量、不驱逐未确认结果；不会回收 4096 条行政记录 |
+| 非初始世代变更命中旧 SDK 端点 | 同身份、原 deadline 的 status 能力探测不通过时，SDK 不发送后续变更 | 不缓存能力跨越节点重启，不向忽略世代 header 的旧服务发送业务写入 |
+
+协议见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)，真实进程和最终来源对应结果见 [退休实验](../../experiments/retention-network/README.md)及 [G0 证据](../engineering/g0-evidence.md)。

@@ -1,6 +1,6 @@
 # SQLite 与真实 Raft 网络的提交及恢复
 
-日期：2026-11-02（UTC）。实现范围为一个固定三 voter cell、一个明确恢复和激活的 SQLite writer，以及可信 Rust 请求入口。决策见 [ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)，测试实况与精确计数见 [执行证据](g0-evidence.md)。这不是已经部署的 Hrana/Node.js 数据库服务。
+初版日期：2026-11-02（UTC）。本文描述一个 cell、明确恢复和激活的 SQLite writer 与可信 Rust 请求入口之间的提交合同；初版真实组合使用固定三个 voter。决策见 [ADR-0013](../adr/0013-tracked-sqlite-network-commit.md)，测试实况与精确计数见 [执行证据](g0-evidence.md)。后续 [SQLite 服务](sqlite-service.md)已装配 Hrana/Node.js 入口、有界生命周期与受控成员替换；当前物理历史和请求退休格式见 [ADR-0017](../adr/0017-bounded-physical-history.md)与 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)，不将初版实验范围当成当前部署能力上限。
 
 ## 1. 正式模块与线程边界
 
@@ -17,7 +17,7 @@ SQLite writer、gate 及 invocation 使用 `Rc`，不可跨线程移动或共享
 
 `RuntimePort` 固定连接一个进程内 Handle，Handle 对应的 cluster/cell/incarnation/node 在 runtime 创建时冻结。客户端构造、每次 I/O 和返回 ReadView 分别验证 scope，不能将另一个 cluster 中相同 cell 编号的结果当成本请求结果。
 
-Admission 来自可信调用方，含 principal、credential、admission ID 和 auth epoch。这里重新检查复制策略，但不替代外部凭证验证。`Client::read` 返回完整 cell 状态，只允许内部恢复和授权代码使用；不能把整个状态暴露为租户查询接口。
+Admission 来自可信调用方，含 principal、credential、admission ID、auth epoch 和原始 request epoch。request epoch 与 owner/auth epoch 独立；后续查询、取消和结果 ACK 必须沿用原请求身份，不能刷新为当前窗口重放旧请求。这里重新检查复制策略，但不替代外部凭证验证。`Client::read` 返回完整 cell 状态，只允许内部恢复和授权代码使用；不能把整个状态暴露为租户查询接口。
 
 ## 2. 一次成功事务的真实顺序
 
@@ -51,7 +51,7 @@ sequenceDiagram
 
 每次执行持有一个 `Invocation`，绑定完整 ticket、独立 Admission、取消标志和原始 deadline。lookup 和 propose 必须依次进行并且指纹一致，每个阶段至多一次。释放 invocation 会清除本次上下文，不能让持久连接继承旧主体或预算。
 
-preflight 同时检查 READ 和 WRITE、active owner 和准确 predecessor。SQL 执行期间这些条件可以改变，因此 cell 在最终有序提交时再次校验；预检不授予绕过后续 fencing 的许可。没有 dirty WAL 页的 SELECT/零行更新仍提交同镜像结果，该 execute 事务接口保留此语义；后续正式 `Writer::query` 已提供独立 Safe ReadIndex 强读，不写结果记录，见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
+preflight 同时检查 READ 和 WRITE、原 request epoch、active owner 和准确 predecessor。SQL 执行期间这些条件可以改变，因此 cell 在最终有序提交时再次校验；预检不授予绕过后续 fencing 的许可。没有 dirty WAL 页的 SELECT/零行更新仍提交同镜像结果，该 execute 事务接口保留此语义；后续正式 `Writer::query` 已提供独立 Safe ReadIndex 强读，不写结果记录，见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
 ## 3. tracked proposal 的关联和资源
 
@@ -78,8 +78,8 @@ driver 生成 `ProposalTicket { boot_id, sequence }`，在 Entry context 中还�
 
 1. 校验请求字段；claim 和 activate 使用不同的非零 operation ID，worker instance ID 对本次启动唯一。取一次新读确认目标 cell/database scope。
 2. 提交有序 `ClaimOwner(expected_epoch, worker_instance_id)`，确认本请求的 `OwnerClaimed`，精确 token 必须等于 expected epoch 加一及本次 worker ID。此操作撤销旧 owner 并使数据库 inactive。
-3. 再取 Safe ReadIndex，检查数据库身份、owner token 和 inactive 状态。从这一相同视图取得完整接受历史、revision 和 commit hash。
-4. `Image::recover` 从空镜像校验并应用物理历史，禁止重执行 SQL。结果绑定 cell/db identity、applied term/index、revision、commit hash 和物理页格式。
+3. 再取 Safe ReadIndex，检查数据库身份、owner token 和 inactive 状态。从这一相同视图取得已验证的物理基线、连续 tail、退休前缀、revision 和 commit hash。
+4. `Image::recover` 先核验并装入物理基线，再校验并应用连续 tail；只有没有退休 SQL 前缀、也没有基线时才从空镜像开始。退休 SQL 前缀必须由基线覆盖，即使当前请求记录为空也不能恢复成空库。禁止重执行 SQL；结果绑定 cell/db identity、applied term/index、revision、commit hash 和物理页格式。
 5. `NativeFactory` 在从未使用过的目录创建私有 SQLite writer。它执行现有新文件、fsync、完整性和资源校验；不打开旧 main/WAL/sidecar 作为权威恢复源。
 6. 在原 deadline 内提交 `ActivateOwner(token, restored_revision, restored_hash)`，确认对应激活裁决。
 7. 最后再取新 ReadIndex，确认当前 READ+WRITE、owner 和 revision，检查原 deadline，才交付 writer。
@@ -93,14 +93,15 @@ driver 生成 `ProposalTicket { boot_id, sequence }`，在 Entry context 中还�
 | 观察到的结果 | 正式行为 |
 | --- | --- |
 | 新 Accepted，receipt、位置及前序都匹配 | 允许本次 native 发布，完整 COMMIT 成功后返回 |
-| 前置 Lookup 找到同一请求 | 使用当前权限返回原 receipt/result，不执行 SQL；退休 writer，下一次必须恢复 |
-| preflight 后发生竞争，proposal 返回 AlreadyCommitted | 新 ReadIndex 验当前 owner/READ+WRITE，以相同请求 ID/指纹查历史；必须与 tracked 历史 receipt/position 完全匹配，丢弃本次新页面 |
+| 前置 Lookup 找到同一请求 | 使用当前权限及原 request epoch/ID 返回原 receipt/result，不执行 SQL；退休 writer，下一次必须恢复 |
+| preflight 后发生竞争，proposal 返回 AlreadyCommitted | 新 ReadIndex 验当前 owner/READ+WRITE，以原 request epoch、相同请求 ID/指纹查历史；必须与 tracked 历史 receipt/position 完全匹配，丢弃本次新页面 |
 | owner/auth/predecessor 或其他有序业务拒绝 | 不发布本次页面，返回明确拒绝并停止 writer |
+| 原 request epoch 已退休 | 返回 `Retired`，不执行或发布新 SQL，不将旧请求改成当前 epoch 重试 |
 | 超时、取消、无 quorum、非法回执、scope 或历史绑定不明 | UNKNOWN，不发布新页面，不自动重执行 SQL |
 | 已知 Accepted 后 native 发布失败 | `CommittedButUnavailable` 保留 receipt；不能称为事务回滚 |
 | native 已完成，但返回前原 deadline 已到或时钟失效 | 同样保留已提交 receipt，退休 writer；请求 deadline 达标率仍记录失败 |
 
-Lookup 的 Unknown/未找到只描述一个线性化读时刻。仍可能存在先前请求在途，必须通过有序 `ResolveOrCancel` 才能建立取消终态；若命令返回 AlreadyCommitted，则继续查询原结果。一次普通拒绝也不等于持久取消。
+当前 request epoch 内 Lookup 的 Unknown/未找到只描述一个线性化读时刻。仍可能存在先前请求在途，必须以原身份通过有序 `ResolveOrCancel` 才能建立取消终态；若命令返回 AlreadyCommitted，则继续查询原结果。一次普通拒绝也不等于持久取消。旧窗口返回 `Retired`，永久阻止旧请求再次执行，但不证明原请求从未提交；完成显式退休后不再保证逐请求原结果可查。
 
 ## 6. 分区、重启和组件不可用
 
@@ -109,10 +110,10 @@ Lookup 的 Unknown/未找到只描述一个线性化读时刻。仍可能存在�
 | writer 所在节点成为少数派 | 新 ReadIndex/写等待失败；在预检之后才分区的写也不能越过 quorum gate，UNKNOWN 后停止 writer |
 | 旧 leader 隔离、新 leader 当选 | PreVote/check_quorum/Safe ReadIndex 沿用正式 driver；旧 Handle 不转发业务写，不把网络可达当成新的写权限 |
 | SQL 执行后 owner 或 auth 改变 | 后续有序 commit 被拒绝，独立 SQLite 读连接仍只看到原值 |
-| cell Accepted 后 SQL 进程被杀 | 幸存多数派保留物理页和完整结果，新 owner 在新目录恢复同一事务，不重执行随机函数或 DDL |
+| cell Accepted 后 SQL 进程被杀 | 幸存多数派保留物理恢复数据和尚未显式退休的完整结果，新 owner 在新目录恢复同一事务，不重执行随机函数或 DDL |
 | 整组重启 | 各副本严格重开原 RocksDB；取得新 quorum、ReadIndex 与 owner 后再创建 SQLite；旧 SQLite 缓存不能直接服务 |
-| snapshot 安装 | 传递正式 cell 全状态，包括物理历史、结果、fence；接收方重开后仍验证绑定，再供新 writer 恢复 |
-| 本地 RocksDB 损坏 | 继续严格拒绝不可信历史；自动重建副本、替换成员尚未实现 |
+| snapshot 安装 | 传递正式 cell 全状态，包括基线/tail、request epoch/退休前缀、保留的结果/ACK、fence；接收方重开后仍验证绑定，再供新 writer 恢复 |
+| 本地 RocksDB 损坏 | 继续严格拒绝不可信历史；健康多数派下可用新身份 Join、learner 追赶和显式 joint 配置受控替换，自动坏盘检测/调度仍未实现 |
 | S3 不可用 | 正式服务热提交不依赖 S3；冷库由 scap-archive 完成有序归档/恢复，对象不可用时不裁剪唯一历史且唤醒失败，不能削弱同步提交 |
 
 ## 7. 复现与上线边界
@@ -127,4 +128,4 @@ cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locke
 
 固定工具和 native 依赖与前一阶段相同；新增的两个正式 crate 只组合已有固定依赖。网络实验不能填补 unit coverage；固定小库、同机 loopback、进程 SIGKILL 和控制器观测也不能证明三 AZ 延迟、断电持久性或运营 RTO。
 
-热写 SDK p99 ≤100 ms、leader 故障 RTO p99 ≤5 s、R0 worker 恢复 p99 ≤30 s 等仍为原定验收目标。后续 [真实服务实验](../../experiments/service-network/README.md)已有同机小库 SDK 与双库 30 秒稳定窗口观测；生产参考档仍未达标，详情以 [性能目标](performance-slo.md)为准。本阶段不修改这些数值、不剔除 UNKNOWN，也不以七项测试运行时间替代恢复时间。
+热写 SDK p99 ≤100 ms、leader 故障 RTO p99 ≤5 s、R0 worker 恢复 p99 ≤30 s 等仍为原定验收目标。后续 [真实服务实验](../../experiments/service-network/README.md)已有同机小库 SDK 与双库 30 秒稳定窗口观测；生产参考档仍未达标，详情以 [性能目标](performance-slo.md)为准。本阶段不修改这些数值、不剔除 UNKNOWN，也不以测试运行时间替代恢复时间。

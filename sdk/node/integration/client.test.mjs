@@ -124,7 +124,10 @@ test("ordered cancellation fences a future same-ID write and credentials cannot 
     await db.execute(`CREATE TABLE ${prefix}_cancel(id INTEGER PRIMARY KEY)`);
     const identity = { requestId: requestId(), statements: [`INSERT INTO ${prefix}_cancel VALUES (1)`] };
     assert.deepEqual(await db.lookup(identity), { state: "unknown" });
-    assert.deepEqual(await db.resolveOrCancel(identity), { state: "cancelled" });
+    const cancelled = await db.resolveOrCancel(identity);
+    assert.equal(cancelled.state, "cancelled");
+    assert.equal(cancelled.acknowledged, false);
+    assert.ok(cancelled.position.term > 0n && cancelled.position.index > 0n);
     await assert.rejects(db.execute(identity.statements[0], { requestId: identity.requestId }));
     assert.equal((await db.query(`SELECT count(*) AS n FROM ${prefix}_cancel`)).rows[0].n, 0n);
   } finally { db.close(); }
