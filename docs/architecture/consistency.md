@@ -1,5 +1,7 @@
 # 一致性、提交与故障恢复协议
 
+> **新目标路线：**用户确认原型未投入使用，按 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)和[对象原生提交协议](<object-storage-native-proposal.md#protocol>)从零重设计，无旧协议兼容要求。本文记录 Raft 原型的实现与研发合同，供历史对照；新目标不要求保留 cell/quorum，旧证据不证明新协议。
+
 > 状态：有界实现与完整平台的发布门禁并列。2026-11-02 已实现固定三节点 daemon、真实 SQLite/HTTP/Node SDK、独立 Safe ReadIndex 强读、leader 自动 owner 恢复和有界 S3 冷生命周期。跨 AZ/规模 SLO、动态成员、多 cell、删除迁移、历史 GC、PITR 和 S3-only DR 仍为 planned；不能把局部正确性验证视为全部生产保证已成立。共识选型见 [ADR-0006](../adr/0006-raft-rs-consensus-library.md)，当前服务范围见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
 正式 driver/Store/native 后端、PreVote、check_quorum、Safe ReadIndex 与完整有界 snapshot 已接入 mTLS peer runtime。`scap-cell` 在同一全序内处理 owner/auth、事务接受、去重、取消和 Suspend/Publish/Prune/Hydrate；`scap-sqlite` 在发布页面前等待精确持久裁决并缓冲完整结果。`query` 建立独立只读 SQLite 事务，不增加 accepted-write 历史；第三方 SDK 的普通 execute SELECT 保留兼容事务路径。

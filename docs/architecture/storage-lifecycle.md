@@ -1,5 +1,7 @@
 # 存储布局、归档与数据库生命周期
 
+> **新目标路线：**[对象原生方案](<object-storage-native-proposal.md#lifecycle>)将 S3 作为全部持久化权威，重新设计恢复、pin 和 GC。本文记录 Raft 原型的异步归档路径，不是新布局的兼容要求；无需旧格式迁移。
+
 状态：2026-11-02 已实现有界的 Suspend、S3 归档发布、物理数据 Prune、Cold 唤醒与全 cell checkpoint；增量分段、对象 GC、删除、迁移、PITR 和仅剩 S3 的 DR checkpoint 仍为 planned。本文受 [一致性协议](consistency.md) 约束，当前源码与部署边界见 [SQLite 服务实现](../engineering/sqlite-service.md)及 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)。
 
 2026-11-04 已将 SQL 与前景 hydrate 按数据库隔离到按需创建的串行 lane，并改用增量磁盘块布局；详见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。S3 仍保存有界完整单库对象，增量磁盘块不代表已实现分段对象恢复或更大数据库 profile。

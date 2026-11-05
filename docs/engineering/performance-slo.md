@@ -1,5 +1,7 @@
 # 性能指标、恢复目标与验收方法
 
+> **新目标路线：**本文数值对应 Raft 原型参考档，不能直接继承给对象原生架构。新方案须按[性能与成本计划](<../architecture/object-storage-native-proposal.md#cost>)在实验前冻结自己的 profile 和目标；沿用完整分母及稳定恢复窗口的方法，不沿用未测结论。
+
 > 状态：**生产参考档的内部验收目标尚未达标，也不是对外 SLA；已有单机小库诊断观测，见末节。** 本文给出可以阻断发布的目标数值与测试条件；不能将“目标已定义”写成“性能已达到”。目标修改须记录版本、原因和原始结果，不能通过删掉慢样本或缩小分母让结果通过。
 
 本文遵守 [需求与故障合同](../architecture/requirements.md)、[一致性协议](../architecture/consistency.md) 和 [存储生命周期](../architecture/storage-lifecycle.md)：三 AZ 的共享三副本 cell、durable quorum 后接受写入、单 owner、CP、S3 异步归档不变。性能优化不得绕过这些条件。

@@ -1,5 +1,7 @@
 # 实施路线与发布门禁
 
+> **目标路线变更：**用户已确认无存量使用及兼容要求，后续主设计按[对象原生 N0–N4 分期](<../architecture/object-storage-native-proposal.md#rollout>)推进。下文保留旧 Raft 原型的阶段与事实，不要求先完成旧路线，不包含新架构的迁移/双后端前置条件。
+
 状态：G0 整体仍未关闭，已完成可部署的有界 SQLite 服务闭环。2026-11-02 的正式 `scap-server` 已连接三副本共识、HTTP/Node SDK、独立强读、自动 owner 恢复与 S3 冷生命周期；这不等于完整平台、规模或生产 SLO 已通过。2026-11-04 新增内容块增量持久化、按库惰性执行和重新授权的连接复用，见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。当前实现见 [服务说明](sqlite-service.md)和 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，执行证据见 [g0-evidence.md](g0-evidence.md)。
 
 之后已合并受控成员替换和有界物理历史；本轮继续实现 [显式结果确认与请求世代退休](../adr/0019-explicit-request-result-retirement.md)。该协议允许应用处理并确认原结果后释放 128 条请求窗口，仍保留 4096 条行政记录上限、所有 S3 对象及未确认结果，不构成无限运行或成本收敛证明。本轮单元门禁与真实故障验证分别记账。
