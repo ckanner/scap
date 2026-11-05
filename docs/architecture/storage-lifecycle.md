@@ -161,7 +161,7 @@ Worker 重启后使用新的进程实例身份。当前 daemon 不复用旧 SQLi
 
 后续可从已验证缓存、其他有效副本或对象存储选择最快来源，但最终必须到达 cell 要求的提交位置。缺一段日志、checksum 不匹配或无法判定 head 时保持不可用，不创建一个同名空库。RocksDB/WAL/完整 cell 镜像损坏或丢失也不会自动 Initialize；该故障与可丢弃 SQLite cache 不同。
 
-后台 Prune 可能发生在请求读取非冷状态后、Claim 前。只有 Claim 路径明确返回 `Rejected(Cold)` 且 SQL 尚未执行，服务才以原 deadline 进行一次 fresh view/hydrate/恢复；其他错误和 UNKNOWN 不自动重试。前景 hydrate 在本库 lane 内同步执行，使用独立 Controller 且不持有后台任务队列锁，其他库的 lane 可独立推进。
+后台 Prune 可能发生在请求读取非冷状态后、Claim 前。v5 控制序号拒绝原 Claim，本次请求在 SQL 尚未执行时结束；服务不在原调用内刷新控制身份。后续独立任务可以重新读取状态并恢复，原 UNKNOWN 不能自动重试。前景 hydrate 在本库 lane 内同步执行，使用独立 Controller 且不持有后台任务队列锁，其他库的 lane 可独立推进。
 
 恢复受固定 32 个活动/退出中 lane、全局 32 个请求 / 8 MiB 和每库 8 个请求 / 2 MiB 的准入预算约束，排队与执行都占预算，原 deadline 不重置。目录维护仍同步访问 cell，整体 CPU、磁盘和 quorum 压力仍可能影响其他库。总体 cell 容量不足会拒绝 hydrate；当前尚无独立恢复空间预留、带宽公平调度或自动搬迁。
 

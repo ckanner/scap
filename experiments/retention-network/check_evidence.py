@@ -313,7 +313,7 @@ def audit(directory):
     require(legacy["beta"]["cold"] is True and legacy["archives"] and all(entry["format_version"] == 3 for entry in legacy["archives"]), "old V3 archive bytes missing")
     mixed = event("wire_generations_fenced")
     upgraded = mixed["upgraded_node_id"]
-    require(mixed["old_peer_envelope_version"] == 2 and mixed["new_peer_envelope_version"] == 3 and mixed["peer_proxies_blocked"] is False, "wire isolation was simulated by blocking the network")
+    require(mixed["old_peer_envelope_version"] == 2 and mixed["new_peer_envelope_version"] == 4 and mixed["peer_proxies_blocked"] is False, "wire isolation was simulated by blocking the network")
     require(local_position(mixed["isolated_new"], upgraded) < mixed["old_quorum_witness"]["applied"] and mixed["old_quorum_witness"]["leader"] != upgraded, "old quorum witness did not exceed new replica prefix")
     for field in ("rejected_read", "rejected_write"):
         rejection = mixed[field]

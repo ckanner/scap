@@ -169,12 +169,27 @@ impl<P: CellPort> Client<P> {
         database: DatabaseIdentity,
         kind: CommandKind,
     ) -> Result<AppliedOutcome, Error> {
+        self.submit_control(context, database, None, kind)
+    }
+
+    /// Submit the immutable administrative intent captured by the caller.
+    /// `None` preserves historical command semantics; an enabled control
+    /// protocol requires the original explicit revision. Neither UNKNOWN nor
+    /// refreshed credentials authorize a new read or revision substitution.
+    pub fn submit_control(
+        &mut self,
+        context: &RequestContext,
+        database: DatabaseIdentity,
+        expected_revision: Option<u64>,
+        kind: CommandKind,
+    ) -> Result<AppliedOutcome, Error> {
         self.check(context)?;
         let data = scap_cell::encode_command(
             &Command {
                 cell: self.cell,
                 database,
                 admission: context.admission,
+                control_revision: expected_revision,
                 kind,
             },
             self.limits,
@@ -196,6 +211,16 @@ impl<P: CellPort> Client<P> {
             },
         )
         .map_err(|_| Error::Unknown)?;
+        match (&applied.outcome, expected_revision) {
+            (
+                Outcome::ControlApplied(receipt) | Outcome::ControlAlreadyApplied(receipt),
+                Some(expected),
+            ) if expected.checked_add(1) == Some(receipt.revision) => {}
+            (Outcome::Rejected(_), _) => {}
+            (Outcome::ControlApplied(_) | Outcome::ControlAlreadyApplied(_), None)
+            | (_, Some(_)) => return Err(Error::Unknown),
+            (_, None) => {}
+        }
         self.check(context)?;
         Ok(applied)
     }
@@ -239,7 +264,7 @@ impl<P: CellPort> Client<P> {
     /// Trusted catalogue-only activation of acknowledged request retirement.
     /// This is a separate ordered entry, not an ordinary tenant command or a
     /// retry of a previous activation. Service can open only after its exact
-    /// durable completion and a fresh phase-4 view within the original budget.
+    /// durable completion and a fresh phase-4-or-later view within the original budget.
     pub fn activate_retention(&mut self, context: &RequestContext) -> Result<CellState, Error> {
         self.check(context)?;
         let data =
@@ -263,7 +288,41 @@ impl<P: CellPort> Client<P> {
             return Err(Error::Unknown);
         }
         let state = self.read(context)?;
-        if state.physical_history_version() != 4
+        if state.physical_history_version() < 4
+            || state.position().index < position.index
+            || state.position().term < position.term
+        {
+            return Err(Error::Unknown);
+        }
+        Ok(state)
+    }
+
+    /// Activate bounded administrative receipts through its separate ordered
+    /// catalogue entry. Service opens only after the exact durable completion
+    /// and a fresh phase-5 view within this invocation's original deadline.
+    pub fn activate_control(&mut self, context: &RequestContext) -> Result<CellState, Error> {
+        self.check(context)?;
+        let data = scap_cell::encode_control_activation(self.cell, context.admission.principal_id);
+        self.check(context)?;
+        let result = self
+            .port
+            .propose(data, context.deadline, &context.cancelled)
+            .map_err(|_| Error::Unknown)?;
+        if result.ticket.boot_id == 0 || result.ticket.sequence == 0 {
+            return Err(Error::Unknown);
+        }
+        let position = Position {
+            term: result.term,
+            index: result.index,
+        };
+        let applied =
+            scap_cell::decode_control_activation_outcome(&result.data, self.cell, position)
+                .map_err(|_| Error::Unknown)?;
+        if applied.result.is_err() {
+            return Err(Error::Unknown);
+        }
+        let state = self.read(context)?;
+        if !state.control_enabled()
             || state.position().index < position.index
             || state.position().term < position.term
         {

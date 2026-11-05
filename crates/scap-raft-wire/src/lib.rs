@@ -24,7 +24,7 @@ pub use codec::{decode_envelope, encode_envelope, HEADER_BYTES};
 /// Earlier generations cannot preserve its permanent request-epoch fences and
 /// can make different capacity decisions, so mixed peers fail before decoding
 /// any inner Raft message, including votes and snapshots.
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 /// Fixed raft-rs ad13f3d9 / rust-protobuf 2.28 opaque bytes, without compression.
 pub const CODEC: u32 = 1;
 

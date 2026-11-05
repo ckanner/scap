@@ -235,6 +235,7 @@ fn native_runtime_delegates_tracked_commit_safe_read_status_and_checkpoint() {
     assert_eq!(port.leadership(deadline).unwrap(), (true, 2));
     port.maintain(deadline, false).unwrap();
     let command = Command {
+        control_revision: None,
         cell: config.cell,
         database: config.databases[0].identity,
         admission: Admission {

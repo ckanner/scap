@@ -48,3 +48,6 @@
 独立的 [service-network](../../experiments/service-network/README.md) 运行三个真实 daemon、固定 SDK、mTLS 和透明故障代理；[archive-s3](../../experiments/archive-s3/README.md)单独检查真实兼容端点条件写与重启；它们的 profile 不补单元覆盖率。完整配置与启动命令见[工程说明](../engineering/sqlite-service.md)。
 
 扩大容量、改变保留期、删除对象、增加动态成员/多 cell、按库并发执行、租约读、增量持久布局或改变 SDK 的 UNKNOWN 重试规则，都需要重新评审本记录的恢复根、身份、顺序和资源合同。
+
+
+2026-11-05 后续协议变更：第 9 项的调用内部 Cold 刷新在 [ADR-0020](0020-bounded-administrative-control.md) 中由固定控制身份替代。v5 管理交错拒绝原恢复任务，本次调用不刷新序号；后续独立任务可重新捕获状态。本文其余阶段性结果仍按原执行记录保留。

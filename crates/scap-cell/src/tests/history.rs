@@ -359,6 +359,7 @@ pub(super) fn legacy_apply(state: &mut CellState, epoch: u64, kind: CommandKind)
         cell: legacy_cell(),
         database: legacy_database(),
         admission: legacy_admission(epoch),
+        control_revision: None,
         kind,
     };
     let entry = Entry {

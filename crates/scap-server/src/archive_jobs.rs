@@ -9,9 +9,9 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use parking_lot::Mutex;
+use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 use scap_archive::{Controller, Objects};
-use scap_cell::DatabaseView;
+use scap_cell::{DatabaseIdentity, DatabaseView};
 use scap_cell_client::{Client, RequestContext};
 use scap_raft_runtime::Clock;
 use scap_service::ServiceError;
@@ -33,6 +33,11 @@ struct Job {
     prune: u128,
 }
 
+struct QueuedJob {
+    request: Job,
+    gate: Arc<Mutex<()>>,
+}
+
 struct Completion {
     database: u128,
     prune: u128,
@@ -48,14 +53,29 @@ struct Entry {
 /// One entry per configured database, including failures in backoff. No object
 /// bytes, SQL, or unbounded error strings enter either channel or this table.
 struct Queue {
-    sender: Option<SyncSender<Job>>,
+    sender: Option<SyncSender<QueuedJob>>,
     completions: Receiver<Completion>,
     entries: BTreeMap<u128, Entry>,
+    gates: BTreeMap<u128, Arc<Mutex<()>>>,
     max_databases: usize,
     control: Arc<Control>,
 }
 
 impl Queue {
+    /// Never evict a gate: replacing one while an old guard exists would split
+    /// the exclusion boundary. Database IDs also serialize old incarnations.
+    fn gate(&mut self, database: u128) -> Option<Arc<Mutex<()>>> {
+        if let Some(gate) = self.gates.get(&database) {
+            return Some(gate.clone());
+        }
+        if self.gates.len() >= self.max_databases {
+            return None;
+        }
+        let gate = Arc::new(Mutex::new(()));
+        self.gates.insert(database, gate.clone());
+        Some(gate)
+    }
+
     fn poll(&mut self) -> bool {
         let mut checkpoint = false;
         while let Ok(completion) = self.completions.try_recv() {
@@ -75,9 +95,9 @@ impl Queue {
     }
 
     fn enqueue(&mut self, job: Job, now: Instant) -> Result<(), ServiceError> {
-        let Some(sender) = &self.sender else {
+        if self.sender.is_none() {
             return Ok(());
-        };
+        }
         if self.control.stopped.load(Ordering::Acquire) {
             return Err(failure("ARCHIVE_STOPPED"));
         }
@@ -106,7 +126,15 @@ impl Queue {
             deadline: job.context.deadline,
             retry_after: None,
         };
-        match sender.try_send(job) {
+        let Some(gate) = self.gate(id) else {
+            return Ok(());
+        };
+        match self
+            .sender
+            .as_ref()
+            .unwrap()
+            .try_send(QueuedJob { request: job, gate })
+        {
             Ok(()) => {
                 self.entries.insert(id, entry);
                 Ok(())
@@ -115,6 +143,28 @@ impl Queue {
             Err(TrySendError::Disconnected(_)) => Err(failure("ARCHIVE_STOPPED")),
         }
     }
+}
+
+fn live_gate(context: &RequestContext, clock: &dyn Clock) -> Result<(), ServiceError> {
+    if context.cancelled.load(Ordering::Acquire)
+        || clock.now().map_err(|_| failure("CLOCK"))?.instant >= context.deadline
+    {
+        return Err(failure("COMMIT_UNKNOWN"));
+    }
+    Ok(())
+}
+
+/// Cancellation is checked before and after the bounded mutex wait. It does
+/// not interrupt the wait or renew the caller's original absolute deadline.
+fn acquire_gate<G>(
+    context: &RequestContext,
+    clock: &dyn Clock,
+    acquire: impl FnOnce(Instant) -> Option<G>,
+) -> Result<G, ServiceError> {
+    live_gate(context, clock)?;
+    let guard = acquire(context.deadline).ok_or_else(|| failure("COMMIT_UNKNOWN"))?;
+    live_gate(context, clock)?;
+    Ok(guard)
 }
 
 #[derive(Default)]
@@ -142,17 +192,24 @@ impl Control {
 }
 
 trait Runner: Send {
-    fn run(&mut self, job: &Job) -> Result<(), ServiceError>;
+    fn run(&mut self, job: &QueuedJob) -> Result<(), ServiceError>;
 }
 
-struct BoundRunner<P, S>(Controller<P, S>);
+struct BoundRunner<P, S> {
+    controller: Controller<P, S>,
+    clock: Arc<dyn Clock>,
+}
 impl<P: ControlPort + Send, S: Objects + Send> Runner for BoundRunner<P, S> {
-    fn run(&mut self, job: &Job) -> Result<(), ServiceError> {
+    fn run(&mut self, queued: &QueuedJob) -> Result<(), ServiceError> {
+        let job = &queued.request;
+        let _guard = acquire_gate(&job.context, self.clock.as_ref(), |deadline| {
+            queued.gate.try_lock_until(deadline)
+        })?;
         let archive = self
-            .0
+            .controller
             .publish_bound(&job.context, job.database.clone(), job.publish)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))?;
-        self.0
+        self.controller
             .prune_bound(&job.context, job.database.clone(), archive, job.prune)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))
     }
@@ -161,16 +218,16 @@ impl<P: ControlPort + Send, S: Objects + Send> Runner for BoundRunner<P, S> {
 /// Only the channel and timeout mechanism live behind this port; scheduling,
 /// cancellation, source binding and checkpoint decisions stay in production.
 trait Bus {
-    fn receive(&mut self) -> Result<Job, RecvTimeoutError>;
+    fn receive(&mut self) -> Result<QueuedJob, RecvTimeoutError>;
     fn complete(&mut self, completion: Completion) -> bool;
 }
 
 struct NativeBus {
-    jobs: Receiver<Job>,
+    jobs: Receiver<QueuedJob>,
     completions: SyncSender<Completion>,
 }
 impl Bus for NativeBus {
-    fn receive(&mut self) -> Result<Job, RecvTimeoutError> {
+    fn receive(&mut self) -> Result<QueuedJob, RecvTimeoutError> {
         self.jobs.recv_timeout(RECEIVE_INTERVAL)
     }
     fn complete(&mut self, completion: Completion) -> bool {
@@ -185,14 +242,14 @@ fn run_worker(mut runner: Box<dyn Runner>, bus: &mut dyn Bus, control: &Control)
             Err(RecvTimeoutError::Timeout) => continue,
             Err(RecvTimeoutError::Disconnected) => break,
         };
-        if !control.activate(&job.context.cancelled) {
+        if !control.activate(&job.request.context.cancelled) {
             break;
         }
         let completed = runner.run(&job).is_ok();
         control.clear();
         if !bus.complete(Completion {
-            database: job.database.identity.database_id,
-            prune: job.prune,
+            database: job.request.database.identity.database_id,
+            prune: job.request.prune,
             completed,
         }) {
             break;
@@ -298,6 +355,7 @@ fn start(
             sender,
             completions,
             entries: BTreeMap::new(),
+            gates: BTreeMap::new(),
             max_databases,
             control,
         },
@@ -330,7 +388,10 @@ where
 {
     let foreground = objects.clone();
     let runner = objects.map(|objects| {
-        Box::new(BoundRunner(Controller::new(client.clone(), objects))) as Box<dyn Runner>
+        Box::new(BoundRunner {
+            controller: Controller::new(client.clone(), objects),
+            clock: clock.clone(),
+        }) as Box<dyn Runner>
     });
     let (queue, supervisor) = start(runner, max_databases, native_spawn)?;
     Ok((
@@ -345,6 +406,33 @@ where
 }
 
 impl<P: ControlPort, S: Objects + Clone> ColdStorage<P> for Jobs<P, S> {
+    type RecoveryGuard = Option<ArcMutexGuard<RawMutex, ()>>;
+
+    fn recovery_guard(
+        &mut self,
+        database: DatabaseIdentity,
+        context: &RequestContext,
+    ) -> Result<Self::RecoveryGuard, ServiceError> {
+        let gate = {
+            let mut queue = self.queue.lock();
+            if queue.sender.is_none() {
+                return Ok(None);
+            }
+            if queue.control.stopped.load(Ordering::Acquire) {
+                return Err(failure("ARCHIVE_STOPPED"));
+            }
+            queue
+                .gate(database.database_id)
+                .ok_or_else(|| failure("ARCHIVE_CAPACITY"))?
+        };
+        // The bookkeeping mutex is released before any wait. The owned guard
+        // survives hydrate and the complete Claim/Activate sequence in Worker.
+        acquire_gate(context, self.clock.as_ref(), |deadline| {
+            gate.try_lock_arc_until(deadline)
+        })
+        .map(Some)
+    }
+
     fn poll(&mut self) -> bool {
         self.queue.lock().poll()
     }
@@ -360,7 +448,7 @@ impl<P: ControlPort, S: Objects + Clone> ColdStorage<P> for Jobs<P, S> {
             .clone()
             .ok_or_else(|| failure("ARCHIVE_UNAVAILABLE"))?;
         Controller::new(self.client.clone(), objects)
-            .hydrate(context, database.identity, operation)
+            .hydrate_bound(context, database.clone(), operation)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))
     }
     fn archive(

@@ -48,23 +48,43 @@
 
 任一步失败或候选超限都保留全部原数据。未来 epoch 返回 Conflict；旧 epoch 的写、取消、确认与轮转返回 Retired，查询返回 `Lookup::Retired { current_epoch }`。Retired 不意味着 SQL 被取消，也不能解释为 Unknown 后重新执行。基线、提交链、owner/auth fence、SQL revision 和当前权限均连续保留；同一个随机 ID 只有在明确的新 epoch 中才代表一个不同请求。
 
-v4 对每个未确认请求预留 32 bytes，支付未来确认位置的编码空间；已经接受的记录不会因为剩余空间耗尽而无法确认。激活 v4 同样检查这份预算，不提高原 limits。未知或未确认请求会阻止该 epoch 轮转，管理记录仍受原 4096 条 profile 上限约束；本机制不声称任意客户端遗弃请求后仍能无限前进。
+v4 对每个未确认请求预留 32 bytes，支付未来确认位置的编码空间；已经接受的记录不会因为剩余空间耗尽而无法确认。激活 v4 同样检查这份预算，不提高原 limits。未知或未确认请求会阻止该 epoch 轮转；本机制不声称任意客户端遗弃请求后仍能无限前进。旧管理命名空间继续受原 4096 条 profile 上限约束，v5 另提供下述有界控制命名空间。
 
 `DatabaseView` 新增 `request_epoch`、`retained_requests`、`unacknowledged_requests` 和 `retired_revision`。ACK map 不进入归档物理覆盖摘要，Cold 期间确认也不破坏旧对象恢复；Hydrate 只导入物理材料，保留当前确认、权限和取消记录。v4 对象绑定 epoch 与退休前缀，旧 v2/v3 对象只可用于仍处于 epoch 1、未退休逻辑前缀的数据库。
+
+## v5 有界管理控制
+
+[ADR-0020](../../docs/adr/0020-bounded-administrative-control.md) 为八种管理动作建立独立的每库控制序号：Create、ClaimOwner、ActivateOwner、AuthFence、SuspendDb、PublishArchive、PruneArchive 和 HydrateArchive。`Command.control_revision = Some(r)` 携带首次提交前捕获的期望序号；`None` 明确表示旧命名空间。SQL Commit、请求查证/取消、确认与轮转不能携带控制序号，也不会增加它。
+
+状态机先校验当前身份和权限，再检查控制序号，最后调用与旧协议共享的动作实现。当前序号为 `r` 时，新成功动作、checked-add 的 `r + 1` 和最近回执同属一个候选状态；动作失败、序号溢出或容量不足均原子拒绝。每库只保存一条最近回执，包含 operation ID、原 admission、意图摘要和 `ControlResult { revision, position, result }`；其中 position 和结果始终指向原始成功位置。
+
+| 输入身份 | 裁决 |
+| --- | --- |
+| 期望当前序号，且动作条件有效 | `ControlApplied`，增加序号并替换最近回执 |
+| 期望前一个序号，且 ID、原主体与意图完全匹配 | `ControlAlreadyApplied`，返回原序号、位置和结果 |
+| 期望前一个序号但身份/意图不匹配，或期望未来序号 | `Conflict`，不执行动作 |
+| 早于最近回执的序号 | `ControlRetired`，永久禁止接受该身份 |
+
+刷新 credential/admission ID 或当前 auth epoch 不改变控制身份；重试不能偷偷获取当前控制序号。`ControlRetired` 不证明原动作未执行，也不是取消证明。迟到 Prune 在 Hydrate 之后即使仍持有相同 suspended owner token，也会被控制序号拒绝。新创建使用序号 0，成功后为 1；旧库激活 v5 时为 0，且没有新命名空间回执。`DatabaseView.control_revision` 在 v5 前为 `None`，激活后为 `Some(r)`；`CellState::control_enabled()` 指示这一持久阶段。
+
+v5 后原管理表保持固定：已有旧 ID 按原主体、数据库和意图返回原结果，未知旧 ID 返回 `ControlRetired`，表不再增长。历史 Create 重放也重新校验当前数据库权限和 auth epoch。新控制操作不消耗旧表额度；旧表已有 4096 条时仍可在复制状态预算内继续。
+
+状态预算为每个数据库预留最大控制回执编码，包含当前空槽或短结果与最大结果之间的差额。已经接受的 SQL 不会挤掉将来 owner fencing 需要的回执空间。这个预留不承诺扩大 policy、新增数据库或安装任意更大物理材料一定成功。原数据库、请求、命令及状态 limits 保持不变。新控制 Hydrate 的完整封装为 202 bytes，归档生成、Publish 和快照校验均按此预留；旧 phase 继续使用原 192-byte 裁决以保持历史重放。v5 激活检查全部已发布旧对象，无论当前为 Hot 还是 Cold，都能装进新 Hydrate 命令，不满足时原子拒绝升级并保留旧 phase 和原有恢复路径，不能成功升级后才暴露无法唤醒的问题。
 
 ## 编码与旧格式
 
 | Envelope | 写入版本 | 读取范围 |
 | --- | --- | --- |
-| `SCAPCELL` | 与已激活 phase 对应的 2、3、4 | 1–4；升级先保留旧裁决语义 |
-| `SCAPARC!` | 与当前 phase 对应的 2、3、4 | 不超过当前 phase；旧对象受 epoch 1/零退休前缀约束 |
-| `SCAPCMD!` | 原 epoch 1 旧命令仍为 2；新请求管理命令或后续 epoch 为 3 | 1–3；旧 envelope 不得携带新管理命令 |
-| `SCAPOUT!` | 原结果仍为 2；确认、轮转及 Retired 为 3 | 1–3；旧 envelope 不得携带新结果 |
-| `SCAPIMG!` | 1 | 原正式物理格式，不因 cell v3/v4 改写 |
+| `SCAPCELL` | 与已激活 phase 对应的 2、3、4、5 | 1–5；升级先保留旧裁决语义 |
+| `SCAPARC!` | phase 2/3 使用对应版本，phase 4/5 均写 4 | 2–4 且不超过当前 phase；旧对象受 epoch 1/零退休前缀约束 |
+| `SCAPCMD!` | 原 epoch 1 旧命令仍为 2；请求管理命令或后续 epoch 为 3；带控制序号的命令为 4 | 1–4；旧 envelope 不得携带新协议字段 |
+| `SCAPOUT!` | 原结果仍为 2；确认、轮转及 Retired 为 3；ControlApplied/ControlAlreadyApplied/ControlRetired 为 4 | 1–4；旧 envelope 不得携带新结果 |
+| `SCAPIMG!` | 1 | 原正式物理格式，不因 cell v3/v4/v5 改写 |
 | `SCAPACT!` / `SCAPACR!` | 1 | 独立内部激活 entry / 精确持久结果，不是普通业务 command/outcome |
 | `SCAPRET!` / `SCAPRR!1` | 1 | 独立 v4 激活 entry / 精确持久结果，不能与 v3 激活混淆 |
+| `SCAPCTL!` / `SCAPCR!1` | 1 | 独立 v5 激活 entry / 精确持久结果，不能与历史或请求退休激活混淆 |
 
-v3 在每个数据库原 lifecycle/archive 字段后追加 optional base；归档在原逻辑事务字段后追加 optional base。v4 状态增加请求世代、退休前缀及当前确认记录；v4 归档增加世代和退休前缀绑定，不保存或覆盖当前 ACK map。物理 `SCAPIMG!` 仍为 v1。所有长度、记录数量、位置、前缀覆盖、基线摘要和 tail 上限均在解码时核查；退休 SQL 前缀缺少覆盖基线时，即使对象摘要正确也必须在相对 tail 索引和 Hydrate 安装前拒绝。
+v3 在每个数据库原 lifecycle/archive 字段后追加 optional base；归档在原逻辑事务字段后追加 optional base。v4 状态增加请求世代、退休前缀及当前确认记录；v4 归档增加世代和退休前缀绑定，不保存或覆盖当前 ACK map。v5 状态追加控制序号和可选最近回执，解码检查回执身份、当前序号、原位置、历史 owner/auth 约束以及 last outcome 的对应关系。物理 `SCAPIMG!` 仍为 v1。所有长度、记录数量、位置、前缀覆盖、基线摘要和 tail 上限均在解码时核查；退休 SQL 前缀缺少覆盖基线时，即使对象摘要正确也必须在相对 tail 索引和 Hydrate 安装前拒绝。
 
 读取 v1/v2 状态后，`physical_history_version()` 仍为 2，重新编码、容量判断、Commit、Publish 和 Hydrate 都保留原 v2 语义。仅加载旧磁盘不会启用折叠。这样落后副本重放旧 quorum 已裁决的 Capacity 拒绝、v2 对象发布和 hydrate 时，仍产生原结果与原字节。
 
@@ -76,20 +96,22 @@ v3 在每个数据库原 lifecycle/archive 字段后追加 optional base；归�
 
 旧对象可以继续支持 Prune/Hydrate；迁移后的物理表示与旧归档不同，不等于旧归档已经失效。phase 3 的新 Publish 生成 v3 对象并使用原 previous-object CAS；所有旧对象继续保留，没有 GC。
 
-v4 不重解释旧 `SCAPACT!`：它仍只激活 v3，已有 v4 时也不回退。新 `SCAPRET!` 要求先有 phase 3，核对 cell、bootstrap administrator、整个状态容量及未来 ACK reserve，再原子升至 phase 4；失败保持 v3。仅 decode 旧磁盘不启动退休协议。服务在两次独立有序激活后，以新的权威读取确认 phase 4，才开放 v4 请求处理。
+v4 不重解释旧 `SCAPACT!`：它仍只激活 v3，已有 v4 时也不回退。新 `SCAPRET!` 要求先有 phase 3，核对 cell、bootstrap administrator、整个状态容量及未来 ACK reserve，再原子升至 phase 4；失败保持 v3。仅 decode 旧磁盘不启动退休协议。服务继续提交独立 `SCAPCTL!`：要求已处于 phase 4，核对 cell/administrator 并为每库预留最大控制回执，成功后原子进入 phase 5。失败保持原 phase，重复激活不清空最近回执。三个内部激活协议均不会使较新的 phase 回退；服务在精确持久结果及新鲜权威读取确认 phase 5 后才开放当前准入。
 
-**旧磁盘读取兼容不代表混版本写入兼容。** v3 折叠及 v4 确认预留都会改变容量接受行为。v4 运行时使用 Raft peer envelope 版本 3，拒绝旧版本 1/2；要求整个 cell 停止旧程序、保留原盘、升级所有 voter 后，再由有序激活开启新语义。不提供混版本滚动激活协议，也不能用 peer 隔离替代对旧日志后缀的语义保留。
+**旧磁盘读取兼容不代表混版本写入兼容。** v3 折叠、v4 确认预留及 v5 管理控制都会改变接受行为。当前运行时使用 Raft peer envelope 版本 4，拒绝旧版本 1/2/3；要求整个 cell 停止旧程序、保留原盘、升级所有 voter 后，再由有序激活开启新语义。不提供混版本滚动激活协议，也不能用 peer 隔离替代对旧日志后缀的语义保留。
 
 ## 归档、日志与容量
 
-Publish 仍核对准确 owner、head、previous object、可恢复覆盖和对象 bytes；对象上传及 readback 在 `scap-archive` 完成。Prune 只释放被该已发布对象覆盖的物理 base/tail。Cold 的 resident tail 数量与 bytes 为零，基线 anchor 可继续保留；请求结果和取消记录仍可查询。
+Publish 仍核对准确 owner、head、previous object、可恢复覆盖和对象 bytes；对象上传及 readback 在 `scap-archive` 完成。Prune 只释放被该已发布对象覆盖的物理 base/tail。Cold 的 resident tail 数量与 bytes 为零，基线 anchor 可继续保留；请求结果和取消记录仍可查询。v5 的新物理对象继续使用不可变 v4 格式；Hydrate 仅恢复 bytes/base，不导入或覆盖控制序号及最近回执，也不覆盖当前 policy、owner 或 ACK。
 
 数据库折叠不是共享 Raft log 压缩。完整 application 的持久 checkpoint、ConfState/applied 原子安装以及 log purge 仍由 driver/Store 的原有协议负责。
 
-本轮不提高数据库大小、同时保留请求数量、结果大小或全 cell 状态上限。完整编码/校验、metadata 与结果保留、checkpoint 的总镜像预算仍有成本；达到上限继续拒绝新增长，显式确认及安全轮转可回收请求窗口。该能力不证明 GiB 恢复性能、无限管理历史、PITR、对象 GC 或生产 SLO。
+本轮不提高数据库大小、同时保留请求数量、结果大小或全 cell 状态上限。完整编码/校验、metadata 与结果保留、checkpoint 的总镜像预算仍有成本；达到上限继续拒绝新增长，显式确认及安全轮转可回收请求窗口。新控制历史的记录数量有界，旧管理表则作为固定升级成本保留。该能力不证明 GiB 恢复性能、PITR、对象 GC 或生产 SLO。
 
 ## 验证来源
 
 单元测试包含正常折叠、错误候选的原子保留、基线损坏、原结果/取消、Cold 生命周期、旧归档覆盖及编码边界。`test-fixtures/provenance.json`、`server-provenance.json`、`canonical-provenance.json` 和 `semantics-provenance.json` 记录由实际旧 main `662f04133f6a869d0dae5b05467656e6deca5c12` 已编译库生成的 v2 样本与 SHA；包括各升级前缀、原 Capacity/归档生命周期结果及 server genesis。这些固定 hex 并非通过把新编码版本字节改为 2 生成。真实 native SQLite 和 daemon 升级、故障恢复采用独立实验，不混入单元覆盖率。
 
 `test-fixtures/retention-v3-provenance.json` 另记录实际已合入 main `b9f512819358494f178b01d7f1d960dff8222c1c` 的独立 v3 编译产物、输入源码与 SHA。生命周期 trace 有 37 个持久前缀，容量 trace 有 25 个；每个前缀都逐条重放剩余原日志，检查原 outcome、完整状态和 SHA256 完全一致，再提交同一个 v4 激活 entry。前者确认所有终态后退休并保留相同 SQLite 物理镜像、累计 revision 与提交 hash；后者验证接近旧状态容量上限时，v4 因无法预留全部 ACK 空间而安全拒绝激活。v4 单元测试还覆盖连续 20 个请求 epoch、过期请求永久 fence、Cold ACK 后恢复、强制基线失败的原子保留、重复 ACK key、字段截断及世代/序号溢出。
+
+`tests/control.rs` 覆盖八种动作的原始回执重放、4096 条满旧表升级、超过 4096 次真实新控制动作后的固定记录大小、Hydrate 后迟到 Prune、当前授权、独立请求退休、溢出、最大回执预算、快照与编码截断及旧 v2/v3/v4 归档恢复。当前 crate 本地单元测试 97 项通过；完整候选的精确覆盖率、workspace gates 与真实故障实验由本轮集成验证统一确认，完成前不把局部单元通过写成可合入证据。

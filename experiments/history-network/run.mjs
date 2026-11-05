@@ -339,7 +339,7 @@ try {
     await cluster.launch(upgraded, binary);
     await cluster.waitLive(upgraded);
     const prefix = await cluster.localStatus(upgraded);
-    await event("mixed_version_started", { upgraded_node_id: upgraded + 1, original_membership: membership, original_local_status: original, replaced_old_exit: oldExit, old_stopped_ms: oldStopped, new_live_ms: milliseconds(), new_prefix: prefix, prefix_database_revision: "4", old_peer_envelope_version: 1, new_peer_envelope_version: 3, peer_proxies_blocked: false, initialize_flag_used: false });
+    await event("mixed_version_started", { upgraded_node_id: upgraded + 1, original_membership: membership, original_local_status: original, replaced_old_exit: oldExit, old_stopped_ms: oldStopped, new_live_ms: milliseconds(), new_prefix: prefix, prefix_database_revision: "4", old_peer_envelope_version: 1, new_peer_envelope_version: 4, peer_proxies_blocked: false, initialize_flag_used: false });
     const rejectedRead = await rejectDirect(upgraded, "new_version_cannot_read_from_old_quorum", "SELECT value FROM witness WHERE id=1", "read");
     const rejectedRequest = { database: "alpha", requestId: id(), statements: ["INSERT INTO witness VALUES(94,'mixed-version-must-not-commit')"] };
     const rejectedWrite = await rejectDirect(upgraded, "new_version_write_sent_once", rejectedRequest.statements[0], "write", rejectedRequest.requestId);
@@ -352,7 +352,7 @@ try {
     const oldQuorum = await cluster.membership();
     assert.notEqual(oldQuorum.leader, upgraded + 1);
     const stillBehind = await cluster.localStatus(upgraded);
-    assert.equal(stillBehind.status.applied, prefix.status.applied, "new wire3 replica must not apply old wire1 quorum entries");
+    assert.equal(stillBehind.status.applied, prefix.status.applied, "new wire4 replica must not apply old wire1 quorum entries");
     assert.ok(oldQuorum.applied > stillBehind.status.applied);
     const remainingOld = oldQuorum.leader - 1;
     const stoppedOld = [0, 1, 2].find((node) => node !== upgraded && node !== remainingOld);
@@ -535,7 +535,7 @@ try {
     overwrites: 64, base_advances: baseAdvances, cumulative_observed_physical_bytes: cumulativeObservedPhysical.toString(), fold_trigger_physical_bytes_excluded: true,
     maximum_tail_entries: maxTailEntries.toString(), maximum_tail_bytes: maxTailBytes.toString(), profile_limits: profile,
     old_archive_format: 2, new_archive_format: 4, original_results_lost: 0, current_sql_state_equal: true,
-    mixed_versions_rejected: true, old_peer_envelope_version: 1, new_peer_envelope_version: 3,
+    mixed_versions_rejected: true, old_peer_envelope_version: 1, new_peer_envelope_version: 4,
     effective_voters: [1, 2, 3], membership_changes_submitted: 0, dynamic_peer_policy_for_existing_read_only_management: true,
     local_status_is_commit_confirmation: false, downgrade_rejected_nodes: 3, full_group_sigkill: true, fresh_writer_directories: recoveryFiles,
     production_slo_passed: false, private_fixture_data_exported: false,

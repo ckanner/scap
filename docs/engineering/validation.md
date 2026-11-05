@@ -318,3 +318,10 @@ SQLite 文件 API、SQL 方言、C API 和远程 SDK 是不同兼容层；只通
 ## SQLite 网络提交实现更新（原基线 2026-11-02；成员扩展 2026-11-04 UTC）
 
 正式 `scap-cell-client` 与 `scap-sql-worker` 已连接 native SQLite 和三副本 mTLS cell，增加本请求的持久业务裁决和明确的 ClaimOwner/物理恢复/ActivateOwner 入口。具体步骤、UNKNOWN、deadline、资源与分区行为见 [SQLite 网络合同](sqlite-network.md)。调用恢复入口失败可能已经改变 owner epoch；即使 ActivateOwner 已成功，末次读失败也不会交付 writer。下一次接管必须重新读取权威状态、使用新的 worker 身份和新目录，不能沿用旧缓存或把失败当作回滚。现有 `scap-server` 已提供静态凭据映射、HTTP/Hrana 与 Node SDK，在同一 cell 内随 leader 变化自动恢复 owner；完整运行与冷生命周期见 [服务方案](sqlite-service.md)。受控 learner/joint 替换及其独立门禁见 [ADR-0016](../adr/0016-durable-membership-replacement.md)和 [真实成员实验](../../experiments/membership-network/README.md)。多 cell 调度、自动坏盘运维和生产性能目标仍未完成。
+
+
+## 有界管理操作验证
+
+[ADR-0020](../adr/0020-bounded-administrative-control.md) 的新增门禁独立于请求结果退休。需要在完整第一方四维单元覆盖率之外，用真实 quorum 和持久存储验证：超过 4096 个成功控制动作仍保持每库单回执；旧全满行政表升级后新协议可继续；Publish/Hydrate 响应丢失、Prune/Hydrate 迟到交错和 Claim/Activate 故障都不会把旧身份当新动作；snapshot、全组重启及原盘跨版本升级后屏障保持。
+
+对每次控制尝试保留原 expected revision、操作 ID、提议位置、原成功位置、结果与故障注入点。确认下一步所需的回执必须来自生产实现的精确持久完成，不能把普通 RPC 接收、当前状态或测试端猜测当成原动作成功。原始 UNKNOWN/拒绝和未通过尝试保留；本机小库合同不证明生产容量、长期资源成本或三 AZ SLO。

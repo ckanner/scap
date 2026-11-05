@@ -182,7 +182,7 @@ def audit(directory):
     mixed = one(observed, "mixed_version_fence_verified")
     upgraded = mixed["upgraded_node_id"]
     require(upgraded == mixed_start["upgraded_node_id"] and upgraded in (1, 2, 3), "mixed upgraded identity differs")
-    require(mixed_start["old_peer_envelope_version"] == summary["old_peer_envelope_version"] == 1 and mixed_start["new_peer_envelope_version"] == summary["new_peer_envelope_version"] == 3, "wrong version fence")
+    require(mixed_start["old_peer_envelope_version"] == summary["old_peer_envelope_version"] == 1 and mixed_start["new_peer_envelope_version"] == summary["new_peer_envelope_version"] == 4, "wrong version fence")
     require(mixed_start["initialize_flag_used"] is False and mixed["lagging_directory_retained"] is True, "mixed replica was rebuilt instead of reopened")
     require(mixed_start["peer_proxies_blocked"] is False and mixed["peer_proxies_blocked"] is False, "a network partition was substituted for version rejection")
     configuration = {"voters": [1, 2, 3], "learners": [], "voters_outgoing": [], "learners_next": [], "auto_leave": False}

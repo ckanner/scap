@@ -358,6 +358,7 @@ impl Cluster {
 
     fn command(&mut self, kind: CommandKind) -> Command {
         Command {
+            control_revision: None,
             cell: CELL,
             database: DATABASE,
             admission: self.admission(),
@@ -694,6 +695,7 @@ impl Fixture {
                     assert!(result.is_empty());
                     let (write, admission) = self.write(changes, 10_000 + phase);
                     let command = Command {
+                        control_revision: None,
                         cell: CELL,
                         database: DATABASE,
                         admission,
@@ -780,6 +782,7 @@ impl Fixture {
 
     fn command_for(stage: &Stage) -> Command {
         Command {
+            control_revision: None,
             cell: CELL,
             database: DATABASE,
             admission: stage.admission,

@@ -8,9 +8,11 @@ const ACTIVATION_MAGIC: &[u8; 8] = b"SCAPACT!";
 const ACTIVATION_OUTCOME_MAGIC: &[u8; 8] = b"SCAPACR!";
 const RETENTION_MAGIC: &[u8; 8] = b"SCAPRET!";
 const RETENTION_OUTCOME_MAGIC: &[u8; 8] = b"SCAPRR!1";
+const CONTROL_MAGIC: &[u8; 8] = b"SCAPCTL!";
+const CONTROL_OUTCOME_MAGIC: &[u8; 8] = b"SCAPCR!1";
 const ACTIVATION_VERSION: u8 = 1;
-const WIRE_VERSION: u8 = 3;
-const STATE_VERSION: u8 = 4;
+const WIRE_VERSION: u8 = 4;
+const STATE_VERSION: u8 = 5;
 
 struct Writer(Vec<u8>);
 
@@ -168,6 +170,20 @@ impl Writer {
             }
         }
     }
+    fn control_result(&mut self, value: &ControlResult) {
+        self.u64(value.revision);
+        self.position(value.position);
+        self.admin_result(&value.result);
+    }
+    fn control_record(&mut self, value: Option<&ControlRecord>) {
+        self.byte(u8::from(value.is_some()));
+        if let Some(value) = value {
+            self.u128(value.operation_id);
+            self.request_admission(value.admission, true);
+            self.raw(&value.digest);
+            self.control_result(&value.result);
+        }
+    }
     fn outcome(&mut self, value: &Outcome) {
         match value {
             Outcome::Administrative(result) => {
@@ -196,6 +212,14 @@ impl Writer {
             Outcome::RequestsRotated { epoch } => {
                 self.byte(8);
                 self.u64(*epoch);
+            }
+            Outcome::ControlApplied(result) => {
+                self.byte(9);
+                self.control_result(result);
+            }
+            Outcome::ControlAlreadyApplied(result) => {
+                self.byte(10);
+                self.control_result(result);
             }
         }
     }
@@ -533,6 +557,24 @@ impl<'a> Reader<'a> {
             _ => Err(Error::Malformed("unknown administrative result")),
         }
     }
+    fn control_result(&mut self) -> Result<ControlResult, Error> {
+        Ok(ControlResult {
+            revision: self.u64()?,
+            position: self.position()?,
+            result: self.admin_result()?,
+        })
+    }
+    fn control_record(&mut self) -> Result<Option<ControlRecord>, Error> {
+        if !self.boolean()? {
+            return Ok(None);
+        }
+        Ok(Some(ControlRecord {
+            operation_id: self.u128()?,
+            admission: self.request_admission(true)?,
+            digest: self.take()?,
+            result: self.control_result()?,
+        }))
+    }
     fn outcome(&mut self) -> Result<Outcome, Error> {
         match self.byte()? {
             0 => Ok(Outcome::Administrative(self.admin_result()?)),
@@ -544,6 +586,8 @@ impl<'a> Reader<'a> {
             6 => Ok(Outcome::Rejected(self.rejection()?)),
             7 => Ok(Outcome::RequestAcknowledged),
             8 => Ok(Outcome::RequestsRotated { epoch: self.u64()? }),
+            9 => Ok(Outcome::ControlApplied(self.control_result()?)),
+            10 => Ok(Outcome::ControlAlreadyApplied(self.control_result()?)),
             _ => Err(Error::Malformed("unknown outcome")),
         }
     }
@@ -561,6 +605,7 @@ impl<'a> Reader<'a> {
             9 => Reject::Exhausted,
             10 => Reject::Cold,
             11 => Reject::Retired,
+            12 => Reject::ControlRetired,
             _ => return Err(Error::Malformed("unknown rejection")),
         })
     }
@@ -694,12 +739,17 @@ pub(super) fn encode_command(command: &Command, limits: Limits) -> Result<Vec<u8
     let mut writer = Writer(Vec::new());
     writer.cell(command.cell);
     writer.database(command.database);
-    let version = if command.admission.request_epoch != 1 || retention_command(&command.kind) {
+    let version = if command.control_revision.is_some() {
         WIRE_VERSION
+    } else if command.admission.request_epoch != 1 || retention_command(&command.kind) {
+        3
     } else {
         2
     };
     writer.request_admission(command.admission, version >= 3);
+    if let Some(revision) = command.control_revision {
+        writer.u64(revision);
+    }
     writer.kind(&command.kind);
     let encoded = seal(COMMAND_MAGIC, version, writer.0);
     if encoded.len() > limits.max_command_bytes as usize {
@@ -717,6 +767,11 @@ pub(super) fn decode_command(bytes: &[u8], limits: Limits) -> Result<Command, Er
         cell: reader.cell()?,
         database: reader.database()?,
         admission: reader.request_admission(bytes[8] >= 3)?,
+        control_revision: if bytes[8] >= 4 {
+            Some(reader.u64()?)
+        } else {
+            None
+        },
         kind: reader.kind(limits.max_command_bytes)?,
     };
     if bytes[8] == 1
@@ -741,8 +796,10 @@ pub(super) fn encode_applied_outcome(outcome: &AppliedOutcome) -> Vec<u8> {
     let mut writer = Writer(Vec::new());
     writer.position(outcome.position);
     writer.outcome(&outcome.outcome);
-    let version = if retention_outcome(&outcome.outcome) {
+    let version = if control_outcome(&outcome.outcome) {
         WIRE_VERSION
+    } else if retention_outcome(&outcome.outcome) {
+        3
     } else {
         2
     };
@@ -773,8 +830,22 @@ pub(super) fn decode_applied_outcome(
     if bytes[8] < 3 && retention_outcome(&outcome.outcome) {
         return Err(Error::Malformed("retention outcome in legacy envelope"));
     }
+    if bytes[8] < 4 && control_outcome(&outcome.outcome) {
+        return Err(Error::Malformed("control outcome in legacy envelope"));
+    }
     if expected.term == 0 || expected.index == 0 || outcome.position != expected {
         return Err(Error::Position);
+    }
+    if let Outcome::ControlApplied(result) | Outcome::ControlAlreadyApplied(result) =
+        &outcome.outcome
+    {
+        if result.revision == 0
+            || !position_within(result.position, outcome.position)
+            || (matches!(outcome.outcome, Outcome::ControlApplied(_))
+                && result.position != outcome.position)
+        {
+            return Err(Error::Malformed("invalid control result proof"));
+        }
     }
     Ok(outcome)
 }
@@ -925,6 +996,79 @@ pub(super) fn decode_retention_activation_outcome(
     })
 }
 
+pub(super) fn is_control_activation(bytes: &[u8]) -> bool {
+    bytes.starts_with(CONTROL_MAGIC)
+}
+
+pub(super) fn encode_control_activation(cell: CellIdentity, administrator: u128) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(cell);
+    writer.u128(administrator);
+    seal(CONTROL_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_control_activation(bytes: &[u8]) -> Result<(CellIdentity, u128), Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            CONTROL_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let administrator = reader.u128()?;
+    reader.finish()?;
+    Ok((cell, administrator))
+}
+
+pub(super) fn encode_control_activation_outcome(outcome: &ControlActivationOutcome) -> Vec<u8> {
+    let mut writer = Writer(Vec::new());
+    writer.cell(outcome.cell);
+    writer.position(outcome.position);
+    writer.byte(u8::from(outcome.result.is_ok()));
+    if let Err(reason) = outcome.result {
+        writer.byte(reason as u8);
+    }
+    seal(CONTROL_OUTCOME_MAGIC, ACTIVATION_VERSION, writer.0)
+}
+
+pub(super) fn decode_control_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<ControlActivationOutcome, Error> {
+    let mut reader = Reader {
+        bytes: open(
+            bytes,
+            CONTROL_OUTCOME_MAGIC,
+            ACTIVATION_VERSION,
+            MAX_APPLIED_OUTCOME_BYTES,
+        )?,
+        cursor: 0,
+    };
+    let cell = reader.cell()?;
+    let position = reader.position()?;
+    let result = if reader.boolean()? {
+        Ok(())
+    } else {
+        Err(reader.rejection()?)
+    };
+    reader.finish()?;
+    if cell != expected_cell || cell.cell_id == 0 || cell.cell_incarnation == 0 {
+        return Err(Error::Binding);
+    }
+    if expected.term == 0 || expected.index == 0 || position != expected {
+        return Err(Error::Position);
+    }
+    Ok(ControlActivationOutcome {
+        cell,
+        position,
+        result,
+    })
+}
+
 fn newer_outcome(outcome: &Outcome) -> bool {
     matches!(
         outcome,
@@ -956,6 +1100,24 @@ fn retention_outcome(outcome: &Outcome) -> bool {
             | Outcome::RequestsRotated { .. }
             | Outcome::Rejected(Reject::Retired)
     )
+}
+
+fn control_outcome(outcome: &Outcome) -> bool {
+    matches!(
+        outcome,
+        Outcome::ControlApplied(_)
+            | Outcome::ControlAlreadyApplied(_)
+            | Outcome::Rejected(Reject::ControlRetired)
+    )
+}
+
+/// The option tag, operation ID, scoped admission, intent hash, revision,
+/// original position and the largest AdminResult (tag plus 32-byte digest).
+pub(super) fn control_receipt_reserve(record: Option<&ControlRecord>) -> usize {
+    const MAX_BYTES: usize = 1 + 16 + 64 + 32 + 8 + 16 + 33;
+    let mut writer = Writer(Vec::new());
+    writer.control_record(record);
+    MAX_BYTES - writer.0.len()
 }
 
 pub(super) fn admin_digest(command: &Command) -> [u8; 32] {
@@ -1013,6 +1175,9 @@ pub(super) fn encode_archive(
     source: Position,
     physical_history_version: u8,
 ) -> Vec<u8> {
+    // Control metadata belongs only to the authoritative cell snapshot. Objects
+    // remain byte-compatible with v4 and never restore control revisions.
+    let physical_history_version = physical_history_version.min(4);
     let mut writer = Writer(Vec::new());
     writer.cell(cell);
     writer.database(database.identity);
@@ -1048,7 +1213,7 @@ pub(super) fn decode_archive(
         bytes: open(
             bytes,
             ARCHIVE_MAGIC,
-            physical_history_version,
+            physical_history_version.min(4),
             limits.max_command_bytes,
         )?,
         cursor: 0,
@@ -1192,6 +1357,10 @@ pub(super) fn encode_state(state: &CellState, include_outcome: bool) -> Vec<u8> 
                 writer.position(position);
             }
         }
+        if state.control_enabled() {
+            writer.u64(database.control_revision.unwrap());
+            writer.control_record(database.control_receipt.as_ref());
+        }
     }
     writer.count(state.administration.len());
     for (&operation, record) in &state.administration {
@@ -1261,6 +1430,8 @@ pub(super) fn decode_state(
             retired: RetiredPrefix::EMPTY,
             retirement_position: None,
             acknowledged: BTreeMap::new(),
+            control_revision: None,
+            control_receipt: None,
         };
         if bytes[8] >= 4 {
             database.request_epoch = reader.u64()?;
@@ -1311,6 +1482,10 @@ pub(super) fn decode_state(
                 }
             }
         }
+        if bytes[8] >= 5 {
+            database.control_revision = Some(reader.u64()?);
+            database.control_receipt = reader.control_record()?;
+        }
         if state
             .databases
             .insert(identity.database_id, database)
@@ -1357,6 +1532,9 @@ pub(super) fn decode_state(
         }
         if bytes[8] < 4 && retention_outcome(&outcome.outcome) {
             return Err(Error::Malformed("retention outcome in legacy state"));
+        }
+        if bytes[8] < 5 && control_outcome(&outcome.outcome) {
+            return Err(Error::Malformed("control outcome in legacy state"));
         }
         state.last_outcome = Some(outcome);
     }

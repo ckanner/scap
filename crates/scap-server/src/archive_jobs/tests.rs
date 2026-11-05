@@ -17,6 +17,7 @@ use crate::worker::tests::TestClock;
 fn job(id: u128, now: Instant) -> Job {
     Job {
         database: DatabaseView {
+            control_revision: None,
             request_epoch: 1,
             retained_requests: 0,
             unacknowledged_requests: 0,
@@ -57,7 +58,17 @@ fn job(id: u128, now: Instant) -> Job {
     }
 }
 
-fn make_queue(capacity: usize, databases: usize) -> (Queue, Receiver<Job>, SyncSender<Completion>) {
+fn queued(request: Job) -> QueuedJob {
+    QueuedJob {
+        request,
+        gate: Arc::new(Mutex::new(())),
+    }
+}
+
+fn make_queue(
+    capacity: usize,
+    databases: usize,
+) -> (Queue, Receiver<QueuedJob>, SyncSender<Completion>) {
     let (sender, jobs) = mpsc::sync_channel(capacity);
     let (complete, completions) = mpsc::sync_channel(MAX_PENDING);
     (
@@ -65,6 +76,7 @@ fn make_queue(capacity: usize, databases: usize) -> (Queue, Receiver<Job>, SyncS
             sender: Some(sender),
             completions,
             entries: BTreeMap::new(),
+            gates: BTreeMap::new(),
             max_databases: databases,
             control: Arc::new(Control::default()),
         },
@@ -82,7 +94,7 @@ fn queue_bounds_pending_catalogue_and_preserves_job_scope_budget_and_backoff() {
     }
     queue.enqueue(job(9, now), now).unwrap();
     assert_eq!(queue.entries.len(), MAX_PENDING);
-    let original = receive.recv().unwrap();
+    let original = receive.recv().unwrap().request;
     assert_eq!(original.context.deadline, now + Duration::from_secs(30));
     let mut changed = original.clone();
     changed.database.identity.incarnation += 1;
@@ -133,7 +145,7 @@ fn queue_bounds_pending_catalogue_and_preserves_job_scope_budget_and_backoff() {
 
     let (mut catalog, received, complete) = make_queue(2, 1);
     catalog.enqueue(job(1, now), now).unwrap();
-    let first = received.recv().unwrap();
+    let first = received.recv().unwrap().request;
     complete
         .send(Completion {
             database: 1,
@@ -145,7 +157,16 @@ fn queue_bounds_pending_catalogue_and_preserves_job_scope_budget_and_backoff() {
     catalog.enqueue(job(2, now), now).unwrap();
     assert_eq!(catalog.entries.len(), 1);
     catalog.enqueue(job(1, now), now).unwrap();
-    assert_eq!(received.recv().unwrap().database.identity.database_id, 1);
+    assert_eq!(
+        received
+            .recv()
+            .unwrap()
+            .request
+            .database
+            .identity
+            .database_id,
+        1
+    );
 }
 
 #[test]
@@ -187,7 +208,7 @@ struct CountingRunner {
     fail_at: usize,
 }
 impl Runner for CountingRunner {
-    fn run(&mut self, _: &Job) -> Result<(), ServiceError> {
+    fn run(&mut self, _: &QueuedJob) -> Result<(), ServiceError> {
         let call = self.calls.fetch_add(1, Ordering::AcqRel) + 1;
         if call == self.fail_at {
             Err(failure("INJECTED"))
@@ -198,14 +219,14 @@ impl Runner for CountingRunner {
 }
 
 struct ScriptBus {
-    jobs: VecDeque<Result<Job, RecvTimeoutError>>,
+    jobs: VecDeque<Result<QueuedJob, RecvTimeoutError>>,
     completed: Vec<Completion>,
     control: Arc<Control>,
     stop_on_receive: bool,
     complete_ok: bool,
 }
 impl Bus for ScriptBus {
-    fn receive(&mut self) -> Result<Job, RecvTimeoutError> {
+    fn receive(&mut self) -> Result<QueuedJob, RecvTimeoutError> {
         let result = self.jobs.pop_front().unwrap();
         if self.stop_on_receive {
             self.control.stop();
@@ -227,8 +248,8 @@ fn background_delivery_handles_timeout_stop_failure_and_completion_disconnect() 
         let mut bus = ScriptBus {
             jobs: [
                 Err(RecvTimeoutError::Timeout),
-                Ok(job(1, now)),
-                Ok(job(2, now)),
+                Ok(queued(job(1, now))),
+                Ok(queued(job(2, now))),
                 Err(RecvTimeoutError::Disconnected),
             ]
             .into(),
@@ -273,8 +294,11 @@ fn native_bus_has_bounded_receive_and_never_blocks_for_completions() {
         completions: complete,
     };
     assert!(matches!(bus.receive(), Err(RecvTimeoutError::Timeout)));
-    sender.send(job(1, Instant::now())).unwrap();
-    assert_eq!(bus.receive().unwrap().database.identity.database_id, 1);
+    sender.send(queued(job(1, Instant::now()))).unwrap();
+    assert_eq!(
+        bus.receive().unwrap().request.database.identity.database_id,
+        1
+    );
     assert!(bus.complete(Completion {
         database: 1,
         prune: 1,
@@ -297,7 +321,8 @@ fn native_bus_has_bounded_receive_and_never_blocks_for_completions() {
 
 struct CancelRunner(SyncSender<()>);
 impl Runner for CancelRunner {
-    fn run(&mut self, job: &Job) -> Result<(), ServiceError> {
+    fn run(&mut self, queued: &QueuedJob) -> Result<(), ServiceError> {
+        let job = &queued.request;
         self.0.send(()).unwrap();
         while !job.context.cancelled.load(Ordering::Acquire) {
             assert!(Instant::now() < job.context.deadline);
@@ -308,7 +333,7 @@ impl Runner for CancelRunner {
 }
 struct PanicRunner;
 impl Runner for PanicRunner {
-    fn run(&mut self, _: &Job) -> Result<(), ServiceError> {
+    fn run(&mut self, _: &QueuedJob) -> Result<(), ServiceError> {
         panic!("injected background panic")
     }
 }
@@ -379,6 +404,12 @@ struct Port {
     reads_fail: Arc<AtomicBool>,
     reject_at: Arc<AtomicUsize>,
     proposals: Arc<AtomicUsize>,
+    pause: Arc<Mutex<Option<PauseProposal>>>,
+}
+struct PauseProposal {
+    at: usize,
+    entered: SyncSender<Instant>,
+    released: Receiver<()>,
 }
 impl Port {
     fn new() -> Self {
@@ -402,6 +433,7 @@ impl Port {
             reads_fail: Arc::new(AtomicBool::new(false)),
             reject_at: Arc::new(AtomicUsize::new(0)),
             proposals: Arc::new(AtomicUsize::new(0)),
+            pause: Arc::new(Mutex::new(None)),
         }
     }
     fn apply(&self, data: Vec<u8>) -> scap_cell::AppliedOutcome {
@@ -428,6 +460,7 @@ impl Port {
         let config = config();
         let request = job(3, Instant::now());
         let command = Command {
+            control_revision: None,
             cell: config.cell,
             database: request.database.identity,
             admission: request.context.admission,
@@ -469,10 +502,16 @@ impl CellPort for Port {
     fn propose(
         &mut self,
         data: Vec<u8>,
-        _: Instant,
+        deadline: Instant,
         _: &AtomicBool,
     ) -> Result<ProposalResult, RuntimeError> {
         let call = self.proposals.fetch_add(1, Ordering::AcqRel) + 1;
+        if let Some(pause) = self.pause.lock().as_ref() {
+            if call == pause.at {
+                pause.entered.send(deadline).unwrap();
+                pause.released.recv_timeout(Duration::from_secs(2)).unwrap();
+            }
+        }
         if self.reject_at.load(Ordering::Acquire) == call {
             return Err(RuntimeError::Unknown);
         }
@@ -543,11 +582,16 @@ fn bound_runner_retains_exact_view_and_reports_publication_or_prune_failure() {
         if failure == 2 {
             port.reject_at.store(2, Ordering::Release);
         }
-        let mut runner = BoundRunner(Controller::new(
-            client(&port, Arc::new(SystemClock)),
-            Memory::default(),
-        ));
-        let result = runner.run(&request);
+        let mut runner = BoundRunner {
+            controller: Controller::new(client(&port, Arc::new(SystemClock)), Memory::default()),
+            clock: Arc::new(SystemClock),
+        };
+        let scheduled = queued(request);
+        let result = runner.run(&scheduled);
+        assert!(
+            scheduled.gate.try_lock().is_some(),
+            "every result releases the gate"
+        );
         if failure == 0 {
             result.unwrap();
             assert!(port.state.lock().database(3).unwrap().cold);
@@ -706,8 +750,10 @@ fn foreground_object_wait_never_holds_the_shared_archive_queue_lock() {
     pause.store(true, Ordering::Release);
     let mut sibling = jobs.clone();
     let original_deadline = request.context.deadline;
-    let hydrating =
-        thread::spawn(move || sibling.hydrate(&mut client, &request.context, &cold, 99));
+    let hydrating = thread::spawn(move || {
+        let _guard = sibling.recovery_guard(cold.identity, &request.context)?;
+        sibling.hydrate(&mut client, &request.context, &cold, 99)
+    });
     assert_eq!(
         entering.recv_timeout(Duration::from_secs(1)).unwrap(),
         original_deadline
@@ -717,5 +763,328 @@ fn foreground_object_wait_never_holds_the_shared_archive_queue_lock() {
     release.send(()).unwrap();
     hydrating.join().unwrap().unwrap();
     assert!(!port.state.lock().database(3).unwrap().cold);
+    supervisor.join().unwrap();
+}
+
+#[test]
+fn recovery_gates_share_identity_bound_memory_and_leave_other_databases_free() {
+    let port = Port::new();
+    port.create();
+    let clock = Arc::new(TestClock::new());
+    let mut client = client(&port, clock.clone());
+    let (queue, received, _complete) = make_queue(2, 2);
+    let mut jobs = Jobs {
+        client: client.clone(),
+        foreground: Some(Memory::default()),
+        queue: Arc::new(Mutex::new(queue)),
+        clock: clock.clone(),
+    };
+    let mut sibling = jobs.clone();
+    let mut request = job(3, clock.now().unwrap().instant);
+    request.context.deadline = Instant::now() + Duration::from_millis(30);
+    let first = jobs
+        .recovery_guard(request.database.identity, &request.context)
+        .unwrap();
+    assert!(first.is_some());
+    let other = sibling
+        .recovery_guard(
+            job(4, Instant::now()).database.identity,
+            &job(4, Instant::now()).context,
+        )
+        .unwrap();
+    assert!(
+        other.is_some(),
+        "another database never waits for this guard"
+    );
+    assert!(jobs.queue.try_lock().is_some());
+    assert_eq!(
+        jobs.recovery_guard(job(5, Instant::now()).database.identity, &request.context)
+            .err()
+            .unwrap()
+            .code,
+        "ARCHIVE_CAPACITY"
+    );
+    assert_eq!(jobs.queue.lock().gates.len(), 2);
+    assert!(jobs.queue.lock().entries.is_empty());
+
+    jobs.archive(
+        &mut client,
+        &request.context,
+        &request.database,
+        request.publish,
+        request.prune,
+    )
+    .unwrap();
+    let scheduled = received.recv().unwrap();
+    assert_eq!(scheduled.request.database, request.database);
+    assert_eq!(scheduled.request.context.deadline, request.context.deadline);
+    let registered = jobs.queue.lock().gates[&3].clone();
+    assert!(Arc::ptr_eq(&registered, &scheduled.gate));
+    assert!(scheduled.gate.try_lock().is_none());
+    let objects = Memory::default();
+    let mut runner = BoundRunner {
+        controller: Controller::new(client.clone(), objects.clone()),
+        clock: clock.clone(),
+    };
+    assert_eq!(runner.run(&scheduled).unwrap_err().code, "COMMIT_UNKNOWN");
+    assert_eq!(port.proposals.load(Ordering::Acquire), 0);
+    assert!(
+        objects.0.lock().is_empty(),
+        "a waiting archive never starts object I/O"
+    );
+    assert!(
+        registered.try_lock().is_none(),
+        "a timeout cannot release another owner's guard"
+    );
+
+    drop(first);
+    assert!(registered.try_lock().is_some());
+    let mut reincarnated = request.database.identity;
+    reincarnated.incarnation += 1;
+    reincarnated.placement_generation += 1;
+    let fresh = job(3, clock.now().unwrap().instant);
+    let again = sibling
+        .recovery_guard(reincarnated, &fresh.context)
+        .unwrap();
+    assert!(again.is_some());
+    assert!(Arc::ptr_eq(&registered, &jobs.queue.lock().gates[&3]));
+    assert!(registered.try_lock().is_none());
+    drop(again);
+    drop(other);
+
+    // Foreground gate reservations consume the same bounded identity map even
+    // before any background job exists. An excess job cannot split the gate.
+    let (mut limited, empty, _complete) = make_queue(1, 1);
+    let existing = limited.gate(3).unwrap();
+    limited
+        .enqueue(job(4, Instant::now()), Instant::now())
+        .unwrap();
+    assert!(empty.try_recv().is_err());
+    assert!(limited.entries.is_empty());
+    assert!(Arc::ptr_eq(&existing, &limited.gate(3).unwrap()));
+    assert_eq!(limited.gates.len(), 1);
+
+    jobs.queue.lock().control.stop();
+    assert_eq!(
+        jobs.recovery_guard(request.database.identity, &fresh.context)
+            .err()
+            .unwrap()
+            .code,
+        "ARCHIVE_STOPPED"
+    );
+    let (mut disabled, supervisor) = spawn::<_, Memory>(client, None, 1, clock.clone()).unwrap();
+    clock.fail.store(true, Ordering::Release);
+    fresh.context.cancelled.store(true, Ordering::Release);
+    assert!(disabled
+        .recovery_guard(request.database.identity, &fresh.context)
+        .unwrap()
+        .is_none());
+    assert!(
+        disabled.queue.lock().gates.is_empty(),
+        "disabled object storage allocates no gate"
+    );
+    supervisor.join().unwrap();
+}
+
+struct GateClock {
+    inner: TestClock,
+    calls: AtomicUsize,
+    expire_at: usize,
+    fail_at: usize,
+    entered: Option<SyncSender<()>>,
+}
+
+impl Clock for GateClock {
+    fn now(&self) -> Result<scap_raft_runtime::ClockReading, RuntimeError> {
+        let call = self.calls.fetch_add(1, Ordering::AcqRel) + 1;
+        if call == self.fail_at {
+            return Err(RuntimeError::Clock);
+        }
+        if call == self.expire_at {
+            self.inner.elapsed.store(31, Ordering::Release);
+        }
+        let reading = self.inner.now()?;
+        if call == 1 {
+            if let Some(entered) = &self.entered {
+                entered.send(()).unwrap();
+            }
+        }
+        Ok(reading)
+    }
+}
+
+#[test]
+fn gate_acquisition_checks_original_context_before_and_after_wait_and_releases_errors() {
+    // Exercise the real foreground and background adapters, including error
+    // propagation after either side of their actual mutex acquisition.
+    for foreground in [false, true] {
+        for scenario in 0..6 {
+            let (entered, entering) = mpsc::sync_channel(1);
+            let clock = Arc::new(GateClock {
+                inner: TestClock::new(),
+                calls: AtomicUsize::new(0),
+                expire_at: match scenario {
+                    1 => 1,
+                    4 => 2,
+                    _ => usize::MAX,
+                },
+                fail_at: match scenario {
+                    2 => 1,
+                    5 => 2,
+                    _ => usize::MAX,
+                },
+                entered: (scenario == 3).then_some(entered),
+            });
+            let request = job(3, clock.inner.now().unwrap().instant);
+            if scenario == 0 {
+                request.context.cancelled.store(true, Ordering::Release);
+            }
+            let port = Port::new();
+            port.create();
+            let before = port.state.lock().encode();
+            let client = client(&port, clock.clone());
+            let objects = Memory::default();
+            let (queue, _received, _complete) = make_queue(1, 1);
+            let mut jobs = Jobs {
+                client: client.clone(),
+                foreground: Some(objects.clone()),
+                queue: Arc::new(Mutex::new(queue)),
+                clock: clock.clone(),
+            };
+            let gate = jobs.queue.lock().gate(3).unwrap();
+            let held = (scenario == 3).then(|| gate.lock());
+            let scheduled = QueuedJob {
+                request: request.clone(),
+                gate: gate.clone(),
+            };
+            let mut runner = BoundRunner {
+                controller: Controller::new(client, objects.clone()),
+                clock: clock.clone(),
+            };
+            let failing = thread::spawn(move || {
+                let result = if foreground {
+                    jobs.recovery_guard(
+                        scheduled.request.database.identity,
+                        &scheduled.request.context,
+                    )
+                    .map(drop)
+                } else {
+                    runner.run(&scheduled)
+                };
+                result.err().unwrap().code
+            });
+            if scenario == 3 {
+                // The first live check has read cancellation as false. Cancel
+                // before releasing the real mutex: the second check must fail
+                // and drop the newly acquired guard without starting any I/O.
+                entering.recv_timeout(Duration::from_secs(1)).unwrap();
+                request.context.cancelled.store(true, Ordering::Release);
+            }
+            drop(held);
+            assert_eq!(
+                failing.join().unwrap(),
+                if scenario == 2 || scenario == 5 {
+                    "CLOCK"
+                } else {
+                    "COMMIT_UNKNOWN"
+                }
+            );
+            assert_eq!(
+                clock.calls.load(Ordering::Acquire),
+                match scenario {
+                    0 => 0,
+                    4 | 5 => 2,
+                    _ => 1,
+                }
+            );
+            assert!(
+                gate.try_lock().is_some(),
+                "every adapter failure must release its acquired guard"
+            );
+            assert_eq!(port.state.lock().encode(), before);
+            assert_eq!(port.proposals.load(Ordering::Acquire), 0);
+            assert!(
+                objects.0.lock().is_empty(),
+                "no object I/O may start after the context fails"
+            );
+        }
+    }
+}
+
+#[test]
+fn background_gate_spans_publication_and_prune_while_unrelated_recovery_is_free() {
+    let port = Port::new();
+    port.create();
+    let clock = Arc::new(TestClock::new());
+    let mut client = client(&port, clock.clone());
+    let (entered, entering) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
+    *port.pause.lock() = Some(PauseProposal {
+        at: 2,
+        entered,
+        released,
+    });
+    let (mut jobs, supervisor) =
+        spawn(client.clone(), Some(Memory::default()), 2, clock.clone()).unwrap();
+    let request = job(3, clock.now().unwrap().instant);
+    jobs.archive(
+        &mut client,
+        &request.context,
+        &request.database,
+        request.publish,
+        request.prune,
+    )
+    .unwrap();
+    assert_eq!(
+        entering.recv_timeout(Duration::from_secs(1)).unwrap(),
+        request.context.deadline
+    );
+    let published = port.state.lock().database(3).unwrap();
+    assert!(published.archive.is_some());
+    assert!(
+        !published.cold,
+        "pause after publication but before the exact prune applies"
+    );
+    let gate = jobs.queue.lock().gates[&3].clone();
+    assert!(
+        gate.try_lock().is_none(),
+        "publication must not drop the archive guard before prune"
+    );
+    assert!(jobs.queue.try_lock().is_some());
+    let other = jobs
+        .recovery_guard(
+            job(4, Instant::now()).database.identity,
+            &job(4, Instant::now()).context,
+        )
+        .unwrap();
+    assert!(other.is_some());
+    let mut waiting = request.context.clone();
+    waiting.cancelled = Arc::new(AtomicBool::new(false));
+    waiting.deadline = Instant::now() + Duration::from_millis(30);
+    let mut foreground = jobs.clone();
+    let identity = request.database.identity;
+    let blocked = thread::spawn(move || {
+        foreground
+            .recovery_guard(identity, &waiting)
+            .err()
+            .unwrap()
+            .code
+    });
+    assert_eq!(blocked.join().unwrap(), "COMMIT_UNKNOWN");
+    assert_eq!(port.proposals.load(Ordering::Acquire), 2);
+    assert!(!port.state.lock().database(3).unwrap().cold);
+    release.send(()).unwrap();
+    let until = Instant::now() + Duration::from_secs(2);
+    while !jobs.poll() {
+        assert!(Instant::now() < until);
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert!(port.state.lock().database(3).unwrap().cold);
+    assert!(gate.try_lock().is_some());
+    let after = jobs.recovery_guard(identity, &request.context).unwrap();
+    assert!(after.is_some());
+    assert!(gate.try_lock().is_none());
+    drop(after);
+    drop(other);
     supervisor.join().unwrap();
 }

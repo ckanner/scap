@@ -28,7 +28,7 @@ rustls = { version = "=0.23.46", default-features = false, features = ["ring", "
 getrandom = "=0.3.4"
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "=1.50.0", features = ["rt-multi-thread", "net", "sync", "time", "macros", "signal"] }
-parking_lot = "=0.12.5"
+parking_lot = { version = "=0.12.5", features = ["arc_lock"] }
 slog = "=2.8.2"
 
 [dev-dependencies]

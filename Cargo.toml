@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/scap-core", "crates/scap-raft-store", "crates/scap-raft-driver", "crates/scap-raft-rocks", "crates/scap-cell", "crates/scap-engine", "crates/scap-sql", "crates/scap-sqlite", "crates/scap-raft-wire", "crates/scap-raft-transport", "crates/scap-raft-runtime", "crates/scap-cell-client", "crates/scap-sql-worker", "crates/scap-service", "crates/scap-server", "crates/scap-archive"]
-exclude = ["experiments/wal-gate", "experiments/raft-rpc", "experiments/raft-store", "experiments/raft-cluster", "experiments/sqlite-cell", "experiments/sqlite-engine", "experiments/raft-network", "experiments/sqlite-network"]
+exclude = ["experiments/wal-gate", "experiments/raft-rpc", "experiments/raft-store", "experiments/raft-cluster", "experiments/sqlite-cell", "experiments/sqlite-engine", "experiments/raft-network", "experiments/sqlite-network", "experiments/control-network"]
 resolver = "2"
 
 [workspace.package]

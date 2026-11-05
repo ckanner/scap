@@ -9,16 +9,17 @@
 `SCAPRPC1` envelope 使用固定 80 字节头，依次为 magic（8）、version（4）、
 codec（4）、cluster ID（16）、cell ID（16）、cell incarnation（8）、from node（8）、
 to node（8）、payload 长度（8），随后为 opaque Raft bytes。整数采用 little endian。
-当前 version 为 3，codec 仍为 1；固定 magic 和 80 字节布局不变。解码拒绝错误
+当前 version 为 4，codec 仍为 1；固定 magic 和 80 字节布局不变。解码拒绝错误
 magic、截断、尾随字节和超限长度。准入在解析内部 Raft 消息前拒绝非当前 version。
 
-version 3 隔离支持显式确认与请求世代退休的状态机。旧 version 1 不进行基线折叠，
-version 2 不持久保存请求退休屏障；旧节点可能对相同条目给出不同裁决，因此任何旧世代
-均不能参与当前世代的复制、投票或快照安装。单元合同同时验证 version 1、2 在两种
-授权策略中均先于内部消息解析被拒绝，非法 payload 也不能绕过该边界。
+version 4 隔离具有持久管理序号与最近回执的 v5 状态机。旧 version 1 不进行基线折叠，
+version 2 不持久保存请求退休屏障，version 3 不实施新的管理操作退休规则；旧节点可能
+对相同条目给出不同裁决，因此任何旧世代均不能参与当前世代的复制、投票或快照安装。
+单元合同同时验证 version 1、2、3 在两种授权策略中均先于内部消息解析被拒绝，非法
+payload 也不能绕过该边界。
 此处没有版本协商或自动降级；升级需要停止全部旧 voter，再以新二进制打开原目录。
 内层 command/outcome 与 peer envelope 各自版本化，gRPC 入队回执 Received 的版本仍为 1，它们不能替代
-这个 peer 世代边界。详见 [ADR-0017](../../docs/adr/0017-bounded-physical-history.md)。
+这个 peer 世代边界。详见 [ADR-0020](../../docs/adr/0020-bounded-administrative-control.md)。
 
 codec 1 固定到 [raft-rs ad13f3d9][raft] 的 `protobuf-codec` 与 rust-protobuf 2.28.0。
 内层未知普通字段和可解析的非规范 varint 保留原始 bytes；未知消息/entry enum、

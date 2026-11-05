@@ -4,12 +4,14 @@
 
 ## 已实现的协议
 
-1. `Controller::suspend` 读取新的 Safe ReadIndex，提交绑定当前 owner 与 revision 的 `SuspendDb`。cell 对已有 owner 增加 epoch、撤销执行权限；已经休眠的库及从未认领 owner 的旧版库保持同一 epoch。
-2. `publish` 从同一权威视图生成单库完整恢复对象。对象包含 cell/database incarnation、placement generation、源应用位置、请求世代与退休前缀、当前保留事务回执与原结果、恢复基座和其后的物理尾部。对象 key 另绑定 cluster ID 和内容 SHA-256。
+1. 调用方先捕获 `DatabaseView`，`Controller::suspend_bound` 用新 Safe ReadIndex 核对同一视图，提交绑定原 owner、数据 revision 和 control revision 的 `SuspendDb`。cell 对已有 owner 增加 epoch、撤销执行权限；已经休眠的库及从未认领 owner 的旧版库保持同一 epoch。
+2. `publish_bound` 从与原捕获视图一致的权威状态生成单库完整恢复对象。对象包含 cell/database incarnation、placement generation、源应用位置、请求世代与退休前缀、当前保留事务回执与原结果、恢复基座和其后的物理尾部。对象 key 另绑定 cluster ID 和内容 SHA-256。
 3. S3 使用签名的 `PUT If-None-Match:*`。创建成功或已存在后，都必须执行有界 HEAD/GET，校验完整长度和 SHA-256；ETag 不承担内容校验职责。
 4. `PublishArchive` 在有序 cell 状态机中再次检查数据库身份、原 owner token、休眠状态、前序归档摘要、revision、commit hash、源位置，以及对象与当前完整历史的精确对应。对象已上传而命令尚未被接受时，不会推进权威恢复指针。
-5. `prune` 只在当前 head 已由已发布归档完整覆盖且原 owner token 未改变、数据库仍休眠时，清除应用状态中的基座镜像及物理尾部字节。基座 revision、请求身份、回执、原始结果、取消记录、owner/auth fence 和归档指针继续保留。
-6. `hydrate` 只从新权威视图选定的精确 key 读取。命令校验完整对象摘要、每条 receipt/fingerprint/result/hash、请求世代与退休前缀、恢复基座与物理 payload 摘要，只装回缺失的恢复数据，不覆盖现有权限和元数据。归档后新增的 AuthFence、取消记录及显式结果确认不会被旧对象覆盖。完成后才允许调用既有 `Writer::recover`。
+5. `prune_bound` 接收原发布视图及 `publish_bound` 返回的 `PublishedArchive` 确认回执；只由该回执推进控制版本。当前 head 已由该归档完整覆盖且原 owner token 未改变、数据库仍休眠时，清除应用状态中的基座镜像及物理尾部字节。基座 revision、请求身份、回执、原始结果、取消记录、owner/auth fence 和归档指针继续保留。
+6. `hydrate_bound` 核对调用前捕获的原视图，只从该视图选定的精确 key 读取。命令校验完整对象摘要、每条 receipt/fingerprint/result/hash、请求世代与退休前缀、恢复基座与物理 payload 摘要，只装回缺失的恢复数据，不覆盖现有权限和元数据。归档后新增的 AuthFence、取消记录、显式结果确认、控制版本及控制回执不会被旧对象覆盖。完成后才允许调用既有 `Writer::recover`。
+
+`PublishedArchive` 的内容与来源视图均为私有字段，只提供 `archive()` 和 `control_revision()` 读取；调用方不能把旧回执改成最新 revision 后继续清理。绑定方法在重复调用时始终使用原视图：若 UNKNOWN 后原控制命令实际已生效，视图已变化，重复调用会拒绝，不能隐式换新版本。后续维护必须重新评估状态并使用新 operation ID。旧 `suspend` / `publish` / `prune` / `hydrate` 便捷方法只供 phase 5 前的历史协议；控制协议启用后直接返回 `Error::Invalid`，要求调用方使用显式绑定方法。
 
 Cold 库不能 ClaimOwner、ActivateOwner 或产生新成功写。结果未知、S3 不可用、对象缺失/损坏或 deadline 到期时保持原有权威状态，不以同名空库或较旧对象降级恢复。维护请求超时后，提交可能已生效；下一次维护先读取当前状态，不能推断回滚。
 
@@ -21,29 +23,29 @@ Cold 可通过原身份确认已知终态，但拒绝请求窗口退休；必须
 
 - 任务和完成通知各最多 8 个；每个 database ID 同时最多一个 pending。任务仅保存固定大小的 `DatabaseView`、原 `RequestContext` 和 operation IDs，队列不保存对象正文。
 - 重试登记表最多包含配置中的数据库数量，不能随错误累积增长。失败后到该次原 deadline 加 5 秒前不再排队；下一轮维护重新检查状态、获得新的请求身份，并不自动重放旧的未知结果。
-- `publish_bound` / `prune_bound` 在读取、对象 I/O 和最终有序命令之间保留排队时的身份、owner、head、auth epoch 和前序归档。即使 I/O 期间发生相同 head 的唤醒再休眠，旧 token 也不能发布或卸载。
+- `publish_bound` / `prune_bound` 在读取、对象 I/O 和最终有序命令之间保留排队时的身份、owner、head、auth epoch、control revision 和前序归档；发布到清理只使用确切发布回执推进版本。即使 I/O 期间发生相同 head 的唤醒再休眠，旧 token 也不能发布或卸载。
 - 成功 prune 的通知触发服务请求正式的全 cell checkpoint；完成通知自身不能删日志。后台线程异常退出通过 oneshot 通知 supervisor，panic 由 join 报告；关闭会取消当前任务并回收线程，不把停止解释成命令已回滚。
 
-冷请求的 `hydrate` 在该库独占的 SQL lane 内，以原 deadline 同步执行。每次前景恢复构造独立 Controller，不占后台队列锁；一个库等待对象读取时，其他库的 lane 可继续服务。服务最多保留 32 个活动或退出中的 lane，全局 SQL 准入为 32 个请求 / 8 MiB，每库为 8 个请求 / 2 MiB，排队和执行中的请求都计入预算；冷库空闲时不保留专用线程。实现及退休/join 合同见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
+冷请求的 `hydrate_bound` 在该库独占的 SQL lane 内，以原 deadline 同步执行。每次前景恢复构造独立 Controller，不占后台队列锁；一个库等待对象读取时，其他库的 lane 可继续服务。服务最多保留 32 个活动或退出中的 lane，全局 SQL 准入为 32 个请求 / 8 MiB，每库为 8 个请求 / 2 MiB，排队和执行中的请求都计入预算；冷库空闲时不保留专用线程。实现及退休/join 合同见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
 
 这些边界隔离单库的 SQL/对象等待与请求占用，但不提供加权公平调度、独立恢复带宽或容量预留。目录扫描仍同步访问 cell 元数据，lane 也定期维护；共享 cell、磁盘与 CPU 的压力仍可能影响其他库。
 
 ## 资源与恢复边界
 
-- 对象长度加 192 字节必须装入同一个 `max_command_bytes`，以保证有序 hydrate 可执行。超限库保持原物理历史，拒绝发布/卸载；尚无分块 hydrate 协议。
+- 对象及其实际 hydrate 命令外壳必须装入同一个 `max_command_bytes`；v5 控制协议预留 202 字节，历史阶段保留原来的 192 字节判定。v5 激活也拒绝已有的超限归档，防止旧容量判定留下无法恢复的对象。超限库保持原物理历史，拒绝发布/卸载；尚无分块 hydrate 协议。
 - 所有 S3 操作受原始绝对 deadline、配置请求超时与对象大小上限约束；自动网络重试关闭。stream 逐块复核上限，S3 返回成功后仍检查 deadline/取消。
 - 目前永久保留全部对象，没有自动 GC、对象生命周期删除或备份保留期协议。桶策略不得自行删除这些恢复根。
 - 单库 `prune` 不授权截断共享 Raft 日志。实际日志空间回收仍需包含完整当前状态、membership 和 applied position 的持久 Raft snapshot。旧 Raft 日志或旧 snapshots 仍可能保存原物理字节。
-- 未退休请求结果和审计元数据仍占用 cell 空间；服务 profile 每库窗口最多 128 条请求，确认全部终态后可显式退休。cell 4096 条行政记录尚不退休，状态镜像和完整编码成本仍受原有上限约束。请求退休不会回收 S3 对象，该实现不等于无限规模或冷库零成本。
+- 未退休请求结果和审计元数据仍占用 cell 空间；服务 profile 每库窗口最多 128 条请求，确认全部终态后可显式退休。phase 5 的新行政操作每库只保留一个最新控制回执与单调版本，旧格式行政记录保持原界限且不再新增；状态镜像和完整编码成本仍受原有上限约束。请求退休不会回收 S3 对象，该实现不等于无限规模或冷库零成本。
 - 普通数据归档不是 S3-only 灾难恢复入口。多数副本永久丢失时，不能仅靠扫描 bucket 复活原 owner；完成态 DR checkpoint、迁移、删除与安全 GC 仍需各自协议。
 
 ## 格式与升级
 
-正式服务依次完成物理历史和请求退休两个独立有序 activation，确认后 Cell state 与新 `SCAPARC!` 对象写入 v4。epoch 1 的旧业务命令仍为 v2，新世代或确认/轮转命令为 v3；普通结果仍为 v2，确认、轮转和 Retired 结果为 v3。物理 `SCAPIMG!` 保持 v1。reader 读取绑定相同身份、位置和 limits 的合法 v1/v2/v3 状态及精确旧 v2/v3 归档；旧前缀在对应 activation 前保留原编码、PublishArchive/Hydrate 与容量裁决，解码本身不升级。服务目录在对外业务及后台归档开始前确认 phase 4。
+正式服务依次完成物理历史、请求退休与有界行政控制三个独立有序 activation，确认后 Cell state 写入 v5，`SCAPARC!` 对象保持 v4，完全不编码或恢复控制版本与回执。epoch 1 的旧业务命令仍为 v2，新世代或确认/轮转命令为 v3；普通结果仍为 v2，确认、轮转和 Retired 结果为 v3；显式控制命令及控制结果使用独立 v4 envelope。物理 `SCAPIMG!` 保持 v1。reader 读取绑定相同身份、位置和 limits 的合法 v1/v2/v3/v4/v5 状态及精确 v2/v3/v4 归档；旧前缀在对应 activation 前保留原编码、PublishArchive/Hydrate 与容量裁决，解码本身不升级。服务目录在对外业务及后台归档开始前确认 phase 5。
 
 history activation 对旧热历史逐条采用与新提交相同的物理算法和折叠阈值，原子得到规范的基座与尾部；不足阈值的历史仍保留为尾部，不能按各副本当前 head 无条件全部折叠。独立 retention activation 验证 v4 格式与全部未确认结果的确认空间预留，不提高原容量。已发布的旧归档保留原精确内容身份，epoch 1 且零退休前缀的旧 Cold 状态可以核验原 v2/v3 对象后恢复，不覆盖当前确认标记。v1 热状态没有归档引用和已卸载数据；从未认领的旧版库保留 `(epoch=0, worker=0)`，休眠不会创造虚假 owner。原行政 intent bytes 不包含 envelope version，升级后相同 operation ID 仍返回原 receipt。对象 key 的 `scap/v1/` 是独立路径布局版本。
 
-旧 v3 二进制不能读取 v4 状态，禁止直接降级启动。当前 Raft peer envelope 3 与旧 1/2 隔离；升级必须先停止写入和全部原 voter，再统一使用新版本 OpenExisting，保留原目录并完成全副本验证，没有混版本滚动协商。归档格式升级不授权删除对象；请求结果仅通过 [ADR-0019](../../docs/adr/0019-explicit-request-result-retirement.md)的显式确认与有序退休释放，与对象 GC 分开。真实升级和故障的最终验证状态以执行证据为准。
+旧二进制不能读取 v5 状态，禁止直接降级启动。当前 Raft peer envelope 4 与旧 1/2/3 隔离；升级必须先停止写入和全部原 voter，再统一使用新版本 OpenExisting，保留原目录并完成全副本验证，没有混版本滚动协商。归档格式升级不授权删除对象；请求结果仅通过 [ADR-0019](../../docs/adr/0019-explicit-request-result-retirement.md)的显式确认与有序退休释放，与对象 GC 分开。真实升级和故障的最终验证状态以执行证据为准。
 
 ## 技术与证据
 

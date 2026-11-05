@@ -2,7 +2,7 @@
 
 面向多租户 SaaS 与 Agent 的 SQLite 数据库平台。多个独立数据库共享一个三副本存储 cell；活跃库使用私有 SQLite 连接，休眠库把可恢复的物理历史归档到 S3 兼容对象存储。
 
-**当前已经有可运行的三节点数据库服务、Node.js 客户端、自动 writer 接管、独立强读，以及休眠、归档、裁剪和唤醒。** 受控成员替换与有界物理历史分别见 [ADR-0016](docs/adr/0016-durable-membership-replacement.md)、[ADR-0017](docs/adr/0017-bounded-physical-history.md)；显式结果确认与请求世代退休已通过完整本地验证，见 [ADR-0019](docs/adr/0019-explicit-request-result-retirement.md)。正式实现与真实故障测试使用同一套引擎、状态机和网络代码。当前发布范围仍是有明确容量上限的 G0 实现，生产规模、三 AZ 性能、多 cell 调度、GC/PITR/区域灾备尚未验收；不是通用 SQLite 文件挂载服务，也没有对外 SLA。
+**当前已经有可运行的三节点数据库服务、Node.js 客户端、自动 writer 接管、独立强读，以及休眠、归档、裁剪和唤醒。** 受控成员替换与有界物理历史分别见 [ADR-0016](docs/adr/0016-durable-membership-replacement.md)、[ADR-0017](docs/adr/0017-bounded-physical-history.md)；显式结果确认与请求世代退休已通过完整本地验证，见 [ADR-0019](docs/adr/0019-explicit-request-result-retirement.md)。有界管理序号与最近精确回执的后续实现见 [ADR-0020](docs/adr/0020-bounded-administrative-control.md)。正式实现与真实故障测试使用同一套引擎、状态机和网络代码。当前发布范围仍是有明确容量上限的 G0 实现，生产规模、三 AZ 性能、多 cell 调度、GC/PITR/区域灾备尚未验收；不是通用 SQLite 文件挂载服务，也没有对外 SLA。
 
 ## 已实现的完整请求路径
 
@@ -20,6 +20,7 @@
 | 物理历史 | 达到复制的固定阈值时原子建立基线，恢复只重放连续有限 tail；物理折叠不删除原结果或取消记录，显式结果退休另受请求世代协议约束 |
 | 强读 | 新鲜 Safe ReadIndex、当前 READ 权限、owner 与物理 head 绑定；不增加数据库 revision 或写结果记录 |
 | 冷生命周期 | 有序 Suspend → 不可变对象上传/核验 → PublishArchive → PruneArchive；唤醒先核验精确归档再恢复 owner |
+| 管理操作保留 | v5 每库独立控制序号和一个最近精确回执；旧身份永久拒绝，旧行政表冻结，新动作不再累积消耗 4096 条额度 |
 | S3 不可用 | 热库仍可在 quorum 正常时服务；未完成归档的历史不裁剪，冷库唤醒明确失败 |
 | 重启与关闭 | 默认严格 OpenExisting，显式初始化；损坏不自动建空库；SIGINT/SIGTERM 停准入、取消、排空并 join 所有 owner |
 | 工程门禁 | 第一方 Rust 行/函数/region/分支全部 100%；SDK 行/语句/函数/分支 100%；单元与真实故障 profile 分离 |
@@ -28,7 +29,7 @@
 
 ## 当前上限与适用范围
 
-当前一个进程只承载一个 cell。成员管理保持三个 voter、至多一个 learner，可信通信目录最多 16 个身份；旧三 peer 配置默认保留固定模式。每个节点按需创建独占数据库的 SQL 线程，活动与退出中的线程合计最多 32 条，休眠且无排队请求后释放。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。每库当前窗口最多保留 128 个请求身份记录；应用显式确认全部原结果后可有序推进请求世代并释放窗口，旧世代仍永久 fenced。cell 的 4096 个行政操作记录暂不退休。达到未释放窗口或其他容量时拒绝新工作，不自动驱逐未确认结果。
+当前一个进程只承载一个 cell。成员管理保持三个 voter、至多一个 learner，可信通信目录最多 16 个身份；旧三 peer 配置默认保留固定模式。每个节点按需创建独占数据库的 SQL 线程，活动与退出中的线程合计最多 32 条，休眠且无排队请求后释放。每个 cell 最多 **32 个配置数据库**；每库最多 **64 个 4 KiB 页面，即 256 KiB**；状态镜像上限 8 MiB，单条 cell command 上限 4 MiB。每库当前窗口最多保留 128 个请求身份记录；应用显式确认全部原结果后可有序推进请求世代并释放窗口，旧世代仍永久 fenced。v5 激活后，cell 的至多 4096 条旧行政回执冻结保留，新管理动作改用每库独立序号与一个最近回执；长期 owner 恢复和冷生命周期不再累计消耗旧表额度。达到未释放窗口或其他容量时拒绝新工作，不自动驱逐未确认结果。
 
 这些限额用于验证完整协议。它们没有满足最初规划的 10,000 个冷库、100 个热库、500 req/s 或 GiB 级库；也不能仅通过调大常数就变成该规模的系统。native 持久化使用同一同步 WriteBatch 内的内容块增量更新；[有界物理历史](docs/adr/0017-bounded-physical-history.md)进一步从基线与有限 tail 恢复。完整逻辑 metadata/结果编码、全 cell checkpoint、归档和强读校验仍有放大成本。后续需要可证明的保留策略、多 cell 公平调度和规模验证，并保持全部故障门禁。
 
@@ -92,9 +93,10 @@ python3 scripts/check_repo.py
 - [三节点服务/SDK/冷生命周期](experiments/service-network/README.md)：真实 daemon、真实 Node SDK、leader SIGKILL、网络黑洞、全组重启、S3 黑洞、热库继续服务及冷库恢复；另保留完整 360 个本机负载样本和 30 秒恢复窗口。
 - [成员变更与副本替换](experiments/membership-network/README.md)：四个真实 daemon，管理权限/CAS、落后 learner、压缩后的 snapshot 追赶、joint 全组重启、旧 ID 拒绝、新 voter 磁盘保留 ACK 与少数派拒绝。
 - [有界历史与旧格式升级](experiments/history-network/README.md)：真实旧 daemon/S3 数据、不同旧 applied 的确定迁移、通信世代隔离、持续页面更新、跨基线原结果、全组 SIGKILL 和旧二进制拒绝新盘。
-- [请求结果退休](experiments/retention-network/README.md)：旧 v3 daemon 升级、请求窗口容量、显式确认与世代轮转、Cold 确认、snapshot 追赶、进程崩溃及旧身份拒绝；执行结果以本轮证据为准。
+- [请求结果退休](experiments/retention-network/README.md)：旧 v3 daemon 升级、请求窗口容量、显式确认与世代轮转、Cold 确认、snapshot 追赶、进程崩溃及旧身份拒绝。
+- [有界管理控制](experiments/control-network/README.md)：真实旧 v4 满行政表升级、超过 4096 个新管理动作、迟到裁剪、丢失响应、owner 崩溃与 snapshot 恢复；执行结果以对应候选证据为准。
 
-本轮冻结源码的全工作区单元报告为 **538 个 Rust 单元测试，52 个生产源文件，12680 行 / 1166 函数 / 18661 regions / 2842 branches 全部覆盖**。SDK **23 个单元测试**通过，行/语句 **429/429**、函数 **38/38**、分支 **331/331**。新报告使用独立单元 profile，显式退休、旧格式追赶、缺失恢复基线拒绝及调用方改动均进入原生产分母。真实依赖和故障合同独立执行，不计入单元覆盖率；这些单元结果不单独代表升级、故障恢复或生产 SLO 已通过，最终清单和失败尝试见 [执行证据](docs/engineering/g0-evidence.md)。
+上一轮 PR #15 冻结源码的全工作区单元报告为 **538 个 Rust 单元测试，52 个生产源文件，12680 行 / 1166 函数 / 18661 regions / 2842 branches 全部覆盖**。SDK **23 个单元测试**通过，行/语句 **429/429**、函数 **38/38**、分支 **331/331**。新报告使用独立单元 profile，显式退休、旧格式追赶、缺失恢复基线拒绝及调用方改动均进入原生产分母。真实依赖和故障合同独立执行，不计入单元覆盖率；这些单元结果不单独代表升级、故障恢复或生产 SLO 已通过，最终清单和失败尝试见 [执行证据](docs/engineering/g0-evidence.md)。
 
 ## 性能和可靠性合同
 

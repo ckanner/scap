@@ -147,6 +147,7 @@ pub fn admission() -> Admission {
 
 pub fn command(kind: CommandKind) -> Command {
     Command {
+        control_revision: None,
         cell: cell(),
         database: DATABASE,
         admission: admission(),

@@ -112,6 +112,7 @@ fn command(kind: CommandKind) -> Command {
         cell: cell(),
         database: db(),
         admission: admission(),
+        control_revision: None,
         kind,
     }
 }
@@ -1727,3 +1728,6 @@ fn rotation_before_duplicate_result_lookup_is_retired_and_never_unknown_or_repla
         1
     );
 }
+
+#[path = "control_tests.rs"]
+mod control_tests;

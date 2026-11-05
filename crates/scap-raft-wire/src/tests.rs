@@ -128,7 +128,7 @@ fn envelope_has_a_fixed_golden_layout_and_preserves_every_field() {
     };
     let expected = hexadecimal(concat!(
         "5343415052504331",
-        "03000000",
+        "04000000",
         "01000000",
         "000102030405060708090a0b0c0d0e0f",
         "101112131415161718191a1b1c1d1e1f",
@@ -276,8 +276,8 @@ fn successful_authorization_returns_immutable_message_and_original_payload() {
 
 #[test]
 fn prior_generations_cannot_enter_either_policy_or_be_silently_upgraded() {
-    assert_eq!(VERSION, 3);
-    for version in [1, 2] {
+    assert_eq!(VERSION, 4);
+    for version in [1, 2, 3] {
         for payload in [envelope().payload, vec![0xff]] {
             let mut legacy = envelope();
             legacy.version = version;

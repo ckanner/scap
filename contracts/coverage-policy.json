@@ -60,7 +60,11 @@
     "crates/scap-sqlite/src/file_tests.rs",
     "crates/scap-sqlite/src/query_tests.rs",
     "crates/scap-sqlite/src/tests.rs",
-    "crates/scap-cell/src/tests/retention.rs"
+    "crates/scap-cell/src/tests/retention.rs",
+    "crates/scap-cell/src/tests/control.rs",
+    "crates/scap-archive/src/control_tests.rs",
+    "crates/scap-cell-client/src/control_tests.rs",
+    "crates/scap-sql-worker/src/control_tests.rs"
   ],
   "research_harness_roots": [
     "experiments/wal-gate",
@@ -75,7 +79,8 @@
     "experiments/service-network",
     "experiments/membership-network",
     "experiments/history-network",
-    "experiments/retention-network"
+    "experiments/retention-network",
+    "experiments/control-network"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

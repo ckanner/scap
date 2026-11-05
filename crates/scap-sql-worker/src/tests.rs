@@ -110,6 +110,7 @@ fn command(kind: CommandKind) -> Command {
         cell: identity().cell,
         database: identity().database,
         admission: admission(),
+        control_revision: None,
         kind,
     }
 }
@@ -143,9 +144,28 @@ fn apply_data(state: &mut CellState, data: Vec<u8>) -> ProposalResult {
 }
 
 fn apply(state: &mut CellState, kind: CommandKind) {
+    let administrative = matches!(
+        kind,
+        CommandKind::Create { .. }
+            | CommandKind::ClaimOwner { .. }
+            | CommandKind::ActivateOwner { .. }
+            | CommandKind::AuthFence { .. }
+            | CommandKind::SuspendDb { .. }
+            | CommandKind::PublishArchive { .. }
+            | CommandKind::PruneArchive { .. }
+            | CommandKind::HydrateArchive { .. }
+    );
+    let mut command = command(kind);
+    if state.control_enabled() && administrative {
+        command.control_revision = Some(
+            state
+                .database(identity().database.database_id)
+                .map_or(0, |view| view.control_revision.unwrap()),
+        );
+    }
     apply_data(
         state,
-        scap_cell::encode_command(&command(kind), cell_limits()).unwrap(),
+        scap_cell::encode_command(&command, cell_limits()).unwrap(),
     );
 }
 
@@ -180,6 +200,8 @@ struct Model {
     proposals: usize,
     fail_reads: BTreeSet<usize>,
     fail_proposals: BTreeSet<usize>,
+    unknown_after_apply: BTreeSet<usize>,
+    sent: Vec<Vec<u8>>,
     override_reads: BTreeMap<usize, CellState>,
     mutate_reads: BTreeMap<usize, CommandKind>,
     mutate_proposals: BTreeMap<usize, CommandKind>,
@@ -238,13 +260,18 @@ impl CellPort for Port {
         model.proposals += 1;
         let number = model.proposals;
         model.events.borrow_mut().push("propose");
+        model.sent.push(data.clone());
         if model.fail_proposals.contains(&number) {
             return Err(scap_raft_runtime::Error::Unknown);
         }
         if let Some(kind) = model.mutate_proposals.remove(&number) {
             apply(&mut model.state, kind);
         }
-        Ok(apply_data(&mut model.state, data))
+        let result = apply_data(&mut model.state, data);
+        if model.unknown_after_apply.contains(&number) {
+            return Err(scap_raft_runtime::Error::Unknown);
+        }
+        Ok(result)
     }
 }
 
@@ -268,6 +295,8 @@ impl Kit {
                 proposals: 0,
                 fail_reads: BTreeSet::new(),
                 fail_proposals: BTreeSet::new(),
+                unknown_after_apply: BTreeSet::new(),
+                sent: Vec::new(),
                 override_reads: BTreeMap::new(),
                 mutate_reads: BTreeMap::new(),
                 mutate_proposals: BTreeMap::new(),
@@ -282,6 +311,7 @@ impl Kit {
             request: OwnerRequest {
                 identity: identity(),
                 expected_owner_epoch: 0,
+                expected_control_revision: None,
                 worker_instance_id: 77,
                 claim_operation_id: 10,
                 activate_operation_id: 11,
@@ -650,30 +680,33 @@ fn administrative_results_require_the_exact_expected_effect() {
         Outcome::Administrative(AdminResult::OwnerActivated),
         Outcome::AlreadyApplied(AdminResult::OwnerActivated),
     ] {
-        assert!(administrative(outcome, AdminResult::OwnerActivated).is_ok());
+        assert!(administrative(outcome, AdminResult::OwnerActivated, None).is_ok());
     }
     assert!(matches!(
         administrative(
             Outcome::Administrative(AdminResult::Created),
-            AdminResult::OwnerActivated
+            AdminResult::OwnerActivated,
+            None
         ),
         Err(Error::Unknown)
     ));
     assert!(matches!(
         administrative(
             Outcome::AlreadyApplied(AdminResult::Created),
-            AdminResult::OwnerActivated
+            AdminResult::OwnerActivated,
+            None
         ),
         Err(Error::Unknown)
     ));
     assert!(matches!(
-        administrative(Outcome::Cancelled, AdminResult::OwnerActivated),
+        administrative(Outcome::Cancelled, AdminResult::OwnerActivated, None),
         Err(Error::Unknown)
     ));
     assert!(matches!(
         administrative(
             Outcome::Rejected(Reject::Fenced),
-            AdminResult::OwnerActivated
+            AdminResult::OwnerActivated,
+            None
         ),
         Err(Error::Rejected(Reject::Fenced))
     ));
@@ -942,3 +975,6 @@ fn native_factory_and_engine_delegates_use_the_actual_sqlite_gate() {
             .active
     );
 }
+
+#[path = "control_tests.rs"]
+mod control_tests;

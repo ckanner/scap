@@ -1,6 +1,6 @@
 # 运维手册
 
-> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。已有三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果查询、leader owner 恢复和有界 S3 冷生命周期；受控成员替换和物理历史见 [ADR-0016](../adr/0016-durable-membership-replacement.md)、[ADR-0017](../adr/0017-bounded-physical-history.md)，本轮显式请求结果退休的验证状态见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。通用控制台、自动坏盘运维、PITR/DR、行政记录退休和对象 GC 仍为 planned。实际故障记录见 [服务实验](../../experiments/service-network/README.md)、[成员实验](../../experiments/membership-network/README.md)及 [退休实验](../../experiments/retention-network/README.md)。
+> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。已有三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果查询、leader owner 恢复和有界 S3 冷生命周期；受控成员替换和物理历史见 [ADR-0016](../adr/0016-durable-membership-replacement.md)、[ADR-0017](../adr/0017-bounded-physical-history.md)，请求结果退休见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)，有界管理保留见 [ADR-0020](../adr/0020-bounded-administrative-control.md)。通用控制台、自动坏盘运维、PITR/DR、旧行政表固定成本处理和对象 GC 仍为 planned。实际故障记录见 [服务实验](../../experiments/service-network/README.md)、[成员实验](../../experiments/membership-network/README.md)及 [退休实验](../../experiments/retention-network/README.md)。
 
 ## 1. 使用规则
 
@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | live/ready 与数据库 status | 已实现 | status 经 READ/ReadIndex 返回有限元数据；ready 只是节点选择提示，没有公开全量 Raft/owner 管理查询 |
 | 请求结果查询/取消 | 已实现 SDK lookup/resolveOrCancel | 当前权限、原世代、statements/request ID 校验；unknown 不等于未提交，取消不撤销已提交事务 |
-| 结果确认 / 请求窗口退休 | 已实现 acknowledge/rotateRequests；验证见 ADR-0019 | 应用确认所有原终态后，由独立 ADMIN 凭证 CAS 推进非空、非 Cold 窗口；旧世代永久拒绝，行政记录与对象不回收 |
+| 结果确认 / 请求窗口退休 | 已实现 acknowledge/rotateRequests；验证见 ADR-0019 | 应用确认所有原终态后，由独立 ADMIN 凭证 CAS 推进非空、非 Cold 窗口；旧世代永久拒绝，旧行政表与对象保留 |
 | 进程关闭 | 已实现 SIGTERM/Ctrl-C 的停止准入、取消和 join | 关键线程异常退出使节点整体停止；没有通用按库排空管理接口 |
 | owner 栅栏与接管 | 已实现同 cell leader 自动恢复 | Claim、新视图、新目录、Activate 与最终校验；手工迁移/跨 cell 调度 planned |
 | 授权撤销 | cell AuthFence 已实现，外部管理 API planned | 静态旧 auth_epoch 不能绕过当前策略；改 JSON 不等于完成复制授权变更 |
@@ -117,6 +117,8 @@ cargo +1.90.0 build --release -p scap-server --locked
 **触发：** 对象存储超时/拒绝、凭证故障、manifest 不推进、GC/compaction 停滞或磁盘达到告警线。
 
 **当前实现：** 后台归档在独立有界线程执行，S3 黑洞时任务失败/退避并保留未归档物理历史，热库仍走原 durable quorum。已 cold 的前景 hydrate 在本库 lane 等待对象或在原 deadline 内失败，对象 I/O 不持有共享任务队列锁；其他库可通过自己的 lane 继续服务。status/lookup 不访问 S3。
+
+同库后台 Publish→Prune 与前台完整恢复持有同一个本地执行权。恢复先按原预算等待已有同库任务退出，再读取权威状态、复核原租户权限并建立固定控制身份；不同库的前台请求不等待这把锁。等待超时、取消或其他节点的控制竞争仍可能明确失败，不能自动换序号重发原 UNKNOWN。原租户已撤权时，内部管理员身份不能代替它继续唤醒。
 
 排队和执行中的请求共同计入全局 32 请求 / 8 MiB、每库 8 请求 / 2 MiB 的预算，额度用尽返回 `OVERLOADED`。本库 lane 正在退出时，已准入请求保留原预算，等待成功 join 后由新 lane 按序执行，等待也受原 deadline 和取消约束；这些等待不允许启动重叠 writer。UNKNOWN 仍按 RB-06 查证。目录扫描及活动 lane 的维护仍同步访问 cell，排障应同时检查元数据延迟、quorum、CPU 和磁盘，不能只观察 S3。当前没有加权公平调度、GC、DR checkpoint、百分比磁盘自动背压或恢复空间预留，下面相关步骤是目标运营要求，不是已有命令。
 
@@ -262,7 +264,7 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 ## 13. RB-12：请求窗口达到容量或需要退休
 
-当前每库 **128 条**是未退休窗口上限，cell 行政记录 **4096 条**仍是独立上限。请求退休不会释放行政预算，也不删除 S3 对象。不要删除请求表、重新初始化数据库或提高常数来掩盖未解决结果。
+当前每库 **128 条**是未退休窗口上限；旧 cell 行政记录最多 **4096 条**，v5 激活后该表冻结。新管理动作使用独立控制序号与每库一个最近回执，不再累计消耗旧表额度。请求退休不删除旧行政回执或 S3 对象。不要删除请求表、重新初始化数据库或提高常数来掩盖未解决结果。
 
 1. **收集完整身份。** 使用 `executeTracked` / `batchTracked` 的成功身份和 `ScapError.request`，保留原 requestEpoch、ID 与 statements。多个客户端共用数据库时逐个核对其保留请求，不能只确认当前进程看到的成功结果。
 2. **查明原终态。** 在当前有效权限下逐项 lookup：committed 需应用处理或保存原结果，cancelled 需保留原取消证明，unknown 需继续查证或有序 resolveOrCancel。一次缺失不证明未执行，retired 也不证明已取消。
@@ -273,6 +275,15 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 非初始世代的 SDK 变更在每个候选节点先进行同身份、原 deadline 的 status 能力探测。该额外请求不延长原预算，也不把旧业务身份改成当前世代；旧服务不支持协议时停止后续变更。普通 query 不增加这一探测。
 
-升级遵守 RB-10：先停止整个 cell 旧程序，在原盘顺序激活 v3/v4；全部 voter 使用 peer envelope 3。旧 v3 程序不能打开 v4 盘。保留不满足空间预留或解码校验的原盘并处理原因，不能重建空目录。管理员凭证按 [server 配置](../../crates/scap-server/README.md)显式添加，不能给普通 token 借用内部服务身份。
+升级遵守 RB-10：先停止整个 cell 旧程序，在原盘顺序激活 v3/v4/v5；全部 voter 使用 peer envelope 4。旧 v4 程序不能打开 v5 盘。保留不满足空间预留或解码校验的原盘并处理原因，不能重建空目录。管理员凭证按 [server 配置](../../crates/scap-server/README.md)显式添加，不能给普通 token 借用内部服务身份。
 
-**完成标准：** 全部被释放结果已有应用确认；数据内容和 revision 保留；新窗口容量释放；旧世代写、取消和确认仍被拒绝。行政记录、对象 GC、PITR/DR 和生产规模验收继续独立推进。
+**完成标准：** 全部被释放结果已有应用确认；数据内容和 revision 保留；新窗口容量释放；旧世代写、取消和确认仍被拒绝。有界新管理回执、旧表固定成本处理、对象 GC、PITR/DR 和生产规模验收各自保留独立证据。
+
+
+## RB-12：管理控制升级与旧操作处理
+
+对应 [ADR-0020](../adr/0020-bounded-administrative-control.md)。升级要求全部旧 voter 停止，保留各自原盘与现有对象，由相同新版依次重开并完成有序激活。不要混用 peer generation 3 和 4，不以重建目录代替升级，不清理旧行政表。
+
+`ControlRetired` 表示原身份不能再次接受，原结果可能已经退出最近回执范围；它不证明旧动作未执行。保留第一次发送时的控制序号、ID 和意图，禁止给 UNKNOWN 或旧身份补当前序号重发。最近精确重放仍要求当前权限和 auth fence。服务管理任务会在独立新鲜视图下建立新的恢复工作，不能借此重放原业务 SQL。
+
+若激活因空间预留不足被拒绝，应保留旧状态并处理可证明的容量问题。提高常数、直接修改序列化状态、删除旧 ID 或清空数据库都不是本升级流程。管理记录有界也不代表 S3 GC、PITR 或生产规模已经验收。

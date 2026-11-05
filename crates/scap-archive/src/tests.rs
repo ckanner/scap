@@ -107,10 +107,31 @@ fn apply_raw(state: &mut CellState, data: Vec<u8>, limits: Limits) -> ProposalRe
     }
 }
 fn apply_kind(state: &mut CellState, kind: CommandKind) {
+    let administrative = matches!(
+        kind,
+        CommandKind::Create { .. }
+            | CommandKind::ClaimOwner { .. }
+            | CommandKind::ActivateOwner { .. }
+            | CommandKind::AuthFence { .. }
+            | CommandKind::SuspendDb { .. }
+            | CommandKind::PublishArchive { .. }
+            | CommandKind::PruneArchive { .. }
+            | CommandKind::HydrateArchive { .. }
+    );
+    let control_revision = if state.control_enabled() && administrative {
+        Some(
+            state
+                .database(database().database_id)
+                .map_or(0, |view| view.control_revision.unwrap()),
+        )
+    } else {
+        None
+    };
     let command = Command {
         cell: cell(),
         database: database(),
         admission: admission(),
+        control_revision,
         kind,
     };
     apply(
@@ -182,6 +203,7 @@ struct Cell {
     limits: Limits,
     read_fail: bool,
     propose_fail: bool,
+    unknown_after_apply: bool,
     outcome: Option<Outcome>,
     proposals: usize,
     before_propose: Option<fn(&mut CellState)>,
@@ -228,6 +250,9 @@ impl CellPort for Port {
         }
         let limits = cell.limits;
         let mut result = apply_raw(&mut cell.state, data, limits);
+        if cell.unknown_after_apply {
+            return Err(RuntimeError::Unknown);
+        }
         if let Some(outcome) = cell.outcome.take() {
             result.data = scap_cell::encode_applied_outcome(&AppliedOutcome {
                 position: Position {
@@ -299,6 +324,7 @@ fn build_with(
         limits,
         read_fail: false,
         propose_fail: false,
+        unknown_after_apply: false,
         outcome: None,
         proposals: 0,
         before_propose: None,
@@ -370,6 +396,7 @@ fn apply_as(
         cell: state.identity(),
         database,
         admission,
+        control_revision: None,
         kind,
     };
     apply_with_limits(
@@ -729,22 +756,27 @@ fn every_lifecycle_stage_rechecks_current_identity_and_propagates_unknown() {
 fn exact_admin_outcome_is_required_and_known_rejections_are_preserved() {
     let expected = AdminResult::Suspended(4);
     assert_eq!(
-        accepted(Outcome::AlreadyApplied(expected.clone()), expected.clone()),
-        Ok(())
+        accepted(
+            Outcome::AlreadyApplied(expected.clone()),
+            expected.clone(),
+            None
+        ),
+        Ok(None)
     );
     assert_eq!(
         accepted(
             Outcome::Administrative(AdminResult::Created),
-            expected.clone()
+            expected.clone(),
+            None
         ),
         Err(Error::Unknown)
     );
     assert_eq!(
-        accepted(Outcome::Cancelled, expected.clone()),
+        accepted(Outcome::Cancelled, expected.clone(), None),
         Err(Error::Unknown)
     );
     assert_eq!(
-        accepted(Outcome::Rejected(Reject::Fenced), expected),
+        accepted(Outcome::Rejected(Reject::Fenced), expected, None),
         Err(Error::Rejected(Reject::Fenced))
     );
     let (mut controller, port, _, context) = build();
@@ -896,3 +928,6 @@ fn queued_archive_never_refreshes_old_scope_or_owner_and_ordered_acceptance_rech
         }
     }
 }
+
+#[path = "control_tests.rs"]
+mod control_tests;

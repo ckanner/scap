@@ -1,6 +1,6 @@
 # 有界 cell 数据库状态机
 
-初版日期：2026-10-31；当前实现更新：2026-11-04。正式模块：`crates/scap-cell`。本页描述 G0 事务接受、物理历史和请求世代的当前合同，并保留后续阶段的演进说明。有界服务见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，物理基线与显式结果退休见 [ADR-0017](../adr/0017-bounded-physical-history.md)、[ADR-0019](../adr/0019-explicit-request-result-retirement.md)。完整平台生命周期和生产规模仍未验收；基础决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，实际测试结果见 [G0 执行证据](g0-evidence.md)。
+初版日期：2026-10-31；当前实现更新：2026-11-05。正式模块：`crates/scap-cell`。本页描述 G0 事务接受、物理历史和请求世代的当前合同，并保留后续阶段的演进说明。有界服务见 [ADR-0014](../adr/0014-sqlite-service-and-cold-lifecycle.md)，物理基线与显式结果退休见 [ADR-0017](../adr/0017-bounded-physical-history.md)、[ADR-0019](../adr/0019-explicit-request-result-retirement.md)。完整平台生命周期和生产规模仍未验收；基础决策见 [ADR-0010](../adr/0010-cell-acceptance-and-raft-safety.md)，实际测试结果见 [G0 执行证据](g0-evidence.md)。
 
 ## 1. 职责与依赖
 
@@ -10,11 +10,11 @@
 
 ## 2. 初始化与恢复绑定
 
-新组使用明确的 bootstrap：`CellState::bootstrap` 接收 cell 身份、bootstrap 管理员、genesis term/index 和限额，通用构造器建立 phase 3。正式服务的 Initialize、Join 和规范 genesis 摘要统一使用 `bootstrap_legacy` 的固定 phase 2 初始字节，再按有序条目激活 v3/v4，避免新副本重放旧前缀时改变裁决。当前 Store 的新组 genesis 为 `term = index = 1`。`Store::create_new_with_application` 在同一原子镜像中保存非空应用和相同的 genesis snapshot data；所有 founding replicas 必须取得相同配置与逐字节相同的应用状态。
+新组使用明确的 bootstrap：`CellState::bootstrap` 接收 cell 身份、bootstrap 管理员、genesis term/index 和限额，通用构造器建立 phase 3。正式服务的 Initialize、Join 和规范 genesis 摘要统一使用 `bootstrap_legacy` 的固定 phase 2 初始字节，再按有序条目激活 v3/v4/v5，避免新副本重放旧前缀时改变裁决。当前 Store 的新组 genesis 为 `term = index = 1`。`Store::create_new_with_application` 在同一原子镜像中保存非空应用和相同的 genesis snapshot data；所有 founding replicas 必须取得相同配置与逐字节相同的应用状态。
 
 已有组必须走 `open_existing`，不能因业务状态 decode 失败重新 bootstrap。Store 格式继续为既有 v1；新增非空应用初始化不改变已有空应用数据的表示。
 
-业务状态和命令使用分别标识的版本化二进制 envelope：`SCAPCELL` / `SCAPCMD!`、明确长度与 SHA-256。初始版本为 1；正式服务完成两次有序激活后状态写入 v4，旧 phase 2/3 仍按原版本处理。epoch 1 的旧命令写入 v2，新请求世代及确认/轮转命令写入 v3；普通 outcome 保持 v2，确认、轮转和 Retired outcome 为 v3。状态包含 cell 身份、完整限额、bootstrap 管理员、应用位置、数据库元数据、行政记录、未退休事务与取消记录、确认状态及永久请求世代屏障。格式校验与一致性校验都须通过；SHA-256 是损坏检测，不是认证或外部回滚防护。
+业务状态和命令使用分别标识的版本化二进制 envelope：`SCAPCELL` / `SCAPCMD!`、明确长度与 SHA-256。初始版本为 1；正式服务完成三次有序激活后状态写入 v5，旧 phase 2/3 仍按原版本处理。epoch 1 的旧命令写入 v2，新请求世代及确认/轮转命令写入 v3；普通 outcome 保持 v2，确认、轮转和 Retired outcome 为 v3；新的管理控制 command/outcome 为 v4。状态包含 cell 身份、完整限额、bootstrap 管理员、应用位置、数据库元数据、行政记录、未退休事务与取消记录、确认状态及永久请求世代屏障。格式校验与一致性校验都须通过；SHA-256 是损坏检测，不是认证或外部回滚防护。
 
 恢复使用 `decode_bound(bytes, cell_identity, position, limits)`，必须匹配**同一个外层 Store 持久视图**的 term/index。snapshot-only Ready 不调用业务 `apply`，所以快照安装后也不能跳过这项读取校验。应用内旧水位不能借用外层较新的 applied 对外授权。
 
@@ -81,7 +81,7 @@ bootstrap 管理员轮换、动态凭证分发/外部撤销传播、租户目录
 
 `ResolveOrCancel` 经同一 Raft 顺序应用：有已接受结果时返回原提交，已有取消记录时返回已取消；没有记录时持久化终止 fence。后续同身份事务不能再被接受。取消不撤销已提交事务，也不代表 SQL 之外的外部副作用被撤销。
 
-接受记录、取消 fence 和行政记录均不自动删除。v4 仅在应用显式确认当前窗口全部终态后，允许管理员将其原子压缩为永久请求世代屏障；存在 SQL 历史时，物理基线必须先覆盖当前 head。服务 profile 的每库未退休窗口最多 128 条请求，cell 4096 条行政记录仍不退休；达到未释放预算时拒绝新增工作。没有基于墙钟的结果过期或对象 GC。
+接受记录与取消 fence 不自动删除，旧行政回执在 v5 后封闭保留，新管理控制只保留最近精确回执。v4 仅在应用显式确认当前窗口全部终态后，允许管理员将其原子压缩为永久请求世代屏障；存在 SQL 历史时，物理基线必须先覆盖当前 head。服务 profile 的每库未退休窗口最多 128 条请求，cell 4096 条行政记录仍不退休；达到未释放预算时拒绝新增工作。没有基于墙钟的结果过期或对象 GC。
 
 状态只保留一条带精确 term/index 的 `last_outcome` 作为最近业务命令结果。提交适配器只有在该位置确实对应本次提案时，才能将其解释为本次 Accepted/Rejected。若已被后续命令覆盖，应使用受保护的历史查询或报告 UNKNOWN，不能猜测。
 
@@ -122,3 +122,10 @@ Suspend 撤销 owner/active 权限，PublishArchive 记录精确物理 head、�
 `AcknowledgeRequest` 绑定原 request epoch、ID、主体、指纹及 committed sequence 或 cancelled term/index。`RotateRequests` 要求当前 ADMIN、两个 epoch 条件均匹配、窗口非空且全部确认、数据库非 Cold；先强制折叠至准确 head，再清除窗口并递增世代。retired revision、commit hash、源提交位置与恢复基线共同保存，累计 SQL revision 不倒退；确认和轮转都不新增永久行政 receipt。
 
 旧世代 lookup 只返回 Retired，旧写/取消/确认/轮转拒绝，不把新窗口同 ID 的结果交给旧请求。Cold 可以确认已知终态，Hydrate 只补物理 bytes，不覆盖新确认；但 Cold 在精确恢复前不能退休。缺失退休前缀所需基线的状态或归档即使外层摘要正确也必须拒绝。请求退休不删除 S3 对象、不回收行政记录，也不提供 PITR/DR 或生产规模结论；最终验证状态以 ADR 与 G0 证据为准。
+
+
+## 11. 独立管理控制序号
+
+[ADR-0020](../adr/0020-bounded-administrative-control.md) 使用每库 `control_revision` 和最近成功回执，独立于 owner/auth/request epoch、SQL revision 和 Raft 位置。当前序号的八类有效管理动作原子推进序号并替换回执；最近完全相同身份返回原序号、位置和结果；更早身份 `ControlRetired`，未来或冲突身份拒绝。权限检查在回执命中之前，所有业务拒绝仍原子保留原状态。
+
+独立 v5 激活冻结旧至多 4096 条行政记录，仅允许既有旧 ID 按原意图命中，不再接受未知旧 ID。新命名空间不使用这项计数额度。状态预算为每库最大控制回执预留空间；不能通过先接受普通 SQL、后因回执膨胀无法 fence 造成容量死锁。物理 archive 仍写 v4，不携带 v5 控制记录；Hydrate 不能回退最新控制序号或回执。

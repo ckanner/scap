@@ -10,7 +10,7 @@
 
 - 旧生产者必须从 V3 `main` 提交 `b9f512819358494f178b01d7f1d960dff8222c1c` 独立构建，启动时只有第一次空目录使用 `--initialize`。旧进程真实产生 SQLite 数据、已提交随机结果、取消位置、Raft 持久状态和 V3 S3 对象，不通过编辑序列化字节制造旧版本状态。
 - 默认旧二进制 receipt 是 SHA-256 `87080fbf3ef7a5ea1615f8f70559ceb94114b9d1e0d42a85ccaecb31ed503bc2`。在另一台机器按同一固定旧提交构建时，必须用该次独立构建的 receipt 设置 `SCAP_RETENTION_OLD_SERVER_SHA256`；只接受 64 个小写十六进制字符。源码与二进制之间的对应关系还需保留该次构建记录，单独的可执行文件哈希不代替源码来源证明。
-- 新、旧二进制必须是不同文件内容，输入哈希在运行开始与结束时比较。旧 wire envelope 为 2，新 envelope 为 3；V3 旧应用/归档经有序激活进入 V4。运行前须已完成新生产源码的独立单元覆盖率门禁。
+- 新、旧二进制必须是不同文件内容，输入哈希在运行开始与结束时比较。旧 wire envelope 为 2，当前新 envelope 为 4；V3 旧应用经有序激活进入 V5，物理归档继续使用 V4。运行前须已完成新生产源码的独立单元覆盖率门禁。
 - 原 profile 不增加：32 个数据库，每库 256 KiB，每库 128 条保留请求，8 MiB 状态上限。alpha 连续填满三个 128 条窗口再回收，证据分别记录每个窗口的实际 retained/unacknowledged 计数。
 - 只有原三个 voter；不提交成员变更，不借重建目录替代落后副本恢复，也不修改生产计数上限来使实验通过。
 - SeaweedFS 必须是 `4.51`、提交 `153ab668c99731a6d29492bf6c61d0b4fa701101` 的真实可执行文件。所有凭据、私钥、配置、数据库、Raft 文件与原始 daemon 日志留在权限为 `0700` 的临时 fixture 目录，公开证据只包含本实验产生的随机合成数据、计数、哈希和脱敏事件。
@@ -25,9 +25,9 @@
 | 4. 显式应用确认与退休 | 错 sequence proof、其他 principal、同 principal 的只读 token 都不能确认原结果，普通 writer 不能轮转。先确认 127 条，故意留下响应丢失的 committed 请求未确认，轮转仍被拒绝；显式处理并确认最后一条后才能从 epoch 1 轮转到 2。逐条验证原 128 身份返回 `retired`，旧 execute/cancel/ack 均拒绝，SQL digest 与 revision 不变。 |
 | 5. 多轮窗口与离线副本 | 在两轮写之前 SIGKILL 一个已追平的 follower。其余两个副本分别完成 epoch 2、3 的 128 次写、终态查询、显式 ACK 与轮转，达到 epoch 4。一条新请求复用 epoch 1 的 request ID，旧世代仍然退休。三个完整窗口合计退休 384 条身份。 |
 | 6. Snapshot 恢复退休屏障 | 恢复前要求两个可用 source 的实际 `snapshot_index` 都超过落后副本停止时的 `applied`。同盘启动落后副本，验证其安装先进 snapshot、追平已见证的 quorum prefix，强读验证完整 alpha SQL 及各旧世代的退休屏障。beta 仅查 metadata，仍保持原 V3 冷归档，留待下一合同。 |
-| 7. 冷 ACK 与跨版本归档水合 | beta 仍引用原 V3 冷对象时，显式确认旧成功/取消结果。确认操作不得唤醒 SQLite，cold 轮转拒绝。真实 S3 TCP 黑洞使一次冷读唤醒失败，同时 alpha 热读成功；恢复连接后 V4 水合旧对象，最新 ACK 必须保留。轮转 beta 到 2 清除旧 live archive 引用，随后新写、自动归档并水合真实 V4 对象；旧不可变对象仍保留。 |
+| 7. 冷 ACK 与跨版本归档水合 | beta 仍引用原 V3 冷对象时，显式确认旧成功/取消结果。确认操作不得唤醒 SQLite，cold 轮转拒绝。真实 S3 TCP 黑洞使一次冷读唤醒失败，同时 alpha 热读成功；恢复连接后新服务水合旧对象，最新 ACK 必须保留。轮转 beta 到 2 清除旧 live archive 引用，随后新写、自动归档并水合真实 V4 对象；旧不可变对象仍保留。 |
 | 8. 轮转 UNKNOWN 与 crash 恢复 | alpha epoch 4 的结果处理并确认后，故意丢弃一次完整成功轮转响应。SDK 得到 `COMMIT_UNKNOWN`，只有一次 POST，由新的 metadata 读取确认 epoch 5，不能自动重复原轮转。再产生一个当前未确认结果，分别执行 leader SIGKILL、三个进程全部 SIGKILL 和原盘恢复，核对全部 SQL、旧世代退休屏障及当前未确认结果。恢复使用新的 writer 实例目录。 |
-| 9. 降级拒绝与再次恢复 | 先确认三个盘都应用最新 prefix，停止全部新进程，再让固定 V3 binary 分别 `OpenExisting` 三个 V4 目录。必须因 `STORE_APPLICATION` 退出，配置/锁/端口失败不算。然后新 binary 再次原盘启动，核对相同 SQL 与结果身份。 |
+| 9. 降级拒绝与再次恢复 | 先确认三个盘都应用最新 prefix，停止全部新进程，再让固定 V3 binary 分别 `OpenExisting` 三个当前 V5 目录。必须因 `STORE_APPLICATION` 退出，配置/锁/端口失败不算。然后新 binary 再次原盘启动，核对相同 SQL 与结果身份。 |
 
 第 8 合同另退休 alpha 的 1 条结果，第 7 合同退休 beta 的 3 条结果。因此一次完整通过的运行有 **388 条显式应用确认并退休的身份**、**2 条当前仍未确认的结果**；其中三个 128 条满窗口是边界压力部分。一个丢失成功响应的 committed 结果单独计数，不能冒充成功 SQL 响应。
 
@@ -37,7 +37,7 @@
 
 停止所有旧进程后，升级配置才增加 `retention_admin: true` 的独立凭据：它必须绑定原有 bootstrap administrator 100，权限恰为 READ|ADMIN，即 5，且 credential ID 不等于内部 service credential。旧数据库的既有 policy 已包含 administrator；激活过程不提升普通用户的权限。普通 token 不接受 ADMIN。
 
-降级探针使用保存的 **旧兼容配置副本**。若拿含新 token 字段的配置直接运行旧程序，`CONFIG_TOKEN` 只能证明配置不兼容，不能证明 V4 存储安全拒绝降级。
+降级探针使用保存的 **旧兼容配置副本**。若拿含新 token 字段的配置直接运行旧程序，`CONFIG_TOKEN` 只能证明配置不兼容，不能证明当前存储安全拒绝降级。
 
 ### 请求身份与 UNKNOWN
 

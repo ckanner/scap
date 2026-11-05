@@ -55,7 +55,7 @@ Claim 绑定预期 owner epoch 并递增世代；Activate 必须提交精确恢�
 
 少数派不能获得新的强读屏障或持久提交。SDK 对 ready 的观察仅用于选择候选节点，直接访问旧 leader 也必须通过正式权限和共识检查。没有 quorum 时保留 CP 拒绝行为，不能切到旧 SQLite 文件、旧 S3 对象或本地成功模式。
 
-并发归档新增了一个有界恢复竞态：请求刚读到非冷状态，后台可能在 Claim 前完成 Prune。只有 `Writer::recover` 明确返回 `Rejected(Cold)`，且 SQL 尚未执行时，服务才允许一次 fresh view → hydrate → 新 owner 恢复；递归刷新预算随即关闭，原 deadline 不变。Unknown 和其他恢复错误不进入这个重试。
+同进程的后台 Publish → Prune 与前台 Hydrate → Claim → 原生构造 → Activate 使用每库独立执行权。恢复在原 deadline 内取得执行权后，才读取权威视图、重新检查原租户准入并捕获控制身份，避免服务自己的归档先改变已经捕获的序号。等待期间不更新原租户凭据或预算；维护任务若观察到数据库已休眠，仍保持休眠。其他节点或迟到的未知命令依然可能造成控制竞争：原 Claim 被拒绝时，SQL 尚未执行，本次恢复返回 `RECOVERY_UNAVAILABLE`，不在错误后刷新序号或 ID。后续独立恢复不能借此重放原 Unknown SQL。
 
 ## 4. S3 归档与休眠闭环
 
@@ -80,11 +80,11 @@ Prune 保留全部已接受请求的身份、receipt、原结果、取消记录�
 
 失败后至少等到该次原 deadline 加 5 秒才接受该库新的归档任务。下一轮任务从新权威视图出发，不延长旧任务 deadline，也不把 UNKNOWN 当作未执行。排队时的 owner/head/auth epoch 通过 `publish_bound`、`prune_bound` 和最终状态机检查保留；I/O 期间即使同一个 head 经历唤醒再休眠，旧 owner 的任务也不能发布或裁剪。
 
-catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库。前景 cold hydrate 在该库自己的 lane 中等待，沿用原请求 deadline；其他库可继续处理请求。共享归档队列的锁只保护入队/取结果，不覆盖对象 I/O。
+catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库。前景 cold hydrate 在该库自己的 lane 中等待，沿用原请求 deadline；其他库可继续处理请求。共享归档队列的锁只保护有界入队、执行权目录和取结果，不覆盖对象 I/O。每库执行锁只协调本库归档与恢复，等待同库已有任务也消耗原请求预算；它不替代持久控制序号或 ReadIndex。
 
 单库 Prune 不授权截断共享 Raft 日志。成功 prune 通知请求一次正式全 cell checkpoint；所有 voter 还在 applied 距 snapshot 达到 128 条时，以及每 30 次维护轮的强制检查中尝试 checkpoint。只有 applied 已前进才创建新快照。复制状态、membership 和 applied position 被完整持久化后，才能按 Store 的既有协议回收日志。旧快照或物理引擎文件释放时机与逻辑 Prune 不是同一个事件。
 
-当前全部 S3 对象永久保留，没有安全 GC、删除 tombstone 或对象历史保留期协议。精确已发布引用构成恢复根，桶生命周期策略不能擅自删除它。该闭环降低冷状态的物理历史驻留；请求结果在显式确认并退休前保留，行政记录仍持续累积，未发布对象也不删除，不能据此宣称冷库零成本或无限数据库密度。
+当前全部 S3 对象永久保留，没有安全 GC、删除 tombstone 或对象历史保留期协议。精确已发布引用构成恢复根，桶生命周期策略不能擅自删除它。该闭环降低冷状态的物理历史驻留；请求结果在显式确认并退休前保留，v5 旧行政表冻结、新管理动作每库只留最近回执，未发布对象仍不删除，不能据此宣称冷库零成本或无限数据库密度。
 
 ## 5. 重启、故障与关闭
 
@@ -115,8 +115,8 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 | 拓扑 | 三个 voter、至多一个 learner，一个 cell，可信 peer 目录 3–16 个身份；最多 32 个配置数据库 |
 | 单库逻辑 SQLite 镜像 | 64 个 4096-byte page，即 256 KiB；不包含 WAL、快照、历史与缓存额外空间 |
 | 每库请求记录 | 每个窗口最多 128 个 accepted/cancel 记录；全部显式确认后由管理员推进请求世代，不自动淘汰 |
-| cell 管理操作 | 最多 4096 条；owner/归档操作持续占用预算，尚无行政记录退休；结果确认与请求世代轮转不新增这类记录 |
-| cell 状态 / command | 8 MiB / 4 MiB；归档正文加 192-byte hydrate 预算必须装进 command |
+| cell 管理操作 | v5 每库一个最近精确回执和持久控制序号；旧至多 4096 条回执保留但不再增长，新 owner/归档操作使用独立命名空间；结果确认与请求世代轮转不消耗控制序号 |
+| cell 状态 / command | 8 MiB / 4 MiB；v5 归档正文加 202-byte 控制 Hydrate envelope 必须装进 command；旧阶段按原 192-byte 判断重放 |
 | 单事务物理变更 / SQL 原结果 | 300 KiB / 64 KiB |
 | SQL 批次 / 参数 / 列 / 行 | 32 statements / 128 parameters / 64 columns / 1024 rows；其他值大小仍有独立限制 |
 | SQL mailbox | 全局至多 32 个在途/排队请求、8 MiB；单库 8 个/2 MiB；单请求 1 MiB |
@@ -126,7 +126,7 @@ catalogue 维护只 enqueue/poll，不等待后台 S3 I/O，也不打开冷库�
 
 达到容量上限会拒绝继续增长，不能静默丢弃旧结果、取消 fence 或唯一恢复数据。Prune 后如果其他库占用了 cell 空间，Hydrate 也可能因总体容量不足拒绝；本版本没有恢复容量预留与跨 cell 自动搬迁。
 
-受控成员操作的配置、认证、CAS、UNKNOWN 和升级顺序见 [成员管理](membership-operations.md)与 [ADR-0016](../adr/0016-durable-membership-replacement.md)。未实现的规模化能力包括动态数据库目录、自动坏盘发现与调度、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段与行政记录退休、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。显式请求结果退休不关闭这些独立目标。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
+受控成员操作的配置、认证、CAS、UNKNOWN 和升级顺序见 [成员管理](membership-operations.md)与 [ADR-0016](../adr/0016-durable-membership-replacement.md)。未实现的规模化能力包括动态数据库目录、自动坏盘发现与调度、迁移、多 cell 路由、跨区灾难恢复入口、删除/GC 协议、对象分块 hydrate、逻辑状态分段与旧行政表固定成本处理、完整 ORM/SQLite 驱动兼容和 R1/R2 热备。显式请求结果退休和有界新管理回执不关闭这些独立目标。etcd、Kubernetes 和生产观测平台不参与当前 daemon 的必要启动路径。
 
 本 profile 的 256 KiB 逻辑镜像不能用于宣称 1 GiB 恢复目标达标。协议正确性、资源有界和小规模故障通过也不能替代生产负载、跨 AZ 与长期可用性验证。
 
@@ -301,11 +301,11 @@ JS
 
 ## 8. 格式升级与验证门禁
 
-正式服务依次完成物理历史 v3 和请求退休 v4 两个独立有序激活，持久状态写 v4；未激活的阶段仍按原版本重放、编码和裁决容量。epoch 1 的旧操作保持业务 envelope v2，新世代与确认、退休操作使用 v3。reader 支持绑定相同身份、限额和位置的合法 v1/v2/v3 状态，不为旧 Cold 伪造 bytes；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧行政 intent hash 不随 envelope version 改写，原 operation ID 仍解析为原 receipt。
+正式服务依次完成物理历史 v3、请求退休 v4 和管理控制 v5 三个独立有序激活，持久状态写 v5，物理归档继续写 v4；未激活的阶段仍按原版本重放、编码和裁决容量。epoch 1 的旧操作保持业务 envelope v2，新请求世代与确认、退休操作使用 v3，新控制操作使用业务 envelope v4。reader 支持绑定相同身份、限额和位置的合法 v1/v2/v3/v4 状态，不为旧 Cold 伪造 bytes；从未 Claim 的旧库保持 `(epoch=0, worker=0)`，Suspend 不会创造虚假 owner。旧行政 intent hash 不随 envelope version 改写，原 operation ID 仍解析为原 receipt。
 
 激活后的新归档对象使用 `SCAPARC!` v4，并支持准确 v2/v3 对象的确定迁移。key 路径的 `scap/v1/` 是独立的路径布局版本。物理基线与有限 tail 恢复见 [ADR-0017](../adr/0017-bounded-physical-history.md)。v4 将应用确认作为当前 cell 元数据，Hydrate 不能从旧 archive 覆盖它；退休后归档绑定新请求世代和原提交前缀，详见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。
 
-Raft envelope version 3 隔离旧、新程序，禁止与 peer 版本 1/2 组成混合 quorum。升级必须停止全部旧 voter，保留原盘，再让全部新 voter OpenExisting。内部激活条目切换全 cell 的对应语义；server 等待精确持久结果和 fresh phase 4 视图，业务 lane 同样拒绝未激活状态，不能只依赖 `/readyz`。没有混版本滚动协商或原地降级。旧 v3 二进制打开已经持久化 v4 的 application 必须失败。限额仍属于持久绑定；旧 metadata 不能容纳新格式开销和未确认记录所需的确认空间预留时，拒绝激活并保留旧材料。配置显式退休管理员凭证时，遵守 [server 配置合同](../../crates/scap-server/README.md)，不把普通旧 token 自动升级为 ADMIN。
+Raft envelope version 4 隔离旧、新程序，禁止与 peer 版本 1/2/3 组成混合 quorum。升级必须停止全部旧 voter，保留原盘，再让全部新 voter OpenExisting。内部激活条目切换全 cell 的对应语义；server 等待精确持久结果和 fresh phase 5 视图，业务 lane 同样拒绝未激活状态，不能只依赖 `/readyz`。没有混版本滚动协商或原地降级。旧 v4 二进制打开已经持久化 v5 的 application 必须失败。限额仍属于持久绑定；旧 metadata 不能容纳新格式开销、未确认记录的确认空间与控制回执预留时，拒绝激活并保留旧材料。配置显式退休管理员凭证时，遵守 [server 配置合同](../../crates/scap-server/README.md)，不把普通旧 token 自动升级为 ADMIN。
 
 新鲜数据库 status 增加十进制 u64 字符串 `base_revision`、`tail_entries`、`tail_bytes`。SDK 映射为三个 `bigint | null` 字段；旧服务三项全缺失时返回 null，部分缺失或非法值拒绝。Cold 的 resident tail 为零不表示原请求结果丢失，也不允许绕过准确 archive hydration。
 
@@ -326,3 +326,10 @@ node experiments/service-network/run.mjs
 ```
 
 每次使用新的 evidence 目录。完成清单、实际二进制摘要、原始请求结果、故障时刻和测量分母决定可以声称的结果；本文不预先填写测试通过数量或生产 SLO。生产验收还需要跨 AZ、设备故障、目标容量、目标吞吐、长期样本和独立安全评审。
+
+
+### 有界管理控制
+
+[ADR-0020](../adr/0020-bounded-administrative-control.md) 将控制动作与业务请求窗口分开。Create、owner 恢复、权限变更与冷生命周期动作第一次发送前固定 expected control revision，最近相同身份重放返回原回执，较早身份永久拒绝。序号与最近回执一起进入 Raft 应用和 snapshot；旧行政表封闭后保持原大小，新动作不再消耗 4096 条 legacy 额度。达到其他状态、数据库、页面或请求窗口预算仍按原合同拒绝。
+
+后台归档通过精确成功的 Publish 回执取得 Prune 的下一序号；未知 Publish 不继续裁剪。Hydrate 只合并已经发布且核验一致的物理数据。Claim/Activate 期间发生另一控制转移会阻断原恢复任务。可信调用者使用 bound API 保留第一次捕获的视图；旧便利接口在控制协议激活后拒绝工作，不能读取新序号后重发同一个 operation ID。

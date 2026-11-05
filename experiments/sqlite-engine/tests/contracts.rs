@@ -187,6 +187,7 @@ fn propose(
     );
     scap_sql::decode_result(result, writer_limits().sql).unwrap();
     let command = Command {
+        control_revision: None,
         cell: CELL,
         database: DATABASE,
         admission: admission_for(cluster, &write.ticket),
@@ -1220,6 +1221,7 @@ impl Cluster {
 
     fn command(&mut self, kind: CommandKind) -> Command {
         Command {
+            control_revision: None,
             cell: CELL,
             database: DATABASE,
             admission: self.admission(),

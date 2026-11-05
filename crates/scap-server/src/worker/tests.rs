@@ -24,10 +24,12 @@ pub(crate) struct Effects {
     pub proposal_error_at: Option<usize>,
     pub before_proposal: Option<(usize, Command)>,
     pub lost_result: bool,
+    lost_result_at: Option<usize>,
     pub outcome: Option<Outcome>,
     pub status_error: bool,
     pub maintenance_error: bool,
     pub maintenance: Vec<bool>,
+    guard_trace: Rc<RefCell<GuardTrace>>,
 }
 
 #[derive(Clone)]
@@ -63,13 +65,19 @@ impl Port {
                 proposal_error_at: None,
                 before_proposal: None,
                 lost_result: false,
+                lost_result_at: None,
                 outcome: None,
                 status_error: false,
                 maintenance_error: false,
                 maintenance: vec![],
+                guard_trace: Rc::new(RefCell::new(GuardTrace::default())),
             })),
         };
         port.apply_raw(scap_cell::encode_retention_activation(
+            config.cell,
+            config.administrator_id,
+        ));
+        port.apply_raw(scap_cell::encode_control_activation(
             config.cell,
             config.administrator_id,
         ));
@@ -129,6 +137,7 @@ impl CellPort for Port {
     }
     fn read(&mut self, _: Instant, _: &AtomicBool) -> Result<ReadView, RuntimeError> {
         let mut held = self.effects.borrow_mut();
+        held.guard_trace.borrow_mut().record("read");
         held.reads += 1;
         if held.read_error == Some(held.reads) {
             return Err(RuntimeError::Unknown);
@@ -161,6 +170,7 @@ impl CellPort for Port {
     ) -> Result<ProposalResult, RuntimeError> {
         {
             let mut held = self.effects.borrow_mut();
+            held.guard_trace.borrow_mut().record("proposal");
             held.proposals += 1;
             if held.proposal_error || held.proposal_error_at == Some(held.proposals) {
                 return Err(RuntimeError::Unknown);
@@ -182,7 +192,9 @@ impl CellPort for Port {
             assert!(!matches!(self.apply(command).outcome, Outcome::Rejected(_)));
         }
         let mut result = self.apply_raw(data);
-        if self.effects.borrow().lost_result {
+        if self.effects.borrow().lost_result
+            || self.effects.borrow().lost_result_at == Some(self.effects.borrow().proposals)
+        {
             return Err(RuntimeError::Unknown);
         }
         if let Some(outcome) = self.effects.borrow_mut().outcome.take() {
@@ -279,14 +291,74 @@ impl scap_archive::Objects for Memory {
 // Only the deterministic test scheduler runs archive work synchronously. The
 // daemon uses archive_jobs; all archive algorithms here remain the production
 // Controller's implementation, rather than a parallel mock state machine.
+#[derive(Default)]
+struct GuardTrace {
+    held: bool,
+    acquired: usize,
+    dropped: usize,
+    database: Option<DatabaseIdentity>,
+    context: Option<RequestContext>,
+    events: Vec<(&'static str, bool)>,
+}
+
+impl GuardTrace {
+    fn record(&mut self, event: &'static str) {
+        self.events.push((event, self.held));
+    }
+}
+
+struct TestRecoveryGuard(Rc<RefCell<GuardTrace>>);
+
+impl Drop for TestRecoveryGuard {
+    fn drop(&mut self) {
+        let mut trace = self.0.borrow_mut();
+        assert!(trace.held);
+        trace.record("released");
+        trace.held = false;
+        trace.dropped += 1;
+    }
+}
+
 struct TestCold {
     controller: Option<scap_archive::Controller<Port, Memory>>,
     fail_archive: bool,
     fail_hydrate: bool,
     completed: bool,
+    guard_trace: Rc<RefCell<GuardTrace>>,
+    before_guard: Option<Box<dyn FnOnce()>>,
+    fail_guard: bool,
 }
 
 impl ColdStorage<Port> for TestCold {
+    type RecoveryGuard = TestRecoveryGuard;
+
+    fn recovery_guard(
+        &mut self,
+        database: DatabaseIdentity,
+        context: &RequestContext,
+    ) -> Result<Self::RecoveryGuard, ServiceError> {
+        {
+            let mut trace = self.guard_trace.borrow_mut();
+            assert!(!trace.held);
+            trace.database = Some(database);
+            trace.context = Some(context.clone());
+            trace.record("waiting");
+        }
+        if self.fail_guard {
+            return Err(failure("RECOVERY_UNAVAILABLE"));
+        }
+        if let Some(action) = self.before_guard.take() {
+            action();
+        }
+        {
+            let mut trace = self.guard_trace.borrow_mut();
+            trace.held = true;
+            trace.acquired += 1;
+            trace.record("acquired");
+        }
+        Ok(TestRecoveryGuard(self.guard_trace.clone()))
+    }
+
     fn poll(&mut self) -> bool {
         std::mem::take(&mut self.completed)
     }
@@ -297,13 +369,14 @@ impl ColdStorage<Port> for TestCold {
         database: &DatabaseView,
         operation: u128,
     ) -> Result<(), ServiceError> {
+        self.guard_trace.borrow_mut().record("hydrate");
         if self.fail_hydrate {
             return Err(failure("ARCHIVE_UNAVAILABLE"));
         }
         self.controller
             .as_mut()
             .ok_or_else(|| failure("ARCHIVE_UNAVAILABLE"))?
-            .hydrate(context, database.identity, operation)
+            .hydrate_bound(context, database.clone(), operation)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))
     }
     fn archive(
@@ -320,11 +393,11 @@ impl ColdStorage<Port> for TestCold {
         let Some(controller) = &mut self.controller else {
             return Ok(false);
         };
-        controller
-            .publish(context, database.identity, publish)
+        let published = controller
+            .publish_bound(context, database.clone(), publish)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))?;
         controller
-            .prune(context, database.identity, prune)
+            .prune_bound(context, database.clone(), published, prune)
             .map_err(|_| failure("ARCHIVE_UNAVAILABLE"))?;
         Ok(true)
     }
@@ -353,6 +426,9 @@ fn build() -> (TestWorker, Port, Arc<TestClock>, tempfile::TempDir) {
         fail_archive: false,
         fail_hydrate: false,
         completed: false,
+        guard_trace: port.effects.borrow().guard_trace.clone(),
+        before_guard: None,
+        fail_guard: false,
     };
     let worker = Worker::new(
         cfg,
@@ -473,15 +549,15 @@ fn catalogue_activates_before_mutation_and_restart_confirms_without_reproposal()
     assert!(worker.history_active);
     assert!(worker.ready.load(Ordering::Acquire));
     let held = port.effects.borrow();
-    assert_eq!(held.state.physical_history_version(), 4);
-    assert_eq!(held.proposals, 3); // Ordered v3 and v4 activation, then Create.
-    assert_eq!(held.state.position().index, 4);
+    assert_eq!(held.state.physical_history_version(), 5);
+    assert_eq!(held.proposals, 4); // Ordered v3, v4, v5 activation, then Create.
+    assert_eq!(held.state.position().index, 5);
     assert!(held.state.database(3).unwrap().suspended);
     let position = held.state.position();
     let encoded = held.state.encode();
     drop(held);
     worker.scan().unwrap();
-    assert_eq!(port.effects.borrow().proposals, 3);
+    assert_eq!(port.effects.borrow().proposals, 4);
     assert!(worker.writers.is_empty());
 
     let (mut restarted, restarted_port, _, _restarted_directory) = build();
@@ -530,9 +606,9 @@ fn unknown_activation_or_failed_confirmation_never_creates_a_database_or_marks_r
         assert!(worker.history_active);
         assert_eq!(
             port.effects.borrow().proposals,
-            if failure_point == 0 { 4 } else { 3 }
+            if failure_point == 0 { 5 } else { 4 }
         );
-        assert_eq!(port.effects.borrow().state.physical_history_version(), 4);
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 5);
         assert!(port.effects.borrow().state.database(3).is_some());
     }
 }
@@ -800,6 +876,14 @@ fn every_owner_and_outcome_wait_preserves_unknown_and_rejects_wrong_bindings() {
 
 fn administrative(worker: &TestWorker, kind: CommandKind) -> Command {
     Command {
+        control_revision: worker
+            .port
+            .effects
+            .borrow()
+            .state
+            .database(3)
+            .unwrap()
+            .control_revision,
         cell: worker.config.cell,
         database: worker.config.databases[0].identity,
         admission: Admission {
@@ -838,7 +922,10 @@ fn an_old_idle_timer_never_suspends_a_new_owner_or_a_different_head() {
     ));
     assert!(matches!(
         claimed.outcome,
-        Outcome::Administrative(AdminResult::OwnerClaimed(_))
+        Outcome::ControlApplied(ControlResult {
+            result: AdminResult::OwnerClaimed(_),
+            ..
+        })
     ));
     clock.elapsed.store(6, Ordering::Release);
     worker.tick().unwrap();
@@ -1007,6 +1094,10 @@ fn invalid_boot_scope_cache_cleanup_and_missing_recovery_directory_fail_closed()
         "RECOVERY_UNAVAILABLE"
     );
     assert!(worker.writers.is_empty());
+    {
+        let trace = worker.cold.guard_trace.borrow();
+        assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+    }
     std::fs::write(
         worker.config.data_dir.join("writers"),
         b"operator-owned-file",
@@ -1022,6 +1113,8 @@ fn invalid_boot_scope_cache_cleanup_and_missing_recovery_directory_fail_closed()
         std::fs::read(worker.config.data_dir.join("writers")).unwrap(),
         b"operator-owned-file"
     );
+    let trace = worker.cold.guard_trace.borrow();
+    assert_eq!((trace.acquired, trace.dropped, trace.held), (2, 2, false));
 }
 
 #[test]
@@ -1189,6 +1282,7 @@ fn corrupt_retained_result_is_never_returned_as_successful_sql() {
     let view = port.effects.borrow().state.database(3).unwrap();
     let physical_changes = vec![1, 2, 3];
     let command = Command {
+        control_revision: None,
         cell: worker.config.cell,
         database: view.identity,
         admission: call.context.admission,
@@ -1247,7 +1341,7 @@ fn missing_database_after_an_applied_create_and_unconfirmed_suspend_are_not_succ
 }
 
 #[test]
-fn concurrent_archive_prune_can_refresh_once_before_any_sql_executes() {
+fn concurrent_archive_prune_fences_recovery_before_sql_without_refreshing_identity() {
     let (mut worker, port, clock, _temp) = build();
     execute(
         &mut worker,
@@ -1267,18 +1361,22 @@ fn concurrent_archive_prune_can_refresh_once_before_any_sql_executes() {
     );
     assert!(matches!(
         port.apply(suspend).outcome,
-        Outcome::Administrative(AdminResult::Suspended(_))
+        Outcome::ControlApplied(ControlResult {
+            result: AdminResult::Suspended(_),
+            ..
+        })
     ));
     worker.writers.clear();
     let context = worker
         .admin(1, clock.now().unwrap().instant + Duration::from_secs(30))
         .unwrap();
-    let archive = worker
+    let source = port.effects.borrow().state.database(3).unwrap();
+    let publication = worker
         .cold
         .controller
         .as_mut()
         .unwrap()
-        .publish(&context, view.identity, 50_011)
+        .publish_bound(&context, source, 50_011)
         .unwrap();
     let published = port.effects.borrow().state.database(3).unwrap();
     assert!(!published.cold);
@@ -1287,14 +1385,38 @@ fn concurrent_archive_prune_can_refresh_once_before_any_sql_executes() {
         CommandKind::PruneArchive {
             operation_id: 50_012,
             expected_owner: published.owner,
-            archive_digest: archive.object_digest,
+            archive_digest: publication.archive().object_digest,
         },
     );
     let next = port.effects.borrow().proposals + 1;
     port.effects.borrow_mut().before_proposal = Some((next, prune));
+    assert_eq!(
+        execute(
+            &mut worker,
+            4701,
+            "INSERT INTO preserved VALUES(7)",
+            Mode::Write,
+        )
+        .unwrap_err()
+        .code,
+        "RECOVERY_UNAVAILABLE"
+    );
+    let fenced = port.effects.borrow().state.database(3).unwrap();
+    assert_eq!(fenced.revision, 1);
+    assert!(fenced.cold);
+    assert!(worker.writers.is_empty());
+    assert_eq!(port.effects.borrow().proposals, next);
+    assert!(worker
+        .cold
+        .guard_trace
+        .borrow()
+        .events
+        .ends_with(&[("proposal", true), ("released", true)]));
+    // The original invocation never ran SQL or rebound its Claim. A separate
+    // later invocation creates a new recovery and a new business request.
     execute(
         &mut worker,
-        4701,
+        4703,
         "INSERT INTO preserved VALUES(7)",
         Mode::Write,
     )
@@ -1309,8 +1431,8 @@ fn concurrent_archive_prune_can_refresh_once_before_any_sql_executes() {
             .rows,
         vec![vec![scap_sql::Value::Integer(7)]]
     );
-    // If that one refresh budget is already spent, a definite Cold response
-    // fails closed. There is no recursive unbounded retry or SQL replay.
+    // A later independent invocation captures its view after taking the guard;
+    // a prune completed before that capture is an ordinary cold wake.
     let suspended = administrative(
         &worker,
         CommandKind::SuspendDb {
@@ -1324,31 +1446,30 @@ fn concurrent_archive_prune_can_refresh_once_before_any_sql_executes() {
     let context = worker
         .admin(1, clock.now().unwrap().instant + Duration::from_secs(30))
         .unwrap();
+    let source = port.effects.borrow().state.database(3).unwrap();
+    let publication = worker
+        .cold
+        .controller
+        .as_mut()
+        .unwrap()
+        .publish_bound(&context, source.clone(), 50_014)
+        .unwrap();
     worker
         .cold
         .controller
         .as_mut()
         .unwrap()
-        .publish(&context, view.identity, 50_014)
+        .prune_bound(&context, source, publication, 50_015)
         .unwrap();
-    let stale = port.effects.borrow().state.database(3).unwrap();
-    worker
-        .cold
-        .controller
-        .as_mut()
-        .unwrap()
-        .prune(&context, view.identity, 50_015)
-        .unwrap();
-    let database = worker.config.databases[0].clone();
-    assert_eq!(
-        worker
-            .recover_after_prune(&database, stale, context.deadline, false)
-            .unwrap_err()
-            .code,
-        "RECOVERY_UNAVAILABLE"
-    );
     assert!(port.effects.borrow().state.database(3).unwrap().cold);
-    assert!(worker.writers.is_empty());
+    assert_eq!(
+        execute(&mut worker, 4704, "SELECT value FROM preserved", Mode::Read)
+            .unwrap()
+            .statements[0]
+            .rows,
+        vec![vec![scap_sql::Value::Integer(7)]]
+    );
+    assert!(!port.effects.borrow().state.database(3).unwrap().cold);
 }
 
 #[test]
@@ -1403,24 +1524,25 @@ fn exhaustion_and_failed_authority_reads_stop_each_maintenance_transition() {
     assert!(worker.writers.is_empty());
     let (mut worker, port, clock, _temp) = build();
     worker.tick().unwrap();
-    let mut stale = port.effects.borrow().state.database(3).unwrap();
-    assert!(stale.cold);
-    stale.cold = false;
-    let after_rejected_claim = port.effects.borrow().reads + 2;
-    port.effects.borrow_mut().read_error = Some(after_rejected_claim);
+    assert!(port.effects.borrow().state.database(3).unwrap().cold);
+    let guarded_read = port.effects.borrow().reads + 1;
+    port.effects.borrow_mut().read_error = Some(guarded_read);
     let database = worker.config.databases[0].clone();
     assert_eq!(
         worker
             .recover(
                 &database,
-                stale,
-                clock.now().unwrap().instant + Duration::from_secs(30)
+                RecoveryRequest::Maintenance(
+                    clock.now().unwrap().instant + Duration::from_secs(30)
+                ),
             )
             .unwrap_err()
             .code,
         "COMMIT_UNKNOWN"
     );
     assert!(port.effects.borrow().state.database(3).unwrap().cold);
+    assert_eq!(port.effects.borrow().reads, guarded_read);
+    assert!(!worker.cold.guard_trace.borrow().held);
 }
 
 #[test]
@@ -1922,7 +2044,472 @@ fn v3_requires_separate_durable_retention_activation_and_confirmation_before_rea
             effects.read_error = None;
         }
         worker.scan().unwrap();
-        assert_eq!(port.effects.borrow().state.physical_history_version(), 4);
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 5);
         assert!(worker.ready.load(Ordering::Acquire));
+    }
+}
+
+#[test]
+fn v4_control_activation_requires_exact_durable_result_and_fresh_confirmation() {
+    for failure_point in 0..3 {
+        let (mut worker, port, _, _temp) = build();
+        port.effects.borrow_mut().state = CellState::bootstrap(
+            worker.config.cell,
+            worker.config.administrator_id,
+            Position { term: 1, index: 1 },
+            cell_limits(),
+        )
+        .unwrap();
+        port.apply_raw(scap_cell::encode_retention_activation(
+            worker.config.cell,
+            worker.config.administrator_id,
+        ));
+        assert_eq!(port.effects.borrow().state.physical_history_version(), 4);
+        worker.cold.controller = None;
+        {
+            let mut effects = port.effects.borrow_mut();
+            effects.proposal_error = failure_point == 0;
+            effects.lost_result = failure_point == 1;
+            effects.read_error = (failure_point == 2).then_some(2);
+        }
+        assert_eq!(worker.scan().unwrap_err().code, "COMMIT_UNKNOWN");
+        assert!(!worker.ready.load(Ordering::Acquire));
+        assert!(!worker.history_active);
+        assert!(port.effects.borrow().state.database(3).is_none());
+        assert_eq!(port.effects.borrow().proposals, 1);
+        assert_eq!(
+            port.effects.borrow().state.physical_history_version(),
+            if failure_point == 0 { 4 } else { 5 }
+        );
+        {
+            let mut effects = port.effects.borrow_mut();
+            effects.proposal_error = false;
+            effects.lost_result = false;
+            effects.read_error = None;
+        }
+        worker.scan().unwrap();
+        assert!(worker.ready.load(Ordering::Acquire));
+        assert!(worker.history_active);
+        let database = port.effects.borrow().state.database(3).unwrap();
+        assert_eq!(database.control_revision, Some(1));
+        assert!(database.suspended);
+        assert_eq!(
+            port.effects.borrow().proposals,
+            if failure_point == 0 { 3 } else { 2 }
+        );
+    }
+}
+
+#[test]
+fn queued_archive_finishes_before_guarded_recovery_captures_its_control_intent() {
+    let (mut worker, port, clock, _temp) = build();
+    let database = worker.config.databases[0].clone();
+    let deadline = clock.now().unwrap().instant + Duration::from_secs(30);
+    let source = worker.database(&database, deadline).unwrap();
+    assert!(source.suspended && !source.cold);
+    let objects = Memory::default();
+    worker.cold.controller = Some(scap_archive::Controller::new(
+        worker.client.clone(),
+        objects.clone(),
+    ));
+    let mut queued = scap_archive::Controller::new(worker.client.clone(), objects);
+    let archive_context = worker.admin(source.auth_epoch, deadline).unwrap();
+    let expected_revision = source.control_revision.unwrap() + 5;
+    let waiting_clock = clock.clone();
+    worker.cold.before_guard = Some(Box::new(move || {
+        // The pending job retains the view it captured before the wake. Its
+        // publication and prune complete while foreground acquisition waits.
+        let published = queued
+            .publish_bound(&archive_context, source.clone(), 93_001)
+            .unwrap();
+        queued
+            .prune_bound(&archive_context, source, published, 93_002)
+            .unwrap();
+        waiting_clock.elapsed.store(2, Ordering::Release);
+    }));
+    let call = request(
+        &worker,
+        93_003,
+        Operation::Execute {
+            mode: Mode::Read,
+            statements: vec![sql("SELECT 37")],
+        },
+    );
+    let original = call.context.clone();
+    match worker.request(call).unwrap() {
+        Reply::Sql(result) => assert_eq!(
+            result.statements[0].rows,
+            vec![vec![scap_sql::Value::Integer(37)]]
+        ),
+        _ => panic!("fresh guarded recovery must serve the original request"),
+    }
+    let view = port.effects.borrow().state.database(3).unwrap();
+    assert_eq!(view.control_revision, Some(expected_revision));
+    assert_eq!(view.owner.epoch, 1);
+    assert!(view.active && !view.suspended && !view.cold);
+    let trace = worker.cold.guard_trace.borrow();
+    assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+    assert_eq!(trace.database, Some(database.identity));
+    let guarded = trace.context.as_ref().unwrap();
+    assert_eq!(guarded.deadline, original.deadline);
+    assert!(Arc::ptr_eq(&guarded.cancelled, &original.cancelled));
+    let acquired = trace
+        .events
+        .iter()
+        .position(|event| event.0 == "acquired")
+        .unwrap();
+    let released = trace
+        .events
+        .iter()
+        .position(|event| event.0 == "released")
+        .unwrap();
+    assert!(trace.events[..acquired].contains(&("proposal", false)));
+    assert_eq!(trace.events[acquired + 1], ("read", true));
+    assert!(trace.events[acquired..=released]
+        .iter()
+        .all(|event| event.1));
+    assert_eq!(
+        trace.events[acquired..released]
+            .iter()
+            .filter(|event| event.0 == "proposal")
+            .count(),
+        3
+    );
+    assert!(trace.events[acquired..released].contains(&("hydrate", true)));
+    // The ordinary query begins after the owner has been fully published and
+    // the guard released; no control or SQL command is retried by recovery.
+    assert_eq!(trace.events[released + 1..], [("read", false)]);
+}
+
+#[test]
+fn guarded_wake_rechecks_original_tenant_authority_before_admin_effects() {
+    for mode in [Mode::Read, Mode::Write] {
+        let (mut worker, port, _clock, _temp) = build();
+        worker.tick().unwrap();
+        let before = port.effects.borrow().state.database(3).unwrap();
+        assert!(before.cold);
+        let fence = administrative(
+            &worker,
+            CommandKind::AuthFence {
+                operation_id: 93_100,
+                expected_epoch: before.auth_epoch,
+                policy: vec![Grant {
+                    principal_id: worker.config.administrator_id,
+                    permissions: scap_cell::ADMIN | scap_cell::READ | scap_cell::WRITE,
+                }],
+            },
+        );
+        let waiting_port = port.clone();
+        worker.cold.before_guard = Some(Box::new(move || {
+            assert!(matches!(
+                waiting_port.apply(fence).outcome,
+                Outcome::ControlApplied(ControlResult {
+                    result: AdminResult::AuthChanged(2),
+                    ..
+                })
+            ));
+        }));
+        let proposals = port.effects.borrow().proposals;
+        assert_eq!(
+            execute(&mut worker, 93_101, "SELECT 1", mode)
+                .unwrap_err()
+                .code,
+            "OUTCOME_FORBIDDEN"
+        );
+        let after = port.effects.borrow().state.database(3).unwrap();
+        assert_eq!(after.auth_epoch, 2);
+        assert_eq!(
+            after.control_revision,
+            before.control_revision.map(|revision| revision + 1)
+        );
+        assert_eq!(after.owner, before.owner);
+        assert!(after.cold && after.suspended && !after.active);
+        assert_eq!(port.effects.borrow().proposals, proposals);
+        assert!(worker.writers.is_empty());
+        let trace = worker.cold.guard_trace.borrow();
+        assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+        assert!(!trace.events.contains(&("hydrate", true)));
+        assert!(!trace.events.contains(&("proposal", true)));
+    }
+}
+
+#[test]
+fn guarded_write_does_not_wake_a_request_epoch_retired_while_waiting() {
+    let (mut worker, port, _clock, _temp) = build();
+    worker.cold.controller = None;
+    worker.tick().unwrap();
+    // Rotation requires a nonempty, fully acknowledged window. A cancelled
+    // request supplies it without creating or activating an SQL owner.
+    let cancelled = terminal_request(
+        &worker,
+        93_299,
+        1,
+        "SELECT 8",
+        OutcomeAction::ResolveOrCancel,
+    );
+    assert!(matches!(
+        worker.request(cancelled).unwrap(),
+        Reply::Outcome(ServiceOutcome::Cancelled { .. })
+    ));
+    acknowledge(&mut worker, 93_299, 1, "SELECT 8");
+    let before = port.effects.borrow().state.database(3).unwrap();
+    let mut rotate = administrative(&worker, CommandKind::RotateRequests { expected_epoch: 1 });
+    rotate.control_revision = None;
+    let waiting_port = port.clone();
+    worker.cold.before_guard = Some(Box::new(move || {
+        assert_eq!(
+            waiting_port.apply(rotate).outcome,
+            Outcome::RequestsRotated { epoch: 2 }
+        );
+    }));
+    let proposals = port.effects.borrow().proposals;
+    assert_eq!(
+        execute(&mut worker, 93_200, "SELECT 1", Mode::Write)
+            .unwrap_err()
+            .code,
+        "REQUEST_RETIRED"
+    );
+    let after = port.effects.borrow().state.database(3).unwrap();
+    assert_eq!(after.request_epoch, 2);
+    assert_eq!(after.owner, before.owner);
+    assert_eq!(after.cold, before.cold);
+    assert!(after.suspended && !after.active);
+    assert_eq!(port.effects.borrow().proposals, proposals);
+    assert!(worker.writers.is_empty());
+    let trace = worker.cold.guard_trace.borrow();
+    assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+    assert!(!trace.events.contains(&("hydrate", true)));
+}
+
+#[test]
+fn maintenance_rechecks_sleep_and_current_admin_authority_after_guard_wait() {
+    for suspended in [true, false] {
+        let (mut worker, port, _clock, _temp) = build();
+        execute(&mut worker, 93_300, "SELECT 1", Mode::Read).unwrap();
+        worker.writers.clear();
+        let before = port.effects.borrow().state.database(3).unwrap();
+        let transition = administrative(
+            &worker,
+            if suspended {
+                CommandKind::SuspendDb {
+                    operation_id: 93_301,
+                    token: before.owner,
+                    expected_revision: before.revision,
+                }
+            } else {
+                CommandKind::AuthFence {
+                    operation_id: 93_301,
+                    expected_epoch: before.auth_epoch,
+                    policy: vec![Grant {
+                        principal_id: worker.config.administrator_id,
+                        permissions: scap_cell::ADMIN | scap_cell::READ | scap_cell::WRITE,
+                    }],
+                }
+            },
+        );
+        let waiting_port = port.clone();
+        worker.cold.before_guard = Some(Box::new(move || {
+            assert!(matches!(
+                waiting_port.apply(transition).outcome,
+                Outcome::ControlApplied(_)
+            ));
+        }));
+        let proposals = port.effects.borrow().proposals;
+        worker.tick().unwrap();
+        let after = port.effects.borrow().state.database(3).unwrap();
+        assert_eq!(after.suspended, suspended);
+        assert_eq!(after.active, !suspended);
+        assert_eq!(after.owner.epoch, before.owner.epoch + 1);
+        assert_eq!(worker.writers.is_empty(), suspended);
+        assert_eq!(
+            port.effects.borrow().proposals - proposals,
+            if suspended { 0 } else { 2 }
+        );
+        assert_eq!(after.auth_epoch, if suspended { 1 } else { 2 });
+        let trace = worker.cold.guard_trace.borrow();
+        assert_eq!(trace.acquired, trace.dropped);
+        assert!(!trace.held);
+    }
+}
+
+#[test]
+fn recovery_guard_failures_and_original_cancellation_or_deadline_never_submit() {
+    for failure_point in 0..4 {
+        let (mut worker, port, clock, _temp) = build();
+        worker.tick().unwrap();
+        let before = port.effects.borrow().state.database(3).unwrap();
+        let call = request(
+            &worker,
+            93_400,
+            Operation::Execute {
+                mode: Mode::Read,
+                statements: vec![sql("SELECT 1")],
+            },
+        );
+        let original = call.context.clone();
+        match failure_point {
+            0 => worker.cold.fail_guard = true,
+            1 => {
+                let cancelled = original.cancelled.clone();
+                worker.cold.before_guard = Some(Box::new(move || {
+                    cancelled.store(true, Ordering::Release);
+                }));
+            }
+            2 => {
+                worker.cold.before_guard = Some(Box::new(move || {
+                    clock.elapsed.store(31, Ordering::Release);
+                }))
+            }
+            _ => worker.cold.fail_hydrate = true,
+        }
+        let proposals = port.effects.borrow().proposals;
+        let error = worker.request(call).err().unwrap();
+        assert_eq!(
+            error.code,
+            match failure_point {
+                0 => "RECOVERY_UNAVAILABLE",
+                1 | 2 => "COMMIT_UNKNOWN",
+                _ => "ARCHIVE_UNAVAILABLE",
+            }
+        );
+        assert_eq!(port.effects.borrow().proposals, proposals);
+        assert_eq!(port.effects.borrow().state.database(3).unwrap(), before);
+        assert!(worker.writers.is_empty());
+        let trace = worker.cold.guard_trace.borrow();
+        let acquired = usize::from(failure_point != 0);
+        assert_eq!(
+            (trace.acquired, trace.dropped, trace.held),
+            (acquired, acquired, false)
+        );
+        let observed = trace.context.as_ref().unwrap();
+        assert_eq!(observed.deadline, original.deadline);
+        assert!(Arc::ptr_eq(&observed.cancelled, &original.cancelled));
+    }
+}
+
+#[test]
+fn recovery_rechecks_database_identity_after_guard_and_hydrate_before_owner_effects() {
+    for after_hydrate in [false, true] {
+        for wrong_incarnation in [false, true] {
+            let (mut worker, port, _clock, directory) = build();
+            let invalid = if wrong_incarnation {
+                let (mut other, other_port, _clock, _directory) = build();
+                other.config.databases[0].identity.incarnation += 1;
+                other.tick().unwrap();
+                let state = other_port.effects.borrow().state.clone();
+                state
+            } else {
+                port.effects.borrow().state.clone()
+            };
+            worker.tick().unwrap();
+            let before = port.effects.borrow().state.database(3).unwrap();
+            assert!(before.cold);
+            let call = request(
+                &worker,
+                93_450,
+                Operation::Execute {
+                    mode: Mode::Read,
+                    statements: vec![sql("SELECT 1")],
+                },
+            );
+            let reads = port.effects.borrow().reads;
+            let proposals = port.effects.borrow().proposals;
+            // Recovery first reads after acquiring the guard. A cold wake then
+            // validates the captured view in Controller and confirms Hydrate
+            // with a third read before constructing any new owner intent.
+            let failed_read = reads + if after_hydrate { 3 } else { 1 };
+            port.effects.borrow_mut().read_override = Some((failed_read, invalid));
+            let error = worker
+                .recover(
+                    &call.database,
+                    RecoveryRequest::Tenant {
+                        context: &call.context,
+                        mode: Mode::Read,
+                        request_id: call.request_id,
+                        fingerprint: scap_sql::request_fingerprint(
+                            &[sql("SELECT 1")],
+                            worker_limits().sqlite.sql,
+                        )
+                        .unwrap(),
+                    },
+                )
+                .unwrap_err();
+            assert_eq!(
+                error.code,
+                if wrong_incarnation {
+                    "DATABASE_FENCED"
+                } else {
+                    "DATABASE_MISSING"
+                }
+            );
+            assert_eq!(port.effects.borrow().reads, failed_read);
+            assert_eq!(
+                port.effects.borrow().proposals,
+                proposals + usize::from(after_hydrate)
+            );
+            let after = port.effects.borrow().state.database(3).unwrap();
+            assert_eq!(after.owner, before.owner);
+            assert_eq!(after.revision, before.revision);
+            assert_eq!(after.cold, !after_hydrate);
+            assert_eq!(
+                after.control_revision,
+                before
+                    .control_revision
+                    .map(|revision| revision + u64::from(after_hydrate))
+            );
+            assert!(worker.writers.is_empty());
+            assert_eq!(
+                std::fs::read_dir(directory.path().join("writers"))
+                    .unwrap()
+                    .count(),
+                0
+            );
+            let trace = worker.cold.guard_trace.borrow();
+            assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+            assert!(trace
+                .events
+                .ends_with(&[("read", true), ("released", true)]));
+        }
+    }
+}
+
+#[test]
+fn unknown_claim_or_activation_releases_guard_without_refresh_or_retry() {
+    for lost_activation in [false, true] {
+        let (mut worker, port, _clock, directory) = build();
+        worker.cold.controller = None;
+        worker.tick().unwrap();
+        let before = port.effects.borrow().state.database(3).unwrap();
+        let proposals = port.effects.borrow().proposals;
+        let attempts = if lost_activation { 2 } else { 1 };
+        port.effects.borrow_mut().lost_result_at = Some(proposals + attempts);
+        assert_eq!(
+            execute(&mut worker, 93_500, "SELECT 1", Mode::Read)
+                .unwrap_err()
+                .code,
+            "RECOVERY_UNAVAILABLE"
+        );
+        let after = port.effects.borrow().state.database(3).unwrap();
+        assert_eq!(
+            after.control_revision,
+            before
+                .control_revision
+                .map(|revision| revision + attempts as u64)
+        );
+        assert_eq!(after.owner.epoch, before.owner.epoch + 1);
+        assert_eq!(after.active, lost_activation);
+        assert_eq!(port.effects.borrow().proposals, proposals + attempts);
+        assert!(worker.writers.is_empty());
+        assert_eq!(
+            std::fs::read_dir(directory.path().join("writers"))
+                .unwrap()
+                .count(),
+            0
+        );
+        let trace = worker.cold.guard_trace.borrow();
+        assert_eq!((trace.acquired, trace.dropped, trace.held), (1, 1, false));
+        assert!(trace
+            .events
+            .ends_with(&[("proposal", true), ("released", true)]));
     }
 }

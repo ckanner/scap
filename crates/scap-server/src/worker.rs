@@ -4,7 +4,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use scap_cell::{AdminResult, Admission, CommandKind, DatabaseView, Grant, Lookup, Outcome};
+use scap_cell::{
+    AdminResult, Admission, CommandKind, ControlResult, DatabaseIdentity, DatabaseView, Grant,
+    Lookup, Outcome,
+};
 use scap_cell_client::{CellPort, Client, RequestContext};
 use scap_engine::EngineIdentity;
 use scap_raft_runtime::Clock;
@@ -47,6 +50,16 @@ pub(crate) struct Request {
     pub operation: Operation,
 }
 
+enum RecoveryRequest<'a> {
+    Maintenance(Instant),
+    Tenant {
+        context: &'a RequestContext,
+        mode: Mode,
+        request_id: u128,
+        fingerprint: [u8; 32],
+    },
+}
+
 pub(crate) enum Reply {
     Status(scap_service::DatabaseStatus),
     Sql(TransactionResult),
@@ -57,6 +70,17 @@ pub(crate) enum Reply {
 /// Object I/O is outside the ordered state machine. An implementation must use
 /// the currently published exact archive and preserve this original context.
 pub(crate) trait ColdStorage<P: ControlPort> {
+    type RecoveryGuard;
+
+    /// Serialize this database's wake with background publication and pruning.
+    /// Acquisition uses the original budget and cancellation, without reading
+    /// the cell or binding an administrative intent before the guard is held.
+    fn recovery_guard(
+        &mut self,
+        database: DatabaseIdentity,
+        context: &RequestContext,
+    ) -> Result<Self::RecoveryGuard, ServiceError>;
+
     /// Collect completed background work without waiting for object I/O.
     fn poll(&mut self) -> bool {
         false
@@ -223,7 +247,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
         &mut self,
         state: scap_cell::CellState,
     ) -> Result<scap_cell::CellState, ServiceError> {
-        if state.physical_history_version() != 4 {
+        if !state.control_enabled() {
             self.history_active = false;
             self.writers.clear();
             self.ready.store(false, Ordering::Release);
@@ -269,8 +293,13 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 .activate_retention(&context)
                 .map_err(|_| failure("COMMIT_UNKNOWN"))?;
         }
-        // The same original deadline covers ordered v3 then v4 activation.
-        // Only a tracked durable result and subsequent fresh v4 view opens SQL.
+        if !state.control_enabled() {
+            self.client
+                .activate_control(&context)
+                .map_err(|_| failure("COMMIT_UNKNOWN"))?;
+        }
+        // The same original deadline covers ordered v3, v4 and v5 activation.
+        // Only a tracked durable result and subsequent fresh v5 view opens SQL.
         self.history_active = true;
         self.ready.store(true, Ordering::Release);
         Ok(())
@@ -295,9 +324,10 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             let operation_id = self.id()?;
             let applied = self
                 .client
-                .submit(
+                .submit_control(
                     &context,
                     config.identity,
+                    Some(0),
                     CommandKind::Create {
                         operation_id,
                         policy: grants
@@ -312,13 +342,25 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 .map_err(|_| failure("COMMIT_UNKNOWN"))?;
             if !matches!(
                 applied.outcome,
-                Outcome::Administrative(AdminResult::Created)
-                    | Outcome::AlreadyApplied(AdminResult::Created)
+                Outcome::ControlApplied(ControlResult {
+                    result: AdminResult::Created,
+                    ..
+                }) | Outcome::ControlAlreadyApplied(ControlResult {
+                    result: AdminResult::Created,
+                    ..
+                })
             ) {
                 return Err(failure("DATABASE_CREATE_REJECTED"));
             }
             state = self.state(deadline)?;
         }
+        Self::database_view(&state, config)
+    }
+
+    fn database_view(
+        state: &scap_cell::CellState,
+        config: &DatabaseConfig,
+    ) -> Result<DatabaseView, ServiceError> {
         let view = state
             .database(config.identity.database_id)
             .ok_or_else(|| failure("DATABASE_MISSING"))?;
@@ -331,25 +373,52 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
     fn recover(
         &mut self,
         database: &DatabaseConfig,
-        view: DatabaseView,
-        deadline: Instant,
+        request: RecoveryRequest<'_>,
     ) -> Result<(), ServiceError> {
-        self.recover_after_prune(database, view, deadline, true)
-    }
-
-    fn recover_after_prune(
-        &mut self,
-        database: &DatabaseConfig,
-        mut view: DatabaseView,
-        deadline: Instant,
-        may_refresh: bool,
-    ) -> Result<(), ServiceError> {
-        let context = self.admin(view.auth_epoch, deadline)?;
+        let (deadline, cancelled) = match &request {
+            RecoveryRequest::Maintenance(deadline) => (*deadline, Arc::new(AtomicBool::new(false))),
+            RecoveryRequest::Tenant { context, .. } => {
+                (context.deadline, context.cancelled.clone())
+            }
+        };
+        let mut context = self.admin(1, deadline)?;
+        context.cancelled = cancelled;
+        let _guard = self.cold.recovery_guard(database.identity, &context)?;
+        // A queued archive may finish while this wake waits for the guard.
+        // Bind recovery only now, from a fresh authoritative view. A rejected
+        // or UNKNOWN submission below never refreshes this operation's intent.
+        let state = self.active_state(&context)?;
+        let mut view = Self::database_view(&state, database)?;
+        match request {
+            // Maintenance may have observed an unsuspended owner before
+            // waiting. Only authenticated demand may wake a newly idle DB.
+            RecoveryRequest::Maintenance(_) if view.suspended => return Ok(()),
+            RecoveryRequest::Maintenance(_) => (),
+            RecoveryRequest::Tenant {
+                context,
+                mode,
+                request_id,
+                fingerprint,
+            } => {
+                // Waiting must not turn a previously authorized caller into an
+                // administrative wake after its policy or request epoch changed.
+                Self::authorize_wake(
+                    &state,
+                    database.identity,
+                    context,
+                    mode,
+                    request_id,
+                    fingerprint,
+                )?;
+            }
+        }
+        context.admission.auth_epoch = view.auth_epoch;
         if view.cold {
             let hydrate = self.id()?;
             self.cold
                 .hydrate(&mut self.client, &context, &view, hydrate)?;
-            view = self.database(database, deadline)?;
+            let state = self.active_state(&context)?;
+            view = Self::database_view(&state, database)?;
         }
         let instance = self.id()?;
         let request = OwnerRequest {
@@ -358,6 +427,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 database: database.identity,
             },
             expected_owner_epoch: view.owner.epoch,
+            expected_control_revision: view.control_revision,
             worker_instance_id: instance,
             claim_operation_id: self.id()?,
             activate_operation_id: self.id()?,
@@ -368,7 +438,10 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             .join("writers")
             .join(format!("{instance:032x}"));
         let cache = crate::cache::Cache::reserve(directory.clone(), self.cache_failed.clone())?;
-        let writer = match Writer::recover_with(
+        // A concurrent control transition fences this recovery intent. The
+        // caller may start a later independent recovery, but this invocation
+        // never refreshes its sequence or silently replaces its operation IDs.
+        let writer = Writer::recover_with(
             self.client.clone(),
             &context,
             request,
@@ -376,19 +449,8 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             worker_limits(),
             self.clock.clone(),
             BorrowFactory(&mut self.factory),
-        ) {
-            Ok(writer) => writer,
-            Err(scap_sql_worker::Error::Rejected(scap_cell::Reject::Cold)) if may_refresh => {
-                // An already queued archive can prune between the initial view
-                // and ClaimOwner. This explicit rejection proves no owner was
-                // acquired and SQL has not run. Refresh once with the original
-                // deadline; no unknown write or administrative attempt retries.
-                drop(cache);
-                let fresh = self.database(database, deadline)?;
-                return self.recover_after_prune(database, fresh, deadline, false);
-            }
-            Err(_) => return Err(failure("RECOVERY_UNAVAILABLE")),
-        };
+        )
+        .map_err(|_| failure("RECOVERY_UNAVAILABLE"))?;
         self.writers.insert(
             database.identity.database_id,
             Slot {
@@ -397,6 +459,31 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 last_use: self.clock.now().map_err(|_| failure("CLOCK"))?.instant,
             },
         );
+        Ok(())
+    }
+
+    fn authorize_wake(
+        state: &scap_cell::CellState,
+        database: DatabaseIdentity,
+        context: &RequestContext,
+        mode: Mode,
+        request_id: u128,
+        fingerprint: [u8; 32],
+    ) -> Result<(), ServiceError> {
+        if mode == Mode::Read {
+            // Read identity is only tracing, independent of request epochs or
+            // IDs shared with earlier writes.
+            state
+                .metadata(database, context.admission)
+                .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
+        } else {
+            let prior = state
+                .lookup(database, context.admission, request_id, fingerprint)
+                .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
+            if matches!(prior, Lookup::Retired { .. }) {
+                return Err(failure("REQUEST_RETIRED"));
+            }
+        }
         Ok(())
     }
 
@@ -492,9 +579,10 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             let operation_id = self.id()?;
             let outcome = self
                 .client
-                .submit(
+                .submit_control(
                     &context,
                     database.identity,
+                    view.control_revision,
                     CommandKind::SuspendDb {
                         operation_id,
                         token: view.owner,
@@ -505,8 +593,13 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 .outcome;
             if !matches!(
                 outcome,
-                Outcome::Administrative(AdminResult::Suspended(_))
-                    | Outcome::AlreadyApplied(AdminResult::Suspended(_))
+                Outcome::ControlApplied(ControlResult {
+                    result: AdminResult::Suspended(_),
+                    ..
+                }) | Outcome::ControlAlreadyApplied(ControlResult {
+                    result: AdminResult::Suspended(_),
+                    ..
+                })
             ) {
                 return Err(failure("SUSPEND_REJECTED"));
             }
@@ -518,7 +611,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                 self.cold
                     .archive(&mut self.client, &context, &view, publish, prune)?;
         } else if !view.suspended && !self.writers.contains_key(&id) {
-            self.recover(&database, view, deadline)?;
+            self.recover(&database, RecoveryRequest::Maintenance(deadline))?;
         } else if view.suspended && !view.cold {
             let context = self.admin(view.auth_epoch, deadline)?;
             let publish = self.id()?;
@@ -595,7 +688,7 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
             Operation::Execute { mode, statements } => {
                 let id = request.database.identity.database_id;
                 if !self.writers.contains_key(&id) {
-                    let view = self.database(&request.database, context.deadline)?;
+                    self.database(&request.database, context.deadline)?;
                     // A cold wake has administrative side effects. Authenticate
                     // current policy before doing those on behalf of a caller.
                     // An already active Writer performs its own fresh barrier
@@ -607,27 +700,23 @@ impl<P: ControlPort, F: EngineFactory<P>, C: ColdStorage<P>> Worker<P, F, C> {
                         .client
                         .read(context)
                         .map_err(|_| failure("COMMIT_UNKNOWN"))?;
-                    if mode == Mode::Read {
-                        // Read identity is only tracing. Its epoch or an ID
-                        // shared with an earlier write cannot change the read
-                        // result when a cold database acquires a new owner.
-                        state
-                            .metadata(request.database.identity, context.admission)
-                            .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
-                    } else {
-                        let prior = state
-                            .lookup(
-                                request.database.identity,
-                                context.admission,
-                                request.request_id,
-                                fingerprint,
-                            )
-                            .map_err(|_| failure("OUTCOME_FORBIDDEN"))?;
-                        if matches!(prior, Lookup::Retired { .. }) {
-                            return Err(failure("REQUEST_RETIRED"));
-                        }
-                    }
-                    self.recover(&request.database, view, context.deadline)?;
+                    Self::authorize_wake(
+                        &state,
+                        request.database.identity,
+                        context,
+                        mode,
+                        request.request_id,
+                        fingerprint,
+                    )?;
+                    self.recover(
+                        &request.database,
+                        RecoveryRequest::Tenant {
+                            context,
+                            mode,
+                            request_id: request.request_id,
+                            fingerprint,
+                        },
+                    )?;
                 }
                 let slot = self.writers.get_mut(&id).unwrap();
                 if slot.writer.head().identity.database != request.database.identity {

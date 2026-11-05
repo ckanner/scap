@@ -495,7 +495,7 @@ request_digest = hash(canonical transaction intent and bound inputs)
 
 唤醒和 worker 故障迁移都使用 `ClaimOwner → 新 ReadIndex → restore → ActivateOwner → 最终复核`。Cold 必须先用当前精确 ArchiveRef hydrate，不能先 Claim 再以任意旧对象覆盖状态。多个并发请求通过状态机条件检查收敛到一个 owner；恢复者使用当前完整物理历史，不从 S3 listing 选择“最新文件”。
 
-已实现的后台 Prune 可能与新请求竞争。仅在 Claim 明确被 `Cold` 拒绝、SQL 尚未执行时，服务允许一次新 view/hydrate/Claim，沿用原 deadline；没有第二次刷新预算，也不重试 Unknown 或其他拒绝。恢复步骤失败可能已改变 epoch，不能把函数错误当作管理操作回滚。
+后台 Prune 可能与新请求竞争。v5 的原 Claim 被控制序号 fence 后，本次恢复在 SQL 尚未执行时结束，不刷新该调用的序号或操作身份。后续独立任务可以建立新的恢复意图；原 Unknown 仍保持未知，恢复函数错误也不代表管理操作回滚。
 
 同 cell 的 worker 切换不改变 `incarnation`，但必须增加 owner epoch。旧 worker 是否真的停止、是否能收到撤销消息，不影响新写权的正确性；其新提交已无法通过状态机。
 
@@ -659,7 +659,7 @@ cell state/command/outcome 写入 v2；在相同身份和持久化 limits 下读
 | cell leader 在 S3 归档前崩溃 | 由剩余合法 quorum 恢复 committed tail，不能只恢复到 S3 水位 |
 | `SuspendDb` 与旧提交竞争 | 根据同一日志顺序处理；先接受的事务保留，fence 之后的旧提交拒绝 |
 | 归档 I/O 期间 owner 改变，即使 head 未变 | 原任务的 Publish/Prune 被 exact owner 拒绝，不刷新成新 token 续办 |
-| Prune 先于新请求的 Claim | Claim 明确 Cold 后，仅在 SQL 尚未执行时允许原 deadline 下的一次 fresh/hydrate；不重放 Unknown |
+| Prune 先于新请求的 Claim | v5 控制序号拒绝原恢复意图，SQL 尚未执行；后续独立任务取得新视图，原调用不刷新身份或重放 Unknown |
 | Cold 对象读取失败或正文与保留 receipt 不符 | 保持 cold/不可用，不覆盖元数据，不建空库，不降到旧 revision |
 | 源端已 seal，目标尚未激活 | 数据库暂停服务；重试迁移，不能双端解封 |
 | 删除后收到旧上传完成或旧重试 | 世代与 tombstone 阻止重新发布和写入 |

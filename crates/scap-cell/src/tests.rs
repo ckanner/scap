@@ -1,6 +1,7 @@
 use super::*;
 
 mod activation;
+mod control;
 mod history;
 mod retention;
 
@@ -1221,6 +1222,7 @@ fn command(kind: CommandKind) -> Command {
         cell: identity(),
         database: database(),
         admission: admission(),
+        control_revision: None,
         kind,
     }
 }

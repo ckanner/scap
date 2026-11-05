@@ -6,8 +6,9 @@
 //! SQLite pages, or provide a transport. Reads require a fresh Raft read barrier
 //! and `decode_bound` against the same durable Store view before using this API.
 //! Request records are retained until explicit acknowledgement and an ordered
-//! epoch rotation replace them with a permanent fence. Administrative receipts
-//! remain retained. Capacity exhaustion never silently evicts a fence.
+//! epoch rotation replace them with a permanent fence. Ordered control revisions
+//! retain one administrative receipt per database; legacy receipts stay pinned.
+//! Capacity exhaustion never silently evicts a fence.
 //! The cell bootstrap administrator is immutable in this G0 format; credential
 //! rotation, cell-admin rotation and a production admission service are absent.
 
@@ -91,6 +92,9 @@ pub struct Command {
     pub cell: CellIdentity,
     pub database: DatabaseIdentity,
     pub admission: Admission,
+    /// Original administrative namespace/revision, retained unchanged on retry.
+    /// None identifies the pinned legacy namespace. Only admin actions use Some.
+    pub control_revision: Option<u64>,
     pub kind: CommandKind,
 }
 
@@ -169,6 +173,7 @@ pub enum Reject {
     Exhausted,
     Cold,
     Retired,
+    ControlRetired,
 }
 
 /// The caller explicitly relinquishes this exact terminal result. An unknown
@@ -208,6 +213,14 @@ pub enum AdminResult {
     ArchiveHydrated([u8; 32]),
 }
 
+/// Exact original durable receipt for a bounded administrative operation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ControlResult {
+    pub revision: u64,
+    pub position: Position,
+    pub result: AdminResult,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitResult {
     pub receipt: CommitReceipt,
@@ -225,6 +238,8 @@ pub enum Outcome {
     Rejected(Reject),
     RequestAcknowledged,
     RequestsRotated { epoch: u64 },
+    ControlApplied(ControlResult),
+    ControlAlreadyApplied(ControlResult),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -251,9 +266,18 @@ pub struct RetentionActivationOutcome {
     pub result: Result<(), Reject>,
 }
 
+/// Exact durable result of the independent v5 administrative activation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ControlActivationOutcome {
+    pub cell: CellIdentity,
+    pub position: Position,
+    pub result: Result<(), Reject>,
+}
+
 enum ActivationOutcome {
     History(HistoryActivationOutcome),
     Retention(RetentionActivationOutcome),
+    Control(ControlActivationOutcome),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -322,6 +346,8 @@ pub struct DatabaseView {
     pub retained_requests: u64,
     pub unacknowledged_requests: u64,
     pub retired_revision: u64,
+    /// None before the independently ordered v5 activation.
+    pub control_revision: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -374,6 +400,8 @@ struct Database {
     retired: RetiredPrefix,
     retirement_position: Option<Position>,
     acknowledged: BTreeMap<u128, Position>,
+    control_revision: Option<u64>,
+    control_receipt: Option<ControlRecord>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -383,6 +411,14 @@ struct AdminRecord {
     digest: [u8; 32],
     result: AdminResult,
     position: Position,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ControlRecord {
+    operation_id: u128,
+    admission: Admission,
+    digest: [u8; 32],
+    result: ControlResult,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -476,6 +512,19 @@ pub fn decode_retention_activation_outcome(
     codec::decode_retention_activation_outcome(bytes, expected_cell, expected)
 }
 
+/// Activate bounded control only after the history and retention activations.
+pub fn encode_control_activation(cell: CellIdentity, bootstrap_administrator: u128) -> Vec<u8> {
+    codec::encode_control_activation(cell, bootstrap_administrator)
+}
+
+pub fn decode_control_activation_outcome(
+    bytes: &[u8],
+    expected_cell: CellIdentity,
+    expected: Position,
+) -> Result<ControlActivationOutcome, Error> {
+    codec::decode_control_activation_outcome(bytes, expected_cell, expected)
+}
+
 impl CellState {
     /// Only explicit authorized new-group bootstrap may call this constructor.
     /// Genesis must equal the enclosing Store's durable application position.
@@ -549,9 +598,15 @@ impl CellState {
 
     /// Legacy snapshots keep their version 2/3 semantics until the respective
     /// ordered activation succeeds. Fresh generic groups start at version 3;
-    /// version 4 additionally supports acknowledged request retirement.
+    /// version 4 supports acknowledged request retirement, and version 5 adds
+    /// bounded administrative control without changing physical archive v4.
     pub fn physical_history_version(&self) -> u8 {
         self.physical_history_version
+    }
+
+    /// Whether new administrative identities must use bounded control revisions.
+    pub fn control_enabled(&self) -> bool {
+        self.physical_history_version >= 5
     }
 
     pub fn position(&self) -> Position {
@@ -677,7 +732,7 @@ impl CellState {
         );
         // A future hydration must fit one bounded ordered command. Oversized
         // databases remain hot until a separately verified chunk protocol exists.
-        if bytes.len().saturating_add(192) > self.limits.max_command_bytes as usize {
+        if !archive_fits_command(bytes.len(), self.physical_history_version, self.limits) {
             return Err(Reject::TooLarge);
         }
         let view = database.view();
@@ -769,6 +824,15 @@ impl CellState {
                 },
             )));
         }
+        if codec::is_control_activation(&entry.data) {
+            let result = self.activate_control(&entry.data);
+            self.position = position;
+            return Ok(Some(ActivationOutcome::Control(ControlActivationOutcome {
+                cell: self.identity,
+                position,
+                result,
+            })));
+        }
         let outcome = if entry.data.len() > self.limits.max_command_bytes as usize {
             Outcome::Rejected(Reject::TooLarge)
         } else {
@@ -835,11 +899,50 @@ impl CellState {
         if self.physical_history_version < 3 {
             return Err(Reject::Conflict);
         }
-        if self.physical_history_version == 4 {
+        if self.physical_history_version >= 4 {
             return Ok(());
         }
         let mut candidate = self.clone();
         candidate.physical_history_version = 4;
+        if !candidate.fits() {
+            return Err(Reject::Capacity);
+        }
+        *self = candidate;
+        Ok(())
+    }
+
+    fn activate_control(&mut self, bytes: &[u8]) -> Result<(), Reject> {
+        if bytes.len() > self.limits.max_command_bytes as usize {
+            return Err(Reject::TooLarge);
+        }
+        let (cell, administrator) =
+            codec::decode_control_activation(bytes).map_err(|_| Reject::Invalid)?;
+        if cell != self.identity {
+            return Err(Reject::Fenced);
+        }
+        if administrator != self.bootstrap_admin {
+            return Err(Reject::Unauthorized);
+        }
+        if self.physical_history_version < 4 {
+            return Err(Reject::Conflict);
+        }
+        if self.control_enabled() {
+            return Ok(());
+        }
+        // An exact old object must also fit its future scoped Hydrate command.
+        // Otherwise a successful upgrade could strand an existing cold database.
+        if self.databases.values().any(|database| {
+            database.archive.is_some_and(|archive| {
+                !archive_fits_command(archive.object_bytes as usize, 5, self.limits)
+            })
+        }) {
+            return Err(Reject::Capacity);
+        }
+        let mut candidate = self.clone();
+        candidate.physical_history_version = 5;
+        for database in candidate.databases.values_mut() {
+            database.control_revision = Some(0);
+        }
         if !candidate.fits() {
             return Err(Reject::Capacity);
         }
@@ -864,9 +967,21 @@ impl CellState {
         } else {
             0
         };
+        // Successful SQL must fund the largest future control receipt, including
+        // after activation with no receipt or replacement of a short result.
+        let controls = if self.control_enabled() {
+            self.databases.values().fold(0usize, |bytes, database| {
+                bytes.saturating_add(codec::control_receipt_reserve(
+                    database.control_receipt.as_ref(),
+                ))
+            })
+        } else {
+            0
+        };
         codec::encode_state(self, false)
             .len()
             .saturating_add(acknowledgements)
+            .saturating_add(controls)
             .saturating_add(RESERVED_BYTES)
             <= self.limits.max_state_bytes as usize
     }
@@ -878,6 +993,17 @@ impl CellState {
         validate_admission(command.admission)?;
         if self.physical_history_version < 4 && command.admission.request_epoch != 1 {
             return Err(Reject::Conflict);
+        }
+        if command.control_revision.is_some()
+            && matches!(
+                command.kind,
+                CommandKind::Commit { .. }
+                    | CommandKind::ResolveOrCancel { .. }
+                    | CommandKind::AcknowledgeRequest { .. }
+                    | CommandKind::RotateRequests { .. }
+            )
+        {
+            return Err(Reject::Invalid);
         }
         match &command.kind {
             CommandKind::Commit {
@@ -1013,18 +1139,65 @@ impl CellState {
         if operation_id == 0 {
             return Err(Reject::Invalid);
         }
+        if command.control_revision.is_some() && !self.control_enabled() {
+            return Err(Reject::Conflict);
+        }
         if matches!(action, AdminAction::Create(_)) {
-            if command.admission.principal_id != self.bootstrap_admin
-                || command.admission.auth_epoch != 1
+            if command.admission.principal_id != self.bootstrap_admin {
+                return Err(Reject::Unauthorized);
+            }
+            // A v5 create retry against an existing database is governed by its
+            // current policy/auth fence, just like every other control replay.
+            if self.control_enabled() && self.databases.contains_key(&command.database.database_id)
             {
+                self.authorized(command.database, command.admission, ADMIN)?;
+            } else if command.admission.auth_epoch != 1 {
                 return Err(Reject::Unauthorized);
             }
         } else {
             self.authorized(command.database, command.admission, ADMIN)?;
         }
-        // Credential/admission identifiers and the refreshed auth epoch are not
-        // the administrative intent. Replay still requires current permission.
+        // Credentials, admission IDs and refreshed auth epochs do not change
+        // intent. Every replay nevertheless requires current authorization.
         let digest = codec::admin_digest(command);
+        if let Some(expected) = command.control_revision {
+            let database = self.databases.get(&command.database.database_id);
+            let revision = database.map_or(0, |database| database.control_revision.unwrap());
+            if expected < revision {
+                if expected != revision - 1 {
+                    return Err(Reject::ControlRetired);
+                }
+                let record = database.unwrap().control_receipt.as_ref().unwrap();
+                if record.operation_id != operation_id
+                    || record.admission.principal_id != command.admission.principal_id
+                    || record.digest != digest
+                {
+                    return Err(Reject::Conflict);
+                }
+                return Ok(Outcome::ControlAlreadyApplied(record.result.clone()));
+            }
+            if expected != revision {
+                return Err(Reject::Conflict);
+            }
+            let next = revision.checked_add(1).ok_or(Reject::Exhausted)?;
+            let result = ControlResult {
+                revision: next,
+                position,
+                result: self.apply_admin_action(command, action)?,
+            };
+            let database = self
+                .databases
+                .get_mut(&command.database.database_id)
+                .unwrap();
+            database.control_revision = Some(next);
+            database.control_receipt = Some(ControlRecord {
+                operation_id,
+                admission: command.admission,
+                digest,
+                result: result.clone(),
+            });
+            return Ok(Outcome::ControlApplied(result));
+        }
         if let Some(record) = self.administration.get(&operation_id) {
             if record.admission.principal_id != command.admission.principal_id
                 || record.database != command.database
@@ -1034,10 +1207,32 @@ impl CellState {
             }
             return Ok(Outcome::AlreadyApplied(record.result.clone()));
         }
+        if self.control_enabled() {
+            return Err(Reject::ControlRetired);
+        }
         if self.administration.len() >= self.limits.max_admin_operations as usize {
             return Err(Reject::Capacity);
         }
-        let result = match action {
+        let result = self.apply_admin_action(command, action)?;
+        self.administration.insert(
+            operation_id,
+            AdminRecord {
+                admission: command.admission,
+                database: command.database,
+                digest,
+                result: result.clone(),
+                position,
+            },
+        );
+        Ok(Outcome::Administrative(result))
+    }
+
+    fn apply_admin_action(
+        &mut self,
+        command: &Command,
+        action: AdminAction<'_>,
+    ) -> Result<AdminResult, Reject> {
+        Ok(match action {
             AdminAction::Create(policy) => {
                 validate_policy(policy, self.limits)?;
                 if self.databases.contains_key(&command.database.database_id) {
@@ -1067,6 +1262,8 @@ impl CellState {
                         retired: RetiredPrefix::EMPTY,
                         retirement_position: None,
                         acknowledged: BTreeMap::new(),
+                        control_revision: self.control_enabled().then_some(0),
+                        control_receipt: None,
                     },
                 );
                 AdminResult::Created
@@ -1192,7 +1389,11 @@ impl CellState {
                 if archive.object_bytes as usize != expected.len()
                     || archive.object_digest != payload_digest(&expected)
                     || archive.metadata_digest != codec::archive_metadata(db)
-                    || expected.len().saturating_add(192) > self.limits.max_command_bytes as usize
+                    || !archive_fits_command(
+                        expected.len(),
+                        self.physical_history_version,
+                        self.limits,
+                    )
                 {
                     return Err(Reject::Invalid);
                 }
@@ -1256,18 +1457,7 @@ impl CellState {
                 db.cold = false;
                 AdminResult::ArchiveHydrated(archive.object_digest)
             }
-        };
-        self.administration.insert(
-            operation_id,
-            AdminRecord {
-                admission: command.admission,
-                database: command.database,
-                digest,
-                result: result.clone(),
-                position,
-            },
-        );
-        Ok(Outcome::Administrative(result))
+        })
     }
 
     fn commit(
@@ -1535,6 +1725,7 @@ impl Database {
             retained_requests: self.requests.len() as u64,
             unacknowledged_requests: (self.requests.len() - self.acknowledged.len()) as u64,
             retired_revision: self.retired.revision,
+            control_revision: self.control_revision,
         }
     }
 
@@ -1738,6 +1929,9 @@ impl Application for CellApplication {
                         ActivationOutcome::Retention(value) => {
                             codec::encode_retention_activation_outcome(&value)
                         }
+                        ActivationOutcome::Control(value) => {
+                            codec::encode_control_activation_outcome(&value)
+                        }
                     });
                 } else {
                     let outcome = state.last_outcome.as_ref().ok_or(Error::Position)?;
@@ -1824,6 +2018,14 @@ fn position_within(position: Position, bound: Position) -> bool {
         && (position.index != bound.index || position.term == bound.term)
 }
 
+fn archive_fits_command(bytes: usize, version: u8, limits: Limits) -> bool {
+    // Legacy phases retain their historical capacity verdicts. The v4 business
+    // control envelope requires 49 framing + 24 cell + 32 database + 64 scoped
+    // admission + 8 control revision + 1 kind + 16 operation + 8 length bytes.
+    let overhead = if version >= 5 { 202 } else { 192 };
+    bytes.saturating_add(overhead) <= limits.max_command_bytes as usize
+}
+
 fn validate_state(state: &CellState) -> Result<(), Error> {
     if state.bootstrap_admin == 0 || !position_within(state.position, state.position) {
         return Err(Error::Malformed("invalid state identity or position"));
@@ -1841,6 +2043,7 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         if (database.suspended && database.active) || (database.cold && !database.suspended) {
             return Err(Error::Malformed("invalid cold lifecycle"));
         }
+        validate_control(database, state)?;
         validate_retirement(database, state.position)?;
         validate_base(database, state.identity, state.position, state.limits)?;
         if let Some(archive) = database.archive {
@@ -1849,8 +2052,11 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
                 || archive.revision < database.retired.revision
                 || archive.revision > view.revision
                 || archive.object_bytes == 0
-                || (archive.object_bytes as usize).saturating_add(192)
-                    > state.limits.max_command_bytes as usize
+                || !archive_fits_command(
+                    archive.object_bytes as usize,
+                    state.physical_history_version,
+                    state.limits,
+                )
                 || archive.object_digest == [0; 32]
                 || (archive.revision == view.revision && archive.commit_hash != view.commit_hash)
             {
@@ -2006,39 +2212,7 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         {
             return Err(Error::Malformed("administrative database binding mismatch"));
         }
-        match &record.result {
-            AdminResult::Created => {}
-            AdminResult::OwnerClaimed(token) => {
-                if token.epoch == 0
-                    || token.epoch > database.owner.epoch
-                    || token.worker_instance_id == 0
-                {
-                    return Err(Error::Malformed("invalid historical owner token"));
-                }
-            }
-            AdminResult::OwnerActivated => {
-                if database.owner.epoch == 0 {
-                    return Err(Error::Malformed("activation without an owner"));
-                }
-            }
-            AdminResult::AuthChanged(epoch) => {
-                if *epoch < 2 || *epoch > database.auth_epoch {
-                    return Err(Error::Malformed("invalid historical auth epoch"));
-                }
-            }
-            AdminResult::Suspended(epoch) => {
-                if *epoch > database.owner.epoch {
-                    return Err(Error::Malformed("invalid historical suspend epoch"));
-                }
-            }
-            AdminResult::ArchivePublished(digest)
-            | AdminResult::ArchivePruned(digest)
-            | AdminResult::ArchiveHydrated(digest) => {
-                if *digest == [0; 32] {
-                    return Err(Error::Malformed("invalid historical archive digest"));
-                }
-            }
-        }
+        validate_admin_result(&record.result, database)?;
     }
     if let Some(last) = &state.last_outcome {
         if !position_within(last.position, state.position) {
@@ -2061,6 +2235,16 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
                         && position_within(record.position, last.position)
                         && (!matches!(last.outcome, Outcome::Administrative(_))
                             || record.position == last.position)
+                })
+            }
+            Outcome::ControlApplied(result) | Outcome::ControlAlreadyApplied(result) => {
+                state.databases.values().any(|database| {
+                    database.control_receipt.as_ref().is_some_and(|record| {
+                        record.result == *result
+                            && position_within(result.position, last.position)
+                            && (!matches!(last.outcome, Outcome::ControlApplied(_))
+                                || result.position == last.position)
+                    })
                 })
             }
             Outcome::Cancelled | Outcome::AlreadyCancelled => state.databases.values().any(|db| {
@@ -2089,6 +2273,72 @@ fn validate_state(state: &CellState) -> Result<(), Error> {
         }
     } else if !state.databases.is_empty() {
         return Err(Error::Malformed("non-genesis state lost its outcome"));
+    }
+    Ok(())
+}
+
+fn validate_admin_result(result: &AdminResult, database: &Database) -> Result<(), Error> {
+    match result {
+        AdminResult::Created => {}
+        AdminResult::OwnerClaimed(token) => {
+            if token.epoch == 0
+                || token.epoch > database.owner.epoch
+                || token.worker_instance_id == 0
+            {
+                return Err(Error::Malformed("invalid historical owner token"));
+            }
+        }
+        AdminResult::OwnerActivated => {
+            if database.owner.epoch == 0 {
+                return Err(Error::Malformed("activation without an owner"));
+            }
+        }
+        AdminResult::AuthChanged(epoch) => {
+            if *epoch < 2 || *epoch > database.auth_epoch {
+                return Err(Error::Malformed("invalid historical auth epoch"));
+            }
+        }
+        AdminResult::Suspended(epoch) => {
+            if *epoch > database.owner.epoch {
+                return Err(Error::Malformed("invalid historical suspend epoch"));
+            }
+        }
+        AdminResult::ArchivePublished(digest)
+        | AdminResult::ArchivePruned(digest)
+        | AdminResult::ArchiveHydrated(digest) => {
+            if *digest == [0; 32] {
+                return Err(Error::Malformed("invalid historical archive digest"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_control(database: &Database, state: &CellState) -> Result<(), Error> {
+    if database.control_revision.is_some() != state.control_enabled() {
+        return Err(Error::Malformed("invalid control activation state"));
+    }
+    match &database.control_receipt {
+        Some(record) => {
+            if record.operation_id == 0
+                || validate_admission(record.admission).is_err()
+                || record.admission.auth_epoch > database.auth_epoch
+                || record.result.revision == 0
+                || database.control_revision != Some(record.result.revision)
+                || !position_within(record.result.position, state.position)
+            {
+                return Err(Error::Malformed("invalid control receipt"));
+            }
+            validate_admin_result(&record.result.result, database)?;
+        }
+        None => {
+            if database
+                .control_revision
+                .is_some_and(|revision| revision != 0)
+            {
+                return Err(Error::Malformed("control revision lost its receipt"));
+            }
+        }
     }
     Ok(())
 }

@@ -389,9 +389,9 @@ try {
     await write("alpha", "old_quorum_still_commits", "INSERT INTO witness VALUES(2,hex(randomblob(12))) RETURNING id,value");
     await cancel("alpha", "mixed_write_ordered_resolution", -3, request);
     const witnessed = await cluster.membership(), after = await cluster.localStatus(upgraded);
-    assert.ok(witnessed.applied > after.status.applied, "new wire3 node must not apply the old wire2 quorum's witnessed write");
+    assert.ok(witnessed.applied > after.status.applied, "new wire4 node must not apply the old wire2 quorum's witnessed write");
     assert.notEqual(witnessed.leader, upgraded + 1);
-    mixed = { upgraded_node_id: upgraded + 1, old_applied: oldApplied, isolated_new: after, old_quorum_witness: witnessed, rejected_read: read, rejected_write: writeProbe, old_peer_envelope_version: 2, new_peer_envelope_version: 3, peer_proxies_blocked: false };
+    mixed = { upgraded_node_id: upgraded + 1, old_applied: oldApplied, isolated_new: after, old_quorum_witness: witnessed, rejected_read: read, rejected_write: writeProbe, old_peer_envelope_version: 2, new_peer_envelope_version: 4, peer_proxies_blocked: false };
     await event("wire_generations_fenced", mixed);
   });
 
@@ -601,7 +601,7 @@ try {
     successful_sql_responses: retained.filter((record) => record.observedVia === "successful_sql_response").length,
     committed_unknown_results_resolved_without_sql_replay: retained.filter((record) => record.observedVia === "lookup_after_response_loss").length,
     final_request_epochs: epoch, current_retained_results: retained.filter((record) => !record.retired).map((record) => ({ database: record.database, request_id: record.request.requestId, request_epoch: record.request.requestEpoch, acknowledged: record.applicationAcknowledged })),
-    old_peer_envelope_version: 2, new_peer_envelope_version: 3, old_archive_format: 3, new_archive_format: 4,
+    old_peer_envelope_version: 2, new_peer_envelope_version: 4, old_archive_format: 3, new_archive_format: 4,
     mixed_versions_rejected: true, source_snapshot_precedes_lagger_resume: true, same_id_new_epoch_tested: true,
     lost_rotation: lostRotation, leader_sigkill: true, full_group_sigkill: true, downgrade_rejected_nodes: 3,
     effective_voters: [1, 2, 3], membership_changes_submitted: 0, limits_increased: false,

@@ -1118,6 +1118,16 @@ async fn cancelling_run_reclaims_tasks_native_owners_and_exclusive_store_lock() 
 
 struct Disabled;
 impl<P: crate::worker::ControlPort> crate::worker::ColdStorage<P> for Disabled {
+    type RecoveryGuard = ();
+
+    fn recovery_guard(
+        &mut self,
+        _: scap_cell::DatabaseIdentity,
+        _: &scap_cell_client::RequestContext,
+    ) -> Result<Self::RecoveryGuard, ServiceError> {
+        Ok(())
+    }
+
     fn hydrate(
         &mut self,
         _: &mut Client<P>,
@@ -1221,6 +1231,7 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
     // client happens to arrive. The dispatcher delegates that work to a lane.
     let view = catalogue_port.effects.borrow().state.database(3).unwrap();
     let outcome = catalogue_port.apply(scap_cell::Command {
+        control_revision: view.control_revision,
         cell: test_config.cell,
         database: view.identity,
         admission: scap_cell::Admission {
@@ -1238,7 +1249,7 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
     });
     assert!(matches!(
         outcome.outcome,
-        scap_cell::Outcome::Administrative(_)
+        scap_cell::Outcome::ControlApplied(_)
     ));
     let disconnected = Scripted(std::cell::RefCell::new(
         [Err(mpsc::RecvTimeoutError::Disconnected)].into(),

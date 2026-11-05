@@ -561,6 +561,8 @@ jobs:
               raise SystemExit("The complete two-database hot and recovery schedule must be retained")
           print("Service correctness and local recovery window verified; production SLO remains unvalidated.")
           PY
+      - name: Verify bounded membership read discovery
+        run: node --test experiments/membership-network/read-membership.test.mjs
       - name: Execute real learner and joint replacement contracts
         run: node experiments/membership-network/run.mjs
       - name: Verify complete membership replacement evidence
@@ -621,4 +623,119 @@ jobs:
             target/evidence/membership-network
             target/evidence/history-network
             target/evidence/retention-network
+          if-no-files-found: warn
+
+  bounded-control-probe:
+    needs: rust-unit
+    name: Bounded administrative control and exact v4 upgrade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
+      SCAP_CONTROL_OLD_SERVER_SOURCE_COMMIT: f14b03d03d9216ea56b78aef9d71c5d78fd83645
+      SCAP_CONTROL_LEGACY_SOURCE_COMMIT: f14b03d03d9216ea56b78aef9d71c5d78fd83645
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.22.1'
+      - name: Install fixed Rust and native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - name: Check out the exact v4 production source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: f14b03d03d9216ea56b78aef9d71c5d78fd83645
+          path: target/control-legacy-source
+          persist-credentials: false
+      - name: Build and freeze the independent v4 daemon
+        run: |
+          test "$(git -C target/control-legacy-source rev-parse HEAD)" = "$SCAP_CONTROL_OLD_SERVER_SOURCE_COMMIT"
+          cargo +1.90.0 build --manifest-path target/control-legacy-source/Cargo.toml --release -p scap-server --locked
+          cp target/release/scap-server "$RUNNER_TEMP/scap-control-v4-server"
+          chmod 0555 "$RUNNER_TEMP/scap-control-v4-server"
+          printf '%s\n' "SCAP_OLD_SERVER_BIN=$RUNNER_TEMP/scap-control-v4-server" >> "$GITHUB_ENV"
+          printf 'SCAP_CONTROL_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-control-v4-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+      - name: Verify the fixed real S3 backend
+        run: |
+          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
+          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
+      - name: Build the candidate service and SDK
+        run: |
+          cargo +1.90.0 build --release -p scap-server --locked
+          npm --prefix sdk/node ci --ignore-scripts
+          npm --prefix sdk/node run build
+      - name: Validate and freeze the real control contract executable
+        run: |
+          cargo +1.90.0 fmt --manifest-path experiments/control-network/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --release --manifest-path experiments/control-network/Cargo.toml --test contracts --locked -- -D warnings
+          cargo +1.90.0 test --release --manifest-path experiments/control-network/Cargo.toml --test contracts --locked --no-run --message-format=json > "$RUNNER_TEMP/control-build.jsonl" 2> "$RUNNER_TEMP/control-build.stderr.log"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+
+          directory = Path(os.environ["RUNNER_TEMP"])
+          records = [json.loads(line) for line in (directory / "control-build.jsonl").read_text().splitlines()]
+          artifacts = [row for row in records
+                       if row.get("reason") == "compiler-artifact"
+                       and row.get("target", {}).get("name") == "contracts" and row.get("executable")]
+          if len(artifacts) != 1:
+              raise SystemExit("expected one current control contract executable")
+          artifact = artifacts[0]
+          if artifact.get("profile", {}).get("opt_level") != "3" or artifact["profile"].get("debug_assertions") is not False:
+              raise SystemExit("control contracts require the fixed optimized release profile")
+          binary = directory / "scap-control-contracts"
+          shutil.copyfile(artifact["executable"], binary)
+          binary.chmod(0o555)
+          with Path(os.environ["GITHUB_ENV"]).open("a") as environment:
+              environment.write(f"SCAP_CONTROL_TEST_BIN={binary}\n")
+          PY
+          python3 experiments/control-network/record_probe_build.py \
+            --cargo-json "$RUNNER_TEMP/control-build.jsonl" \
+            --cargo-stderr "$RUNNER_TEMP/control-build.stderr.log" \
+            --executable "$RUNNER_TEMP/scap-control-contracts" \
+            --target contracts \
+            --output "$RUNNER_TEMP/control-probe-build.json" \
+            -- cargo +1.90.0 test --release \
+            --manifest-path experiments/control-network/Cargo.toml \
+            --test contracts --locked --no-run --message-format=json
+          printf '%s\n' "SCAP_CONTROL_PROBE_BUILD_RECEIPT=$RUNNER_TEMP/control-probe-build.json" >> "$GITHUB_ENV"
+      - name: Build the source-bound old full-table producer
+        run: |
+          python3 experiments/control-network/build_legacy.py \
+            --repository target/control-legacy-source \
+            --commit "$SCAP_CONTROL_LEGACY_SOURCE_COMMIT" \
+            --output "$RUNNER_TEMP/control-legacy-build" > "$RUNNER_TEMP/control-legacy-build.json"
+          printf '%s\n' "SCAP_CONTROL_LEGACY_TEST_BIN=$RUNNER_TEMP/control-legacy-build/legacy-control-producer" >> "$GITHUB_ENV"
+          printf '%s\n' "SCAP_CONTROL_LEGACY_SOURCE_RECEIPT=$RUNNER_TEMP/control-legacy-build/legacy-source.json" >> "$GITHUB_ENV"
+          printf 'SCAP_CONTROL_EVIDENCE_DIR=%s\n' "$(mktemp -d /tmp/scap-control-evidence-XXXXXX)" >> "$GITHUB_ENV"
+      - name: Test control evidence validation independently
+        run: python3 -m unittest discover -s experiments/control-network -p 'test_*.py' -v
+      - name: Run the independent control and upgrade fault contracts
+        run: node experiments/control-network/run.mjs > "$RUNNER_TEMP/control-network.log" 2>&1
+      - name: Audit the complete closed evidence
+        run: python3 experiments/control-network/check_evidence.py "$SCAP_CONTROL_EVIDENCE_DIR"
+      - name: Preserve raw control outcomes and source-bound upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bounded-control-evidence
+          path: |
+            ${{ env.SCAP_CONTROL_EVIDENCE_DIR }}
+            ${{ runner.temp }}/control-network.log
+            ${{ runner.temp }}/control-build.jsonl
+            ${{ runner.temp }}/control-build.stderr.log
+            ${{ runner.temp }}/control-probe-build.json
+            ${{ runner.temp }}/control-legacy-build/legacy-source.json
+            ${{ runner.temp }}/control-legacy-build/cargo.stderr.log
           if-no-files-found: warn

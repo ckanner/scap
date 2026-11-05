@@ -4,6 +4,8 @@
 
 `Writer::recover` 依次执行新 scope 读、tracked ClaimOwner、新 ReadIndex、物理 Image 恢复、NativeFactory 新目录创建、tracked ActivateOwner、最后的新权限/owner/head 校验。整条路径沿用同一个 deadline，任一步失败都不交付可服务 writer。`EngineFactory` 只隔离 native 文件系统创建效果；默认实现委托正式 `SqliteWriter::create_new`。
 
+`OwnerRequest.expected_control_revision` 必须在第一次 ClaimOwner 前捕获；与 worker instance ID、Claim/Activate operation IDs 一起构成固定恢复意图。Claim 使用该原 revision，其确切确认回执提供 Activate 唯一可使用的下一 revision。Claim 后的新读取必须与认领后的 owner、head、权限及控制版本完全一致；Activate 后也再次确认同一状态和当前写权限。中间出现控制命令时丢弃尚未交付的 engine，不从更新视图重新绑定 Activate。UNKNOWN 后再次传入同一 `OwnerRequest` 只能确认尚保留的原 Claim；已经有后续控制操作时返回退休或冲突，不自动创建新的恢复身份。`None` 只保留升级前历史协议，不为 phase 5 的新认领隐式取最新版本。
+
 每次 `Writer::execute` 接收新的 `RequestContext` 和稳定业务 request ID，为当前本地 head 构造完整 ticket，并在 invocation 生命周期内调用正式 native writer。错误或历史回放后停止 writer；已经提交但不能按时完成响应时保留 receipt，禁止当作回滚重试。
 
 请求原 `request_epoch` 始终随 context 进入 Gate，不能从后来的目录读取中刷新。Gate 经当前权限和新鲜视图确认请求已退休时，worker 明确返回 `Error::Rejected(Reject::Retired)`，包括预检查后发生轮转而由最终 cell apply 拒绝的情况；不会将该状态改写为 UNKNOWN 或重执行旧 SQL。退休只封闭请求身份，不能证明旧请求从未提交。独立强读继续按当前权限、owner 与物理 head 授权，不因请求世代变化失去读取能力。

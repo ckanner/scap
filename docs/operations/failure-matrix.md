@@ -132,7 +132,8 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 已 Cold 数据库在 S3 故障时唤醒 | 在该库独占 lane 等待精确对象或在原 deadline 内失败；不建空、不用更老对象；其他库可独立服务 | 全局与单库准入配额同时生效；未实现加权公平或恢复空间预留，dispatcher 元数据仍可能等待 cell |
 | 归档上传后进程退出，尚未发布 | 对象保留但不成为恢复入口；重启按 cell 状态重建任务 | 所有对象保留，无 orphan GC 和成本收敛保证 |
 | I/O 期间 owner/head 改变 | 原 Publish/Prune 的 owner/head/auth 条件拒绝迟到任务 | 队列丢弃或任务失败不等于撤销已经提交的管理命令 |
-| Prune 恰好先于新请求 Claim | 明确 Cold 且 SQL 尚未执行时，原 deadline 下仅一次 fresh/hydrate/恢复 | 其他错误和 Unknown 不自动重试 SQL |
+| 同进程归档与新请求恢复重叠 | 后台 Publish→Prune 与前台完整恢复按库串行；取得执行权后才捕获权威视图并重验原租户 | 等待消耗原预算，不能借内部 ADMIN 凭据绕过已发生的撤权 |
+| 其他节点或迟到的 Prune 恰好先于 Claim | v5 控制序号拒绝原 Claim，SQL 尚未执行；本次恢复不刷新身份 | 本地锁不替代共识 fencing；Unknown 不自动重试 SQL |
 | 错库 token、旧 auth_epoch 或越权结果查询 | 静态凭据绑定后仍由新 cell view 复核当前主体/权限；写 apply 再检查 | 没有外部身份源、JWT expiry、动态配置或 60 秒策略缓存 |
 | 关键 HTTP/peer/Raft/SQL/归档任务异常退出 | 节点 supervisor 停止整体服务，取消并回收其余资源 | native 同步 I/O 不能被异步 deadline 强制打断 |
 | SIGTERM/Ctrl-C | 停止准入、取消当前任务、在关闭预算内 drain/join | 超时不冒充完成；进程管理仍需处理卡住的底层 I/O |
@@ -141,7 +142,7 @@ RTO 按 `检测 + 判定/栅栏 + 调度 + 恢复重放 + 就绪检查 + 客户�
 | 新旧状态机同时运行 | 当前 Raft peer envelope 3 与旧 1/2 在内部 Raft 解码前互拒，不能跨世代形成 quorum | 同世代两个旧 voter 仍可能服务，不构成无停机升级支持 |
 | 旧 v3 二进制打开已写入 v4 的盘 | application decode 失败，保留原目录 | 禁止清空、降级重写或 Initialize 原身份 |
 
-当前 Prune 仅移除数据库物理材料，完整请求结果、取消 fence、授权和 archive pointer 继续持久化；[ADR-0017](../adr/0017-bounded-physical-history.md)的热基线也不删除这些记录。请求结果仅在应用显式确认并经 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)的有序世代退休后释放，旧世代屏障仍永久保留。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像、每个未退休窗口 128 条请求及 cell 4096 条行政记录；没有行政记录退休、对象 GC、恢复空间预留或无限长尾承诺。具体执行结果以完整本地证据为准。
+当前 Prune 仅移除数据库物理材料，完整请求结果、取消 fence、授权和 archive pointer 继续持久化；[ADR-0017](../adr/0017-bounded-physical-history.md)的热基线也不删除这些记录。请求结果仅在应用显式确认并经 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)的有序世代退休后释放，旧世代屏障仍永久保留。单库归档不能直接截断整个 cell 日志；所有 voter 由正式全 cell Checkpoint 保证恢复覆盖。profile 固定最多 32 库、每库 256 KiB 逻辑镜像、每个未退休窗口 128 条请求；v5 冻结保留至多 4096 条旧行政回执，新管理动作每库只保留最近回执。旧表固定成本处理、对象 GC、恢复空间预留和生产规模仍未验收。具体执行结果以完整本地证据为准。
 
 ## 4. 控制面与鉴权降级边界
 
@@ -238,3 +239,24 @@ planned 的 v0 初始上限为 **60 秒**，允许配置得更短；当前静态
 | 非初始世代变更命中旧 SDK 端点 | 同身份、原 deadline 的 status 能力探测不通过时，SDK 不发送后续变更 | 不缓存能力跨越节点重启，不向忽略世代 header 的旧服务发送业务写入 |
 
 协议见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)，真实进程和最终来源对应结果见 [退休实验](../../experiments/retention-network/README.md)及 [G0 证据](../engineering/g0-evidence.md)。
+
+
+## 有界管理控制的新增故障合同
+
+本节对应 [ADR-0020](../adr/0020-bounded-administrative-control.md)，实现与执行证据完成前不构成验收声明。
+
+| 故障或交错 | 必须保持的行为 | 证据边界 |
+| --- | --- | --- |
+| 最近管理动作成功后响应丢失 | 同一控制序号、ID、主体、意图重试只返回原位置和原结果 | UNKNOWN 不自动读取当前序号重发 |
+| 新管理动作替换最近回执后旧命令重到 | 旧控制序号永久拒绝，不能再次更改 owner、policy 或物理状态 | ControlRetired 不等于未执行 |
+| Prune → Hydrate → 迟到旧 Prune | 已恢复 bytes 不被旧裁剪命令再次删除 | 不能通过淘汰 ID 后重新执行获得表面有界性 |
+| Publish 成功但客户端没有确认 | 不继续执行 Prune，旧恢复来源保留 | 响应丢失仍计为失败尝试 |
+| Publish 与 Prune 间发生另一控制动作 | 原 Prune 序号/视图被 fence | 不刷新原任务的控制身份 |
+| 同库后台归档与前台唤醒同时开始 | 一份本地执行权覆盖完整归档或恢复；恢复在获得执行权后才读第一份权威视图 | 其他库独立；共识检查和原请求预算不放宽 |
+| 等待恢复执行权期间撤销租户权限 | 在 post-guard ReadIndex 上重新验证原准入，拒绝 Hydrate/Claim | 内部 ADMIN 凭据不能代替原租户授权 |
+| 维护恢复等待期间数据库变成 suspended | 维护任务保留休眠状态，不自动水合或接管 | 只有经过授权的新请求可唤醒 |
+| Claim 与 Activate 间 SIGKILL 或控制交错 | 原 owner 恢复不能越过新控制序号激活 | 新恢复任务需独立身份与 fresh ReadIndex |
+| 新控制操作超过 4096 条 | 每库只保留最近回执，旧管理表不增长；在其他预算允许时继续服务 | 不上调计数或状态上限 |
+| 已满旧行政表原盘升级 | 保留旧精确回执，封闭新增旧 ID，新控制 namespace 仍可推进 | 旧状态预算不能静默放宽 |
+| snapshot、全组重启或旧对象水合 | 控制序号与最近回执保持；旧物理对象不能回滚最新控制元数据 | snapshot 与 S3 对象承担不同职责 |
+| 新旧 peer 混用或旧二进制打开新盘 | 旧 peer generation 拒绝，旧程序拒绝新应用格式 | 整组停机升级，不声称滚动兼容 |

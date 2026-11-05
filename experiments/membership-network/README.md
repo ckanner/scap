@@ -30,6 +30,14 @@ node experiments/membership-network/run.mjs
 
 每个管理 POST 只发送一次；超时不会被当作未提交或安全重试。第 08 项特意使用合法、已预注册且更大的新 ID；恢复 quorum 后迟到配置可能提交，记录最终配置而不把 UNKNOWN 改写成原请求成功。
 
+`/readyz` 只提供寻找 leader 的线索，不保证下一次管理 GET 仍发送到 leader。每次 `membership()` 从首次发现开始共用一个 **30 秒原始预算**；在 ready 后，只有权威 GET 明确返回 **HTTP 409 且 JSON `code` 为 `NOT_LEADER`** 才重新发现。每个 GET、响应状态、原始响应体、错误与原 deadline 都写入该合同历史。其他 409、503、网络错误或不完整响应直接失败；必须在原预算内真正取得包含完整 ConfState 的权威 HTTP 200 才返回。每次探测、GET 和既有轮询等待都受剩余预算限制，收到 `NOT_LEADER` 后不增加等待。这个只读发现过程不会重试任何管理 POST 或 SQL 写入。
+
+发现逻辑的独立回归测试使用确定时钟和 HTTP 响应，不启动 daemon，也不计入生产单元或真实故障通过数：
+
+```bash
+node --test experiments/membership-network/read-membership.test.mjs
+```
+
 随机 SQL witness 在两个数据库中累计，所有成功返回的写逐行精确重读。写入数量保持在现有每库 128 请求上限内，同时跨过真实 checkpoint 的日志距离，不修改产品容量或持久化模式。
 
 当前 base 迁移验收是联合证明：双库 base 先在权威读取中出现，随后取得上界 B；三个可能的 snapshot 来源都裁剪到 B 之后，而 learner 仍位于 genesis；之后 learner 持久安装实际 snapshot，最终通过含该新 voter 的 quorum、全组重启和只能从 node 4 磁盘取得的新 ACK 核对全部 135 条 witness。没有把 leader 上的 tenant status 冒充直接读取 learner 的 DB metadata，也没有为测试添加新的 runtime 诊断接口。每次 SQL 核验同时检查非零 base、原 tail 上限和未 cold-prune 状态。

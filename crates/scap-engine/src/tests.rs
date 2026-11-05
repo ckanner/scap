@@ -111,6 +111,7 @@ fn admission() -> Admission {
 
 fn apply(state: &mut CellState, kind: CommandKind) -> Outcome {
     let command = Command {
+        control_revision: None,
         cell: identity().cell,
         database: identity().database,
         admission: admission(),

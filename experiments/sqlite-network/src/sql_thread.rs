@@ -230,6 +230,7 @@ impl SqlSession {
                     self.client.clone(),
                     &context(auth, deadline),
                     OwnerRequest {
+                        expected_control_revision: None,
                         identity: common::engine_identity(),
                         expected_owner_epoch: expected,
                         worker_instance_id: worker,

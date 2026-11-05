@@ -22,6 +22,9 @@ use scap_sqlite::{CommitGate, Completed, ReadInterrupt, SqliteWriter, WriterLimi
 pub struct OwnerRequest {
     pub identity: EngineIdentity,
     pub expected_owner_epoch: u64,
+    /// Captured before the first ClaimOwner attempt and never refreshed after
+    /// UNKNOWN, even when authentication must be renewed.
+    pub expected_control_revision: Option<u64>,
     /// Unique for this worker start; never reuse a previous live worker's ID.
     pub worker_instance_id: u128,
     pub claim_operation_id: u128,
@@ -206,11 +209,12 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
         if database.identity != request.identity.database {
             return Err(Error::Rejected(Reject::Fenced));
         }
-        administrative(
+        let claimed_control_revision = administrative(
             client
-                .submit(
+                .submit_control(
                     context,
                     request.identity.database,
+                    request.expected_control_revision,
                     CommandKind::ClaimOwner {
                         operation_id: request.claim_operation_id,
                         expected_epoch: request.expected_owner_epoch,
@@ -220,15 +224,21 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
                 .map_err(Error::Client)?
                 .outcome,
             AdminResult::OwnerClaimed(owner),
+            request.expected_control_revision,
         )?;
+        let mut claimed = database;
+        claimed.owner = owner;
+        claimed.active = false;
+        claimed.suspended = false;
+        claimed.control_revision = claimed_control_revision;
         let state = client.read(context).map_err(Error::Client)?;
         let database = state
             .database(request.identity.database.database_id)
             .ok_or(Error::Rejected(Reject::NotFound))?;
-        if database.identity != request.identity.database
-            || database.owner != owner
-            || database.active
-        {
+        // Claim's exact receipt supplies the only revision Activate may use.
+        // A fresh view proves the recovered head and fences still belong to
+        // that claim; it never supplies a newer control revision for retry.
+        if database != claimed {
             return Err(Error::Rejected(Reject::Fenced));
         }
         let target = RecoveryTarget {
@@ -252,11 +262,12 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
         // Filesystem construction and fsync cannot be forcibly cancelled. The
         // original budget is checked again before activation and before return.
         live(context, clock.as_ref())?;
-        administrative(
+        let activated_control_revision = administrative(
             client
-                .submit(
+                .submit_control(
                     context,
                     request.identity.database,
+                    claimed_control_revision,
                     CommandKind::ActivateOwner {
                         operation_id: request.activate_operation_id,
                         token: owner,
@@ -267,8 +278,17 @@ impl<P: CellPort + Clone + 'static, E: Engine> Writer<P, E> {
                 .map_err(Error::Client)?
                 .outcome,
             AdminResult::OwnerActivated,
+            claimed_control_revision,
         )?;
         let state = client.read(context).map_err(Error::Client)?;
+        let current = state
+            .database(request.identity.database.database_id)
+            .ok_or(Error::Rejected(Reject::NotFound))?;
+        claimed.active = true;
+        claimed.control_revision = activated_control_revision;
+        if current != claimed {
+            return Err(Error::Rejected(Reject::Fenced));
+        }
         state
             .authorize_write(
                 request.identity.database,
@@ -423,10 +443,23 @@ fn live(context: &RequestContext, clock: &dyn Clock) -> Result<(), Error> {
     Ok(())
 }
 
-fn administrative(outcome: Outcome, expected: AdminResult) -> Result<(), Error> {
+fn administrative(
+    outcome: Outcome,
+    expected: AdminResult,
+    expected_revision: Option<u64>,
+) -> Result<Option<u64>, Error> {
     match outcome {
-        Outcome::Administrative(result) | Outcome::AlreadyApplied(result) if result == expected => {
-            Ok(())
+        Outcome::Administrative(result) | Outcome::AlreadyApplied(result)
+            if expected_revision.is_none() && result == expected =>
+        {
+            Ok(None)
+        }
+        Outcome::ControlApplied(result) | Outcome::ControlAlreadyApplied(result)
+            if expected_revision.and_then(|revision| revision.checked_add(1))
+                == Some(result.revision)
+                && result.result == expected =>
+        {
+            Ok(Some(result.revision))
         }
         Outcome::Rejected(reason) => Err(Error::Rejected(reason)),
         _ => Err(Error::Unknown),

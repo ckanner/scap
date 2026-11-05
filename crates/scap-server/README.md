@@ -111,19 +111,19 @@ S3 归档采用 `Suspend → upload/verify → Publish → Prune`，唤醒为当
 
 目录与各 lane 仅在短临界区共享后台任务队列；前景 hydrate 使用各自的 Controller，对象 I/O 不持有共享队列锁。dispatcher 的轮询目录维护仍包含同步 ReadIndex 和 checkpoint 请求，活动 lane 也定期维护，因此共享元数据延迟仍可能推迟分发。每库额度不能代替加权公平调度，也不隔离共享 CPU、磁盘或 cell quorum 的全部尾延迟。
 
-若后台 Prune 刚好先于前景 Claim，只有明确 `Rejected(Cold)` 可以在 SQL 执行前刷新一次；原 deadline 不变，Unknown 不自动重试。归档、SQL、Raft、peer 或 HTTP 线程退出会交给 supervisor；关闭先取消再 drain/join，无法强制中断的 native I/O 仍需要外部进程管理。
+若后台 Prune 刚好先于前景 Claim，控制序号会拒绝原恢复身份；本次请求在 SQL 执行前失败，不在调用内部刷新序号。后续独立请求或维护任务可捕获新鲜视图建立新的恢复工作，UNKNOWN 的原身份和结论保持不变。归档、SQL、Raft、peer 或 HTTP 线程退出会交给 supervisor；关闭先取消再 drain/join，无法强制中断的 native I/O 仍需要外部进程管理。
 
 ## 当前边界
 
 - 一个 cell、bootstrap 恰好三个 voter、最多 32 个库；成员替换限于 3–16 个预注册 peer，不能动态信任陌生证书，也不提供迁移或多 cell 路由。
-- 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库未退休窗口最多 128 条 accepted/cancel 记录，显式确认并推进世代后可释放；cell 最多 4096 条管理记录且暂不退休。
+- 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库未退休窗口最多 128 条 accepted/cancel 记录，显式确认并推进世代后可释放；旧 cell 管理回执最多 4096 条，v5 激活后冻结旧表；新管理操作使用每库独立序号和一个最近回执，不再累计消耗该额度。
 - Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；cell 在 Commit 候选状态中折叠物理前缀，强读与恢复核验完整恢复基座和有界物理尾部。物理折叠不删除请求结果或取消记录，它们仅在显式确认及有序世代退休后释放；不能由此推断大库吞吐或延迟。
 - 按库 lazy lane 隔离 SQL 与前景 hydrate；全局线程/准入预算固定，尚无加权公平调度、独立恢复容量预留或跨库性能保证。
 - 归档正文必须装入一次有界 hydrate command；state/command 分别为 8 MiB/4 MiB，尚无分块恢复。
 - 永久保留对象；原结果和取消记录只能经显式应用确认及有序世代退休释放，旧世代永久 fenced。无自动对象 GC、对象删除或 S3-only 灾难恢复。恢复所需总体容量没有跨库预留协议。
 - 无 quorum、损坏、未知 outcome 或当前权限失败时保持拒绝；不会改用旧文件、较旧对象或本地成功。
 
-Cell state 和归档在持久激活后使用 v4；旧 epoch 1 操作仍可使用原业务 v2 envelope，新世代/新操作使用 v3，物理 IMG 格式保持不变。OpenExisting 读取合法 v1/v2/v3 状态并保留原阶段语义；catalogue 先完成原 history activation 到 v3，再提交独立 retention activation 到 v4。只有精确持久结果及 fresh ReadIndex 确认 v4 后才置 ready；普通 lane 拒绝未激活状态，tenant 不能触发升级。正式 peer envelope 为 3，与旧 1/2 均隔离。升级与确认空间预留见 [ADR-0019](../../docs/adr/0019-explicit-request-result-retirement.md)。
+Cell state 在持久激活后使用 v5，物理归档继续使用 v4；旧 epoch 1 操作使用原业务 v2 envelope，新请求世代/确认/退休使用 v3，新管理控制命令与结果使用 v4。OpenExisting 读取合法 v1/v2/v3/v4 状态并保留原阶段语义；catalogue 在同一个原 deadline 内依次完成 history、retention、control 三次独立有序激活。只有精确持久结果及 fresh ReadIndex 确认 v5 后才置 ready，普通 lane 拒绝未激活状态，tenant 不能触发升级。正式 peer envelope 为 4，与旧 1/2/3 隔离；整组停机后原盘升级。控制序号、最近回执、旧表封闭与容量预留见 [ADR-0020](../../docs/adr/0020-bounded-administrative-control.md)。
 
 Initialize、Join 和规范 genesis 摘要统一使用与旧二进制逐字节相同的 v2 初始应用，再由有序 activation 开启新语义；新 learner 从旧日志前缀追赶时也必须先看到原预算和格式。epoch 1 且未退休前缀的 v2/v3 已发布对象继续按原精确摘要读取，原管理 receipt、鉴权、未退休结果及取消 fence 均保留；Hydrate 不覆盖之后的显式确认。升级必须先停止写入和全部原 voter，再统一用新二进制 OpenExisting；新旧 wire 版本隔离，不支持旧二进制降级或混合版本滚动协商。新节点只能在已升级的健康集群完成新鲜预检后加入。详细限额、升级和故障矩阵见[工程说明](../../docs/engineering/sqlite-service.md)，服务合同见 [ADR-0014](../../docs/adr/0014-sqlite-service-and-cold-lifecycle.md)，增量持久化、按库执行与连接复用见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
 

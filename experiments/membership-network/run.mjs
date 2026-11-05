@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient, ScapError } from "../../sdk/node/dist/client.js";
+import { readFreshMembership } from "./read-membership.mjs";
 
 // Production daemons own every membership, persistence, authorization and SQL
 // decision. This file supplies only process/network faults and independent
@@ -159,6 +160,7 @@ class Cluster {
   processes = [];
   allProcesses = [];
   proxies = [];
+  membershipReads = 0;
   expected = { alpha: [], beta: [] };
   async start() {
     this.directory = path.join(scratch, "replicas");
@@ -260,12 +262,15 @@ class Cluster {
     throw new Error("Local diagnostic endpoint did not become available for node " + (node + 1));
   }
   async membership(excluded = []) {
-    const leader = await this.waitLeader(excluded);
-    const result = await this.admin(leader);
-    assert.equal(result.status, 200, "fresh membership read must succeed on the ready leader");
-    const view = result.data.membership ?? result.data;
-    assert.ok(view.conf_state, "membership must include the complete durable configuration");
-    return { leader, view };
+    const read = ++this.membershipReads;
+    return readFreshMembership({
+      nodes: [0, 1, 2, 3].filter((node) => !excluded.includes(node)),
+      readinessUrl: (node) => this.endpoints[node] + "/readyz",
+      membershipUrl: (node) => "http://127.0.0.1:" + this.management[node] + "/v1/admin/membership",
+      token: this.tokens.administrator,
+      record: (attempt) => event("membership_read_attempt", { read, ...attempt }),
+      assertLive: () => this.assertNoUnexpectedExit(),
+    });
   }
   async change(action, fields = {}, expected) {
     const { leader, view } = await this.membership();
