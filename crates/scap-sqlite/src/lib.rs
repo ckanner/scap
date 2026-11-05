@@ -98,7 +98,9 @@ pub enum Error {
     Stopped,
     InvalidReceipt,
     /// Rejection of this attempt. Another proposal with the same request ID
-    /// may already be committed; this is not a persistent cancellation fence.
+    /// may already be committed. Retired permanently closes the original
+    /// request generation without proving that its old SQL never executed;
+    /// the other rejection classes are not persistent cancellation fences.
     Rejected(Rejection),
     OutcomeUnknown,
     /// Acceptance is already durable. Never report this as a rolled-back write.

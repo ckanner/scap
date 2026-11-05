@@ -125,6 +125,7 @@ fn every_authoritative_rejection_stops_without_publishing() {
         Rejection::Fenced,
         Rejection::Unauthorized,
         Rejection::Conflict,
+        Rejection::Retired,
         Rejection::InvalidTransaction,
     ] {
         let (mut c, events) = coordinator(vec![Decision::Rejected(reason)], false);

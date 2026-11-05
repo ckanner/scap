@@ -626,6 +626,7 @@ fn open_existing_reads_genuine_v2_hot_and_cold_applications_without_reinitializi
             credential_id: 13,
             admission_id: 14,
             auth_epoch: 1,
+            request_epoch: 1,
         };
         assert!(matches!(
             state.lookup(database.identity, admission, 101, [1; 32]).unwrap(),
@@ -1227,6 +1228,7 @@ fn sql_loop_processes_one_bound_envelope_then_observes_channel_close() {
             credential_id: test_config.service_credential_id,
             admission_id: 5000,
             auth_epoch: view.auth_epoch,
+            request_epoch: 1,
         },
         kind: scap_cell::CommandKind::ClaimOwner {
             operation_id: 5001,

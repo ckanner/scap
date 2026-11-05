@@ -5,8 +5,8 @@ use std::sync::{mpsc, Arc};
 use parking_lot::Mutex;
 use scap_cell_client::RequestContext as CellContext;
 use scap_service::{
-    Backend, BackendFuture, Call, DatabaseStatus, Mode, Outcome, OutcomeCall, RequestContext,
-    ServiceError,
+    Backend, BackendFuture, Call, DatabaseStatus, Mode, Outcome, OutcomeAction, OutcomeCall,
+    RequestContext, RotateCall, ServiceError,
 };
 use scap_sql::{Statement, TransactionResult, Value};
 use tokio::sync::oneshot;
@@ -107,14 +107,18 @@ impl Mailbox {
         if context.cancelled.load(Ordering::Acquire) || std::time::Instant::now() >= deadline {
             return Err(failure("COMMIT_UNKNOWN"));
         }
-        let (database, admission) = self.0.verifier.verify(&context, mode)?;
+        let (database, admission) = if matches!(operation, Operation::Rotate { .. }) {
+            self.0.verifier.verify_administrator(&context)?
+        } else {
+            self.0.verifier.verify(&context, mode)?
+        };
         let statements: &[Statement] = match &operation {
             Operation::Execute { statements, .. } | Operation::Outcome { statements, .. } => {
                 scap_sql::validate_statements(statements, worker_limits().sqlite.sql)
                     .map_err(|_| failure("INVALID_REQUEST"))?;
                 statements
             }
-            Operation::Status => &[][..],
+            Operation::Status | Operation::Rotate { .. } => &[][..],
         };
         let bytes = request_bytes(statements, &database);
         let mut usage = self.0.usage.lock();
@@ -195,16 +199,15 @@ impl Backend for Mailbox {
     }
 
     fn outcome(&self, call: OutcomeCall) -> BackendFuture<Outcome> {
-        let mode = if call.resolve_or_cancel {
-            Mode::Write
-        } else {
-            Mode::Read
+        let mode = match call.action {
+            OutcomeAction::Lookup => Mode::Read,
+            OutcomeAction::ResolveOrCancel | OutcomeAction::Acknowledge { .. } => Mode::Write,
         };
         let pending = self.enqueue(
             call.context,
             mode,
             Operation::Outcome {
-                resolve: call.resolve_or_cancel,
+                action: call.action,
                 statements: call.statements,
             },
         );
@@ -221,6 +224,22 @@ impl Backend for Mailbox {
         Box::pin(async move {
             match Self::receive(pending).await? {
                 Reply::Status(status) => Ok(status),
+                _ => Err(failure("INVALID_BACKEND_REPLY")),
+            }
+        })
+    }
+
+    fn rotate(&self, call: RotateCall) -> BackendFuture<u64> {
+        let pending = self.enqueue(
+            call.context,
+            Mode::Read,
+            Operation::Rotate {
+                expected_epoch: call.expected_epoch,
+            },
+        );
+        Box::pin(async move {
+            match Self::receive(pending).await? {
+                Reply::Rotated(epoch) => Ok(epoch),
                 _ => Err(failure("INVALID_BACKEND_REPLY")),
             }
         })

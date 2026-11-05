@@ -1,6 +1,9 @@
 use super::*;
 use crate::tests::{limits, EmptyBackend};
-use crate::{BackendFuture, DatabaseStatus, Environment, Outcome};
+use crate::{
+    BackendFuture, DatabaseStatus, Environment, Outcome, OutcomeAction, RequestPosition,
+    RequestTerminal,
+};
 use scap_sql::{StatementResult, TransactionResult};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -32,7 +35,8 @@ fn environment() -> Arc<TestEnvironment> {
 struct BackendState {
     contexts: Mutex<Vec<RequestContext>>,
     modes: Mutex<Vec<Mode>>,
-    resolve: Mutex<Vec<bool>>,
+    actions: Mutex<Vec<OutcomeAction>>,
+    rotations: Mutex<Vec<u64>>,
     pending: AtomicBool,
     error: Mutex<Option<ServiceError>>,
     outcome: Mutex<Outcome>,
@@ -46,7 +50,8 @@ impl TestBackend {
         Self(Arc::new(BackendState {
             contexts: Mutex::new(Vec::new()),
             modes: Mutex::new(Vec::new()),
-            resolve: Mutex::new(Vec::new()),
+            actions: Mutex::new(Vec::new()),
+            rotations: Mutex::new(Vec::new()),
             pending: AtomicBool::new(false),
             error: Mutex::new(None),
             outcome: Mutex::new(Outcome::Unknown),
@@ -64,6 +69,10 @@ impl Backend for TestBackend {
                 Some(error) => Err(error),
                 None => Ok(DatabaseStatus {
                     revision: u64::MAX,
+                    request_epoch: u64::MAX,
+                    retained_requests: u64::MAX,
+                    unacknowledged_requests: u64::MAX,
+                    retired_revision: u64::MAX,
                     base_revision: u64::MAX,
                     tail_entries: u64::MAX,
                     tail_bytes: u64::MAX,
@@ -108,13 +117,24 @@ impl Backend for TestBackend {
     fn outcome(&self, call: OutcomeCall) -> BackendFuture<Outcome> {
         assert_eq!(call.statements[0].sql, "SELECT 1");
         self.0.contexts.lock().unwrap().push(call.context);
-        self.0.resolve.lock().unwrap().push(call.resolve_or_cancel);
+        self.0.actions.lock().unwrap().push(call.action);
         let result = self.0.outcome.lock().unwrap().clone();
         let error = self.0.error.lock().unwrap().clone();
         Box::pin(async move {
             match error {
                 Some(error) => Err(error),
                 None => Ok(result),
+            }
+        })
+    }
+    fn rotate(&self, call: RotateCall) -> BackendFuture<u64> {
+        self.0.contexts.lock().unwrap().push(call.context);
+        self.0.rotations.lock().unwrap().push(call.expected_epoch);
+        let error = self.0.error.lock().unwrap().clone();
+        Box::pin(async move {
+            match error {
+                Some(error) => Err(error),
+                None => Ok(call.expected_epoch + 1),
             }
         })
     }
@@ -173,6 +193,7 @@ fn admission_validates_headers_scope_ids_and_original_deadline() {
         .context("db".into(), Some(id), &input, true)
         .unwrap();
     assert_eq!(context.request_id, 1);
+    assert_eq!(context.request_epoch, 1);
     assert_eq!(
         context.deadline,
         environment.now + Duration::from_millis(50)
@@ -195,6 +216,9 @@ fn admission_validates_headers_scope_ids_and_original_deadline() {
         ("authorization", "Bearer "),
         ("content-type", "text/plain"),
         ("x-scap-request-id", "bad"),
+        ("x-scap-request-epoch", "bad"),
+        ("x-scap-request-epoch", "0"),
+        ("x-scap-request-epoch", "18446744073709551616"),
         ("x-scap-mode", "stale"),
         ("x-scap-deadline-unix-ms", "bad"),
         ("x-scap-deadline-unix-ms", "1000"),
@@ -228,6 +252,7 @@ fn admission_validates_headers_scope_ids_and_original_deadline() {
     for key in [
         "content-type",
         "x-scap-request-id",
+        "x-scap-request-epoch",
         "x-scap-mode",
         "x-scap-deadline-unix-ms",
     ] {
@@ -288,7 +313,7 @@ async fn status_is_authenticated_bounded_and_does_not_call_sql() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         value,
-        json!({"revision":u64::MAX.to_string(),"base_revision":u64::MAX.to_string(),"tail_entries":u64::MAX.to_string(),"tail_bytes":u64::MAX.to_string(),"suspended":true,"cold":true,"owner_active":false,"archived_revision":u64::MAX.to_string()})
+        json!({"revision":u64::MAX.to_string(),"request_epoch":u64::MAX.to_string(),"retained_requests":u64::MAX.to_string(),"unacknowledged_requests":u64::MAX.to_string(),"retired_revision":u64::MAX.to_string(),"base_revision":u64::MAX.to_string(),"tail_entries":u64::MAX.to_string(),"tail_bytes":u64::MAX.to_string(),"suspended":true,"cold":true,"owner_active":false,"archived_revision":u64::MAX.to_string()})
     );
     assert_eq!(headers["cache-control"], "no-store");
     assert!(backend.0.modes.lock().unwrap().is_empty());
@@ -320,6 +345,10 @@ async fn status_is_authenticated_bounded_and_does_not_call_sql() {
     assert_eq!(value["base_revision"], "0");
     assert_eq!(value["tail_entries"], "0");
     assert_eq!(value["tail_bytes"], "0");
+    assert_eq!(value["request_epoch"], "1");
+    assert_eq!(value["retained_requests"], "0");
+    assert_eq!(value["unacknowledged_requests"], "0");
+    assert_eq!(value["retired_revision"], "0");
 }
 
 #[tokio::test]
@@ -340,10 +369,15 @@ async fn actual_axum_routes_forward_only_validated_calls_and_cancel_on_completio
     assert_eq!(headers["cache-control"], "no-store");
     assert_eq!(headers["content-type"], "application/json");
     assert_eq!(headers["x-scap-request-id"].to_str().unwrap().len(), 32);
+    assert_eq!(headers["x-scap-request-epoch"], "1");
     let mut input = request("/db/second/v2/pipeline", execute_body());
     input
         .headers_mut()
         .insert("x-scap-mode", HeaderValue::from_static("read"));
+    input.headers_mut().insert(
+        "x-scap-request-epoch",
+        HeaderValue::from_static("18446744073709551615"),
+    );
     assert_eq!(
         router.clone().oneshot(input).await.unwrap().status(),
         StatusCode::OK
@@ -351,6 +385,7 @@ async fn actual_axum_routes_forward_only_validated_calls_and_cancel_on_completio
     let contexts = backend.0.contexts.lock().unwrap();
     assert_eq!(contexts[0].database, "default");
     assert_eq!(contexts[1].database, "second");
+    assert_eq!(contexts[1].request_epoch, u64::MAX);
     assert!(contexts
         .iter()
         .all(|context| context.cancelled.load(Ordering::Acquire)));
@@ -370,7 +405,14 @@ async fn outcome_is_explicit_and_requires_the_original_statements() {
     let path = "/db/db/v1/requests/00000000000000000000000000000001";
     for (action, outcome, state) in [
         ("lookup", Outcome::Unknown, "unknown"),
-        ("resolve_or_cancel", Outcome::Cancelled, "cancelled"),
+        (
+            "resolve_or_cancel",
+            Outcome::Cancelled {
+                position: RequestPosition { term: 2, index: 3 },
+                acknowledged: false,
+            },
+            "cancelled",
+        ),
     ] {
         *backend.0.outcome.lock().unwrap() = outcome;
         let (status, value, _) = decode(
@@ -387,7 +429,10 @@ async fn outcome_is_explicit_and_requires_the_original_statements() {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(value["state"], state);
     }
-    assert_eq!(*backend.0.resolve.lock().unwrap(), vec![false, true]);
+    assert_eq!(
+        *backend.0.actions.lock().unwrap(),
+        vec![OutcomeAction::Lookup, OutcomeAction::ResolveOrCancel]
+    );
     assert!(backend
         .0
         .contexts
@@ -410,6 +455,103 @@ async fn outcome_is_explicit_and_requires_the_original_statements() {
         .await
         .unwrap();
     assert_eq!(invalid.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn acknowledgement_routes_the_original_epoch_and_terminal_proof_without_sql() {
+    let backend = TestBackend::new();
+    *backend.0.outcome.lock().unwrap() = Outcome::Acknowledged;
+    let router = router(Arc::new(
+        Service::new(backend.clone(), "db".into(), 1, limits()).unwrap(),
+    ));
+    let path = "/db/db/v1/requests/00000000000000000000000000000001";
+    let mut input = request(
+        path,
+        json!({"action":"acknowledge","statements":[{"sql":"SELECT 1"}],"expected":{"state":"committed","sequence":"8"}}),
+    );
+    input
+        .headers_mut()
+        .insert("x-scap-request-epoch", HeaderValue::from_static("7"));
+    let (status, value, headers) = decode(router.clone().oneshot(input).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value, json!({"state":"acknowledged"}));
+    assert_eq!(headers["x-scap-request-epoch"], "7");
+    assert_eq!(backend.0.contexts.lock().unwrap()[0].request_epoch, 7);
+    assert_eq!(
+        *backend.0.actions.lock().unwrap(),
+        vec![OutcomeAction::Acknowledge {
+            expected: RequestTerminal::Committed { sequence: 8 }
+        }]
+    );
+    assert!(backend.0.modes.lock().unwrap().is_empty());
+    *backend.0.outcome.lock().unwrap() = Outcome::Retired { current_epoch: 8 };
+    let mut input = request(
+        path,
+        json!({"action":"lookup","statements":[{"sql":"SELECT 1"}]}),
+    );
+    input
+        .headers_mut()
+        .insert("x-scap-request-epoch", HeaderValue::from_static("7"));
+    let (_, value, headers) = decode(router.oneshot(input).await.unwrap()).await;
+    assert_eq!(value, json!({"state":"retired","current_epoch":"8"}));
+    assert_eq!(headers["x-scap-request-epoch"], "7");
+}
+
+#[tokio::test]
+async fn rotation_is_explicit_matches_the_original_epoch_and_propagates_backend_denials() {
+    let backend = TestBackend::new();
+    let router = router(Arc::new(
+        Service::new(backend.clone(), "db".into(), 1, limits()).unwrap(),
+    ));
+    let path = "/db/db/v1/request-epoch";
+    let input = || {
+        let mut input = request(path, json!({"action":"rotate","expected_epoch":"7"}));
+        input
+            .headers_mut()
+            .insert("x-scap-request-epoch", HeaderValue::from_static("7"));
+        input
+    };
+    let (status, value, headers) = decode(router.clone().oneshot(input()).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value, json!({"state":"rotated","request_epoch":"8"}));
+    assert_eq!(headers["x-scap-request-epoch"], "7");
+    assert_eq!(*backend.0.rotations.lock().unwrap(), vec![7]);
+    assert_eq!(backend.0.contexts.lock().unwrap()[0].request_epoch, 7);
+    assert!(backend.0.contexts.lock().unwrap()[0]
+        .cancelled
+        .load(Ordering::Acquire));
+    assert!(backend.0.modes.lock().unwrap().is_empty());
+    assert!(backend.0.actions.lock().unwrap().is_empty());
+    let mismatch = request(path, json!({"action":"rotate","expected_epoch":"7"}));
+    assert_eq!(
+        router.clone().oneshot(mismatch).await.unwrap().status(),
+        StatusCode::BAD_REQUEST
+    );
+    let malformed = request(path, json!({"action":"lookup","expected_epoch":"1"}));
+    assert_eq!(
+        router.clone().oneshot(malformed).await.unwrap().status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(backend.0.rotations.lock().unwrap().len(), 1);
+    *backend.0.error.lock().unwrap() = Some(ServiceError::new("UNAUTHORIZED", "admin required"));
+    assert_eq!(
+        router.oneshot(input()).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let router = super::router(Arc::new(
+        Service::new(EmptyBackend, "db".into(), 1, limits()).unwrap(),
+    ));
+    let (_, value, _) = decode(
+        router
+            .oneshot(request(
+                path,
+                json!({"action":"rotate","expected_epoch":"1"}),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(value["request_epoch"], "2");
 }
 
 #[tokio::test]
@@ -519,7 +661,7 @@ async fn absolute_deadline_is_rechecked_after_a_completed_backend_future() {
 
 #[tokio::test]
 async fn response_limits_and_error_codes_never_claim_a_rollback() {
-    let response = bounded_response(json!({"large":"x".repeat(100)}), 1, 10);
+    let response = bounded_response(json!({"large":"x".repeat(100)}), (1, 4), 10);
     let (status, value, _) = decode(response).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(value["code"], "COMMITTED_RESULT_UNAVAILABLE");

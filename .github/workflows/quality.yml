@@ -429,7 +429,7 @@ jobs:
   sqlite-service-probe:
     name: Real SQL service SDK S3 and automatic recovery
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
@@ -439,6 +439,8 @@ jobs:
       SCAP_MEMBERSHIP_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/membership-network
       SCAP_HISTORY_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/history-network
       SCAP_OLD_SERVER_SOURCE_COMMIT: 662f04133f6a869d0dae5b05467656e6deca5c12
+      SCAP_RETENTION_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/retention-network
+      SCAP_RETENTION_OLD_SOURCE_COMMIT: b9f512819358494f178b01d7f1d960dff8222c1c
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -465,6 +467,20 @@ jobs:
           chmod 0555 "$RUNNER_TEMP/scap-history-old-server"
           printf '%s\n' "SCAP_OLD_SERVER_BIN=$RUNNER_TEMP/scap-history-old-server" >> "$GITHUB_ENV"
           printf 'SCAP_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-history-old-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+      - name: Check out the exact V3 producer for request retirement
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: b9f512819358494f178b01d7f1d960dff8222c1c
+          path: target/retention-legacy-source
+          persist-credentials: false
+      - name: Build and freeze the V3 production binary independently
+        run: |
+          test "$(git -C target/retention-legacy-source rev-parse HEAD)" = "$SCAP_RETENTION_OLD_SOURCE_COMMIT"
+          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo +1.90.0 build --manifest-path target/retention-legacy-source/Cargo.toml --release -p scap-server --locked
+          cp target/release/scap-server "$RUNNER_TEMP/scap-retention-old-server"
+          chmod 0555 "$RUNNER_TEMP/scap-retention-old-server"
+          printf '%s\n' "SCAP_RETENTION_OLD_SERVER_BIN=$RUNNER_TEMP/scap-retention-old-server" >> "$GITHUB_ENV"
+          printf 'SCAP_RETENTION_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-retention-old-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
       - name: Build the production release binary and real SDK
         run: |
           cargo +1.90.0 build --release -p scap-server --locked
@@ -583,11 +599,18 @@ jobs:
                   raise SystemExit(f"Failed membership history: {name}")
           print("Learner, joint restart, replacement quorum and ACK retention verified locally.")
           PY
+      - name: Verify deployment evidence checker regressions
+        run: python3 experiments/retention-network/test_check_evidence.py -v
       - name: Execute real V2 upgrade and bounded physical history contracts
         run: |
           export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
           node experiments/history-network/run.mjs
           python3 experiments/history-network/check_evidence.py "$SCAP_HISTORY_EVIDENCE_DIR"
+      - name: Execute V3 upgrade and explicit request retirement contracts
+        run: |
+          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
+          node experiments/retention-network/run.mjs
+          python3 experiments/retention-network/check_evidence.py "$SCAP_RETENTION_EVIDENCE_DIR"
       - name: Retain all service outcomes and local measurement samples
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -597,4 +620,5 @@ jobs:
             target/evidence/sqlite-service
             target/evidence/membership-network
             target/evidence/history-network
+            target/evidence/retention-network
           if-no-files-found: warn

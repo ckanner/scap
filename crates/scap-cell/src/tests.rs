@@ -2,6 +2,7 @@ use super::*;
 
 mod activation;
 mod history;
+mod retention;
 
 fn apply_activation(state: &mut CellState, data: Vec<u8>) -> HistoryActivationOutcome {
     let position = Position {
@@ -1192,6 +1193,7 @@ fn admission() -> Admission {
         credential_id: 12,
         admission_id: 13,
         auth_epoch: 1,
+        request_epoch: 1,
     }
 }
 fn policy() -> Vec<Grant> {
@@ -1731,7 +1733,8 @@ fn physical_acceptance_rejection_and_original_result_identity() {
             .unwrap(),
         Lookup::Committed {
             commit: accepted.clone(),
-            result: vec![1, 0, 255]
+            result: vec![1, 0, 255],
+            acknowledged: false,
         }
     );
     let mut conflicting = cmd.clone();
@@ -1930,7 +1933,8 @@ fn lookup_absence_is_unknown_and_cancel_fences_survive_snapshot() {
             .lookup(database(), admission(), request(1), [1; 32])
             .unwrap(),
         Lookup::Cancelled {
-            position: cancellation
+            position: cancellation,
+            acknowledged: false,
         }
     );
     rejected_without_mutation(&state, &write(1, 0), Reject::Cancelled);

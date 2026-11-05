@@ -18,9 +18,9 @@ NAMES = [
     "03-stop-upgrade-preserves-history",
     "04-overwrite-exceeds-original-history-budget",
     "05-old-s3-archive-hydrates-with-new-fence",
-    "06-new-v3-archive-roundtrip",
+    "06-new-v4-archive-roundtrip",
     "07-sigkill-recovers-from-base-and-tail",
-    "08-old-binary-rejects-v3-storage",
+    "08-old-binary-rejects-v4-storage",
     "09-new-binary-reopens-after-rejected-downgrade",
 ]
 PROFILE = {
@@ -90,6 +90,14 @@ def local_position(observation, node):
         require(isinstance(status[field], int) and not isinstance(status[field], bool) and 0 <= status[field] <= 2**53 - 1, "invalid local status counter")
     require(status["snapshot_index"] <= status["applied"] <= status["commit"], "inconsistent local durable position")
     return status["applied"]
+
+
+def legacy_cancelled(outcome):
+    """The old service has no terminal position or acknowledgement metadata."""
+    require(isinstance(outcome, dict) and outcome.get("state") == "cancelled", "mixed request was silently treated as cancelled")
+    require(set(outcome) in ({"state"}, {"state", "position", "acknowledged"}), "unexpected legacy cancellation fields")
+    if "position" in outcome:
+        require(outcome["position"] is None and outcome["acknowledged"] is False, "legacy cancellation acquired a fabricated position or acknowledgement")
 
 
 def audit(directory):
@@ -174,7 +182,7 @@ def audit(directory):
     mixed = one(observed, "mixed_version_fence_verified")
     upgraded = mixed["upgraded_node_id"]
     require(upgraded == mixed_start["upgraded_node_id"] and upgraded in (1, 2, 3), "mixed upgraded identity differs")
-    require(mixed_start["old_peer_envelope_version"] == summary["old_peer_envelope_version"] == 1 and mixed_start["new_peer_envelope_version"] == summary["new_peer_envelope_version"] == 2, "wrong version fence")
+    require(mixed_start["old_peer_envelope_version"] == summary["old_peer_envelope_version"] == 1 and mixed_start["new_peer_envelope_version"] == summary["new_peer_envelope_version"] == 3, "wrong version fence")
     require(mixed_start["initialize_flag_used"] is False and mixed["lagging_directory_retained"] is True, "mixed replica was rebuilt instead of reopened")
     require(mixed_start["peer_proxies_blocked"] is False and mixed["peer_proxies_blocked"] is False, "a network partition was substituted for version rejection")
     configuration = {"voters": [1, 2, 3], "learners": [], "voters_outgoing": [], "learners_next": [], "auto_leave": False}
@@ -237,7 +245,7 @@ def audit(directory):
             require(raw["node_id"] == upgraded and raw["invoked_ms"] >= mixed_start["new_live_ms"], "new-version probe used the old process")
     rejected_id = mixed["cancelled_request_id"]
     require(rejected_id == mixed["rejected_new_write"]["request_id"] and ("alpha", rejected_id) in cancel_ids, "uncertain mixed write lost its original identity/fence")
-    require(one(observed, "mixed_rejected_write_resolved")["actual_ordered_outcome"] == {"state": "cancelled"}, "mixed request was silently treated as cancelled")
+    legacy_cancelled(one(observed, "mixed_rejected_write_resolved")["actual_ordered_outcome"])
     old_ack = acknowledged[("alpha", mixed["old_ack_request_id"])]
     require(old_ack["label"] == "old_quorum_accepts_while_new_version_isolated", "no old-only quorum ACK witness")
     old_write = [record for record in requests if record["request_id"] == mixed["old_ack_request_id"] and record["kind"] == "write"]
@@ -288,11 +296,11 @@ def audit(directory):
     legacy = one(observed, "old_v2_fixture_created")
     current = one(observed, "new_archive_roundtrip_verified")
     require(legacy["archives"] and all(archive["format_version"] == 2 for archive in legacy["archives"]), "old bytes were not V2 archives")
-    require(any(archive["format_version"] == 3 for archive in current["archives"]), "no real V3 object witnessed")
+    require(any(archive["format_version"] == 4 for archive in current["archives"]), "no real V4 object witnessed")
     require({archive["sha256"] for archive in legacy["archives"]}.issubset({archive["sha256"] for archive in current["archives"]}), "old immutable objects disappeared")
     for archive in legacy["archives"] + current["archives"]:
         require(archive["sha256"] == archive["key"].rsplit("/", 1)[1] and archive["bytes"] > 9, "archive content address differs")
-    require(summary["old_archive_format"] == 2 and summary["new_archive_format"] == 3, "archive version summary differs")
+    require(summary["old_archive_format"] == 2 and summary["new_archive_format"] == 4, "archive version summary differs")
     hydrated = one(observed, "old_archive_hydrated_without_metadata_rollback")["beta"]
     require(hydrated["cold"] is False and u64(hydrated["revision"]) == 2 and u64(hydrated["tailEntries"]) == 2 - u64(hydrated["baseRevision"]), "V2 archive lost its exact recovery suffix during migration")
     stopped = one(observed, "old_group_stopped")

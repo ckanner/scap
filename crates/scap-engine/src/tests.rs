@@ -104,6 +104,7 @@ fn admission() -> Admission {
         principal_id: 11,
         credential_id: 12,
         admission_id: 13,
+        request_epoch: 1,
         auth_epoch: 1,
     }
 }

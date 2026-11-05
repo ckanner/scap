@@ -55,6 +55,7 @@ pub(crate) fn context(database: &str, request_id: u128) -> scap_service::Request
         database: database.into(),
         credential: TOKEN.into(),
         request_id,
+        request_epoch: 1,
         deadline: Instant::now() + Duration::from_secs(5),
         cancelled: Arc::new(AtomicBool::new(false)),
     }

@@ -4,13 +4,15 @@
 
 2026-11-04 已将 SQL 与前景 hydrate 按数据库隔离到按需创建的串行 lane，并改用增量磁盘块布局；详见 [ADR-0015](../adr/0015-incremental-blocks-and-isolated-execution.md)。S3 仍保存有界完整单库对象，增量磁盘块不代表已实现分段对象恢复或更大数据库 profile。
 
+当前实现还包括 [ADR-0017](../adr/0017-bounded-physical-history.md)的物理基线与有限 tail，以及 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)的显式结果 ACK 与 request epoch 退休。新状态和归档格式为 v4；请求退休不会删除 SQL 数据或 S3 对象，也没有提高原有数据库、命令和状态预算。最终验证状态以 ADR 与执行证据为准。
+
 ## 1. 三层数据及其权威
 
 | 层 | 保存内容 | 数据丢失时如何处理 |
 | --- | --- | --- |
 | Worker 本地副本 | 完整 SQLite 文件、缓存、可丢弃暂存、已应用水位 | 从权威快照和已提交日志重建；不能从该副本反推全局 head |
-| Cell 持久层 | 有序日志、数据库身份/head/epoch、幂等、归档指针、尚未归档的已提交变更 | OpenExisting 遇损坏/身份错误直接拒绝；健康多数派下可用新身份执行受控 learner/joint 替换，自动坏盘运维未实现；多数永久丢失不能靠普通单库归档重建权威 |
-| 对象存储 | 当前为不可变的完整单库事务历史与 manifest；后续扩展快照、增量段和备份 | 缺失或校验失败不能伪造空页；暂停依赖对象的恢复并修复 |
+| Cell 持久层 | 有序日志、数据库身份/head/owner epoch、request epoch 与退休前缀、当前窗口的幂等/结果 ACK、归档指针、尚未归档的已提交变更 | OpenExisting 遇损坏/身份错误直接拒绝；健康多数派下可用新身份执行受控 learner/joint 替换，自动坏盘运维未实现；多数永久丢失不能靠普通单库归档重建权威 |
+| 对象存储 | 当前为不可变的完整单库恢复对象：manifest、物理基线与有限 tail、对象生成时保留的请求元数据；后续扩展增量段和备份 | 缺失或校验失败不能伪造空页；暂停依赖对象的恢复并修复 |
 
 归档完成前，cell 必须保留恢复所需的事务数据。归档完成后，快照、增量与 cell 元数据共同构成恢复来源。S3 不必在每次热提交路径中，但已经回收到 S3 的数据在冷恢复时依赖它。
 
@@ -22,7 +24,7 @@
 scap/v1/{cluster_id}/{cell_id}/{cell_incarnation}/{database_id}/{incarnation}/{placement_generation}/{sha256}
 ```
 
-cluster/cell/database ID 使用固定十六进制身份，摘要来自完整对象字节。节点 ID 不进入对象作用域，使合法接管节点能够读取同一归档。对象内 manifest 再次绑定 cell/database 全部世代、源应用位置、head、完整事务与原结果；外部 `ArchiveRef` 记录精确长度、对象摘要及保留元数据摘要。对象格式为 v2，key 中的 `v1` 是独立的路径布局版本。
+cluster/cell/database ID 使用固定十六进制身份，摘要来自完整对象字节。节点 ID 不进入对象作用域，使合法接管节点能够读取同一归档。对象内 manifest 再次绑定 cell/database 全部世代、源应用位置、head、request epoch、退休前缀、基线与连续 tail，以及对象生成时尚未退休的事务及原结果；外部 `ArchiveRef` 记录精确长度、对象摘要及保留元数据摘要。当前新对象格式为 v4，key 中的 `v1` 是独立的路径布局版本。旧 v2/v3 对象只有在当前权威仍为 epoch 1、退休前缀为空且完整精确绑定一致时才可恢复，不因升级而重写已有对象或采用宽松匹配。
 
 以下是后续增量/PITR/DR 的候选布局，当前不创建这些对象或恢复目录：
 
@@ -40,7 +42,7 @@ control-backups/{backup_id}/...
 - 当前按数据库和完整内容组织独立对象；跨库打包可能减少小对象请求费，但涉及权限、回收和恢复放大，后续另立 ADR。
 - 从 manifest 直接定位恢复链，不在唤醒时扫描整个 bucket 或整个共享 Raft 日志。
 
-后续分段 manifest 至少描述 `db_id`、`incarnation`、格式版本、引擎兼容标识、page size、基准快照、连续增量范围、最终 `db_seq`、数据库大小、对象摘要和加密元数据引用。当前完整历史归档不声明分段读取、对象压缩或 KMS 元数据协议已实现。
+后续分段 manifest 至少描述 `db_id`、`incarnation`、格式版本、引擎兼容标识、page size、基准快照、连续增量范围、最终 `db_seq`、数据库大小、对象摘要和加密元数据引用。当前完整恢复对象不声明分段读取、对象压缩或 KMS 元数据协议已实现。
 
 ## 3. 事务变更格式
 
@@ -71,15 +73,17 @@ Cell 保存经过版本化的物理事务增量：最终页面变化、数据库
 
 ### 5.1 Raft 日志压缩
 
-Raft 日志索引属于整个 cell。压缩必须由可恢复的状态机快照覆盖：数据库状态、`ConfState`（包括尚未结束的 joint configuration）、last-applied 的 term/index 与 cell 身份、幂等记录、归档指针以及尚未归档的数据尾部都不能遗漏。
+Raft 日志索引属于整个 cell。压缩必须由可恢复的状态机快照覆盖：数据库状态、`ConfState`（包括尚未结束的 joint configuration）、last-applied 的 term/index 与 cell 身份、request epoch 与退休前缀、保留的幂等记录和结果 ACK、归档指针以及尚未归档的数据尾部都不能遗漏。
 
 状态机快照可以直接包含未归档尾部，或引用已经发布且不可变的恢复对象。只有满足 `raft-rs` 及 SCAP 的存储、snapshot 安装与恢复契约后才截断日志；不能仅凭“某个库已上传到 S3”截断整个 cell 的历史。具体检查见 [raft-rs 集成门禁](../engineering/raft-rs-integration.md)。
 
-当前 `PruneArchive` 只清除该库的物理事务字节。后台完成通知促使正式全 cell `Checkpoint`，所有 voter 还按 applied/snapshot 差距及周期维护检查快照；membership、应用位置、所有数据库和未归档数据一并持久化。日志回收继续由 Store 的快照协议完成，Prune 不直接截断共享日志。逻辑冷卸载与 RocksDB 实际释放旧镜像字节不是同一个时刻。
+当前 `PruneArchive` 只清除该库的物理基线与 tail 字节，保留恢复锚点和请求元数据。后台完成通知促使正式全 cell `Checkpoint`，所有 voter 还按 applied/snapshot 差距及周期维护检查快照；membership、应用位置、所有数据库和未归档数据一并持久化。日志回收继续由 Store 的快照协议完成，Prune 不直接截断共享日志。逻辑冷卸载与 RocksDB 实际释放旧镜像字节不是同一个时刻。
 
 ### 5.2 数据归档与对象 GC
 
-**当前没有对象 GC。** 已发布归档、旧归档和未发布对象全部保留，取消 fence、请求 receipt/result 和管理记录也不自动回收。已发布精确引用构成恢复根，永久对象保留避免恢复过程中与删除竞争；当前没有动态恢复 pin/退休协议，不能把这种保守保留描述为完整 GC 或长尾成本问题已经解决。不得给 SCAP 前缀配置自动删除规则。
+**当前没有对象 GC。** 已发布归档、旧归档和未发布对象全部保留，取消 fence、请求 receipt/result 和管理记录也不自动回收。已发布精确引用构成恢复根，永久对象保留避免恢复过程中与删除竞争；当前没有对象恢复 pin 或 DR checkpoint 退休协议，不能把这种保守保留描述为完整 GC 或长尾成本问题已经解决。不得给 SCAP 前缀配置自动删除规则。
+
+请求结果的显式退休是独立机制：当前窗口内每条已提交或已取消请求都取得结果 ACK 后，ADMIN 可通过原 request epoch 的 CAS 原子推进 epoch、保留永久退休前缀并移除该窗口的请求记录。单纯 ACK 不释放记录，超时和 TTL 也不触发删除。Cold 库可以 ACK，但必须先核验精确对象并完成 hydrate，才可退休窗口；S3 不可读时不能跳过此条件。该机制不删除对象，不退休管理记录；每库当前窗口仍为 128 条，cell 管理记录仍有 4096 条上限。
 
 以下是启用 GC、PITR 或迁移前必须实现的 planned 合同：
 
@@ -141,7 +145,7 @@ Suspend 不要求先将最新事务上传到 S3。必要的 committed tail 继�
 
 数据库处于 `SUSPENDED` 后，归档任务可以为固定 head 生成并发布完整恢复对象。只有当前世代/owner 未变、库仍休眠且已发布对象完整覆盖当前 head 时，才允许有序 Prune 并标记 `Cold`。这个标记表示应用状态里的物理历史可由精确归档恢复；共享日志及旧快照字节仍须等第 5 节的完整 cell snapshot 覆盖与持久回收条件，不能由 Cold 单独授权清除。
 
-当前有界实现由 `PruneArchive` 检查 exact owner、inactive、suspended、当前已发布对象和完整 head，只移除 physical_changes；事务身份、fingerprint、receipt/result、取消记录、权限及归档位置仍在 cell。`HydrateArchive` 必须逐条核对这些保留元数据与对象中原历史，且只能补回物理字节，不能用对象输入覆盖当前权限或结果。
+当前有界实现由 `PruneArchive` 检查 exact owner、inactive、suspended、当前已发布对象和完整 head，只移除物理基线与 tail 字节；基线锚点、request epoch、退休前缀、当前窗口的事务身份、fingerprint、receipt/result、取消记录、结果 ACK、权限及归档位置仍在 cell。`HydrateArchive` 必须逐条核对这些保留元数据与对象中历史，且只能补回物理字节，不能用对象输入覆盖当前权限、结果或归档之后新增的 ACK。退休前缀包含 SQL revision 时，对象必须有覆盖它的物理基线；即使对象长度和摘要重新匹配，缺失基线仍必须拒绝。
 
 这个步骤不再次授予或撤销 owner，也不把每库归档完成当作共享 Raft 日志可直接截断的许可。期间发生唤醒、删除或迁移时，按当前权威身份和引用重新判定；不能依据缓存中的 `Cold` 标签删除数据。S3 不可用或归档失败时保持 `Suspended` 并保留必要 tail，不影响已完成的计算资源释放，也不能伪报完整冷卸载。
 
@@ -173,7 +177,7 @@ S3 恢复后先追赶归档、校验发布链并降低积压，再逐步恢复�
 
 ## 10. 删除、恢复与迁移
 
-当前的热物理历史已按 [ADR-0017](../adr/0017-bounded-physical-history.md)采用持久基线与连续有限 tail。每次折叠与当前 Commit 同一原子应用，基线绑定原提交位置、revision、逻辑 commit hash 和物理 image digest；原结果、取消、权限及管理记录继续保留。Cold 的准确对象覆盖和 Prune/Hydrate 次序不变，旧 v2 对象按同一规范规则迁移，不用旧对象覆盖新权限。物理折叠不等同于下述逻辑删除、请求退休或对象 GC，也不提高原有数据库/状态预算。
+当前的热物理历史已按 [ADR-0017](../adr/0017-bounded-physical-history.md)采用持久基线与连续有限 tail。折叠在 Commit 或显式请求退休的候选状态中原子完成，基线绑定原提交位置、revision、逻辑 commit hash 和物理 image digest。物理折叠本身保留请求结果与取消记录；只有 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)的完整 ACK 窗口退休才移除这些记录，并永久保留拒绝旧请求所需的 epoch 与退休前缀。权限及管理记录不随窗口退休。Cold 的准确对象覆盖和 Prune/Hydrate 次序不变，旧 v2/v3 对象仅按第 2 节的兼容条件使用，不用旧对象覆盖当前权限。物理折叠与请求退休均不提供下述逻辑删除或对象 GC，也不提高原有数据库/状态预算。
 
 下述删除、历史时间点恢复和跨 cell 迁移为 planned。当前 cold hydrate 恢复同一数据库的当前 head，不提供用户选择历史时间点、删除/重建或跨 cell 迁移的管理 API。
 
@@ -203,7 +207,7 @@ S3 恢复后先追赶归档、校验发布链并降低积压，再逐步恢复�
 
 普通数据 manifest 不是独立灾难恢复入口：它可能已经上传但尚未被 cell 发布。首版必须额外生成**完成态 DR checkpoint**：
 
-1. 从有效 cell 的已提交、已应用状态构建状态机快照，固定 Raft membership、last-applied 和每库的身份、head、epoch、auth_epoch、tombstone、幂等与已发布 manifest 指针。取得固定视图和持久 pin 之间不得出现无保护窗口。
+1. 从有效 cell 的已提交、已应用状态构建状态机快照，固定 Raft membership、last-applied 和每库的身份、head、owner epoch、auth_epoch、request epoch、退休前缀、tombstone、保留的幂等/结果 ACK 与已发布 manifest 指针。取得固定视图和持久 pin 之间不得出现无保护窗口。
 2. 快照包括该时刻尚未归档的已提交尾部，或先为这些尾部构造被快照明确引用的完整恢复对象。不能只上传指针而丢掉对应数据。
 3. 上传并校验快照引用的全部对象，记录对象摘要、格式版本、源 cell 身份和精确恢复位置。
 4. 按第 11.2 节取得完成发布资格，最后创建不可变 `dr-checkpoint-complete` 清单及受控备份身份的签名 / 来源记录。该清单是“所有引用已经齐备”的完成标记，不以目录排序表示最新共识状态；完成标记写入前后都必须有连续的引用保护。

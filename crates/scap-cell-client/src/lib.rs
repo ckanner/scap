@@ -61,6 +61,10 @@ pub enum Error {
     Unknown,
     /// Invalid local scope, command or invocation binding, before submission.
     InvalidContext,
+    /// The original request generation has been retired. Its historical
+    /// result is unavailable, and a new generation must never be substituted
+    /// automatically to replay the SQL.
+    Retired,
 }
 
 impl Display for Error {
@@ -198,7 +202,8 @@ impl<P: CellPort> Client<P> {
 
     /// Trusted catalogue-only upgrade, never a tenant command. The immutable
     /// bootstrap administrator authorizes the separate internal entry. A
-    /// tracked durable result must be followed by a fresh view of phase 3 under
+    /// tracked durable result must be followed by a fresh view of phase 3 or
+    /// later under
     /// this same original deadline before the caller may enable service.
     pub fn activate_history(&mut self, context: &RequestContext) -> Result<CellState, Error> {
         self.check(context)?;
@@ -222,7 +227,43 @@ impl<P: CellPort> Client<P> {
             return Err(Error::Unknown);
         }
         let state = self.read(context)?;
-        if state.physical_history_version() != 3
+        if state.physical_history_version() < 3
+            || state.position().index < position.index
+            || state.position().term < position.term
+        {
+            return Err(Error::Unknown);
+        }
+        Ok(state)
+    }
+
+    /// Trusted catalogue-only activation of acknowledged request retirement.
+    /// This is a separate ordered entry, not an ordinary tenant command or a
+    /// retry of a previous activation. Service can open only after its exact
+    /// durable completion and a fresh phase-4 view within the original budget.
+    pub fn activate_retention(&mut self, context: &RequestContext) -> Result<CellState, Error> {
+        self.check(context)?;
+        let data =
+            scap_cell::encode_retention_activation(self.cell, context.admission.principal_id);
+        self.check(context)?;
+        let result = self
+            .port
+            .propose(data, context.deadline, &context.cancelled)
+            .map_err(|_| Error::Unknown)?;
+        if result.ticket.boot_id == 0 || result.ticket.sequence == 0 {
+            return Err(Error::Unknown);
+        }
+        let position = Position {
+            term: result.term,
+            index: result.index,
+        };
+        let applied =
+            scap_cell::decode_retention_activation_outcome(&result.data, self.cell, position)
+                .map_err(|_| Error::Unknown)?;
+        if applied.result.is_err() {
+            return Err(Error::Unknown);
+        }
+        let state = self.read(context)?;
+        if state.physical_history_version() != 4
             || state.position().index < position.index
             || state.position().term < position.term
         {
@@ -253,7 +294,8 @@ impl<P: CellPort> Client<P> {
             .authorize_write(database, context.admission, owner(ticket), revision)
             .map_err(|_| Error::Unknown)?;
         match state.lookup(database, context.admission, ticket.request_id, fingerprint) {
-            Ok(Lookup::Committed { commit, result }) if &commit == expected => Ok(result),
+            Ok(Lookup::Committed { commit, result, .. }) if &commit == expected => Ok(result),
+            Ok(Lookup::Retired { .. }) => Err(Error::Retired),
             _ => Err(Error::Unknown),
         }
     }
@@ -372,11 +414,12 @@ impl<P: CellPort> CommitGate for Gate<P> {
                 active.phase = Phase::Prepared(fingerprint);
                 LookupDecision::NotFound
             }
-            Ok(Lookup::Committed { commit, result }) => LookupDecision::AlreadyCommitted {
+            Ok(Lookup::Committed { commit, result, .. }) => LookupDecision::AlreadyCommitted {
                 receipt: commit.receipt,
                 result,
             },
             Ok(Lookup::Cancelled { .. }) => LookupDecision::Rejected(Rejection::Conflict),
+            Ok(Lookup::Retired { .. }) => LookupDecision::Rejected(Rejection::Retired),
             Err(reject) => LookupDecision::Rejected(rejection(reject)),
         }
     }
@@ -431,6 +474,7 @@ impl<P: CellPort> CommitGate for Gate<P> {
                         receipt: commit.receipt,
                         result,
                     },
+                    Err(Error::Retired) => GateDecision::Rejected(Rejection::Retired),
                     Err(_) => GateDecision::Unknown,
                 }
             }
@@ -459,6 +503,7 @@ fn rejection(reject: Reject) -> Rejection {
     match reject {
         Reject::Fenced | Reject::NotFound => Rejection::Fenced,
         Reject::Unauthorized => Rejection::Unauthorized,
+        Reject::Retired => Rejection::Retired,
         Reject::Conflict | Reject::Cancelled | Reject::Exists => Rejection::Conflict,
         _ => Rejection::InvalidTransaction,
     }

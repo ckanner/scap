@@ -54,6 +54,7 @@ fn admission() -> Admission {
         principal_id: 11,
         credential_id: 12,
         admission_id: 13,
+        request_epoch: 1,
         auth_epoch: 1,
     }
 }
@@ -1128,6 +1129,7 @@ fn all_definitive_rejections_are_preserved_as_their_public_error_class() {
         (Reject::Conflict, Rejection::Conflict),
         (Reject::Cancelled, Rejection::Conflict),
         (Reject::Exists, Rejection::Conflict),
+        (Reject::Retired, Rejection::Retired),
         (Reject::Invalid, Rejection::InvalidTransaction),
         (Reject::TooLarge, Rejection::InvalidTransaction),
         (Reject::Capacity, Rejection::InvalidTransaction),
@@ -1352,4 +1354,376 @@ fn duplicate_history_does_not_reveal_results_without_current_authorization_and_r
             "case {case}"
         );
     }
+}
+
+fn retained_state(position: Position) -> CellState {
+    let mut state = CellState::bootstrap(
+        cell(),
+        11,
+        Position {
+            term: position.term,
+            index: position.index - 1,
+        },
+        limits(),
+    )
+    .unwrap();
+    apply_raw(
+        &mut state,
+        scap_cell::encode_retention_activation(cell(), 11),
+    );
+    assert_eq!(state.position(), position);
+    assert_eq!(state.physical_history_version(), 4);
+    state
+}
+
+fn rotate_cancelled_epoch(state: &mut CellState) {
+    let cancelled = apply(
+        state,
+        CommandKind::ResolveOrCancel {
+            request_id: 500,
+            request_fingerprint: [5; 32],
+        },
+    );
+    assert_eq!(cancelled.outcome, Outcome::Cancelled);
+    assert_eq!(
+        apply(
+            state,
+            CommandKind::AcknowledgeRequest {
+                request_id: 500,
+                request_fingerprint: [5; 32],
+                expected: scap_cell::RequestTerminal::Cancelled {
+                    position: cancelled.position,
+                },
+            },
+        )
+        .outcome,
+        Outcome::RequestAcknowledged
+    );
+    assert_eq!(
+        apply(state, CommandKind::RotateRequests { expected_epoch: 1 }).outcome,
+        Outcome::RequestsRotated { epoch: 2 }
+    );
+}
+
+#[test]
+fn retention_activation_has_separate_ordered_bytes_and_confirms_phase_four() {
+    let (mut client, port, _, context) = build();
+    let previous_database = port.0.borrow().state.database(db().database_id).unwrap();
+    let state = client.activate_retention(&context).unwrap();
+    assert_eq!(state.physical_history_version(), 4);
+    assert_eq!(state.database(db().database_id).unwrap(), previous_database);
+    assert_eq!(state.encode(), port.0.borrow().state.encode());
+    assert_eq!(
+        port.0.borrow().sent,
+        vec![scap_cell::encode_retention_activation(cell(), 11)]
+    );
+    assert_ne!(
+        port.0.borrow().sent[0],
+        scap_cell::encode_history_activation(cell(), 11)
+    );
+    let repeated = client.activate_retention(&context).unwrap();
+    assert_eq!(repeated.physical_history_version(), 4);
+    assert_eq!(repeated.position().index, state.position().index + 1);
+    // A later phase also satisfies the older physical-history capability;
+    // confirming it must not downgrade the persisted application generation.
+    assert_eq!(
+        client
+            .activate_history(&context)
+            .unwrap()
+            .physical_history_version(),
+        4
+    );
+    let held = port.0.borrow();
+    assert_eq!(held.read_calls, 3);
+    assert_eq!(held.sent.len(), 3);
+    assert!(held
+        .deadlines
+        .iter()
+        .all(|value| *value == context.deadline));
+    assert!(held
+        .cancel_pointers
+        .iter()
+        .all(|value| *value == Arc::as_ptr(&context.cancelled) as usize));
+}
+
+#[test]
+fn retention_activation_rejects_unbound_results_and_unauthorized_or_legacy_apply() {
+    let initial = bootstrap();
+    let valid = apply_raw(
+        &mut initial.clone(),
+        scap_cell::encode_retention_activation(cell(), 11),
+    );
+    let (mut client, port, _, mut context) = build();
+    port.0.borrow_mut().state = initial;
+    for field in 0..7 {
+        let mut result = valid.clone();
+        match field {
+            0 => result.ticket.boot_id = 0,
+            1 => result.ticket.sequence = 0,
+            2 => result.data.clear(),
+            3 => result.index += 1,
+            4 => result.term += 1,
+            5 => result.index = 0,
+            _ => result.term = 0,
+        }
+        port.0.borrow_mut().proposals.push_back(Ok(result));
+        assert!(matches!(
+            client.activate_retention(&context),
+            Err(Error::Unknown)
+        ));
+    }
+    for error in [RuntimeError::Unknown, RuntimeError::NotLeader] {
+        port.0.borrow_mut().proposals.push_back(Err(error));
+        assert!(matches!(
+            client.activate_retention(&context),
+            Err(Error::Unknown)
+        ));
+    }
+    let other = CellIdentity {
+        cell_incarnation: 31,
+        ..cell()
+    };
+    let mut other_state =
+        CellState::bootstrap(other, 11, Position { term: 1, index: 1 }, limits()).unwrap();
+    let wrong_scope = apply_raw(
+        &mut other_state,
+        scap_cell::encode_retention_activation(other, 11),
+    );
+    port.0.borrow_mut().proposals.push_back(Ok(wrong_scope));
+    assert!(matches!(
+        client.activate_retention(&context),
+        Err(Error::Unknown)
+    ));
+    let wrong_generation = apply_raw(
+        &mut bootstrap(),
+        scap_cell::encode_history_activation(cell(), 11),
+    );
+    port.0
+        .borrow_mut()
+        .proposals
+        .push_back(Ok(wrong_generation));
+    assert!(matches!(
+        client.activate_retention(&context),
+        Err(Error::Unknown)
+    ));
+    context.admission.principal_id = 22;
+    assert!(matches!(
+        client.activate_retention(&context),
+        Err(Error::Unknown)
+    ));
+    assert_eq!(port.0.borrow().state.physical_history_version(), 3);
+    assert_eq!(port.0.borrow().read_calls, 0);
+    context.admission.principal_id = 11;
+    port.0.borrow_mut().state =
+        CellState::bootstrap_legacy(cell(), 11, Position { term: 1, index: 1 }, limits()).unwrap();
+    assert!(matches!(
+        client.activate_retention(&context),
+        Err(Error::Unknown)
+    ));
+    assert_eq!(port.0.borrow().state.physical_history_version(), 2);
+    assert_eq!(port.0.borrow().read_calls, 0);
+}
+
+#[test]
+fn retention_activation_cannot_use_a_stale_or_unavailable_read_confirmation() {
+    let stale_states = [
+        CellState::bootstrap(cell(), 11, Position { term: 2, index: 6 }, limits()).unwrap(),
+        retained_state(Position { term: 2, index: 5 }),
+        retained_state(Position { term: 1, index: 6 }),
+    ];
+    for stale in stale_states {
+        let (mut client, port, _, context) = build();
+        port.0.borrow_mut().state =
+            CellState::bootstrap(cell(), 11, Position { term: 2, index: 5 }, limits()).unwrap();
+        port.0.borrow_mut().reads.push_back(Ok(view(&stale)));
+        assert!(matches!(
+            client.activate_retention(&context),
+            Err(Error::Unknown)
+        ));
+        assert_eq!(port.0.borrow().state.physical_history_version(), 4);
+        assert_eq!(port.0.borrow().sent.len(), 1);
+        assert_eq!(
+            client.read(&context).unwrap().position(),
+            Position { term: 2, index: 6 }
+        );
+        assert_eq!(port.0.borrow().sent.len(), 1);
+    }
+    let (mut client, port, _, context) = build();
+    port.0
+        .borrow_mut()
+        .reads
+        .push_back(Err(RuntimeError::Unknown));
+    assert!(matches!(
+        client.activate_retention(&context),
+        Err(Error::Unknown)
+    ));
+    assert_eq!(port.0.borrow().sent.len(), 1);
+    assert_eq!(port.0.borrow().read_calls, 1);
+}
+
+#[test]
+fn retention_activation_keeps_the_original_deadline_and_cancellation() {
+    for expires in 1..=2 {
+        let (mut client, port, clock, context) = build();
+        clock.expire_on_call.store(
+            clock.calls.load(Ordering::Acquire) + expires,
+            Ordering::Release,
+        );
+        assert!(matches!(
+            client.activate_retention(&context),
+            Err(Error::Unknown)
+        ));
+        assert!(port.0.borrow().sent.is_empty());
+    }
+    for after_read in [false, true] {
+        let (mut client, port, _, context) = build();
+        let cancelled = context.cancelled.clone();
+        let hook: Box<dyn FnOnce()> = Box::new(move || cancelled.store(true, Ordering::Release));
+        if after_read {
+            port.0.borrow_mut().after_read = Some(hook);
+        } else {
+            port.0.borrow_mut().after_proposal = Some(hook);
+        }
+        assert!(matches!(
+            client.activate_retention(&context),
+            Err(Error::Unknown)
+        ));
+        assert_eq!(port.0.borrow().state.physical_history_version(), 4);
+        assert_eq!(port.0.borrow().read_calls, usize::from(after_read));
+        assert_eq!(port.0.borrow().sent.len(), 1);
+        context.cancelled.store(false, Ordering::Release);
+        assert_eq!(client.read(&context).unwrap().physical_history_version(), 4);
+        assert_eq!(port.0.borrow().sent.len(), 1);
+    }
+}
+
+#[test]
+fn retired_gate_lookup_rejects_before_sql_and_checks_current_authority_first() {
+    for unauthorized in [false, true] {
+        let (mut client, port, _, mut context) = build();
+        client.activate_retention(&context).unwrap();
+        rotate_cancelled_epoch(&mut port.0.borrow_mut().state);
+        port.0.borrow_mut().sent.clear();
+        if unauthorized {
+            context.admission.principal_id = 22;
+        }
+        let mut gate = Gate::new(client);
+        let _guard = gate.begin(context.clone(), ticket()).unwrap();
+        let expected = if unauthorized {
+            Rejection::Unauthorized
+        } else {
+            Rejection::Retired
+        };
+        assert!(
+            matches!(gate.lookup(&ticket(), FINGERPRINT), LookupDecision::Rejected(actual) if actual == expected)
+        );
+        assert!(matches!(
+            gate.propose(&write(), FINGERPRINT, b"never execute"),
+            GateDecision::Unknown
+        ));
+        assert!(port.0.borrow().sent.is_empty());
+        assert_eq!(context.admission.request_epoch, 1);
+    }
+    assert_eq!(Error::Retired.to_string(), "Retired");
+}
+
+#[test]
+fn rotation_after_preflight_is_a_definitive_rejection_without_request_replay() {
+    let (mut gate, _guard, port, _, context) = prepared_gate();
+    {
+        let state = &mut port.0.borrow_mut().state;
+        apply_raw(state, scap_cell::encode_retention_activation(cell(), 11));
+        rotate_cancelled_epoch(state);
+    }
+    assert!(matches!(
+        gate.propose(&write(), FINGERPRINT, b"never publish"),
+        GateDecision::Rejected(Rejection::Retired)
+    ));
+    let held = port.0.borrow();
+    assert_eq!(held.sent.len(), 1);
+    assert_eq!(held.state.database(db().database_id).unwrap().revision, 0);
+    assert_eq!(context.admission.request_epoch, 1);
+}
+
+#[test]
+fn rotation_before_duplicate_result_lookup_is_retired_and_never_unknown_or_replayed() {
+    use scap_core::physical::{EngineIdentity, Image, Limits as ImageLimits, PageBatch};
+    let (mut gate, _guard, port, _, _) = prepared_gate();
+    let image = Image::empty(
+        EngineIdentity {
+            cell: cell(),
+            database: db(),
+        },
+        ImageLimits {
+            max_database_pages: 1,
+            max_changed_pages: 1,
+            max_transaction_bytes: limits().max_transaction_bytes,
+        },
+    )
+    .unwrap();
+    let prepared = image
+        .prepare(
+            ticket(),
+            PageBatch {
+                size_after: 0,
+                pages: vec![],
+            },
+        )
+        .unwrap();
+    let original = {
+        let state = &mut port.0.borrow_mut().state;
+        apply_raw(state, scap_cell::encode_retention_activation(cell(), 11));
+        let Outcome::Accepted(original) = apply(
+            state,
+            CommandKind::Commit {
+                write: prepared.write().clone(),
+                request_fingerprint: FINGERPRINT,
+                result: ORIGINAL_RESULT.to_vec(),
+            },
+        )
+        .outcome
+        else {
+            panic!("physical commit rejected")
+        };
+        original
+    };
+    // The precise earlier application result can arrive just before another
+    // authorized party retires it; the final read must respect that fence.
+    let race = port.clone();
+    port.0.borrow_mut().after_proposal = Some(Box::new(move || {
+        let state = &mut race.0.borrow_mut().state;
+        assert_eq!(
+            apply(
+                state,
+                CommandKind::AcknowledgeRequest {
+                    request_id: 88,
+                    request_fingerprint: FINGERPRINT,
+                    expected: scap_cell::RequestTerminal::Committed {
+                        sequence: original.receipt.sequence
+                    },
+                }
+            )
+            .outcome,
+            Outcome::RequestAcknowledged
+        );
+        assert_eq!(
+            apply(state, CommandKind::RotateRequests { expected_epoch: 1 }).outcome,
+            Outcome::RequestsRotated { epoch: 2 }
+        );
+    }));
+    assert!(matches!(
+        gate.propose(prepared.write(), FINGERPRINT, b"never re-run"),
+        GateDecision::Rejected(Rejection::Retired)
+    ));
+    assert_eq!(port.0.borrow().read_calls, 2);
+    assert_eq!(port.0.borrow().sent.len(), 1);
+    assert_eq!(
+        port.0
+            .borrow()
+            .state
+            .database(db().database_id)
+            .unwrap()
+            .revision,
+        1
+    );
 }

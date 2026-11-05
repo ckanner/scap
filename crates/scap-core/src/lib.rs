@@ -57,6 +57,9 @@ pub enum Rejection {
     Fenced,
     Unauthorized,
     Conflict,
+    /// The request generation is permanently closed. This identity cannot be
+    /// executed again; retirement does not prove that its old SQL never ran.
+    Retired,
     InvalidTransaction,
 }
 

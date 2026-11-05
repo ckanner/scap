@@ -461,7 +461,7 @@ impl Cluster {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             let state = self.try_read(leader, 1000).unwrap();
-            if let Lookup::Committed { commit, result } = state
+            if let Lookup::Committed { commit, result, .. } = state
                 .lookup(
                     common::DATABASE,
                     common::admission(),

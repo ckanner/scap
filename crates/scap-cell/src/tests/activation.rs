@@ -89,7 +89,8 @@ fn canonical_splits(
             ),
             Ok(Lookup::Committed {
                 commit: transaction.commit.clone(),
-                result: transaction.result.clone()
+                result: transaction.result.clone(),
+                acknowledged: false,
             })
         );
     }

@@ -35,7 +35,7 @@
 
 唯一 RPC 是 `/scap.raft.peer.v1.Peer/Deliver`。外层 [peer.proto](../../crates/scap-raft-transport/proto/peer.proto)中的 `Packet.data` 承载完整 wire envelope，响应只有版本化 `Received`。不直接把不同版本 Prost 的类型拼接起来。
 
-`SCAPRPC1` envelope 有固定 80 字节头：magic、version、codec、两个 u128 的 cluster/cell ID、incarnation、from/to node 和 payload 长度，整数为 little endian；当前 version 为 2，codec 仍为 1。解码拒绝错误 magic、截断、尾随和超限，准入在内部解析前拒绝非当前 version。这个世代边界隔离 [有界物理历史](../adr/0017-bounded-physical-history.md)与旧全历史状态机的不同容量裁决，不提供自动协商或降级。内层 raft-rs bytes 保持原样；零分配预检先限制字段和 entries 数，再调用固定 protobuf decoder。未知普通 protobuf 字段可保留，未知消息/entry enum、非法结构和本阶段禁止的消息不能通过授权。
+`SCAPRPC1` envelope 有固定 80 字节头：magic、version、codec、两个 u128 的 cluster/cell ID、incarnation、from/to node 和 payload 长度，整数为 little endian；当前 version 为 3，codec 仍为 1。解码拒绝错误 magic、截断、尾随和超限，准入在内部解析前拒绝非当前 version，包括旧 version 1/2。这个世代边界隔离 [有界物理历史](../adr/0017-bounded-physical-history.md)与 [显式请求退休](../adr/0019-explicit-request-result-retirement.md)相对旧状态机的容量和 apply 裁决变化，不提供自动协商或降级；升级必须停止全部旧 voter，再用新二进制 OpenExisting，不支持混合世代滚动升级。内层 raft-rs bytes 保持原样；零分配预检先限制字段和 entries 数，再调用固定 protobuf decoder。未知普通 protobuf 字段可保留，未知消息/entry enum、非法结构和本阶段禁止的消息不能通过授权。
 
 身份检查分为两条路径：
 
@@ -117,7 +117,7 @@ owner 运行在调用方提供的专用阻塞线程。它串行 drain Ready、�
 
 关闭由调用方编排：先通过 `Handle::stop` 关闭新准入并处理尚在队列的等待请求，停止 server 接收，按绝对 deadline 等待 `NetworkWorkers::shutdown`，再确认 serial owner 线程退出。owner 中尚未完成的读在下一次 owner 调度或销毁时关闭。已经开始的 proposal 仍可能提交；`Closed`、超时、取消和断连都不能证明事务回滚。
 
-network shutdown 取消发送 future，超时或任务错误时 abort 剩余 async worker；Drop 也执行取消。未开始的排队消息释放物理配额，不产生成功回执。这个有限等待只针对网络 worker，不能强制中断同步 fsync、应用回调或 SQLite FFI，也不承诺整个进程在同一个 deadline 内完成持久关闭。必要的进程监督、故障接管及 UNKNOWN 解析属于服务层后续工作。
+network shutdown 取消发送 future，超时或任务错误时 abort 剩余 async worker；Drop 也执行取消。未开始的排队消息释放物理配额，不产生成功回执。这个有限等待只针对网络 worker，不能强制中断同步 fsync、应用回调或 SQLite FFI，也不承诺整个进程在同一个 deadline 内完成持久关闭。进程监督、故障接管及 UNKNOWN 解析由服务层负责，当前有界装配见 [SQLite 服务](sqlite-service.md)。
 
 ## 8. 真实组合暴露的 NODELAY 缺陷
 
@@ -125,7 +125,7 @@ network shutdown 取消发送 future，超时或任务错误时 abort 剩余 asy
 
 正式 transport 现在在交给 TLS/HTTP2 前对每个 accepted socket 调用 NODELAY，设置失败就拒绝连接，并以真实 socket 与失败注入单元覆盖；故障代理两端也明确设置该选项，使故障模型不混入未定义的 TCP 延迟。修复后八项网络契约在原有读 deadline 下通过。具体记录见 [实验结果](../../experiments/raft-network/README.md)，没有用提高超时来隐藏缺陷。
 
-此修复证明了这条实际实现缺陷已经覆盖，不证明新建连接策略达到生产吞吐或尾延迟目标。每 delivery 的 TLS 握手、socket 数、TIME_WAIT、取消残留、snapshot 干扰和证书轮换下的容量仍需专门测量。
+此修复证明了这条实际实现缺陷已经覆盖，不证明连接策略达到生产吞吐或尾延迟目标。建连与 TLS 握手、socket 数、TIME_WAIT、取消残留、snapshot 干扰和证书轮换下的容量仍需专门测量；当前有界 channel 复用不替代这些测量。
 
 ## 9. 验证层次与性能边界
 

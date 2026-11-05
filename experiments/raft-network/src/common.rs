@@ -141,6 +141,7 @@ pub fn admission() -> Admission {
         credential_id: 202,
         admission_id: 303,
         auth_epoch: 1,
+        request_epoch: 1,
     }
 }
 

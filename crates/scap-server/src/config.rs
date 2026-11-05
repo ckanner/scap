@@ -86,6 +86,7 @@ impl Config {
         let cluster_id = identity(&value, "cluster_id")?;
         let node_id = integer(&value, "node_id")?;
         let administrator_id = identity(&value, "administrator_id")?;
+        let service_credential_id = identity(&value, "service_credential_id")?;
         let peers = array(&value, "peers", 16)?
             .iter()
             .map(|peer| {
@@ -137,17 +138,29 @@ impl Config {
                         let digest = digest(string(token, "sha256")?)?;
                         let principal_id = identity(token, "principal_id")?;
                         let permissions = integer(token, "permissions")?;
-                        if digest == [0; 32]
-                            || !digests.insert(digest)
-                            || principal_id == administrator_id
-                            || !(1..=3).contains(&permissions)
-                        {
+                        let credential_id = identity(token, "credential_id")?;
+                        let retention_admin = match token.get("retention_admin") {
+                            None | Some(Value::Bool(false)) => false,
+                            Some(Value::Bool(true)) => true,
+                            _ => return Err(failure("CONFIG_TOKEN")),
+                        };
+                        // Existing tenant tokens keep their original read/write
+                        // scope. Retiring results is a separate explicit credential
+                        // bound to this database and the immutable administrator.
+                        let permitted = if retention_admin {
+                            principal_id == administrator_id
+                                && permissions == u64::from(scap_cell::READ | scap_cell::ADMIN)
+                                && credential_id != service_credential_id
+                        } else {
+                            principal_id != administrator_id && (1..=3).contains(&permissions)
+                        };
+                        if digest == [0; 32] || !digests.insert(digest) || !permitted {
                             return Err(failure("CONFIG_TOKEN"));
                         }
                         Ok(TokenConfig {
                             digest,
                             principal_id,
-                            credential_id: identity(token, "credential_id")?,
+                            credential_id,
                             auth_epoch: nonzero(token, "auth_epoch")?,
                             permissions: permissions as u8,
                         })
@@ -187,7 +200,7 @@ impl Config {
             },
             node_id,
             administrator_id,
-            service_credential_id: identity(&value, "service_credential_id")?,
+            service_credential_id,
             data_dir: path(&value, "data_dir")?,
             http_listen,
             peer_listen: string(&value, "peer_listen")?

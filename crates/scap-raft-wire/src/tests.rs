@@ -128,7 +128,7 @@ fn envelope_has_a_fixed_golden_layout_and_preserves_every_field() {
     };
     let expected = hexadecimal(concat!(
         "5343415052504331",
-        "02000000",
+        "03000000",
         "01000000",
         "000102030405060708090a0b0c0d0e0f",
         "101112131415161718191a1b1c1d1e1f",
@@ -275,19 +275,21 @@ fn successful_authorization_returns_immutable_message_and_original_payload() {
 }
 
 #[test]
-fn generation_one_cannot_enter_either_policy_or_be_silently_upgraded() {
-    assert_eq!(VERSION, 2);
-    for payload in [envelope().payload, vec![0xff]] {
-        let mut legacy = envelope();
-        legacy.version = 1;
-        legacy.payload = payload;
-        let decoded = decode_envelope(&encode_envelope(&legacy, 4096).unwrap(), 4096).unwrap();
-        assert_eq!(decoded.version, 1);
-        for current in [policy(), dynamic_policy()] {
-            assert_eq!(
-                current.authorize(certificate(), 150, decoded.clone()),
-                Err(Error::Unsupported("peer wire version"))
-            );
+fn prior_generations_cannot_enter_either_policy_or_be_silently_upgraded() {
+    assert_eq!(VERSION, 3);
+    for version in [1, 2] {
+        for payload in [envelope().payload, vec![0xff]] {
+            let mut legacy = envelope();
+            legacy.version = version;
+            legacy.payload = payload;
+            let decoded = decode_envelope(&encode_envelope(&legacy, 4096).unwrap(), 4096).unwrap();
+            assert_eq!(decoded.version, version);
+            for current in [policy(), dynamic_policy()] {
+                assert_eq!(
+                    current.authorize(certificate(), 150, decoded.clone()),
+                    Err(Error::Unsupported("peer wire version"))
+                );
+            }
         }
     }
 }

@@ -11,8 +11,8 @@ use axum::Router;
 use serde_json::{json, Value};
 
 use crate::{
-    invalid, parse_request_id, protocol, validate_database, Backend, Call, CancelGuard, Mode,
-    OutcomeCall, RequestContext, Service, ServiceError,
+    invalid, parse_positive_u64, parse_request_id, protocol, validate_database, Backend, Call,
+    CancelGuard, Mode, OutcomeCall, RequestContext, RotateCall, Service, ServiceError,
 };
 
 pub fn router<B: Backend>(service: Arc<Service<B>>) -> Router {
@@ -24,6 +24,7 @@ pub fn router<B: Backend>(service: Arc<Service<B>>) -> Router {
             post(outcome::<B>),
         )
         .route("/db/{database}/v1/status", get(status::<B>))
+        .route("/db/{database}/v1/request-epoch", post(rotate::<B>))
         .with_state(service)
 }
 
@@ -62,10 +63,19 @@ async fn status<B: Backend>(
     service.handle(database, Route::Status, request).await
 }
 
+async fn rotate<B: Backend>(
+    State(service): State<Arc<Service<B>>>,
+    Path(database): Path<String>,
+    request: Request<Body>,
+) -> Response {
+    service.handle(database, Route::Rotate, request).await
+}
+
 enum Route {
     Pipeline,
     Outcome(String),
     Status,
+    Rotate,
 }
 
 fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, ServiceError> {
@@ -112,6 +122,10 @@ impl<B: Backend> Service<B> {
             (Some(value), _) | (_, Some(value)) => parse_request_id(value)?,
             _ => self.generate_request_id()?,
         };
+        let request_epoch = match header_value(headers, "x-scap-request-epoch")? {
+            Some(value) => parse_positive_u64(value)?,
+            None => 1,
+        };
         let mode = match header_value(headers, "x-scap-mode")? {
             None | Some("write") => Mode::Write,
             Some("read") => Mode::Read,
@@ -136,6 +150,7 @@ impl<B: Backend> Service<B> {
                 database,
                 credential: credential.to_owned(),
                 request_id,
+                request_epoch,
                 deadline,
                 cancelled: Arc::new(AtomicBool::new(false)),
             },
@@ -158,14 +173,14 @@ impl<B: Backend> Service<B> {
             Ok(context) => context,
             Err(error) => return error_response(error, None),
         };
-        let id = context.request_id;
+        let identity = (context.request_id, context.request_epoch);
         let _cancel = CancelGuard(context.cancelled.clone());
         let _permit = match self.permits.try_acquire() {
             Ok(permit) => permit,
             Err(_) => {
                 return error_response(
                     ServiceError::new("OVERLOADED", "HTTP admission capacity exhausted"),
-                    Some(id),
+                    Some(identity),
                 )
             }
         };
@@ -181,6 +196,10 @@ impl<B: Backend> Service<B> {
                 let status = self.backend.status(context).await?;
                 return Ok(json!({
                     "revision": status.revision.to_string(),
+                    "request_epoch": status.request_epoch.to_string(),
+                    "retained_requests": status.retained_requests.to_string(),
+                    "unacknowledged_requests": status.unacknowledged_requests.to_string(),
+                    "retired_revision": status.retired_revision.to_string(),
                     "base_revision": status.base_revision.to_string(),
                     "tail_entries": status.tail_entries.to_string(),
                     "tail_bytes": status.tail_bytes.to_string(),
@@ -192,15 +211,28 @@ impl<B: Backend> Service<B> {
             }
             let value: Value =
                 serde_json::from_slice(&bytes).map_err(|_| invalid("invalid JSON body"))?;
+            if matches!(route, Route::Rotate) {
+                let expected_epoch = protocol::rotate_request(&value)?;
+                if expected_epoch != context.request_epoch {
+                    return Err(invalid("conflicting request epochs"));
+                }
+                let epoch = self
+                    .backend
+                    .rotate(RotateCall {
+                        context,
+                        expected_epoch,
+                    })
+                    .await?;
+                return Ok(json!({"state":"rotated","request_epoch":epoch.to_string()}));
+            }
             if matches!(route, Route::Outcome(_)) {
-                let (statements, resolve_or_cancel) =
-                    protocol::outcome_request(&value, self.limits)?;
+                let (statements, action) = protocol::outcome_request(&value, self.limits)?;
                 let result = self
                     .backend
                     .outcome(OutcomeCall {
                         context,
                         statements,
-                        resolve_or_cancel,
+                        action,
                     })
                     .await?;
                 protocol::outcome_result(result, self.limits)
@@ -221,21 +253,21 @@ impl<B: Backend> Service<B> {
         let result = tokio::time::timeout_at(deadline.into(), operation).await;
         match result {
             Ok(result) if self.environment.now() < deadline => match result {
-                Ok(value) => bounded_response(value, id, self.limits.max_response_bytes),
-                Err(error) => error_response(error, Some(id)),
+                Ok(value) => bounded_response(value, identity, self.limits.max_response_bytes),
+                Err(error) => error_response(error, Some(identity)),
             },
             _ => error_response(
                 ServiceError::new(
                     "COMMIT_UNKNOWN",
                     "request deadline elapsed; resolve its stable request ID",
                 ),
-                Some(id),
+                Some(identity),
             ),
         }
     }
 }
 
-fn response(value: Value, status: StatusCode, id: Option<u128>) -> Response {
+fn response(value: Value, status: StatusCode, identity: Option<(u128, u64)>) -> Response {
     let mut response = Response::new(Body::from(serde_json::to_vec(&value).unwrap()));
     *response.status_mut() = status;
     response.headers_mut().insert(
@@ -245,29 +277,33 @@ fn response(value: Value, status: StatusCode, id: Option<u128>) -> Response {
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    if let Some(id) = id {
+    if let Some((id, epoch)) = identity {
         response.headers_mut().insert(
             "x-scap-request-id",
             HeaderValue::from_str(&format!("{id:032x}")).unwrap(),
+        );
+        response.headers_mut().insert(
+            "x-scap-request-epoch",
+            HeaderValue::from_str(&epoch.to_string()).unwrap(),
         );
     }
     response
 }
 
-fn bounded_response(value: Value, id: u128, maximum: usize) -> Response {
+fn bounded_response(value: Value, identity: (u128, u64), maximum: usize) -> Response {
     if serde_json::to_vec(&value).unwrap().len() > maximum {
         return error_response(
             ServiceError::new(
                 "COMMITTED_RESULT_UNAVAILABLE",
                 "response exceeds HTTP limit; query the request outcome",
             ),
-            Some(id),
+            Some(identity),
         );
     }
-    response(value, StatusCode::OK, Some(id))
+    response(value, StatusCode::OK, Some(identity))
 }
 
-fn error_response(error: ServiceError, id: Option<u128>) -> Response {
+fn error_response(error: ServiceError, identity: Option<(u128, u64)>) -> Response {
     let status = match error.code.as_str() {
         "UNAUTHORIZED" => StatusCode::UNAUTHORIZED,
         "INVALID_REQUEST" | "UNSUPPORTED_FEATURE" => StatusCode::BAD_REQUEST,
@@ -279,9 +315,11 @@ fn error_response(error: ServiceError, id: Option<u128>) -> Response {
         _ => StatusCode::UNPROCESSABLE_ENTITY,
     };
     response(
-        json!({"code":error.code,"message":error.message,"request_id":id.map(|value|format!("{value:032x}"))}),
+        json!({"code":error.code,"message":error.message,
+            "request_id":identity.map(|(id,_)|format!("{id:032x}")),
+            "request_epoch":identity.map(|(_,epoch)|epoch.to_string())}),
         status,
-        id,
+        identity,
     )
 }
 

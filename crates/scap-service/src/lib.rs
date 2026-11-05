@@ -47,6 +47,9 @@ pub struct RequestContext {
     pub database: String,
     pub credential: String,
     pub request_id: u128,
+    /// The original request generation. Omitted HTTP headers always mean one;
+    /// a backend must never replace this with the database's current epoch.
+    pub request_epoch: u64,
     pub deadline: Instant,
     pub cancelled: Arc<AtomicBool>,
 }
@@ -61,7 +64,31 @@ pub struct OutcomeCall {
     pub context: RequestContext,
     /// Exact business statements after Hrana atomic-program translation.
     pub statements: Vec<Statement>,
-    pub resolve_or_cancel: bool,
+    pub action: OutcomeAction,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestPosition {
+    pub term: u64,
+    pub index: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RequestTerminal {
+    Committed { sequence: u64 },
+    Cancelled { position: RequestPosition },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutcomeAction {
+    Lookup,
+    ResolveOrCancel,
+    Acknowledge { expected: RequestTerminal },
+}
+
+pub struct RotateCall {
+    pub context: RequestContext,
+    pub expected_epoch: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,15 +96,28 @@ pub enum Outcome {
     Committed {
         result: TransactionResult,
         sequence: u64,
+        acknowledged: bool,
     },
-    Cancelled,
+    Cancelled {
+        position: RequestPosition,
+        acknowledged: bool,
+    },
     /// A point-in-time absence; never proof that a late write cannot commit.
     Unknown,
+    /// The generation is permanently fenced; no claim about its old outcome.
+    Retired {
+        current_epoch: u64,
+    },
+    Acknowledged,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DatabaseStatus {
     pub revision: u64,
+    pub request_epoch: u64,
+    pub retained_requests: u64,
+    pub unacknowledged_requests: u64,
+    pub retired_revision: u64,
     pub base_revision: u64,
     pub tail_entries: u64,
     pub tail_bytes: u64,
@@ -93,6 +133,8 @@ pub trait Backend: Send + Sync + 'static {
     fn execute(&self, call: Call) -> BackendFuture<TransactionResult>;
     fn outcome(&self, call: OutcomeCall) -> BackendFuture<Outcome>;
     fn status(&self, context: RequestContext) -> BackendFuture<DatabaseStatus>;
+    /// Requires current ADMIN permission and a durable, ordered epoch CAS.
+    fn rotate(&self, call: RotateCall) -> BackendFuture<u64>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -258,6 +300,19 @@ fn parse_request_id(value: &str) -> Result<u128, ServiceError> {
         return Err(invalid("zero request ID"));
     }
     Ok(id)
+}
+
+fn parse_positive_u64(value: &str) -> Result<u64, ServiceError> {
+    if value.is_empty() || value.len() > 20 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(invalid("expected a positive decimal u64"));
+    }
+    let value: u64 = value
+        .parse()
+        .map_err(|_| invalid("integer outside unsigned range"))?;
+    if value == 0 {
+        return Err(invalid("expected a positive decimal u64"));
+    }
+    Ok(value)
 }
 
 struct CancelGuard(Arc<AtomicBool>);

@@ -253,7 +253,7 @@ async function cancel(database, label, number) {
   const client = database === "alpha" ? alpha : beta;
   const request = { requestId: id(), statements: [`INSERT INTO witness VALUES(${number}, 'must-remain-cancelled')`] };
   const outcome = await operation(database, "cancel", label, request.requestId, () => client.resolveOrCancel(request));
-  assert.deepEqual(outcome, { state: "cancelled" }); cancellations.push({ database, ...request });
+  assert.equal(outcome.state, "cancelled"); cancellations.push({ database, ...request });
   return request;
 }
 
@@ -263,7 +263,7 @@ async function verifyCancelled(request, label, submitLate = false) {
     await assert.rejects(operation(request.database, "write", label + "_late_attempt", request.requestId, () => client.execute(request.statements[0], { requestId: request.requestId })), ScapError);
   }
   const outcome = await operation(request.database, "lookup", label, request.requestId, () => client.lookup(request));
-  assert.deepEqual(outcome, { state: "cancelled" });
+  assert.equal(outcome.state, "cancelled");
 }
 
 async function waitCold(legacy = false) {
@@ -339,7 +339,7 @@ try {
     await cluster.launch(upgraded, binary);
     await cluster.waitLive(upgraded);
     const prefix = await cluster.localStatus(upgraded);
-    await event("mixed_version_started", { upgraded_node_id: upgraded + 1, original_membership: membership, original_local_status: original, replaced_old_exit: oldExit, old_stopped_ms: oldStopped, new_live_ms: milliseconds(), new_prefix: prefix, prefix_database_revision: "4", old_peer_envelope_version: 1, new_peer_envelope_version: 2, peer_proxies_blocked: false, initialize_flag_used: false });
+    await event("mixed_version_started", { upgraded_node_id: upgraded + 1, original_membership: membership, original_local_status: original, replaced_old_exit: oldExit, old_stopped_ms: oldStopped, new_live_ms: milliseconds(), new_prefix: prefix, prefix_database_revision: "4", old_peer_envelope_version: 1, new_peer_envelope_version: 3, peer_proxies_blocked: false, initialize_flag_used: false });
     const rejectedRead = await rejectDirect(upgraded, "new_version_cannot_read_from_old_quorum", "SELECT value FROM witness WHERE id=1", "read");
     const rejectedRequest = { database: "alpha", requestId: id(), statements: ["INSERT INTO witness VALUES(94,'mixed-version-must-not-commit')"] };
     const rejectedWrite = await rejectDirect(upgraded, "new_version_write_sent_once", rejectedRequest.statements[0], "write", rejectedRequest.requestId);
@@ -347,12 +347,12 @@ try {
     const oldAck = acknowledgements.at(-1);
     const resolution = await operation("alpha", "cancel", "mixed_write_ordered_resolution", rejectedRequest.requestId, () => alpha.resolveOrCancel(rejectedRequest));
     await event("mixed_rejected_write_resolved", { request_id: rejectedRequest.requestId, original_response: rejectedWrite, actual_ordered_outcome: resolution });
-    assert.deepEqual(resolution, { state: "cancelled" }, "an unexpected committed mixed-version write must remain a failed contract, never be rewritten as cancellation");
+    assert.equal(resolution.state, "cancelled", "an unexpected committed mixed-version write must remain a failed contract, never be rewritten as cancellation");
     cancellations.push(rejectedRequest);
     const oldQuorum = await cluster.membership();
     assert.notEqual(oldQuorum.leader, upgraded + 1);
     const stillBehind = await cluster.localStatus(upgraded);
-    assert.equal(stillBehind.status.applied, prefix.status.applied, "new wire2 replica must not apply old wire1 quorum entries");
+    assert.equal(stillBehind.status.applied, prefix.status.applied, "new wire3 replica must not apply old wire1 quorum entries");
     assert.ok(oldQuorum.applied > stillBehind.status.applied);
     const remainingOld = oldQuorum.leader - 1;
     const stoppedOld = [0, 1, 2].find((node) => node !== upgraded && node !== remainingOld);
@@ -455,16 +455,16 @@ try {
     await event("old_archive_hydrated_without_metadata_rollback", { legacy_archives: legacyArchives, new_cancellation_after_archive: createdAfterArchive.requestId, beta: awake, tenant_authorization_preserved: true, dynamic_auth_fence_in_separate_rust_contract: true, old_random_result_equal: true });
   });
 
-  await contract("06-new-v3-archive-roundtrip", async () => {
+  await contract("06-new-v4-archive-roundtrip", async () => {
     for (let revision = 1; revision <= 9; revision++) betaNonce = (await execute("beta", "new_beta_update_" + revision, "UPDATE witness SET value=hex(randomblob(12)) WHERE id=1 RETURNING value")).rows[0].value;
     const hot = await status("beta"); assert.ok(hot.baseRevision > 2n);
     const cold = await waitCold();
     currentArchives = await s3.archiveInventory(cluster.clusterId, cluster.cellId, identity(64));
-    assert.ok(currentArchives.some((archive) => archive.format_version === 3));
+    assert.ok(currentArchives.some((archive) => archive.format_version === 4));
     for (const legacy of legacyArchives) assert.ok(currentArchives.some((archive) => archive.sha256 === legacy.sha256), "an upgrade must not overwrite or delete the old immutable object");
-    await cancel("beta", "new_cancellation_after_v3_archive", 93);
-    assert.equal((await query("beta", "hydrate_exact_new_v3_archive", "SELECT value FROM witness WHERE id=1")).rows[0].value, betaNonce);
-    await verifyAll("after_v3_archive_hydrate");
+    await cancel("beta", "new_cancellation_after_v4_archive", 93);
+    assert.equal((await query("beta", "hydrate_exact_new_v4_archive", "SELECT value FROM witness WHERE id=1")).rows[0].value, betaNonce);
+    await verifyAll("after_v4_archive_hydrate");
     await event("new_archive_roundtrip_verified", { before_cold: hot, cold, archives: currentArchives, original_v2_object_preserved: true, current_result_equal: true, all_old_results_and_new_fences_preserved: true });
   });
 
@@ -492,7 +492,7 @@ try {
     await event("new_owner_directories_recovered", { new_writer_files: recoveryFiles, original_results_lost: 0, current_sql_state_equal: true, production_slo_passed: false });
   });
 
-  await contract("08-old-binary-rejects-v3-storage", async () => {
+  await contract("08-old-binary-rejects-v4-storage", async () => {
     const committed = await cluster.membership();
     const applied = await Promise.all([0, 1, 2].map((node) => cluster.waitApplied(node, committed.applied)));
     await cluster.stopAll("SIGTERM");
@@ -504,10 +504,10 @@ try {
       const filename = path.join(scratch, "old-downgrade-" + (node + 1) + ".private.log");
       const process = await processAt(oldBinary, [cluster.configs[node]], filename, { ...globalThis.process.env, ...s3.env }, true);
       const exited = await Promise.race([process.done, delay(10_000).then(() => null)]);
-      if (exited === null) { await process.stop(); throw new Error("old daemon did not fail closed on V3 storage"); }
+      if (exited === null) { await process.stop(); throw new Error("old daemon did not fail closed on V4 storage"); }
       assert.ok(exited.code !== null && exited.code !== 0 && exited.signal === null);
       const output = await readFile(filename, "utf8");
-      assert.match(output, /STORE_APPLICATION/, "a busy lock or bind failure is not evidence of V3 downgrade rejection");
+      assert.match(output, /STORE_APPLICATION/, "a busy lock or bind failure is not evidence of V4 downgrade rejection");
       rejected.push({ node_id: node + 1, exit: exited, reason: "STORE_APPLICATION", initialize_flag_used: false });
     }
     await event("old_binary_failed_closed", { attempts: rejected, committed_before_stop: committed.applied, local_applied_before_stop: applied, all_new_daemons_stopped: true, no_database_reinitialization: true, physical_rocks_files_not_claimed_immutable: true });
@@ -534,8 +534,8 @@ try {
     request_attempts: attempts.length, unsuccessful_attempts: attempts.filter((entry) => entry.outcome !== "success"), http_attempts: httpOrdinal,
     overwrites: 64, base_advances: baseAdvances, cumulative_observed_physical_bytes: cumulativeObservedPhysical.toString(), fold_trigger_physical_bytes_excluded: true,
     maximum_tail_entries: maxTailEntries.toString(), maximum_tail_bytes: maxTailBytes.toString(), profile_limits: profile,
-    old_archive_format: 2, new_archive_format: 3, original_results_lost: 0, current_sql_state_equal: true,
-    mixed_versions_rejected: true, old_peer_envelope_version: 1, new_peer_envelope_version: 2,
+    old_archive_format: 2, new_archive_format: 4, original_results_lost: 0, current_sql_state_equal: true,
+    mixed_versions_rejected: true, old_peer_envelope_version: 1, new_peer_envelope_version: 3,
     effective_voters: [1, 2, 3], membership_changes_submitted: 0, dynamic_peer_policy_for_existing_read_only_management: true,
     local_status_is_commit_confirmation: false, downgrade_rejected_nodes: 3, full_group_sigkill: true, fresh_writer_directories: recoveryFiles,
     production_slo_passed: false, private_fixture_data_exported: false,

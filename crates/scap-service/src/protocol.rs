@@ -4,7 +4,10 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use scap_sql::{Statement, StatementResult, TransactionResult, Value as SqlValue};
 use serde_json::{json, Map, Value};
 
-use crate::{invalid, unsupported, Limits, Mode, Outcome, ServiceError};
+use crate::{
+    invalid, parse_positive_u64, unsupported, Limits, Mode, Outcome, OutcomeAction,
+    RequestPosition, RequestTerminal, ServiceError,
+};
 
 type Object = Map<String, Value>;
 
@@ -343,29 +346,80 @@ impl Plan {
 pub(crate) fn outcome_request(
     body: &Value,
     limits: Limits,
-) -> Result<(Vec<Statement>, bool), ServiceError> {
-    let body = object(body, &["action", "statements"])?;
-    let resolve = match string(field(body, "action"))? {
-        "lookup" => false,
-        "resolve_or_cancel" => true,
+) -> Result<(Vec<Statement>, OutcomeAction), ServiceError> {
+    let body = object(body, &["action", "statements", "expected"])?;
+    let action = match string(field(body, "action"))? {
+        "lookup" => OutcomeAction::Lookup,
+        "resolve_or_cancel" => OutcomeAction::ResolveOrCancel,
+        "acknowledge" => OutcomeAction::Acknowledge {
+            expected: terminal_proof(field(body, "expected"))?,
+        },
         _ => return Err(unsupported()),
     };
+    if !matches!(action, OutcomeAction::Acknowledge { .. }) && body.contains_key("expected") {
+        return Err(invalid("terminal proof is only valid for acknowledgement"));
+    }
     let statements = array(field(body, "statements"))?
         .iter()
         .map(|stmt| statement(stmt, &BTreeMap::new()).map(|(stmt, _)| stmt))
         .collect::<Result<Vec<_>, _>>()?;
     scap_sql::validate_statements(&statements, limits.sql)
         .map_err(|_| invalid("invalid outcome statements"))?;
-    Ok((statements, resolve))
+    Ok((statements, action))
+}
+
+fn terminal_proof(value: &Value) -> Result<RequestTerminal, ServiceError> {
+    let proof = object(value, &["state", "sequence", "position"])?;
+    match string(field(proof, "state"))? {
+        "committed" => {
+            let proof = object(value, &["state", "sequence"])?;
+            Ok(RequestTerminal::Committed {
+                sequence: parse_positive_u64(string(field(proof, "sequence"))?)?,
+            })
+        }
+        "cancelled" => {
+            let proof = object(value, &["state", "position"])?;
+            let position = object(field(proof, "position"), &["term", "index"])?;
+            Ok(RequestTerminal::Cancelled {
+                position: RequestPosition {
+                    term: parse_positive_u64(string(field(position, "term"))?)?,
+                    index: parse_positive_u64(string(field(position, "index"))?)?,
+                },
+            })
+        }
+        _ => Err(invalid("acknowledgement requires a known terminal outcome")),
+    }
+}
+
+pub(crate) fn rotate_request(value: &Value) -> Result<u64, ServiceError> {
+    let body = object(value, &["action", "expected_epoch"])?;
+    if string(field(body, "action"))? != "rotate" {
+        return Err(unsupported());
+    }
+    parse_positive_u64(string(field(body, "expected_epoch"))?)
 }
 
 pub(crate) fn outcome_result(outcome: Outcome, limits: Limits) -> Result<Value, ServiceError> {
     Ok(match outcome {
         Outcome::Unknown => json!({"state":"unknown"}),
-        Outcome::Cancelled => json!({"state":"cancelled"}),
-        Outcome::Committed { result, sequence } => {
+        Outcome::Cancelled {
+            position,
+            acknowledged,
+        } => json!({
+            "state":"cancelled", "acknowledged": acknowledged,
+            "position":{"term":position.term.to_string(),"index":position.index.to_string()}
+        }),
+        Outcome::Retired { current_epoch } => {
+            json!({"state":"retired","current_epoch":current_epoch.to_string()})
+        }
+        Outcome::Acknowledged => json!({"state":"acknowledged"}),
+        Outcome::Committed {
+            result,
+            sequence,
+            acknowledged,
+        } => {
             validate_result(&result, limits)?;
-            json!({"state":"committed","sequence":sequence.to_string(),"results":result.statements.iter().map(|stmt| statement_result(stmt,true)).collect::<Vec<_>>()})
+            json!({"state":"committed","sequence":sequence.to_string(),"acknowledged":acknowledged,"results":result.statements.iter().map(|stmt| statement_result(stmt,true)).collect::<Vec<_>>()})
         }
     })
 }

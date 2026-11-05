@@ -1,6 +1,6 @@
 # 运维手册
 
-> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。已有三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果查询、leader owner 恢复和有界 S3 冷生命周期；本轮受控 Join/成员替换的验收状态见 [ADR-0016](../adr/0016-durable-membership-replacement.md)。通用控制台、自动坏盘运维、PITR/DR 和 GC 仍为 planned。实际故障记录见 [服务实验](../../experiments/service-network/README.md)与 [成员实验](../../experiments/membership-network/README.md)。
+> 状态：当前 `scap-server` 的运行步骤与后续平台运维合同并列。已有三节点 daemon、显式 Initialize/OpenExisting、SQL/Node SDK、结果查询、leader owner 恢复和有界 S3 冷生命周期；受控成员替换和物理历史见 [ADR-0016](../adr/0016-durable-membership-replacement.md)、[ADR-0017](../adr/0017-bounded-physical-history.md)，本轮显式请求结果退休的验证状态见 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。通用控制台、自动坏盘运维、PITR/DR、行政记录退休和对象 GC 仍为 planned。实际故障记录见 [服务实验](../../experiments/service-network/README.md)、[成员实验](../../experiments/membership-network/README.md)及 [退休实验](../../experiments/retention-network/README.md)。
 
 ## 1. 使用规则
 
@@ -17,7 +17,8 @@
 | 能力 | 当前状态 | 完成条件与边界 |
 | --- | --- | --- |
 | live/ready 与数据库 status | 已实现 | status 经 READ/ReadIndex 返回有限元数据；ready 只是节点选择提示，没有公开全量 Raft/owner 管理查询 |
-| 请求结果查询/取消 | 已实现 SDK lookup/resolveOrCancel | 当前权限与原 statements/request ID 校验；unknown 不等于未提交，取消不撤销已提交事务 |
+| 请求结果查询/取消 | 已实现 SDK lookup/resolveOrCancel | 当前权限、原世代、statements/request ID 校验；unknown 不等于未提交，取消不撤销已提交事务 |
+| 结果确认 / 请求窗口退休 | 已实现 acknowledge/rotateRequests；验证见 ADR-0019 | 应用确认所有原终态后，由独立 ADMIN 凭证 CAS 推进非空、非 Cold 窗口；旧世代永久拒绝，行政记录与对象不回收 |
 | 进程关闭 | 已实现 SIGTERM/Ctrl-C 的停止准入、取消和 join | 关键线程异常退出使节点整体停止；没有通用按库排空管理接口 |
 | owner 栅栏与接管 | 已实现同 cell leader 自动恢复 | Claim、新视图、新目录、Activate 与最终校验；手工迁移/跨 cell 调度 planned |
 | 授权撤销 | cell AuthFence 已实现，外部管理 API planned | 静态旧 auth_epoch 不能绕过当前策略；改 JSON 不等于完成复制授权变更 |
@@ -29,7 +30,7 @@
 | 副本加入 / 成员替换 | 已有受控 CLI 和独立 loopback 管理 API | 新 ID/新目录 Join，完整 genesis 核对、learner 追赶、joint 替换；精确持久完成才成功；自动坏盘发现和采购未实现 |
 | DR checkpoint / S3-only 恢复 | planned | 完整身份、应用位置、来源和引用闭包可独立验证；单库归档不足 |
 | GC、PITR、删除、按库历史切换 | planned | 必须先完成保留/pin、tombstone、新身份与恢复证明 |
-| 滚动升级和能力协商 | planned | v2 写入后不支持旧 binary 降级，当前无混版本协商 |
+| 滚动升级和能力协商 | planned | 当前使用全停升级；写入 v4 后旧 v3 binary 不能降级打开，peer envelope 3 与旧 1/2 不能组成 quorum |
 
 后续通用管理任务必须幂等、可查询、可中止到安全边界，并记录状态转换。当前后台队列只是可重建的工作提示；进程退出或任务被丢弃，不撤销已经进入 cell 的 Suspend/Publish/Prune。
 
@@ -71,7 +72,7 @@ cargo +1.90.0 build --release -p scap-server --locked
 5. **重建状态。** 新 worker 从已发布且校验通过的基线和 cell 已提交日志重建。只重放已提交事务；本地 staged tail 不得直接发布。若恢复链缺失，保持该库不可用并升级事故。
 6. **验证旧 writer。** 即使旧节点重新出现，它携带旧 epoch 的提交必须被 cell 拒绝。存在疑问时不要开放新 owner。
 7. **开放路由。** 新 owner 完成重放、权威校验及强一致读屏障后，标记 ready。先放少量流量，再恢复完整配额。
-8. **处理在途请求。** 用原幂等键查询提交结果。没有键或记录已过保留期的写请求转业务核对，禁止自动重放。
+8. **处理在途请求。** 用原请求世代、ID 和 statements 查询提交结果。没有完整身份或窗口已退休的写请求转应用记录核对，禁止自动重放。
 
 **完成标准：** 已确认事务仍可读；新 owner 唯一；旧 owner 不能提交；归档重新追赶；未知事务状态有记录。该路径应恢复相同已提交历史，不应降低恢复位置或改变 incarnation。
 
@@ -153,13 +154,13 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 **触发：** 写请求超时、连接重置、Gateway/worker 崩溃，或响应在提交后丢失。
 
-1. 收集原请求幂等键、tenant/数据库身份、原 incarnation、请求摘要和客户端错误。日志中不复制敏感参数；摘要应足以识别相同请求。
-2. 使用正式 SDK 的 `lookup(error.request)` 或 HTTP request-outcome 入口，携带原 ID 和原 SQL/参数向权威侧查证。查询重新检查当前权限和原请求主体，冷库也无需先 hydrate，不能仅凭幂等键读取其他租户结果。
+1. 收集原请求世代、幂等键、tenant/数据库身份、原 incarnation、请求摘要和客户端错误。日志中不复制敏感参数；摘要应足以识别相同请求。
+2. 使用正式 SDK 的 `lookup(error.request)` 或 HTTP request-outcome 入口，携带原世代、ID 和原 SQL/参数向权威侧查证。查询重新检查当前权限和原请求主体，冷库也无需先 hydrate，不能仅凭幂等键读取其他租户结果。
 3. 若状态为已提交，返回保存的确定结果或可验证结果引用，不重新执行写入。
 4. 若状态为确定拒绝/未受理，可在同一语义下使用原幂等键重试。若仍未知或权威不可达，保持未知并退避，不伪装失败后换键重试。
 5. 相同键但摘要不同必须返回冲突。并发相同键只能有一个有效提交，结果记录与事务提交在同一权威事务中绑定。
 6. 若数据库已经恢复到新 incarnation，旧在途请求不能自动作为新请求重放。返回明确的运行代变化，由业务核对后决定补偿或发起新动作。
-7. 查无记录仍是 unknown；需要终止迟到提交时使用正式 `resolveOrCancel`，并等待有序结果，它不能撤销已提交事务。当前每库最多 128 条 accepted/cancel 记录且不淘汰；未来引入过期/退休时，窗口外返回“过期/无法证明”，不能把缺失解释为未提交。无幂等键的未知写入转业务核对。
+7. 当前世代查无记录仍是 unknown；需要终止迟到提交时使用正式 `resolveOrCancel` 并等待有序结果，它不能撤销已提交事务。每库未退休窗口最多 128 条 accepted/cancel 记录，不自动过期；只有应用确认全部终态后管理员才可退休窗口。旧世代 lookup 返回 retired，不能解释为未提交或已取消，也不能给原操作换新世代再执行。没有完整请求身份的未知写入转业务核对。
 
 **完成标准：** 同一有效键没有产生重复业务写；所有未知状态明确保留或解决。幂等只覆盖保留窗口内的数据库请求，不自动保证支付、消息或外部 Agent 工具调用恰好一次；这些动作需要各自的业务幂等或 outbox。
 
@@ -218,11 +219,11 @@ cargo +1.90.0 build --release -p scap-server --locked
 
 ## 11. RB-10：滚动升级、降级与版本门禁
 
-**当前格式边界：** 已激活的 cell state/archive 写入 v3，未激活的 phase 2 仍保持 v2；command/outcome 仍为 v2，Raft envelope version 为 2。仅在相同身份与持久化 limits 下读取可物理恢复的合法旧热历史及精确旧归档。旧历史先按 v2 追赶，在同一个有序激活条目中按与新 Commit 相同的阈值迁移，不能因各副本旧 applied 不同而产生不同的基线/尾部。原结果、取消和管理操作 ID 保留，参见 [ADR-0017](../adr/0017-bounded-physical-history.md)。
+**当前格式边界：** 正式服务依次有序激活 v3 物理历史和 v4 请求退休；新 cell state/archive 写 v4，旧日志前缀仍按原阶段处理。新请求世代与操作采用业务 envelope v3，epoch 1 旧操作保持 v2；Raft peer envelope 为 3。只在相同身份与持久化 limits 下恢复合法旧状态及精确旧归档。各旧 applied 切点必须重放至相同规范状态；旧请求结果在显式确认并退休之前保持可查。参见 [ADR-0017](../adr/0017-bounded-physical-history.md) 与 [ADR-0019](../adr/0019-explicit-request-result-retirement.md)。
 
-**当前可执行流程：** 先停止业务准入，记录所有在途与 UNKNOWN；停止该 cell 的全部旧 voter，保留原盘与配置；使用新程序在每个原目录 OpenExisting；新 quorum 按原 v2 规则处理完旧日志，通过明确的内部 Raft 条目激活全 cell，再确认 fresh phase 3、最新 ACK、原结果、权限及 Cold hydration。server 在激活确认前保持未就绪并拒绝业务 lane 的直接请求。任何目录 decode 或激活预算失败都保留原状诊断，不重新 Initialize。两个通信世代会在 Raft 准入前互拒，因此不能用旧节点补新 quorum，不能串行升级来声称保持可用。
+**当前可执行流程：** 先停止业务准入，记录所有在途与 UNKNOWN；停止该 cell 的全部旧 voter，保留原盘与配置；使用新程序在每个原目录 OpenExisting；新 quorum 按原阶段规则处理完旧日志，通过两个独立内部 Raft 条目顺序激活全 cell，再确认 fresh phase 4、最新 ACK、原结果、权限及 Cold hydration。server 在激活确认前保持未就绪并拒绝业务 lane 的直接请求。任何目录 decode 或激活预算失败都保留原状诊断，不重新 Initialize。两个通信世代会在 Raft 准入前互拒，因此不能用旧节点补新 quorum，不能串行升级来声称保持可用。
 
-写入 v3 后禁止直接启动旧二进制；没有 limits 自动迁移或回退转换工具。下面的 canary、能力协商、格式启用开关及不停机滚动步骤均为 planned，只在相应能力另行实现并验证后适用，不能替代本节当前全停升级流程。
+写入 v4 后禁止直接启动旧 v3 二进制；没有 limits 自动迁移或回退转换工具。下面的 canary、能力协商、格式启用开关及不停机滚动步骤均为 planned，只在相应能力另行实现并验证后适用，不能替代本节当前全停升级流程。
 
 ### 11.1 通用滚动协议的发布前要求（planned）
 
@@ -258,3 +259,20 @@ cargo +1.90.0 build --release -p scap-server --locked
 **完成标准：** 安全保护未依赖外部监控存活；采集恢复；观测缺口和期间操作清楚记录。
 
 具体故障脚本和已完成的真实执行记录见 [service-network](../../experiments/service-network/README.md)、[archive-s3](../../experiments/archive-s3/README.md)及 [G0 证据](../engineering/g0-evidence.md)。重启成功、功能恢复和满足生产 RTO 是不同验收项，仍按 [性能与恢复规范](../engineering/performance-slo.md)记录条件及失败样本。
+
+## 13. RB-12：请求窗口达到容量或需要退休
+
+当前每库 **128 条**是未退休窗口上限，cell 行政记录 **4096 条**仍是独立上限。请求退休不会释放行政预算，也不删除 S3 对象。不要删除请求表、重新初始化数据库或提高常数来掩盖未解决结果。
+
+1. **收集完整身份。** 使用 `executeTracked` / `batchTracked` 的成功身份和 `ScapError.request`，保留原 requestEpoch、ID 与 statements。多个客户端共用数据库时逐个核对其保留请求，不能只确认当前进程看到的成功结果。
+2. **查明原终态。** 在当前有效权限下逐项 lookup：committed 需应用处理或保存原结果，cancelled 需保留原取消证明，unknown 需继续查证或有序 resolveOrCancel。一次缺失不证明未执行，retired 也不证明已取消。
+3. **显式确认。** 应用完成结果处理后调用 `acknowledge(request, terminal)`。该确认只接受原 committed sequence 或 cancelled term/index，不是收到写成功 ACK 后自动执行的步骤。确认响应丢失时按原身份重新查证；不重发业务 SQL。
+4. **检查恢复与容量。** fresh status 必须显示未确认数为零且窗口非空。Cold 先按正式请求驱动路径完成精确 hydrate，再重新检查；S3 不可用、对象损坏或恢复容量不足时保持失败，不能通过轮转跳过恢复链。status 和 lookup 本身不唤醒冷库。
+5. **执行一次轮转。** 用显式配置的数据库退休管理员凭证调用 `rotateRequests(expectedEpoch)`。状态机再次检查全部确认、当前世代与物理基线；并发新请求可使本次 CAS 拒绝，重新读取状态后由业务协调，不能清掉未确认结果。
+6. **处理轮转结果。** 成功返回的新世代仅用于后续新业务操作；原请求不得刷新身份。响应丢失时查询 fresh status，旧 CAS 会被世代屏障拒绝。轮转前后 SQL 内容与 revision 不变，旧身份查询返回 retired；需要旧结果时使用应用先前保存的记录。
+
+非初始世代的 SDK 变更在每个候选节点先进行同身份、原 deadline 的 status 能力探测。该额外请求不延长原预算，也不把旧业务身份改成当前世代；旧服务不支持协议时停止后续变更。普通 query 不增加这一探测。
+
+升级遵守 RB-10：先停止整个 cell 旧程序，在原盘顺序激活 v3/v4；全部 voter 使用 peer envelope 3。旧 v3 程序不能打开 v4 盘。保留不满足空间预留或解码校验的原盘并处理原因，不能重建空目录。管理员凭证按 [server 配置](../../crates/scap-server/README.md)显式添加，不能给普通 token 借用内部服务身份。
+
+**完成标准：** 全部被释放结果已有应用确认；数据内容和 revision 保留；新窗口容量释放；旧世代写、取消和确认仍被拒绝。行政记录、对象 GC、PITR/DR 和生产规模验收继续独立推进。

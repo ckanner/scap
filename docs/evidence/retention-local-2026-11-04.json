@@ -1,0 +1,1681 @@
+{
+  "version": 1,
+  "recorded_date_utc": "2026-11-04",
+  "scope": "Explicit application result acknowledgements and ordered request epoch retirement, ADR-0019",
+  "local_gates_passed": true,
+  "maintainer_authorized_local_gate_merge": true,
+  "remote_ci_claimed": false,
+  "production_slo_passed": false,
+  "build_identity": {
+    "base_commit": "b9f512819358494f178b01d7f1d960dff8222c1c",
+    "binary_sha256": "d45cdbb95bac7a94cf16b74d0c8ca6aee4cac47f8eb3f2b9fc214866586494cd",
+    "binary_bytes": 28199992,
+    "build_command": "cargo +1.90.0 build --offline --locked --release -p scap-server",
+    "native_build_profile": "release static RocksDB; CXXFLAGS=-g0; RUSTFLAGS=-C link-arg=-lstdc++",
+    "production_inputs_sha256": "e72167aab111c1c80ccc62862cca96b528115012f1071a67b2e01819b7ff3d9d",
+    "service_inputs_sha256": "4ee3ce6dfaba9f9e4b18be242ec24e776a543fdec0fd7f041ff5fb4154537b6c"
+  },
+  "production_input_count": 71,
+  "service_input_count": 76,
+  "service_inputs": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "01d6440ddf3bc0646422adc7a48f22af0d1d7036f629b8562ea60428d7d0c4f3",
+      "bytes": 78517
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "52ec3dfeaac2d9a27251c9b49d98c500ea88665b5cff3547966e67fa14826210",
+      "bytes": 813
+    },
+    {
+      "path": "crates/scap-archive/Cargo.toml",
+      "sha256": "715215d171843064420595e1034c760b1b6a994101f1c70729b508f6ca40116a",
+      "bytes": 1101
+    },
+    {
+      "path": "crates/scap-archive/src/lib.rs",
+      "sha256": "1ec5094167fec7b422a960f663396db38a0b4248bf4dd5cfe8ed9b232b697fb8",
+      "bytes": 9982
+    },
+    {
+      "path": "crates/scap-archive/src/s3.rs",
+      "sha256": "679060782fa59e2bca29afa30809d7735e0e55e9abbf92a4996c3573e9e710d2",
+      "bytes": 6417
+    },
+    {
+      "path": "crates/scap-cell-client/Cargo.toml",
+      "sha256": "9e48e913dc5549ecd6ffcd261536f4ab1be240695b341bfda8734d93216c1f42",
+      "bytes": 692
+    },
+    {
+      "path": "crates/scap-cell-client/src/lib.rs",
+      "sha256": "90bd554656c323beb7c64e512e9dc2b540f7aa197586647836230354128b9bfd",
+      "bytes": 17538
+    },
+    {
+      "path": "crates/scap-cell-client/src/runtime.rs",
+      "sha256": "ea139d7c7bd612af6d358ac4661feb03c5864730cdba29e40ca4c7c389af0ae9",
+      "bytes": 1577
+    },
+    {
+      "path": "crates/scap-cell/Cargo.toml",
+      "sha256": "d418eb8fc739bc9fa64cf90c8f186f8f075f9ac894449138c4e82e4695f345cf",
+      "bytes": 434
+    },
+    {
+      "path": "crates/scap-cell/src/codec.rs",
+      "sha256": "70ed7ddb9f9b4bcb7d67356fdd4c208d033de4e3887971af7ff03bea72517472",
+      "bytes": 46550
+    },
+    {
+      "path": "crates/scap-cell/src/lib.rs",
+      "sha256": "26961cd48e827a4d81cf25b1ef8e4dd0fedc21e14d2bbcf3420a36490ccc085a",
+      "bytes": 79107
+    },
+    {
+      "path": "crates/scap-core/Cargo.toml",
+      "sha256": "17c7bac9289f4313522bb10015c57713dd0f0aaf43731946fbe3205b48ef45d8",
+      "bytes": 265
+    },
+    {
+      "path": "crates/scap-core/src/lib.rs",
+      "sha256": "f56351dd3cd1fd767c1253102f18f1812ba8fadc734332c6b8213d55f077717a",
+      "bytes": 6347
+    },
+    {
+      "path": "crates/scap-core/src/physical.rs",
+      "sha256": "d3e0059a13b94deaf69ad7d40c1560b2cedbc1737e1d47d577fc8edc5f8c6c5e",
+      "bytes": 13010
+    },
+    {
+      "path": "crates/scap-engine/Cargo.toml",
+      "sha256": "ae5665039026be0615239d4faec9bb8d4c8444ea595c22068aff32c30713f2f0",
+      "bytes": 494
+    },
+    {
+      "path": "crates/scap-engine/src/lib.rs",
+      "sha256": "ee5971a33eb55d915d83a7c15ca3103d62a97165fff0ace023e6b875930d0098",
+      "bytes": 5138
+    },
+    {
+      "path": "crates/scap-raft-driver/Cargo.toml",
+      "sha256": "4f3af9e942ea6ba3168b64d5026a43d3333f0fd6463cd3740c9b724e04272812",
+      "bytes": 421
+    },
+    {
+      "path": "crates/scap-raft-driver/src/lib.rs",
+      "sha256": "04da607f5cfa5881d82434b2decd0ab328c763aa838397fdd130c0a1389d9236",
+      "bytes": 35296
+    },
+    {
+      "path": "crates/scap-raft-driver/src/membership.rs",
+      "sha256": "70c661552c58fc07de82cebb5ba930e946a184772282a9b36c610af7f830692a",
+      "bytes": 7010
+    },
+    {
+      "path": "crates/scap-raft-rocks/Cargo.toml",
+      "sha256": "614db77d3ed3d5716b46a453d68e8963c69fad72f9c5bc3b0712fac0d8892b23",
+      "bytes": 375
+    },
+    {
+      "path": "crates/scap-raft-rocks/src/layout.rs",
+      "sha256": "a2d0235ce6cca2b4e82484c09d024a597f8dd3e430f176b917488fda8651c1b5",
+      "bytes": 5660
+    },
+    {
+      "path": "crates/scap-raft-rocks/src/lib.rs",
+      "sha256": "0fc09686e5eb99c2531a5801461c4e773af2a08b0e35d315524f6d3ea1ce4705",
+      "bytes": 9772
+    },
+    {
+      "path": "crates/scap-raft-runtime/Cargo.toml",
+      "sha256": "843ee6ea35519b76865f7750302ea63ce2696483900bc300b3abc8b221cff3ea",
+      "bytes": 775
+    },
+    {
+      "path": "crates/scap-raft-runtime/src/driver.rs",
+      "sha256": "7cfa49416310e0271bdf70ecca574edb7e3b7600c19a13dfd3af3910641a8b78",
+      "bytes": 3984
+    },
+    {
+      "path": "crates/scap-raft-runtime/src/lib.rs",
+      "sha256": "33443a70118bed4b265656feffbd95779b973244dd0fbb07797b540ff03dec0f",
+      "bytes": 41950
+    },
+    {
+      "path": "crates/scap-raft-runtime/src/workers.rs",
+      "sha256": "33286a3084271714f10e2d23c118737ca8e55a8891c58385372f8da5877899fd",
+      "bytes": 11353
+    },
+    {
+      "path": "crates/scap-raft-store/Cargo.toml",
+      "sha256": "e8c31eeb23fc01c1dd23b1afbe1a9c2e7d23a46e8383dfcff0689748e70ad3c1",
+      "bytes": 371
+    },
+    {
+      "path": "crates/scap-raft-store/src/lib.rs",
+      "sha256": "9c34a3123f1b7ddfcabc560b4aabc74d44ebf5d640357e59d7e9bd359f2fa4e5",
+      "bytes": 26521
+    },
+    {
+      "path": "crates/scap-raft-transport/Cargo.toml",
+      "sha256": "7db38d63476952d3bd0bd1ea2515383c17b9ecfc35793e3f8630b3f55af0eae9",
+      "bytes": 906
+    },
+    {
+      "path": "crates/scap-raft-transport/proto/peer.proto",
+      "sha256": "4b49580c34f866a9bb08ccee84b39ac96910b7dccb722a2939d4c7c4e3e16502",
+      "bytes": 462
+    },
+    {
+      "path": "crates/scap-raft-transport/src/client.rs",
+      "sha256": "5083c2b4cdaf40af6edbd62608a8a1d58aee84c7d1c4997525b0916f08541d1f",
+      "bytes": 13056
+    },
+    {
+      "path": "crates/scap-raft-transport/src/incoming.rs",
+      "sha256": "7b36ee6afa2f50df6fcbc74963d9401d178e0c4b63ed17716f8fa190b963eae2",
+      "bytes": 2798
+    },
+    {
+      "path": "crates/scap-raft-transport/src/lib.rs",
+      "sha256": "da018b22f65c1c63684d9674a072b55616c02a81385b708c012a6ba4fba7198e",
+      "bytes": 4827
+    },
+    {
+      "path": "crates/scap-raft-transport/src/server.rs",
+      "sha256": "3b55bd21042e0c0272a3a1c862877c4b1619057741ecd46a8b1280c81ec1e1f1",
+      "bytes": 7856
+    },
+    {
+      "path": "crates/scap-raft-wire/Cargo.toml",
+      "sha256": "bbae7c0c42e14c5128554baab3a7a65c1edbdeae846372247af4757bf2be908d",
+      "bytes": 434
+    },
+    {
+      "path": "crates/scap-raft-wire/src/certificate.rs",
+      "sha256": "2028731ad3e78d5c9ed6bf455f4b5f17eca8a7bbc8555f28031a3632f8d1ccf6",
+      "bytes": 1222
+    },
+    {
+      "path": "crates/scap-raft-wire/src/codec.rs",
+      "sha256": "e4f0a15a24f9bf4c1ef07b9694c98759b2ac64112d817d679cb0b7a43711f598",
+      "bytes": 7134
+    },
+    {
+      "path": "crates/scap-raft-wire/src/lib.rs",
+      "sha256": "f2f3b31bb03d9829fbbe8a41c411c33e9ac81f5275cac485a93c630415d4dfd1",
+      "bytes": 16313
+    },
+    {
+      "path": "crates/scap-server/Cargo.toml",
+      "sha256": "937e5d831d566df0ac1e92718feb077878bd710cb856df74dfd824a5b71d2e5f",
+      "bytes": 1675
+    },
+    {
+      "path": "crates/scap-server/src/archive.rs",
+      "sha256": "f103df40c7b0770f52aa5478ce4dc94bbeed7501d0e9d7e134ddc6a33e6945db",
+      "bytes": 1301
+    },
+    {
+      "path": "crates/scap-server/src/archive_jobs.rs",
+      "sha256": "99b8279cc7eb14fd47d77ccb9419ef4aab60f697a9f30173a963715e7948e46d",
+      "bytes": 11712
+    },
+    {
+      "path": "crates/scap-server/src/auth.rs",
+      "sha256": "5cec0272774d167dd84ec9f98a82f6bef47e1f0f67cae69da5926e7a08279a00",
+      "bytes": 2557
+    },
+    {
+      "path": "crates/scap-server/src/cache.rs",
+      "sha256": "aa6bd669108c80e96574ed43f29e07612918442cf61d5f2eb7e6f10498c1903c",
+      "bytes": 4345
+    },
+    {
+      "path": "crates/scap-server/src/cli.rs",
+      "sha256": "640d08916484b550f10a341be81e8d0eab2cc5a621dc9ae026f4396c0d22fe34",
+      "bytes": 3569
+    },
+    {
+      "path": "crates/scap-server/src/config.rs",
+      "sha256": "09d99338b2fe6956f5274a86e89f269c41f10b4b255293ce07b4214ecfb3dd1f",
+      "bytes": 14083
+    },
+    {
+      "path": "crates/scap-server/src/join.rs",
+      "sha256": "7cc53959d69d61ba4d6d20cffa2f50a0ac6800354849d46463af475b8a5f9524",
+      "bytes": 4844
+    },
+    {
+      "path": "crates/scap-server/src/lanes.rs",
+      "sha256": "f17d19da165c064fd9cbaaca3ea07a590c114f724270cbaaa6b8108150616730",
+      "bytes": 12720
+    },
+    {
+      "path": "crates/scap-server/src/lib.rs",
+      "sha256": "a560bc3407221f4c412bde78cd4db273b70f016a583822c9705e5bc421439c63",
+      "bytes": 781
+    },
+    {
+      "path": "crates/scap-server/src/listener.rs",
+      "sha256": "bc1d63004af75212bf531b0481875b64626219f20cdaf3e50f77ce658c9c5f6f",
+      "bytes": 3954
+    },
+    {
+      "path": "crates/scap-server/src/local.rs",
+      "sha256": "b5745aa3bb83fbc9f207fd1c3779a2ef34bfd11e3177bb65e89b31fffe428e60",
+      "bytes": 2686
+    },
+    {
+      "path": "crates/scap-server/src/mailbox.rs",
+      "sha256": "bb6c82d1e7d32dc404f252c3bd854c41e3b9669353bde2082dc073dca63b6b1a",
+      "bytes": 8964
+    },
+    {
+      "path": "crates/scap-server/src/main.rs",
+      "sha256": "d5d20d11219a532a1ef3e53f0db7a7775f28b967e31698b1c483339d83090a96",
+      "bytes": 169
+    },
+    {
+      "path": "crates/scap-server/src/management.rs",
+      "sha256": "7bf6a114469d9664e0606aeebe0bc30c8c0779232ed32633078c53b5e573ccc2",
+      "bytes": 13997
+    },
+    {
+      "path": "crates/scap-server/src/management_cli.rs",
+      "sha256": "eb607e5d83ca202b50b05b45ef040d4e1aa88d752613ab4be0aa8eb43cc1ff3b",
+      "bytes": 5443
+    },
+    {
+      "path": "crates/scap-server/src/node.rs",
+      "sha256": "66ed32379882ba974b9571c3612de440dba1e9986234b965ddc9e3ac6bdd9a94",
+      "bytes": 29827
+    },
+    {
+      "path": "crates/scap-server/src/worker.rs",
+      "sha256": "cc2bfe641da88dc78b9d65a4889ed5fdb8989ddc5126f263ee5a4b28071449c0",
+      "bytes": 28942
+    },
+    {
+      "path": "crates/scap-service/Cargo.toml",
+      "sha256": "14650868f26b292c63332a0e3d6099bcf42b7e27f551ad22de20aff1bd33ea44",
+      "bytes": 601
+    },
+    {
+      "path": "crates/scap-service/src/http.rs",
+      "sha256": "0c80409daed2856aefe19d97e273a0fad891aabccdb0c78afd27c165f9bc4b53",
+      "bytes": 12260
+    },
+    {
+      "path": "crates/scap-service/src/lib.rs",
+      "sha256": "e4b51bb3445bbd8bc9fc2eb6a54bb2c4cbf02ebe45d4465ef029b747078623d9",
+      "bytes": 9637
+    },
+    {
+      "path": "crates/scap-service/src/protocol.rs",
+      "sha256": "96201ccc6825ab3eb8a9a6c8eeccaea130c6e1891c7a6b4f110dffe4fc6ba458",
+      "bytes": 15780
+    },
+    {
+      "path": "crates/scap-sql-worker/Cargo.toml",
+      "sha256": "fafcb1d25ff7cf5862ee0e61e5bec0f8c6d1cd00fda2b1566c19116f62d44c0f",
+      "bytes": 757
+    },
+    {
+      "path": "crates/scap-sql-worker/src/lib.rs",
+      "sha256": "57bb8a57d338c43089e94dc36158814a61fccd951166ead5a18cd01f367b2d2b",
+      "bytes": 14825
+    },
+    {
+      "path": "crates/scap-sql/Cargo.toml",
+      "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+      "bytes": 185
+    },
+    {
+      "path": "crates/scap-sql/src/lib.rs",
+      "sha256": "192480bd34b8eab644d7385ddc2ff030277c21476a3a42bb360e7b278d8a648b",
+      "bytes": 10742
+    },
+    {
+      "path": "crates/scap-sqlite/Cargo.toml",
+      "sha256": "7d2d78809579e5e474ec9aaf6b174d767a598cbdda51abc76ddf117d83ac24c1",
+      "bytes": 506
+    },
+    {
+      "path": "crates/scap-sqlite/src/config.rs",
+      "sha256": "0a145dacca1859389d9cadb87ef712be0224575c2960a11fe3d5a4226e6f9ff0",
+      "bytes": 5053
+    },
+    {
+      "path": "crates/scap-sqlite/src/file.rs",
+      "sha256": "974cddaeccfa57140790b16180b1704383dc6d9558d412c77032dc98e1d6fcb5",
+      "bytes": 2688
+    },
+    {
+      "path": "crates/scap-sqlite/src/gate.rs",
+      "sha256": "70e5077e782c40ef48e37eedb02b4962c6471c5ed6d37d7a899ac962950d1f37",
+      "bytes": 8410
+    },
+    {
+      "path": "crates/scap-sqlite/src/lib.rs",
+      "sha256": "7c207de17dc6a8b27f8f71ef892aa667a4d6ea949a476af666f710d87bae8819",
+      "bytes": 11272
+    },
+    {
+      "path": "crates/scap-sqlite/src/query.rs",
+      "sha256": "484e088a6d3d32fffb50378b4e0e1e421a94a08d2c957759ccdf6f04327b452e",
+      "bytes": 2513
+    },
+    {
+      "path": "crates/scap-sqlite/src/sql.rs",
+      "sha256": "200cc0f18b5118ddfaed12a18daedccd659b548975c13a5db7d565ac76027d34",
+      "bytes": 12494
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406",
+      "bytes": 108
+    },
+    {
+      "path": "sdk/node/package-lock.json",
+      "sha256": "b85e2d1b9af4d23fbc046c41768d9b221cf6b9705775f173b77318826df85a80",
+      "bytes": 35317
+    },
+    {
+      "path": "sdk/node/package.json",
+      "sha256": "86b7beb5d69c2f906e1dd720910d025643a00c91d3663a75573d9b079d944da1",
+      "bytes": 845
+    },
+    {
+      "path": "sdk/node/src/client.ts",
+      "sha256": "0655e668af0f94a610e56090174797d020b8d9c38501daa27708aa63382417be",
+      "bytes": 23338
+    },
+    {
+      "path": "sdk/node/tsconfig.json",
+      "sha256": "62e6fd4262b144db132efc9b040d812c68fed72f3fbc6c2b128583cd4acff122",
+      "bytes": 284
+    }
+  ],
+  "source_identity": {
+    "production_and_sdk_inputs_equal_frozen_unit_snapshot": true,
+    "release_inputs_checked_before_and_after_final_network_runs": true,
+    "final_changes_after_unit_collection": "Documentation and network evidence checker/harness fixes only; no production, SDK, or unit-test input changes.",
+    "live_network_evidence_location": "Fresh per-attempt directories in /tmp; each run and checker closed before byte-verified copying."
+  },
+  "unit": {
+    "rust": {
+      "passed": 538,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "production_files": 52,
+      "coverage": {
+        "lines": {
+          "covered": 12680,
+          "count": 12680
+        },
+        "functions": {
+          "covered": 1166,
+          "count": 1166
+        },
+        "regions": {
+          "covered": 18661,
+          "count": 18661
+        },
+        "branches": {
+          "covered": 2842,
+          "count": 2842
+        }
+      },
+      "fresh_unit_only_profiles": 472,
+      "profiles_independently_remerged_byte_identically": true,
+      "profdata_sha256": "b57c43ddb5268303048ccb7e5731ca7fc595548220ee0443e78bdfe1ba1daef8"
+    },
+    "sdk": {
+      "passed": 23,
+      "failed": 0,
+      "coverage": {
+        "lines": [
+          429,
+          429
+        ],
+        "statements": [
+          429,
+          429
+        ],
+        "functions": [
+          38,
+          38
+        ],
+        "branches": [
+          331,
+          331
+        ]
+      }
+    },
+    "python_tooling": {
+      "inputs": [
+        {
+          "path": "scripts/check_repo.py",
+          "sha256": "f3d6bd1a6579fc0ce0388ab9421ec35945eea03809eecc98475ef967ad61a953"
+        },
+        {
+          "path": "scripts/check_sdk_coverage.py",
+          "sha256": "a7089adaaaae9659b01d2c9c31617ca95ade1d2d767acd7161d2245664b91fca"
+        },
+        {
+          "path": "scripts/check_unit_coverage.py",
+          "sha256": "0ed298caaa0c1222935de2d6b5d73772a266daef1a4f5aa2cda8f3709f81b7a5"
+        }
+      ],
+      "frozen_source_match": true,
+      "tests": 58,
+      "statements": 321,
+      "branches": 160,
+      "missing": 0,
+      "partial_branches": 0
+    },
+    "deployment_evidence_checker_regressions": {
+      "passed": 18,
+      "failed": 0,
+      "scope": "Probe versus mutation accounting, bounded NOT_LEADER reroute, UNKNOWN non-replay, exact tenant HTTP accounting, old and normalized cancellation shapes; added to quality workflow."
+    }
+  },
+  "independent_rust_contracts": {
+    "suites": 9,
+    "tests": 81,
+    "commands": 27,
+    "complete_histories": 44,
+    "failed": 0,
+    "ignored": 0,
+    "original_status_retained": true,
+    "annotation_corrections": 17
+  },
+  "retention": {
+    "passed": true,
+    "contracts": 9,
+    "request_attempts": 1739,
+    "http_attempts": 6135,
+    "unsuccessful_attempts": [
+      {
+        "ordinal": 88,
+        "database": "alpha",
+        "kind": "read",
+        "label": "mixed_new_read_rejected",
+        "request_id": "a71c4f98748c41a0be95704eb01f139c",
+        "request_epoch": "1",
+        "invoked_ms": 27201.731,
+        "statements_sha256": "d550d5783751f45c2c563c3280ab40a74a8cdfea1044623965c840fc20f01c74",
+        "outcome": "service_error",
+        "code": "NOT_LEADER",
+        "result_ms": 27204.38
+      },
+      {
+        "ordinal": 89,
+        "database": "alpha",
+        "kind": "write",
+        "label": "mixed_new_write_once_rejected",
+        "request_id": "a62d6928533f40c8b838ec619487b818",
+        "request_epoch": "1",
+        "invoked_ms": 27204.762,
+        "statements_sha256": "a70fa95141a6afac69aae978914a8a2d1339e8b071840bbabf6249fb13adf731",
+        "outcome": "service_error",
+        "code": "NOT_LEADER",
+        "result_ms": 27206.473
+      },
+      {
+        "ordinal": 347,
+        "database": "alpha",
+        "kind": "write",
+        "label": "committed_response_deliberately_lost",
+        "request_id": "d5340c0d8a2d4576942d302dcf0b9693",
+        "request_epoch": "1",
+        "invoked_ms": 35201.859,
+        "statements_sha256": "5b63e2e47a7c80762220970e397c972c3d9490f643f0e50f8494d23efec20893",
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 35241.728
+      },
+      {
+        "ordinal": 350,
+        "database": "alpha",
+        "kind": "write",
+        "label": "129th_record_rejected_without_retry",
+        "request_id": "3b8d59c28744489da6627c78d2363c8a",
+        "request_epoch": "1",
+        "invoked_ms": 35288.064,
+        "statements_sha256": "bee5a2c2ab4cc492ee37b6dc5d220cbfba15c30ee4ee017331416f60c014156f",
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 35325.983
+      },
+      {
+        "ordinal": 354,
+        "database": "alpha",
+        "kind": "acknowledge",
+        "label": "wrong_terminal_receipt_rejected",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 35449.229,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "RESOLVE_REJECTED",
+        "result_ms": 35467.302
+      },
+      {
+        "ordinal": 355,
+        "database": "alpha",
+        "kind": "acknowledge",
+        "label": "different_principal_cannot_ack",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 35467.537,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "RESOLVE_REJECTED",
+        "result_ms": 35489.242
+      },
+      {
+        "ordinal": 356,
+        "database": "alpha",
+        "kind": "acknowledge",
+        "label": "same_principal_read_only_cannot_borrow_write",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 35489.525,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "UNAUTHORIZED",
+        "result_ms": 35493.319
+      },
+      {
+        "ordinal": 357,
+        "database": "alpha",
+        "kind": "rotate",
+        "label": "ordinary_writer_cannot_rotate",
+        "request_id": "8a1a1d29f2ec4f8cb8326e51424f2b44",
+        "request_epoch": "1",
+        "invoked_ms": 35493.511,
+        "outcome": "service_error",
+        "code": "UNAUTHORIZED",
+        "result_ms": 35496.801
+      },
+      {
+        "ordinal": 358,
+        "database": "alpha",
+        "kind": "rotate",
+        "label": "unacknowledged_window_cannot_rotate",
+        "request_id": "e6d993d509d14a0188dfbc16dea4b067",
+        "request_epoch": "1",
+        "invoked_ms": 35497.421,
+        "outcome": "service_error",
+        "code": "RETIREMENT_REJECTED",
+        "result_ms": 35514.355
+      },
+      {
+        "ordinal": 622,
+        "database": "alpha",
+        "kind": "rotate",
+        "label": "unprocessed_unknown_commit_blocks_rotation",
+        "request_id": "6d0d7efb8c3a470c831088e090a4251b",
+        "request_epoch": "1",
+        "invoked_ms": 39365.482,
+        "outcome": "service_error",
+        "code": "RETIREMENT_REJECTED",
+        "result_ms": 39377.874
+      },
+      {
+        "ordinal": 759,
+        "database": "alpha",
+        "kind": "write",
+        "label": "retired_execute_rejected",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 40698.816,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "REQUEST_RETIRED",
+        "result_ms": 40714.66
+      },
+      {
+        "ordinal": 760,
+        "database": "alpha",
+        "kind": "cancel",
+        "label": "retired_cancellation_rejected",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 40714.834,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "REQUEST_RETIRED",
+        "result_ms": 40778.621
+      },
+      {
+        "ordinal": 761,
+        "database": "alpha",
+        "kind": "acknowledge",
+        "label": "retired_acknowledgement_rejected",
+        "request_id": "b8b4857c999d431faadecd73197da781",
+        "request_epoch": "1",
+        "invoked_ms": 40778.81,
+        "statements_sha256": "aa668c333da59265a6b744ebf73dc6d3fc2652f277e7165cb7764f625b9b2c81",
+        "outcome": "service_error",
+        "code": "REQUEST_RETIRED",
+        "result_ms": 40789.52
+      },
+      {
+        "ordinal": 1570,
+        "database": "beta",
+        "kind": "rotate",
+        "label": "cold_rotation_requires_physical_materialization",
+        "request_id": "959cca03c7e349a28a1e36602eb66158",
+        "request_epoch": "1",
+        "invoked_ms": 62731.723,
+        "outcome": "service_error",
+        "code": "RETIREMENT_REJECTED",
+        "result_ms": 62763.816
+      },
+      {
+        "ordinal": 1571,
+        "database": "beta",
+        "kind": "read",
+        "label": "legacy_archive_blackhole",
+        "request_id": "7ae8066593fb41b798b7a7d19a00405f",
+        "request_epoch": "1",
+        "invoked_ms": 62765.471,
+        "statements_sha256": "5d5b547725930f47b42e6a8ba61718e5c849b08fca90a66a0da65124092c7f35",
+        "outcome": "service_error",
+        "code": "ARCHIVE_UNAVAILABLE",
+        "result_ms": 64793.724
+      },
+      {
+        "ordinal": 1680,
+        "database": "alpha",
+        "kind": "rotate",
+        "label": "rotation_response_deliberately_lost",
+        "request_id": "af0fee79e67a497894c568f0d96c8548",
+        "request_epoch": "4",
+        "invoked_ms": 72424.808,
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 72445.252
+      }
+    ],
+    "successful_sql_responses": 386,
+    "committed_unknown_results_resolved_without_sql_replay": 1,
+    "explicit_application_acknowledgements": 388,
+    "retired_request_identities": 388,
+    "current_unacknowledged_results": 2,
+    "full_alpha_windows": 3,
+    "fixed_request_window": 128,
+    "final_request_epochs": {
+      "alpha": "5",
+      "beta": "2"
+    },
+    "binary_and_harness_identities_verified": true,
+    "production_source_identity_requires_build_receipt": true,
+    "production_slo_passed": false
+  },
+  "history": {
+    "passed": true,
+    "contracts": 9,
+    "acknowledged_writes": 80,
+    "cancellation_fences": 5,
+    "retained_request_identities": {
+      "alpha": 71,
+      "beta": 14
+    },
+    "request_attempts": 715,
+    "unsuccessful_attempts": [
+      {
+        "ordinal": 66,
+        "database": "alpha",
+        "kind": "read",
+        "label": "new_version_cannot_read_from_old_quorum",
+        "request_id": "46b41deb683d4a879f3d975b344b3098",
+        "invoked_ms": 27527.607,
+        "statement_sha256": "69039f4f14895a367f038464eb97984cbc39fa353ca45f42fb927679c623db75",
+        "outcome": "service_error",
+        "code": "NOT_LEADER",
+        "result_ms": 27530.66
+      },
+      {
+        "ordinal": 67,
+        "database": "alpha",
+        "kind": "write",
+        "label": "new_version_write_sent_once",
+        "request_id": "cae8c48c77944e94a2726cdc744d5473",
+        "invoked_ms": 27531.142,
+        "statement_sha256": "1083b9ca6656db6510ef1fbda5b690a0f811e82aaf0868095f4f4db29b12f943",
+        "outcome": "service_error",
+        "code": "NOT_LEADER",
+        "result_ms": 27533.256
+      },
+      {
+        "ordinal": 70,
+        "database": "alpha",
+        "kind": "read",
+        "label": "one_old_and_one_new_cannot_serve_strong_read",
+        "request_id": "f8fa6f6cb68a4e598de58787d9e44c2c",
+        "invoked_ms": 27639.25,
+        "statement_sha256": "69039f4f14895a367f038464eb97984cbc39fa353ca45f42fb927679c623db75",
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 30143.482
+      },
+      {
+        "ordinal": 220,
+        "database": "alpha",
+        "kind": "write",
+        "label": "original_fence_after_many_bases_late_attempt",
+        "request_id": "f197b49bbef342f5867df1c88e794800",
+        "invoked_ms": 73604.634,
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 73791.051
+      },
+      {
+        "ordinal": 225,
+        "database": "beta",
+        "kind": "read",
+        "label": "wrong_tenant_cannot_wake_old_archive",
+        "request_id": "29e37efc13694c9c8344e5cd43f31c6b",
+        "invoked_ms": 75038.078,
+        "statement_sha256": "4adcf8be3868a87c87accb7b8dbc364e18531846c751b8b4beeb6783061d9000",
+        "outcome": "service_error",
+        "code": "UNAUTHORIZED",
+        "result_ms": 75044.875
+      },
+      {
+        "ordinal": 227,
+        "database": "beta",
+        "kind": "read",
+        "label": "real_old_archive_blackhole",
+        "request_id": "6309c8648d0b4c6da16c47896f20a2fe",
+        "invoked_ms": 75208.804,
+        "statement_sha256": "4adcf8be3868a87c87accb7b8dbc364e18531846c751b8b4beeb6783061d9000",
+        "outcome": "service_error",
+        "code": "ARCHIVE_UNAVAILABLE",
+        "result_ms": 77647.6
+      },
+      {
+        "ordinal": 232,
+        "database": "beta",
+        "kind": "write",
+        "label": "new_fence_survives_old_archive_hydrate_late_attempt",
+        "request_id": "1693d3da4630457d8188dbd680db92ff",
+        "invoked_ms": 79080.681,
+        "outcome": "service_error",
+        "code": "COMMIT_UNKNOWN",
+        "result_ms": 79182.726
+      }
+    ],
+    "http_attempts": 2885,
+    "overwrites": 64,
+    "base_advances": 9,
+    "observed_physical_lower_bound_bytes": 11066060,
+    "fold_trigger_bytes_excluded": true,
+    "mixed_versions_rejected": true,
+    "mixed_new_node_applied_before": 24,
+    "mixed_new_node_applied_after_full_upgrade": 33,
+    "local_status_is_commit_confirmation": false,
+    "original_results_lost": 0,
+    "binary_and_harness_identities_verified": true,
+    "production_source_identity_requires_build_receipt": true,
+    "production_slo_passed": false
+  },
+  "membership": {
+    "completed": [
+      "01-original-quorum-and-unjoined-node",
+      "02-management-authorization-and-cas",
+      "03-lagging-learner-cannot-be-promoted",
+      "04-compacted-history-catches-up-new-replica",
+      "05-joint-configuration-survives-process-restart",
+      "06-final-membership-and-old-node-return",
+      "07-new-voter-quorum-preserves-acknowledged-sql",
+      "08-no-quorum-never-forces-membership"
+    ],
+    "all_contracts_passed": true,
+    "acknowledged_rows": {
+      "alpha": 68,
+      "beta": 67
+    },
+    "lost_acknowledgements": 0,
+    "base_observed_by_applied": 32,
+    "base_snapshot_transfer_proof": "combined authoritative source/snapshot/SQL/disk evidence; no direct learner database metadata endpoint",
+    "production_slo_passed": false,
+    "private_fixture_data_exported": false
+  },
+  "service": {
+    "contracts": [
+      "01-three-real-daemons",
+      "02-real-node-sdk",
+      "03-tenant-and-read-permissions",
+      "04-acknowledged-write-leader-kill",
+      "05-real-minority-tcp-blackhole",
+      "06-all-processes-reopen",
+      "07-s3-cold-publication-and-wake",
+      "08-local-recovery-measurement"
+    ],
+    "sdk_integration_tests": 5,
+    "measurement_sample_count": 360,
+    "phase_counts": {
+      "hot": {
+        "total": 120,
+        "outcomes": {
+          "success": 120
+        }
+      },
+      "recovery": {
+        "total": 240,
+        "outcomes": {
+          "platform_error": 12,
+          "success": 228
+        }
+      }
+    },
+    "successful_measurement_writes": 174,
+    "acknowledged_measurement_rows_lost": 0,
+    "summaries": [
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 12.617,
+          "p50": 24.823,
+          "p95": 69.103,
+          "p99": 75.883,
+          "max": 75.883
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "hot",
+        "database": "alpha",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 25.612,
+          "p50": 47.852,
+          "p95": 76.005,
+          "p99": 104.132,
+          "max": 104.132
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "read",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 14.052,
+          "p50": 28.788,
+          "p95": 71.724,
+          "p99": 98.517,
+          "max": 98.517
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "hot",
+        "database": "beta",
+        "kind": "write",
+        "total": 30,
+        "outcomes": {
+          "success": 30
+        },
+        "successful_latency_ms": {
+          "min": 23.513,
+          "p50": 45.538,
+          "p95": 74.145,
+          "p99": 86.88,
+          "max": 86.88
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 12.72,
+          "p50": 19.023,
+          "p95": 67.772,
+          "p99": 69.816,
+          "max": 69.816
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "recovery",
+        "database": "alpha",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 29.887,
+          "p50": 48.03,
+          "p95": 76.51,
+          "p99": 131.899,
+          "max": 131.899
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "read",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 16.213,
+          "p50": 37.58,
+          "p95": 72.698,
+          "p99": 87.75,
+          "max": 87.75
+        },
+        "failed_requests_not_removed": true
+      },
+      {
+        "phase": "recovery",
+        "database": "beta",
+        "kind": "write",
+        "total": 60,
+        "outcomes": {
+          "platform_error": 3,
+          "success": 57
+        },
+        "successful_latency_ms": {
+          "min": 26.352,
+          "p50": 48.178,
+          "p95": 86.333,
+          "p99": 125.397,
+          "max": 125.397
+        },
+        "failed_requests_not_removed": true
+      }
+    ],
+    "recovery": {
+      "fault_ms": 30150.31,
+      "first_success_ms": 3020.0229999999974,
+      "stable_window_start_round": 3,
+      "stable_window_seconds": 30,
+      "samples_per_database_per_kind": 30,
+      "local_recovery_window_start_ms": 3004.189000000002,
+      "stable_window_confirmation_ms": 33004.189,
+      "first_success_per_database_ms": {
+        "alpha": 3020.0229999999974,
+        "beta": 3074.655999999999
+      },
+      "observation_end_ms": 90157.771,
+      "production_slo_passed": false,
+      "limitations": "One small-data loopback event; four probes/s, not the 500 requests/s reference load. No AZ failures, no latency-SLO or percentile-RTO claim. Build profile and exact binary hash are recorded; failures and UNKNOWN remain in the sample denominator."
+    },
+    "cold_wake_samples": 17,
+    "cold_outcomes": {
+      "OVERLOADED": 5,
+      "ARCHIVE_UNAVAILABLE": 2,
+      "COMMIT_UNKNOWN": 6
+    },
+    "concurrent_hot_latencies_ms": [
+      34.348,
+      7.647,
+      14.087,
+      8.04
+    ],
+    "all_cold_and_hot_attempts_retained": true,
+    "nominal_schedule_timing_limit": {
+      "samples_invoked_before_nominal_schedule": 98,
+      "maximum_early_invocation_ms": 1.094,
+      "latency_origin": "nominal scheduled_ms; these early samples can understate invocation-to-result duration by up to the recorded early delta",
+      "raw_timestamps_and_deadlines_retained": true,
+      "production_latency_or_rto_claim": false
+    }
+  },
+  "preserved_non_successes": [
+    {
+      "kind": "production_bug",
+      "description": "A retired archive without its recovery baseline could reach relative-tail subtraction and panic. Decode now validates baseline coverage first. Reproduction, hot/cold and with/without-tail regression, and atomic hydrate rejection are retained."
+    },
+    {
+      "kind": "initial_unit_gates",
+      "description": "Incomplete initial exact-coverage runs and a strong-read identity regression remain in prior-failures; the final fresh whole-workspace collection is independent and complete."
+    },
+    {
+      "kind": "truncated_live_evidence",
+      "description": "Earlier retention attempts had a 98-byte contract-06 history despite later recorded requests; checkers rejected them. Cause is not established. Original files remain unchanged; only closed complete new runs count as passing."
+    },
+    {
+      "kind": "retention_checker",
+      "description": "A complete earlier run was rejected because fresh per-endpoint epoch capability GETs were counted as mutation replay. The checker now distinguishes probes from real operations and validates identity, deadline, ordering, single logical ownership and every tenant HTTP record. Original evidence and rejection retained."
+    },
+    {
+      "kind": "history_checker",
+      "description": "A complete earlier run was rejected because the updated SDK normalizes an old cancellation to position:null, acknowledged:false. The checker now accepts exactly the legacy or normalized shape and rejects fabricated terminal proofs. Original evidence retained."
+    },
+    {
+      "kind": "final_expected_rejections",
+      "retention_attempts": 16,
+      "history_attempts": 7,
+      "description": "All negative authorization, capacity, mixed-version, response-loss and unavailable-object observations remain in original call and HTTP denominators."
+    },
+    {
+      "kind": "local_recovery_failures",
+      "count": 12,
+      "description": "Twelve platform errors remain among the 240 post-fault observations; no successful-only recovery denominator."
+    }
+  ],
+  "checker_fix_audit": {
+    "prior_runs_are_not_final_candidate_evidence": true,
+    "commands": [
+      {
+        "suite": "retention",
+        "exit": 1,
+        "last_line": "AssertionError: input identity changed: /workspace/scratch/6e857fc3ddbe/scap/experiments/retention-network/run.mjs",
+        "log": "retention-prior-run-recheck.log",
+        "expected_input_identity_failure": true
+      },
+      {
+        "suite": "history",
+        "exit": 1,
+        "last_line": "AssertionError: binary/harness identity changed: /workspace/scratch/6e857fc3ddbe/scap/experiments/history-network/check_evidence.py",
+        "log": "history-prior-run-recheck.log",
+        "expected_input_identity_failure": true
+      }
+    ],
+    "auxiliary_audit_note": "Initial collection wrapper expected the retention checker wording for both suites; history uses binary/harness identity changed. Both full checkers rejected changed inputs as intended; the wrapper expectation was corrected without altering either checker or evidence.",
+    "immutable_prior_retention_attempt_analysis": {
+      "logical_calls": 1735,
+      "tenant_http_attempts": 2254,
+      "actual_operations": 1735,
+      "capability_probes": 519,
+      "all_original_deadlines_and_non_replay_rules_passed": true
+    },
+    "regression_tests": {
+      "passed": 18,
+      "failed": 0,
+      "exit": 0,
+      "log": "regression-tests.log"
+    },
+    "checker_sha256": {
+      "retention": "3254a2faed8fb349d2cf0661171fbe9840b5da46b69bb20a4bc497296f1e4758",
+      "history": "943fbbcff46bc475691bd18f71f9be41852a205311da6c8c8ceace9a1cc46f0d"
+    }
+  },
+  "artifacts": [
+    {
+      "path": "actionlint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "checker-fix-audit/audit.json",
+      "bytes": 1513,
+      "sha256": "ff953c1ecb3d1e718c3c9786b1c5388bea6f4471d169ec27f28633cd279db964"
+    },
+    {
+      "path": "checker-fix-audit/manifest.json",
+      "bytes": 591,
+      "sha256": "2bfa858fc1ef508b2cd8ac17a1d46b389ca52782b6bd710bed8d643d81b4d501"
+    },
+    {
+      "path": "dependencies/frozen-binaries.json",
+      "bytes": 736,
+      "sha256": "78ea1ad3e43d7828527f60f7a3b180c581926f30ef25c0b5ee70e90144d6c4ba"
+    },
+    {
+      "path": "dependencies/rocksdb-restore-provenance.json",
+      "bytes": 76559,
+      "sha256": "6c76b7382d7109ab020cb85c4b334e788789143f82907091c754c0902d7e7f8c"
+    },
+    {
+      "path": "dependencies/tool-restore-provenance.json",
+      "bytes": 710,
+      "sha256": "8715a53c5361218f830dd006e9e179f9d0bf6174b59472df8d0d1d697560cf89"
+    },
+    {
+      "path": "evidence-checkers-final.log",
+      "bytes": 2902,
+      "sha256": "196e4442041d3d34b2601880ebf68b4f563b89f2d9a22ab96577948782f9835b"
+    },
+    {
+      "path": "history-network-verified/check.log",
+      "bytes": 3453,
+      "sha256": "7b4f7246f29c657389e302710c0acd5cdcfb98fb5f623c9c1b8e96f0d2a54086"
+    },
+    {
+      "path": "history-network-verified/evidence/01-old-v2-hot-and-cold.history.jsonl",
+      "bytes": 5323,
+      "sha256": "ca02b7c04bfb3f2b231c2593ffa0969cb868f9b517d307d7b5bed8671f817d2f"
+    },
+    {
+      "path": "history-network-verified/evidence/02-mixed-versions-cannot-form-quorum.history.jsonl",
+      "bytes": 5925,
+      "sha256": "22626cbc8ae6ac09634f7cf577c33ca62715d3eb46aa2411ab4e476f14b38bce"
+    },
+    {
+      "path": "history-network-verified/evidence/03-stop-upgrade-preserves-history.history.jsonl",
+      "bytes": 1334,
+      "sha256": "3efd1a8f02b8ed2fe66665e91cc0c89d4abc878b9666233c01a38b23f8cf99f9"
+    },
+    {
+      "path": "history-network-verified/evidence/04-overwrite-exceeds-original-history-budget.history.jsonl",
+      "bytes": 2083,
+      "sha256": "2a7e27d11b96a41b7986239aea56f403efabcded10ab30d3089ace41db9ebaae"
+    },
+    {
+      "path": "history-network-verified/evidence/05-old-s3-archive-hydrates-with-new-fence.history.jsonl",
+      "bytes": 1611,
+      "sha256": "259178b61b1e136c364e2c8fe320726e044e2949e3b347691f84697a47818fc0"
+    },
+    {
+      "path": "history-network-verified/evidence/06-new-v4-archive-roundtrip.history.jsonl",
+      "bytes": 2333,
+      "sha256": "9b1949459d97363c70bca46df0e08c68b16c95ed223f17beb4ebfac86d2a0f7f"
+    },
+    {
+      "path": "history-network-verified/evidence/07-sigkill-recovers-from-base-and-tail.history.jsonl",
+      "bytes": 2113,
+      "sha256": "d753663e2cdf464ed8c01b64c7df73789bcabb07714d4ea67c934150bddc070f"
+    },
+    {
+      "path": "history-network-verified/evidence/08-old-binary-rejects-v4-storage.history.jsonl",
+      "bytes": 1227,
+      "sha256": "76409eeafd642bbb166b6014b6ada64fc6a971024427b485fd799838977e9702"
+    },
+    {
+      "path": "history-network-verified/evidence/09-new-binary-reopens-after-rejected-downgrade.history.jsonl",
+      "bytes": 1078,
+      "sha256": "d5ec5f9a80d72b8be90a18b7178a898e846fbf54bee91ea6e394d91b32076f14"
+    },
+    {
+      "path": "history-network-verified/evidence/acknowledgements.jsonl",
+      "bytes": 45688,
+      "sha256": "994c77c085c3f60fe5ad805168a4e166e2dd6a97928d1408e65a883bb4b7b18a"
+    },
+    {
+      "path": "history-network-verified/evidence/binary.json",
+      "bytes": 1238,
+      "sha256": "6bff2d930c6daaaa8c86d7986f93b307752502ff9a926818cb329964c8e8294f"
+    },
+    {
+      "path": "history-network-verified/evidence/http-attempts.jsonl",
+      "bytes": 624958,
+      "sha256": "9e1619a34ef849b25c01a5b9e269ceb44081820d25379be70072e3d849eef56d"
+    },
+    {
+      "path": "history-network-verified/evidence/overwrites.jsonl",
+      "bytes": 24558,
+      "sha256": "bd6efb0c8decf9bbfc25eac1178b760efb94fa537969db22df0d5d7f57c74b35"
+    },
+    {
+      "path": "history-network-verified/evidence/requests.jsonl",
+      "bytes": 231534,
+      "sha256": "1c35fcea5df5b05af2773cdb0257b2ac7740de1bf7f60a426379d865641066c7"
+    },
+    {
+      "path": "history-network-verified/evidence/s3-backend.json",
+      "bytes": 341,
+      "sha256": "4a68309707cd82fa7f2321aabba07c1ae3cc88f7d23b40fe7133b765b788483c"
+    },
+    {
+      "path": "history-network-verified/evidence/summary.json",
+      "bytes": 4925,
+      "sha256": "3ff7cad1d7d40512ba5f29375d6e9ab1bb0747733dc60ddd322bc1915253be1a"
+    },
+    {
+      "path": "history-network-verified/run.log",
+      "bytes": 22981,
+      "sha256": "ad283bdcdaaaf983fef572c64ab55ae5b40b9501adce7fa9dd28ff8ffb54475f"
+    },
+    {
+      "path": "history-network-verified/status.json",
+      "bytes": 223,
+      "sha256": "079c49fd311143666dec52385d3904446fe9536a1ac98903d2d0b09d748d3cdf"
+    },
+    {
+      "path": "inherited-source.json",
+      "bytes": 38879,
+      "sha256": "449a92d863b8bd7d4032d6b5f37d1714da091ece014c9bbc7e837f288d61a62c"
+    },
+    {
+      "path": "membership-network-closed/check.log",
+      "bytes": 79,
+      "sha256": "702ecf4fe3d285d6cf44f704442cc62db03e0acf2719db1e0448c025492d6e12"
+    },
+    {
+      "path": "membership-network-closed/evidence/01-original-quorum-and-unjoined-node.history.jsonl",
+      "bytes": 386,
+      "sha256": "88f7591f234cca7e98be7de674b90489f3b1b71098dda5abd6288148c2a0f22e"
+    },
+    {
+      "path": "membership-network-closed/evidence/02-management-authorization-and-cas.history.jsonl",
+      "bytes": 360,
+      "sha256": "b48771bbba708ebdc03a81431da3c3ffa3c100564051b59db77c8ffeb3627c41"
+    },
+    {
+      "path": "membership-network-closed/evidence/03-lagging-learner-cannot-be-promoted.history.jsonl",
+      "bytes": 479,
+      "sha256": "603e5a8761a78b09e9020193a4385a2788cdb8e79687b8fc12bc4301f0d62b1a"
+    },
+    {
+      "path": "membership-network-closed/evidence/04-compacted-history-catches-up-new-replica.history.jsonl",
+      "bytes": 1645,
+      "sha256": "e0c29b61f037b4ea55e3e7ec1913ab0edcde4523dd82aee11ffff71a30563e32"
+    },
+    {
+      "path": "membership-network-closed/evidence/05-joint-configuration-survives-process-restart.history.jsonl",
+      "bytes": 871,
+      "sha256": "a089cee54180400eb3fafd2ba0e57b87aa038af8dfc4a53ec823b829f46aaeae"
+    },
+    {
+      "path": "membership-network-closed/evidence/06-final-membership-and-old-node-return.history.jsonl",
+      "bytes": 839,
+      "sha256": "f5f0bc972baaf60b7bc6e3cde98b9a44223ae7dd0997337f2472884bb62d92ce"
+    },
+    {
+      "path": "membership-network-closed/evidence/07-new-voter-quorum-preserves-acknowledged-sql.history.jsonl",
+      "bytes": 1001,
+      "sha256": "c4c960f5bb632cb65618ec5eadfd250598502e6d0e22b083b3f114f2c5404ad9"
+    },
+    {
+      "path": "membership-network-closed/evidence/08-no-quorum-never-forces-membership.history.jsonl",
+      "bytes": 808,
+      "sha256": "6024f09c024acb9965d7937f89729f2016921b10168f26b076e5eb88fed2e4c7"
+    },
+    {
+      "path": "membership-network-closed/evidence/binary.json",
+      "bytes": 199,
+      "sha256": "dceec388f3ad5edaea3072625daba46e8bcbff9408ad52f3d4e7bb0724c17a41"
+    },
+    {
+      "path": "membership-network-closed/evidence/summary.json",
+      "bytes": 780,
+      "sha256": "07805f231285dca78db2e07c44757e190ce0b536ca5000325870b208efba7553"
+    },
+    {
+      "path": "membership-network-closed/run.log",
+      "bytes": 6335,
+      "sha256": "aa78f8bd285f849bc7423d85c0b9228a048834c3fdff4900c71f9b6f968fa321"
+    },
+    {
+      "path": "membership-network-closed/status.json",
+      "bytes": 84,
+      "sha256": "926b4e2de86c0962b36a6ed25e12c94b545213d64f29393f2b5d5dddf4cbd042"
+    },
+    {
+      "path": "prior-failures/retention-missing-base-before-fix-reproduced.log",
+      "bytes": 781,
+      "sha256": "33b72bcbbd4f1b87306a15dbc2f0eccac15b3568f7773f0fd6faea894d711d3a"
+    },
+    {
+      "path": "prior-failures/retention-missing-base-cell-tests.log",
+      "bytes": 7960,
+      "sha256": "664f3ccee4eec1c130b38db6b9601a3e1bb2f7b1508aff3d7514adc27dafa7b1"
+    },
+    {
+      "path": "prior-failures/unit-initial-gate.log",
+      "bytes": 5498,
+      "sha256": "83b32da09ab60a1d7259a5554493879374d185214400039b82784b1e721742fa"
+    },
+    {
+      "path": "prior-failures/unit-second-gate.log",
+      "bytes": 5247,
+      "sha256": "00520e5ada37cd2548967c0023a018fab101e3d33dc62933f4d0c48c87634a51"
+    },
+    {
+      "path": "release-provenance.json",
+      "bytes": 25279,
+      "sha256": "9c77b9103d3abcf82d7d38826ab6a32ac657031e01a592d9d72f4c1252808ca5"
+    },
+    {
+      "path": "retention-network-verified/check.log",
+      "bytes": 7248,
+      "sha256": "80e36729d8cbbc2842fa5e7a9c303eb0321bf4788f975c9617d962f8117e52ba"
+    },
+    {
+      "path": "retention-network-verified/evidence/01-real-v3-hot-and-cold-producer.history.jsonl",
+      "bytes": 5382,
+      "sha256": "596e618a4f966824b91d606883052b48c9eca2b6b1d0a9c8c8626fe640164972"
+    },
+    {
+      "path": "retention-network-verified/evidence/02-wire-generations-cannot-form-quorum.history.jsonl",
+      "bytes": 1593,
+      "sha256": "fab5b07e397e5021eea644607f693749b3b4112f1edf03e486d44e5f3bce1bf4"
+    },
+    {
+      "path": "retention-network-verified/evidence/03-stop-upgrade-and-original-window-capacity.history.jsonl",
+      "bytes": 1654,
+      "sha256": "4f2189870178d03b4f888745ba0d14d2fc77a9cc2923992382a339acdaae90f7"
+    },
+    {
+      "path": "retention-network-verified/evidence/04-explicit-receipts-and-ordered-retirement.history.jsonl",
+      "bytes": 979,
+      "sha256": "135f072ac1c4abc7af04a56a524f4b30d698ac3330d0cf11532fb2fb8d996a23"
+    },
+    {
+      "path": "retention-network-verified/evidence/05-repeated-full-windows-with-offline-replica.history.jsonl",
+      "bytes": 1840,
+      "sha256": "b5bfc2d6e629a0008f49b2ca5d70473b9f12da771045c6862f8ed9647d05770f"
+    },
+    {
+      "path": "retention-network-verified/evidence/06-snapshot-installs-retirement-fences.history.jsonl",
+      "bytes": 1401,
+      "sha256": "4f4c30404b76a1d6694678ab197822ad8ae9f493db6a20866a8925eb26a4fad3"
+    },
+    {
+      "path": "retention-network-verified/evidence/07-cold-ack-survives-legacy-hydration.history.jsonl",
+      "bytes": 3321,
+      "sha256": "3db1be6c3c23526582837ba4943b63fb0a5ca5ca34523da9880e4e6c9b10cd2b"
+    },
+    {
+      "path": "retention-network-verified/evidence/08-unknown-rotation-and-crash-recovery.history.jsonl",
+      "bytes": 2018,
+      "sha256": "3a5a4bf9f16a4408efe2107dec726cf132c16066b93b0c8a3137f999ee517797"
+    },
+    {
+      "path": "retention-network-verified/evidence/09-old-binary-rejects-v4-and-new-reopens.history.jsonl",
+      "bytes": 1566,
+      "sha256": "0627c37e251052f335a44973c6407c6de28644fac136af501b75e673ca82ba2c"
+    },
+    {
+      "path": "retention-network-verified/evidence/application-acks.jsonl",
+      "bytes": 94582,
+      "sha256": "088d8c0310b0bb35bd484518daac398b0686f7befb72f7f89e8bce3504e50573"
+    },
+    {
+      "path": "retention-network-verified/evidence/artifacts.json",
+      "bytes": 4042,
+      "sha256": "3806521142767dc4b12425ba15d3fa517b6dd8711915b944a58df38b02a2cb5a"
+    },
+    {
+      "path": "retention-network-verified/evidence/binary.json",
+      "bytes": 1349,
+      "sha256": "f4a1d6ee0903f6916906ca66232f5297fdc52db5bd90a923f8b797e4fc80fe47"
+    },
+    {
+      "path": "retention-network-verified/evidence/http-attempts.jsonl",
+      "bytes": 1521635,
+      "sha256": "a06b82cbfbfb594843bef0bea180ed4eb4990017edd056e38df48524c8028bd2"
+    },
+    {
+      "path": "retention-network-verified/evidence/requests.jsonl",
+      "bytes": 646138,
+      "sha256": "f760c4209c650cb5383cdc1464daacbcbaab7df7e39cfd0bdcf905f37c9e2265"
+    },
+    {
+      "path": "retention-network-verified/evidence/s3-backend.json",
+      "bytes": 341,
+      "sha256": "4a68309707cd82fa7f2321aabba07c1ae3cc88f7d23b40fe7133b765b788483c"
+    },
+    {
+      "path": "retention-network-verified/evidence/summary.json",
+      "bytes": 6845,
+      "sha256": "30cdcead43a33364c748d38e5c66889b96e6eb68dbf88c88901fe2ade39d39fd"
+    },
+    {
+      "path": "retention-network-verified/evidence/windows.jsonl",
+      "bytes": 2454,
+      "sha256": "fcd79a14be12a3b62a1ce786882ea5709deb990bb7072c50738e9362854033b8"
+    },
+    {
+      "path": "retention-network-verified/evidence/write-results.jsonl",
+      "bytes": 141961,
+      "sha256": "7bb5dd6294db74a24cb535a7e3a4da73e85862c8c15d61a6a84c11d80aded085"
+    },
+    {
+      "path": "retention-network-verified/run.log",
+      "bytes": 19712,
+      "sha256": "dd4140afa8ac54eec9c47c7cc73be93973e53c494f607e83c51102b38643fc35"
+    },
+    {
+      "path": "retention-network-verified/status.json",
+      "bytes": 223,
+      "sha256": "734d2f1592a2c77ca372ec0120741daec55cd5551cc889476965d29dc1c8c31f"
+    },
+    {
+      "path": "rust-contracts/audited-results.json",
+      "bytes": 91811,
+      "sha256": "54bb8d718ff312a2ce134150a26925f8d4669e644ab876831dd4453183edbef0"
+    },
+    {
+      "path": "rust-contracts/manifest.json",
+      "bytes": 13634,
+      "sha256": "803ebe1fa32123ecac83647a838637acb7bbf15ea860326a94b09fbe9aa9eac4"
+    },
+    {
+      "path": "rust-contracts/original-runner-status.json",
+      "bytes": 27345,
+      "sha256": "8fff1189517e51b5bfff27e316339836cd7d8d29f515380e19bb7849e29ebc21"
+    },
+    {
+      "path": "sdk/coverage-final.json",
+      "bytes": 106400,
+      "sha256": "fbfd8008fc65638c53e9535001f3672c122d99520e641d8bde5d9088e0d79c7e"
+    },
+    {
+      "path": "sdk/lcov.info",
+      "bytes": 11483,
+      "sha256": "2d7cf23572ec56247e62a21adf9477453b1c1340209c9babd40a6c424940f8f3"
+    },
+    {
+      "path": "sdk/manifest.json",
+      "bytes": 2577,
+      "sha256": "4dac65a9c77288a01c3a0f53cf63ad31f45c5fbcf96d31fffeb5b64b1dd40ea4"
+    },
+    {
+      "path": "sdk/sdk-gate.log",
+      "bytes": 113,
+      "sha256": "2e07c9fa97900ccf3fadc52acfc85042f97b67e98429191c01455bf33cc0be34"
+    },
+    {
+      "path": "sdk/sdk-unit.log",
+      "bytes": 3315,
+      "sha256": "271d0b07f88eff46d2e4c5a2233d0ea62523560b237902a5d990192fc8f00968"
+    },
+    {
+      "path": "service-network-closed/check.log",
+      "bytes": 92,
+      "sha256": "aa9529ddc1586ebb7e6d40b32fba5820e509dc7c8314bfc11eac6e22dc2d1b08"
+    },
+    {
+      "path": "service-network-closed/evidence/01-three-real-daemons.history.jsonl",
+      "bytes": 260,
+      "sha256": "50a2bcb27ad4ffeb1dbd46ef6cdec6a860ddc9d94ea02ea82603b386074060ab"
+    },
+    {
+      "path": "service-network-closed/evidence/02-real-node-sdk.history.jsonl",
+      "bytes": 259,
+      "sha256": "c5089abf9c0c9949c9adf4e838cfb78a733f534b4a2478c17d373d1cca6053b0"
+    },
+    {
+      "path": "service-network-closed/evidence/03-tenant-and-read-permissions.history.jsonl",
+      "bytes": 360,
+      "sha256": "c8ae7d13f802d236cf13080b3fb3b74b4c5a61726125160d59fc5e2d9efe2264"
+    },
+    {
+      "path": "service-network-closed/evidence/04-acknowledged-write-leader-kill.history.jsonl",
+      "bytes": 515,
+      "sha256": "954b5d1eb45ce09acdad809b6cc2aba2d0d9743c4f5f975bee370c3680b9d57e"
+    },
+    {
+      "path": "service-network-closed/evidence/05-real-minority-tcp-blackhole.history.jsonl",
+      "bytes": 377,
+      "sha256": "ceb7567dd9c7666884e49c95701f21b4fb83092b38bbcd7912f4ae901e3de806"
+    },
+    {
+      "path": "service-network-closed/evidence/06-all-processes-reopen.history.jsonl",
+      "bytes": 338,
+      "sha256": "668fdfa0c1e9f4349dc07bd0f216145859957471d738fa84cadf3717622a61f8"
+    },
+    {
+      "path": "service-network-closed/evidence/07-s3-cold-publication-and-wake.history.jsonl",
+      "bytes": 1359,
+      "sha256": "97a4e3f8d932d4466f640b170b67d29c0b82d17b9e739816fca1af1bad0b8bb1"
+    },
+    {
+      "path": "service-network-closed/evidence/08-local-recovery-measurement.history.jsonl",
+      "bytes": 789,
+      "sha256": "d94f021771bbf642c662ae7aa1d4174a1a7d12025e02f78425df5f7cbbb59623"
+    },
+    {
+      "path": "service-network-closed/evidence/binary.json",
+      "bytes": 282,
+      "sha256": "e087cd57ddaff1bec1c0e562c15e761e126927a3fbb7eda6e1b0535d26a8db30"
+    },
+    {
+      "path": "service-network-closed/evidence/cold-wake.samples.jsonl",
+      "bytes": 4112,
+      "sha256": "746becf62950d2f7d79a3cac9559d5a034a846e01c9589ba453cea934d6fc6df"
+    },
+    {
+      "path": "service-network-closed/evidence/complete.txt",
+      "bytes": 20,
+      "sha256": "fbaacd1df6f28aa2ed91cd75533e1fb2844323408cf6057423cae3e0387ea0dc"
+    },
+    {
+      "path": "service-network-closed/evidence/completed.json",
+      "bytes": 364,
+      "sha256": "c602917cb40cc884cc96fa1abff16226e2cadcf6c341218fa1273d65c856702a"
+    },
+    {
+      "path": "service-network-closed/evidence/latency.samples.jsonl",
+      "bytes": 88252,
+      "sha256": "9362a4f3acbabbab565ada2cb9265ac10d77478a357074fb23d581c0ecd0582c"
+    },
+    {
+      "path": "service-network-closed/evidence/measurement.json",
+      "bytes": 4543,
+      "sha256": "3c5a543c1c99bfac2fca1d83d073275d33bb5d5cd8b454099ad3e8ba594d929d"
+    },
+    {
+      "path": "service-network-closed/evidence/s3-backend.json",
+      "bytes": 241,
+      "sha256": "c92dc72f7231575b7973f5a8849d82b08c57153136826110be50acfd978e973f"
+    },
+    {
+      "path": "service-network-closed/evidence/sdk-integration.log",
+      "bytes": 657,
+      "sha256": "0b7624f7c83fb5e278555f2598a3cce28ecc689d0a3dcc93779f7172d801c5cb"
+    },
+    {
+      "path": "service-network-closed/run.log",
+      "bytes": 4150,
+      "sha256": "167942d7e6e7bea4f61c0031e7fba35ff3f69aab914abf44dd90dd7405fbfb4e"
+    },
+    {
+      "path": "service-network-closed/status.json",
+      "bytes": 190,
+      "sha256": "baf78c5c57a8fd6630ba457d277ccd4200037eb60b96cce74f15fbcadb459cb0"
+    },
+    {
+      "path": "static/clippy.log",
+      "bytes": 718,
+      "sha256": "2008fed9a738d435599241af0c39e5077342bc9f935062477cae383dd24384c5"
+    },
+    {
+      "path": "static/fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "static/status.json",
+      "bytes": 464,
+      "sha256": "4a0acb55d0fe36ca00179564ecacad3dcf1265fa4f2aab9ae7e16cbd181c4daa"
+    },
+    {
+      "path": "tooling/provenance.json",
+      "bytes": 570,
+      "sha256": "1c86b2fdabbb56b41dc3f2ed04f8c7ac4c682de4139266eb758272abe99066ba"
+    },
+    {
+      "path": "tooling/tooling-gate.log",
+      "bytes": 499,
+      "sha256": "28531a87d4cc247f6e7368fb355c55ec1ad33774546f6c884998025ba9c60949"
+    },
+    {
+      "path": "unit/independent-profile-merge.json",
+      "bytes": 562,
+      "sha256": "1f7da851b52841fb31ce36aec766f4c0cb83ec2bd8213c26bf429862a8ce2c84"
+    },
+    {
+      "path": "unit/raw-profile-manifest.json",
+      "bytes": 83672,
+      "sha256": "11e696c75b6663fa155036c84c0974493f39919bce51152fbff543c20d8bb3c8"
+    },
+    {
+      "path": "unit/unit-clean.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "unit/unit-gate.log",
+      "bytes": 5119,
+      "sha256": "e78e19c31c226379e6296d427c38ae71659f50713957664c582de01ed6b03dff"
+    },
+    {
+      "path": "unit/unit-preflight.json",
+      "bytes": 82,
+      "sha256": "0d56cf271bc5f1a80dd2596a3179a17032b68de5c0d2989ee681d86807ed9e4e"
+    },
+    {
+      "path": "unit/unit-status.json",
+      "bytes": 12,
+      "sha256": "5bc232b82de377a5655a39a2af9d7ae0fc868de5b9df957e18905cb914606c88"
+    },
+    {
+      "path": "unit/unit.json",
+      "bytes": 69078151,
+      "sha256": "8838c0b1e2f6ed598f33edc0aa5171140d91177648aad4ec848b39d6b4907e4c"
+    },
+    {
+      "path": "unit/unit.log",
+      "bytes": 62705,
+      "sha256": "2532c67af7a49d07428ed0b25c6339aaf83e872da438468ad8c5f1a9ada47a21"
+    },
+    {
+      "path": "unit/unit.profdata",
+      "bytes": 8825160,
+      "sha256": "b57c43ddb5268303048ccb7e5731ca7fc595548220ee0443e78bdfe1ba1daef8"
+    },
+    {
+      "path": "unit/verified-merge-inputs.txt",
+      "bytes": 48222,
+      "sha256": "95ba381f0ee81136e55cc0b77ae824c22db0265c2c577692884f30d6cadc338f"
+    }
+  ],
+  "limitations": [
+    "Single-cell profile remains 32 configured databases, 256 KiB per database, 8 MiB application state, and 128 retained requests per active window.",
+    "Only an explicitly acknowledged complete request window can retire. Unacknowledged or inaccessible cold results can prevent retirement; ordinary successful writes do not auto-acknowledge.",
+    "The 4096 cell administrative records are not retired; old S3 objects are not garbage-collected.",
+    "Upgrade stops all voters, retains original disks, and uses OpenExisting. Mixed peer generations cannot form quorum; no rolling upgrade or downgrade to old binaries.",
+    "Local loopback, process SIGKILL and small data do not establish three-AZ, power-loss, 1 GiB restore, 500 requests/s, production latency or availability targets.",
+    "Dynamic tenants, multiple cells, automatic damaged-replica provisioning, control-plane credential rotation, object GC, PITR and S3-only disaster recovery remain separate platform work."
+  ]
+}

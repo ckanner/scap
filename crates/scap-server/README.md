@@ -82,7 +82,7 @@ CLI 输出完整 JSON；非成功 HTTP、超时或不确定结果都以非零状
 
 [Node SDK](../../sdk/node/README.md)提供 `execute`、`batch`、强读 `query`、`lookup`、`resolveOrCancel` 和不唤醒数据库的 `status`。裸 `@libsql/client/http` 可访问 `/db/{database}/` 下已经验证的自包含 Hrana 子集；不承诺同步本地文件驱动、全部 Hrana 或 ORM 无修改兼容。
 
-受鉴权的 `GET /db/{database}/v1/status` 在原 `revision`、休眠、Cold、owner 和归档水位之外，返回 `base_revision`、`tail_entries`、`tail_bytes`。这三个 u64 计数与 revision 一样使用十进制字符串，来自同一新鲜权威视图；Cold 时尾部计数为零，基座 revision 仍表示保留的恢复锚点，不能据此假定镜像字节在本机可用。该入口不执行 SQL，也不为查询状态而唤醒冷库。
+受鉴权的 `GET /db/{database}/v1/status` 在原 `revision`、休眠、Cold、owner 和归档水位之外，返回 `base_revision`、`tail_entries`、`tail_bytes` 及 `request_epoch`、`retained_requests`、`unacknowledged_requests`、`retired_revision`。这些 u64 计数均为十进制字符串，来自同一新鲜权威视图；Cold 时尾部计数为零，基座 revision 仍表示保留的恢复锚点，不能据此假定镜像字节在本机可用。该入口不执行 SQL，也不为查询状态而唤醒冷库。
 
 公开路径与错误合同见 [`scap-service`](../scap-service/README.md)。Bearer token 只存摘要，外部请求不能指定 owner/cell/S3 key。每次实际读写与结果查证均重新使用复制状态中的当前权限。`/readyz` 仅供选择候选节点，不能授权本地写或陈旧读。
 
@@ -116,16 +116,16 @@ S3 归档采用 `Suspend → upload/verify → Publish → Prune`，唤醒为当
 ## 当前边界
 
 - 一个 cell、bootstrap 恰好三个 voter、最多 32 个库；成员替换限于 3–16 个预注册 peer，不能动态信任陌生证书，也不提供迁移或多 cell 路由。
-- 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库最多 128 条 accepted/cancel 记录，cell 最多 4096 条管理记录。
-- Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；cell 在 Commit 候选状态中折叠物理前缀，强读与恢复核验完整恢复基座和有界物理尾部。请求结果和取消记录继续完整保留；不能由此推断大库吞吐或延迟。
+- 每库逻辑镜像最多 64×4096 bytes，即 256 KiB；每库未退休窗口最多 128 条 accepted/cancel 记录，显式确认并推进世代后可释放；cell 最多 4096 条管理记录且暂不退休。
+- Store 逻辑镜像采用内容块增量持久化，同一 WriteBatch 原子发布；cell 在 Commit 候选状态中折叠物理前缀，强读与恢复核验完整恢复基座和有界物理尾部。物理折叠不删除请求结果或取消记录，它们仅在显式确认及有序世代退休后释放；不能由此推断大库吞吐或延迟。
 - 按库 lazy lane 隔离 SQL 与前景 hydrate；全局线程/准入预算固定，尚无加权公平调度、独立恢复容量预留或跨库性能保证。
 - 归档正文必须装入一次有界 hydrate command；state/command 分别为 8 MiB/4 MiB，尚无分块恢复。
-- 永久保留对象、原结果和取消 fence，无自动 GC、对象删除或 S3-only 灾难恢复。恢复所需总体容量没有跨库预留协议。
+- 永久保留对象；原结果和取消记录只能经显式应用确认及有序世代退休释放，旧世代永久 fenced。无自动对象 GC、对象删除或 S3-only 灾难恢复。恢复所需总体容量没有跨库预留协议。
 - 无 quorum、损坏、未知 outcome 或当前权限失败时保持拒绝；不会改用旧文件、较旧对象或本地成功。
 
-Cell state 和归档在持久激活后使用 v3，普通 command/outcome 仍为 v2，物理 IMG 格式保持不变。OpenExisting 支持绑定相同身份/限额的合法 v1 热状态和 v2 热/冷状态；打开旧盘时保留 legacy 语义和 v2 编码，不能提前重判尚待应用的旧归档发布或容量裁决。当前 leader 的目录循环在创建数据库、恢复 owner、归档或开放业务前，提交独立内部 activation 条目；只有该条目 durable apply 且后续新 Safe ReadIndex 确认 phase 3，才可置 ready。未知结果保持未就绪，下轮先查询持久阶段。普通数据库 lane 不发起升级，phase 2 直接拒绝请求；peer、受鉴权的本机管理观测和 livez 可先启动，因此无 quorum 的新节点能够被诊断但不能服务 SQL。
+Cell state 和归档在持久激活后使用 v4；旧 epoch 1 操作仍可使用原业务 v2 envelope，新世代/新操作使用 v3，物理 IMG 格式保持不变。OpenExisting 读取合法 v1/v2/v3 状态并保留原阶段语义；catalogue 先完成原 history activation 到 v3，再提交独立 retention activation 到 v4。只有精确持久结果及 fresh ReadIndex 确认 v4 后才置 ready；普通 lane 拒绝未激活状态，tenant 不能触发升级。正式 peer envelope 为 3，与旧 1/2 均隔离。升级与确认空间预留见 [ADR-0019](../../docs/adr/0019-explicit-request-result-retirement.md)。
 
-Initialize、Join 和规范 genesis 摘要统一使用与旧二进制逐字节相同的 v2 初始应用，再由有序 activation 开启新语义；新 learner 从旧日志前缀追赶时也必须先看到原预算和格式。v2 已发布对象继续按原精确摘要读取，原管理 receipt、鉴权和取消 fence 均保留。升级必须先停止写入和全部原 voter，再统一用新二进制 OpenExisting；新旧 wire 版本隔离，不支持旧二进制降级或混合版本滚动协商。新节点只能在已升级的健康集群完成新鲜预检后加入。详细限额、升级和故障矩阵见[工程说明](../../docs/engineering/sqlite-service.md)，服务合同见 [ADR-0014](../../docs/adr/0014-sqlite-service-and-cold-lifecycle.md)，增量持久化、按库执行与连接复用见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
+Initialize、Join 和规范 genesis 摘要统一使用与旧二进制逐字节相同的 v2 初始应用，再由有序 activation 开启新语义；新 learner 从旧日志前缀追赶时也必须先看到原预算和格式。epoch 1 且未退休前缀的 v2/v3 已发布对象继续按原精确摘要读取，原管理 receipt、鉴权、未退休结果及取消 fence 均保留；Hydrate 不覆盖之后的显式确认。升级必须先停止写入和全部原 voter，再统一用新二进制 OpenExisting；新旧 wire 版本隔离，不支持旧二进制降级或混合版本滚动协商。新节点只能在已升级的健康集群完成新鲜预检后加入。详细限额、升级和故障矩阵见[工程说明](../../docs/engineering/sqlite-service.md)，服务合同见 [ADR-0014](../../docs/adr/0014-sqlite-service-and-cold-lifecycle.md)，增量持久化、按库执行与连接复用见 [ADR-0015](../../docs/adr/0015-incremental-blocks-and-isolated-execution.md)。
 
 ## 验证
 
@@ -138,3 +138,11 @@ npm --prefix sdk/node test
 单元覆盖率按[仓库规范](../../docs/engineering/testability-and-coverage.md)单独采集精确计数。真实三 daemon/SDK/分区/重启/S3/测量脚本位于 [service-network](../../experiments/service-network/README.md)，真实 S3 条件写与后端重启另见 [archive-s3](../../experiments/archive-s3/README.md)；这些实验不进入单元覆盖率。
 
 生产性能判定使用[性能与恢复规范](../../docs/engineering/performance-slo.md)。实际完成的场景、二进制摘要、样本分母及故障时刻由本次证据记录；本文不把配置参数或历史测试次数当成当前性能结果。
+
+## 请求结果退休管理员配置
+
+轮转是显式管理动作。普通数据库 token 仍只接受 permissions 1–3，不能指定 bootstrap administrator 身份。要管理一个数据库的结果保留，在该数据库 `tokens` 内添加独立条目：`retention_admin:true`，`principal_id` 等于配置的 `administrator_id`，`permissions:5`（READ|ADMIN），独立非零 `credential_id` 且不同于 `service_credential_id`，以及该 token 的 SHA-256 与当前 auth_epoch。缺省/false 继续使用原租户规则；错误类型、非管理员主体、额外 WRITE 位或内部 service credential 都拒绝启动。该凭证也不能复用成员管理 token。
+
+这只显式把既有管理员权限暴露给指定数据库的退休入口，不改变旧库复制 policy。旧库已有 bootstrap administrator 的 ADMIN 权限，因此无需在升级中伪造 AuthFence。普通调用者通过自己的原身份确认结果；管理员凭证不能替其他主体确认，不能通过此配置执行 SQL 写。确认全部完成后，管理员调用 SDK `rotateRequests(expectedEpoch)`；status 可观察 requestEpoch、retainedRequests、unacknowledgedRequests、retiredRevision。
+
+Cold 可确认已知结果但拒绝轮转，先恢复精确归档再推进。旧请求身份不得换成新世代重发。完整步骤和失败边界见 [API 合同](../../docs/architecture/api-contracts.md)、[SDK](../../sdk/node/README.md)和 [真实退休实验](../../experiments/retention-network/README.md)。

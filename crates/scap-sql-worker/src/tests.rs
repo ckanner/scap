@@ -64,6 +64,7 @@ fn admission() -> Admission {
         principal_id: 11,
         credential_id: 12,
         admission_id: 13,
+        request_epoch: 1,
         auth_epoch: 1,
     }
 }
@@ -329,6 +330,7 @@ struct Effect {
     fail_create: bool,
     expire_create: bool,
     fail_execute: bool,
+    execute_rejection: Option<scap_core::Rejection>,
     expire_execute: bool,
     replay: bool,
     engine_stopped: bool,
@@ -397,6 +399,9 @@ impl Engine for TestEngine {
         effect.calls.push(ticket.clone());
         if effect.fail_execute {
             return Err(scap_sqlite::Error::OutcomeUnknown);
+        }
+        if let Some(rejection) = effect.execute_rejection {
+            return Err(scap_sqlite::Error::Rejected(rejection));
         }
         if effect.expire_execute {
             self.clock.mode.store(1, Ordering::Release);
@@ -821,6 +826,37 @@ fn a_live_invocation_cannot_be_replaced_by_another_request() {
     ));
     drop(held);
     assert!(writer.is_stopped());
+}
+
+#[test]
+fn retired_request_rejection_survives_the_native_boundary_without_a_retry() {
+    for rejection in [scap_core::Rejection::Retired, scap_core::Rejection::Fenced] {
+        let kit = Kit::new();
+        let factory = kit.factory();
+        let effect = factory.effect.clone();
+        let mut writer = kit.recover(factory, limits()).unwrap();
+        effect.borrow_mut().execute_rejection = Some(rejection);
+        let result = writer.execute(kit.context.clone(), 55, &[]);
+        if rejection == scap_core::Rejection::Retired {
+            assert!(matches!(result, Err(Error::Rejected(Reject::Retired))));
+        } else {
+            assert!(matches!(
+                result,
+                Err(Error::Native(scap_sqlite::Error::Rejected(
+                    scap_core::Rejection::Fenced
+                )))
+            ));
+        }
+        assert_eq!(effect.borrow().calls.len(), 1);
+        assert_eq!(writer.head().revision, 0);
+        assert_eq!(kit.context.admission.request_epoch, 1);
+        assert!(writer.is_stopped());
+        assert!(matches!(
+            writer.execute(kit.context.clone(), 55, &[]),
+            Err(Error::Stopped)
+        ));
+        assert_eq!(effect.borrow().calls.len(), 1);
+    }
 }
 
 struct Directory(std::path::PathBuf);

@@ -344,3 +344,50 @@ fn archive_configuration_is_optional_and_all_fields_are_required_when_present() 
     value["archive"] = Value::Null;
     assert_eq!(decode(&value).unwrap_err().code, "CONFIG_STRING");
 }
+
+#[test]
+fn retirement_administrator_is_an_explicit_database_scoped_read_admin_credential() {
+    let mut value = config_json();
+    let token = &mut value["databases"][0]["tokens"][0];
+    token["retention_admin"] = json!(true);
+    token["principal_id"] = json!(format!("{:032x}", 100));
+    token["credential_id"] = json!(format!("{:032x}", 202));
+    token["permissions"] = json!(5);
+    let baseline = value.clone();
+    let parsed = decode(&value).unwrap();
+    assert_eq!(
+        parsed.databases[0].tokens[0].principal_id,
+        parsed.administrator_id
+    );
+    assert_eq!(
+        parsed.databases[0].tokens[0].permissions,
+        scap_cell::READ | scap_cell::ADMIN
+    );
+    for case in 0..8 {
+        let mut candidate = baseline.clone();
+        let token = &mut candidate["databases"][0]["tokens"][0];
+        match case {
+            0 => {
+                token.as_object_mut().unwrap().remove("retention_admin");
+            }
+            1 => token["retention_admin"] = json!(false),
+            2 => token["retention_admin"] = json!("true"),
+            3 => token["retention_admin"] = Value::Null,
+            4 => token["principal_id"] = json!(format!("{:032x}", 200)),
+            5 => token["permissions"] = json!(3),
+            6 => token["permissions"] = json!(7),
+            _ => token["credential_id"] = json!(format!("{:032x}", 101)),
+        }
+        assert_eq!(
+            decode(&candidate).unwrap_err().code,
+            "CONFIG_TOKEN",
+            "case {case}"
+        );
+    }
+    let mut ordinary = config_json();
+    ordinary["databases"][0]["tokens"][0]["retention_admin"] = json!(false);
+    assert_eq!(
+        decode(&ordinary).unwrap().databases[0].tokens[0].permissions,
+        3
+    );
+}

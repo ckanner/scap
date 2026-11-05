@@ -29,9 +29,29 @@ impl Verifier {
         context: &RequestContext,
         mode: Mode,
     ) -> Result<(DatabaseConfig, Admission), ServiceError> {
+        let required = match mode {
+            Mode::Read => scap_cell::READ,
+            Mode::Write => scap_cell::READ | scap_cell::WRITE,
+        };
+        self.verify_permissions(context, required)
+    }
+
+    pub(crate) fn verify_administrator(
+        &self,
+        context: &RequestContext,
+    ) -> Result<(DatabaseConfig, Admission), ServiceError> {
+        self.verify_permissions(context, scap_cell::READ | scap_cell::ADMIN)
+    }
+
+    fn verify_permissions(
+        &self,
+        context: &RequestContext,
+        required: u8,
+    ) -> Result<(DatabaseConfig, Admission), ServiceError> {
         if context.credential.is_empty()
             || context.credential.len() > 4096
             || context.request_id == 0
+            || context.request_epoch == 0
         {
             return Err(failure("UNAUTHORIZED"));
         }
@@ -40,10 +60,6 @@ impl Verifier {
             .bindings
             .get(&(context.database.clone(), digest))
             .ok_or_else(|| failure("UNAUTHORIZED"))?;
-        let required = match mode {
-            Mode::Read => scap_cell::READ,
-            Mode::Write => scap_cell::READ | scap_cell::WRITE,
-        };
         if token.permissions & required != required {
             return Err(failure("UNAUTHORIZED"));
         }
@@ -54,6 +70,7 @@ impl Verifier {
                 credential_id: token.credential_id,
                 admission_id: context.request_id,
                 auth_epoch: token.auth_epoch,
+                request_epoch: context.request_epoch,
             },
         ))
     }
