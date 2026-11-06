@@ -57,7 +57,7 @@ impl FakeConfig {
 
 impl ConfigOps for FakeConfig {
     fn settings(&self, sql: &str) -> rusqlite::Result<()> {
-        assert_eq!(sql, "PRAGMA page_size=4096; PRAGMA synchronous=FULL; PRAGMA cache_spill=OFF; PRAGMA wal_autocheckpoint=0; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON;");
+        assert_eq!(sql, "PRAGMA page_size=4096; PRAGMA synchronous=FULL; PRAGMA cache_spill=ON; PRAGMA wal_autocheckpoint=0; PRAGMA temp_store=FILE; PRAGMA foreign_keys=ON; PRAGMA cache_size=-256;");
         self.step(Event::Settings)
     }
 
@@ -116,6 +116,7 @@ fn limits() -> WriterLimits {
         max_vm_steps: 100_000,
         max_changed_pages: 64,
         max_database_pages: 99,
+        cache_bytes: 8 * 1024 * 1024,
     }
 }
 
@@ -150,9 +151,9 @@ fn native_configuration_uses_the_same_ordered_effects_as_the_policy() {
     for (pragma, expected) in [
         ("page_size", 4096_i64),
         ("synchronous", 2),
-        ("cache_spill", 0),
         ("wal_autocheckpoint", 0),
-        ("temp_store", 2),
+        ("cache_size", -256),
+        ("temp_store", 1),
         ("foreign_keys", 1),
         ("busy_timeout", 0),
         ("max_page_count", 99),
@@ -163,6 +164,12 @@ fn native_configuration_uses_the_same_ordered_effects_as_the_policy() {
             .unwrap();
         assert_eq!(actual, expected, "{pragma}");
     }
+    assert!(
+        connection
+            .query_row::<i64, _, _>("PRAGMA cache_spill", [], |row| row.get(0))
+            .unwrap()
+            > 0
+    );
     assert!(connection
         .db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE)
         .unwrap());
@@ -321,4 +328,36 @@ fn restored_structure_does_not_reexecute_connection_local_check_predicates() {
             .unwrap(),
         1
     );
+}
+
+#[test]
+fn checkpoint_requires_actual_completion_and_preserves_native_failures() {
+    use crate::config::{checkpoint, CheckpointOps};
+    struct FakeCheckpoint(Option<(i64, i64, i64)>);
+    impl CheckpointOps for FakeCheckpoint {
+        fn truncate(&self) -> rusqlite::Result<(i64, i64, i64)> {
+            self.0.ok_or(rusqlite::Error::ExecuteReturnedResults)
+        }
+    }
+    for complete in [(0, 0, 0), (0, -1, -1)] {
+        checkpoint(&FakeCheckpoint(Some(complete))).unwrap();
+    }
+    for incomplete in [(1, 0, 0), (0, 7, 6), (0, 7, 7), (0, -1, 0)] {
+        assert!(matches!(
+            checkpoint(&FakeCheckpoint(Some(incomplete))),
+            Err(Error::CommittedButUnavailable)
+        ));
+    }
+    assert!(matches!(
+        checkpoint(&FakeCheckpoint(None)),
+        Err(Error::Sqlite(rusqlite::Error::ExecuteReturnedResults))
+    ));
+    let memory = Connection::open_in_memory().unwrap();
+    assert_eq!(CheckpointOps::truncate(&memory).unwrap(), (0, -1, -1));
+    checkpoint(&memory).unwrap();
+    for malformed in ["SELECT 'bad',0,0", "SELECT 0,'bad',0", "SELECT 0,0,'bad'"] {
+        assert!(memory
+            .query_row(malformed, [], crate::config::checkpoint_row)
+            .is_err());
+    }
 }

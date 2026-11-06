@@ -9,20 +9,26 @@
     "branches"
   ],
   "rust_test_sources": [
+    "crates/scap-object-sqlite/src/capacity_tests.rs",
     "crates/scap-object-sqlite/src/config_tests.rs",
     "crates/scap-object-sqlite/src/file_tests.rs",
     "crates/scap-object-sqlite/src/image_tests.rs",
     "crates/scap-object-sqlite/src/query_tests.rs",
     "crates/scap-object-sqlite/src/tests.rs",
     "crates/scap-object-store/src/tests.rs",
+    "crates/scap-object/src/data_tree_tests.rs",
     "crates/scap-object/src/format_tests.rs",
+    "crates/scap-object/src/options_tests.rs",
+    "crates/scap-object/src/quarantine_tests.rs",
     "crates/scap-object/src/review_tests.rs",
+    "crates/scap-object/src/session_tests.rs",
     "crates/scap-object/src/tests.rs",
     "crates/scap-sql/src/tests.rs"
   ],
   "research_harness_roots": [
     "experiments/object-authority-model",
-    "experiments/object-network"
+    "experiments/object-network",
+    "experiments/object-capacity"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

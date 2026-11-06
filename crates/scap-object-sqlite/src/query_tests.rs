@@ -10,12 +10,15 @@ fn uninterrupted() -> ReadInterrupt {
 fn native_reads_leave_the_gate_image_and_write_revision_unchanged() {
     let (_directory, mut writer, plan) = setup();
     writer
-        .execute(&[
-            statement("CREATE TABLE items(id INTEGER PRIMARY KEY, value TEXT)"),
-            statement("INSERT INTO items VALUES(7,'original')"),
-        ])
+        .execute(
+            &[
+                statement("CREATE TABLE items(id INTEGER PRIMARY KEY, value TEXT)"),
+                statement("INSERT INTO items VALUES(7,'original')"),
+            ],
+            uninterrupted(),
+        )
         .unwrap();
-    let before = writer.image().to_vec();
+    let before = writer.page_count();
     let writes = plan.borrow().writes.len();
     let result = writer
         .query(
@@ -41,13 +44,16 @@ fn native_reads_leave_the_gate_image_and_write_revision_unchanged() {
         .statements
         .iter()
         .all(|s| s.affected_rows == 0 && s.last_insert_rowid == 0));
-    assert_eq!(writer.image(), &before);
+    assert_eq!(writer.page_count(), before);
     assert_eq!(plan.borrow().writes.len(), writes);
     assert!(!writer.is_stopped());
     assert!(writer.connection.is_autocommit());
     // The read authorizer and read snapshot do not leak into the next write.
     writer
-        .execute(&[statement("INSERT INTO items VALUES(8,'next')")])
+        .execute(
+            &[statement("INSERT INTO items VALUES(8,'next')")],
+            uninterrupted(),
+        )
         .unwrap();
     assert_eq!(plan.borrow().writes.len(), writes + 1);
 }
@@ -144,7 +150,7 @@ fn reads_reject_mutations_transaction_control_and_partial_results() {
         );
         assert!(writer.is_stopped());
         assert!(writer.connection.is_autocommit());
-        assert!(writer.image().is_empty());
+        assert_eq!(writer.page_count(), 0);
         assert!(plan.borrow().writes.is_empty());
         assert!(matches!(
             writer.query(&[statement("SELECT 1")], uninterrupted()),
@@ -159,7 +165,8 @@ fn reads_reject_mutations_transaction_control_and_partial_results() {
             &writer.connection,
             &[statement("CREATE TABLE forbidden(id)")],
             limits(),
-            Some(&uninterrupted())
+            true,
+            &uninterrupted()
         ),
         Err(Error::InvalidSql)
     ));
@@ -250,7 +257,7 @@ fn native_read_checks_cancellation_at_every_execution_and_completion_boundary() 
         assert!(writer.is_stopped());
         assert!(writer.connection.is_autocommit());
         assert!(plan.borrow().writes.is_empty());
-        assert!(writer.image().is_empty());
+        assert_eq!(writer.page_count(), 0);
     }
 }
 

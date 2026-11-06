@@ -5,6 +5,29 @@ use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
+pub(super) const TEST_WINDOW: u32 = 8;
+
+// Small fixtures are explicit and do not change production creation defaults.
+pub(super) fn test_options() -> Options {
+    let mut options = Options::default();
+    options.quota.max_bytes = Some(64 * PAGE_SIZE as u64);
+    options.retention.max_entries = TEST_WINDOW;
+    options
+}
+
+// A small test oracle only; the production recovery path streams into a file.
+impl Database {
+    fn image(&self, head: &Head, until: Instant) -> Result<Vec<u8>, Error> {
+        let manifest = data_tree::manifest(self, &head.data_root, until)?;
+        let mut bytes = Vec::new();
+        data_tree::walk(self, &manifest, until, |_, chunk| {
+            bytes.extend_from_slice(chunk);
+            Ok(())
+        })?;
+        Ok(bytes)
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Memory {
     inner: Mutex<State>,
@@ -22,6 +45,8 @@ struct State {
     fail_at: Option<usize>,
     preserve_replaced_etag: bool,
     replace: Option<(usize, String, Vec<u8>)>,
+    get_keys: Vec<String>,
+    remove_directory_on_get: Option<(String, std::path::PathBuf)>,
 }
 
 impl Memory {
@@ -34,6 +59,36 @@ impl Memory {
 
     pub(super) fn fail(&self, put: bool, key: String, error: StoreError) {
         self.inner.lock().unwrap().failures.push((put, key, error));
+    }
+
+    pub(super) fn lose_next_cas(&self) {
+        self.inner.lock().unwrap().lose_cas = true;
+    }
+
+    pub(super) fn gets_for(&self, key: &str) -> usize {
+        self.inner
+            .lock()
+            .unwrap()
+            .get_keys
+            .iter()
+            .filter(|value| *value == key)
+            .count()
+    }
+
+    pub(super) fn replace_after(
+        &self,
+        count: usize,
+        key: String,
+        bytes: Vec<u8>,
+        preserve_etag: bool,
+    ) {
+        let mut state = self.inner.lock().unwrap();
+        state.replace = Some((state.gets + count, key, bytes));
+        state.preserve_replaced_etag = preserve_etag;
+    }
+
+    pub(super) fn remove_directory_when_reading(&self, key: String, path: std::path::PathBuf) {
+        self.inner.lock().unwrap().remove_directory_on_get = Some((key, path));
     }
 }
 
@@ -48,6 +103,15 @@ impl Objects for Memory {
             return Err(StoreError::Unknown);
         }
         state.gets += 1;
+        state.get_keys.push(key.to_owned());
+        if state
+            .remove_directory_on_get
+            .as_ref()
+            .is_some_and(|item| item.0 == key)
+        {
+            let (_, path) = state.remove_directory_on_get.take().unwrap();
+            std::fs::remove_dir_all(path).unwrap();
+        }
         if state.replace.as_ref().is_some_and(|r| r.0 == state.gets) {
             let (_, target, bytes) = state.replace.take().unwrap();
             state.serial += 1;
@@ -147,7 +211,7 @@ pub(super) fn sql(text: &str) -> Vec<Statement> {
 }
 pub(super) fn fixture() -> (Arc<Memory>, Database) {
     let objects = Arc::new(Memory::default());
-    let database = Database::new(objects.clone(), scope(), 10).unwrap();
+    let database = Database::with_options(objects.clone(), scope(), 10, test_options()).unwrap();
     database.create(7, 1, deadline()).unwrap();
     database.activate(7, 1, 2, deadline()).unwrap();
     (objects, database)
@@ -476,7 +540,7 @@ fn bounded_generation_retention_never_fabricates_cancellation() {
         Err(Error::WindowFull)
     ));
     for epoch in 1..=3 {
-        for id in 1..=MAX_REQUESTS as u64 {
+        for id in 1..=TEST_WINDOW as u64 {
             let mut identity = identity(id);
             identity.epoch = epoch;
             database.cancel(7, &identity, deadline()).unwrap();
@@ -583,13 +647,19 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         Err(Error::Corrupt)
     ));
     let page = database
-        .upload(Payload::Page(vec![0; PAGE_SIZE]), deadline())
+        .upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: vec![0; PAGE_SIZE],
+            },
+            deadline(),
+        )
         .unwrap();
     head.data_root = database
         .upload(
             Payload::Manifest(Manifest {
-                pages: vec![page],
-                image_hash: digest(b"bad"),
+                page_count: 1,
+                root: Some(page),
             }),
             deadline(),
         )
@@ -601,8 +671,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
     head.data_root = database
         .upload(
             Payload::Manifest(Manifest {
-                pages: vec![wrong],
-                image_hash: digest(&vec![0; PAGE_SIZE]),
+                page_count: 1,
+                root: Some(wrong),
             }),
             deadline(),
         )
@@ -650,24 +720,49 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     let (objects, database) = fixture();
     objects.fail(true, "*".into(), StoreError::Unknown);
     assert!(matches!(
-        database.upload(Payload::Page(vec![1; PAGE_SIZE]), deadline()),
+        database.upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: vec![1; PAGE_SIZE]
+            },
+            deadline()
+        ),
         Err(Error::Store(StoreError::Unknown))
     ));
     objects.inner.lock().unwrap().corrupt_create = true;
     assert!(matches!(
-        database.upload(Payload::Page(vec![2; PAGE_SIZE]), deadline()),
+        database.upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: vec![2; PAGE_SIZE]
+            },
+            deadline()
+        ),
         Err(Error::Corrupt)
     ));
     objects.inner.lock().unwrap().corrupt_create = false;
     objects.fail(false, "*".into(), StoreError::Missing);
     assert!(matches!(
-        database.upload(Payload::Page(vec![3; PAGE_SIZE]), deadline()),
+        database.upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: vec![3; PAGE_SIZE]
+            },
+            deadline()
+        ),
         Err(Error::Store(StoreError::Missing))
     ));
     assert!(matches!(
-        database.upload(Payload::Page(vec![0]), deadline()),
+        database.upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: vec![0]
+            },
+            deadline()
+        ),
         Err(Error::Format(_))
     ));
+    let (objects, database) = fixture();
     let base = database.read_head(deadline()).unwrap();
     let mut next = Database::next(&base.head, 1).unwrap();
     next.transition.nonce = 0;
@@ -756,6 +851,7 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
                 request: identity(1),
                 outcome: OutcomeRef::Cancelled { transition }
             },
+            0,
             deadline()
         ),
         Err(Error::RequestConflict)
@@ -882,15 +978,20 @@ fn completion_requires_both_authority_and_native_publication() {
         Database::finish(None, Ok(empty_result())),
         Err(Error::Unknown)
     ));
+    let (_, database) = fixture();
+    let mut unarmed = PublishGate {
+        database,
+        state: Rc::new(RefCell::new(Publication::default())),
+    };
     assert!(matches!(
-        ReadOnly.publish(
+        unarmed.publish(
             &PageBatch {
                 size_after: 0,
                 pages: vec![]
             },
             b""
         ),
-        GateDecision::Rejected
+        GateDecision::Unknown
     ));
 }
 
@@ -938,7 +1039,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
     let (objects, database) = fixture();
     if name == "create" {
         objects.inner.lock().unwrap().values.clear();
-    } else if name == "activate" {
+    } else if name == "activate" || name == "activate_session" {
         replace_head(&objects, &database, |h| h.active = false);
         // Recovery must include a retained result, not just empty metadata.
         let mut head = database.read_head(deadline()).unwrap().head;
@@ -965,13 +1066,16 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
                     request: identity(1),
                     outcome: OutcomeRef::Committed { result },
                 },
+                scap_sql::encode_result(&empty_result(), sql_limits())
+                    .unwrap()
+                    .len() as u64,
                 deadline(),
             )
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
     } else if name == "close" {
         let mut head = database.read_head(deadline()).unwrap().head;
-        let entries = (1..=128)
+        let entries = (1..=TEST_WINDOW as u64)
             .map(|id| Entry {
                 request: identity(id),
                 outcome: OutcomeRef::Cancelled {
@@ -982,7 +1086,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         head.windows[0].root = database
             .upload(Payload::Index(entries), deadline())
             .unwrap();
-        head.windows[0].count = 128;
+        head.windows[0].count = TEST_WINDOW;
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
     } else if name == "lookup" {
         let base = database.read_head(deadline()).unwrap();
@@ -1008,6 +1112,13 @@ fn run_operation(name: &str, database: &Database, path: &Path) -> Result<(), Err
         "create" => database.create(7, 1, deadline()).map(|_| ()),
         "status" => database.status(7, deadline()).map(|_| ()),
         "activate" => database.activate(7, 2, 5, deadline()).map(|_| ()),
+        "activate_session" => database
+            .activate_session(7, 2, 5, path, deadline())
+            .map(|_| ()),
+        "session" => database.session(7, path, deadline()).map(|_| ()),
+        "quota" => database
+            .set_quota(7, 2, 5, DatabaseQuota { max_bytes: None }, deadline())
+            .map(|_| ()),
         "takeover" => database.takeover(7, 2, 5, deadline()).map(|_| ()),
         "policy" => database
             .set_policy(
@@ -1045,6 +1156,9 @@ fn each_object_io_cut_fails_without_returning_a_successful_operation() {
         "create",
         "status",
         "activate",
+        "activate_session",
+        "session",
+        "quota",
         "takeover",
         "policy",
         "lifecycle",
@@ -1070,13 +1184,38 @@ fn each_object_io_cut_fails_without_returning_a_successful_operation() {
 
 #[test]
 fn control_methods_propagate_epoch_revision_and_admission_failure() {
-    for name in ["activate", "takeover", "policy", "lifecycle", "close"] {
+    for name in [
+        "activate",
+        "activate_session",
+        "takeover",
+        "policy",
+        "lifecycle",
+        "quota",
+        "close",
+    ] {
         let (objects, database) = prepare_operation(name);
         replace_head(&objects, &database, |h| {
             h.revision = u64::MAX;
             h.transition.revision = u64::MAX;
         });
+        let temporary = tempfile::tempdir().unwrap();
         let outcome = match name {
+            "activate_session" => database
+                .activate_session(
+                    7,
+                    u64::MAX,
+                    1,
+                    &temporary.path().join("overflow"),
+                    deadline(),
+                )
+                .map(|value| value.0),
+            "quota" => database.set_quota(
+                7,
+                u64::MAX,
+                1,
+                DatabaseQuota { max_bytes: None },
+                deadline(),
+            ),
             "activate" => database.activate(7, u64::MAX, 1, deadline()),
             "takeover" => database.takeover(7, u64::MAX, 1, deadline()),
             "policy" => database.set_policy(7, u64::MAX, 1, vec![], deadline()),
@@ -1093,7 +1232,8 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
         .map(|n| Window {
             epoch: u64::MAX - n,
             root: head.windows[0].root.clone(),
-            count: 128,
+            count: TEST_WINDOW,
+            result_bytes: 0,
         })
         .collect();
     objects.set(head_key(&scope()), encode_head(&head).unwrap());
@@ -1195,6 +1335,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
                 request: identity(1),
                 outcome: OutcomeRef::Committed { result },
             },
+            b"bad codec".len() as u64,
             deadline(),
         )
         .unwrap();
@@ -1208,7 +1349,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
             &temp.path().join("not-run"),
             deadline()
         ),
-        Err(Error::Sql(_))
+        Err(Error::Corrupt)
     ));
 }
 
@@ -1269,13 +1410,30 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
     replace_head(&objects, &database, |h| h.lifecycle = Lifecycle::Ready);
     let page = vec![42; PAGE_SIZE];
     let page_root = database
-        .upload(Payload::Page(page.clone()), deadline())
+        .upload(
+            Payload::Chunk {
+                first_page: 1,
+                bytes: page.clone(),
+            },
+            deadline(),
+        )
         .unwrap();
     let root = database
         .upload(
             Payload::Manifest(Manifest {
-                pages: vec![page_root.clone()],
-                image_hash: digest(&page),
+                page_count: 1,
+                root: Some(
+                    database
+                        .upload(
+                            Payload::Node {
+                                level: 0,
+                                first_chunk: 0,
+                                children: vec![page_root.clone()],
+                            },
+                            deadline(),
+                        )
+                        .unwrap(),
+                ),
             }),
             deadline(),
         )
@@ -1287,6 +1445,7 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
         database.image(&head, deadline()),
         Err(Error::Store(StoreError::Missing))
     ));
+    let database = Database::with_options(objects.clone(), scope(), 10, test_options()).unwrap();
     let base = database.read_head(deadline()).unwrap();
     objects.fail(true, "*".into(), StoreError::Unknown);
     assert!(matches!(

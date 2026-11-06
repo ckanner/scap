@@ -13,7 +13,6 @@ mod query;
 mod sql;
 
 use std::cell::RefCell;
-use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -21,9 +20,12 @@ use libsql_sys::wal::wrapper::WrappedWal;
 use libsql_sys::wal::Sqlite3Wal;
 use scap_sql::{SqlLimits, Statement, TransactionResult};
 
+pub use file::{ImageBuilder, PreparedImage};
 use gate::{Attempt, GateState, GateWal, Resolution};
 
 pub const PAGE_SIZE: usize = 4096;
+/// SQLite's physical page-number limit, separate from a deployment's quota.
+pub const MAX_DATABASE_PAGES: u32 = u32::MAX - 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PageChange {
@@ -66,6 +68,10 @@ pub struct WriterLimits {
     pub max_vm_steps: u32,
     pub max_database_pages: u32,
     pub max_changed_pages: u32,
+    /// SQLite's page-cache target, also bounded by the changed-page budget.
+    /// It is not an allocator or process RSS hard limit. Cache spill is enabled
+    /// and unsupported uncommitted spills fail closed before publication.
+    pub cache_bytes: u64,
 }
 
 #[derive(Debug)]
@@ -97,39 +103,45 @@ type NativeConnection<G> = libsql_sys::Connection<WrappedWal<GateWal<G>, Sqlite3
 pub struct SqliteWriter<G: CommitGate> {
     connection: NativeConnection<G>,
     state: Rc<RefCell<GateState<G>>>,
-    image: Vec<u8>,
+    // Declaration order closes the native connection before removing sidecars.
+    _image: PreparedImage,
+    pages: u32,
     limits: WriterLimits,
     stopped: bool,
 }
 
 impl<G: CommitGate + 'static> SqliteWriter<G> {
-    pub fn create_new(
-        directory: &Path,
-        image: Vec<u8>,
+    pub fn open(
+        prepared: PreparedImage,
         limits: WriterLimits,
         gate: G,
+        interrupt: ReadInterrupt,
     ) -> Result<Self, Error> {
         sql::validate_limits(limits)?;
-        image::validate(&image, limits.max_database_pages)?;
-        let path = file::materialize(directory, &image)?;
+        let pages = prepared.page_count();
+        if pages > limits.max_database_pages {
+            return Err(Error::InvalidImage);
+        }
         let state = Rc::new(RefCell::new(GateState::new(gate, limits)));
         let connection = sql::open(
-            &path,
+            &prepared.path(),
             GateWal::new(state.clone()),
             limits,
             limits.max_database_pages,
+            &interrupt,
         )?;
         Ok(Self {
             connection,
             state,
-            image,
+            _image: prepared,
+            pages,
             limits,
             stopped: false,
         })
     }
 
-    pub fn image(&self) -> &[u8] {
-        &self.image
+    pub fn page_count(&self) -> u32 {
+        self.pages
     }
 
     pub fn is_stopped(&self) -> bool {
@@ -159,20 +171,25 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
     /// Runs one bounded transaction. The caller has already performed current
     /// authorization and original-identity lookup; this method never retries SQL.
     /// RETURNING rows cannot escape before both HEAD and native publication.
-    pub fn execute(&mut self, statements: &[Statement]) -> Result<TransactionResult, Error> {
+    pub fn execute(
+        &mut self,
+        statements: &[Statement],
+        interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, Error> {
         if self.stopped {
             return Err(Error::Stopped);
         }
         self.stopped = true;
         scap_sql::validate_statements(statements, self.limits.sql).map_err(Error::Sql)?;
         self.state.borrow_mut().reset();
-        let result = match sql::execute_transaction(&self.connection, statements, self.limits) {
-            Ok(result) => result,
-            Err(error) => {
-                sql::rollback(&self.connection);
-                return Err(self.state.borrow_mut().take_error(error));
-            }
-        };
+        let result =
+            match sql::execute_transaction(&self.connection, statements, self.limits, &interrupt) {
+                Ok(result) => result,
+                Err(error) => {
+                    sql::rollback(&self.connection);
+                    return Err(self.state.borrow_mut().take_error(error));
+                }
+            };
         let encoded = match scap_sql::encode_result(&result, self.limits.sql) {
             Ok(encoded) => encoded,
             Err(error) => {
@@ -181,36 +198,45 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
             }
         };
         self.state.borrow_mut().attempt = Some(Attempt {
-            base: self.image.clone(),
+            base_pages: self.pages,
             result: encoded,
         });
-        if let Err(error) = self.connection.execute_batch("COMMIT") {
+        if let Err(error) = sql::commit(&self.connection, &interrupt) {
             sql::rollback(&self.connection);
-            return self.finish(Err(Error::Sqlite(error)));
+            return self.finish(Err(error), &interrupt);
         }
         // No-op/read-only transactions have no xFrames callback. Their exact
         // result still needs an authoritative record before it can be returned.
         if self.state.borrow().resolution.is_none() {
             self.state.borrow_mut().decide_caught(PageBatch {
-                size_after: (self.image.len() / PAGE_SIZE) as u32,
+                size_after: self.pages,
                 pages: Vec::new(),
             });
         }
-        self.finish(Ok(()))
+        self.finish(Ok(()), &interrupt)
     }
 
-    fn finish(&mut self, native: Result<(), Error>) -> Result<TransactionResult, Error> {
+    fn finish(
+        &mut self,
+        native: Result<(), Error>,
+        interrupt: &ReadInterrupt,
+    ) -> Result<TransactionResult, Error> {
         let resolution = self.state.borrow_mut().resolution.take();
         match resolution {
-            Some(Resolution::Accepted(image)) => {
+            Some(Resolution::Accepted(pages)) => {
                 if native.is_err() {
                     return Err(Error::CommittedButUnavailable);
                 }
+                query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
+                config::checkpoint(&*self.connection)
+                    .map_err(|_| Error::CommittedButUnavailable)?;
+                query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
                 // Only decide(), with an installed attempt, can accept.
                 let encoded = self.state.borrow_mut().attempt.take().unwrap().result;
                 let result = scap_sql::decode_result(&encoded, self.limits.sql)
                     .map_err(|_| Error::CommittedButUnavailable)?;
-                self.image = image;
+                query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
+                self.pages = pages;
                 self.stopped = false;
                 Ok(result)
             }

@@ -147,6 +147,15 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-network"
+      - name: Verify one GiB of actual default-profile data and full recovery
+        # Separate release evidence; never merged into unit coverage profiles.
+        run: |
+          python3 experiments/object-capacity/run.py \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --profile gib1 \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/object-capacity-gib1"
       - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -160,4 +169,11 @@ jobs:
             target/evidence/object-network-build/build.json
             target/evidence/object-network-build/cargo.stdout.jsonl
             target/evidence/object-network-build/cargo.stderr.log
+            target/evidence/object-capacity-gib1/history.jsonl
+            target/evidence/object-capacity-gib1/input-ledger.jsonl
+            target/evidence/object-capacity-gib1/ack-ledger.jsonl
+            target/evidence/object-capacity-gib1/resource-samples.jsonl
+            target/evidence/object-capacity-gib1/worker-resources-*.jsonl
+            target/evidence/object-capacity-gib1/summary.json
+            target/evidence/object-capacity-gib1/build-receipt.json
           if-no-files-found: error

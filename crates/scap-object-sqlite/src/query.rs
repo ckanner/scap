@@ -49,7 +49,7 @@ pub(crate) fn execute(
         }),
     );
     connection.authorizer(Some(authorize));
-    let result = sql::collect_results(connection, statements, limits, Some(interrupt));
+    let result = sql::collect_results(connection, statements, limits, true, interrupt);
     // User SQL cannot submit transaction-control commands. Only this boundary
     // removes the authorizer for the private, read-only COMMIT. Keep the VM and
     // cancellation guard active through COMMIT, and remove both before cleanup.

@@ -1,21 +1,27 @@
-//! Versioned, bounded object-authority wire values.
-//!
-//! Object names address the exact encoded bytes. ETags are deliberately absent:
-//! they are opaque transport values obtained with the corresponding HEAD GET.
+//! Strict v2 authority values and length-delimited immutable object frames.
+//! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 pub const PAGE_SIZE: usize = 4096;
-pub const MAX_PAGES: usize = 64;
-pub const MAX_REQUESTS: usize = 128;
-pub const MAX_RESULT_BYTES: usize = 65_536;
-pub const MAX_HEAD_BYTES: usize = 16_384;
-/// JSON represents byte vectors as numbers. The 64 KiB result limit therefore
-/// needs more than 256 KiB of wire space in the worst case, including metadata.
-pub const MAX_OBJECT_BYTES: usize = 524_288;
-pub const MAX_PRINCIPALS: usize = 16;
+pub const CHUNK_PAGES: u32 = 32;
+pub const CHUNK_BYTES: usize = PAGE_SIZE * CHUNK_PAGES as usize;
+pub const TREE_FANOUT: usize = 256;
+/// Zero-based node level: level 0 references chunks; level 3 is the fourth
+/// node layer and can address every page supported by the native engine.
+pub const MAX_TREE_LEVEL: u8 = 3;
+pub const MAX_PAGES: u32 = u32::MAX - 1;
+pub const MAX_REQUESTS: u32 = 65_536;
+pub const MAX_RESULT_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_HEAD_BYTES: usize = 256 * 1024;
+pub const MAX_OBJECT_BYTES: usize = MAX_RESULT_BYTES + 64 * 1024;
+pub const MAX_PRINCIPALS: usize = 1024;
+const MAGIC: &[u8; 8] = b"SCAPOBJ2";
+const FRAME_BYTES: usize = 20;
+const SMALL_METADATA_BYTES: usize = 64 * 1024 - FRAME_BYTES;
+const INDEX_METADATA_BYTES: usize = MAX_REQUESTS as usize * 512 + SMALL_METADATA_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FormatError {
@@ -77,6 +83,46 @@ impl Request {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct DatabaseQuota {
+    /// None removes the SCAP business quota, never the native page-number bound.
+    /// The field itself is mandatory: omitting it must not disable a quota.
+    #[serde(deserialize_with = "required_option")]
+    pub max_bytes: Option<u64>,
+}
+
+impl DatabaseQuota {
+    pub fn validate(&self) -> Result<(), FormatError> {
+        if let Some(bytes) = self.max_bytes {
+            check(bytes != 0 && bytes.is_multiple_of(PAGE_SIZE as u64))?;
+            check(bytes / PAGE_SIZE as u64 <= MAX_PAGES as u64)?;
+        }
+        Ok(())
+    }
+
+    pub fn max_pages(&self) -> Result<u32, FormatError> {
+        self.validate()?;
+        Ok(self
+            .max_bytes
+            .map_or(MAX_PAGES, |bytes| (bytes / PAGE_SIZE as u64) as u32))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Retention {
+    pub max_entries: u32,
+    pub max_result_bytes: u64,
+}
+
+impl Retention {
+    pub fn validate(&self) -> Result<(), FormatError> {
+        check(self.max_entries != 0 && self.max_entries <= MAX_REQUESTS)?;
+        check(self.max_result_bytes >= MAX_RESULT_BYTES as u64)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Permission {
     pub principal: u64,
     pub read: bool,
@@ -98,6 +144,19 @@ pub struct Window {
     pub epoch: u64,
     pub root: String,
     pub count: u32,
+    pub result_bytes: u64,
+}
+
+impl Window {
+    /// A full window cannot promise admission space for the largest result.
+    /// Callers validate the retention policy and counters before using this.
+    pub fn full(&self, retention: &Retention) -> bool {
+        self.count == retention.max_entries
+            || self.result_bytes
+                > retention
+                    .max_result_bytes
+                    .saturating_sub(MAX_RESULT_BYTES as u64)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -115,13 +174,15 @@ pub struct Head {
     pub policy: Vec<Permission>,
     pub lifecycle: Lifecycle,
     pub data_root: String,
+    pub quota: DatabaseQuota,
+    pub retention: Retention,
     pub request_epoch: u64,
     pub windows: Vec<Window>,
 }
 
 impl Head {
     fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 1)?;
+        check(self.format == 2)?;
         self.scope.validate()?;
         nonzero(&[
             self.revision,
@@ -133,6 +194,8 @@ impl Head {
         self.transition.validate()?;
         check(self.transition.revision == self.revision)?;
         check(hash_valid(&self.data_root))?;
+        self.quota.validate()?;
+        self.retention.validate()?;
         budget(self.policy.len(), MAX_PRINCIPALS)?;
         let mut principals = BTreeSet::new();
         for permission in &self.policy {
@@ -143,12 +206,15 @@ impl Head {
         budget(self.windows.len(), 3)?;
         check(self.windows.len() as u64 == self.request_epoch.min(3))?;
         for (offset, window) in self.windows.iter().enumerate() {
-            // The exact window-count check above proves this subtraction safe.
             check(window.epoch == self.request_epoch - offset as u64)?;
             check(hash_valid(&window.root))?;
-            budget(window.count as usize, MAX_REQUESTS)?;
+            budget(window.count as usize, self.retention.max_entries as usize)?;
+            check(window.result_bytes <= self.retention.max_result_bytes)?;
+            // Cancelled entries use zero bytes; a zero-entry index cannot
+            // declare bytes, and every result is independently format-bounded.
+            check(window.result_bytes <= window.count as u64 * MAX_RESULT_BYTES as u64)?;
             if offset != 0 {
-                check(window.count as usize == MAX_REQUESTS)?;
+                check(window.full(&self.retention))?;
             }
         }
         Ok(())
@@ -158,9 +224,20 @@ impl Head {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
-    /// One content-addressed Page envelope per logical SQLite page, in order.
-    pub pages: Vec<String>,
-    pub image_hash: String,
+    pub page_count: u32,
+    #[serde(deserialize_with = "required_option")]
+    pub root: Option<String>,
+}
+
+impl Manifest {
+    pub(crate) fn validate(&self) -> Result<(), FormatError> {
+        budget(self.page_count as usize, MAX_PAGES as usize)?;
+        check((self.page_count == 0) == self.root.is_none())?;
+        if let Some(root) = &self.root {
+            check(hash_valid(root))?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -195,7 +272,15 @@ pub struct Entry {
     deny_unknown_fields
 )]
 pub enum Payload {
-    Page(Vec<u8>),
+    Chunk {
+        first_page: u32,
+        bytes: Vec<u8>,
+    },
+    Node {
+        level: u8,
+        first_chunk: u32,
+        children: Vec<String>,
+    },
     Manifest(Manifest),
     Result(StoredResult),
     Index(Vec<Entry>),
@@ -211,17 +296,31 @@ pub struct Envelope {
 
 impl Envelope {
     fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 1)?;
+        check(self.format == 2)?;
         self.scope.validate()?;
         match &self.payload {
-            Payload::Page(bytes) => check(bytes.len() == PAGE_SIZE)?,
-            Payload::Manifest(manifest) => {
-                budget(manifest.pages.len(), MAX_PAGES)?;
-                check(hash_valid(&manifest.image_hash))?;
-                for page in &manifest.pages {
-                    check(hash_valid(page))?;
+            Payload::Chunk { first_page, bytes } => {
+                check(*first_page != 0 && (*first_page - 1).is_multiple_of(CHUNK_PAGES))?;
+                check(!bytes.is_empty() && bytes.len().is_multiple_of(PAGE_SIZE))?;
+                budget(bytes.len(), CHUNK_BYTES)?;
+                check(
+                    *first_page as u64 + (bytes.len() / PAGE_SIZE) as u64 - 1 <= MAX_PAGES as u64,
+                )?;
+            }
+            Payload::Node {
+                level,
+                first_chunk,
+                children,
+            } => {
+                check(*level <= MAX_TREE_LEVEL)?;
+                check(*first_chunk < MAX_PAGES.div_ceil(CHUNK_PAGES))?;
+                check(!children.is_empty())?;
+                budget(children.len(), TREE_FANOUT)?;
+                for child in children {
+                    check(hash_valid(child))?;
                 }
             }
+            Payload::Manifest(manifest) => manifest.validate()?,
             Payload::Result(result) => {
                 result.request.validate()?;
                 nonzero(&[result.sequence])?;
@@ -230,7 +329,7 @@ impl Envelope {
                 budget(result.bytes.len(), MAX_RESULT_BYTES)?;
             }
             Payload::Index(entries) => {
-                budget(entries.len(), MAX_REQUESTS)?;
+                budget(entries.len(), MAX_REQUESTS as usize)?;
                 let mut identities = BTreeSet::new();
                 let mut epoch = None;
                 for entry in entries {
@@ -248,12 +347,20 @@ impl Envelope {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Metadata {
+    format: u32,
+    scope: Scope,
+    payload: Payload,
+}
+
 pub fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-/// Incarnation and generation stay in the body: recreation must never evade an
-/// existing HEAD or its tombstone by selecting another key.
+/// Authority identity does not change with a data-layout version. In particular,
+/// incarnation, generation or a new wire format cannot bypass a HEAD tombstone.
 pub fn head_key(scope: &Scope) -> String {
     format!(
         "scap-object/v1/{}/{}/{}/head",
@@ -283,7 +390,53 @@ pub fn decode_head(bytes: &[u8], scope: &Scope) -> Result<Head, FormatError> {
 
 pub fn encode_object(envelope: &Envelope) -> Result<Vec<u8>, FormatError> {
     envelope.validate()?;
-    encode(envelope, MAX_OBJECT_BYTES)
+    let (payload, raw) = match &envelope.payload {
+        Payload::Chunk { first_page, bytes } => (
+            Payload::Chunk {
+                first_page: *first_page,
+                bytes: Vec::new(),
+            },
+            bytes.as_slice(),
+        ),
+        Payload::Result(result) => (
+            Payload::Result(StoredResult {
+                request: result.request.clone(),
+                sequence: result.sequence,
+                transition: result.transition.clone(),
+                data_root: result.data_root.clone(),
+                bytes: Vec::new(),
+            }),
+            result.bytes.as_slice(),
+        ),
+        payload => (payload.clone(), &[][..]),
+    };
+    let maximum = metadata_limit(&payload);
+    encode_frame(
+        &Metadata {
+            format: envelope.format,
+            scope: envelope.scope.clone(),
+            payload,
+        },
+        raw,
+        maximum,
+    )
+}
+
+fn encode_frame(
+    metadata: &impl Serialize,
+    raw: &[u8],
+    maximum_metadata: usize,
+) -> Result<Vec<u8>, FormatError> {
+    let metadata = encode(metadata, maximum_metadata)?;
+    let length = FRAME_BYTES + metadata.len() + raw.len();
+    budget(length, MAX_OBJECT_BYTES)?;
+    let mut bytes = Vec::with_capacity(length);
+    bytes.extend_from_slice(MAGIC);
+    bytes.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&(raw.len() as u64).to_le_bytes());
+    bytes.extend(metadata);
+    bytes.extend_from_slice(raw);
+    Ok(bytes)
 }
 
 pub fn decode_object(
@@ -293,18 +446,56 @@ pub fn decode_object(
 ) -> Result<Envelope, FormatError> {
     budget(bytes.len(), MAX_OBJECT_BYTES)?;
     check(digest(bytes) == expected_hash).map_err(|_| FormatError::Corrupt)?;
-    let envelope: Envelope = serde_json::from_slice(bytes).map_err(|_| FormatError::Corrupt)?;
+    check(bytes.len() >= FRAME_BYTES).map_err(|_| FormatError::Corrupt)?;
+    check(&bytes[..8] == MAGIC).map_err(|_| FormatError::Corrupt)?;
+    let metadata_len =
+        u32::from_le_bytes(bytes[8..12].try_into().expect("fixed frame field")) as usize;
+    let raw_len = u64::from_le_bytes(bytes[12..20].try_into().expect("fixed frame field"));
+    check(metadata_len <= INDEX_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
+    check(raw_len <= MAX_RESULT_BYTES as u64).map_err(|_| FormatError::Corrupt)?;
+    check(bytes.len() == FRAME_BYTES + metadata_len + raw_len as usize)
+        .map_err(|_| FormatError::Corrupt)?;
+    let metadata: Metadata =
+        serde_json::from_slice(&bytes[FRAME_BYTES..FRAME_BYTES + metadata_len])
+            .map_err(|_| FormatError::Corrupt)?;
+    budget(metadata_len, metadata_limit(&metadata.payload)).map_err(|_| FormatError::Corrupt)?;
+    let raw = &bytes[FRAME_BYTES + metadata_len..];
+    let mut payload = metadata.payload;
+    match &mut payload {
+        Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
+            check(bytes.is_empty()).map_err(|_| FormatError::Corrupt)?;
+            bytes.extend_from_slice(raw);
+        }
+        _ => check(raw.is_empty()).map_err(|_| FormatError::Corrupt)?,
+    }
+    let envelope = Envelope {
+        format: metadata.format,
+        scope: metadata.scope,
+        payload,
+    };
     envelope.validate().map_err(|_| FormatError::Corrupt)?;
     check(envelope.scope == *scope).map_err(|_| FormatError::Corrupt)?;
     Ok(envelope)
 }
 
+fn metadata_limit(payload: &Payload) -> usize {
+    if matches!(payload, Payload::Index(_)) {
+        INDEX_METADATA_BYTES
+    } else {
+        SMALL_METADATA_BYTES
+    }
+}
+
 fn encode(value: &impl Serialize, maximum: usize) -> Result<Vec<u8>, FormatError> {
-    // The validated DTOs contain only JSON-supported integers, booleans,
-    // strings, vectors and structs. No custom serializer or float can fail.
     let bytes = serde_json::to_vec(value).expect("wire DTO serialization is infallible");
     budget(bytes.len(), maximum)?;
     Ok(bytes)
+}
+
+fn required_option<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error> {
+    Option::deserialize(deserializer)
 }
 
 fn hash_valid(hash: &str) -> bool {

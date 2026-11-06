@@ -12,12 +12,12 @@ use crate::{
 };
 
 pub(crate) struct Attempt {
-    pub base: Vec<u8>,
+    pub base_pages: u32,
     pub result: Vec<u8>,
 }
 
 pub(crate) enum Resolution {
-    Accepted(Vec<u8>),
+    Accepted(u32),
     Failed(Error),
 }
 
@@ -57,16 +57,15 @@ impl<G: CommitGate> GateState<G> {
         matches!(self.resolution, Some(Resolution::Accepted(_)))
     }
 
-    fn decide(&mut self, batch: PageBatch) -> Resolution {
+    fn decide(&mut self, mut batch: PageBatch) -> Resolution {
         let Some(attempt) = self.attempt.as_ref() else {
             return Resolution::Failed(Error::InvalidSql);
         };
-        let image = match image::apply(&attempt.base, &batch, self.limits) {
-            Ok(image) => image,
-            Err(error) => return Resolution::Failed(error),
-        };
+        if let Err(error) = image::normalize_growth(attempt.base_pages, &mut batch, self.limits) {
+            return Resolution::Failed(error);
+        }
         match self.gate.publish(&batch, &attempt.result) {
-            GateDecision::Accepted => Resolution::Accepted(image),
+            GateDecision::Accepted => Resolution::Accepted(batch.size_after),
             GateDecision::Rejected => Resolution::Failed(Error::Rejected),
             GateDecision::Unknown => Resolution::Failed(Error::OutcomeUnknown),
         }

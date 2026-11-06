@@ -1,7 +1,7 @@
 //! Authority regressions use the object port only. Real engine/process/S3
 //! experiments are intentionally separate from these deterministic unit cases.
 
-use super::tests::{deadline, fixture, identity, replace_head, scope};
+use super::tests::{deadline, fixture, identity, replace_head, scope, TEST_WINDOW};
 use super::*;
 
 fn original_result() -> Vec<u8> {
@@ -38,7 +38,7 @@ fn publish_no_change(database: &Database, id: u64) -> Receipt {
 }
 
 fn full_cancelled_index(epoch: u64) -> Vec<Entry> {
-    (1..=MAX_REQUESTS as u64)
+    (1..=TEST_WINDOW as u64)
         .map(|id| Entry {
             request: Request {
                 epoch,
@@ -55,47 +55,66 @@ fn full_cancelled_index(epoch: u64) -> Vec<Entry> {
 }
 
 #[test]
-fn missing_retained_result_blocks_new_commit_and_cancel_before_head_publication() {
+fn missing_retained_result_blocks_target_lookup_and_cold_publication() {
     let (objects, database) = fixture();
     let original = publish_no_change(&database, 1);
     let before = database.read_head(deadline()).unwrap();
     let missing = object_key(&scope(), &original.result_hash);
-
     objects.fail(false, missing.clone(), StoreError::Missing);
     assert!(matches!(
-        database.commit(
-            &before,
-            &identity(2),
-            &no_pages(),
-            &original_result(),
+        database.lookup(7, &identity(1), deadline()),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    let temp = tempfile::tempdir().unwrap();
+    objects.fail(false, missing.clone(), StoreError::Missing);
+    assert!(matches!(
+        database.execute(
+            7,
+            &identity(1),
+            &super::tests::sql("SELECT 1"),
+            &temp.path().join("duplicate"),
             deadline()
         ),
         Err(Error::Store(StoreError::Missing))
     ));
-    let after = database.read_head(deadline()).unwrap();
-    assert_eq!(after.head, before.head);
-    assert_eq!(after.etag, before.etag);
+    objects.fail(false, missing.clone(), StoreError::Missing);
+    assert!(matches!(
+        database.session(7, &temp.path().join("prepare-session"), deadline()),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    let database =
+        Database::with_options(objects.clone(), scope(), 10, super::tests::test_options()).unwrap();
+    objects.fail(false, missing.clone(), StoreError::Missing);
+    assert!(matches!(
+        database.execute(
+            7,
+            &identity(2),
+            &super::tests::sql("SELECT 1"),
+            &temp.path().join("first-write"),
+            deadline()
+        ),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    assert_eq!(database.read_head(deadline()).unwrap().head, before.head);
     assert_eq!(
         database.lookup(7, &identity(2), deadline()).unwrap(),
         Resolution::Unknown
     );
-
+    let database =
+        Database::with_options(objects.clone(), scope(), 10, super::tests::test_options()).unwrap();
+    let recovering = database
+        .takeover(7, before.head.revision, 90, deadline())
+        .unwrap();
     objects.fail(false, missing, StoreError::Missing);
     assert!(matches!(
-        database.cancel(7, &identity(3), deadline()),
+        database.activate(7, recovering.revision, 91, deadline()),
         Err(Error::Store(StoreError::Missing))
     ));
-    let after = database.read_head(deadline()).unwrap();
-    assert_eq!(after.head, before.head);
-    assert_eq!(after.etag, before.etag);
-    assert_eq!(
-        database.lookup(7, &identity(3), deadline()).unwrap(),
-        Resolution::Unknown
-    );
+    assert!(!database.status(7, deadline()).unwrap().active);
 }
 
 #[test]
-fn missing_closed_epoch_blocks_both_new_work_and_window_close() {
+fn missing_closed_epoch_blocks_cold_activation_and_first_session_write() {
     let (objects, database) = fixture();
     let closed = database
         .upload(Payload::Index(full_cancelled_index(1)), deadline())
@@ -111,7 +130,8 @@ fn missing_closed_epoch_blocks_both_new_work_and_window_close() {
         head.windows.push(Window {
             epoch: 1,
             root: closed.clone(),
-            count: MAX_REQUESTS as u32,
+            count: TEST_WINDOW,
+            result_bytes: 0,
         });
     });
     let before = database.read_head(deadline()).unwrap();
@@ -119,29 +139,34 @@ fn missing_closed_epoch_blocks_both_new_work_and_window_close() {
         epoch: 2,
         ..identity(1)
     };
+    let temp = tempfile::tempdir().unwrap();
     objects.fail(false, object_key(&scope(), &closed), StoreError::Missing);
     assert!(matches!(
-        database.commit(&before, &next, &no_pages(), &original_result(), deadline()),
+        database.session(7, &temp.path().join("first-write"), deadline()),
         Err(Error::Store(StoreError::Missing))
     ));
+    assert_eq!(
+        database.lookup(7, &next, deadline()).unwrap(),
+        Resolution::Unknown
+    );
     assert_eq!(database.read_head(deadline()).unwrap().head, before.head);
-
-    let current = database
-        .upload(Payload::Index(full_cancelled_index(2)), deadline())
+    let database =
+        Database::with_options(objects.clone(), scope(), 10, super::tests::test_options()).unwrap();
+    let recovering = database
+        .takeover(7, before.head.revision, 32, deadline())
         .unwrap();
-    replace_head(&objects, &database, |head| {
-        head.windows[0].root = current;
-        head.windows[0].count = MAX_REQUESTS as u32;
-    });
-    let before = database.read_head(deadline()).unwrap();
     objects.fail(false, object_key(&scope(), &closed), StoreError::Missing);
     assert!(matches!(
-        database.close_full(7, before.head.revision, 32, deadline()),
+        database.activate_session(
+            7,
+            recovering.revision,
+            33,
+            &temp.path().join("activate"),
+            deadline()
+        ),
         Err(Error::Store(StoreError::Missing))
     ));
-    let after = database.read_head(deadline()).unwrap();
-    assert_eq!(after.head, before.head);
-    assert_eq!(after.etag, before.etag);
+    assert_eq!(database.read_head(deadline()).unwrap().head, recovering);
 }
 
 #[test]
