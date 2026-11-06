@@ -28,7 +28,7 @@ fn transition() -> Transition {
 
 fn head() -> Head {
     Head {
-        format: 1,
+        format: 2,
         scope: scope(),
         revision: 1,
         transition: transition(),
@@ -45,18 +45,26 @@ fn head() -> Head {
         }],
         lifecycle: Lifecycle::Ready,
         data_root: digest(b"data"),
+        quota: DatabaseQuota {
+            max_bytes: Some(10 * 1024 * 1024 * 1024),
+        },
+        retention: Retention {
+            max_entries: 128,
+            max_result_bytes: 256 * 1024 * 1024,
+        },
         request_epoch: 1,
         windows: vec![Window {
             epoch: 1,
             root: digest(b"requests"),
             count: 0,
+            result_bytes: 0,
         }],
     }
 }
 
 fn envelope(payload: Payload) -> Envelope {
     Envelope {
-        format: 1,
+        format: 2,
         scope: scope(),
         payload,
     }
@@ -64,8 +72,8 @@ fn envelope(payload: Payload) -> Envelope {
 
 fn manifest() -> Manifest {
     Manifest {
-        pages: vec![digest(b"page")],
-        image_hash: digest(b"image"),
+        page_count: 1,
+        root: Some(digest(b"root node")),
     }
 }
 
@@ -97,6 +105,49 @@ fn cancelled() -> Entry {
     }
 }
 
+fn frame(metadata: &[u8], raw: &[u8]) -> Vec<u8> {
+    let mut bytes = MAGIC.to_vec();
+    bytes.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&(raw.len() as u64).to_le_bytes());
+    bytes.extend_from_slice(metadata);
+    bytes.extend_from_slice(raw);
+    bytes
+}
+
+// Deliberately bypass semantic validation, so decode rejection tests reach the
+// v2 metadata/semantic checks instead of merely failing the frame magic.
+fn unchecked(object: &Envelope) -> Vec<u8> {
+    let (payload, raw) = match &object.payload {
+        Payload::Chunk { first_page, bytes } => (
+            Payload::Chunk {
+                first_page: *first_page,
+                bytes: Vec::new(),
+            },
+            bytes.as_slice(),
+        ),
+        Payload::Result(value) => (
+            Payload::Result(StoredResult {
+                request: value.request.clone(),
+                sequence: value.sequence,
+                transition: value.transition.clone(),
+                data_root: value.data_root.clone(),
+                bytes: Vec::new(),
+            }),
+            value.bytes.as_slice(),
+        ),
+        payload => (payload.clone(), &[][..]),
+    };
+    frame(
+        &serde_json::to_vec(&Envelope {
+            format: object.format,
+            scope: object.scope.clone(),
+            payload,
+        })
+        .unwrap(),
+        raw,
+    )
+}
+
 fn object_round_trip(object: Envelope) {
     let bytes = encode_object(&object).unwrap();
     assert_eq!(
@@ -104,7 +155,6 @@ fn object_round_trip(object: Envelope) {
         Ok(object.clone())
     );
     assert_eq!(encode_object(&object), Ok(bytes));
-    assert!(!format!("{object:?}").is_empty());
 }
 
 fn reject_head(change: impl FnOnce(&mut Head), error: FormatError) {
@@ -115,13 +165,16 @@ fn reject_head(change: impl FnOnce(&mut Head), error: FormatError) {
     assert_eq!(decode_head(&bytes, &scope()), Err(FormatError::Corrupt));
 }
 
-fn reject_object(object: Envelope, error: FormatError) {
-    assert_eq!(encode_object(&object), Err(error));
-    let bytes = serde_json::to_vec(&object).unwrap();
+fn reject_wire(bytes: &[u8]) {
     assert_eq!(
-        decode_object(&bytes, &scope(), &digest(&bytes)),
+        decode_object(bytes, &scope(), &digest(bytes)),
         Err(FormatError::Corrupt)
     );
+}
+
+fn reject_object(object: Envelope, error: FormatError) {
+    assert_eq!(encode_object(&object), Err(error));
+    reject_wire(&unchecked(&object));
 }
 
 #[test]
@@ -205,6 +258,42 @@ fn request_identity_and_digest_encoding_are_strict() {
 }
 
 #[test]
+fn quota_is_durable_explicit_and_separate_from_native_geometry() {
+    assert_eq!(head().quota.max_pages(), Ok(2_621_440));
+    assert_eq!(DatabaseQuota { max_bytes: None }.max_pages(), Ok(MAX_PAGES));
+    for bytes in [
+        0,
+        1,
+        PAGE_SIZE as u64 + 1,
+        (MAX_PAGES as u64 + 1) * PAGE_SIZE as u64,
+        u64::MAX,
+    ] {
+        let quota = DatabaseQuota {
+            max_bytes: Some(bytes),
+        };
+        assert_eq!(quota.validate(), Err(FormatError::Invalid));
+        assert_eq!(quota.max_pages(), Err(FormatError::Invalid));
+        reject_head(|h| h.quota = quota, FormatError::Invalid);
+    }
+    assert_eq!(
+        DatabaseQuota {
+            max_bytes: Some(MAX_PAGES as u64 * PAGE_SIZE as u64)
+        }
+        .max_pages(),
+        Ok(MAX_PAGES)
+    );
+    let mut value = head();
+    value.quota.max_bytes = None;
+    assert_eq!(
+        decode_head(&encode_head(&value).unwrap(), &scope()),
+        Ok(value)
+    );
+    for json in ["{}", "{\"max_bytes\":null,\"extra\":1}"] {
+        assert!(serde_json::from_str::<DatabaseQuota>(json).is_err());
+    }
+}
+
+#[test]
 fn all_head_lifecycles_and_three_full_retention_windows_round_trip() {
     for lifecycle in [Lifecycle::Ready, Lifecycle::Maintenance, Lifecycle::Deleted] {
         for current in [1, 2, 3, 4, u64::MAX] {
@@ -215,7 +304,8 @@ fn all_head_lifecycles_and_three_full_retention_windows_round_trip() {
                 .map(|offset| Window {
                     epoch: current - offset,
                     root: digest(&offset.to_le_bytes()),
-                    count: MAX_REQUESTS as u32,
+                    count: value.retention.max_entries,
+                    result_bytes: 0,
                 })
                 .collect();
             value.sequence = u64::MAX;
@@ -235,7 +325,7 @@ fn all_head_lifecycles_and_three_full_retention_windows_round_trip() {
 
 #[test]
 fn invalid_head_identity_version_owner_and_roots_are_rejected() {
-    reject_head(|v| v.format = 2, FormatError::Invalid);
+    reject_head(|v| v.format = 1, FormatError::Invalid);
     reject_head(|v| v.scope.tenant = 0, FormatError::Invalid);
     reject_head(|v| v.revision = 0, FormatError::Invalid);
     reject_head(|v| v.owner_epoch = 0, FormatError::Invalid);
@@ -279,6 +369,63 @@ fn policies_require_unique_nonzero_principals_and_a_remaining_admin() {
 }
 
 #[test]
+fn retention_validates_count_bytes_and_the_exact_full_boundary() {
+    for entries in [0, MAX_REQUESTS + 1] {
+        reject_head(|v| v.retention.max_entries = entries, FormatError::Invalid);
+    }
+    reject_head(
+        |v| v.retention.max_result_bytes = MAX_RESULT_BYTES as u64 - 1,
+        FormatError::Invalid,
+    );
+    assert_eq!(
+        Retention {
+            max_entries: MAX_REQUESTS,
+            max_result_bytes: u64::MAX
+        }
+        .validate(),
+        Ok(())
+    );
+    let mut value = head();
+    value.retention.max_entries = 8;
+    value.retention.max_result_bytes = 2 * MAX_RESULT_BYTES as u64;
+    value.windows[0].count = 1;
+    value.windows[0].result_bytes = MAX_RESULT_BYTES as u64;
+    assert!(!value.windows[0].full(&value.retention));
+    value.windows[0].count = 2;
+    value.windows[0].result_bytes += 1;
+    assert!(value.windows[0].full(&value.retention));
+    value.request_epoch = 2;
+    value.windows.insert(
+        0,
+        Window {
+            epoch: 2,
+            root: digest(b"new"),
+            count: 0,
+            result_bytes: 0,
+        },
+    );
+    assert_eq!(
+        decode_head(&encode_head(&value).unwrap(), &scope()),
+        Ok(value)
+    );
+    reject_head(|v| v.windows[0].result_bytes = 1, FormatError::Invalid);
+    reject_head(
+        |v| {
+            v.windows[0].count = 1;
+            v.windows[0].result_bytes = MAX_RESULT_BYTES as u64 + 1;
+        },
+        FormatError::Invalid,
+    );
+    reject_head(
+        |v| {
+            v.windows[0].count = 5;
+            v.windows[0].result_bytes = v.retention.max_result_bytes + 1;
+        },
+        FormatError::Invalid,
+    );
+}
+
+#[test]
 fn retention_windows_cannot_skip_drop_or_close_partial_epochs() {
     reject_head(|v| v.windows.clear(), FormatError::Invalid);
     reject_head(
@@ -289,7 +436,7 @@ fn retention_windows_cannot_skip_drop_or_close_partial_epochs() {
     reject_head(|v| v.windows[0].epoch = 2, FormatError::Invalid);
     reject_head(|v| v.windows[0].root.clear(), FormatError::Invalid);
     reject_head(
-        |v| v.windows[0].count = MAX_REQUESTS as u32 + 1,
+        |v| v.windows[0].count = v.retention.max_entries + 1,
         FormatError::Limit,
     );
     reject_head(|v| v.request_epoch = 2, FormatError::Invalid);
@@ -309,65 +456,155 @@ fn retention_windows_cannot_skip_drop_or_close_partial_epochs() {
 }
 
 #[test]
-fn all_object_variants_round_trip_with_original_byte_results() {
-    object_round_trip(envelope(Payload::Page(vec![0; PAGE_SIZE])));
+fn all_object_variants_round_trip_without_json_byte_expansion() {
+    object_round_trip(envelope(Payload::Chunk {
+        first_page: 1,
+        bytes: vec![0; PAGE_SIZE],
+    }));
+    object_round_trip(envelope(Payload::Chunk {
+        first_page: 33,
+        bytes: vec![255; CHUNK_BYTES],
+    }));
+    object_round_trip(envelope(Payload::Node {
+        level: MAX_TREE_LEVEL,
+        first_chunk: 0,
+        children: vec![digest(b"child"); TREE_FANOUT],
+    }));
     object_round_trip(envelope(Payload::Manifest(manifest())));
     object_round_trip(envelope(Payload::Manifest(Manifest {
-        pages: Vec::new(),
-        image_hash: digest(&[]),
+        page_count: 0,
+        root: None,
     })));
     object_round_trip(envelope(Payload::Result(result())));
     object_round_trip(envelope(Payload::Index(Vec::new())));
     object_round_trip(envelope(Payload::Index(vec![committed(), cancelled()])));
+    assert!(!format!("{:?}", envelope(Payload::Manifest(manifest()))).is_empty());
 }
 
 #[test]
-fn object_semantics_reject_invalid_versions_scopes_and_pages() {
-    let mut object = envelope(Payload::Page(vec![0; PAGE_SIZE]));
-    object.format = 0;
-    reject_object(object.clone(), FormatError::Invalid);
+fn object_versions_scopes_chunk_geometry_and_node_budgets_are_checked() {
+    let mut object = envelope(Payload::Chunk {
+        first_page: 1,
+        bytes: vec![0; PAGE_SIZE],
+    });
     object.format = 1;
+    reject_object(object.clone(), FormatError::Invalid);
+    object.format = 2;
     object.scope.generation = 0;
     reject_object(object, FormatError::Invalid);
+    for first_page in [0, 2, MAX_PAGES] {
+        reject_object(
+            envelope(Payload::Chunk {
+                first_page,
+                bytes: vec![0; PAGE_SIZE],
+            }),
+            FormatError::Invalid,
+        );
+    }
     for length in [0, PAGE_SIZE - 1, PAGE_SIZE + 1] {
         reject_object(
-            envelope(Payload::Page(vec![0; length])),
+            envelope(Payload::Chunk {
+                first_page: 1,
+                bytes: vec![0; length],
+            }),
             FormatError::Invalid,
+        );
+    }
+    reject_object(
+        envelope(Payload::Chunk {
+            first_page: 1,
+            bytes: vec![0; CHUNK_BYTES + PAGE_SIZE],
+        }),
+        FormatError::Limit,
+    );
+    let first_page = (MAX_PAGES - 1) / CHUNK_PAGES * CHUNK_PAGES + 1;
+    object_round_trip(envelope(Payload::Chunk {
+        first_page,
+        bytes: vec![0; 30 * PAGE_SIZE],
+    }));
+    reject_object(
+        envelope(Payload::Chunk {
+            first_page,
+            bytes: vec![0; 31 * PAGE_SIZE],
+        }),
+        FormatError::Invalid,
+    );
+    for (level, first_chunk, children, error) in [
+        (
+            MAX_TREE_LEVEL + 1,
+            0,
+            vec![digest(b"c")],
+            FormatError::Invalid,
+        ),
+        (
+            0,
+            MAX_PAGES.div_ceil(CHUNK_PAGES),
+            vec![digest(b"c")],
+            FormatError::Invalid,
+        ),
+        (0, 0, vec![], FormatError::Invalid),
+        (
+            0,
+            0,
+            vec![digest(b"c"); TREE_FANOUT + 1],
+            FormatError::Limit,
+        ),
+        (0, 0, vec!["bad".into()], FormatError::Invalid),
+    ] {
+        reject_object(
+            envelope(Payload::Node {
+                level,
+                first_chunk,
+                children,
+            }),
+            error,
         );
     }
 }
 
 #[test]
-fn manifest_count_and_all_hashes_are_validated() {
-    reject_object(
-        envelope(Payload::Manifest(Manifest {
-            pages: vec![digest(b"page"); MAX_PAGES + 1],
-            ..manifest()
-        })),
-        FormatError::Limit,
-    );
-    reject_object(
-        envelope(Payload::Manifest(Manifest {
-            image_hash: "bad".into(),
-            ..manifest()
-        })),
-        FormatError::Invalid,
-    );
-    reject_object(
-        envelope(Payload::Manifest(Manifest {
-            pages: vec!["bad".into()],
-            ..manifest()
-        })),
-        FormatError::Invalid,
-    );
+fn manifest_count_root_presence_and_hash_are_validated() {
+    for (value, error) in [
+        (
+            Manifest {
+                page_count: u32::MAX,
+                ..manifest()
+            },
+            FormatError::Limit,
+        ),
+        (
+            Manifest {
+                page_count: 0,
+                ..manifest()
+            },
+            FormatError::Invalid,
+        ),
+        (
+            Manifest {
+                root: None,
+                ..manifest()
+            },
+            FormatError::Invalid,
+        ),
+        (
+            Manifest {
+                root: Some("bad".into()),
+                ..manifest()
+            },
+            FormatError::Invalid,
+        ),
+    ] {
+        reject_object(envelope(Payload::Manifest(value)), error);
+    }
     object_round_trip(envelope(Payload::Manifest(Manifest {
-        pages: vec![digest(b"page"); MAX_PAGES],
+        page_count: MAX_PAGES,
         ..manifest()
     })));
+    assert!(serde_json::from_str::<Manifest>("{\"page_count\":0}").is_err());
 }
 
 #[test]
-fn stored_results_are_bound_to_nonzero_original_identity_and_bounded_bytes() {
+fn stored_results_keep_identity_and_exact_maximum_raw_byte_capacity() {
     let mut value = result();
     value.request.id = 0;
     reject_object(envelope(Payload::Result(value)), FormatError::Invalid);
@@ -378,18 +615,20 @@ fn stored_results_are_bound_to_nonzero_original_identity_and_bounded_bytes() {
     value.transition.nonce = 0;
     reject_object(envelope(Payload::Result(value)), FormatError::Invalid);
     let mut value = result();
-    value.data_root = String::new();
+    value.data_root.clear();
     reject_object(envelope(Payload::Result(value)), FormatError::Invalid);
     let mut value = result();
     value.bytes = vec![255; MAX_RESULT_BYTES + 1];
     reject_object(envelope(Payload::Result(value)), FormatError::Limit);
-    let mut value = result();
-    value.bytes = vec![255; MAX_RESULT_BYTES];
-    let object = envelope(Payload::Result(value));
+    let object = envelope(Payload::Result(StoredResult {
+        bytes: vec![255; MAX_RESULT_BYTES],
+        ..result()
+    }));
     let wire = encode_object(&object).unwrap();
-    assert!(wire.len() > MAX_RESULT_BYTES * 4);
-    assert!(wire.len() < MAX_OBJECT_BYTES);
-    object_round_trip(object);
+    assert!(wire.len() > MAX_RESULT_BYTES && wire.len() < MAX_RESULT_BYTES + 1024);
+    assert!(wire.len() <= MAX_OBJECT_BYTES);
+    assert_eq!(&wire[wire.len() - 16..], &[255; 16]);
+    assert_eq!(decode_object(&wire, &scope(), &digest(&wire)), Ok(object));
 }
 
 #[test]
@@ -404,7 +643,9 @@ fn index_budget_identity_epoch_and_both_outcome_variants_are_checked() {
         envelope(Payload::Index(entries.clone())),
         FormatError::Limit,
     );
-    object_round_trip(envelope(Payload::Index(entries[..MAX_REQUESTS].to_vec())));
+    object_round_trip(envelope(Payload::Index(
+        entries[..MAX_REQUESTS as usize].to_vec(),
+    )));
     reject_object(
         envelope(Payload::Index(vec![committed(), committed()])),
         FormatError::Invalid,
@@ -434,7 +675,7 @@ fn index_budget_identity_epoch_and_both_outcome_variants_are_checked() {
 }
 
 #[test]
-fn wire_boundaries_and_byte_hashes_fail_closed() {
+fn wire_budgets_exact_framing_and_object_scope_fail_closed() {
     assert_eq!(
         decode_head(&vec![0; MAX_HEAD_BYTES + 1], &scope()),
         Err(FormatError::Limit)
@@ -445,6 +686,15 @@ fn wire_boundaries_and_byte_hashes_fail_closed() {
     );
     assert_eq!(encode(&"abcd", 5), Err(FormatError::Limit));
     assert_eq!(encode(&"abcd", 6), Ok(b"\"abcd\"".to_vec()));
+    assert_eq!(encode_frame(&"abcd", &[], 5), Err(FormatError::Limit));
+    assert_eq!(
+        encode_frame(&"abcd", &vec![0; MAX_OBJECT_BYTES - FRAME_BYTES - 5], 6),
+        Err(FormatError::Limit)
+    );
+    assert_eq!(
+        encode_frame(&"abcd", b"raw", 6).unwrap(),
+        frame(b"\"abcd\"", b"raw")
+    );
     let bytes = encode_object(&envelope(Payload::Index(Vec::new()))).unwrap();
     assert_eq!(
         decode_object(&bytes, &scope(), "wrong"),
@@ -462,17 +712,50 @@ fn wire_boundaries_and_byte_hashes_fail_closed() {
         decode_head(&encode_head(&head()).unwrap(), &other),
         Err(FormatError::Corrupt)
     );
-    for bytes in [b"{".as_slice(), b"null", b"[]", b"{} trailing"] {
-        assert_eq!(decode_head(bytes, &scope()), Err(FormatError::Corrupt));
-        assert_eq!(
-            decode_object(bytes, &scope(), &digest(bytes)),
-            Err(FormatError::Corrupt)
-        );
+    for value in [b"{".as_slice(), b"null", b"[]", b"{} trailing"] {
+        assert_eq!(decode_head(value, &scope()), Err(FormatError::Corrupt));
+        reject_wire(value);
+    }
+    let mut invalid = bytes.clone();
+    invalid[0] ^= 1;
+    reject_wire(&invalid);
+    let mut invalid = bytes.clone();
+    invalid[8..12].copy_from_slice(&((INDEX_METADATA_BYTES + 1) as u32).to_le_bytes());
+    reject_wire(&invalid);
+    let mut invalid = bytes.clone();
+    invalid[12..20].copy_from_slice(&u64::MAX.to_le_bytes());
+    reject_wire(&invalid);
+    let mut invalid = bytes.clone();
+    invalid.push(0);
+    reject_wire(&invalid);
+    reject_wire(&bytes[..bytes.len() - 1]);
+    reject_wire(&frame(b"{", &[]));
+    reject_wire(&frame(
+        &serde_json::to_vec(&envelope(Payload::Index(vec![]))).unwrap(),
+        b"unexpected raw",
+    ));
+    let mut metadata = serde_json::to_vec(&envelope(Payload::Manifest(manifest()))).unwrap();
+    metadata.resize(SMALL_METADATA_BYTES, b' ');
+    let boundary = frame(&metadata, &[]);
+    assert!(decode_object(&boundary, &scope(), &digest(&boundary)).is_ok());
+    metadata.push(b' ');
+    reject_wire(&frame(&metadata, &[]));
+    for payload in [
+        Payload::Chunk {
+            first_page: 1,
+            bytes: vec![1],
+        },
+        Payload::Result(result()),
+    ] {
+        reject_wire(&frame(
+            &serde_json::to_vec(&envelope(payload)).unwrap(),
+            b"raw",
+        ));
     }
 }
 
 #[test]
-fn strict_serde_rejects_unknown_duplicate_and_out_of_range_fields() {
+fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
     let original = serde_json::to_value(head()).unwrap();
     for (path, value) in [
         ("extra", serde_json::json!(1)),
@@ -487,7 +770,14 @@ fn strict_serde_rejects_unknown_duplicate_and_out_of_range_fields() {
             Err(FormatError::Corrupt)
         );
     }
-    for path in ["scope", "transition", "policy/0", "windows/0"] {
+    for path in [
+        "scope",
+        "transition",
+        "policy/0",
+        "windows/0",
+        "quota",
+        "retention",
+    ] {
         let mut json = original.clone();
         json.pointer_mut(&format!("/{path}")).unwrap()["extra"] = 1.into();
         assert_eq!(
@@ -496,7 +786,7 @@ fn strict_serde_rejects_unknown_duplicate_and_out_of_range_fields() {
         );
     }
     let wire = String::from_utf8(encode_head(&head()).unwrap()).unwrap();
-    let duplicate = wire.replacen("\"format\":1", "\"format\":1,\"format\":1", 1);
+    let duplicate = wire.replacen("\"format\":2", "\"format\":2,\"format\":2", 1);
     assert_eq!(
         decode_head(duplicate.as_bytes(), &scope()),
         Err(FormatError::Corrupt)
@@ -506,9 +796,23 @@ fn strict_serde_rejects_unknown_duplicate_and_out_of_range_fields() {
         decode_head(overflow.as_bytes(), &scope()),
         Err(FormatError::Corrupt)
     );
-
-    let objects = [
+    for (object, path) in [
         (envelope(Payload::Manifest(manifest())), "/payload/value"),
+        (
+            envelope(Payload::Chunk {
+                first_page: 1,
+                bytes: vec![],
+            }),
+            "/payload/value",
+        ),
+        (
+            envelope(Payload::Node {
+                level: 0,
+                first_chunk: 0,
+                children: vec![],
+            }),
+            "/payload/value",
+        ),
         (envelope(Payload::Result(result())), "/payload/value"),
         (
             envelope(Payload::Result(result())),
@@ -526,16 +830,18 @@ fn strict_serde_rejects_unknown_duplicate_and_out_of_range_fields() {
             envelope(Payload::Index(vec![cancelled()])),
             "/payload/value/0/outcome",
         ),
-        (envelope(Payload::Index(Vec::new())), "/payload"),
-        (envelope(Payload::Index(Vec::new())), ""),
-    ];
-    for (object, path) in objects {
+        (envelope(Payload::Index(vec![])), "/payload"),
+        (envelope(Payload::Index(vec![])), ""),
+    ] {
         let mut json = serde_json::to_value(object).unwrap();
         json.pointer_mut(path).unwrap()["extra"] = 1.into();
-        let bytes = serde_json::to_vec(&json).unwrap();
-        assert_eq!(
-            decode_object(&bytes, &scope(), &digest(&bytes)),
-            Err(FormatError::Corrupt)
-        );
+        reject_wire(&frame(&serde_json::to_vec(&json).unwrap(), &[]));
     }
+    let metadata = serde_json::to_string(&envelope(Payload::Index(vec![]))).unwrap();
+    reject_wire(&frame(
+        metadata
+            .replacen("\"format\":2", "\"format\":2,\"format\":2", 1)
+            .as_bytes(),
+        &[],
+    ));
 }

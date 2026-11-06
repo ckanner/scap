@@ -24,8 +24,10 @@ def inputs():
     for path in (ROOT / "crates").rglob("*"):
         if path.is_file() and (path.suffix == ".rs" or path.name == "Cargo.toml"):
             names.add(path.relative_to(ROOT).as_posix())
-    for name in ("Cargo.toml", "Cargo.lock", "src/main.rs", "run.py", "build.py"):
-        names.add("experiments/object-network/" + name)
+    for directory in ("object-network", "object-capacity"):
+        for path in (ROOT / "experiments" / directory).rglob("*"):
+            if path.is_file() and (path.suffix in (".rs", ".py") or path.name in ("Cargo.toml", "Cargo.lock")):
+                names.add(path.relative_to(ROOT).as_posix())
     return {name: digest(ROOT / name) for name in sorted(names)}
 
 

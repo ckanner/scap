@@ -4,9 +4,11 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前是单库原生实现候选，不是生产发布。** 新对象协议的单元覆盖率、真实本地 S3 合同与 AWS Standard 验收分别记录。没有真实 AWS 配置时不宣称 N1 整体通过；HTTP/Node SDK、多库调度、GC/PITR 和生产容量仍属于后续阶段。
+**当前单库原生实现已通过本地容量验收，生产发布仍有独立门禁。** 新对象协议的单元覆盖率、真实本地 S3 合同与 AWS Standard 验收分别记录。没有真实 AWS 配置时不宣称 N1 整体通过；HTTP/Node SDK、多库调度、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库已改为默认 10 GiB、可调整或取消业务配额的 v2 实现，实际容量验收与配置分开记录。
 
-[本轮本地验证记录](docs/evidence/object-native-local-2026-11-06.json)：87 项 Rust 单元测试通过，11 个生产文件四维覆盖率精确 100%；release 构建的 10 项真实本地 S3/进程故障合同通过。4 条成功写入均由独立持久账本逐条核对原回执与原结果；AWS Standard 保持 `NOT_RUN`。
+[PR #20 的当前本地验证记录](docs/evidence/production-capacity-local-2026-11-06.json)绑定运行时提交 `a302840d3232163ae16c85ff384abaae82cb9ff5`：130 项 Rust 单元、13 个生产文件四维精确 100%，74 项工具单元、89 项模型测试和 10 项真实本地 S3/进程合同通过。同一 release 二进制完成 1 GiB 独立随机数据验收及默认 **10 GiB 实际 SQLite 文件边界**验收；后者恢复后逐条核对 **363 条 ACK、162,564 个 BLOB**，原回执、原结果和全部数据哈希均无差异。达到配额后同尺寸更新成功，新页面分配被拒绝且 HEAD 不变。后续文档提交不改变实测源码；AWS Standard、完整 N1 和生产 SLO 仍未完成。
+
+[PR #19 的历史本地验证记录](docs/evidence/object-native-local-2026-11-06.json)：87 项 Rust 单元测试通过，11 个生产文件四维覆盖率精确 100%；release 构建的 10 项真实本地 S3/进程故障合同通过。4 条成功写入均由独立持久账本逐条核对原回执与原结果；AWS Standard 保持 `NOT_RUN`。
 
 ## 实现入口
 
@@ -21,16 +23,26 @@
 
 每个新强读先读取新的 HEAD，并校验当前 READ 权限和固定数据根。S3 不可用时新强读和写入都失败关闭，没有热缓存成功降级。接管以 HEAD CAS 推进 owner epoch，恢复数据与保留结果后重新核对 HEAD，再激活。
 
-## 当前小规模 profile
+## 容量与运行配置
 
-- 4096 字节页，单库最多 64 页（256 KiB）。事务只上传变化的页面，未变化页复用不可变引用。
-- HEAD 最多 16 KiB；单对象编码最多 512 KiB；SQL 原结果最多 64 KiB。
-- 每个请求世代最多 128 条终态，保留 current 与最近两个完整 closed epochs；只允许满窗口关闭。没有任何正的墙钟留存承诺。
-- 关闭窗口只释放当前索引引用，**不删除 S3 对象**。失败上传可能留下 orphan；每次操作预算不等于 bucket 总量或长期成本有界。
-- 数据库通过不可变 ID 显式创建；名称目录和外部用户认证入口尚未提供。Rust API 的 principal 是可信准入输入，不能直接接受客户端自报身份。
-- 控制请求绑定原 expected revision；无法查证的控制结果保守返回错误，不以 nonce 匹配伪造 Applied。
+**默认单库为 10 GiB，管理员可调大，也可设置 `quota.max_bytes = None` 取消 SCAP 业务容量配额。** 配额随 HEAD 持久化并以原 revision 的 CAS 修改；禁止缩到已有文件以下。SQLite 的 4 KiB 页号边界仍存在，约 16 TiB 理论文件空间不等于实测服务容量。
 
-精确格式、限制和故障边界见 [对象运行时](docs/engineering/object-runtime.md)。
+| 项目 | 默认或实现 |
+| --- | --- |
+| 单库逻辑文件 | 10 GiB；既有库遵守 HEAD 配额 |
+| 持久数据布局 | 128 KiB 原始字节块，256 分支内容寻址树，仅更新变化块及路径 |
+| 冷恢复与热执行 | 流式恢复到新私有文件；Session 复用连接，每次读写重新验证远端 HEAD |
+| 事务变化页 / page cache | 各 64 MiB；cache 是软目标，不是进程 RSS 隔离 |
+| SQL 结果 / 参数和返回值 | 每事务 50 MiB / 每个 Text-BLOB 2 MiB，可独立配置 |
+| 聚合输入 / SQL 文本 | 64 MiB / 1 MiB，包含编码开销 |
+| 操作 / 恢复预算 | 30 秒 / 30 分钟，受调用方更早 deadline 约束 |
+| 请求留存 | 默认每世代 4,096 条、256 MiB 原结果，保留 current 与两代 closed |
+
+这些执行和留存预算不随数据库大小增长。对象帧与原结果采用原始二进制字节，去掉整库内存复制与 JSON 字节数组膨胀。完整冷恢复仍需下载并检查整个数据库；没有实现 lazy VFS。
+
+[真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
+
+关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入，对外鉴权、自动协调和新 SDK 尚未交付。
 
 ## 构建与验证
 
@@ -48,8 +60,8 @@ python3 scripts/check_repo.py
 ## 设计与后续阶段
 
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
-- [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)。
+- [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。
 - [路线图](docs/engineering/roadmap.md)、[故障矩阵](docs/operations/failure-matrix.md)、[运行说明](docs/operations/runbooks.md)。
 - [协作要求](AGENTS.md)、[本地验证身份](docs/engineering/local-validation.md)。
 
-本仓库不承诺生产 SLA、GiB 恢复、三 AZ 或低成本结论。SDK 和对外服务将在新的权限、目录与准入边界上实现。许可证仍由维护者决定，第三方组件保留各自许可证。
+本仓库不承诺生产 SLA、跨 AZ 或长期低成本结论；GiB 恢复只按实际候选实验报告范围描述。SDK 和对外服务将在新的权限、目录与准入边界上实现。许可证仍由维护者决定，第三方组件保留各自许可证。

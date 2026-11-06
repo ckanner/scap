@@ -63,11 +63,16 @@ pub(crate) fn configure(
     max_database_pages: u32,
 ) -> Result<(), Error> {
     connection
-        .settings(
+        .settings(&format!(
             "PRAGMA page_size=4096; PRAGMA synchronous=FULL; \
-             PRAGMA cache_spill=OFF; PRAGMA wal_autocheckpoint=0; \
-             PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON;",
-        )
+             PRAGMA cache_spill=ON; PRAGMA wal_autocheckpoint=0; \
+             PRAGMA temp_store=FILE; PRAGMA foreign_keys=ON; \
+             PRAGMA cache_size=-{};",
+            limits
+                .cache_bytes
+                .min(u64::from(limits.max_changed_pages) * crate::PAGE_SIZE as u64)
+                / 1024,
+        ))
         .map_err(Error::Sqlite)?;
     connection.no_wait().map_err(Error::Sqlite)?;
     let page_size = connection.page_size().map_err(Error::Sqlite)?;
@@ -127,6 +132,32 @@ pub(crate) fn configure(
     connection.ignore_checks(false).map_err(Error::Sqlite)?;
     if integrity.map_err(Error::Sqlite)? != "ok" {
         return Err(Error::InvalidImage);
+    }
+    Ok(())
+}
+
+/// A warm writer checkpoints only after native and authoritative publication.
+/// Busy or incomplete checkpoints stop the cache; they cannot undo that commit.
+pub(crate) trait CheckpointOps {
+    fn truncate(&self) -> rusqlite::Result<(i64, i64, i64)>;
+}
+
+impl CheckpointOps for Connection {
+    fn truncate(&self) -> rusqlite::Result<(i64, i64, i64)> {
+        self.query_row("PRAGMA main.wal_checkpoint(TRUNCATE)", [], checkpoint_row)
+    }
+}
+
+pub(crate) fn checkpoint_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(i64, i64, i64)> {
+    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+}
+
+pub(crate) fn checkpoint(connection: &impl CheckpointOps) -> Result<(), Error> {
+    let status = connection.truncate().map_err(Error::Sqlite)?;
+    // (0,-1,-1) means that no WAL exists. Successful TRUNCATE resets both
+    // frame counters to zero. A busy flag or residual frames is not success.
+    if status != (0, 0, 0) && status != (0, -1, -1) {
+        return Err(Error::CommittedButUnavailable);
     }
     Ok(())
 }

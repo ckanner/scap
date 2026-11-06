@@ -1,5 +1,5 @@
-use crate::file::{materialize, materialize_with, Files, NativeFiles};
-use crate::Error;
+use crate::file::{Builder, Files, NativeFiles};
+use crate::{Error, ImageBuilder, MAX_DATABASE_PAGES, PAGE_SIZE};
 use std::cell::RefCell;
 use std::fs;
 use std::io::{self, Write};
@@ -29,13 +29,12 @@ struct MemoryFile(Rc<RefCell<Trace>>);
 impl Write for MemoryFile {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         let mut trace = self.0.borrow_mut();
-        let event = if trace.bytes.is_empty() {
-            "write"
+        let (event, length) = if trace.bytes.is_empty() {
+            ("write", 2)
         } else {
-            "write_tail"
+            ("write_tail", bytes.len())
         };
         trace.event(event)?;
-        let length = bytes.len().min(2);
         trace.bytes.extend_from_slice(&bytes[..length]);
         Ok(length)
     }
@@ -74,10 +73,22 @@ impl Files for ControlledFiles {
         };
         self.0.borrow_mut().event(event)
     }
+
+    fn remove_directory(&mut self, path: &Path) -> io::Result<()> {
+        assert_eq!(path, Path::new("/owned/new-worker"));
+        self.0.borrow_mut().event("remove")
+    }
+}
+
+fn header() -> [u8; PAGE_SIZE] {
+    let mut bytes = [0; PAGE_SIZE];
+    bytes[..16].copy_from_slice(b"SQLite format 3\0");
+    bytes[16] = 0x10;
+    bytes
 }
 
 #[test]
-fn all_materialization_faults_stop_before_a_path_can_be_used() {
+fn all_streaming_filesystem_faults_stop_before_a_prepared_image_can_escape() {
     let order = [
         "directory",
         "file",
@@ -92,47 +103,213 @@ fn all_materialization_faults_stop_before_a_path_can_be_used() {
             fail_at: Some(fail_at),
             ..Trace::default()
         }));
-        let result = materialize_with(
-            &mut ControlledFiles(trace.clone()),
-            Path::new("/owned/new-worker"),
-            b"data",
-        );
+        let result = (|| {
+            let mut builder = Builder::create_new(
+                ControlledFiles(trace.clone()),
+                Path::new("/owned/new-worker"),
+                1,
+                1,
+            )?;
+            builder.append_pages(1, &header())?;
+            builder.finish()
+        })();
         assert!(matches!(result, Err(Error::Io(_))));
-        assert_eq!(trace.borrow().events, order[..=index]);
+        let mut expected = order[..=index].to_vec();
+        if index != 0 {
+            expected.push("remove");
+        }
+        assert_eq!(trace.borrow().events, expected);
         if index == 3 {
-            assert_eq!(trace.borrow().bytes, b"da");
+            assert_eq!(trace.borrow().bytes, &header()[..2]);
             assert!(!trace.borrow().events.contains(&"sync_file"));
         }
     }
-    let trace = Rc::new(RefCell::new(Trace::default()));
-    let path = materialize_with(
-        &mut ControlledFiles(trace.clone()),
-        Path::new("/owned/new-worker"),
-        b"data",
-    )
-    .unwrap();
-    assert_eq!(path, Path::new("/owned/new-worker/database.sqlite"));
-    assert_eq!(trace.borrow().events, order);
-    assert_eq!(trace.borrow().bytes, b"data");
+    for cleanup_fails in [false, true] {
+        let trace = Rc::new(RefCell::new(Trace {
+            fail_at: cleanup_fails.then_some("remove"),
+            ..Trace::default()
+        }));
+        let mut builder = Builder::create_new(
+            ControlledFiles(trace.clone()),
+            Path::new("/owned/new-worker"),
+            1,
+            1,
+        )
+        .unwrap();
+        builder.append_pages(1, &header()).unwrap();
+        let prepared = builder.finish().unwrap();
+        assert_eq!(trace.borrow().events, order);
+        assert_eq!(trace.borrow().bytes, header());
+        drop(prepared);
+        assert_eq!(trace.borrow().events.last(), Some(&"remove"));
+    }
 }
 
 #[test]
-fn invalid_parent_is_rejected_before_any_effect() {
+fn invalid_parent_and_capacity_are_rejected_before_any_effect() {
     let trace = Rc::new(RefCell::new(Trace::default()));
     for path in ["/", "worker", ""] {
         assert!(matches!(
-            materialize_with(&mut ControlledFiles(trace.clone()), Path::new(path), b"data"),
+            Builder::create_new(ControlledFiles(trace.clone()), Path::new(path), 0, 1),
             Err(Error::Io(error)) if error.kind() == io::ErrorKind::InvalidInput
         ));
     }
+    for max in [0, u32::MAX] {
+        assert!(matches!(
+            Builder::create_new(
+                ControlledFiles(trace.clone()),
+                Path::new("/owned/new-worker"),
+                0,
+                max
+            ),
+            Err(Error::InvalidLimits)
+        ));
+    }
+    assert!(matches!(
+        Builder::create_new(
+            ControlledFiles(trace.clone()),
+            Path::new("/owned/new-worker"),
+            2,
+            1
+        ),
+        Err(Error::InvalidImage)
+    ));
     assert!(trace.borrow().events.is_empty());
 }
 
 #[test]
-fn native_materialization_is_exclusive_and_never_reuses_sidecars() {
+fn streaming_rejects_gaps_overlap_short_extra_and_invalid_header_pages() {
+    let root = tempfile::tempdir().unwrap();
+    for (index, first, bytes) in [
+        (0, 0, header().to_vec()),
+        (1, 2, header().to_vec()),
+        (2, 1, vec![]),
+        (3, 1, vec![0]),
+        (4, 1, vec![0; PAGE_SIZE * 2]),
+        (5, 1, vec![0; PAGE_SIZE]),
+        (6, 1, {
+            let mut h = header();
+            h[17] = 1;
+            h.to_vec()
+        }),
+    ] {
+        let path = root.path().join(index.to_string());
+        let mut builder = ImageBuilder::create_new(&path, 1, 1).unwrap();
+        assert!(matches!(
+            builder.append_pages(first, &bytes),
+            Err(Error::InvalidImage)
+        ));
+        assert!(matches!(
+            builder.append_pages(1, &header()),
+            Err(Error::Stopped)
+        ));
+        assert!(matches!(builder.finish(), Err(Error::Stopped)));
+        assert!(!path.exists());
+    }
+    let path = root.path().join("missing");
+    let mut builder = ImageBuilder::create_new(&path, 2, 2).unwrap();
+    builder.append_pages(1, &header()).unwrap();
+    assert!(matches!(builder.finish(), Err(Error::InvalidImage)));
+    assert!(!path.exists());
+    let path = root.path().join("extra");
+    let mut builder = ImageBuilder::create_new(&path, 1, 1).unwrap();
+    builder.append_pages(1, &header()).unwrap();
+    assert!(matches!(
+        builder.append_pages(2, &[0; PAGE_SIZE]),
+        Err(Error::InvalidImage)
+    ));
+    drop(builder);
+    assert!(!path.exists());
+    // A format-sized reservation does not allocate or create a sparse image.
+    let path = root.path().join("large-reservation");
+    let mut builder =
+        ImageBuilder::create_new(&path, MAX_DATABASE_PAGES, MAX_DATABASE_PAGES).unwrap();
+    builder.append_pages(1, &header()).unwrap();
+    assert_eq!(
+        fs::metadata(path.join("database.sqlite")).unwrap().len(),
+        PAGE_SIZE as u64
+    );
+    drop(builder);
+    assert!(!path.exists());
+}
+
+#[test]
+fn partial_writes_poison_the_builder_and_never_sync_a_partial_snapshot() {
+    let trace = Rc::new(RefCell::new(Trace {
+        fail_at: Some("write_tail"),
+        ..Trace::default()
+    }));
+    let mut builder = Builder::create_new(
+        ControlledFiles(trace.clone()),
+        Path::new("/owned/new-worker"),
+        1,
+        1,
+    )
+    .unwrap();
+    assert!(matches!(
+        builder.append_pages(1, &header()),
+        Err(Error::Io(_))
+    ));
+    assert!(matches!(
+        builder.append_pages(1, &header()),
+        Err(Error::Stopped)
+    ));
+    assert!(matches!(builder.finish(), Err(Error::Stopped)));
+    assert_eq!(
+        trace.borrow().events,
+        ["directory", "file", "write", "write_tail", "remove"]
+    );
+}
+
+#[test]
+fn controlled_streams_validate_before_writing_and_require_all_pages() {
+    for invalid in [vec![], vec![0; PAGE_SIZE]] {
+        let trace = Rc::new(RefCell::new(Trace::default()));
+        let mut builder = Builder::create_new(
+            ControlledFiles(trace.clone()),
+            Path::new("/owned/new-worker"),
+            1,
+            1,
+        )
+        .unwrap();
+        assert!(matches!(
+            builder.append_pages(1, &invalid),
+            Err(Error::InvalidImage)
+        ));
+        assert!(trace.borrow().bytes.is_empty());
+    }
+    for complete in [false, true] {
+        let trace = Rc::new(RefCell::new(Trace::default()));
+        let mut builder = Builder::create_new(
+            ControlledFiles(trace.clone()),
+            Path::new("/owned/new-worker"),
+            2,
+            2,
+        )
+        .unwrap();
+        builder.append_pages(1, &header()).unwrap();
+        if complete {
+            builder.append_pages(2, &[3; PAGE_SIZE]).unwrap();
+            drop(builder.finish().unwrap());
+            assert_eq!(trace.borrow().bytes.len(), 2 * PAGE_SIZE);
+            assert!(trace.borrow().events.contains(&"sync_parent"));
+        } else {
+            assert!(matches!(builder.finish(), Err(Error::InvalidImage)));
+            assert!(!trace.borrow().events.contains(&"sync_file"));
+        }
+    }
+}
+
+#[test]
+fn native_streaming_is_exclusive_private_and_cleans_owned_sidecars() {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("worker");
-    let path = materialize(&directory, b"exact logical image").unwrap();
+    let mut builder = ImageBuilder::create_new(&directory, 3, 3).unwrap();
+    builder.append_pages(1, &header()).unwrap();
+    builder.append_pages(2, &[7; PAGE_SIZE * 2]).unwrap();
+    let prepared = builder.finish().unwrap();
+    let path = prepared.path();
+    assert_eq!(prepared.page_count(), 3);
     assert_eq!(
         fs::metadata(&directory).unwrap().permissions().mode() & 0o777,
         0o700
@@ -141,12 +318,12 @@ fn native_materialization_is_exclusive_and_never_reuses_sidecars() {
         fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600
     );
-    assert_eq!(fs::read(&path).unwrap(), b"exact logical image");
+    assert_eq!(&fs::read(&path).unwrap()[..PAGE_SIZE], &header());
+    assert_eq!(&fs::read(&path).unwrap()[PAGE_SIZE..], &[7; PAGE_SIZE * 2]);
     fs::write(directory.join("database.sqlite-wal"), b"old sidecar").unwrap();
     assert!(
-        matches!(materialize(&directory, b"replace"), Err(Error::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists)
+        matches!(ImageBuilder::create_new(&directory, 0, 1), Err(Error::Io(error)) if error.kind() == io::ErrorKind::AlreadyExists)
     );
-    assert_eq!(fs::read(&path).unwrap(), b"exact logical image");
     assert_eq!(
         fs::read(directory.join("database.sqlite-wal")).unwrap(),
         b"old sidecar"
@@ -155,6 +332,16 @@ fn native_materialization_is_exclusive_and_never_reuses_sidecars() {
     assert!(NativeFiles
         .sync_directory(&root.path().join("absent"))
         .is_err());
-    let empty = materialize(&root.path().join("empty"), &[]).unwrap();
-    assert_eq!(fs::metadata(empty).unwrap().len(), 0);
+    drop(prepared);
+    assert!(!directory.exists());
+    assert!(NativeFiles.remove_directory(&directory).is_err());
+    let empty_directory = root.path().join("empty");
+    let empty = ImageBuilder::create_new(&empty_directory, 0, 1)
+        .unwrap()
+        .finish()
+        .unwrap();
+    assert_eq!(fs::metadata(empty.path()).unwrap().len(), 0);
+    assert_eq!(empty.page_count(), 0);
+    drop(empty);
+    assert!(!empty_directory.exists());
 }

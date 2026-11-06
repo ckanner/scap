@@ -6,7 +6,11 @@
   "consistency": {
     "automatic_local_write_fallback": false,
     "unknown_sql_replay": false,
-    "ack_requires": ["verified-immutable-dependencies", "conditional-head-publication", "native-publication"]
+    "ack_requires": [
+      "verified-immutable-dependencies",
+      "conditional-head-publication",
+      "native-publication"
+    ]
   },
   "storage": {
     "local_disk_authoritative": false,
@@ -17,9 +21,46 @@
     "aws_standard_validated": false,
     "production_slo_validated": false
   },
-  "scope": {"postgresql_in_initial_scope": false},
-  "gates": ["N0", "N1", "N2", "N3", "N4"],
-  "quality": {"unit_coverage_percent": 100, "integration_profiles_count_as_unit": false},
-  "compatibility": {"legacy_runtime": false, "legacy_sdk": false, "dual_backend": false},
-  "profile": {"page_size": 4096, "max_pages": 64, "head_bytes": 16384, "object_bytes": 524288, "result_bytes": 65536, "request_window": 128, "closed_windows_retained": 2}
+  "scope": {
+    "postgresql_in_initial_scope": false
+  },
+  "gates": [
+    "N0",
+    "N1",
+    "N2",
+    "N3",
+    "N4"
+  ],
+  "quality": {
+    "unit_coverage_percent": 100,
+    "integration_profiles_count_as_unit": false
+  },
+  "compatibility": {
+    "legacy_runtime": false,
+    "legacy_sdk": false,
+    "dual_backend": false
+  },
+  "profile": {
+    "object_format": 2,
+    "page_size": 4096,
+    "native_max_pages": 4294967294,
+    "default_database_bytes": 10737418240,
+    "database_quota_optional": true,
+    "chunk_pages": 32,
+    "tree_fanout": 256,
+    "tree_max_level": 3,
+    "head_bytes": 262144,
+    "object_bytes": 67174400,
+    "result_bytes_default": 52428800,
+    "result_bytes_format": 67108864,
+    "input_bytes": 67108864,
+    "changed_bytes_default": 67108864,
+    "cache_bytes_default": 67108864,
+    "operation_timeout_seconds": 30,
+    "recovery_timeout_seconds": 1800,
+    "request_window_default": 4096,
+    "request_window_result_bytes_default": 268435456,
+    "request_window_format": 65536,
+    "closed_windows_retained": 2
+  }
 }

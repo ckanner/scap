@@ -28,6 +28,8 @@ import time
 
 
 VERSION = "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101"
+RECORD_LOCK = threading.Lock()
+FIXTURE_BODY_LIMIT = 64 * 1024 * 1024
 CONTRACTS = [
     "signed_exact_key_conditional_objects",
     "same_etag_two_process_competition",
@@ -43,10 +45,35 @@ CONTRACTS = [
 
 
 def record(evidence, event, **values):
-    message = {"event": event, "monotonic_ns": time.monotonic_ns(), **values}
-    with (evidence / "history.jsonl").open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(message, sort_keys=True) + "\n")
-    print(json.dumps(message, sort_keys=True), flush=True)
+    message = {"event": event, "monotonic_ns": time.monotonic_ns(), "wall_time_ns": time.time_ns(), **values}
+    with RECORD_LOCK:
+        with (evidence / "history.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(message, sort_keys=True) + "\n")
+        print(json.dumps(message, sort_keys=True), flush=True)
+
+
+def process_identity(process):
+    # The Popen child handle and its wait status are authoritative. In this
+    # sandbox, /proc/self can report a host PID whose /proc/<PID> is unavailable;
+    # reading /proc/Popen.pid would instead measure an unrelated process.
+    return {"pid": process.pid, "spawn_monotonic_ns": time.monotonic_ns(),
+            "pid_source": "owned_Popen_child"}
+
+
+def wait_child(process, timeout):
+    deadline = time.monotonic() + timeout
+    if process.returncode is not None:
+        return process.returncode, {"available": False, "reason": "already_reaped"}
+    while time.monotonic() < deadline:
+        pid, status, usage = os.wait4(process.pid, os.WNOHANG)
+        if pid:
+            assert pid == process.pid
+            process.returncode = os.waitstatus_to_exitcode(status)
+            return process.returncode, {"available": True, "source": "kernel_wait4_owned_child",
+                "maxrss_bytes": usage.ru_maxrss * 1024,
+                "user_seconds": usage.ru_utime, "system_seconds": usage.ru_stime}
+        time.sleep(0.01)
+    raise TimeoutError("owned child termination deadline")
 
 
 def free_port(used):
@@ -60,7 +87,7 @@ def free_port(used):
 
 
 class Backend:
-    def __init__(self, binary, directory):
+    def __init__(self, binary, directory, volume_size_mib=64, max_volumes=2):
         version = subprocess.check_output([str(binary), "version"], text=True).strip()
         assert VERSION in version, version
         self.binary = binary
@@ -85,12 +112,14 @@ class Backend:
         def listen(name):
             return ["-ip=127.0.0.1", "-ip.bind=127.0.0.1", f"-port={ports[name][0]}", f"-port.grpc={ports[name][1]}"]
         self.commands = [
-            ("master", ["master", *listen("master"), f"-mdir={directory / 'master'}", "-peers=none", "-telemetry=false", "-volumeSizeLimitMB=64"]),
-            ("volume", ["volume", *listen("volume"), f"-dir={directory / 'volume'}", f"-master={master}", "-max=2"]),
+            ("master", ["master", *listen("master"), f"-mdir={directory / 'master'}", "-peers=none", "-telemetry=false", f"-volumeSizeLimitMB={volume_size_mib}", "-volumePreallocate=false"]),
+            ("volume", ["volume", *listen("volume"), f"-dir={directory / 'volume'}", f"-master={master}", f"-max={max_volumes}"]),
             ("filer", ["filer", *listen("filer"), f"-defaultStoreDir={directory / 'filer'}", f"-master={master}"]),
             ("s3", ["s3", *listen("s3"), f"-filer={filer}", f"-config={self.identity}", "-port.iceberg=0", "-port.lance=0"]),
         ]
         self.processes = []
+        self.process_metadata = {}
+        self.capacity = {"volume_size_mib": volume_size_mib, "max_volumes": max_volumes, "preallocate": False}
 
     def signed(self, method, path, body=""):
         # Only fixture provisioning uses curl. Product object operations use the
@@ -109,8 +138,9 @@ class Backend:
         assert not self.processes
         for name, arguments in self.commands:
             with (self.directory / f"{name}.private.log").open("ab") as log:
-                self.processes.append(subprocess.Popen([str(self.binary), *arguments], stdout=log, stderr=log,
-                                                       cwd=self.directory))
+                process = subprocess.Popen([str(self.binary), *arguments], stdout=log, stderr=log, cwd=self.directory)
+                self.processes.append(process)
+                self.process_metadata[process.pid] = process_identity(process)
         bound = time.monotonic() + 40
         while time.monotonic() < bound:
             assert all(process.poll() is None for process in self.processes), "backend exited before readiness"
@@ -129,15 +159,16 @@ class Backend:
                 process.kill()
         observed = []
         for (name, _), process in zip(self.commands, self.processes):
-            code = process.wait(timeout=8)
+            code, usage = wait_child(process, 8)
             if verify:
                 assert code == -signal.SIGKILL, code
-            observed.append({"role": name, "pid": process.pid, "wait_status": code})
+            observed.append({"role": name, **self.process_metadata.get(process.pid, {"pid": process.pid}),
+                             "wait_status": code, "kernel_usage": usage})
         self.processes = []
         return observed
 
     def identities(self):
-        return [{"role": name, "pid": process.pid} for (name, _), process in zip(self.commands, self.processes)]
+        return [{"role": name, **self.process_metadata[process.pid]} for (name, _), process in zip(self.commands, self.processes)]
 
 
 class Rule:
@@ -157,7 +188,10 @@ class Proxy:
         self.lock = threading.Lock()
         self.rule = None
         self.rules = []
-        self.events = []
+        self.phase = "setup"
+        self.request_serial = 0
+        self.stats = {}
+        self.successful_keys = {}
         self.errors = []
         owner = self
 
@@ -182,13 +216,18 @@ class Proxy:
                     owner.event("transport_fixture_failed", error=repr(error))
 
             def forward(self):
+                started = time.monotonic_ns()
                 self.close_connection = True
                 self.connection.settimeout(10)
                 length = int(self.headers.get("Content-Length", "0"))
-                assert 0 <= length <= 2 * 1024 * 1024
+                assert 0 <= length <= FIXTURE_BODY_LIMIT
                 payload = self.rfile.read(length)
                 assert len(payload) == length
                 with owner.lock:
+                    owner.request_serial += 1
+                    fields = {"request_serial": owner.request_serial, "phase": owner.phase,
+                              "method": self.command, "path": self.path, "request_bytes": length,
+                              "if_match": self.headers.get("If-Match"), "if_none_match": self.headers.get("If-None-Match")}
                     rule = owner.rule
                     if rule and rule.suffix is not None and not (self.command == "PUT" and self.path.endswith(rule.suffix)):
                         rule = None
@@ -196,10 +235,10 @@ class Proxy:
                         rule.used += 1
                         if rule.mode in ("hold", "drop", "inject409", "inject412") or rule.mode == "pair" and rule.used == 2:
                             owner.rule = None
+                owner.event("object_request", **fields)
                 if rule:
                     rule.arrived.set()
-                    owner.event("transport_fault_observed", mode=rule.mode, method=self.command, path=self.path,
-                                if_match=self.headers.get("If-Match"), if_none_match=self.headers.get("If-None-Match"))
+                    owner.event("transport_fault_observed", mode=rule.mode, **fields)
                     if rule.mode == "blackhole":
                         rule.release.wait(10)
                         return
@@ -209,6 +248,7 @@ class Proxy:
                         rule.barrier.wait()
                     if rule.mode in ("inject409", "inject412"):
                         status = int(rule.mode[-3:])
+                        owner.event("injected_response", status=status, **fields)
                         self.send_response_only(status)
                         self.send_header("Content-Length", "0")
                         self.send_header("Connection", "close")
@@ -221,12 +261,11 @@ class Proxy:
                         upstream.putheader(name, value)
                     upstream.endheaders(payload)
                     response = upstream.getresponse()
-                    body = response.read(2 * 1024 * 1024 + 1)
-                    assert len(body) <= 2 * 1024 * 1024
-                    owner.event("object_response", method=self.command, path=self.path, status=response.status,
+                    body = response.read(FIXTURE_BODY_LIMIT + 1)
+                    assert len(body) <= FIXTURE_BODY_LIMIT
+                    owner.event("object_response", status=response.status,
                                 response_bytes=len(body), suppressed=bool(rule and rule.mode == "drop"),
-                                if_match=self.headers.get("If-Match"), if_none_match=self.headers.get("If-None-Match"),
-                                etag=response.getheader("ETag"))
+                                etag=response.getheader("ETag"), elapsed_ns=time.monotonic_ns() - started, **fields)
                     if rule and rule.mode == "drop":
                         assert response.status == 200, "response-loss boundary must follow actual acceptance"
                         return
@@ -251,8 +290,38 @@ class Proxy:
 
     def event(self, event, **fields):
         with self.lock:
-            self.events.append({"event": event, **fields})
+            phase = fields.get("phase", self.phase)
+            counts = self.stats.setdefault(phase, {"get_requests": 0, "put_requests": 0,
+                "get_response_bytes": 0, "put_request_bytes": 0, "put_success_bytes": 0,
+                "put_successes": 0, "head_puts": 0, "http_statuses": {}})
+            if event == "object_request":
+                if fields["method"] == "GET":
+                    counts["get_requests"] += 1
+                if fields["method"] == "PUT":
+                    counts["put_requests"] += 1
+                    counts["put_request_bytes"] += fields["request_bytes"]
+                    counts["head_puts"] += fields["path"].endswith("/head")
+            if event == "object_response":
+                status = str(fields["status"])
+                counts["http_statuses"][status] = counts["http_statuses"].get(status, 0) + 1
+                if fields["method"] == "GET":
+                    counts["get_response_bytes"] += fields["response_bytes"]
+                if fields["method"] == "PUT" and 200 <= fields["status"] < 300:
+                    counts["put_successes"] += 1
+                    counts["put_success_bytes"] += fields["request_bytes"]
+                    self.successful_keys.setdefault(phase, set()).add(fields["path"])
             record(self.evidence, event, **fields)
+
+    def set_phase(self, phase):
+        with self.lock:
+            self.phase = phase
+            record(self.evidence, "phase_started", phase=phase)
+
+    def metrics(self):
+        with self.lock:
+            return {name: {**json.loads(json.dumps(counts)),
+                           "unique_successful_put_keys": len(self.successful_keys.get(name, set()))}
+                    for name, counts in self.stats.items()}
 
     def arm(self, mode, suffix=None):
         with self.lock:
@@ -285,8 +354,13 @@ class Worker:
         with (private / f"worker-{number}.private.log").open("ab") as log:
             self.process = subprocess.Popen([str(binary), str(self.path)], stdin=subprocess.PIPE,
                                             stdout=subprocess.PIPE, stderr=log, text=True, bufsize=1)
-        assert self.read(10) == {"ready": True}
-        record(evidence, "worker_started", worker=config["worker"], pid=self.process.pid)
+        ready = self.read(10)
+        assert ready["ready"] is True
+        self.identity = process_identity(self.process)
+        assert ready["resources"]["namespace_pid"] == self.process.pid
+        self.identity.update(self_proc_pid=ready["resources"]["proc_pid"],
+                             self_start_ticks=ready["resources"]["start_ticks"])
+        record(evidence, "worker_started", worker=config["worker"], resources=ready["resources"], **self.identity)
 
     def read(self, timeout):
         assert select.select([self.process.stdout], [], [], timeout)[0], "worker response deadline"
@@ -295,9 +369,11 @@ class Worker:
         return json.loads(line)
 
     def call(self, op, **values):
+        started = time.monotonic_ns()
         request = {"op": op, **values}
         fields = {"worker": self.config["worker"], "pid": self.process.pid, "operation": op,
-                  "request_id": values.get("id"), "request_epoch": values.get("epoch"),
+                  "request_id": values.get("id", values.get("identity", {}).get("id")),
+                  "request_epoch": values.get("epoch", values.get("identity", {}).get("epoch")),
                   "key": values.get("key"), "budget_ms": values.get("budget_ms", 8000)}
         record(self.evidence, "client_invoked", **fields)
         self.process.stdin.write(json.dumps(request) + "\n")
@@ -308,7 +384,8 @@ class Worker:
             record(self.evidence, "client_transport_failed", error=repr(error), **fields)
             raise
         record(self.evidence, "client_observed", ok=response["ok"], error=response.get("error"),
-               resolution=response.get("value", {}).get("state"), **fields)
+               resolution=response.get("value", {}).get("state"), resources=response.get("resources"),
+               elapsed_ns=time.monotonic_ns() - started, worker_elapsed_ms=response.get("elapsed_ms"), **fields)
         return response
 
     def kill(self, verify=False):
@@ -316,13 +393,15 @@ class Worker:
             assert self.process.poll() is None
         if self.process.poll() is None:
             self.process.kill()
-        code = self.process.wait(timeout=5)
+        code, usage = wait_child(self.process, 5)
         if verify:
             assert code == -signal.SIGKILL, code
-        observed = {"worker": self.config["worker"], "pid": self.process.pid, "wait_status": code}
+        observed = {"worker": self.config["worker"], **self.identity, "wait_status": code, "kernel_usage": usage}
         record(self.evidence, "worker_stopped", fault=verify, **observed)
-        self.process.stdin.close()
-        self.process.stdout.close()
+        if not self.process.stdin.closed:
+            self.process.stdin.close()
+        if not self.process.stdout.closed:
+            self.process.stdout.close()
         return observed
 
 
@@ -356,7 +435,9 @@ def run(arguments):
     scope = {"deployment": 77, "tenant": 88, "database": 99, "incarnation": 1, "generation": 1}
     config = {"endpoint": proxy.endpoint, "region": "us-east-1", "bucket": "scap-test",
               "access_key": backend.access, "secret_key": backend.secret, "scope": scope,
-              "worker": 1, "principal": 17, "cache_root": str(compute)}
+              "worker": 1, "principal": 17, "cache_root": str(compute),
+              "fixture_limits": {"quota_bytes": 256 * 1024, "retention_entries": 16,
+                                 "retention_result_bytes": 128 * 1024 * 1024}}
     serial = 0
     ledger = evidence / "ack-ledger.jsonl"
     ledger.touch(mode=0o600, exist_ok=False)
@@ -594,7 +675,6 @@ def run(arguments):
         assert completed == CONTRACTS
         assert not proxy.errors, proxy.errors
         summary["status"] = "passed"
-        record(evidence, "verification_passed", contracts=len(completed))
     except BaseException as error:
         summary["status"] = "failed"
         summary["error"] = repr(error)
@@ -606,7 +686,14 @@ def run(arguments):
             entry.kill()
         proxy.close()
         backend.stop()
+        summary["object_metrics"] = proxy.metrics()
+        summary["proxy_errors"] = proxy.errors
+        if proxy.errors:
+            summary["status"] = "failed"
+        if summary["status"] == "passed":
+            record(evidence, "verification_passed", contracts=len(completed))
         (evidence / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    assert summary["status"] == "passed", summary.get("error", "transport fixture failure")
 
 
 if __name__ == "__main__":

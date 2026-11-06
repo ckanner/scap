@@ -1,17 +1,24 @@
 //! Object-authoritative SQLite. Local files never establish committed state.
 
 pub mod format;
+pub mod options;
+
+mod data_tree;
 
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
 use format::*;
-use scap_object_sqlite::{CommitGate, GateDecision, PageBatch, SqliteWriter, WriterLimits};
+use scap_object_sqlite::{CommitGate, GateDecision, ImageBuilder, PageBatch, SqliteWriter};
 use scap_object_store::{Condition, Objects, StoreError};
 use scap_sql::{SqlLimits, Statement, TransactionResult};
+
+pub use options::Options;
+use options::{durable_sql_limits, input_budget, MAX_REQUEST_BYTES};
 
 #[derive(Debug)]
 pub enum Error {
@@ -30,6 +37,7 @@ pub enum Error {
     Unknown,
     Limit,
     Corrupt,
+    StaleSnapshot,
     CommittedButUnavailable(Box<Receipt>),
 }
 
@@ -66,27 +74,12 @@ pub struct Database {
     objects: Arc<dyn Objects>,
     scope: Scope,
     worker: u64,
+    options: Options,
+    quarantined: Arc<AtomicBool>,
 }
 
 pub fn sql_limits() -> SqlLimits {
-    SqlLimits {
-        max_statements: 32,
-        max_sql_bytes: 16384,
-        max_parameters: 128,
-        max_columns: 64,
-        max_rows: 1024,
-        max_result_bytes: MAX_RESULT_BYTES as u32,
-        max_value_bytes: 16384,
-    }
-}
-
-fn engine_limits() -> WriterLimits {
-    WriterLimits {
-        sql: sql_limits(),
-        max_vm_steps: 1_000_000,
-        max_database_pages: MAX_PAGES as u32,
-        max_changed_pages: MAX_PAGES as u32,
-    }
+    Options::default().sql
 }
 
 pub fn request(
@@ -95,7 +88,9 @@ pub fn request(
     principal: u64,
     statements: &[Statement],
 ) -> Result<Request, Error> {
-    let hash = scap_sql::request_fingerprint(statements, sql_limits()).map_err(Error::Sql)?;
+    input_budget(statements, MAX_REQUEST_BYTES)?;
+    let hash =
+        scap_sql::request_fingerprint(statements, durable_sql_limits()).map_err(Error::Sql)?;
     let fingerprint = hash.iter().map(|byte| format!("{byte:02x}")).collect();
     let request = Request {
         epoch,
@@ -109,7 +104,17 @@ pub fn request(
 
 impl Database {
     pub fn new(objects: Arc<dyn Objects>, scope: Scope, worker: u64) -> Result<Self, Error> {
+        Self::with_options(objects, scope, worker, Options::default())
+    }
+
+    pub fn with_options(
+        objects: Arc<dyn Objects>,
+        scope: Scope,
+        worker: u64,
+        options: Options,
+    ) -> Result<Self, Error> {
         scope.validate().map_err(Error::Format)?;
+        options.validate()?;
         if worker == 0 {
             return Err(Error::Fenced);
         }
@@ -117,7 +122,29 @@ impl Database {
             objects,
             scope,
             worker,
+            options,
+            quarantined: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    fn observe(&self, error: Error) -> Error {
+        if matches!(
+            error,
+            Error::Corrupt
+                | Error::Format(_)
+                | Error::Store(StoreError::Missing | StoreError::Corrupt | StoreError::Limit)
+                | Error::Engine(scap_object_sqlite::Error::InvalidImage)
+        ) {
+            self.quarantined.store(true, Ordering::Release);
+        }
+        error
+    }
+
+    fn healthy(&self) -> Result<(), Error> {
+        if self.quarantined.load(Ordering::Acquire) {
+            return Err(Error::Corrupt);
+        }
+        Ok(())
     }
 
     fn read_head(&self, deadline: Instant) -> Result<Snapshot, Error> {
@@ -125,9 +152,10 @@ impl Database {
             .objects
             .get(&head_key(&self.scope), MAX_HEAD_BYTES, deadline)
             .map_err(Error::Store)?;
-        let head = decode_head(&object.bytes, &self.scope).map_err(Error::Format)?;
+        let head = decode_head(&object.bytes, &self.scope)
+            .map_err(|error| self.observe(Error::Format(error)))?;
         if object.etag.is_empty() {
-            return Err(Error::Corrupt);
+            return Err(self.observe(Error::Corrupt));
         }
         Ok(Snapshot {
             head,
@@ -165,6 +193,7 @@ impl Database {
 
     fn writer(&self, head: &Head) -> Result<(), Error> {
         Self::ready(head)?;
+        self.healthy()?;
         if !head.active || head.owner_instance != self.worker {
             return Err(Error::Fenced);
         }
@@ -175,15 +204,15 @@ impl Database {
         let stored = self
             .objects
             .get(&object_key(&self.scope, root), MAX_OBJECT_BYTES, deadline)
-            .map_err(Error::Store)?;
+            .map_err(|error| self.observe(Error::Store(error)))?;
         Ok(decode_object(&stored.bytes, &self.scope, root)
-            .map_err(Error::Format)?
+            .map_err(|error| self.observe(Error::Format(error)))?
             .payload)
     }
 
     fn upload(&self, payload: Payload, deadline: Instant) -> Result<String, Error> {
         let envelope = Envelope {
-            format: 1,
+            format: 2,
             scope: self.scope.clone(),
             payload,
         };
@@ -198,16 +227,27 @@ impl Database {
         let stored = self
             .objects
             .get(&key, MAX_OBJECT_BYTES, deadline)
-            .map_err(Error::Store)?;
+            .map_err(|error| self.observe(Error::Store(error)))?;
         if stored.bytes != bytes {
-            return Err(Error::Corrupt);
+            return Err(self.observe(Error::Corrupt));
         }
         Ok(root)
     }
 
     fn publish(&self, base: &Snapshot, head: &Head, deadline: Instant) -> Result<(), Error> {
+        self.healthy()?;
+        let maximum = head.quota.max_pages().map_err(Error::Format)?;
         let bytes = encode_head(head).map_err(Error::Format)?;
-        self.verify_closure(head, deadline)?;
+        let manifest = data_tree::manifest(self, &head.data_root, deadline)
+            .map_err(|error| self.observe(error))?;
+        if manifest.page_count > maximum {
+            return Err(Error::Limit);
+        }
+        // New dependencies were conditionally created and exactly read back.
+        // Unchanged references inherit the prior HEAD's immutable closure;
+        // protocol participants never delete reachable objects (GC is disabled).
+        // Cold activation and the first session write verify retained history.
+        self.healthy()?;
         match self.objects.put(
             &head_key(&self.scope),
             &bytes,
@@ -233,16 +273,10 @@ impl Database {
     /// Explicit provisioning only. A missing HEAD on every other path is an
     /// error. Reusing a database ID is rejected by conditional creation.
     pub fn create(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
-        let data_root = self.upload(
-            Payload::Manifest(Manifest {
-                pages: Vec::new(),
-                image_hash: digest(&[]),
-            }),
-            deadline,
-        )?;
+        let data_root = data_tree::empty(self, deadline)?;
         let index = self.upload(Payload::Index(Vec::new()), deadline)?;
         let head = Head {
-            format: 1,
+            format: 2,
             scope: self.scope.clone(),
             revision: 1,
             transition: Transition { revision: 1, nonce },
@@ -258,12 +292,15 @@ impl Database {
                 admin: true,
             }],
             lifecycle: Lifecycle::Ready,
+            quota: self.options.quota.clone(),
+            retention: self.options.retention.clone(),
             data_root,
             request_epoch: 1,
             windows: vec![Window {
                 epoch: 1,
                 root: index,
                 count: 0,
+                result_bytes: 0,
             }],
         };
         let bytes = encode_head(&head).map_err(Error::Format)?;
@@ -279,33 +316,31 @@ impl Database {
         Ok(snapshot.head)
     }
 
-    fn manifest(&self, head: &Head, deadline: Instant) -> Result<Manifest, Error> {
-        match self.load(&head.data_root, deadline)? {
-            Payload::Manifest(manifest) => Ok(manifest),
-            _ => Err(Error::Corrupt),
-        }
-    }
-
-    fn image(&self, head: &Head, deadline: Instant) -> Result<Vec<u8>, Error> {
-        let manifest = self.manifest(head, deadline)?;
-        let mut bytes = Vec::with_capacity(manifest.pages.len() * PAGE_SIZE);
-        for root in manifest.pages {
-            match self.load(&root, deadline)? {
-                Payload::Page(page) => bytes.extend(page),
-                _ => return Err(Error::Corrupt),
-            }
-        }
-        if digest(&bytes) != manifest.image_hash {
-            return Err(Error::Corrupt);
-        }
-        Ok(bytes)
-    }
-
     fn verify_closure(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
-        self.image(head, deadline)?;
+        let manifest = data_tree::manifest(self, &head.data_root, deadline)
+            .map_err(|error| self.observe(error))?;
+        if manifest.page_count > head.quota.max_pages().map_err(Error::Format)? {
+            return Err(Error::Limit);
+        }
+        data_tree::walk(self, &manifest, deadline, |_, _| Ok(()))
+            .map_err(|error| self.observe(error))?;
+        self.verify_results(head, deadline)
+    }
+
+    fn verify_results(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
         for window in &head.windows {
+            let mut bytes = 0_u64;
             for entry in self.index(window, deadline)? {
-                self.resolve_entry(head, &entry.request, &entry.outcome, deadline)?;
+                if let Resolution::Committed { bytes: result, .. } =
+                    self.resolve_entry(head, &entry.request, &entry.outcome, deadline)?
+                {
+                    // A window has at most 65,536 independently bounded 64 MiB
+                    // results, so its exact aggregate fits in u64.
+                    bytes += result.len() as u64;
+                }
+            }
+            if bytes != window.result_bytes {
+                return Err(self.observe(Error::Corrupt));
             }
         }
         Ok(())
@@ -314,14 +349,14 @@ impl Database {
     fn index(&self, window: &Window, deadline: Instant) -> Result<Vec<Entry>, Error> {
         let entries = match self.load(&window.root, deadline)? {
             Payload::Index(entries) => entries,
-            _ => return Err(Error::Corrupt),
+            _ => return Err(self.observe(Error::Corrupt)),
         };
         if entries.len() != window.count as usize
             || entries
                 .iter()
                 .any(|entry| entry.request.epoch != window.epoch)
         {
-            return Err(Error::Corrupt);
+            return Err(self.observe(Error::Corrupt));
         }
         Ok(entries)
     }
@@ -370,7 +405,7 @@ impl Database {
         match outcome {
             OutcomeRef::Cancelled { transition } => {
                 if transition.revision > head.revision {
-                    return Err(Error::Corrupt);
+                    return Err(self.observe(Error::Corrupt));
                 }
                 Ok(Resolution::Cancelled {
                     transition: transition.clone(),
@@ -379,13 +414,13 @@ impl Database {
             OutcomeRef::Committed { result } => {
                 let stored = match self.load(result, deadline)? {
                     Payload::Result(stored) => stored,
-                    _ => return Err(Error::Corrupt),
+                    _ => return Err(self.observe(Error::Corrupt)),
                 };
                 if stored.request != *request
                     || stored.sequence > head.sequence
                     || stored.transition.revision > head.revision
                 {
-                    return Err(Error::Corrupt);
+                    return Err(self.observe(Error::Corrupt));
                 }
                 let receipt = Receipt {
                     scope: self.scope.clone(),
@@ -502,6 +537,29 @@ impl Database {
         Ok(head)
     }
 
+    /// Change the persisted logical file quota in the same ordering domain as
+    /// writes. None removes SCAP's business quota, not SQLite's page-number limit.
+    pub fn set_quota(
+        &self,
+        principal: u64,
+        expected_revision: u64,
+        nonce: u64,
+        quota: DatabaseQuota,
+        deadline: Instant,
+    ) -> Result<Head, Error> {
+        let base = self.control(principal, expected_revision, deadline)?;
+        let maximum = quota.max_pages().map_err(Error::Format)?;
+        let manifest = data_tree::manifest(self, &base.head.data_root, deadline)
+            .map_err(|error| self.observe(error))?;
+        if manifest.page_count > maximum {
+            return Err(Error::Limit);
+        }
+        let mut head = Self::next(&base.head, nonce)?;
+        head.quota = quota;
+        self.publish(&base, &head, deadline)?;
+        Ok(head)
+    }
+
     /// Trusted coordinator operation; no tenant-controlled arbitrary rotation.
     /// It closes only a full epoch and retains two complete closed epochs.
     pub fn close_full(
@@ -512,7 +570,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
-        if base.head.windows[0].count as usize != MAX_REQUESTS {
+        if !base.head.windows[0].full(&base.head.retention) {
             return Err(Error::WindowFull);
         }
         let mut head = Self::next(&base.head, nonce)?;
@@ -524,6 +582,7 @@ impl Database {
                 epoch: head.request_epoch,
                 root,
                 count: 0,
+                result_bytes: 0,
             },
         );
         head.windows.truncate(3);
@@ -531,9 +590,22 @@ impl Database {
         Ok(head)
     }
 
-    fn append(&self, head: &mut Head, entry: Entry, deadline: Instant) -> Result<(), Error> {
+    fn append(
+        &self,
+        head: &mut Head,
+        entry: Entry,
+        result_bytes: u64,
+        deadline: Instant,
+    ) -> Result<(), Error> {
         let mut entries = self.index(&head.windows[0], deadline)?;
-        if entries.len() == MAX_REQUESTS {
+        if entries.len() == head.retention.max_entries as usize {
+            return Err(Error::WindowFull);
+        }
+        let bytes = head.windows[0]
+            .result_bytes
+            .checked_add(result_bytes)
+            .ok_or(Error::Limit)?;
+        if bytes > head.retention.max_result_bytes {
             return Err(Error::WindowFull);
         }
         if entries.iter().any(|old| old.request.id == entry.request.id) {
@@ -541,6 +613,7 @@ impl Database {
         }
         entries.push(entry);
         head.windows[0].count = entries.len() as u32;
+        head.windows[0].result_bytes = bytes;
         head.windows[0].root = self.upload(Payload::Index(entries), deadline)?;
         Ok(())
     }
@@ -570,6 +643,7 @@ impl Database {
                     transition: transition.clone(),
                 },
             },
+            0,
             deadline,
         )?;
         self.publish(&base, &head, deadline)?;
@@ -585,35 +659,18 @@ impl Database {
         deadline: Instant,
     ) -> Result<Receipt, Error> {
         self.writer(&base.head)?;
-        let mut manifest = self.manifest(&base.head, deadline)?;
-        let mut image = self.image(&base.head, deadline)?;
-        if batch.size_after as usize > MAX_PAGES {
-            return Err(Error::Limit);
+        if base.head.windows[0].full(&base.head.retention) {
+            return Err(Error::WindowFull);
         }
-        image.resize(batch.size_after as usize * PAGE_SIZE, 0);
-        manifest
-            .pages
-            .resize(batch.size_after as usize, String::new());
-        let mut seen = std::collections::BTreeSet::new();
-        for change in &batch.pages {
-            if change.number == 0
-                || change.number > batch.size_after
-                || change.bytes.len() != PAGE_SIZE
-                || !seen.insert(change.number)
-            {
-                return Err(Error::Corrupt);
-            }
-            let index = change.number as usize - 1;
-            image[index * PAGE_SIZE..(index + 1) * PAGE_SIZE].copy_from_slice(&change.bytes);
-            manifest.pages[index] = self.upload(Payload::Page(change.bytes.clone()), deadline)?;
-        }
-        if manifest.pages.iter().any(|root| root.is_empty()) {
-            return Err(Error::Corrupt);
-        }
-        manifest.image_hash = digest(&image);
         let mut head = Self::next(&base.head, request.id)?;
         head.sequence = head.sequence.checked_add(1).ok_or(Error::Limit)?;
-        head.data_root = self.upload(Payload::Manifest(manifest), deadline)?;
+        head.data_root = data_tree::update(
+            self,
+            &base.head.data_root,
+            batch,
+            base.head.quota.max_pages().map_err(Error::Format)?,
+            deadline,
+        )?;
         let stored = StoredResult {
             request: request.clone(),
             sequence: head.sequence,
@@ -630,6 +687,7 @@ impl Database {
                     result: result_hash.clone(),
                 },
             },
+            result.len() as u64,
             deadline,
         )?;
         self.publish(base, &head, deadline)?;
@@ -653,6 +711,23 @@ impl Database {
         directory: &Path,
         deadline: Instant,
     ) -> Result<(Receipt, TransactionResult), Error> {
+        let deadline = self.options.deadline(deadline, false);
+        match self.admit(principal, identity, statements, deadline)? {
+            Admission::Existing(receipt, result) => Ok((receipt, result)),
+            Admission::Fresh(base) => {
+                let mut session = self.restore(&base, directory, deadline)?;
+                session.execute_prepared(base, identity, statements, deadline)
+            }
+        }
+    }
+
+    fn admit(
+        &self,
+        principal: u64,
+        identity: &Request,
+        statements: &[Statement],
+        deadline: Instant,
+    ) -> Result<Admission, Error> {
         if request(identity.epoch, identity.id, principal, statements)? != *identity {
             return Err(Error::RequestConflict);
         }
@@ -660,9 +735,10 @@ impl Database {
         Self::authorize(&base.head, principal, true, true, false)?;
         match self.resolve(&base.head, identity, deadline)? {
             Resolution::Committed { receipt, bytes } => {
-                return Ok((
+                return Ok(Admission::Existing(
                     receipt,
-                    scap_sql::decode_result(&bytes, sql_limits()).map_err(Error::Sql)?,
+                    scap_sql::decode_result(&bytes, durable_sql_limits())
+                        .map_err(|_| self.observe(Error::Corrupt))?,
                 ))
             }
             Resolution::Cancelled { .. } => return Err(Error::Closed),
@@ -671,23 +747,101 @@ impl Database {
             Resolution::Unknown => {}
         }
         self.writer(&base.head)?;
-        if base.head.windows[0].count as usize == MAX_REQUESTS {
+        if base.head.windows[0].full(&base.head.retention) {
             return Err(Error::WindowFull);
         }
-        let image = self.image(&base.head, deadline)?;
-        let decision = Rc::new(RefCell::new(None));
+        input_budget(statements, self.options.max_input_bytes)?;
+        scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
+        Ok(Admission::Fresh(base))
+    }
+
+    /// Restore one authenticated immutable root into an owned private file.
+    /// The recovery deadline is separate from subsequent operation deadlines.
+    pub fn session(
+        &self,
+        principal: u64,
+        directory: &Path,
+        deadline: Instant,
+    ) -> Result<Session, Error> {
+        let deadline = self.options.deadline(deadline, true);
+        let base = self.read_head(deadline)?;
+        Self::authorize(&base.head, principal, true, false, false)?;
+        let mut session = self.restore(&base, directory, deadline)?;
+        // Prepare retained history within the recovery budget, so the first
+        // hot SQL operation does not hide a full historical result scan.
+        self.verify_results(&base.head, deadline)?;
+        session.history_verified = true;
+        Ok(session)
+    }
+
+    fn restore(
+        &self,
+        base: &Snapshot,
+        directory: &Path,
+        deadline: Instant,
+    ) -> Result<Session, Error> {
+        let manifest = data_tree::manifest(self, &base.head.data_root, deadline)
+            .map_err(|error| self.observe(error))?;
+        let limits = self.options.writer(&base.head.quota)?;
+        let mut image =
+            ImageBuilder::create_new(directory, manifest.page_count, limits.max_database_pages)
+                .map_err(Error::Engine)?;
+        data_tree::walk(self, &manifest, deadline, |page, bytes| {
+            image.append_pages(page, bytes).map_err(Error::Engine)
+        })
+        .map_err(|error| self.observe(error))?;
+        let image = image.finish().map_err(Error::Engine)?;
+        let state = Rc::new(RefCell::new(Publication::default()));
         let gate = PublishGate {
             database: self.clone(),
-            base,
-            request: identity.clone(),
-            deadline,
-            decision: decision.clone(),
+            state: state.clone(),
         };
-        let mut writer = SqliteWriter::create_new(directory, image, engine_limits(), gate)
-            .map_err(Error::Engine)?;
-        let executed = writer.execute(statements);
-        let outcome = decision.borrow_mut().take();
-        Self::finish(outcome, executed)
+        let writer = SqliteWriter::open(
+            image,
+            limits,
+            gate,
+            Arc::new(move || Instant::now() >= deadline),
+        )
+        .map_err(|error| self.observe(Error::Engine(error)))?;
+        Ok(Session {
+            database: self.clone(),
+            writer,
+            state,
+            data_root: base.head.data_root.clone(),
+            quota: base.head.quota.clone(),
+            owner_epoch: base.head.owner_epoch,
+            invalidated: false,
+            history_verified: false,
+        })
+    }
+
+    /// Cold activation can retain its freshly verified local file for future
+    /// operations, avoiding a second whole-database download after recovery.
+    pub fn activate_session(
+        &self,
+        principal: u64,
+        expected_revision: u64,
+        nonce: u64,
+        directory: &Path,
+        deadline: Instant,
+    ) -> Result<(Head, Session), Error> {
+        let deadline = self.options.deadline(deadline, true);
+        let base = self.control(principal, expected_revision, deadline)?;
+        Self::ready(&base.head)?;
+        if base.head.owner_instance != self.worker || base.head.active {
+            return Err(Error::Fenced);
+        }
+        let mut session = self.restore(&base, directory, deadline)?;
+        self.verify_results(&base.head, deadline)?;
+        session.history_verified = true;
+        let current = self.read_head(deadline)?;
+        if current.etag != base.etag || current.head != base.head {
+            return Err(Error::Conflict);
+        }
+        let mut head = Self::next(&base.head, nonce)?;
+        head.active = true;
+        self.publish(&base, &head, deadline)?;
+        Ok((head, session))
     }
 
     fn finish(
@@ -714,43 +868,168 @@ impl Database {
         directory: &Path,
         deadline: Instant,
     ) -> Result<TransactionResult, Error> {
+        let deadline = self.options.deadline(deadline, false);
         let snapshot = self.read_head(deadline)?;
         Self::authorize(&snapshot.head, principal, true, false, false)?;
-        let image = self.image(&snapshot.head, deadline)?;
-        let mut writer = SqliteWriter::create_new(directory, image, engine_limits(), ReadOnly)
-            .map_err(Error::Engine)?;
-        writer
+        input_budget(statements, self.options.max_input_bytes)?;
+        scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
+        let mut session = self.restore(&snapshot, directory, deadline)?;
+        session
+            .writer
             .query(statements, Arc::new(move || Instant::now() >= deadline))
             .map_err(Error::Engine)
     }
 }
 
-struct PublishGate {
-    database: Database,
+impl data_tree::DataObjects for Database {
+    fn load(&self, hash: &str, deadline: Instant) -> Result<Payload, Error> {
+        Self::load(self, hash, deadline)
+    }
+
+    fn save(&self, payload: Payload, deadline: Instant) -> Result<String, Error> {
+        self.upload(payload, deadline)
+    }
+}
+
+enum Admission {
+    Existing(Receipt, TransactionResult),
+    Fresh(Snapshot),
+}
+
+struct AttemptContext {
     base: Snapshot,
     request: Request,
     deadline: Instant,
-    decision: Rc<RefCell<Option<Result<Receipt, Error>>>>,
+}
+
+#[derive(Default)]
+struct Publication {
+    context: Option<AttemptContext>,
+    outcome: Option<Result<Receipt, Error>>,
+}
+
+struct PublishGate {
+    database: Database,
+    state: Rc<RefCell<Publication>>,
 }
 
 impl CommitGate for PublishGate {
     fn publish(&mut self, batch: &PageBatch, result: &[u8]) -> GateDecision {
-        let result = self
-            .database
-            .commit(&self.base, &self.request, batch, result, self.deadline);
+        let context = self.state.borrow_mut().context.take();
+        let result = match context {
+            Some(context) => self.database.commit(
+                &context.base,
+                &context.request,
+                batch,
+                result,
+                context.deadline,
+            ),
+            None => Err(Error::Corrupt),
+        };
+        let result = result.map_err(|error| self.database.observe(error));
         let decision = match &result {
             Ok(_) => GateDecision::Accepted,
             Err(_) => GateDecision::Unknown,
         };
-        *self.decision.borrow_mut() = Some(result);
+        self.state.borrow_mut().outcome = Some(result);
         decision
     }
 }
 
-struct ReadOnly;
-impl CommitGate for ReadOnly {
-    fn publish(&mut self, _: &PageBatch, _: &[u8]) -> GateDecision {
-        GateDecision::Rejected
+/// A verified local SQLite cache, never an authorization lease. Every public
+/// operation re-reads HEAD. A different root or quota requires a new session;
+/// an ambiguous/native failure cannot replay SQL through the stopped writer.
+pub struct Session {
+    database: Database,
+    writer: SqliteWriter<PublishGate>,
+    state: Rc<RefCell<Publication>>,
+    data_root: String,
+    quota: DatabaseQuota,
+    owner_epoch: u64,
+    invalidated: bool,
+    history_verified: bool,
+}
+
+impl Session {
+    pub fn page_count(&self) -> u32 {
+        self.writer.page_count()
+    }
+
+    fn align(&mut self, head: &Head, writing: bool) -> Result<(), Error> {
+        if self.invalidated
+            || self.writer.is_stopped()
+            || self.data_root != head.data_root
+            || self.quota != head.quota
+            || (writing && self.owner_epoch != head.owner_epoch)
+        {
+            self.invalidated = true;
+            return Err(Error::StaleSnapshot);
+        }
+        Ok(())
+    }
+
+    pub fn execute(
+        &mut self,
+        principal: u64,
+        identity: &Request,
+        statements: &[Statement],
+        deadline: Instant,
+    ) -> Result<(Receipt, TransactionResult), Error> {
+        let deadline = self.database.options.deadline(deadline, false);
+        match self
+            .database
+            .admit(principal, identity, statements, deadline)?
+        {
+            Admission::Existing(receipt, result) => Ok((receipt, result)),
+            Admission::Fresh(base) => self.execute_prepared(base, identity, statements, deadline),
+        }
+    }
+
+    fn execute_prepared(
+        &mut self,
+        base: Snapshot,
+        identity: &Request,
+        statements: &[Statement],
+        deadline: Instant,
+    ) -> Result<(Receipt, TransactionResult), Error> {
+        self.align(&base.head, true)?;
+        if !self.history_verified {
+            self.database.verify_results(&base.head, deadline)?;
+            self.history_verified = true;
+        }
+        *self.state.borrow_mut() = Publication {
+            context: Some(AttemptContext {
+                base,
+                request: identity.clone(),
+                deadline,
+            }),
+            outcome: None,
+        };
+        let executed = self
+            .writer
+            .execute(statements, Arc::new(move || Instant::now() >= deadline));
+        let mut state = self.state.borrow_mut();
+        state.context = None;
+        let outcome = state.outcome.take();
+        let result = Database::finish(outcome, executed)?;
+        self.data_root = result.0.data_root.clone();
+        Ok(result)
+    }
+
+    pub fn query(
+        &mut self,
+        principal: u64,
+        statements: &[Statement],
+        deadline: Instant,
+    ) -> Result<TransactionResult, Error> {
+        let deadline = self.database.options.deadline(deadline, false);
+        let snapshot = self.database.read_head(deadline)?;
+        Database::authorize(&snapshot.head, principal, true, false, false)?;
+        self.align(&snapshot.head, false)?;
+        input_budget(statements, self.database.options.max_input_bytes)?;
+        self.writer
+            .query(statements, Arc::new(move || Instant::now() >= deadline))
+            .map_err(Error::Engine)
     }
 }
 
@@ -759,3 +1038,9 @@ mod tests;
 
 #[cfg(test)]
 mod review_tests;
+
+#[cfg(test)]
+mod session_tests;
+
+#[cfg(test)]
+mod quarantine_tests;

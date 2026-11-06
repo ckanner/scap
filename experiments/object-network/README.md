@@ -4,6 +4,8 @@
 
 `run.py` 只负责进程与 TCP 故障编排及观察断言。worker 的标准输入 JSON 是实验驱动接口，不是产品 HTTP API 或已发布 SDK。单元覆盖率与本实验分开执行；设置 `LLVM_PROFILE_FILE` 时实验拒绝启动。
 
+这里的小型故障库显式使用 256 KiB 数据配额、每世代 16 个结果条目和 128 MiB 结果保留预算，不依赖或改变生产 `Options::default()` 的 10 GiB 配额。新的 [容量实验](../object-capacity/README.md) 复用同一正式库薄 worker、S3 进程和代理，分别验证真实 1 GiB 数据与默认 10 GiB 边界；两类结果分开报告。
+
 ## 运行
 
 需要 Linux amd64、Python 3 标准库、curl、loopback TCP、Rust 1.90.0 及正式 libSQL 构建环境。后端版本固定为官方 [SeaweedFS 4.51](https://github.com/seaweedfs/seaweedfs/releases/tag/4.51)，源提交 `153ab668c99731a6d29492bf6c61d0b4fa701101`。官方 `linux_amd64.tar.gz` 的 SHA-256 为 `c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee`；须先校验再解压。运行器再次校验实际版本，并记录后端与 worker 的二进制摘要。
@@ -42,7 +44,7 @@ python3 experiments/object-network/run.py \
 
 每次 `execute` 成功后，客户端在继续故障注入前，将事先已知的 scope／主体／请求世代／请求 ID、原 SQL、返回的 receipt、完整编码结果与 `RETURNING` 行写入 `ack-ledger.jsonl` 并 `fsync`。返回身份必须先与调用身份相符。最终读取该独立账本，逐条查证并精确比较全部四个 ACK（包括 DDL、随机值写入和最后一条常量写入），缺失或不一致使验收失败。最终行集合由已观察的随机 `RETURNING` 和已知常量 700 组成，再与恢复后的完整查询逐值比较；不能由最终数据库反推期望值，也不能用行数代替值校验。
 
-公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker PID 和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag；不记录 Authorization 或凭据。
+公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker 的容器与实际 procfs PID、进程启动身份和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag、GET/PUT body 字节；不记录 Authorization 或凭据。
 
 临时身份、配置、数据库和后端日志在另一个私有临时目录；成功或失败均保留供诊断，不应上传其中的身份文件。运行器仅终止自己创建的进程，失败也执行清理。故障代理的工作线程异常单独记录并阻断完成标记。
 

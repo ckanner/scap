@@ -6,6 +6,8 @@ use libsql_sys::rusqlite::hooks::{AuthAction, AuthContext, Authorization, Transa
 use libsql_sys::rusqlite::types::ValueRef;
 use scap_sql::{SqlError, Value};
 
+#[path = "capacity_tests.rs"]
+mod capacity_tests;
 #[path = "image_tests.rs"]
 mod image_tests;
 #[path = "query_tests.rs"]
@@ -43,7 +45,47 @@ fn limits() -> WriterLimits {
         max_vm_steps: 1_000_000,
         max_changed_pages: 1024,
         max_database_pages: 4096,
+        cache_bytes: 8 * 1024 * 1024,
     }
+}
+
+fn uninterrupted() -> ReadInterrupt {
+    Arc::new(|| false)
+}
+
+fn create_writer<G: CommitGate + 'static>(
+    directory: &std::path::Path,
+    bytes: Vec<u8>,
+    limits: WriterLimits,
+    gate: G,
+) -> Result<SqliteWriter<G>, Error> {
+    sql::validate_limits(limits)?;
+    if !bytes.len().is_multiple_of(PAGE_SIZE) {
+        return Err(Error::InvalidImage);
+    }
+    let mut builder = ImageBuilder::create_new(
+        directory,
+        (bytes.len() / PAGE_SIZE) as u32,
+        limits.max_database_pages,
+    )?;
+    if !bytes.is_empty() {
+        builder.append_pages(1, &bytes)?;
+    }
+    SqliteWriter::open(builder.finish()?, limits, gate, uninterrupted())
+}
+
+// The test authority reconstructs small captured snapshots independently. The
+// production engine holds only a page count and never clones a whole image.
+fn captured_image(plan: &Plan) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for (batch, _) in &plan.writes {
+        bytes.resize(batch.size_after as usize * PAGE_SIZE, 0);
+        for page in &batch.pages {
+            let offset = (page.number as usize - 1) * PAGE_SIZE;
+            bytes[offset..offset + PAGE_SIZE].copy_from_slice(&page.bytes);
+        }
+    }
+    bytes
 }
 
 fn image() -> Vec<u8> {
@@ -60,7 +102,7 @@ fn statement(sql: &str) -> Statement {
 fn setup() -> (tempfile::TempDir, SqliteWriter<Gate>, Rc<RefCell<Plan>>) {
     let root = tempfile::tempdir().unwrap();
     let plan = Rc::new(RefCell::new(Plan::default()));
-    let writer = SqliteWriter::create_new(
+    let writer = create_writer(
         &root.path().join("worker"),
         image(),
         limits(),
@@ -87,7 +129,7 @@ fn unknown_rejection_and_authority_panics_never_publish_native_pages() {
             _ => plan.borrow_mut().panic_publish = true,
         }
         let error = writer
-            .execute(&[statement("CREATE TABLE x(n)")])
+            .execute(&[statement("CREATE TABLE x(n)")], uninterrupted())
             .unwrap_err();
         if mode == 1 {
             assert!(matches!(error, Error::Rejected));
@@ -95,7 +137,7 @@ fn unknown_rejection_and_authority_panics_never_publish_native_pages() {
             assert!(matches!(error, Error::OutcomeUnknown));
         }
         assert!(writer.is_stopped());
-        assert!(writer.image().is_empty());
+        assert_eq!(writer.page_count(), 0);
         let count: u64 = writer
             .connection
             .query_row(
@@ -106,7 +148,7 @@ fn unknown_rejection_and_authority_panics_never_publish_native_pages() {
             .unwrap();
         assert_eq!(count, 0);
         assert!(matches!(
-            writer.execute(&[statement("SELECT 1")]),
+            writer.execute(&[statement("SELECT 1")], uninterrupted()),
             Err(Error::Stopped)
         ));
     }
@@ -116,24 +158,27 @@ fn unknown_rejection_and_authority_panics_never_publish_native_pages() {
 fn final_native_failure_cannot_undo_authoritative_acceptance() {
     let (_root, mut writer, _plan) = setup();
     writer.stopped = true;
-    writer.state.borrow_mut().resolution = Some(Resolution::Accepted(Vec::new()));
+    writer.state.borrow_mut().resolution = Some(Resolution::Accepted(0));
     assert!(matches!(
-        writer.finish(Err(Error::InvalidSql)),
+        writer.finish(Err(Error::InvalidSql), &uninterrupted()),
         Err(Error::CommittedButUnavailable)
     ));
     assert!(writer.is_stopped());
-    assert!(matches!(writer.finish(Ok(())), Err(Error::OutcomeUnknown)));
     assert!(matches!(
-        writer.finish(Err(Error::InvalidSql)),
+        writer.finish(Ok(()), &uninterrupted()),
+        Err(Error::OutcomeUnknown)
+    ));
+    assert!(matches!(
+        writer.finish(Err(Error::InvalidSql), &uninterrupted()),
         Err(Error::InvalidSql)
     ));
     writer.state.borrow_mut().attempt = Some(Attempt {
-        base: vec![],
+        base_pages: 0,
         result: vec![255],
     });
-    writer.state.borrow_mut().resolution = Some(Resolution::Accepted(Vec::new()));
+    writer.state.borrow_mut().resolution = Some(Resolution::Accepted(0));
     assert!(matches!(
-        writer.finish(Ok(())),
+        writer.finish(Ok(()), &uninterrupted()),
         Err(Error::CommittedButUnavailable)
     ));
     assert!(writer.is_stopped());
@@ -153,7 +198,7 @@ fn unarmed_or_repeated_gate_calls_cannot_authorize_publication() {
         Error::InvalidSql
     ));
     state.attempt = Some(Attempt {
-        base: image(),
+        base_pages: 0,
         result: empty_result(),
     });
     assert!(!state.decide_caught(PageBatch {
@@ -181,7 +226,7 @@ fn a_closure_gate_sees_physical_facts_before_independent_readers_do() {
     let observer_path = directory.join("database.sqlite");
     let seen = Rc::new(RefCell::new(Vec::new()));
     let captured = seen.clone();
-    let mut writer = SqliteWriter::create_new(
+    let mut writer = create_writer(
         &directory,
         vec![],
         limits(),
@@ -208,10 +253,13 @@ fn a_closure_gate_sees_physical_facts_before_independent_readers_do() {
     )
     .unwrap();
     let result = writer
-        .execute(&[
-            statement("CREATE TABLE x(n)"),
-            statement("INSERT INTO x VALUES(randomblob(8)) RETURNING n"),
-        ])
+        .execute(
+            &[
+                statement("CREATE TABLE x(n)"),
+                statement("INSERT INTO x VALUES(randomblob(8)) RETURNING n"),
+            ],
+            uninterrupted(),
+        )
         .unwrap();
     assert_eq!(seen.borrow()[0], result);
     let reader = libsql_sys::rusqlite::Connection::open(directory.join("database.sqlite")).unwrap();
@@ -230,7 +278,7 @@ fn invalid_restored_bytes_are_rejected_before_native_work() {
     {
         let path = root.path().join(format!("bad-{n}"));
         assert!(matches!(
-            SqliteWriter::create_new(&path, bytes, limits(), Gate(Rc::default())),
+            create_writer(&path, bytes, limits(), Gate(Rc::default())),
             Err(Error::InvalidImage)
         ));
         assert!(!path.exists());
@@ -238,7 +286,7 @@ fn invalid_restored_bytes_are_rejected_before_native_work() {
     let mut bad_structure = vec![0; PAGE_SIZE];
     bad_structure[..16].copy_from_slice(b"SQLite format 3\0");
     bad_structure[16] = 0x10;
-    assert!(SqliteWriter::create_new(
+    assert!(create_writer(
         &root.path().join("bad-structure"),
         bad_structure,
         limits(),
@@ -249,8 +297,8 @@ fn invalid_restored_bytes_are_rejected_before_native_work() {
         let mut invalid = limits();
         match mode {
             0 => invalid.max_database_pages = 0,
-            1 => invalid.max_database_pages = 262_145,
-            _ => invalid.max_changed_pages = invalid.max_database_pages + 1,
+            1 => invalid.max_database_pages = u32::MAX,
+            _ => invalid.cache_bytes = 0,
         }
         assert!(matches!(
             sql::validate_limits(invalid),
@@ -268,7 +316,7 @@ fn native_open_rejects_a_restored_database_above_the_configured_page_budget() {
     drop(plain);
     let state = Rc::new(RefCell::new(GateState::new(Gate(Rc::default()), limits())));
     assert!(matches!(
-        sql::open(&path, GateWal::new(state), limits(), 1),
+        sql::open(&path, GateWal::new(state), limits(), 1, &uninterrupted()),
         Err(Error::InvalidImage)
     ));
 }
@@ -277,29 +325,35 @@ fn native_open_rejects_a_restored_database_above_the_configured_page_budget() {
 fn native_batch_buffers_typed_rows_and_owns_the_physical_baseline() {
     let (root, mut writer, plan) = setup();
     let _created = writer
-        .execute(&[statement(
-            "CREATE TABLE items(id INTEGER PRIMARY KEY, value BLOB)",
-        )])
+        .execute(
+            &[statement(
+                "CREATE TABLE items(id INTEGER PRIMARY KEY, value BLOB)",
+            )],
+            uninterrupted(),
+        )
         .unwrap();
     assert!(!writer.is_stopped());
-    assert!(writer.image().starts_with(b"SQLite format 3\0"));
+    assert_eq!(writer.page_count(), 2);
     let executed = writer
-        .execute(&[
-            Statement {
-                sql: "INSERT INTO items(value) VALUES(?1) RETURNING id,value".into(),
-                parameters: vec![Value::Blob(vec![0, 255, 1])],
-            },
-            Statement {
-                sql: "SELECT ?1,?2,?3,?4,?5".into(),
-                parameters: vec![
-                    Value::Null,
-                    Value::Integer(i64::MAX),
-                    Value::Real(1.25),
-                    Value::Text("中文".into()),
-                    Value::Blob(vec![8]),
-                ],
-            },
-        ])
+        .execute(
+            &[
+                Statement {
+                    sql: "INSERT INTO items(value) VALUES(?1) RETURNING id,value".into(),
+                    parameters: vec![Value::Blob(vec![0, 255, 1])],
+                },
+                Statement {
+                    sql: "SELECT ?1,?2,?3,?4,?5".into(),
+                    parameters: vec![
+                        Value::Null,
+                        Value::Integer(i64::MAX),
+                        Value::Real(1.25),
+                        Value::Text("中文".into()),
+                        Value::Blob(vec![8]),
+                    ],
+                },
+            ],
+            uninterrupted(),
+        )
         .unwrap();
     assert_eq!(
         executed.statements[0].rows[0],
@@ -316,13 +370,12 @@ fn native_batch_buffers_typed_rows_and_owns_the_physical_baseline() {
         plan.borrow().writes[1].1,
         scap_sql::encode_result(&executed, limits().sql).unwrap()
     );
-    let recovered = writer.image().to_vec();
+    let recovered = captured_image(&plan.borrow());
     drop(writer);
     let mut second =
-        SqliteWriter::create_new(&root.path().join("next"), recovered, limits(), Gate(plan))
-            .unwrap();
+        create_writer(&root.path().join("next"), recovered, limits(), Gate(plan)).unwrap();
     let read = second
-        .execute(&[statement("SELECT value FROM items")])
+        .execute(&[statement("SELECT value FROM items")], uninterrupted())
         .unwrap();
     assert_eq!(
         read.statements[0].rows[0],
@@ -333,19 +386,21 @@ fn native_batch_buffers_typed_rows_and_owns_the_physical_baseline() {
 #[test]
 fn no_op_and_read_only_transactions_require_durable_decisions() {
     let (_root, mut writer, plan) = setup();
-    let first = writer.execute(&[statement("SELECT 7")]).unwrap();
+    let first = writer
+        .execute(&[statement("SELECT 7")], uninterrupted())
+        .unwrap();
     assert_eq!(first.statements[0].rows, vec![vec![Value::Integer(7)]]);
     assert_eq!(plan.borrow().writes.len(), 1);
-    assert!(writer.image().is_empty());
+    assert_eq!(writer.page_count(), 0);
     assert_eq!(plan.borrow().writes.len(), 1);
     plan.borrow_mut().decisions.push_back(GateDecision::Unknown);
     assert!(matches!(
-        writer.execute(&[statement("SELECT 8")]),
+        writer.execute(&[statement("SELECT 8")], uninterrupted()),
         Err(Error::OutcomeUnknown)
     ));
     assert!(writer.is_stopped());
     assert!(matches!(
-        writer.execute(&[statement("SELECT 8")]),
+        writer.execute(&[statement("SELECT 8")], uninterrupted()),
         Err(Error::Stopped)
     ));
 }
@@ -366,19 +421,28 @@ fn input_and_sql_failures_stop_and_rollback_the_whole_attempt() {
         "SELECT load_extension('x')",
     ] {
         let (_root, mut writer, plan) = setup();
-        assert!(writer.execute(&[statement(sql)]).is_err(), "{sql}");
+        assert!(
+            writer.execute(&[statement(sql)], uninterrupted()).is_err(),
+            "{sql}"
+        );
         assert!(writer.is_stopped());
         assert!(plan.borrow().writes.is_empty());
     }
     let (_root, mut writer, plan) = setup();
-    assert!(matches!(writer.execute(&[]), Err(Error::Sql(_))));
+    assert!(matches!(
+        writer.execute(&[], uninterrupted()),
+        Err(Error::Sql(_))
+    ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     assert!(writer
-        .execute(&[
-            statement("CREATE TABLE x(n UNIQUE)"),
-            statement("INSERT INTO x VALUES(1),(1)")
-        ])
+        .execute(
+            &[
+                statement("CREATE TABLE x(n UNIQUE)"),
+                statement("INSERT INTO x VALUES(1),(1)")
+            ],
+            uninterrupted()
+        )
         .is_err());
     assert!(plan.borrow().writes.is_empty());
     let count: u64 = writer
@@ -391,11 +455,15 @@ fn input_and_sql_failures_stop_and_rollback_the_whole_attempt() {
         .unwrap();
     assert_eq!(count, 0);
     let (_root, mut writer, plan) = setup();
-    assert!(writer.execute(&[statement("SELECT ?1")]).is_err());
+    assert!(writer
+        .execute(&[statement("SELECT ?1")], uninterrupted())
+        .is_err());
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.connection.execute_batch("BEGIN IMMEDIATE").unwrap();
-    assert!(writer.execute(&[statement("SELECT 1")]).is_err());
+    assert!(writer
+        .execute(&[statement("SELECT 1")], uninterrupted())
+        .is_err());
     assert!(plan.borrow().writes.is_empty());
 }
 
@@ -404,49 +472,49 @@ fn result_limits_and_vm_budget_prevent_unbounded_buffering() {
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_columns = 1;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 1,2")]),
+        writer.execute(&[statement("SELECT 1,2")], uninterrupted()),
         Err(Error::ResultLimit)
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_value_bytes = 1;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 1 AS long_name")]),
+        writer.execute(&[statement("SELECT 1 AS long_name")], uninterrupted()),
         Err(Error::ResultLimit)
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_result_bytes = 12;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 1 AS very_long_name")]),
+        writer.execute(&[statement("SELECT 1 AS very_long_name")], uninterrupted()),
         Err(Error::ResultLimit)
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_rows = 1;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 1 UNION ALL SELECT 2")]),
+        writer.execute(&[statement("SELECT 1 UNION ALL SELECT 2")], uninterrupted()),
         Err(Error::ResultLimit)
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_value_bytes = 2;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 'long value' AS x")]),
+        writer.execute(&[statement("SELECT 'long value' AS x")], uninterrupted()),
         Err(Error::ResultLimit)
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_result_bytes = 12;
     assert!(matches!(
-        writer.execute(&[statement("SELECT NULL AS x")]),
+        writer.execute(&[statement("SELECT NULL AS x")], uninterrupted()),
         Err(Error::Sql(SqlError::Limit))
     ));
     assert!(plan.borrow().writes.is_empty());
     let (_root, mut writer, plan) = setup();
     writer.limits.max_vm_steps = 1;
     assert!(matches!(
-        writer.execute(&[statement("SELECT 1")]),
+        writer.execute(&[statement("SELECT 1")], uninterrupted()),
         Err(Error::Sqlite(_))
     ));
     assert!(plan.borrow().writes.is_empty());
@@ -466,7 +534,7 @@ fn direct_affected_rows_exclude_trigger_changes_and_stale_counters() {
             statement("SELECT * FROM x"),
             statement("CREATE TABLE other(n)"),
             statement("UPDATE x SET n=9 WHERE n=8"),
-        ])
+        ], uninterrupted())
         .unwrap();
     let affected: Vec<_> = completed
         .statements
@@ -483,7 +551,7 @@ fn fresh_directory_and_image_validation_reject_reuse_and_bad_inputs() {
     std::fs::create_dir(&existing).unwrap();
     std::fs::write(existing.join("database.sqlite-wal"), b"old").unwrap();
     assert!(matches!(
-        SqliteWriter::create_new(&existing, image(), limits(), Gate(Rc::default())),
+        create_writer(&existing, image(), limits(), Gate(Rc::default())),
         Err(Error::Io(_))
     ));
     assert_eq!(
@@ -491,7 +559,7 @@ fn fresh_directory_and_image_validation_reject_reuse_and_bad_inputs() {
         b"old"
     );
     assert!(matches!(
-        SqliteWriter::create_new(
+        create_writer(
             &root.path().join("missing/worker"),
             image(),
             limits(),
@@ -502,7 +570,7 @@ fn fresh_directory_and_image_validation_reject_reuse_and_bad_inputs() {
     let path = root.path().join("not-sqlite");
     std::fs::write(&path, vec![1; PAGE_SIZE]).unwrap();
     let state = Rc::new(RefCell::new(GateState::new(Gate(Rc::default()), limits())));
-    assert!(sql::open(&path, GateWal::new(state), limits(), 4096).is_err());
+    assert!(sql::open(&path, GateWal::new(state), limits(), 4096, &uninterrupted()).is_err());
     let db = libsql_sys::rusqlite::Connection::open(root.path().join("wide")).unwrap();
     db.execute_batch("PRAGMA page_size=8192; CREATE TABLE x(n)")
         .unwrap();
@@ -544,7 +612,7 @@ fn native_limit_configuration_is_bounded_and_checked() {
     assert!(sql::validate_limits(limits()).is_ok());
     let root = tempfile::tempdir().unwrap();
     assert!(matches!(
-        SqliteWriter::create_new(
+        create_writer(
             &root.path().join("invalid"),
             image(),
             invalid,
@@ -754,7 +822,7 @@ fn vm_exhaustion_in_result_counters_never_reaches_authority() {
     for budget in 1..40 {
         let (_root, mut writer, plan) = setup();
         writer.limits.max_vm_steps = budget;
-        match writer.execute(&[statement("SELECT 1")]) {
+        match writer.execute(&[statement("SELECT 1")], uninterrupted()) {
             Ok(completed) => {
                 successes += 1;
                 assert_eq!(completed.statements[0].rows, vec![vec![Value::Integer(1)]]);
@@ -798,7 +866,7 @@ fn native_gate_rejects_unsupported_pages_and_overlarge_capture() {
     let (_root, mut writer, plan) = setup();
     writer.state.borrow_mut().limits.max_changed_pages = 1;
     assert!(matches!(
-        writer.execute(&[statement("CREATE TABLE x(n)")]),
+        writer.execute(&[statement("CREATE TABLE x(n)")], uninterrupted()),
         Err(Error::Sqlite(_))
     ));
     assert!(plan.borrow().writes.is_empty());

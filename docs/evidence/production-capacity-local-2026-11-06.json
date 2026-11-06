@@ -1,0 +1,6020 @@
+{
+  "schema_version": 1,
+  "recorded_date_utc": "2026-11-06",
+  "status": "local-v2-capacity-and-prototype-gates-passed",
+  "scope": "S3-authoritative single-database SQLite v2; real 1 GiB payload and default 10 GiB logical file boundary on a local S3-compatible endpoint",
+  "tested_source": {
+    "commit": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+    "tree": "add53eadab998308a7a6cc5f962ec827fa8ee648",
+    "tracked_files": 88,
+    "source_sha256": "bee16f10588a3527e1f7831bb3a47ddb269633b3c5e6d594b37bebe2708a0125",
+    "before_after_verified": true,
+    "source_identity_scope": "git-tracked-source-only"
+  },
+  "release_build": {
+    "source_commit": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+    "profile": "release",
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "experiments/object-network/Cargo.toml",
+      "--message-format=json-render-diagnostics"
+    ],
+    "exit_code": 0,
+    "status": "passed",
+    "input_sha256": "e4802dd4117acdf34719d87353bffcb106e445634c412546787f0f02a42dac47",
+    "binary": {
+      "path": "/workspace/scratch/cf20e64ae766/capacity-build-target/release/scap-object-network",
+      "sha256": "055b55b678624a0a38cb7b16f45ae363254172a22b096858470d50ada9f048ed"
+    },
+    "native_archives": {
+      "/workspace/scratch/cf20e64ae766/capacity-build-target/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+    },
+    "versions": {
+      "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+      "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+    }
+  },
+  "release_build_input_files": 41,
+  "rust_unit": {
+    "stable_unit_tests": {
+      "passed": 130,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "per_crate": {
+        "scap-object": 65,
+        "scap-object-sqlite": 49,
+        "scap-object-store": 7,
+        "scap-sql": 9
+      }
+    },
+    "coverage_unit_tests": {
+      "passed": 130,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "per_crate": {
+        "scap-object": 65,
+        "scap-object-sqlite": 49,
+        "scap-object-store": 7,
+        "scap-sql": 9
+      }
+    },
+    "production_file_count": 13,
+    "totals": {
+      "lines": {
+        "covered": 2743,
+        "count": 2743
+      },
+      "functions": {
+        "covered": 241,
+        "count": 241
+      },
+      "regions": {
+        "covered": 4157,
+        "count": 4157
+      },
+      "branches": {
+        "covered": 518,
+        "count": 518
+      }
+    },
+    "files": [
+      {
+        "path": "crates/scap-object-sqlite/src/config.rs",
+        "lines": {
+          "covered": 106,
+          "count": 106
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 177,
+          "count": 177
+        },
+        "branches": {
+          "covered": 14,
+          "count": 14
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file.rs",
+        "lines": {
+          "covered": 123,
+          "count": 123
+        },
+        "functions": {
+          "covered": 16,
+          "count": 16
+        },
+        "regions": {
+          "covered": 149,
+          "count": 149
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/gate.rs",
+        "lines": {
+          "covered": 104,
+          "count": 104
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 123,
+          "count": 123
+        },
+        "branches": {
+          "covered": 20,
+          "count": 20
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image.rs",
+        "lines": {
+          "covered": 64,
+          "count": 64
+        },
+        "functions": {
+          "covered": 3,
+          "count": 3
+        },
+        "regions": {
+          "covered": 74,
+          "count": 74
+        },
+        "branches": {
+          "covered": 38,
+          "count": 38
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "lines": {
+          "covered": 116,
+          "count": 116
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 168,
+          "count": 168
+        },
+        "branches": {
+          "covered": 12,
+          "count": 12
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query.rs",
+        "lines": {
+          "covered": 46,
+          "count": 46
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 75,
+          "count": 75
+        },
+        "branches": {
+          "covered": 6,
+          "count": 6
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/sql.rs",
+        "lines": {
+          "covered": 325,
+          "count": 325
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 356,
+          "count": 356
+        },
+        "branches": {
+          "covered": 46,
+          "count": 46
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/lib.rs",
+        "lines": {
+          "covered": 201,
+          "count": 201
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 282,
+          "count": 282
+        },
+        "branches": {
+          "covered": 68,
+          "count": 68
+        }
+      },
+      {
+        "path": "crates/scap-object/src/data_tree.rs",
+        "lines": {
+          "covered": 263,
+          "count": 263
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 416,
+          "count": 416
+        },
+        "branches": {
+          "covered": 60,
+          "count": 60
+        }
+      },
+      {
+        "path": "crates/scap-object/src/format.rs",
+        "lines": {
+          "covered": 264,
+          "count": 264
+        },
+        "functions": {
+          "covered": 28,
+          "count": 28
+        },
+        "regions": {
+          "covered": 515,
+          "count": 515
+        },
+        "branches": {
+          "covered": 22,
+          "count": 22
+        }
+      },
+      {
+        "path": "crates/scap-object/src/lib.rs",
+        "lines": {
+          "covered": 828,
+          "count": 828
+        },
+        "functions": {
+          "covered": 72,
+          "count": 72
+        },
+        "regions": {
+          "covered": 1303,
+          "count": 1303
+        },
+        "branches": {
+          "covered": 112,
+          "count": 112
+        }
+      },
+      {
+        "path": "crates/scap-object/src/options.rs",
+        "lines": {
+          "covered": 95,
+          "count": 95
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 111,
+          "count": 111
+        },
+        "branches": {
+          "covered": 36,
+          "count": 36
+        }
+      },
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "lines": {
+          "covered": 208,
+          "count": 208
+        },
+        "functions": {
+          "covered": 18,
+          "count": 18
+        },
+        "regions": {
+          "covered": 408,
+          "count": 408
+        },
+        "branches": {
+          "covered": 60,
+          "count": 60
+        }
+      }
+    ],
+    "every_production_file_exact_four_metric_100_percent": true,
+    "integration_or_research_profiles_used_for_unit_coverage": false
+  },
+  "tooling_unit": {
+    "tests_passed": 74,
+    "coverage_py_version": "7.10.6",
+    "statements": {
+      "covered": 401,
+      "count": 401
+    },
+    "branches": {
+      "covered": 184,
+      "count": 184
+    },
+    "missing_lines": 0,
+    "missing_branches": 0,
+    "partial_branches": 0,
+    "excluded_lines": 0
+  },
+  "bounded_model": {
+    "unit_tests_passed": 89,
+    "positive_histories": 664,
+    "directed_histories": 24,
+    "race_histories": 640,
+    "negative_controls": 30,
+    "negative_controls_rejected": 30,
+    "jsonl_artifacts_verified": 694,
+    "positive_raw_events_recounted": 18702,
+    "scheduler_counters_reported": {
+      "context_qualified_scheduler_states": 2096,
+      "distinct_scheduler_transitions": 2344,
+      "executed_scheduler_steps": 14928
+    },
+    "scheduler_counter_verification_limit": "Summary and explore.log agree, and counting definitions were inspected. Graph state/edge sets were not persisted; these three graph counters were not independently reconstructed from JSONL histories.",
+    "exploration_window_limit": 2,
+    "historical_product_candidate_window_limit": 128,
+    "historical_profile_scope": "The preserved N0 model candidate profile of 128 is historical. The finite two-slot exploration does not validate v2 default 4096/max 65536 sizing, byte-budget closure, a positive wall-clock retention interval, or GiB database capacity. Reviewed current product documentation does not state 128 as the v2 default.",
+    "production_slo_passed": false,
+    "real_s3_tested": false,
+    "real_sqlite_tested": false
+  },
+  "real_s3_http_contracts": {
+    "ack_audit_complete": true,
+    "ack_audited_count": 4,
+    "ack_ledger_sha256": "2ca52501eab93a6e92579cd9f189f7c1d395d6c465b8cb4588b803264bf2b4dc",
+    "ack_mismatch_count": 0,
+    "ack_mismatches": [],
+    "acknowledged_effect_rows": 3,
+    "aws_endpoint_gate": "NOT_RUN",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "build_input_sha256": "e4802dd4117acdf34719d87353bffcb106e445634c412546787f0f02a42dac47",
+    "build_record_verified": true,
+    "completed_contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state"
+    ],
+    "diagnostic": false,
+    "production_slo_passed": false,
+    "proxy_errors": [],
+    "schema": 1,
+    "status": "passed",
+    "unit_coverage_contribution": false,
+    "worker_binary_sha256": "055b55b678624a0a38cb7b16f45ae363254172a22b096858470d50ada9f048ed"
+  },
+  "capacity": {
+    "gib1": {
+      "ack_audit_complete": true,
+      "ack_audited_count": 39,
+      "ack_ledger_sha256": "2e74b90fe5ff5281588efc647d5624ce2fec1d3bc9d13b64ae6d7fb6554e3145",
+      "ack_mismatch_count": 0,
+      "ack_mismatches": [],
+      "acknowledged_payload_bytes": 1073741824,
+      "aws_endpoint_gate": "NOT_RUN",
+      "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+      "backend_capacity": {
+        "max_volumes": 32,
+        "preallocate": false,
+        "volume_size_mib": 1024
+      },
+      "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+      "blob_audit_complete": true,
+      "blob_audited_bytes": 1073741824,
+      "blob_audited_count": 16384,
+      "blob_bytes": 65536,
+      "blob_mismatch_count": 0,
+      "blob_mismatches": [],
+      "build_input_sha256": "e4802dd4117acdf34719d87353bffcb106e445634c412546787f0f02a42dac47",
+      "build_record_verified": true,
+      "cleanup_errors": [],
+      "completed_checks": [
+        "one_gib_independent_payload_committed",
+        "warm_point_updates_do_not_transfer_whole_gib",
+        "warm_session_rechecks_permission_and_exact_root",
+        "unknown_resolved_without_sql_replay",
+        "all_compute_and_backend_process_loss_recovered_from_s3",
+        "every_client_ack_retains_exact_receipt_and_original_result",
+        "every_blob_matches_independent_preinvocation_hash",
+        "hot_cache_cannot_bypass_unavailable_fresh_head"
+      ],
+      "default_options_unchanged": true,
+      "default_quota_bytes": 10737418240,
+      "diagnostic": false,
+      "disk_observations": [
+        {
+          "backend": {
+            "allocated_bytes": 1108840448,
+            "files": 93,
+            "logical_bytes": 1108571196
+          },
+          "compute": {
+            "allocated_bytes": 1082261504,
+            "files": 3,
+            "logical_bytes": 1082261504
+          },
+          "database_files": [
+            {
+              "allocated_bytes": 1082163200,
+              "directory": "writer-cache",
+              "logical_bytes": 1082163200
+            }
+          ],
+          "stage": "before_compute_loss"
+        },
+        {
+          "backend": {
+            "allocated_bytes": 1106890752,
+            "files": 109,
+            "logical_bytes": 1106573283
+          },
+          "compute": {
+            "allocated_bytes": 1082200064,
+            "files": 3,
+            "logical_bytes": 1082195968
+          },
+          "database_files": [
+            {
+              "allocated_bytes": 1082167296,
+              "directory": "recovered-cache",
+              "logical_bytes": 1082163200
+            }
+          ],
+          "stage": "after_s3_only_recovery"
+        }
+      ],
+      "full_initial_materialization": true,
+      "gc_enabled": false,
+      "history_sha256": "efa7694c6ffd731f0293948af8251310388fbdab9c67e0c51853292a884c227f",
+      "hot_cache_blackhole_elapsed_seconds": 0.20185267899978498,
+      "input_ledger_sha256": "6704f83b132400ac3ec1e5a3fafac770d01179ca04019b4f2eacdd3c05d54e75",
+      "lazy_database_reads": false,
+      "maximum_bulk_payload_bytes": 33554432,
+      "maximum_bulk_rows": 512,
+      "observed_blob_hashes_sha256": "5b5892c729a8c4d994ee6c6d78aa988d91d0310492d6144d08adc115ed908f2d",
+      "operation_budget_ms": 30000,
+      "payload_generator": "independent os.urandom bytes persisted and hashed before invocation",
+      "point_mutations": {
+        "lost_head_result": {
+          "database_payload_bytes": 1073741824,
+          "get_body_amplification": 9.2257080078125,
+          "get_requests": 19,
+          "get_response_bytes": 604616,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 4.47186279296875,
+          "put_request_bytes": 293068,
+          "put_requests": 8,
+          "put_success_bytes": 293068,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "point_1gib_beginning": {
+          "database_payload_bytes": 1073741824,
+          "get_body_amplification": 9.020492553710938,
+          "get_requests": 16,
+          "get_response_bytes": 591167,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 24
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 4.456573486328125,
+          "put_request_bytes": 292066,
+          "put_requests": 8,
+          "put_success_bytes": 292066,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "point_1gib_end": {
+          "database_payload_bytes": 1073741824,
+          "get_body_amplification": 9.657577514648438,
+          "get_requests": 18,
+          "get_response_bytes": 632919,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 4.771514892578125,
+          "put_request_bytes": 312706,
+          "put_requests": 9,
+          "put_success_bytes": 312706,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "point_1gib_middle": {
+          "database_payload_bytes": 1073741824,
+          "get_body_amplification": 13.037307739257812,
+          "get_requests": 18,
+          "get_response_bytes": 854413,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 6.4631805419921875,
+          "put_request_bytes": 423571,
+          "put_requests": 9,
+          "put_success_bytes": 423571,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "point_64mib": {
+          "database_payload_bytes": 67108864,
+          "get_body_amplification": 8.624313354492188,
+          "get_requests": 16,
+          "get_response_bytes": 565203,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 24
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 4.314178466796875,
+          "put_request_bytes": 282734,
+          "put_requests": 8,
+          "put_success_bytes": 282734,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "root_change": {
+          "database_payload_bytes": 1073741824,
+          "get_body_amplification": 13.059310913085938,
+          "get_requests": 18,
+          "get_response_bytes": 855855,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 6.4710235595703125,
+          "put_request_bytes": 424085,
+          "put_requests": 9,
+          "put_success_bytes": 424085,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        }
+      },
+      "pre_loss_authority": {
+        "database_bytes": 1082163200,
+        "head": {
+          "active": true,
+          "auth_epoch": 4,
+          "data_root": "52883cac81e2f6f82a12f7f26938a1be554ce8c21703c6fe5dbe728311b1b009",
+          "format": 2,
+          "lifecycle": "ready",
+          "owner_epoch": 1,
+          "owner_instance": 1,
+          "policy": [
+            {
+              "admin": true,
+              "principal": 17,
+              "read": true,
+              "write": true
+            },
+            {
+              "admin": false,
+              "principal": 18,
+              "read": true,
+              "write": false
+            }
+          ],
+          "quota": {
+            "max_bytes": 10737418240
+          },
+          "request_epoch": 1,
+          "retention": {
+            "max_entries": 4096,
+            "max_result_bytes": 268435456
+          },
+          "revision": 44,
+          "scope": {
+            "database": 199,
+            "deployment": 177,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 188
+          },
+          "sequence": 39,
+          "transition": {
+            "nonce": 39,
+            "revision": 44
+          },
+          "windows": [
+            {
+              "count": 39,
+              "epoch": 1,
+              "result_bytes": 3393,
+              "root": "2f91194f1bfef525444933202b432a49e25101f61c67d2b7cec6cc87f44da037"
+            }
+          ]
+        },
+        "page_count": 264200
+      },
+      "production_slo_passed": false,
+      "profile": "gib1",
+      "proxy_errors": [],
+      "query_batch_rows": 64,
+      "recovery_budget_ms": 1800000,
+      "resources": {
+        "errors": [],
+        "external_procfs_child_rss": "NOT_USED_self_sampling_avoids_namespace_ambiguity",
+        "kernel_child_usage": [
+          {
+            "available": true,
+            "maxrss_bytes": 148668416,
+            "pid": 145,
+            "role": "worker-1",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 12.400346,
+            "user_seconds": 12.304354
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 78196736,
+            "pid": 17902,
+            "role": "worker-2",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 6.023399,
+            "user_seconds": 2.614516
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 117714944,
+            "pid": 20,
+            "role": "backend-master",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 2.347436,
+            "user_seconds": 3.6128169999999997
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 136896512,
+            "pid": 21,
+            "role": "backend-volume",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 9.536024,
+            "user_seconds": 13.765932
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 404258816,
+            "pid": 22,
+            "role": "backend-filer",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 11.153549,
+            "user_seconds": 17.020144
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 139087872,
+            "pid": 23,
+            "role": "backend-s3",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 17.832504,
+            "user_seconds": 39.690793
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 86671360,
+            "pid": 26496,
+            "role": "worker-3",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 8.095606,
+            "user_seconds": 3.8569
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 110137344,
+            "pid": 26304,
+            "role": "backend-master",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 1.698526,
+            "user_seconds": 2.825534
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 136855552,
+            "pid": 26305,
+            "role": "backend-volume",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 2.246112,
+            "user_seconds": 4.355167
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 292823040,
+            "pid": 26306,
+            "role": "backend-filer",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 2.393722,
+            "user_seconds": 4.510594
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 128643072,
+            "pid": 26307,
+            "role": "backend-s3",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 5.263113,
+            "user_seconds": 11.028514
+          }
+        ],
+        "maximum_shared_cgroup_memory_current": 8537133056,
+        "minimum_filesystem_free_bytes": 39266369536,
+        "samples": 1994,
+        "shared_cgroup_includes_other_processes_and_page_cache": true,
+        "worker_self_procfs_hwm_bytes": {
+          "1": 149254144,
+          "2": 78778368,
+          "3": 87363584
+        }
+      },
+      "schema": 1,
+      "status": "passed",
+      "unit_coverage_contribution": false,
+      "worker_binary_sha256": "055b55b678624a0a38cb7b16f45ae363254172a22b096858470d50ada9f048ed",
+      "selected_object_metrics": {
+        "ack_audit": {
+          "get_requests": 117,
+          "get_response_bytes": 411689,
+          "head_puts": 0,
+          "http_statuses": {
+            "200": 117
+          },
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "blob_audit": {
+          "get_requests": 258,
+          "get_response_bytes": 179052,
+          "head_puts": 0,
+          "http_statuses": {
+            "200": 258
+          },
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "cold_recovery": {
+          "get_requests": 8338,
+          "get_response_bytes": 1084290471,
+          "head_puts": 2,
+          "http_statuses": {
+            "200": 8340
+          },
+          "put_request_bytes": 1389,
+          "put_requests": 2,
+          "put_success_bytes": 1389,
+          "put_successes": 2,
+          "unique_successful_put_keys": 1
+        },
+        "hot_cache_head_blackhole": {
+          "get_requests": 1,
+          "get_response_bytes": 0,
+          "head_puts": 0,
+          "http_statuses": {},
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "lost_head_result": {
+          "get_requests": 21,
+          "get_response_bytes": 605563,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 29
+          },
+          "put_request_bytes": 293068,
+          "put_requests": 8,
+          "put_success_bytes": 293068,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "point_1gib_beginning": {
+          "get_requests": 16,
+          "get_response_bytes": 591167,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 24
+          },
+          "put_request_bytes": 292066,
+          "put_requests": 8,
+          "put_success_bytes": 292066,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "point_1gib_end": {
+          "get_requests": 18,
+          "get_response_bytes": 632919,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "put_request_bytes": 312706,
+          "put_requests": 9,
+          "put_success_bytes": 312706,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "point_1gib_middle": {
+          "get_requests": 18,
+          "get_response_bytes": 854413,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "put_request_bytes": 423571,
+          "put_requests": 9,
+          "put_success_bytes": 423571,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "point_64mib": {
+          "get_requests": 16,
+          "get_response_bytes": 565203,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 24
+          },
+          "put_request_bytes": 282734,
+          "put_requests": 8,
+          "put_success_bytes": 282734,
+          "put_successes": 8,
+          "unique_successful_put_keys": 8
+        },
+        "reader_recovery": {
+          "get_requests": 8334,
+          "get_response_bytes": 1084287911,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 8335
+          },
+          "put_request_bytes": 694,
+          "put_requests": 1,
+          "put_success_bytes": 694,
+          "put_successes": 1,
+          "unique_successful_put_keys": 1
+        },
+        "revoked_reader": {
+          "get_requests": 8,
+          "get_response_bytes": 4497,
+          "head_puts": 2,
+          "http_statuses": {
+            "200": 10
+          },
+          "put_request_bytes": 1331,
+          "put_requests": 2,
+          "put_success_bytes": 1331,
+          "put_successes": 2,
+          "unique_successful_put_keys": 1
+        },
+        "root_change": {
+          "get_requests": 19,
+          "get_response_bytes": 856550,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 28
+          },
+          "put_request_bytes": 424085,
+          "put_requests": 9,
+          "put_success_bytes": 424085,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "setup": {
+          "get_requests": 17,
+          "get_response_bytes": 13282,
+          "head_puts": 3,
+          "http_statuses": {
+            "200": 27
+          },
+          "put_request_bytes": 12012,
+          "put_requests": 10,
+          "put_success_bytes": 12012,
+          "put_successes": 10,
+          "unique_successful_put_keys": 8
+        }
+      },
+      "bulk_object_metrics_scope": "Every per-batch request and byte count remains in the original summary and history; omitted here only for readability."
+    },
+    "default-quota": {
+      "ack_audit_complete": true,
+      "ack_audited_count": 363,
+      "ack_ledger_sha256": "dc92490604e0acf14528db4f1b250881a8db199dda54fa50d0055295793e4b76",
+      "ack_mismatch_count": 0,
+      "ack_mismatches": [],
+      "acknowledged_payload_bytes": 10653794304,
+      "aws_endpoint_gate": "NOT_RUN",
+      "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+      "backend_capacity": {
+        "max_volumes": 32,
+        "preallocate": false,
+        "volume_size_mib": 1024
+      },
+      "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+      "blob_audit_complete": true,
+      "blob_audited_bytes": 10653794304,
+      "blob_audited_count": 162564,
+      "blob_bytes": 65536,
+      "blob_mismatch_count": 0,
+      "blob_mismatches": [],
+      "build_input_sha256": "e4802dd4117acdf34719d87353bffcb106e445634c412546787f0f02a42dac47",
+      "build_record_verified": true,
+      "cleanup_errors": [],
+      "completed_checks": [
+        "default_ten_gib_physical_boundary_reached",
+        "quota_rejects_new_page_without_head_change",
+        "all_compute_and_backend_process_loss_recovered_from_s3",
+        "every_client_ack_retains_exact_receipt_and_original_result",
+        "every_blob_matches_independent_preinvocation_hash",
+        "hot_cache_cannot_bypass_unavailable_fresh_head"
+      ],
+      "default_options_unchanged": true,
+      "default_quota_bytes": 10737418240,
+      "diagnostic": false,
+      "disk_observations": [
+        {
+          "backend": {
+            "allocated_bytes": 11056779264,
+            "files": 130,
+            "logical_bytes": 11056302813
+          },
+          "compute": {
+            "allocated_bytes": 10737516544,
+            "files": 3,
+            "logical_bytes": 10737516544
+          },
+          "database_files": [
+            {
+              "allocated_bytes": 10737418240,
+              "directory": "writer-cache",
+              "logical_bytes": 10737418240
+            }
+          ],
+          "stage": "before_compute_loss"
+        },
+        {
+          "backend": {
+            "allocated_bytes": 11059150848,
+            "files": 150,
+            "logical_bytes": 11058633714
+          },
+          "compute": {
+            "allocated_bytes": 10737455104,
+            "files": 3,
+            "logical_bytes": 10737451008
+          },
+          "database_files": [
+            {
+              "allocated_bytes": 10737422336,
+              "directory": "recovered-cache",
+              "logical_bytes": 10737418240
+            }
+          ],
+          "stage": "after_s3_only_recovery"
+        }
+      ],
+      "full_initial_materialization": true,
+      "gc_enabled": false,
+      "history_sha256": "4bc06adca6cacddbe1370f095e10c6e594dc1186680b74ba38d9ac70c59e4f7d",
+      "hot_cache_blackhole_elapsed_seconds": 0.20674356400013494,
+      "input_ledger_sha256": "4cbb192b216ef7229c87266f3b2a783698d57490d1d6b7e71ab654228286182c",
+      "lazy_database_reads": false,
+      "maximum_bulk_payload_bytes": 33554432,
+      "maximum_bulk_rows": 512,
+      "observed_blob_hashes_sha256": "b6cf097aaf2fbe2887b4a442ea67f1578191bd724ab9aa789951da2fec1444c2",
+      "operation_budget_ms": 30000,
+      "payload_generator": "independent os.urandom bytes persisted and hashed before invocation",
+      "point_mutations": {
+        "point_at_default_quota": {
+          "database_payload_bytes": 10653794304,
+          "get_body_amplification": 13.042572021484375,
+          "get_requests": 18,
+          "get_response_bytes": 854758,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 27
+          },
+          "logical_changed_payload_bytes": 65536,
+          "put_body_amplification": 5.8751068115234375,
+          "put_request_bytes": 385031,
+          "put_requests": 9,
+          "put_success_bytes": 385031,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        }
+      },
+      "pre_loss_authority": {
+        "database_bytes": 10737418240,
+        "head": {
+          "active": true,
+          "auth_epoch": 1,
+          "data_root": "1a8e91f071261b086803571f7d64d277c246cb91a8b88ad7b9ef336b264e0565",
+          "format": 2,
+          "lifecycle": "ready",
+          "owner_epoch": 1,
+          "owner_instance": 1,
+          "policy": [
+            {
+              "admin": true,
+              "principal": 17,
+              "read": true,
+              "write": true
+            }
+          ],
+          "quota": {
+            "max_bytes": 10737418240
+          },
+          "request_epoch": 1,
+          "retention": {
+            "max_entries": 4096,
+            "max_result_bytes": 268435456
+          },
+          "revision": 365,
+          "scope": {
+            "database": 199,
+            "deployment": 177,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 188
+          },
+          "sequence": 363,
+          "transition": {
+            "nonce": 363,
+            "revision": 365
+          },
+          "windows": [
+            {
+              "count": 363,
+              "epoch": 1,
+              "result_bytes": 31581,
+              "root": "ad1c27e130d1e38c6dfaffdc5c85a28ddc1a80cb85917aa5a121cdae606e2abf"
+            }
+          ]
+        },
+        "page_count": 2621440
+      },
+      "production_slo_passed": false,
+      "profile": "default-quota",
+      "proxy_errors": [],
+      "query_batch_rows": 64,
+      "quota_boundary": {
+        "maximum_bytes": 10737418240,
+        "metadata_tail_tables": 41,
+        "observed_page_count": 2621440,
+        "rejected_request": {
+          "epoch": 1,
+          "fingerprint": "5994438dc6734e072b27cc14b46f72ff12e2f937d59be8b00ff715236424df5b",
+          "id": 364,
+          "principal": 17
+        },
+        "rejection": "Engine(Sqlite(SqliteFailure(Error { code: DiskFull, extended_code: 13 }, Some(\"database or disk is full\"))))"
+      },
+      "recovery_budget_ms": 1800000,
+      "resources": {
+        "errors": [],
+        "external_procfs_child_rss": "NOT_USED_self_sampling_avoids_namespace_ambiguity",
+        "kernel_child_usage": [
+          {
+            "available": true,
+            "maxrss_bytes": 148783104,
+            "pid": 146,
+            "role": "worker-1",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 92.190637,
+            "user_seconds": 119.242299
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 115216384,
+            "pid": 20,
+            "role": "backend-master",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 18.342513,
+            "user_seconds": 32.46249
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 144125952,
+            "pid": 21,
+            "role": "backend-volume",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 64.804337,
+            "user_seconds": 102.939392
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 516874240,
+            "pid": 22,
+            "role": "backend-filer",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 83.493346,
+            "user_seconds": 147.99655
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 132657152,
+            "pid": 23,
+            "role": "backend-s3",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 130.22138,
+            "user_seconds": 302.521548
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 86126592,
+            "pid": 178901,
+            "role": "worker-2",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 81.723241,
+            "user_seconds": 44.747611
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 110030848,
+            "pid": 178712,
+            "role": "backend-master",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 15.112701,
+            "user_seconds": 19.607006
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 138244096,
+            "pid": 178713,
+            "role": "backend-volume",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 35.833383,
+            "user_seconds": 40.659021
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 472428544,
+            "pid": 178714,
+            "role": "backend-filer",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 19.849036,
+            "user_seconds": 39.759151
+          },
+          {
+            "available": true,
+            "maxrss_bytes": 129892352,
+            "pid": 178715,
+            "role": "backend-s3",
+            "source": "kernel_wait4_owned_child",
+            "system_seconds": 49.231528,
+            "user_seconds": 107.682281
+          }
+        ],
+        "maximum_shared_cgroup_memory_current": 8590118912,
+        "minimum_filesystem_free_bytes": 17968631808,
+        "samples": 14621,
+        "shared_cgroup_includes_other_processes_and_page_cache": true,
+        "worker_self_procfs_hwm_bytes": {
+          "1": 149360640,
+          "2": 86351872
+        }
+      },
+      "schema": 1,
+      "status": "passed",
+      "unit_coverage_contribution": false,
+      "worker_binary_sha256": "055b55b678624a0a38cb7b16f45ae363254172a22b096858470d50ada9f048ed",
+      "selected_object_metrics": {
+        "ack_audit": {
+          "get_requests": 1089,
+          "get_response_bytes": 31666603,
+          "head_puts": 0,
+          "http_statuses": {
+            "200": 1089
+          },
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "blob_audit": {
+          "get_requests": 2546,
+          "get_response_bytes": 1719968,
+          "head_puts": 0,
+          "http_statuses": {
+            "200": 2546
+          },
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "cold_recovery": {
+          "get_requests": 82614,
+          "get_response_bytes": 10758553000,
+          "head_puts": 2,
+          "http_statuses": {
+            "200": 82616
+          },
+          "put_request_bytes": 1285,
+          "put_requests": 2,
+          "put_success_bytes": 1285,
+          "put_successes": 2,
+          "unique_successful_put_keys": 1
+        },
+        "hot_cache_head_blackhole": {
+          "get_requests": 1,
+          "get_response_bytes": 0,
+          "head_puts": 0,
+          "http_statuses": {},
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "point_at_default_quota": {
+          "get_requests": 20,
+          "get_response_bytes": 855655,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 29
+          },
+          "put_request_bytes": 385031,
+          "put_requests": 9,
+          "put_success_bytes": 385031,
+          "put_successes": 9,
+          "unique_successful_put_keys": 9
+        },
+        "quota_load_0001": {
+          "get_requests": 272,
+          "get_response_bytes": 33902380,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 538
+          },
+          "put_request_bytes": 33892471,
+          "put_requests": 266,
+          "put_success_bytes": 33892471,
+          "put_successes": 266,
+          "unique_successful_put_keys": 266
+        },
+        "quota_load_0002": {
+          "get_requests": 277,
+          "get_response_bytes": 34201197,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34041749,
+          "put_requests": 268,
+          "put_success_bytes": 34041749,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0003": {
+          "get_requests": 277,
+          "get_response_bytes": 34202361,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34042240,
+          "put_requests": 268,
+          "put_success_bytes": 34042240,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0004": {
+          "get_requests": 277,
+          "get_response_bytes": 34203469,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34042677,
+          "put_requests": 268,
+          "put_success_bytes": 34042677,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0005": {
+          "get_requests": 277,
+          "get_response_bytes": 34204578,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34043114,
+          "put_requests": 268,
+          "put_success_bytes": 34043114,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0006": {
+          "get_requests": 277,
+          "get_response_bytes": 34205685,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34043550,
+          "put_requests": 268,
+          "put_success_bytes": 34043550,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0007": {
+          "get_requests": 277,
+          "get_response_bytes": 34206793,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34043989,
+          "put_requests": 268,
+          "put_success_bytes": 34043989,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0008": {
+          "get_requests": 277,
+          "get_response_bytes": 34207902,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34044425,
+          "put_requests": 268,
+          "put_success_bytes": 34044425,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0009": {
+          "get_requests": 277,
+          "get_response_bytes": 34217205,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 545
+          },
+          "put_request_bytes": 34053060,
+          "put_requests": 268,
+          "put_success_bytes": 34053060,
+          "put_successes": 268,
+          "unique_successful_put_keys": 268
+        },
+        "quota_load_0010": {
+          "get_requests": 281,
+          "get_response_bytes": 34523720,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34202102,
+          "put_requests": 270,
+          "put_success_bytes": 34202102,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0011": {
+          "get_requests": 281,
+          "get_response_bytes": 34524830,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34202540,
+          "put_requests": 270,
+          "put_success_bytes": 34202540,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0012": {
+          "get_requests": 281,
+          "get_response_bytes": 34525941,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34202977,
+          "put_requests": 270,
+          "put_success_bytes": 34202977,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0013": {
+          "get_requests": 281,
+          "get_response_bytes": 34527283,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34203645,
+          "put_requests": 270,
+          "put_success_bytes": 34203645,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0014": {
+          "get_requests": 281,
+          "get_response_bytes": 34528424,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34204111,
+          "put_requests": 270,
+          "put_success_bytes": 34204111,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0015": {
+          "get_requests": 281,
+          "get_response_bytes": 34529534,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34204548,
+          "put_requests": 270,
+          "put_success_bytes": 34204548,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0016": {
+          "get_requests": 281,
+          "get_response_bytes": 34530644,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34204985,
+          "put_requests": 270,
+          "put_success_bytes": 34204985,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0017": {
+          "get_requests": 281,
+          "get_response_bytes": 34535850,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34209518,
+          "put_requests": 270,
+          "put_success_bytes": 34209518,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0018": {
+          "get_requests": 281,
+          "get_response_bytes": 34541058,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34209956,
+          "put_requests": 270,
+          "put_success_bytes": 34209956,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0019": {
+          "get_requests": 281,
+          "get_response_bytes": 34542168,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34210393,
+          "put_requests": 270,
+          "put_success_bytes": 34210393,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0020": {
+          "get_requests": 281,
+          "get_response_bytes": 34543278,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34210830,
+          "put_requests": 270,
+          "put_success_bytes": 34210830,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0021": {
+          "get_requests": 285,
+          "get_response_bytes": 34841598,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34359872,
+          "put_requests": 272,
+          "put_success_bytes": 34359872,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0022": {
+          "get_requests": 281,
+          "get_response_bytes": 34545498,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34211704,
+          "put_requests": 270,
+          "put_success_bytes": 34211704,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0023": {
+          "get_requests": 285,
+          "get_response_bytes": 34843818,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34360746,
+          "put_requests": 272,
+          "put_success_bytes": 34360746,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0024": {
+          "get_requests": 285,
+          "get_response_bytes": 34849024,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34365279,
+          "put_requests": 272,
+          "put_success_bytes": 34365279,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0025": {
+          "get_requests": 279,
+          "get_response_bytes": 34522324,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34199763,
+          "put_requests": 269,
+          "put_success_bytes": 34199763,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0026": {
+          "get_requests": 281,
+          "get_response_bytes": 34558130,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34217548,
+          "put_requests": 270,
+          "put_success_bytes": 34217548,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0027": {
+          "get_requests": 281,
+          "get_response_bytes": 34559240,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34217985,
+          "put_requests": 270,
+          "put_success_bytes": 34217985,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0028": {
+          "get_requests": 289,
+          "get_response_bytes": 35154772,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34515633,
+          "put_requests": 274,
+          "put_success_bytes": 34515633,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0029": {
+          "get_requests": 281,
+          "get_response_bytes": 34561460,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34218859,
+          "put_requests": 270,
+          "put_success_bytes": 34218859,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0030": {
+          "get_requests": 289,
+          "get_response_bytes": 35156992,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34516507,
+          "put_requests": 274,
+          "put_success_bytes": 34516507,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0031": {
+          "get_requests": 289,
+          "get_response_bytes": 35162198,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34521040,
+          "put_requests": 274,
+          "put_success_bytes": 34521040,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0032": {
+          "get_requests": 279,
+          "get_response_bytes": 34542382,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34211014,
+          "put_requests": 269,
+          "put_success_bytes": 34211014,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0033": {
+          "get_requests": 281,
+          "get_response_bytes": 34582284,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34228799,
+          "put_requests": 270,
+          "put_success_bytes": 34228799,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0034": {
+          "get_requests": 281,
+          "get_response_bytes": 34583394,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34229236,
+          "put_requests": 270,
+          "put_success_bytes": 34229236,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0035": {
+          "get_requests": 289,
+          "get_response_bytes": 35178928,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34526885,
+          "put_requests": 274,
+          "put_success_bytes": 34526885,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0036": {
+          "get_requests": 281,
+          "get_response_bytes": 34585614,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34230110,
+          "put_requests": 270,
+          "put_success_bytes": 34230110,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0037": {
+          "get_requests": 289,
+          "get_response_bytes": 35181148,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34527759,
+          "put_requests": 274,
+          "put_success_bytes": 34527759,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0038": {
+          "get_requests": 289,
+          "get_response_bytes": 35186354,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34532292,
+          "put_requests": 274,
+          "put_success_bytes": 34532292,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0039": {
+          "get_requests": 281,
+          "get_response_bytes": 34597136,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34235517,
+          "put_requests": 270,
+          "put_success_bytes": 34235517,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0040": {
+          "get_requests": 281,
+          "get_response_bytes": 34598247,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34235955,
+          "put_requests": 270,
+          "put_success_bytes": 34235955,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0041": {
+          "get_requests": 289,
+          "get_response_bytes": 35193783,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34533605,
+          "put_requests": 274,
+          "put_success_bytes": 34533605,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0042": {
+          "get_requests": 281,
+          "get_response_bytes": 34600469,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34236830,
+          "put_requests": 270,
+          "put_success_bytes": 34236830,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0043": {
+          "get_requests": 289,
+          "get_response_bytes": 35196003,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34534479,
+          "put_requests": 274,
+          "put_success_bytes": 34534479,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0044": {
+          "get_requests": 289,
+          "get_response_bytes": 35201209,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34539012,
+          "put_requests": 274,
+          "put_success_bytes": 34539012,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0045": {
+          "get_requests": 281,
+          "get_response_bytes": 34611993,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34242238,
+          "put_requests": 270,
+          "put_success_bytes": 34242238,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0046": {
+          "get_requests": 281,
+          "get_response_bytes": 34613103,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34242675,
+          "put_requests": 270,
+          "put_success_bytes": 34242675,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0047": {
+          "get_requests": 281,
+          "get_response_bytes": 34614213,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34243112,
+          "put_requests": 270,
+          "put_success_bytes": 34243112,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0048": {
+          "get_requests": 289,
+          "get_response_bytes": 35209747,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34540761,
+          "put_requests": 274,
+          "put_success_bytes": 34540761,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0049": {
+          "get_requests": 289,
+          "get_response_bytes": 35210857,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34541198,
+          "put_requests": 274,
+          "put_success_bytes": 34541198,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0050": {
+          "get_requests": 289,
+          "get_response_bytes": 35216063,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34545731,
+          "put_requests": 274,
+          "put_success_bytes": 34545731,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0051": {
+          "get_requests": 279,
+          "get_response_bytes": 34592147,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34231607,
+          "put_requests": 269,
+          "put_success_bytes": 34231607,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0052": {
+          "get_requests": 281,
+          "get_response_bytes": 34627955,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34249393,
+          "put_requests": 270,
+          "put_success_bytes": 34249393,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0053": {
+          "get_requests": 281,
+          "get_response_bytes": 34629065,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34249830,
+          "put_requests": 270,
+          "put_success_bytes": 34249830,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0054": {
+          "get_requests": 289,
+          "get_response_bytes": 35224601,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34547480,
+          "put_requests": 274,
+          "put_success_bytes": 34547480,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0055": {
+          "get_requests": 289,
+          "get_response_bytes": 35225711,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34547917,
+          "put_requests": 274,
+          "put_success_bytes": 34547917,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0056": {
+          "get_requests": 289,
+          "get_response_bytes": 35230917,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34552450,
+          "put_requests": 274,
+          "put_success_bytes": 34552450,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0057": {
+          "get_requests": 279,
+          "get_response_bytes": 34606999,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34238325,
+          "put_requests": 269,
+          "put_success_bytes": 34238325,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0058": {
+          "get_requests": 281,
+          "get_response_bytes": 34642807,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34256111,
+          "put_requests": 270,
+          "put_success_bytes": 34256111,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0059": {
+          "get_requests": 281,
+          "get_response_bytes": 34643917,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34256548,
+          "put_requests": 270,
+          "put_success_bytes": 34256548,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0060": {
+          "get_requests": 289,
+          "get_response_bytes": 35239455,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34554199,
+          "put_requests": 274,
+          "put_success_bytes": 34554199,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0061": {
+          "get_requests": 289,
+          "get_response_bytes": 35240565,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34554636,
+          "put_requests": 274,
+          "put_success_bytes": 34554636,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0062": {
+          "get_requests": 289,
+          "get_response_bytes": 35241675,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34555073,
+          "put_requests": 274,
+          "put_success_bytes": 34555073,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0063": {
+          "get_requests": 289,
+          "get_response_bytes": 35246881,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34559606,
+          "put_requests": 274,
+          "put_success_bytes": 34559606,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0064": {
+          "get_requests": 281,
+          "get_response_bytes": 34657659,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34262829,
+          "put_requests": 270,
+          "put_success_bytes": 34262829,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0065": {
+          "get_requests": 281,
+          "get_response_bytes": 34658769,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34263266,
+          "put_requests": 270,
+          "put_success_bytes": 34263266,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0066": {
+          "get_requests": 289,
+          "get_response_bytes": 35254307,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34560917,
+          "put_requests": 274,
+          "put_success_bytes": 34560917,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0067": {
+          "get_requests": 281,
+          "get_response_bytes": 34660989,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34264140,
+          "put_requests": 270,
+          "put_success_bytes": 34264140,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0068": {
+          "get_requests": 289,
+          "get_response_bytes": 35256527,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34561791,
+          "put_requests": 274,
+          "put_success_bytes": 34561791,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0069": {
+          "get_requests": 289,
+          "get_response_bytes": 35261733,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34566324,
+          "put_requests": 274,
+          "put_success_bytes": 34566324,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0070": {
+          "get_requests": 281,
+          "get_response_bytes": 34672511,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34269547,
+          "put_requests": 270,
+          "put_success_bytes": 34269547,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0071": {
+          "get_requests": 281,
+          "get_response_bytes": 34673621,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34269984,
+          "put_requests": 270,
+          "put_success_bytes": 34269984,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0072": {
+          "get_requests": 289,
+          "get_response_bytes": 35269159,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34567635,
+          "put_requests": 274,
+          "put_success_bytes": 34567635,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0073": {
+          "get_requests": 281,
+          "get_response_bytes": 34675841,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34270858,
+          "put_requests": 270,
+          "put_success_bytes": 34270858,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0074": {
+          "get_requests": 289,
+          "get_response_bytes": 35271379,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34568509,
+          "put_requests": 274,
+          "put_success_bytes": 34568509,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0075": {
+          "get_requests": 289,
+          "get_response_bytes": 35276585,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34573042,
+          "put_requests": 274,
+          "put_success_bytes": 34573042,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0076": {
+          "get_requests": 279,
+          "get_response_bytes": 34652665,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34258916,
+          "put_requests": 269,
+          "put_success_bytes": 34258916,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0077": {
+          "get_requests": 281,
+          "get_response_bytes": 34688473,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34276702,
+          "put_requests": 270,
+          "put_success_bytes": 34276702,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0078": {
+          "get_requests": 281,
+          "get_response_bytes": 34689583,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34277139,
+          "put_requests": 270,
+          "put_success_bytes": 34277139,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0079": {
+          "get_requests": 289,
+          "get_response_bytes": 35285121,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34574790,
+          "put_requests": 274,
+          "put_success_bytes": 34574790,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0080": {
+          "get_requests": 289,
+          "get_response_bytes": 35286231,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34575227,
+          "put_requests": 274,
+          "put_success_bytes": 34575227,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0081": {
+          "get_requests": 289,
+          "get_response_bytes": 35291437,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34579760,
+          "put_requests": 274,
+          "put_success_bytes": 34579760,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0082": {
+          "get_requests": 279,
+          "get_response_bytes": 34667517,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34265634,
+          "put_requests": 269,
+          "put_success_bytes": 34265634,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0083": {
+          "get_requests": 281,
+          "get_response_bytes": 34703325,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34283420,
+          "put_requests": 270,
+          "put_success_bytes": 34283420,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0084": {
+          "get_requests": 281,
+          "get_response_bytes": 34704435,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34283857,
+          "put_requests": 270,
+          "put_success_bytes": 34283857,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0085": {
+          "get_requests": 289,
+          "get_response_bytes": 35299973,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34581508,
+          "put_requests": 274,
+          "put_success_bytes": 34581508,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0086": {
+          "get_requests": 289,
+          "get_response_bytes": 35301083,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34581945,
+          "put_requests": 274,
+          "put_success_bytes": 34581945,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0087": {
+          "get_requests": 289,
+          "get_response_bytes": 35302193,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34582382,
+          "put_requests": 274,
+          "put_success_bytes": 34582382,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0088": {
+          "get_requests": 289,
+          "get_response_bytes": 35307399,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34586915,
+          "put_requests": 274,
+          "put_success_bytes": 34586915,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0089": {
+          "get_requests": 281,
+          "get_response_bytes": 34718177,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34290138,
+          "put_requests": 270,
+          "put_success_bytes": 34290138,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0090": {
+          "get_requests": 281,
+          "get_response_bytes": 34719287,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34290575,
+          "put_requests": 270,
+          "put_success_bytes": 34290575,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0091": {
+          "get_requests": 289,
+          "get_response_bytes": 35314825,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34588226,
+          "put_requests": 274,
+          "put_success_bytes": 34588226,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0092": {
+          "get_requests": 289,
+          "get_response_bytes": 35315935,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34588663,
+          "put_requests": 274,
+          "put_success_bytes": 34588663,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0093": {
+          "get_requests": 289,
+          "get_response_bytes": 35317045,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34589100,
+          "put_requests": 274,
+          "put_success_bytes": 34589100,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0094": {
+          "get_requests": 289,
+          "get_response_bytes": 35322251,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34593633,
+          "put_requests": 274,
+          "put_success_bytes": 34593633,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0095": {
+          "get_requests": 279,
+          "get_response_bytes": 34698331,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34279507,
+          "put_requests": 269,
+          "put_success_bytes": 34279507,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0096": {
+          "get_requests": 281,
+          "get_response_bytes": 34734139,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34297293,
+          "put_requests": 270,
+          "put_success_bytes": 34297293,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0097": {
+          "get_requests": 289,
+          "get_response_bytes": 35329678,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34594947,
+          "put_requests": 274,
+          "put_success_bytes": 34594947,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0098": {
+          "get_requests": 281,
+          "get_response_bytes": 34736362,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34298170,
+          "put_requests": 270,
+          "put_success_bytes": 34298170,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0099": {
+          "get_requests": 289,
+          "get_response_bytes": 35331904,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34595828,
+          "put_requests": 274,
+          "put_success_bytes": 34595828,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0100": {
+          "get_requests": 289,
+          "get_response_bytes": 35337116,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34600362,
+          "put_requests": 274,
+          "put_success_bytes": 34600362,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0101": {
+          "get_requests": 279,
+          "get_response_bytes": 34713199,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34286237,
+          "put_requests": 269,
+          "put_success_bytes": 34286237,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0102": {
+          "get_requests": 281,
+          "get_response_bytes": 34749010,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34304024,
+          "put_requests": 270,
+          "put_success_bytes": 34304024,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0103": {
+          "get_requests": 281,
+          "get_response_bytes": 34750123,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34304462,
+          "put_requests": 270,
+          "put_success_bytes": 34304462,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0104": {
+          "get_requests": 289,
+          "get_response_bytes": 35345664,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34602114,
+          "put_requests": 274,
+          "put_success_bytes": 34602114,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0105": {
+          "get_requests": 289,
+          "get_response_bytes": 35346777,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34602552,
+          "put_requests": 274,
+          "put_success_bytes": 34602552,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0106": {
+          "get_requests": 289,
+          "get_response_bytes": 35351986,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34607086,
+          "put_requests": 274,
+          "put_success_bytes": 34607086,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0107": {
+          "get_requests": 279,
+          "get_response_bytes": 34728069,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34292961,
+          "put_requests": 269,
+          "put_success_bytes": 34292961,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0108": {
+          "get_requests": 281,
+          "get_response_bytes": 34763880,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34310748,
+          "put_requests": 270,
+          "put_success_bytes": 34310748,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0109": {
+          "get_requests": 281,
+          "get_response_bytes": 34764993,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34311186,
+          "put_requests": 270,
+          "put_success_bytes": 34311186,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0110": {
+          "get_requests": 289,
+          "get_response_bytes": 35360534,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34608838,
+          "put_requests": 274,
+          "put_success_bytes": 34608838,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0111": {
+          "get_requests": 289,
+          "get_response_bytes": 35361647,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34609276,
+          "put_requests": 274,
+          "put_success_bytes": 34609276,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0112": {
+          "get_requests": 289,
+          "get_response_bytes": 35366856,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34613810,
+          "put_requests": 274,
+          "put_success_bytes": 34613810,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0113": {
+          "get_requests": 279,
+          "get_response_bytes": 34742939,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34299685,
+          "put_requests": 269,
+          "put_success_bytes": 34299685,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0114": {
+          "get_requests": 281,
+          "get_response_bytes": 34778750,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34317473,
+          "put_requests": 270,
+          "put_success_bytes": 34317473,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0115": {
+          "get_requests": 281,
+          "get_response_bytes": 34779864,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34317911,
+          "put_requests": 270,
+          "put_success_bytes": 34317911,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0116": {
+          "get_requests": 289,
+          "get_response_bytes": 35375405,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34615563,
+          "put_requests": 274,
+          "put_success_bytes": 34615563,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0117": {
+          "get_requests": 289,
+          "get_response_bytes": 35376518,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34616001,
+          "put_requests": 274,
+          "put_success_bytes": 34616001,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0118": {
+          "get_requests": 289,
+          "get_response_bytes": 35377631,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34616439,
+          "put_requests": 274,
+          "put_success_bytes": 34616439,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0119": {
+          "get_requests": 289,
+          "get_response_bytes": 35382840,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34620973,
+          "put_requests": 274,
+          "put_success_bytes": 34620973,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0120": {
+          "get_requests": 279,
+          "get_response_bytes": 34758923,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34306848,
+          "put_requests": 269,
+          "put_success_bytes": 34306848,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0121": {
+          "get_requests": 281,
+          "get_response_bytes": 34794734,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34324635,
+          "put_requests": 270,
+          "put_success_bytes": 34324635,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0122": {
+          "get_requests": 289,
+          "get_response_bytes": 35390504,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34622515,
+          "put_requests": 274,
+          "put_success_bytes": 34622515,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0123": {
+          "get_requests": 281,
+          "get_response_bytes": 34797223,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34325771,
+          "put_requests": 270,
+          "put_success_bytes": 34325771,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0124": {
+          "get_requests": 289,
+          "get_response_bytes": 35392764,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34623423,
+          "put_requests": 274,
+          "put_success_bytes": 34623423,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0125": {
+          "get_requests": 289,
+          "get_response_bytes": 35397973,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34627957,
+          "put_requests": 274,
+          "put_success_bytes": 34627957,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0126": {
+          "get_requests": 279,
+          "get_response_bytes": 34774058,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34313833,
+          "put_requests": 269,
+          "put_success_bytes": 34313833,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0127": {
+          "get_requests": 281,
+          "get_response_bytes": 34809869,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34331620,
+          "put_requests": 270,
+          "put_success_bytes": 34331620,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0128": {
+          "get_requests": 290,
+          "get_response_bytes": 35405674,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 565
+          },
+          "put_request_bytes": 34629536,
+          "put_requests": 275,
+          "put_success_bytes": 34629536,
+          "put_successes": 275,
+          "unique_successful_put_keys": 275
+        },
+        "quota_load_0129": {
+          "get_requests": 281,
+          "get_response_bytes": 34777925,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34315411,
+          "put_requests": 270,
+          "put_success_bytes": 34315411,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0130": {
+          "get_requests": 289,
+          "get_response_bytes": 35373466,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34613063,
+          "put_requests": 274,
+          "put_success_bytes": 34613063,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0131": {
+          "get_requests": 289,
+          "get_response_bytes": 35378675,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34617597,
+          "put_requests": 274,
+          "put_success_bytes": 34617597,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0132": {
+          "get_requests": 281,
+          "get_response_bytes": 34789456,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34320821,
+          "put_requests": 270,
+          "put_success_bytes": 34320821,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0133": {
+          "get_requests": 281,
+          "get_response_bytes": 34790569,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34321259,
+          "put_requests": 270,
+          "put_success_bytes": 34321259,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0134": {
+          "get_requests": 281,
+          "get_response_bytes": 34791682,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34321697,
+          "put_requests": 270,
+          "put_success_bytes": 34321697,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0135": {
+          "get_requests": 289,
+          "get_response_bytes": 35387225,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34619350,
+          "put_requests": 274,
+          "put_success_bytes": 34619350,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0136": {
+          "get_requests": 289,
+          "get_response_bytes": 35388338,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34619788,
+          "put_requests": 274,
+          "put_success_bytes": 34619788,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0137": {
+          "get_requests": 289,
+          "get_response_bytes": 35393547,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34624322,
+          "put_requests": 274,
+          "put_success_bytes": 34624322,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0138": {
+          "get_requests": 281,
+          "get_response_bytes": 34804326,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34327545,
+          "put_requests": 270,
+          "put_success_bytes": 34327545,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0139": {
+          "get_requests": 281,
+          "get_response_bytes": 34805439,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34327983,
+          "put_requests": 270,
+          "put_success_bytes": 34327983,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0140": {
+          "get_requests": 281,
+          "get_response_bytes": 34806552,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34328421,
+          "put_requests": 270,
+          "put_success_bytes": 34328421,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0141": {
+          "get_requests": 289,
+          "get_response_bytes": 35402097,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34626075,
+          "put_requests": 274,
+          "put_success_bytes": 34626075,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0142": {
+          "get_requests": 289,
+          "get_response_bytes": 35403210,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34626513,
+          "put_requests": 274,
+          "put_success_bytes": 34626513,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0143": {
+          "get_requests": 289,
+          "get_response_bytes": 35404323,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34626951,
+          "put_requests": 274,
+          "put_success_bytes": 34626951,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0144": {
+          "get_requests": 289,
+          "get_response_bytes": 35409532,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34631485,
+          "put_requests": 274,
+          "put_success_bytes": 34631485,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0145": {
+          "get_requests": 281,
+          "get_response_bytes": 34820309,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34334707,
+          "put_requests": 270,
+          "put_success_bytes": 34334707,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0146": {
+          "get_requests": 281,
+          "get_response_bytes": 34821422,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34335145,
+          "put_requests": 270,
+          "put_success_bytes": 34335145,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0147": {
+          "get_requests": 289,
+          "get_response_bytes": 35416967,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34632799,
+          "put_requests": 274,
+          "put_success_bytes": 34632799,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0148": {
+          "get_requests": 289,
+          "get_response_bytes": 35418080,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34633237,
+          "put_requests": 274,
+          "put_success_bytes": 34633237,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0149": {
+          "get_requests": 289,
+          "get_response_bytes": 35419193,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34633675,
+          "put_requests": 274,
+          "put_success_bytes": 34633675,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0150": {
+          "get_requests": 289,
+          "get_response_bytes": 35424402,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34638209,
+          "put_requests": 274,
+          "put_success_bytes": 34638209,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0151": {
+          "get_requests": 281,
+          "get_response_bytes": 34835179,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34341431,
+          "put_requests": 270,
+          "put_success_bytes": 34341431,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0152": {
+          "get_requests": 281,
+          "get_response_bytes": 34836292,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34341869,
+          "put_requests": 270,
+          "put_success_bytes": 34341869,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0153": {
+          "get_requests": 289,
+          "get_response_bytes": 35431837,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34639523,
+          "put_requests": 274,
+          "put_success_bytes": 34639523,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0154": {
+          "get_requests": 281,
+          "get_response_bytes": 34838518,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34342745,
+          "put_requests": 270,
+          "put_success_bytes": 34342745,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0155": {
+          "get_requests": 289,
+          "get_response_bytes": 35434063,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34640399,
+          "put_requests": 274,
+          "put_success_bytes": 34640399,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0156": {
+          "get_requests": 289,
+          "get_response_bytes": 35439272,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34644933,
+          "put_requests": 274,
+          "put_success_bytes": 34644933,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0157": {
+          "get_requests": 281,
+          "get_response_bytes": 34850049,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34348155,
+          "put_requests": 270,
+          "put_success_bytes": 34348155,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0158": {
+          "get_requests": 281,
+          "get_response_bytes": 34851162,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34348593,
+          "put_requests": 270,
+          "put_success_bytes": 34348593,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0159": {
+          "get_requests": 281,
+          "get_response_bytes": 34852275,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34349031,
+          "put_requests": 270,
+          "put_success_bytes": 34349031,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0160": {
+          "get_requests": 289,
+          "get_response_bytes": 35447820,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34646685,
+          "put_requests": 274,
+          "put_success_bytes": 34646685,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0161": {
+          "get_requests": 289,
+          "get_response_bytes": 35448933,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34647123,
+          "put_requests": 274,
+          "put_success_bytes": 34647123,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0162": {
+          "get_requests": 289,
+          "get_response_bytes": 35454142,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34651657,
+          "put_requests": 274,
+          "put_success_bytes": 34651657,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0163": {
+          "get_requests": 281,
+          "get_response_bytes": 34864919,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34354879,
+          "put_requests": 270,
+          "put_success_bytes": 34354879,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0164": {
+          "get_requests": 281,
+          "get_response_bytes": 34866032,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34355317,
+          "put_requests": 270,
+          "put_success_bytes": 34355317,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0165": {
+          "get_requests": 281,
+          "get_response_bytes": 34867145,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34355755,
+          "put_requests": 270,
+          "put_success_bytes": 34355755,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0166": {
+          "get_requests": 289,
+          "get_response_bytes": 35462690,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34653409,
+          "put_requests": 274,
+          "put_success_bytes": 34653409,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0167": {
+          "get_requests": 289,
+          "get_response_bytes": 35463803,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34653847,
+          "put_requests": 274,
+          "put_success_bytes": 34653847,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0168": {
+          "get_requests": 289,
+          "get_response_bytes": 35469012,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34658381,
+          "put_requests": 274,
+          "put_success_bytes": 34658381,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0169": {
+          "get_requests": 279,
+          "get_response_bytes": 34845091,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34344254,
+          "put_requests": 269,
+          "put_success_bytes": 34344254,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0170": {
+          "get_requests": 281,
+          "get_response_bytes": 34880902,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34362041,
+          "put_requests": 270,
+          "put_success_bytes": 34362041,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0171": {
+          "get_requests": 281,
+          "get_response_bytes": 34882015,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34362479,
+          "put_requests": 270,
+          "put_success_bytes": 34362479,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0172": {
+          "get_requests": 289,
+          "get_response_bytes": 35477560,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34660133,
+          "put_requests": 274,
+          "put_success_bytes": 34660133,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0173": {
+          "get_requests": 289,
+          "get_response_bytes": 35478673,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34660571,
+          "put_requests": 274,
+          "put_success_bytes": 34660571,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0174": {
+          "get_requests": 289,
+          "get_response_bytes": 35479786,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34661009,
+          "put_requests": 274,
+          "put_success_bytes": 34661009,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0175": {
+          "get_requests": 289,
+          "get_response_bytes": 35484995,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34665543,
+          "put_requests": 274,
+          "put_success_bytes": 34665543,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0176": {
+          "get_requests": 281,
+          "get_response_bytes": 34895772,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34368765,
+          "put_requests": 270,
+          "put_success_bytes": 34368765,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0177": {
+          "get_requests": 281,
+          "get_response_bytes": 34896885,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34369203,
+          "put_requests": 270,
+          "put_success_bytes": 34369203,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0178": {
+          "get_requests": 289,
+          "get_response_bytes": 35492430,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34666857,
+          "put_requests": 274,
+          "put_success_bytes": 34666857,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0179": {
+          "get_requests": 281,
+          "get_response_bytes": 34899111,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34370079,
+          "put_requests": 270,
+          "put_success_bytes": 34370079,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0180": {
+          "get_requests": 289,
+          "get_response_bytes": 35494656,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34667733,
+          "put_requests": 274,
+          "put_success_bytes": 34667733,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0181": {
+          "get_requests": 289,
+          "get_response_bytes": 35499865,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34672267,
+          "put_requests": 274,
+          "put_success_bytes": 34672267,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0182": {
+          "get_requests": 279,
+          "get_response_bytes": 34648124,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34244230,
+          "put_requests": 269,
+          "put_success_bytes": 34244230,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0183": {
+          "get_requests": 279,
+          "get_response_bytes": 34649237,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34244668,
+          "put_requests": 269,
+          "put_success_bytes": 34244668,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0184": {
+          "get_requests": 287,
+          "get_response_bytes": 35244782,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 560
+          },
+          "put_request_bytes": 34542322,
+          "put_requests": 273,
+          "put_success_bytes": 34542322,
+          "put_successes": 273,
+          "unique_successful_put_keys": 273
+        },
+        "quota_load_0185": {
+          "get_requests": 279,
+          "get_response_bytes": 34651463,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34245544,
+          "put_requests": 269,
+          "put_success_bytes": 34245544,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0186": {
+          "get_requests": 287,
+          "get_response_bytes": 35247008,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 560
+          },
+          "put_request_bytes": 34543198,
+          "put_requests": 273,
+          "put_success_bytes": 34543198,
+          "put_successes": 273,
+          "unique_successful_put_keys": 273
+        },
+        "quota_load_0187": {
+          "get_requests": 288,
+          "get_response_bytes": 35252471,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 562
+          },
+          "put_request_bytes": 34547986,
+          "put_requests": 274,
+          "put_success_bytes": 34547986,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0188": {
+          "get_requests": 279,
+          "get_response_bytes": 34628804,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34233859,
+          "put_requests": 269,
+          "put_success_bytes": 34233859,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0189": {
+          "get_requests": 281,
+          "get_response_bytes": 34664615,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34251646,
+          "put_requests": 270,
+          "put_success_bytes": 34251646,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0190": {
+          "get_requests": 281,
+          "get_response_bytes": 34665728,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34252084,
+          "put_requests": 270,
+          "put_success_bytes": 34252084,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0191": {
+          "get_requests": 289,
+          "get_response_bytes": 35261273,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34549738,
+          "put_requests": 274,
+          "put_success_bytes": 34549738,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0192": {
+          "get_requests": 289,
+          "get_response_bytes": 35262386,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34550176,
+          "put_requests": 274,
+          "put_success_bytes": 34550176,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0193": {
+          "get_requests": 289,
+          "get_response_bytes": 35267595,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34554710,
+          "put_requests": 274,
+          "put_success_bytes": 34554710,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0194": {
+          "get_requests": 279,
+          "get_response_bytes": 34643674,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34240583,
+          "put_requests": 269,
+          "put_success_bytes": 34240583,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0195": {
+          "get_requests": 281,
+          "get_response_bytes": 34679485,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34258370,
+          "put_requests": 270,
+          "put_success_bytes": 34258370,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0196": {
+          "get_requests": 281,
+          "get_response_bytes": 34680598,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34258808,
+          "put_requests": 270,
+          "put_success_bytes": 34258808,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0197": {
+          "get_requests": 289,
+          "get_response_bytes": 35276143,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34556462,
+          "put_requests": 274,
+          "put_success_bytes": 34556462,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0198": {
+          "get_requests": 289,
+          "get_response_bytes": 35277256,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34556900,
+          "put_requests": 274,
+          "put_success_bytes": 34556900,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0199": {
+          "get_requests": 289,
+          "get_response_bytes": 35278369,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34557338,
+          "put_requests": 274,
+          "put_success_bytes": 34557338,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0200": {
+          "get_requests": 289,
+          "get_response_bytes": 35283578,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34561872,
+          "put_requests": 274,
+          "put_success_bytes": 34561872,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0201": {
+          "get_requests": 281,
+          "get_response_bytes": 34694355,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34265094,
+          "put_requests": 270,
+          "put_success_bytes": 34265094,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0202": {
+          "get_requests": 281,
+          "get_response_bytes": 34695468,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34265532,
+          "put_requests": 270,
+          "put_success_bytes": 34265532,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0203": {
+          "get_requests": 289,
+          "get_response_bytes": 35291013,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34563186,
+          "put_requests": 274,
+          "put_success_bytes": 34563186,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0204": {
+          "get_requests": 289,
+          "get_response_bytes": 35292126,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34563624,
+          "put_requests": 274,
+          "put_success_bytes": 34563624,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0205": {
+          "get_requests": 289,
+          "get_response_bytes": 35293239,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34564062,
+          "put_requests": 274,
+          "put_success_bytes": 34564062,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0206": {
+          "get_requests": 289,
+          "get_response_bytes": 35298448,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34568596,
+          "put_requests": 274,
+          "put_success_bytes": 34568596,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0207": {
+          "get_requests": 281,
+          "get_response_bytes": 34709225,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34271818,
+          "put_requests": 270,
+          "put_success_bytes": 34271818,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0208": {
+          "get_requests": 281,
+          "get_response_bytes": 34710338,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34272256,
+          "put_requests": 270,
+          "put_success_bytes": 34272256,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0209": {
+          "get_requests": 289,
+          "get_response_bytes": 35305883,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34569910,
+          "put_requests": 274,
+          "put_success_bytes": 34569910,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0210": {
+          "get_requests": 281,
+          "get_response_bytes": 34712564,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34273132,
+          "put_requests": 270,
+          "put_success_bytes": 34273132,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0211": {
+          "get_requests": 289,
+          "get_response_bytes": 35308109,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34570786,
+          "put_requests": 274,
+          "put_success_bytes": 34570786,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0212": {
+          "get_requests": 289,
+          "get_response_bytes": 35313318,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34575320,
+          "put_requests": 274,
+          "put_success_bytes": 34575320,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0213": {
+          "get_requests": 279,
+          "get_response_bytes": 34689397,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34261193,
+          "put_requests": 269,
+          "put_success_bytes": 34261193,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0214": {
+          "get_requests": 281,
+          "get_response_bytes": 34725208,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34278980,
+          "put_requests": 270,
+          "put_success_bytes": 34278980,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0215": {
+          "get_requests": 281,
+          "get_response_bytes": 34726321,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34279418,
+          "put_requests": 270,
+          "put_success_bytes": 34279418,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0216": {
+          "get_requests": 289,
+          "get_response_bytes": 35321866,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34577072,
+          "put_requests": 274,
+          "put_success_bytes": 34577072,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0217": {
+          "get_requests": 289,
+          "get_response_bytes": 35322979,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34577510,
+          "put_requests": 274,
+          "put_success_bytes": 34577510,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0218": {
+          "get_requests": 289,
+          "get_response_bytes": 35328188,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34582044,
+          "put_requests": 274,
+          "put_success_bytes": 34582044,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0219": {
+          "get_requests": 279,
+          "get_response_bytes": 34704267,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34267917,
+          "put_requests": 269,
+          "put_success_bytes": 34267917,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0220": {
+          "get_requests": 281,
+          "get_response_bytes": 34740078,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34285704,
+          "put_requests": 270,
+          "put_success_bytes": 34285704,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0221": {
+          "get_requests": 281,
+          "get_response_bytes": 34741191,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34286142,
+          "put_requests": 270,
+          "put_success_bytes": 34286142,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0222": {
+          "get_requests": 289,
+          "get_response_bytes": 35336736,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34583796,
+          "put_requests": 274,
+          "put_success_bytes": 34583796,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0223": {
+          "get_requests": 289,
+          "get_response_bytes": 35337849,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34584234,
+          "put_requests": 274,
+          "put_success_bytes": 34584234,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0224": {
+          "get_requests": 289,
+          "get_response_bytes": 35343058,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34588768,
+          "put_requests": 274,
+          "put_success_bytes": 34588768,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0225": {
+          "get_requests": 279,
+          "get_response_bytes": 34719137,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34274641,
+          "put_requests": 269,
+          "put_success_bytes": 34274641,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0226": {
+          "get_requests": 281,
+          "get_response_bytes": 34754948,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34292428,
+          "put_requests": 270,
+          "put_success_bytes": 34292428,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0227": {
+          "get_requests": 281,
+          "get_response_bytes": 34756061,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34292866,
+          "put_requests": 270,
+          "put_success_bytes": 34292866,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0228": {
+          "get_requests": 289,
+          "get_response_bytes": 35351606,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34590520,
+          "put_requests": 274,
+          "put_success_bytes": 34590520,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0229": {
+          "get_requests": 289,
+          "get_response_bytes": 35352719,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34590958,
+          "put_requests": 274,
+          "put_success_bytes": 34590958,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0230": {
+          "get_requests": 289,
+          "get_response_bytes": 35353832,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34591396,
+          "put_requests": 274,
+          "put_success_bytes": 34591396,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0231": {
+          "get_requests": 289,
+          "get_response_bytes": 35359041,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34595930,
+          "put_requests": 274,
+          "put_success_bytes": 34595930,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0232": {
+          "get_requests": 281,
+          "get_response_bytes": 34769818,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34299152,
+          "put_requests": 270,
+          "put_success_bytes": 34299152,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0233": {
+          "get_requests": 281,
+          "get_response_bytes": 34770931,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34299590,
+          "put_requests": 270,
+          "put_success_bytes": 34299590,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0234": {
+          "get_requests": 289,
+          "get_response_bytes": 35366476,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34597244,
+          "put_requests": 274,
+          "put_success_bytes": 34597244,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0235": {
+          "get_requests": 281,
+          "get_response_bytes": 34773157,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34300466,
+          "put_requests": 270,
+          "put_success_bytes": 34300466,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0236": {
+          "get_requests": 289,
+          "get_response_bytes": 35368702,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34598120,
+          "put_requests": 274,
+          "put_success_bytes": 34598120,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0237": {
+          "get_requests": 289,
+          "get_response_bytes": 35373911,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34602654,
+          "put_requests": 274,
+          "put_success_bytes": 34602654,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0238": {
+          "get_requests": 279,
+          "get_response_bytes": 34749990,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34288527,
+          "put_requests": 269,
+          "put_success_bytes": 34288527,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0239": {
+          "get_requests": 281,
+          "get_response_bytes": 34785801,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34306314,
+          "put_requests": 270,
+          "put_success_bytes": 34306314,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0240": {
+          "get_requests": 289,
+          "get_response_bytes": 35381346,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34603968,
+          "put_requests": 274,
+          "put_success_bytes": 34603968,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0241": {
+          "get_requests": 281,
+          "get_response_bytes": 34788027,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34307190,
+          "put_requests": 270,
+          "put_success_bytes": 34307190,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0242": {
+          "get_requests": 289,
+          "get_response_bytes": 35383572,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34604844,
+          "put_requests": 274,
+          "put_success_bytes": 34604844,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0243": {
+          "get_requests": 289,
+          "get_response_bytes": 35388781,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34609378,
+          "put_requests": 274,
+          "put_success_bytes": 34609378,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0244": {
+          "get_requests": 279,
+          "get_response_bytes": 34764860,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34295251,
+          "put_requests": 269,
+          "put_success_bytes": 34295251,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0245": {
+          "get_requests": 281,
+          "get_response_bytes": 34800671,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34313038,
+          "put_requests": 270,
+          "put_success_bytes": 34313038,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0246": {
+          "get_requests": 281,
+          "get_response_bytes": 34801784,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34313476,
+          "put_requests": 270,
+          "put_success_bytes": 34313476,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0247": {
+          "get_requests": 289,
+          "get_response_bytes": 35397329,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34611130,
+          "put_requests": 274,
+          "put_success_bytes": 34611130,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0248": {
+          "get_requests": 289,
+          "get_response_bytes": 35398442,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34611568,
+          "put_requests": 274,
+          "put_success_bytes": 34611568,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0249": {
+          "get_requests": 289,
+          "get_response_bytes": 35403651,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34616102,
+          "put_requests": 274,
+          "put_success_bytes": 34616102,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0250": {
+          "get_requests": 279,
+          "get_response_bytes": 34779730,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 548
+          },
+          "put_request_bytes": 34301975,
+          "put_requests": 269,
+          "put_success_bytes": 34301975,
+          "put_successes": 269,
+          "unique_successful_put_keys": 269
+        },
+        "quota_load_0251": {
+          "get_requests": 281,
+          "get_response_bytes": 34815541,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34319762,
+          "put_requests": 270,
+          "put_success_bytes": 34319762,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0252": {
+          "get_requests": 281,
+          "get_response_bytes": 34816654,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 551
+          },
+          "put_request_bytes": 34320200,
+          "put_requests": 270,
+          "put_success_bytes": 34320200,
+          "put_successes": 270,
+          "unique_successful_put_keys": 270
+        },
+        "quota_load_0253": {
+          "get_requests": 289,
+          "get_response_bytes": 35412199,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34617854,
+          "put_requests": 274,
+          "put_success_bytes": 34617854,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0254": {
+          "get_requests": 289,
+          "get_response_bytes": 35413312,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 563
+          },
+          "put_request_bytes": 34618292,
+          "put_requests": 274,
+          "put_success_bytes": 34618292,
+          "put_successes": 274,
+          "unique_successful_put_keys": 274
+        },
+        "quota_load_0255": {
+          "get_requests": 291,
+          "get_response_bytes": 35419045,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 567
+          },
+          "put_request_bytes": 34623350,
+          "put_requests": 276,
+          "put_success_bytes": 34623350,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0256": {
+          "get_requests": 284,
+          "get_response_bytes": 34795912,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 556
+          },
+          "put_request_bytes": 34309487,
+          "put_requests": 272,
+          "put_success_bytes": 34309487,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0257": {
+          "get_requests": 285,
+          "get_response_bytes": 34797289,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34309925,
+          "put_requests": 272,
+          "put_success_bytes": 34309925,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0258": {
+          "get_requests": 285,
+          "get_response_bytes": 34798402,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34310363,
+          "put_requests": 272,
+          "put_success_bytes": 34310363,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0259": {
+          "get_requests": 293,
+          "get_response_bytes": 35393947,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34608017,
+          "put_requests": 276,
+          "put_success_bytes": 34608017,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0260": {
+          "get_requests": 293,
+          "get_response_bytes": 35395060,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34608455,
+          "put_requests": 276,
+          "put_success_bytes": 34608455,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0261": {
+          "get_requests": 293,
+          "get_response_bytes": 35396173,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34608893,
+          "put_requests": 276,
+          "put_success_bytes": 34608893,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0262": {
+          "get_requests": 293,
+          "get_response_bytes": 35401382,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34613427,
+          "put_requests": 276,
+          "put_success_bytes": 34613427,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0263": {
+          "get_requests": 285,
+          "get_response_bytes": 34812159,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34316649,
+          "put_requests": 272,
+          "put_success_bytes": 34316649,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0264": {
+          "get_requests": 285,
+          "get_response_bytes": 34813272,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34317087,
+          "put_requests": 272,
+          "put_success_bytes": 34317087,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0265": {
+          "get_requests": 293,
+          "get_response_bytes": 35408817,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34614741,
+          "put_requests": 276,
+          "put_success_bytes": 34614741,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0266": {
+          "get_requests": 285,
+          "get_response_bytes": 34815498,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34317963,
+          "put_requests": 272,
+          "put_success_bytes": 34317963,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0267": {
+          "get_requests": 293,
+          "get_response_bytes": 35411043,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34615617,
+          "put_requests": 276,
+          "put_success_bytes": 34615617,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0268": {
+          "get_requests": 293,
+          "get_response_bytes": 35416252,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34620151,
+          "put_requests": 276,
+          "put_success_bytes": 34620151,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0269": {
+          "get_requests": 285,
+          "get_response_bytes": 34827029,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34323373,
+          "put_requests": 272,
+          "put_success_bytes": 34323373,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0270": {
+          "get_requests": 285,
+          "get_response_bytes": 34828142,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34323811,
+          "put_requests": 272,
+          "put_success_bytes": 34323811,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0271": {
+          "get_requests": 293,
+          "get_response_bytes": 35423687,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34621465,
+          "put_requests": 276,
+          "put_success_bytes": 34621465,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0272": {
+          "get_requests": 285,
+          "get_response_bytes": 34830368,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34324687,
+          "put_requests": 272,
+          "put_success_bytes": 34324687,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0273": {
+          "get_requests": 293,
+          "get_response_bytes": 35425913,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34622341,
+          "put_requests": 276,
+          "put_success_bytes": 34622341,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0274": {
+          "get_requests": 293,
+          "get_response_bytes": 35431122,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34626875,
+          "put_requests": 276,
+          "put_success_bytes": 34626875,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0275": {
+          "get_requests": 285,
+          "get_response_bytes": 34841899,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34330097,
+          "put_requests": 272,
+          "put_success_bytes": 34330097,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0276": {
+          "get_requests": 285,
+          "get_response_bytes": 34843012,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34330535,
+          "put_requests": 272,
+          "put_success_bytes": 34330535,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0277": {
+          "get_requests": 285,
+          "get_response_bytes": 34844125,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34330973,
+          "put_requests": 272,
+          "put_success_bytes": 34330973,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0278": {
+          "get_requests": 293,
+          "get_response_bytes": 35439670,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34628627,
+          "put_requests": 276,
+          "put_success_bytes": 34628627,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0279": {
+          "get_requests": 293,
+          "get_response_bytes": 35440783,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34629065,
+          "put_requests": 276,
+          "put_success_bytes": 34629065,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0280": {
+          "get_requests": 293,
+          "get_response_bytes": 35445992,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34633599,
+          "put_requests": 276,
+          "put_success_bytes": 34633599,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0281": {
+          "get_requests": 283,
+          "get_response_bytes": 34822071,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 554
+          },
+          "put_request_bytes": 34319472,
+          "put_requests": 271,
+          "put_success_bytes": 34319472,
+          "put_successes": 271,
+          "unique_successful_put_keys": 271
+        },
+        "quota_load_0282": {
+          "get_requests": 285,
+          "get_response_bytes": 34857882,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34337259,
+          "put_requests": 272,
+          "put_success_bytes": 34337259,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0283": {
+          "get_requests": 285,
+          "get_response_bytes": 34858995,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34337697,
+          "put_requests": 272,
+          "put_success_bytes": 34337697,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0284": {
+          "get_requests": 293,
+          "get_response_bytes": 35454540,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34635351,
+          "put_requests": 276,
+          "put_success_bytes": 34635351,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0285": {
+          "get_requests": 293,
+          "get_response_bytes": 35455653,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34635789,
+          "put_requests": 276,
+          "put_success_bytes": 34635789,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0286": {
+          "get_requests": 293,
+          "get_response_bytes": 35456766,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34636227,
+          "put_requests": 276,
+          "put_success_bytes": 34636227,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0287": {
+          "get_requests": 293,
+          "get_response_bytes": 35461975,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34640761,
+          "put_requests": 276,
+          "put_success_bytes": 34640761,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0288": {
+          "get_requests": 285,
+          "get_response_bytes": 34872752,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34343983,
+          "put_requests": 272,
+          "put_success_bytes": 34343983,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0289": {
+          "get_requests": 285,
+          "get_response_bytes": 34873865,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34344421,
+          "put_requests": 272,
+          "put_success_bytes": 34344421,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0290": {
+          "get_requests": 293,
+          "get_response_bytes": 35469410,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34642075,
+          "put_requests": 276,
+          "put_success_bytes": 34642075,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0291": {
+          "get_requests": 293,
+          "get_response_bytes": 35470523,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34642513,
+          "put_requests": 276,
+          "put_success_bytes": 34642513,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0292": {
+          "get_requests": 293,
+          "get_response_bytes": 35471636,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34642951,
+          "put_requests": 276,
+          "put_success_bytes": 34642951,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0293": {
+          "get_requests": 293,
+          "get_response_bytes": 35476845,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34647485,
+          "put_requests": 276,
+          "put_success_bytes": 34647485,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0294": {
+          "get_requests": 285,
+          "get_response_bytes": 34887622,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34350707,
+          "put_requests": 272,
+          "put_success_bytes": 34350707,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0295": {
+          "get_requests": 285,
+          "get_response_bytes": 34888735,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34351145,
+          "put_requests": 272,
+          "put_success_bytes": 34351145,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0296": {
+          "get_requests": 293,
+          "get_response_bytes": 35484280,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34648799,
+          "put_requests": 276,
+          "put_success_bytes": 34648799,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0297": {
+          "get_requests": 285,
+          "get_response_bytes": 34890961,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34352021,
+          "put_requests": 272,
+          "put_success_bytes": 34352021,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0298": {
+          "get_requests": 293,
+          "get_response_bytes": 35486506,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34649675,
+          "put_requests": 276,
+          "put_success_bytes": 34649675,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0299": {
+          "get_requests": 293,
+          "get_response_bytes": 35491715,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34654209,
+          "put_requests": 276,
+          "put_success_bytes": 34654209,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0300": {
+          "get_requests": 285,
+          "get_response_bytes": 34902492,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34357431,
+          "put_requests": 272,
+          "put_success_bytes": 34357431,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0301": {
+          "get_requests": 285,
+          "get_response_bytes": 34903605,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34357869,
+          "put_requests": 272,
+          "put_success_bytes": 34357869,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0302": {
+          "get_requests": 285,
+          "get_response_bytes": 34904718,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34358307,
+          "put_requests": 272,
+          "put_success_bytes": 34358307,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0303": {
+          "get_requests": 293,
+          "get_response_bytes": 35500263,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34655961,
+          "put_requests": 276,
+          "put_success_bytes": 34655961,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0304": {
+          "get_requests": 293,
+          "get_response_bytes": 35501376,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34656399,
+          "put_requests": 276,
+          "put_success_bytes": 34656399,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0305": {
+          "get_requests": 293,
+          "get_response_bytes": 35506585,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34660933,
+          "put_requests": 276,
+          "put_success_bytes": 34660933,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0306": {
+          "get_requests": 283,
+          "get_response_bytes": 34882664,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 554
+          },
+          "put_request_bytes": 34346806,
+          "put_requests": 271,
+          "put_success_bytes": 34346806,
+          "put_successes": 271,
+          "unique_successful_put_keys": 271
+        },
+        "quota_load_0307": {
+          "get_requests": 285,
+          "get_response_bytes": 34918475,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34364593,
+          "put_requests": 272,
+          "put_success_bytes": 34364593,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0308": {
+          "get_requests": 285,
+          "get_response_bytes": 34919588,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34365031,
+          "put_requests": 272,
+          "put_success_bytes": 34365031,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0309": {
+          "get_requests": 293,
+          "get_response_bytes": 35515133,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34662685,
+          "put_requests": 276,
+          "put_success_bytes": 34662685,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0310": {
+          "get_requests": 293,
+          "get_response_bytes": 35516246,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34663123,
+          "put_requests": 276,
+          "put_success_bytes": 34663123,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0311": {
+          "get_requests": 293,
+          "get_response_bytes": 35521455,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34667657,
+          "put_requests": 276,
+          "put_success_bytes": 34667657,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0312": {
+          "get_requests": 283,
+          "get_response_bytes": 34897534,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 554
+          },
+          "put_request_bytes": 34353530,
+          "put_requests": 271,
+          "put_success_bytes": 34353530,
+          "put_successes": 271,
+          "unique_successful_put_keys": 271
+        },
+        "quota_load_0313": {
+          "get_requests": 285,
+          "get_response_bytes": 34933345,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34371317,
+          "put_requests": 272,
+          "put_success_bytes": 34371317,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0314": {
+          "get_requests": 285,
+          "get_response_bytes": 34934458,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 557
+          },
+          "put_request_bytes": 34371755,
+          "put_requests": 272,
+          "put_success_bytes": 34371755,
+          "put_successes": 272,
+          "unique_successful_put_keys": 272
+        },
+        "quota_load_0315": {
+          "get_requests": 293,
+          "get_response_bytes": 35530003,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34669409,
+          "put_requests": 276,
+          "put_success_bytes": 34669409,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0316": {
+          "get_requests": 293,
+          "get_response_bytes": 35531116,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34669847,
+          "put_requests": 276,
+          "put_success_bytes": 34669847,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0317": {
+          "get_requests": 293,
+          "get_response_bytes": 35532229,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 569
+          },
+          "put_request_bytes": 34670285,
+          "put_requests": 276,
+          "put_success_bytes": 34670285,
+          "put_successes": 276,
+          "unique_successful_put_keys": 276
+        },
+        "quota_load_0318": {
+          "get_requests": 152,
+          "get_response_bytes": 17077806,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 287
+          },
+          "put_request_bytes": 16215187,
+          "put_requests": 135,
+          "put_success_bytes": 16215187,
+          "put_successes": 135,
+          "unique_successful_put_keys": 135
+        },
+        "quota_load_0319": {
+          "get_requests": 36,
+          "get_response_bytes": 2487299,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 60
+          },
+          "put_request_bytes": 2000497,
+          "put_requests": 24,
+          "put_success_bytes": 2000497,
+          "put_successes": 24,
+          "unique_successful_put_keys": 24
+        },
+        "quota_load_0320": {
+          "get_requests": 23,
+          "get_response_bytes": 860338,
+          "head_puts": 1,
+          "http_statuses": {
+            "200": 35
+          },
+          "put_request_bytes": 491229,
+          "put_requests": 12,
+          "put_success_bytes": 491229,
+          "put_successes": 12,
+          "unique_successful_put_keys": 12
+        },
+        "quota_metadata_tail": {
+          "get_requests": 903,
+          "get_response_bytes": 31695832,
+          "head_puts": 41,
+          "http_statuses": {
+            "200": 1354
+          },
+          "put_request_bytes": 14297323,
+          "put_requests": 451,
+          "put_success_bytes": 14297323,
+          "put_successes": 451,
+          "unique_successful_put_keys": 411
+        },
+        "quota_rejection": {
+          "get_requests": 6,
+          "get_response_bytes": 88516,
+          "head_puts": 0,
+          "http_statuses": {
+            "200": 6
+          },
+          "put_request_bytes": 0,
+          "put_requests": 0,
+          "put_success_bytes": 0,
+          "put_successes": 0,
+          "unique_successful_put_keys": 0
+        },
+        "setup": {
+          "get_requests": 17,
+          "get_response_bytes": 13282,
+          "head_puts": 3,
+          "http_statuses": {
+            "200": 27
+          },
+          "put_request_bytes": 12012,
+          "put_requests": 10,
+          "put_success_bytes": 12012,
+          "put_successes": 10,
+          "unique_successful_put_keys": 8
+        }
+      },
+      "bulk_object_metrics_scope": "Every per-batch request and byte count remains in the original summary and history; omitted here only for readability."
+    }
+  },
+  "resource_observation_note": "release-build/resource-observation-note.json in the evidence bundle records non-monotonic reported VmHWM observations. Report the maximum observed self-samples separately from wait4; neither is a hard-memory or production SLO guarantee.",
+  "historical_diagnostics": {
+    "inventory": "independent-gib1-audit.json in the evidence bundle",
+    "original_failures_retained": [
+      "capacity-diagnostic-network-01: external procfs fixture and cleanup failed before database creation",
+      "capacity-diagnostic-gib1-01: external procfs fixture and cleanup failed before database creation",
+      "capacity-diagnostic-gib1-02: actual 1 GiB reserved-page crossing rejected request 34 with InvalidImage; only the preceding 33 ACKs are counted",
+      "capacity-tail-preflight: non-default 10 MiB fixture observed DiskFull 13 but its old error-string assertion failed"
+    ],
+    "diagnostics_counted_as_frozen_candidate_gates": false
+  },
+  "remote_ci": {
+    "schema": 1,
+    "candidate": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+    "observed_utc": "2026-11-06T03:33:33Z",
+    "conclusion": "remote_workflows_failed_without_executed_steps",
+    "reason_confirmed": false,
+    "note": "All five pull-request workflow jobs report failure with zero executed steps. A job-log request returned BlobNotFound. The connector does not support check-run annotations and the public web page could not be retrieved. Do not assert a billing/quota root cause from this observation; prior maintainer authorization permits complete local evidence for merge without changing branch protection.",
+    "workflow_runs": [
+      {
+        "id": 42156518821,
+        "name": "Repository checks",
+        "event": "pull_request",
+        "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+        "status": "completed",
+        "conclusion": "failure",
+        "html_url": "https://github.com/ckanner/scap/actions/runs/42156518821"
+      },
+      {
+        "id": 42156518829,
+        "name": "Object-native quality and independent evidence",
+        "event": "pull_request",
+        "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+        "status": "completed",
+        "conclusion": "failure",
+        "html_url": "https://github.com/ckanner/scap/actions/runs/42156518829"
+      },
+      {
+        "id": 42156285271,
+        "name": "Repository checks",
+        "event": "push",
+        "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+        "status": "completed",
+        "conclusion": "failure",
+        "html_url": "https://github.com/ckanner/scap/actions/runs/42156285271"
+      },
+      {
+        "id": 42156285108,
+        "name": "Object-native quality and independent evidence",
+        "event": "push",
+        "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+        "status": "completed",
+        "conclusion": "failure",
+        "html_url": "https://github.com/ckanner/scap/actions/runs/42156285108"
+      }
+    ],
+    "job_responses": [
+      {
+        "total_count": 4,
+        "jobs": [
+          {
+            "id": 127691859110,
+            "run_id": 42156518829,
+            "workflow_name": "Object-native quality and independent evidence",
+            "head_branch": "feat/production-capacity",
+            "run_url": "https://api.github.com/repos/ckanner/scap/actions/runs/42156518829",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOVZPSws8AAAAduwckpg",
+            "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+            "url": "https://api.github.com/repos/ckanner/scap/actions/jobs/127691859110",
+            "html_url": "https://github.com/ckanner/scap/actions/runs/42156518829/job/127691859110",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-11-06T03:26:01Z",
+            "started_at": "2026-11-06T03:26:01Z",
+            "completed_at": "2026-11-06T03:26:04Z",
+            "name": "N0 bounded model and independent oracle",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/ckanner/scap/check-runs/127691859110",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+          },
+          {
+            "id": 127691859401,
+            "run_id": 42156518829,
+            "workflow_name": "Object-native quality and independent evidence",
+            "head_branch": "feat/production-capacity",
+            "run_url": "https://api.github.com/repos/ckanner/scap/actions/runs/42156518829",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOVZPSws8AAAAduwclyQ",
+            "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+            "url": "https://api.github.com/repos/ckanner/scap/actions/jobs/127691859401",
+            "html_url": "https://github.com/ckanner/scap/actions/runs/42156518829/job/127691859401",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-11-06T03:26:01Z",
+            "started_at": "2026-11-06T03:26:01Z",
+            "completed_at": "2026-11-06T03:26:04Z",
+            "name": "Real local S3 HTTP and process recovery",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/ckanner/scap/check-runs/127691859401",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+          },
+          {
+            "id": 127691859610,
+            "run_id": 42156518829,
+            "workflow_name": "Object-native quality and independent evidence",
+            "head_branch": "feat/production-capacity",
+            "run_url": "https://api.github.com/repos/ckanner/scap/actions/runs/42156518829",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOVZPSws8AAAAduwcmmg",
+            "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+            "url": "https://api.github.com/repos/ckanner/scap/actions/jobs/127691859610",
+            "html_url": "https://github.com/ckanner/scap/actions/runs/42156518829/job/127691859610",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-11-06T03:26:01Z",
+            "started_at": "2026-11-06T03:26:01Z",
+            "completed_at": "2026-11-06T03:26:04Z",
+            "name": "Tooling unit coverage 100 percent",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/ckanner/scap/check-runs/127691859610",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+          },
+          {
+            "id": 127691859632,
+            "run_id": 42156518829,
+            "workflow_name": "Object-native quality and independent evidence",
+            "head_branch": "feat/production-capacity",
+            "run_url": "https://api.github.com/repos/ckanner/scap/actions/runs/42156518829",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOVZPSws8AAAAduwcmsA",
+            "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+            "url": "https://api.github.com/repos/ckanner/scap/actions/jobs/127691859632",
+            "html_url": "https://github.com/ckanner/scap/actions/runs/42156518829/job/127691859632",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-11-06T03:26:01Z",
+            "started_at": "2026-11-06T03:26:01Z",
+            "completed_at": "2026-11-06T03:26:04Z",
+            "name": "Rust unit coverage 100 percent",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/ckanner/scap/check-runs/127691859632",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+          }
+        ]
+      },
+      {
+        "total_count": 1,
+        "jobs": [
+          {
+            "id": 127691858887,
+            "run_id": 42156518821,
+            "workflow_name": "Repository checks",
+            "head_branch": "feat/production-capacity",
+            "run_url": "https://api.github.com/repos/ckanner/scap/actions/runs/42156518821",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOVZPSws8AAAAduwcjxw",
+            "head_sha": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+            "url": "https://api.github.com/repos/ckanner/scap/actions/jobs/127691858887",
+            "html_url": "https://github.com/ckanner/scap/actions/runs/42156518821/job/127691858887",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-11-06T03:26:01Z",
+            "started_at": "2026-11-06T03:26:01Z",
+            "completed_at": "2026-11-06T03:26:04Z",
+            "name": "documentation",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/ckanner/scap/check-runs/127691858887",
+            "labels": [
+              "ubuntu-24.04"
+            ],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+          }
+        ]
+      }
+    ],
+    "log_error": {
+      "error": "GitHub API error 404: ﻿<?xml version=\"1.0\" encoding=\"utf-8\"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\nRequestId:a6b313a7-501e-00bf-7a9f-6da054000000\nTime:2026-11-06T03:33:33.0655371Z</Message></Error>",
+      "error_code": "NOT_FOUND",
+      "error_data": {
+        "error_str": "GitHub API error 404: ﻿<?xml version=\"1.0\" encoding=\"utf-8\"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\nRequestId:a6b313a7-501e-00bf-7a9f-6da054000000\nTime:2026-11-06T03:33:33.0655371Z</Message></Error>"
+      }
+    },
+    "annotations_access_results": [
+      {
+        "error": "HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint. (Response: None)",
+        "error_code": "INVALID_ARGUMENT"
+      },
+      {
+        "error": "HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint. (Response: None)",
+        "error_code": "INVALID_ARGUMENT"
+      }
+    ]
+  },
+  "delivery_identity": {
+    "pull_request": "https://github.com/ckanner/scap/pull/20",
+    "tested_runtime_commit": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+    "procedure": "After frozen-source verification, add only documentation/evidence. Preserve original manifests and reports; record a separate input-equivalence and GitHub merge receipt in the evidence bundle.",
+    "allowed_followup_paths": [
+      "README.md",
+      "docs/engineering/validation.md",
+      "docs/adr/0022-production-capacity.md",
+      "docs/evidence/production-capacity-local-2026-11-06.json"
+    ],
+    "followup_or_merge_commit_claimed_as_tested_commit": false
+  },
+  "remaining_gates": {
+    "aws_s3_standard": "NOT_RUN",
+    "full_n1_exit": "NOT_COMPLETE",
+    "production_slo_and_long_duration_load": "NOT_RUN",
+    "multi_database_scheduling_and_isolation": "NOT_IMPLEMENTED",
+    "object_gc_and_pitr": "NOT_IMPLEMENTED",
+    "public_http_and_node_sdk": "NOT_IMPLEMENTED",
+    "lazy_vfs_or_partial_cold_start": "NOT_IMPLEMENTED",
+    "larger_than_10_gib_database": "NOT_RUN"
+  },
+  "limitations": [
+    "The 10 GiB default is a persisted business quota, not a compile-time engine cap. None disables that quota; the fixed 4 KiB SQLite page-number bound is approximately 16 TiB and has not been capacity-tested.",
+    "Database quota counts the logical SQLite main file, including metadata and free pages. It does not bound immutable history, original results, WAL, scratch files or bucket allocation.",
+    "Cold recovery downloads and validates the complete current database and retained request closure. It needs O(database size) local file space and time; the warm Session then reuses its verified local file with fresh HEAD checks.",
+    "The backend is local SeaweedFS 4.51 over real signed HTTP, not AWS Standard. Compute/cache and backend processes were destroyed and restarted, but kernel page cache was not cleared; no power-failure, device-cold-start or cross-AZ claim is made.",
+    "64 MiB page cache is a soft target and dirty-page budget is separate. Sampled memory reports, wait4 and shared-cgroup memory remain separately labelled.",
+    "The finite historical N0 model uses two result slots. It does not validate v2 production retention sizing, result-byte closure conditions, real SQLite or GiB capacity.",
+    "Known object corruption quarantines subsequent HEAD publication in the shared in-process Database handle. It is not a cross-worker durable fence and cannot retract an already-issued CAS.",
+    "Warm publication inherits previously verified immutable dependencies; it does not proactively reread every retained old object. No reachable-object deletion or object overwrite is permitted by that proof assumption.",
+    "GC is disabled; old chunks and interrupted/conflicting uploads can grow object storage without bound. No production cost, fairness or availability promise follows from these local runs."
+  ],
+  "evidence_artifacts": [
+    {
+      "path": "default-quota/ack-ledger.jsonl",
+      "bytes": 493854,
+      "sha256": "dc92490604e0acf14528db4f1b250881a8db199dda54fa50d0055295793e4b76"
+    },
+    {
+      "path": "default-quota/build-receipt.json",
+      "bytes": 6143,
+      "sha256": "40a6b4b9cd605951ad2c0054a5c9cd3f6fddfc7eebfaeecd1e78ce86fc0e1f6e"
+    },
+    {
+      "path": "default-quota/history.jsonl",
+      "bytes": 248532689,
+      "sha256": "4bc06adca6cacddbe1370f095e10c6e594dc1186680b74ba38d9ac70c59e4f7d"
+    },
+    {
+      "path": "default-quota/input-ledger.jsonl",
+      "bytes": 19009855,
+      "sha256": "4cbb192b216ef7229c87266f3b2a783698d57490d1d6b7e71ab654228286182c"
+    },
+    {
+      "path": "default-quota/resource-samples.jsonl",
+      "bytes": 14094099,
+      "sha256": "95cc6874ea00c30062394e18c0925de54a57dec4b58f3c2c3251e77c1461de69"
+    },
+    {
+      "path": "default-quota/summary.json",
+      "bytes": 120130,
+      "sha256": "9dac9e9f3d2a62d125c4a75348065a3f42e1456310bdfa7e7cb1c07696e8f01a"
+    },
+    {
+      "path": "default-quota/worker-resources-1.jsonl",
+      "bytes": 1802240,
+      "sha256": "d904a9c42a461c8dd9499b945adcf14e08f1eff65b12baad8c4e106cc7284e70"
+    },
+    {
+      "path": "default-quota/worker-resources-2.jsonl",
+      "bytes": 768291,
+      "sha256": "72b944001b6fcff0777ccdd9e8bb0c720e3ba194f9f35688d337a37553bfb137"
+    },
+    {
+      "path": "gib1/ack-ledger.jsonl",
+      "bytes": 52507,
+      "sha256": "2e74b90fe5ff5281588efc647d5624ce2fec1d3bc9d13b64ae6d7fb6554e3145"
+    },
+    {
+      "path": "gib1/build-receipt.json",
+      "bytes": 6143,
+      "sha256": "40a6b4b9cd605951ad2c0054a5c9cd3f6fddfc7eebfaeecd1e78ce86fc0e1f6e"
+    },
+    {
+      "path": "gib1/history.jsonl",
+      "bytes": 31725007,
+      "sha256": "efa7694c6ffd731f0293948af8251310388fbdab9c67e0c51853292a884c227f"
+    },
+    {
+      "path": "gib1/input-ledger.jsonl",
+      "bytes": 1902015,
+      "sha256": "6704f83b132400ac3ec1e5a3fafac770d01179ca04019b4f2eacdd3c05d54e75"
+    },
+    {
+      "path": "gib1/resource-samples.jsonl",
+      "bytes": 1819652,
+      "sha256": "f7bbd8e06754a2b0309353e55ec980b08609ee3e29513aaa7712f3ecb4f49613"
+    },
+    {
+      "path": "gib1/summary.json",
+      "bytes": 25934,
+      "sha256": "0d4c66fa49558f2222af77848371b7e2f1c3518dfcd6f5972135f3baf17c9258"
+    },
+    {
+      "path": "gib1/worker-resources-1.jsonl",
+      "bytes": 239358,
+      "sha256": "07dcaf7d1deb42c5f510445dcd8e455155ca12ee72b6d8e8d33e38d98767f95a"
+    },
+    {
+      "path": "gib1/worker-resources-2.jsonl",
+      "bytes": 50888,
+      "sha256": "edc9f25559e16f64bdcba27f032aed7823c28cfe286c35a53c73698d57396bd5"
+    },
+    {
+      "path": "gib1/worker-resources-3.jsonl",
+      "bytes": 64693,
+      "sha256": "97457da14a01167f638ee1cdc184c8e7f1fdea20cf2292baf3b12a4d0c685522"
+    },
+    {
+      "path": "github-candidate-ci.json",
+      "bytes": 9046,
+      "sha256": "de4f27a30e1df3a07ae1c7cccacac3a63b3f6e683b7ac5693bd146c78c8c6503"
+    },
+    {
+      "path": "independent-default-quota-audit.json",
+      "bytes": 21692,
+      "sha256": "caf224adc8d74e5a4097e2d5056ca0769777eb09e0c19a95cda03e5049e5b51f"
+    },
+    {
+      "path": "independent-gib1-audit.json",
+      "bytes": 34665,
+      "sha256": "67692d93104da0df3e86fb9906476670a23184f16b088a8b26c533f1e92b0470"
+    },
+    {
+      "path": "independent-quality-audit.json",
+      "bytes": 16136,
+      "sha256": "76b642d78dd6d2d9be67efa46474d62e12947545a6a444bd50fc11adf1e0093d"
+    },
+    {
+      "path": "model/exploration/summary.json",
+      "bytes": 504628,
+      "sha256": "9c52a6652083e2c84f6ec3cedaa6a22e5e6e37edcbc8e7f9c19423ada46acf90"
+    },
+    {
+      "path": "model/explore.log",
+      "bytes": 353,
+      "sha256": "3a983ff3bf49c445e78989e42ec1735b53d4cf6fedb83cd1a89a613d8cf92d2b"
+    },
+    {
+      "path": "model/gate.json",
+      "bytes": 636,
+      "sha256": "f31095eb6023fbfae1842daf4150a4cbdd9e2f6f457e9896ddc7860af9886ec7"
+    },
+    {
+      "path": "model/unit.log",
+      "bytes": 11630,
+      "sha256": "36afc6ff161f584e2c6990ce3b821e94ba87a6a5f2cd60df762d3a437d1e1d32"
+    },
+    {
+      "path": "network/ack-ledger.jsonl",
+      "bytes": 4998,
+      "sha256": "2ca52501eab93a6e92579cd9f189f7c1d395d6c465b8cb4588b803264bf2b4dc"
+    },
+    {
+      "path": "network/build-receipt.json",
+      "bytes": 6143,
+      "sha256": "40a6b4b9cd605951ad2c0054a5c9cd3f6fddfc7eebfaeecd1e78ce86fc0e1f6e"
+    },
+    {
+      "path": "network/history.jsonl",
+      "bytes": 335018,
+      "sha256": "27539befd7e7ec63df169764a6d19a935eaec1fac316c466c8e57bab29bdecac"
+    },
+    {
+      "path": "network/summary.json",
+      "bytes": 1739,
+      "sha256": "c2d2cc9457f6e315f64d99e5f4bbd0e684a54caf54b1ec8a5d8b9b5223daac80"
+    },
+    {
+      "path": "release-build/build.json",
+      "bytes": 6143,
+      "sha256": "40a6b4b9cd605951ad2c0054a5c9cd3f6fddfc7eebfaeecd1e78ce86fc0e1f6e"
+    },
+    {
+      "path": "release-build/resource-observation-note.json",
+      "bytes": 13565,
+      "sha256": "c69580ab75d486025c1173adee1dcf2bd0a8bfca9f39ab435f7c62d58d058cae"
+    },
+    {
+      "path": "release-build/runtime-environment.json",
+      "bytes": 664,
+      "sha256": "dc73f56b9349578c2c6fe0f0c10f8cf5c40523413684a36398532cf71c8e40be"
+    },
+    {
+      "path": "rust/clippy.log",
+      "bytes": 182,
+      "sha256": "78513c0cdae85448f7901c8007aaed2e3e764ac324bf4cf7373ca27cab7b37eb"
+    },
+    {
+      "path": "rust/coverage-clean.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "rust/coverage-gate.log",
+      "bytes": 1364,
+      "sha256": "8903e84725249eb95c796a2b1829dfd4aebe1273baf238db2d1df5989984a5ad"
+    },
+    {
+      "path": "rust/coverage-unit.log",
+      "bytes": 13222,
+      "sha256": "3e3307b2043c891d150cdcda907df31cd1fc7ca6104503720174a330f250e944"
+    },
+    {
+      "path": "rust/format.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "rust/gate.json",
+      "bytes": 2690,
+      "sha256": "0e35d06f05695f12ddf4bc7a3863de8cd6e85f14e8d539fbd31880d3d08f0bdd"
+    },
+    {
+      "path": "rust/stable-unit.log",
+      "bytes": 12828,
+      "sha256": "b35ab2ac5aa3e9b71df3a7e4e367f47f20276878f9bb82cc682fb6dc7bdf6efb"
+    },
+    {
+      "path": "rust/unit.json",
+      "bytes": 31706188,
+      "sha256": "f045df41b035a41c86f0402e805af4068740cc3212d9e9c1fc49355ad3909c24"
+    },
+    {
+      "path": "rust/versions.log",
+      "bytes": 196,
+      "sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+    },
+    {
+      "path": "source-after.json",
+      "bytes": 22664,
+      "sha256": "7842765a0407fb0263144103462721be9650d9acbb4bd75a1e5c60fa0034179c"
+    },
+    {
+      "path": "source-before.json",
+      "bytes": 22664,
+      "sha256": "7842765a0407fb0263144103462721be9650d9acbb4bd75a1e5c60fa0034179c"
+    },
+    {
+      "path": "source-verify.log",
+      "bytes": 99,
+      "sha256": "49910afd1847f612bb9b2e99f2a50c3770ad53b5a3023d7f26f2da7e6aded73c"
+    },
+    {
+      "path": "tooling/coverage-gate.log",
+      "bytes": 499,
+      "sha256": "15732b5f4a95feee69dbbf7c6ed7e6441dea30eb8197dd190c0edad38ff3dba0"
+    },
+    {
+      "path": "tooling/coverage-json.log",
+      "bytes": 95,
+      "sha256": "4248d3a9fdebde30d7d8e2e2f92d064941e53350e325516d3111a0d89cfd9ec8"
+    },
+    {
+      "path": "tooling/gate.json",
+      "bytes": 1378,
+      "sha256": "8b2432c423e8d489717352cf55c0250d53b664133d23522154d7839e0c101590"
+    },
+    {
+      "path": "tooling/repository.log",
+      "bytes": 134,
+      "sha256": "82c719c502db7156b4eb4877608856d7957b2799ba9c81aaa2a4f6712f42a661"
+    },
+    {
+      "path": "tooling/unit.coverage",
+      "bytes": 77824,
+      "sha256": "51138ba0fc24079ca3e06cd7322c3101e177a86b2ba72a4c54e92068d767350b"
+    },
+    {
+      "path": "tooling/unit.json",
+      "bytes": 24744,
+      "sha256": "8ec7340364f90292e8a98112f6ec272e3496fe250a5743bbe70df94bdfcb0804"
+    },
+    {
+      "path": "tooling/unit.log",
+      "bytes": 173,
+      "sha256": "241f016abc72d7d1a247309a683e24543b77dd37ec347eabff9c7296e9a1566c"
+    },
+    {
+      "path": "tooling/version.log",
+      "bytes": 112,
+      "sha256": "017937303ffaeeeae1520bad4ec18c3384ebcd6106c791a268b1bd9bbace8874"
+    }
+  ]
+}
