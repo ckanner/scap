@@ -1,13 +1,15 @@
 # SCAP 全新架构方案：S3 权威持久化与可丢弃计算
 
 - 日期：2026-11-05。
-- 状态：**提案 / 未实现 / 未启用 / 未验收**；关联 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)。
+- 状态：**完整目标尚未验收；首个单库实现候选见 [ADR-0021](../adr/0021-object-native-runtime.md)**；关联 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)。
 - 源码基线：`f14b03d03d9216ea56b78aef9d71c5d78fd83645`。
 - 目标场景：大量独立用户／工作区数据库、低活跃比例、短事务、可接受有界冷启动的 SaaS 与 Personal Agent。
 - 用户范围确认：现有原型尚未投入使用，按 greenfield 重设计；**无需迁移、回退、旧格式、旧 SDK 或双后端兼容，可完全替换 Raft/RocksDB 架构**。
-- 本次范围：提交完整方案与 ADR；不在文档 PR 中改运行时代码或创建云资源。
+- PR #16 的提交范围：完整方案与 ADR；该文档 PR 没有修改运行时代码或创建云资源。
 
-> **设计与事实分开：**本文定义 SCAP 的新目标架构，不是为旧系统增加可选后端。现有源码和旧 Raft 文档只作为原型事实与经验，不约束新系统的 API、格式、模块或部署。方案经评审后，实现可以删除和重写旧组件；没有保留双后端的要求。文档提交不表示新系统已运行或已验收。后续实现必须同步重定义[工程约束](<../../AGENTS.md>)、[机器设计清单](<../../contracts/design-contract.json>)和验证脚本，而非继续用旧 quorum 断言检验新协议；正确性与覆盖率要求不因此降低。
+**历史基准：**本文涉及旧源码、原型和文档 PR 的事实，以 2026-11-05 提出方案时的上述源码基线为准；旧代码链接仅供追溯。目标协议与 N0–N4 验收要求继续有效。当前单库实现、已选择的对象布局和实际门禁见 [ADR-0021](../adr/0021-object-native-runtime.md)、[对象运行时](../engineering/object-runtime.md)及[验证规范](../engineering/validation.md)，不能从局部实现或本地验证推导完整目标通过。
+
+> **设计与事实分开：**本文定义 SCAP 的新目标架构，不是为旧系统增加可选后端。现有源码和旧 Raft 文档只作为原型事实与经验，不约束新系统的 API、格式、模块或部署。方案经评审后，实现可以删除和重写旧组件；没有保留双后端的要求。文档提交不表示新系统已运行或已验收。后续实现必须同步重定义[工程约束](<../../AGENTS.md>)、[机器设计清单](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/contracts/design-contract.json)和验证脚本，而非继续用旧 quorum 断言检验新协议；正确性与覆盖率要求不因此降低。
 
 ## 阅读导航
 
@@ -60,11 +62,11 @@
 
 | 当前部分 | 已有实现 | 新后端的方向 |
 | --- | --- | --- |
-| 权威持久层 | [节点初始化](<../../crates/scap-server/src/node.rs>)在 `data_dir/raft` 打开 RocksDB；[RocksBackend](<../../crates/scap-raft-rocks/src/lib.rs>)使用 WAL 和同步 WriteBatch | 新数据库权威不依赖该目录 |
-| 提交控制 | [原生 gate](<../../crates/scap-sqlite/src/gate.rs>)在页面发布前取得精确裁决 | 复用边界，重构裁决来源与回执，不伪造 Raft term/index |
-| S3 | [归档接入](<../../crates/scap-server/src/archive.rs>)独立于热提交；[生命周期](<storage-lifecycle.md>)保存完整单库恢复对象 | 数据和元数据进入实时提交路径 |
-| 容量 | [当前限额](<../../crates/scap-server/src/config.rs>)为每 cell 32 库、每库 256 KiB、每窗口 128 请求、4096 行政记录 | PoC 可沿用小 profile；生产须重构布局和回收，不能只放大常数 |
-| 验证 | [本地证据](<../evidence/retention-reconciled-local-2026-11-05.json>)明确生产规模、三 AZ 和 SLO 未验收 | 新后端重新建立证据，不借用旧后端结果 |
+| 权威持久层 | [节点初始化](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-server/src/node.rs)在 `data_dir/raft` 打开 RocksDB；[RocksBackend](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-raft-rocks/src/lib.rs)使用 WAL 和同步 WriteBatch | 新数据库权威不依赖该目录 |
+| 提交控制 | [原生 gate](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-sqlite/src/gate.rs)在页面发布前取得精确裁决 | 复用边界，重构裁决来源与回执，不伪造 Raft term/index |
+| S3 | [归档接入](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-server/src/archive.rs)独立于热提交；[生命周期](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/architecture/storage-lifecycle.md)保存完整单库恢复对象 | 数据和元数据进入实时提交路径 |
+| 容量 | [当前限额](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-server/src/config.rs)为每 cell 32 库、每库 256 KiB、每窗口 128 请求、4096 行政记录 | PoC 可沿用小 profile；生产须重构布局和回收，不能只放大常数 |
+| 验证 | [本地证据](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/evidence/retention-reconciled-local-2026-11-05.json)明确生产规模、三 AZ 和 SLO 未验收 | 新后端重新建立证据，不借用旧后端结果 |
 
 ### 2.2 不做“RocksDB 接口直接换 S3”
 
@@ -153,7 +155,7 @@ flowchart TD
 
 职责不要求全部拆成微服务；可在一个进程装配，但资源预算和错误边界独立。多个数据库共享计算，不为休眠库常驻线程或连接。监控可外置，不参与提交权威。
 
-### 5.2 候选布局（尚未创建）
+### 5.2 目标候选布局
 
 ```text
 scap-object/v1/<deployment_id>/
@@ -286,7 +288,7 @@ lease/心跳可减少争抢，不提供 fencing。无业务时不要求每库持
 
 ### 9.1 身份与原子结果
 
-请求协议从零定义；[ADR-0019](<../adr/0019-explicit-request-result-retirement.md>)仅提供已识别故障的参考，不约束新 SDK 或返回格式。身份至少包含 authority generation、database/incarnation、请求世代、request ID、原主体及规范业务指纹。owner 可变化，未知业务的请求世代/ID 不变。
+请求协议从零定义；[ADR-0019](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/adr/0019-explicit-request-result-retirement.md)仅提供已识别故障的参考，不约束新 SDK 或返回格式。身份至少包含 authority generation、database/incarnation、请求世代、request ID、原主体及规范业务指纹。owner 可变化，未知业务的请求世代/ID 不变。
 
 结果与取消索引通过同一 HEAD 与数据根一起发布。独立结果对象上传成功不代表提交。返回原结果仍检查当前权限，不能凭旧 token 读取敏感历史。
 
@@ -378,19 +380,19 @@ PITR 从权威保留提交链选择恢复点，构建隔离目标，验证后以
 <a id="implementation"></a>
 ## 12. 目标模块、API 与原型取舍
 
-以下是目标职责，不是兼容旧模块的要求。新模块名称为候选，尚不存在；不要求先建空 crate。可以原地重写或重新组织 workspace，不设计公开双后端切换接口。
+以下是方案提出时的目标职责划分，不是兼容旧模块或预先建立空 crate 的要求；当前实际模块边界见 [ADR-0021](../adr/0021-object-native-runtime.md)。可以原地重写或重新组织 workspace，不设计公开双后端切换接口。
 
 | 目标职责 | 新系统责任 | 现有代码可参考的位置 |
 | --- | --- | --- |
-| SQL executor | 私有 SQLite、staged/publish/abort、物理增量、结果缓冲 | [scap-sqlite](<../../crates/scap-sqlite/src/lib.rs>)及[gate](<../../crates/scap-sqlite/src/gate.rs>)；不适合新协议的类型可以重写 |
-| Object authority | HEAD、状态转换、提交/查证/取消、权限与 owner fencing | [scap-core](<../../crates/scap-core/src/lib.rs>)、[scap-cell](<../../crates/scap-cell/src/lib.rs>)的安全规则；删除 cell/term/index 语义耦合 |
-| Object I/O | 强一致 GET、条件创建/更新、摘要、错误、计量 | [scap-archive](<../../crates/scap-archive/src/lib.rs>)的对象校验经验；不是原归档格式兼容 |
-| Worker runtime | 恢复、激活、执行、强读、取消、缓存和资源预算 | [scap-sql-worker](<../../crates/scap-sql-worker/src/lib.rs>)；当前与 cell client 绑定的装配重新设计 |
-| Authority client | 与对象提交/读/结果协议交互，无 Raft ReadIndex 依赖 | [scap-cell-client](<../../crates/scap-cell-client/src/lib.rs>)仅作为耦合审计对象，不保留旧 adapter 要求 |
+| SQL executor | 私有 SQLite、staged/publish/abort、物理增量、结果缓冲 | [scap-sqlite](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-sqlite/src/lib.rs)及[gate](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-sqlite/src/gate.rs)；不适合新协议的类型可以重写 |
+| Object authority | HEAD、状态转换、提交/查证/取消、权限与 owner fencing | [scap-core](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-core/src/lib.rs)、[scap-cell](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-cell/src/lib.rs)的安全规则；删除 cell/term/index 语义耦合 |
+| Object I/O | 强一致 GET、条件创建/更新、摘要、错误、计量 | [scap-archive](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-archive/src/lib.rs)的对象校验经验；不是原归档格式兼容 |
+| Worker runtime | 恢复、激活、执行、强读、取消、缓存和资源预算 | [scap-sql-worker](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-sql-worker/src/lib.rs)；旧原型与 cell client 绑定的装配重新设计 |
+| Authority client | 与对象提交/读/结果协议交互，无 Raft ReadIndex 依赖 | [scap-cell-client](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-cell-client/src/lib.rs)仅作为耦合审计对象，不保留旧 adapter 要求 |
 | Lifecycle | pin、基线/增量、PITR、GC、目录及恢复闭包 | 按目标对象格式实现，避免 whole-cell 镜像复制 |
-| API/SDK | 新建的异步远程数据库 API、稳定请求身份与明确结果语义 | [service](<../../crates/scap-service/src/lib.rs>)、[SDK](<../../sdk/node/src/client.ts>)可选择性复用，不承诺兼容旧 Hrana 子集或客户端版本 |
-| Server composition | API/执行/对象任务装配、身份、启动预检和观测 | [scap-server](<../../crates/scap-server/src/lib.rs>)可重写；无 Raft peer、RocksDB、PVC 的必要启动依赖 |
-| Raft/RocksDB 子系统 | **不在目标架构中** | 历史代码见 [Raft/RocksDB](<../../crates/scap-raft-rocks/src/lib.rs>)；实现时可移除，不作自动备用路径 |
+| API/SDK | 新建的异步远程数据库 API、稳定请求身份与明确结果语义 | [service](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-service/src/lib.rs)、[SDK](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/sdk/node/src/client.ts)可选择性复用，不承诺兼容旧 Hrana 子集或客户端版本 |
+| Server composition | API/执行/对象任务装配、身份、启动预检和观测 | [scap-server](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-server/src/lib.rs)可重写；无 Raft peer、RocksDB、PVC 的必要启动依赖 |
+| Raft/RocksDB 子系统 | **不在目标架构中** | 历史代码见 [Raft/RocksDB](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/crates/scap-raft-rocks/src/lib.rs)；实现时可移除，不作自动备用路径 |
 
 窄 port 候选为 ReadHead、PutImmutable、CompareAndSwapHead、CommitAuthority、ReadAuthority、ResolveAuthority、EngineMaterializer、PinAuthority、Clock/IdSource。它们用于分离正确性与 I/O，而不是为未来所有数据库后端建立通用框架。返回区分 Applied、PreconditionConflict、DefinitiveReject、Unknown、Corrupt、Unavailable，不能用 bool 吞掉可能提交的事实。
 
@@ -407,14 +409,14 @@ PITR 从权威保留提交链选择恢复点，构建隔离目标，验证后以
 
 ### 12.2 工程合同一并重建
 
-正式重写时同步替换[机器设计合同](<../../contracts/design-contract.json>)及其校验脚本，删除不适用于目标的 Raft-only 假设，建立本文 OI/OF/OT 的可执行门禁。现有原型代码、旧 fixture 和历史文档可以移除或归档，不要求两个架构同时运行或测试兼容。保留历史证据用于追溯，但不能把旧 quorum 测试算作新协议通过。
+正式重写时同步替换[机器设计合同](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/contracts/design-contract.json)及其校验脚本，删除不适用于目标的 Raft-only 假设，建立本文 OI/OF/OT 的可执行门禁。现有原型代码、旧 fixture 和历史文档可以移除或归档，不要求两个架构同时运行或测试兼容。保留历史证据用于追溯，但不能把旧 quorum 测试算作新协议通过。
 
-第一方生产代码仍要达到原有严格覆盖率和独立真实故障验证要求。取消无关旧实现的分母与偷偷排除新生产代码不同；重写 PR 必须明确实际发布源码、测试资产和新增分母。当前文档 PR 不改这些机器文件，因为新实现尚不存在。
+第一方生产代码仍要达到原有严格覆盖率和独立真实故障验证要求。取消无关旧实现的分母与偷偷排除新生产代码不同；重写 PR 必须明确实际发布源码、测试资产和新增分母。PR #16 文档提交时尚无对象运行时，因此没有修改这些机器文件；当前实现的门禁见[验证规范](../engineering/validation.md)。
 
 <a id="fault-matrix"></a>
 ## 13. 候选故障矩阵
 
-以下是新系统的目标故障矩阵，均待实现／验证。[Raft 原型故障矩阵](<../operations/failure-matrix.md>)仅为历史参照，不要求新系统继续提供 Raft 行为。
+以下是新系统的目标故障矩阵，具体验收范围以当前实现的独立证据为准，不能从局部场景通过推导整表完成。[Raft 原型故障矩阵](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/operations/failure-matrix.md)仅为历史参照，不要求新系统继续提供 Raft 行为。
 
 | ID | 故障／竞争 | 必须行为 |
 | --- | --- | --- |
@@ -446,7 +448,7 @@ PITR 从权威保留提交链选择恢复点，构建隔离目标，验证后以
 
 ### 14.1 分层证据
 
-1. 纯转换单元：分别改变 owner/auth/base/request/格式条件，验证拒绝无副作用；正式代码进入原[覆盖率门禁](<../engineering/testability-and-coverage.md>)。
+1. 纯转换单元：分别改变 owner/auth/base/request/格式条件，验证拒绝无副作用；正式代码进入原[覆盖率门禁](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/engineering/testability-and-coverage.md)。
 2. 可控对象模型：原子 CAS、请求重排、响应丢失、损坏和崩溃；模型假设显式，不能替代云服务。
 3. 确定性全流程：真实核心状态机与 gate，记录 seed、反例和缩减历史。
 4. 真实 AWS S3 合同：精确 region/storage class、GET/body/ETag、条件请求、权限策略及错误重试；其他兼容端点独立报告。
@@ -491,7 +493,7 @@ ACK 丢失、重复接受、旧写者覆盖、越权、GC 破坏闭包或多重�
 <a id="cost"></a>
 ## 15. 性能、容量与总成本
 
-[原性能目标](<../engineering/performance-slo.md>)是 Raft 对照，不直接赋予 object 后端。新的端到端预算含排队、HEAD GET、恢复、SQL、上传、CAS/冲突查证、本地发布和返回。
+[原性能目标](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/engineering/performance-slo.md)是 Raft 对照，不直接赋予 object 后端。新的端到端预算含排队、HEAD GET、恢复、SQL、上传、CAS/冲突查证、本地发布和返回。
 
 N2 性能试验前必须冻结独立 profile 的数字目标、数据、deadline 和恢复条件。未达标保留失败并版本化修订，不测完挑阈值；没有预定义目标和完整样本就没有性能验收。
 

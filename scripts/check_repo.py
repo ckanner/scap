@@ -26,25 +26,21 @@ REQUIRED = (
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs/README.md",
-    "docs/architecture/requirements.md",
-    "docs/architecture/overview.md",
-    "docs/architecture/consistency.md",
-    "docs/architecture/storage-lifecycle.md",
-    "docs/architecture/api-contracts.md",
-    "docs/architecture/tenancy-security.md",
-    "docs/architecture/technology-stack.md",
+    "docs/architecture/object-storage-native-proposal.md",
     "docs/operations/failure-matrix.md",
     "docs/operations/runbooks.md",
     "docs/engineering/validation.md",
     "docs/engineering/roadmap.md",
-    "docs/engineering/capacity-cost.md",
-    "docs/engineering/performance-slo.md",
-    "docs/engineering/repository-layout.md",
+    "docs/engineering/object-runtime.md",
+    "docs/engineering/object-authority-n0.md",
     "docs/engineering/testability-and-coverage.md",
-    "docs/research/components.md",
+    "docs/engineering/local-validation.md",
     "docs/adr/README.md",
+    "docs/adr/0020-object-storage-native-authority.md",
+    "docs/adr/0021-object-native-runtime.md",
     "contracts/design-contract.json",
     ".github/workflows/docs.yml",
+    ".github/workflows/quality.yml",
 )
 
 
@@ -141,24 +137,51 @@ def check_contract(text: str) -> list[str]:
     try:
         contract = json.loads(text)
         checks = {
-            "allowed repository status": contract["status"] in {"design-only", "g0-prototype"},
-            "no implemented HA claim": contract["implementation_complete"] is False,
-            "3-voter, 2-quorum baseline": (
-                contract["replication"]["voters"] == 3
-                and contract["replication"]["quorum"] == 2
+            "object-native contract version": (
+                type(contract["schema_version"]) is int and contract["schema_version"] == 2
             ),
-            "CP partition policy": contract["consistency"]["partition_policy"] == "CP",
+            "object-native prototype status": contract["status"] == "object-native-prototype",
+            "implementation remains incomplete": contract["implementation_complete"] is False,
+            "S3 HEAD conditional authority": contract["authority"] == "s3-head-conditional-put",
             "no local-write fallback": (
                 contract["consistency"]["automatic_local_write_fallback"] is False
             ),
-            "S3-independent worker suspend": (
-                contract["storage"]["worker_suspend_requires_full_s3_archive"] is False
+            "no SQL replay after unknown": contract["consistency"]["unknown_sql_replay"] is False,
+            "ACK requires durable objects, conditional HEAD, and native publication": (
+                contract["consistency"]["ack_requires"] == [
+                    "verified-immutable-dependencies",
+                    "conditional-head-publication",
+                    "native-publication",
+                ]
             ),
-            "RPO not yet validated": contract["targets"]["single_az_rpo_validated"] is False,
+            "local disk is not authoritative": contract["storage"]["local_disk_authoritative"] is False,
+            "immutable objects are create-only": contract["storage"]["immutable_create_only"] is True,
+            "physical GC remains unimplemented": contract["storage"]["physical_gc_implemented"] is False,
+            "AWS Standard remains unvalidated": contract["targets"]["aws_standard_validated"] is False,
+            "production SLO remains unvalidated": contract["targets"]["production_slo_validated"] is False,
             "no PostgreSQL initial scope": (
                 contract["scope"]["postgresql_in_initial_scope"] is False
             ),
-            "complete gate sequence": set(contract["gates"]) == {"G0", "G1", "G2", "G3", "G4"},
+            "complete gate sequence": contract["gates"] == ["N0", "N1", "N2", "N3", "N4"],
+            "100 percent unit coverage": (
+                type(contract["quality"]["unit_coverage_percent"]) is int
+                and contract["quality"]["unit_coverage_percent"] == 100
+            ),
+            "integration profiles cannot count as unit": (
+                contract["quality"]["integration_profiles_count_as_unit"] is False
+            ),
+            "no legacy runtime": contract["compatibility"]["legacy_runtime"] is False,
+            "no legacy SDK": contract["compatibility"]["legacy_sdk"] is False,
+            "no dual backend": contract["compatibility"]["dual_backend"] is False,
+            "bounded protocol profile": contract["profile"] == {
+                "page_size": 4096,
+                "max_pages": 64,
+                "head_bytes": 16384,
+                "object_bytes": 524288,
+                "result_bytes": 65536,
+                "request_window": 128,
+                "closed_windows_retained": 2,
+            },
         }
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         return [f"invalid design contract structure: {error}"]

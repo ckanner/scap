@@ -1,4 +1,4 @@
-name: Code quality and G0 evidence
+name: Object-native quality and independent evidence
 
 on:
   push:
@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/rust-unit
       CXXFLAGS: -g0
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
     steps:
@@ -83,7 +84,7 @@ jobs:
           if-no-files-found: error
 
   object-authority-model:
-    name: Object authority bounded model and independent oracle
+    name: N0 bounded model and independent oracle
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -102,543 +103,61 @@ jobs:
           path: target/evidence/object-authority-model
           if-no-files-found: warn
 
-  engine-probe:
-    name: Real libSQL WAL probes
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt
-      - name: Check probe formatting
-        run: cargo +1.90.0 fmt --manifest-path experiments/wal-gate/Cargo.toml --all -- --check
-      - name: Execute engine and process-exit experiments separately
-        run: cargo +1.90.0 test --manifest-path experiments/wal-gate/Cargo.toml --locked -- --test-threads=1
-
-  rpc-codec-probe:
-    name: Real raft-rs Tonic codec probes
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check probe format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/raft-rpc/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/raft-rpc/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute real loopback RPC experiments separately
-        run: cargo +1.90.0 test --manifest-path experiments/raft-rpc/Cargo.toml --locked -- --test-threads=1
-
-  durable-store-probe:
-    name: Real RawNode RocksDB recovery probes
+  object-network:
+    name: Real local S3 HTTP and process recovery
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/object-network-build
       CXXFLAGS: -g0
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check durable probe format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/raft-store/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/raft-store/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute disk and process-recovery contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/raft-store/Cargo.toml --locked -- --test-threads=1
-
-  three-process-probe:
-    name: Real three-process Raft fault contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_CLUSTER_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/raft-cluster
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check cluster probe format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/raft-cluster/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/raft-cluster/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute three-process fault contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/raft-cluster/Cargo.toml --locked -- --test-threads=1
-      - name: Retain bounded request and recovery histories
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: three-process-raft-evidence
-          path: target/evidence/raft-cluster
-          if-no-files-found: warn
-
-  sqlite-cell-probe:
-    name: Real SQLite cell commit contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_SQLITE_CELL_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-cell
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check SQLite cell probe format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/sqlite-cell/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/sqlite-cell/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute real engine and cell contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/sqlite-cell/Cargo.toml --locked -- --test-threads=1
-      - name: Retain engine publication and recovery histories
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: sqlite-cell-evidence
-          path: target/evidence/sqlite-cell
-          if-no-files-found: warn
-
-  sqlite-engine-probe:
-    name: Formal SQLite adapter fault contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_ENGINE_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-engine
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check formal adapter contract format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/sqlite-engine/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/sqlite-engine/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute formal adapter and real cell fault contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/sqlite-engine/Cargo.toml --locked -- --test-threads=1
-      - name: Retain engine publication and recovery histories
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: sqlite-engine-evidence
-          path: target/evidence/sqlite-engine
-          if-no-files-found: warn
-
-  raft-network-probe:
-    name: Real three-process mTLS runtime contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/raft-network
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check real network contract format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/raft-network/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/raft-network/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute real mTLS process contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/raft-network/Cargo.toml --locked -- --test-threads=1
-      - name: Verify all eight network histories completed
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          directory = Path(os.environ["SCAP_NETWORK_EVIDENCE_DIR"])
-          histories = sorted(directory.glob("*.log"))
-          if len(histories) != 8:
-              raise SystemExit(f"Expected eight network histories, found {len(histories)}")
-          for history in histories:
-              lines = history.read_text(encoding="utf-8").splitlines()
-              if not lines or not lines[-1].endswith(" verification passed"):
-                  raise SystemExit(f"Incomplete network history: {history.name}")
-          print("Verified eight completed network histories; execution success remains a separate test gate.")
-          PY
-      - name: Retain bounded network and process histories
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: raft-network-evidence
-          path: target/evidence/raft-network
-          if-no-files-found: warn
-
-  sqlite-network-probe:
-    name: Real SQLite and mTLS durable commit contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_SQL_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-network
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install and record native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          c++ --version
-          dpkg-query --show libclang-18-dev
-      - name: Install fixed Rust toolchain
-        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Check SQLite network contract format and lint
-        run: |
-          cargo +1.90.0 fmt --manifest-path experiments/sqlite-network/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/sqlite-network/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute real SQL and mTLS process contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/sqlite-network/Cargo.toml --locked -- --test-threads=1
-      - name: Verify all nine SQLite network histories completed
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          directory = Path(os.environ["SCAP_SQL_NETWORK_EVIDENCE_DIR"])
-          histories = sorted(directory.glob("*.log"))
-          if len(histories) != 9:
-              raise SystemExit(f"Expected nine SQL network histories, found {len(histories)}")
-          for history in histories:
-              lines = history.read_text(encoding="utf-8").splitlines()
-              if not lines or not lines[-1].endswith(" verification passed"):
-                  raise SystemExit(f"Incomplete SQL network history: {history.name}")
-          print("Verified nine completed SQL network histories; test success is a separate gate.")
-          PY
-      - name: Retain SQL commit and recovery histories
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: sqlite-network-evidence
-          path: target/evidence/sqlite-network
-          if-no-files-found: warn
-
-  node-sdk-unit:
-    name: Node SDK unit coverage 100 percent
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: '24.22.1'
-      - name: Install exactly the locked SDK dependencies
-        run: npm --prefix sdk/node ci --ignore-scripts
-      - name: Collect fresh unit-only coverage and check exact source counters
-        run: |
-          npm --prefix sdk/node test
-          python3 scripts/check_sdk_coverage.py sdk/node/coverage/coverage-final.json
-      - name: Retain SDK unit counters separately from real service evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: node-sdk-unit-coverage
-          path: |
-            sdk/node/coverage/coverage-final.json
-            sdk/node/coverage/lcov.info
-          if-no-files-found: error
-
-  archive-s3-probe:
-    name: Real signed immutable S3 object contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_ARCHIVE_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/archive-s3
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install fixed Rust and native tools
+      - name: Install native build tools and fixed Rust toolchain
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libclang-18-dev
           rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
-      - name: Download and verify the fixed independent S3 backend
+          c++ --version
+          dpkg-query --show libclang-18-dev
+      - name: Fetch the pinned local S3-compatible server
         run: |
-          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
-          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
-      - name: Check format and lint
+          mkdir -p target/object-network-tools
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/chrislusf/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output target/object-network-tools/weed.tar.gz
+          echo 'c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  target/object-network-tools/weed.tar.gz' | sha256sum --check --strict
+          tar -xzf target/object-network-tools/weed.tar.gz -C target/object-network-tools weed
+          target/object-network-tools/weed version
+      - name: Format, lint, and build the production-code harness
         run: |
-          cargo +1.90.0 fmt --manifest-path experiments/archive-s3/Cargo.toml --all -- --check
-          cargo +1.90.0 clippy --manifest-path experiments/archive-s3/Cargo.toml --all-targets --locked -- -D warnings
-      - name: Execute signed object and process-restart contracts separately
-        run: cargo +1.90.0 test --manifest-path experiments/archive-s3/Cargo.toml --locked -- --test-threads=1
-      - name: Verify both independent object histories completed
+          cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/object-network/Cargo.toml --all-targets --locked -- -D warnings
+          python3 experiments/object-network/build.py \
+            --target-dir "$CARGO_TARGET_DIR" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/object-network-build"
+      - name: Run independent HTTP and process evidence
+        # Private loopback services only. AWS Standard and production SLO remain NOT_RUN.
         run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          directory = Path(os.environ["SCAP_ARCHIVE_EVIDENCE_DIR"])
-          names = {"immutable-restart.log", "orphan-outage.log"}
-          if {path.name for path in directory.glob("*.log")} != names:
-              raise SystemExit("S3 contract history inventory is incomplete")
-          for name in sorted(names):
-              lines = (directory / name).read_text(encoding="utf-8").splitlines()
-              if not lines or lines[-1] != "verification passed":
-                  raise SystemExit(f"Incomplete S3 contract history: {name}")
-          PY
-      - name: Retain independent S3 evidence
+          python3 experiments/object-network/run.py \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/object-network"
+      - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: archive-s3-evidence
-          path: target/evidence/archive-s3
-          if-no-files-found: warn
-
-  sqlite-service-probe:
-    name: Real SQL service SDK S3 and automatic recovery
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    env:
-      CARGO_BUILD_JOBS: 2
-      CXXFLAGS: -g0
-      LIBCLANG_PATH: /usr/lib/llvm-18/lib
-      SCAP_SERVER_BIN: ${{ github.workspace }}/target/release/scap-server
-      SCAP_SERVICE_NETWORK_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/sqlite-service
-      SCAP_MEMBERSHIP_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/membership-network
-      SCAP_HISTORY_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/history-network
-      SCAP_OLD_SERVER_SOURCE_COMMIT: 662f04133f6a869d0dae5b05467656e6deca5c12
-      SCAP_RETENTION_EVIDENCE_DIR: ${{ github.workspace }}/target/evidence/retention-network
-      SCAP_RETENTION_OLD_SOURCE_COMMIT: b9f512819358494f178b01d7f1d960dff8222c1c
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: '24.22.1'
-      - name: Install fixed Rust and native build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libclang-18-dev
-          rustup toolchain install 1.90.0 --profile minimal
-      - name: Check out the exact V2 producer for the disk upgrade contract
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: 662f04133f6a869d0dae5b05467656e6deca5c12
-          path: target/legacy-server-source
-          persist-credentials: false
-      - name: Build and freeze the old production binary before the current build
-        run: |
-          test "$(git -C target/legacy-server-source rev-parse HEAD)" = "$SCAP_OLD_SERVER_SOURCE_COMMIT"
-          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo +1.90.0 build --manifest-path target/legacy-server-source/Cargo.toml --release -p scap-server --locked
-          cp target/release/scap-server "$RUNNER_TEMP/scap-history-old-server"
-          chmod 0555 "$RUNNER_TEMP/scap-history-old-server"
-          printf '%s\n' "SCAP_OLD_SERVER_BIN=$RUNNER_TEMP/scap-history-old-server" >> "$GITHUB_ENV"
-          printf 'SCAP_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-history-old-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
-      - name: Check out the exact V3 producer for request retirement
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: b9f512819358494f178b01d7f1d960dff8222c1c
-          path: target/retention-legacy-source
-          persist-credentials: false
-      - name: Build and freeze the V3 production binary independently
-        run: |
-          test "$(git -C target/retention-legacy-source rev-parse HEAD)" = "$SCAP_RETENTION_OLD_SOURCE_COMMIT"
-          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo +1.90.0 build --manifest-path target/retention-legacy-source/Cargo.toml --release -p scap-server --locked
-          cp target/release/scap-server "$RUNNER_TEMP/scap-retention-old-server"
-          chmod 0555 "$RUNNER_TEMP/scap-retention-old-server"
-          printf '%s\n' "SCAP_RETENTION_OLD_SERVER_BIN=$RUNNER_TEMP/scap-retention-old-server" >> "$GITHUB_ENV"
-          printf 'SCAP_RETENTION_OLD_SERVER_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/scap-retention-old-server" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
-      - name: Build the production release binary and real SDK
-        run: |
-          cargo +1.90.0 build --release -p scap-server --locked
-          npm --prefix sdk/node ci --ignore-scripts
-          npm --prefix sdk/node run build
-          bash experiments/archive-s3/download-seaweedfs.sh "$RUNNER_TEMP/scap-seaweedfs"
-          printf '%s\n' "SCAP_SEAWEEDFS_BIN=$RUNNER_TEMP/scap-seaweedfs/weed" >> "$GITHUB_ENV"
-      - name: Execute all eight service contracts without unit instrumentation
-        run: |
-          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
-          node experiments/service-network/run.mjs
-      - name: Verify the complete contract inventory and retained measurement
-        run: |
-          python3 - <<'PY'
-          import json
-          import math
-          import os
-          from pathlib import Path
-
-          directory = Path(os.environ["SCAP_SERVICE_NETWORK_EVIDENCE_DIR"])
-          complete = json.loads((directory / "completed.json").read_text())
-          if complete["selected_contract"] != "all" or not complete["s3_requested"]:
-              raise SystemExit("The full SQL and S3 deployment contract is required")
-          expected = {
-              "01-three-real-daemons", "02-real-node-sdk", "03-tenant-and-read-permissions",
-              "04-acknowledged-write-leader-kill", "05-real-minority-tcp-blackhole",
-              "06-all-processes-reopen", "07-s3-cold-publication-and-wake",
-              "08-local-recovery-measurement",
-          }
-          names = complete["completed_contracts"]
-          if len(names) != 8 or set(names) != expected:
-              raise SystemExit("Expected every specified independent service contract exactly once")
-          for name in sorted(expected):
-              lines = (directory / f"{name}.history.jsonl").read_text().splitlines()
-              if not lines or lines[-1] != "verification passed":
-                  raise SystemExit(f"Incomplete service history: {name}")
-          cold = [json.loads(line) for line in (directory / "cold-wake.samples.jsonl").read_text().splitlines()]
-          if len(cold) != 17 or len({sample["request_id"] for sample in cold}) != 17:
-              raise SystemExit("All 17 cold-isolation attempts must be retained")
-          if {sample["ordinal"] for sample in cold} != set(range(17)):
-              raise SystemExit("Cold-isolation schedule is incomplete")
-          for sample in cold:
-              if sample["database"] != ("beta" if sample["ordinal"] < 13 else "alpha"):
-                  raise SystemExit("Cold-isolation database schedule is invalid")
-              expected_kind = "read" if sample["ordinal"] < 13 or sample["ordinal"] % 2 == 0 else "write"
-              if sample["kind"] != expected_kind:
-                  raise SystemExit("Cold-isolation operation schedule is invalid")
-              for key in ("scheduled_ms", "invoked_ms", "deadline_ms", "result_ms", "latency_ms"):
-                  if type(sample[key]) not in (int, float) or not math.isfinite(sample[key]):
-                      raise SystemExit("Cold-isolation timestamp is invalid")
-              if not sample["scheduled_ms"] <= sample["invoked_ms"] <= sample["result_ms"] or sample["scheduled_ms"] >= sample["deadline_ms"]:
-                  raise SystemExit("Cold-isolation timestamp order is invalid")
-          beta = [sample for sample in cold if sample["database"] == "beta"]
-          alpha = [sample for sample in cold if sample["database"] == "alpha"]
-          first = next(sample for sample in cold if sample["ordinal"] == 0)
-          if len(beta) != 13 or len(alpha) != 4 or first["database"] != "beta":
-              raise SystemExit("Cold-isolation database inventory is invalid")
-          if any(sample["outcome"] != "success" or sample["result_ms"] >= first["result_ms"] for sample in alpha):
-              raise SystemExit("Hot reads and writes must complete while the first cold wake is pending")
-          if any(sample["result_ms"] >= sample["deadline_ms"] for sample in alpha):
-              raise SystemExit("Hot results must arrive before their original recorded deadlines")
-          if any(sample["outcome"] in ("success", "correctness_error") for sample in beta):
-              raise SystemExit("Cold reads cannot succeed without their exact archive")
-          if sum(sample.get("code") == "OVERLOADED" for sample in beta) < 5:
-              raise SystemExit("Per-database admission must reject the excess cold requests")
-          samples = [json.loads(line) for line in (directory / "latency.samples.jsonl").read_text().splitlines()]
-          if len(samples) != 360 or len({sample["request_id"] for sample in samples}) != 360:
-              raise SystemExit("All 360 distinct scheduled requests, including failures, must be retained")
-          expected_slots = {
-              (phase, database, kind, round_number)
-              for phase, rounds in (("hot", 30), ("recovery", 60))
-              for database in ("alpha", "beta")
-              for kind in ("read", "write")
-              for round_number in range(rounds)
-          }
-          slots = {(sample["phase"], sample["database"], sample["kind"], sample["round"]) for sample in samples}
-          if slots != expected_slots or any(type(sample["round"]) is not int for sample in samples):
-              raise SystemExit("The complete two-database hot and recovery schedule must be retained")
-          print("Service correctness and local recovery window verified; production SLO remains unvalidated.")
-          PY
-      - name: Execute real learner and joint replacement contracts
-        run: node experiments/membership-network/run.mjs
-      - name: Verify complete membership replacement evidence
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          directory = Path(os.environ["SCAP_MEMBERSHIP_EVIDENCE_DIR"])
-          summary = json.loads((directory / "summary.json").read_text())
-          expected = [
-              "01-original-quorum-and-unjoined-node",
-              "02-management-authorization-and-cas",
-              "03-lagging-learner-cannot-be-promoted",
-              "04-compacted-history-catches-up-new-replica",
-              "05-joint-configuration-survives-process-restart",
-              "06-final-membership-and-old-node-return",
-              "07-new-voter-quorum-preserves-acknowledged-sql",
-              "08-no-quorum-never-forces-membership",
-          ]
-          if summary["completed"] != expected or summary["all_contracts_passed"] is not True:
-              raise SystemExit("Every independent membership contract must complete in order")
-          if summary["lost_acknowledgements"] != 0 or summary["production_slo_passed"] is not False:
-              raise SystemExit("Membership correctness and production SLO boundaries must remain explicit")
-          for name in expected:
-              lines = (directory / f"{name}.history.jsonl").read_text().splitlines()
-              if not lines or lines[-1] != "verification passed":
-                  raise SystemExit(f"Incomplete membership history: {name}")
-              events = [json.loads(line) for line in lines[:-1]]
-              if sum(event["event"] == "contract_started" for event in events) != 1:
-                  raise SystemExit(f"Invalid membership start count: {name}")
-              if sum(event["event"] == "contract_completed" for event in events) != 1:
-                  raise SystemExit(f"Invalid membership completion count: {name}")
-              if any(event["event"] == "contract_failed" for event in events):
-                  raise SystemExit(f"Failed membership history: {name}")
-          print("Learner, joint restart, replacement quorum and ACK retention verified locally.")
-          PY
-      - name: Verify deployment evidence checker regressions
-        run: python3 experiments/retention-network/test_check_evidence.py -v
-      - name: Execute real V2 upgrade and bounded physical history contracts
-        run: |
-          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
-          node experiments/history-network/run.mjs
-          python3 experiments/history-network/check_evidence.py "$SCAP_HISTORY_EVIDENCE_DIR"
-      - name: Execute V3 upgrade and explicit request retirement contracts
-        run: |
-          export SCAP_SERVICE_BUILD_DESCRIPTION="CI release at $GITHUB_SHA; loopback evidence, not a production SLO"
-          node experiments/retention-network/run.mjs
-          python3 experiments/retention-network/check_evidence.py "$SCAP_RETENTION_EVIDENCE_DIR"
-      - name: Retain all service outcomes and local measurement samples
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: sqlite-service-evidence
+          name: object-network-local-s3
           path: |
-            target/evidence/sqlite-service
-            target/evidence/membership-network
-            target/evidence/history-network
-            target/evidence/retention-network
-          if-no-files-found: warn
+            target/evidence/object-network/history.jsonl
+            target/evidence/object-network/summary.json
+            target/evidence/object-network/ack-ledger.jsonl
+            target/evidence/object-network/build-receipt.json
+            target/evidence/object-network-build/build.json
+            target/evidence/object-network-build/cargo.stdout.jsonl
+            target/evidence/object-network-build/cargo.stderr.log
+          if-no-files-found: error

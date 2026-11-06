@@ -20,17 +20,41 @@ SCRIPT_PATH = Path(check_repo.__file__).resolve()
 
 def valid_contract() -> dict:
     return {
-        "status": "design-only",
+        "schema_version": 2,
+        "status": "object-native-prototype",
         "implementation_complete": False,
-        "replication": {"voters": 3, "quorum": 2},
+        "authority": "s3-head-conditional-put",
         "consistency": {
-            "partition_policy": "CP",
             "automatic_local_write_fallback": False,
+            "unknown_sql_replay": False,
+            "ack_requires": [
+                "verified-immutable-dependencies",
+                "conditional-head-publication",
+                "native-publication",
+            ],
         },
-        "storage": {"worker_suspend_requires_full_s3_archive": False},
-        "targets": {"single_az_rpo_validated": False},
+        "storage": {
+            "local_disk_authoritative": False,
+            "immutable_create_only": True,
+            "physical_gc_implemented": False,
+        },
+        "targets": {
+            "aws_standard_validated": False,
+            "production_slo_validated": False,
+        },
         "scope": {"postgresql_in_initial_scope": False},
-        "gates": ["G0", "G1", "G2", "G3", "G4"],
+        "gates": ["N0", "N1", "N2", "N3", "N4"],
+        "quality": {"unit_coverage_percent": 100, "integration_profiles_count_as_unit": False},
+        "compatibility": {"legacy_runtime": False, "legacy_sdk": False, "dual_backend": False},
+        "profile": {
+            "page_size": 4096,
+            "max_pages": 64,
+            "head_bytes": 16384,
+            "object_bytes": 524288,
+            "result_bytes": 65536,
+            "request_window": 128,
+            "closed_windows_retained": 2,
+        },
     }
 
 
@@ -96,34 +120,62 @@ class TextValidationTests(unittest.TestCase):
 
 
 class ContractTests(unittest.TestCase):
-    def test_accepts_only_design_and_g0_statuses_without_claiming_ha(self):
-        for status in ("design-only", "g0-prototype"):
-            with self.subTest(status=status):
-                contract = valid_contract()
-                contract["status"] = status
-                self.assertEqual(check_repo.check_contract(json.dumps(contract)), [])
+    def test_accepts_current_object_native_prototype_contract(self):
+        self.assertEqual(check_repo.check_contract(json.dumps(valid_contract())), [])
 
     def test_each_contract_invariant_is_enforced(self):
         cases = (
-            (("status",), "production", "allowed repository status"),
-            (("implementation_complete",), True, "no implemented HA claim"),
-            (("implementation_complete",), 0, "no implemented HA claim"),
-            (("replication", "voters"), 5, "3-voter, 2-quorum baseline"),
-            (("replication", "quorum"), 1, "3-voter, 2-quorum baseline"),
-            (("consistency", "partition_policy"), "AP", "CP partition policy"),
+            (("schema_version",), 1, "object-native contract version"),
+            (("schema_version",), 2.0, "object-native contract version"),
+            (("status",), "production", "object-native prototype status"),
+            (("status",), "design-only", "object-native prototype status"),
+            (("status",), "g0-prototype", "object-native prototype status"),
+            (("implementation_complete",), True, "implementation remains incomplete"),
+            (("implementation_complete",), 0, "implementation remains incomplete"),
+            (("authority",), "raft", "S3 HEAD conditional authority"),
             (
                 ("consistency", "automatic_local_write_fallback"),
                 True,
                 "no local-write fallback",
             ),
             (
-                ("storage", "worker_suspend_requires_full_s3_archive"),
+                ("consistency", "unknown_sql_replay"),
                 True,
-                "S3-independent worker suspend",
+                "no SQL replay after unknown",
             ),
-            (("targets", "single_az_rpo_validated"), True, "RPO not yet validated"),
+            (
+                ("consistency", "ack_requires"),
+                ["conditional-head-publication", "native-publication"],
+                "ACK requires durable objects, conditional HEAD, and native publication",
+            ),
+            (
+                ("consistency", "ack_requires"),
+                ["native-publication", "conditional-head-publication", "verified-immutable-dependencies"],
+                "ACK requires durable objects, conditional HEAD, and native publication",
+            ),
+            (("storage", "local_disk_authoritative"), True, "local disk is not authoritative"),
+            (("storage", "immutable_create_only"), False, "immutable objects are create-only"),
+            (("storage", "immutable_create_only"), 1, "immutable objects are create-only"),
+            (("storage", "physical_gc_implemented"), True, "physical GC remains unimplemented"),
+            (("targets", "aws_standard_validated"), True, "AWS Standard remains unvalidated"),
+            (("targets", "production_slo_validated"), True, "production SLO remains unvalidated"),
             (("scope", "postgresql_in_initial_scope"), True, "no PostgreSQL initial scope"),
-            (("gates",), ["G0", "G1", "G2", "G3"], "complete gate sequence"),
+            (("gates",), ["N0", "N1", "N2", "N3"], "complete gate sequence"),
+            (("gates",), ["N0", "N1", "N2", "N3", "N4", "N4"], "complete gate sequence"),
+            (("gates",), ["N1", "N0", "N2", "N3", "N4"], "complete gate sequence"),
+            (("quality", "unit_coverage_percent"), 99, "100 percent unit coverage"),
+            (("quality", "unit_coverage_percent"), 100.0, "100 percent unit coverage"),
+            (
+                ("quality", "integration_profiles_count_as_unit"),
+                True,
+                "integration profiles cannot count as unit",
+            ),
+            (("compatibility", "legacy_runtime"), True, "no legacy runtime"),
+            (("compatibility", "legacy_sdk"), True, "no legacy SDK"),
+            (("compatibility", "dual_backend"), True, "no dual backend"),
+            (("profile", "max_pages"), 65, "bounded protocol profile"),
+            (("profile", "page_size"), 8192, "bounded protocol profile"),
+            (("profile", "unknown_capacity"), 1, "bounded protocol profile"),
         )
         for keys, value, invariant in cases:
             with self.subTest(keys=keys, value=value):
@@ -180,7 +232,7 @@ class RepositoryTests(RepositoryFixture):
 
     def test_new_engineering_documents_are_required(self):
         for relative in (
-            "docs/engineering/performance-slo.md",
+            "docs/engineering/object-runtime.md",
             "docs/engineering/testability-and-coverage.md",
         ):
             with self.subTest(relative=relative):
@@ -189,7 +241,7 @@ class RepositoryTests(RepositoryFixture):
         status, output = self.run_main()
         self.assertEqual(status, 1)
         self.assertIn("Repository checks failed:", output)
-        self.assertIn("- missing required file: docs/engineering/performance-slo.md", output)
+        self.assertIn("- missing required file: docs/engineering/object-runtime.md", output)
         self.assertIn("- missing required file: docs/engineering/testability-and-coverage.md", output)
         self.assertNotIn("OK:", output)
 

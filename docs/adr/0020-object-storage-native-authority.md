@@ -1,9 +1,11 @@
 # ADR-0020：按 greenfield 重新设计 S3 原生提交权威
 
 - 日期：2026-11-05。
-- 状态：**目标架构已合入；greenfield 范围已由用户明确；对象运行时未实现、未验收**。逻辑协议的研究模型见 [N0 工作](../engineering/object-authority-n0.md)，不等于整个 N0 或真实对象合同通过。
+- 状态：**目标架构已合入；greenfield 范围已由用户明确；首个单库实现候选见 [ADR-0021](0021-object-native-runtime.md)，完整目标尚未验收**。逻辑协议的研究模型见 [N0 工作](../engineering/object-authority-n0.md)，不等于整个 N0 或真实对象合同通过。
 - 完整方案：[S3 权威持久化与可丢弃计算](<../architecture/object-storage-native-proposal.md>)。
-- 历史背景：[ADR-0002](<0002-shared-quorum-cells.md>)、[ADR-0003](<0003-object-storage-and-cold-lifecycle.md>)、[ADR-0011](<0011-bounded-native-sqlite-adapter.md>)、[ADR-0019](<0019-explicit-request-result-retirement.md>)。
+- 历史背景：[ADR-0002](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/adr/0002-shared-quorum-cells.md)、[ADR-0003](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/adr/0003-object-storage-and-cold-lifecycle.md)、[ADR-0011](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/adr/0011-bounded-native-sqlite-adapter.md)、[ADR-0019](https://github.com/ckanner/scap/blob/4cd99eb3ce404dfa26a8df2536d881f078c9c809/docs/adr/0019-explicit-request-result-retirement.md)。
+
+本 ADR 的旧实现事实以 2026-11-05 的 PR #16 文档提交为基准；下文所称原型及其代码属于该历史背景。当前实现范围与限制以 [ADR-0021](0021-object-native-runtime.md)及[对象运行时](../engineering/object-runtime.md)为准，不能将实现候选视为目标架构全部验收。
 
 ## 1. 范围变更
 
@@ -24,11 +26,11 @@ S3 保存全部数据库及正确性权威，计算节点上的 SQLite 文件、
 
 ## 3. 现有实现的处理
 
-当前源码仍是三副本 Raft/RocksDB 提交、S3 冷归档；这项事实不因文档合并改变。**目标架构将取代该方向，而不是增加可选后端。**正式重写可重新组织 workspace、API、SDK、回执和对象格式，删除 cell/term/index 依赖。
+PR #16 提交时的源码采用三副本 Raft/RocksDB 提交、S3 冷归档；当时的文档合并没有改变运行时。**目标架构将取代该方向，而不是增加可选后端。**正式重写可重新组织 workspace、API、SDK、回执和对象格式，删除 cell/term/index 依赖。
 
-原生 SQLite precommit gate、物理页面捕获、明确 UNKNOWN 与原结果查证是可复用经验，但不得为了保留旧类型而扭曲新接口。不将 RocksDB 的 AtomicBackend 简单替换为 S3 PUT，也不复制当前 whole-cell 状态布局。
+原生 SQLite precommit gate、物理页面捕获、明确 UNKNOWN 与原结果查证是可复用经验，但不得为了保留旧类型而扭曲新接口。不将 RocksDB 的 AtomicBackend 简单替换为 S3 PUT，也不复制旧原型的 whole-cell 状态布局。
 
-本 PR 只提交方案与关联文档，不假装新架构已经在运行。实现 PR 须同步重定义机器设计清单、工程约束、故障/性能合同及验证脚本，建立新的可执行门禁；旧 quorum 测试不能作为对象协议证据，覆盖率和独立验证要求不降低。
+PR #16 只提交方案与关联文档，没有实现对象运行时。实现 PR 须同步重定义机器设计清单、工程约束、故障/性能合同及验证脚本，建立新的可执行门禁；旧 quorum 测试不能作为对象协议证据，覆盖率和独立验证要求不降低。
 
 ## 4. 必须成立的安全属性
 
@@ -51,4 +53,4 @@ S3 从后台依赖变成在线提交/强读依赖，数据库可用性受对象�
 
 新请求留存合同、格式、数值性能目标和客户端责任在实施前冻结；旧 128 请求窗口及管理员轮转不是新产品的操作要求。全部正式代码进入严格单元覆盖门禁，模型、真实依赖、故障及性能证据独立报告。
 
-当前没有 object 运行时、真实事务/GC 验收或成本收益证明。无法证明关键协议或成本不成立时停止或重评，不通过异步 ACK、陈旧读或删除失败样本宣称成功。
+PR #16 提交时没有 object 运行时、真实事务/GC 验收或成本收益证明。当前单库实现候选及其独立验证范围见 [ADR-0021](0021-object-native-runtime.md)与[验证规范](../engineering/validation.md)；完整 N1、GC 与成本收益仍须各自验收。无法证明关键协议或成本不成立时停止或重评，不通过异步 ACK、陈旧读或删除失败样本宣称成功。
