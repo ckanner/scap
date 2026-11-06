@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "recorded_date_utc": "2026-11-06",
+  "status": "local-prototype-gates-passed",
+  "scope": "S3-authoritative single-database SQLite prototype; bounded local N1 subset",
+  "tested_source": {
+    "commit": "fa3866ca0f88deefee949b532ac09209b852b195",
+    "tree": "c59e28f83af3df0fa4d0411aeb474b8177322939",
+    "tracked_files": 77,
+    "source_sha256": "459c081a057168eea7d691c53245e6db243313882bd824d468ad96c1524c4a25",
+    "source_manifest_sha256": "7e3819b81e27f58f5582d089da0aaac2e7174386a647a70b28e0dd2eca7b63da",
+    "before_after_verified": true
+  },
+  "rust_unit": {
+    "tests_passed": 87,
+    "tests_failed": 0,
+    "tests_ignored": 0,
+    "production_file_count": 11,
+    "totals": {
+      "lines": {
+        "covered": 1882,
+        "count": 1882
+      },
+      "functions": {
+        "covered": 161,
+        "count": 161
+      },
+      "regions": {
+        "covered": 2850,
+        "count": 2850
+      },
+      "branches": {
+        "covered": 348,
+        "count": 348
+      }
+    },
+    "production_files": {
+      "crates/scap-object-sqlite/src/config.rs": {
+        "lines": {
+          "covered": 87,
+          "count": 87
+        },
+        "functions": {
+          "covered": 12,
+          "count": 12
+        },
+        "regions": {
+          "covered": 143,
+          "count": 143
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      "crates/scap-object-sqlite/src/file.rs": {
+        "lines": {
+          "covered": 44,
+          "count": 44
+        },
+        "functions": {
+          "covered": 8,
+          "count": 8
+        },
+        "regions": {
+          "covered": 76,
+          "count": 76
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      "crates/scap-object-sqlite/src/gate.rs": {
+        "lines": {
+          "covered": 104,
+          "count": 104
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 125,
+          "count": 125
+        },
+        "branches": {
+          "covered": 18,
+          "count": 18
+        }
+      },
+      "crates/scap-object-sqlite/src/image.rs": {
+        "lines": {
+          "covered": 50,
+          "count": 50
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 70,
+          "count": 70
+        },
+        "branches": {
+          "covered": 34,
+          "count": 34
+        }
+      },
+      "crates/scap-object-sqlite/src/lib.rs": {
+        "lines": {
+          "covered": 98,
+          "count": 98
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 152,
+          "count": 152
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      "crates/scap-object-sqlite/src/query.rs": {
+        "lines": {
+          "covered": 46,
+          "count": 46
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 75,
+          "count": 75
+        },
+        "branches": {
+          "covered": 6,
+          "count": 6
+        }
+      },
+      "crates/scap-object-sqlite/src/sql.rs": {
+        "lines": {
+          "covered": 302,
+          "count": 302
+        },
+        "functions": {
+          "covered": 14,
+          "count": 14
+        },
+        "regions": {
+          "covered": 318,
+          "count": 318
+        },
+        "branches": {
+          "covered": 44,
+          "count": 44
+        }
+      },
+      "crates/scap-object-store/src/lib.rs": {
+        "lines": {
+          "covered": 201,
+          "count": 201
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 282,
+          "count": 282
+        },
+        "branches": {
+          "covered": 68,
+          "count": 68
+        }
+      },
+      "crates/scap-object/src/format.rs": {
+        "lines": {
+          "covered": 139,
+          "count": 139
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 284,
+          "count": 284
+        },
+        "branches": {
+          "covered": 8,
+          "count": 8
+        }
+      },
+      "crates/scap-object/src/lib.rs": {
+        "lines": {
+          "covered": 603,
+          "count": 603
+        },
+        "functions": {
+          "covered": 43,
+          "count": 43
+        },
+        "regions": {
+          "covered": 917,
+          "count": 917
+        },
+        "branches": {
+          "covered": 88,
+          "count": 88
+        }
+      },
+      "crates/scap-sql/src/lib.rs": {
+        "lines": {
+          "covered": 208,
+          "count": 208
+        },
+        "functions": {
+          "covered": 18,
+          "count": 18
+        },
+        "regions": {
+          "covered": 408,
+          "count": 408
+        },
+        "branches": {
+          "covered": 60,
+          "count": 60
+        }
+      }
+    },
+    "unit_only": true,
+    "integration_profiles_used": false,
+    "format": "passed",
+    "strict_clippy": "passed"
+  },
+  "tooling_unit": {
+    "tests_passed": 74,
+    "statements": {
+      "covered": 401,
+      "count": 401
+    },
+    "branches": {
+      "covered": 184,
+      "count": 184
+    },
+    "missing": 0,
+    "excluded": 0,
+    "partial_branches": 0,
+    "coverage_py": "7.10.6",
+    "actionlint": "1.7.12",
+    "repo_text_files": 74,
+    "local_links_checked": 67
+  },
+  "protocol_model": {
+    "unit_tests_passed": 89,
+    "passed": true,
+    "positive_cases": 664,
+    "race_cases": 640,
+    "directed_cases": 24,
+    "negative_controls_rejected": 30,
+    "context_qualified_scheduler_states": 2096,
+    "distinct_scheduler_transitions": 2344,
+    "executed_scheduler_steps": 14928,
+    "evidence_class": "bounded-model-not-real-storage"
+  },
+  "real_storage": {
+    "backend": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "worker_binary_sha256": "0c06c63879bf464541b03228692df35835dde9edc2884ae5e32b0e302e9d37c4",
+    "release_build_input_sha256": "fa48e65aed799395f6742082958d4f809ec7ad8c349f3ebab85c2278b0af9ddd",
+    "release_build_verified": true,
+    "contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state"
+    ],
+    "contract_count": 10,
+    "raw_history_events": 620,
+    "same_etag_races": 8,
+    "race_http_statuses": [
+      200,
+      412
+    ],
+    "successful_head_responses_suppressed": 2,
+    "client_ack_count": 4,
+    "ack_mismatch_count": 0,
+    "ack_audit_complete": true,
+    "full_effect_rows_compared": 3,
+    "compute_processes_sigkilled": 3,
+    "s3_backend_processes_sigkilled": 4,
+    "local_compute_cache_deleted": true,
+    "proxy_thread_errors": 0,
+    "unit_coverage_contribution": false
+  },
+  "fixed_tools": {
+    "rust": "1.90.0",
+    "coverage_rust": "nightly-2025-09-18",
+    "cargo_llvm_cov": "0.6.21",
+    "coverage_py": "7.10.6",
+    "libsql_revision": "d8bc862d20bedc72945a1da27c8b7045414c0261"
+  },
+  "profile": {
+    "page_size": 4096,
+    "max_pages": 64,
+    "head_bytes": 16384,
+    "object_bytes": 524288,
+    "result_bytes": 65536,
+    "request_window": 128,
+    "closed_windows_retained": 2
+  },
+  "remaining_gates": {
+    "aws_standard_endpoint": "NOT_RUN",
+    "complete_N1_exit": false,
+    "all_proposal_fault_cases": false,
+    "public_http_and_new_sdk": "NOT_IMPLEMENTED",
+    "multi_database_scheduling": "NOT_IMPLEMENTED",
+    "physical_gc_and_pitr": "NOT_IMPLEMENTED",
+    "production_capacity_latency_cost": "NOT_VALIDATED",
+    "production_slo_passed": false
+  },
+  "review_findings_resolved": [
+    "Every new HEAD verifies current data and all retained request index/result dependencies before conditional publication.",
+    "Independent durable client ACK ledger records invocation identity, full original receipt and encoded result; recovery audit iterates the complete ledger and checks full expected data values."
+  ],
+  "evidence_notes": [
+    "Raw test output, exact counters, build/native archive provenance, original network history and the independent ACK ledger are retained in the accompanying evidence bundle.",
+    "The earlier debug run lacks the final durable ACK audit and is diagnostic only; it is not a merge gate.",
+    "This record describes the tested source above. A later documentation-only commit must preserve every production, test, harness, lockfile and workflow input and record that relationship."
+  ],
+  "artifact_sha256": {
+    "source-before.json": "7e3819b81e27f58f5582d089da0aaac2e7174386a647a70b28e0dd2eca7b63da",
+    "source-verify-final.log": "60caf9f9cd1a1d5735ffe8f9a354da7839f31d2126b5fd189bfee7905eb0bd98",
+    "rust-unit/unit.json": "ee254b8a8e0f7d45d3b3607251149867abd3ebe086eaaa983a46a80c61270202",
+    "rust-unit/unit.log": "66af6f5129541d2aced7cf807c7e332314a19d6b930a96f777c586ecb2e16a28",
+    "rust-unit/run.json": "1bb8c5a1dd00e912046baacd8d70cd086396db4eb055bdf74ba695250ab465a8",
+    "rust-unit/coverage-check.log": "486a54f8163627d2cff4485ad357dfce71cc36158536c33fbe1ae3655211cf8b",
+    "rust-unit/independent-review.json": "65d54421227edecd76e994470fd38d3e4e1408c266d9a892236177e46e55bac6",
+    "tooling/coverage.json": "e7fc41307a0ea53958243475849e293b714ed801499aae07edb5efd9beca0f5e",
+    "tooling/commands.json": "04a8392dee6c77bde8efe5795f968a41c0fc491d55b3b46597e1bbd92216d209",
+    "n0/explorer/summary.json": "a12b72ff950ad41e56d200545fa722bb358dd6e5e921a838bd0746fc87970a6e",
+    "n0-artifacts.json": "14323fa020fc1e34c42c0cc47db78e371100a6d66280adada9b65347efc89bf1",
+    "object-network-build/build.json": "d2b05963f38109bd061d68c1c58d131443498b3a467ed4031d3a0355390a9764",
+    "object-network-build/cargo.stdout.jsonl": "4d3232d1f9f59ac5358b38e11a91ddff21f0ce57170dd89822f348dd2fc4fe94",
+    "object-network-build/cargo.stderr.log": "e6c609ba8931b964e9cf6bce95eccc65cc338e4967189ebccd49d3a2badfd074",
+    "object-network/history.jsonl": "83d933fc98f5dcf458df51e1e1f01bbc5c2eb614e6a9ef1da0fe9b2b2c476459",
+    "object-network/ack-ledger.jsonl": "1bac1210c8746c178a47e6e23409642ace9dd27122a1e35f52a58eb233cff93f",
+    "object-network/summary.json": "df644b507b732f786ac85a435aad4fefac065d625a5e99b9da4cec59cb0857bf",
+    "object-network/build-receipt.json": "d2b05963f38109bd061d68c1c58d131443498b3a467ed4031d3a0355390a9764",
+    "object-network-independent-review.json": "7bddafcabfc4f804fdf0f5704adf11000a69387e9534b3b7be10718715879462"
+  },
+  "independent_reviews": {
+    "rust": "passed",
+    "real_storage_and_build": "passed",
+    "public_evidence_credentials_found": 0
+  }
+}
