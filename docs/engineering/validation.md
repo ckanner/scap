@@ -2,6 +2,29 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #21 的当前提交／恢复故障证据（2026-11-06）
+
+[机器记录](../evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`、tree `8616566636a79caf5d92c39f9882bd839a257c4d`。89 个 tracked 文件的 source manifest 在全部门禁前后逐字节相同；41 个 release 输入、实际 worker、native archive 与原始构建日志均核对一致。之后只添加这份结果与文档摘要，另保存交付差异证明，保留原测试身份。
+
+| 独立门禁 | 本轮实际结果 |
+| --- | --- |
+| Rust 单元与精确覆盖 | stable 与 coverage 各 130 tests；13 个生产文件逐文件四维 100%，行 2743/2743、函数 241/241、region 4157/4157、分支 518/518 |
+| 工具与 workflow | 74 tests，401/401 statements、184/184 branches，无排除；固定 Actionlint 1.7.12 验证两份 workflow 语法，仓库文档与 whitespace 检查通过 |
+| 有界 N0 模型 | 89 tests；664 份正向历史、30 个正确拒绝的负对照，694 份原始文件逐份核验 |
+| 基础真实合同 | 原 10 类合同通过，4 条 execute ACK 的完整原回执与原结果一致 |
+| 扩展真实故障 | 4 类、30 场景通过（包含 1 个 pilot）；61 条 execute ACK 与未 ACK 请求的原结果分别全量核对，零不一致 |
+| 共享驱动 1 GiB 回归 | 16,384 个 BLOB、1,073,741,824 字节全量恢复核对；39 条已确认请求的完整 receipt／encoded result 一致，其中 38 次 execute 成功、1 次 UNKNOWN 后 lookup 查证 |
+
+扩展先观察到 Chunk×3、Node、Manifest、Result、Index 共 7 个真实不可变 PUT，再逐个验证转发前和后端 200 后的进程退出，共 14 个切点。另测全部依赖回读完成但 HEAD 尚未转发，以及 HEAD 成功后的 SIGKILL、真实文件限长写失败、独立读事务阻止 TRUNCATE checkpoint。三个 HEAD 后未收到 execute ACK 的场景都先由独立进程记录完整原结果，再杀掉全部场景计算进程、删除缓存并由新进程恢复比较。
+
+Chunk、Node、Manifest 及已关闭但保留世代的 Index／Result 各执行一次真实删除和一次条件替换损坏。每次冷激活拒绝且 HEAD 不变，修复原字节后新进程成功恢复。恢复竞赛保留前后 HEAD 的同次 GET body／ETag，旧激活返回 Conflict 且没有 HEAD PUT。基础与扩展的客户端账本、对象历史、进程身份及全部效果由独立审计器重算；它不导入实验 runner 或生产模块。
+
+首次启动因上一环境中的工具路径已不存在而中止，未执行数据库合同；恢复同摘要的固定官方后端后完成诊断和正式运行。容量独立审计曾把点更新快照与同 phase 的后续权限读取混算，保留失败审计后按实际 ACK 时刻修正边界；没有修改产品或重跑数据库实验。资源自报 HWM 在同身份下出现 17 次下降，只报告观察最大值并另列 `wait4`，不认定精确硬峰值。网络与容量使用独立本地后端并行执行，耗时不作为生产性能结论。
+
+本轮正式生产代码、manifests 与锁文件同 PR #20 容量基线一致；10 GiB 档位没有在本批重跑。历史两槽模型不证明当前默认 4096 条窗口的 sizing。选定故障不等于完整 OT-01–OT-08，AWS、跨 AZ、断电、完整生命周期／退休／ABA、额外暖会话隔离、GC/PITR 与生产 SLO 保持独立未完成项。
+
+远端四个 workflow run 的十个 job 均显示 failure、steps 为空，没有将它们记为通过或推断具体失败原因。合入依据维护者已有完整本地验证授权，不调整分支保护。
+
 ## PR #20 的本地容量基线（2026-11-06）
 
 [机器证据记录](../evidence/production-capacity-local-2026-11-06.json)绑定冻结运行时提交 `a302840d3232163ae16c85ff384abaae82cb9ff5`、tree `add53eadab998308a7a6cc5f962ec827fa8ee648` 和实际 release 二进制摘要。原 source manifest 在全部门禁前后完全一致；后续只添加文档与这份记录，另以差异清单证明运行时、测试、锁文件、工作流和实验输入保持原字节，不改写原测试身份。
