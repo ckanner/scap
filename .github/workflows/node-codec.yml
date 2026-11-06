@@ -1,0 +1,83 @@
+name: Node codec exact unit coverage
+
+on:
+  push:
+    paths: ['sdk/node-codec/**', '.github/workflows/node-codec.yml', 'crates/scap-sql/**', 'crates/scap-object/src/options.rs']
+  pull_request:
+    paths: ['sdk/node-codec/**', '.github/workflows/node-codec.yml', 'crates/scap-sql/**', 'crates/scap-object/src/options.rs']
+
+permissions:
+  contents: read
+
+jobs:
+  node-codec:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      NODE_V8_COVERAGE: ${{ github.workspace }}/target/coverage/node-codec
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Execute the dependency-free codec unit suite
+        working-directory: sdk/node-codec
+        run: npm test
+      - name: Check every production module and exact V8 hit counters
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from urllib.parse import unquote, urlsplit
+          source = Path('sdk/node-codec/src').resolve()
+          expected = set()
+          for path in source.rglob('*'):
+              if not path.is_file():
+                  continue
+              if path.is_symlink() or path.suffix not in {'.js', '.mjs', '.cjs'}:
+                  raise SystemExit('Unclassified production source: ' + str(path))
+              expected.add(path.resolve())
+          if not expected:
+              raise SystemExit('Empty production source inventory')
+          found = {}
+          reports = list(Path(os.environ['NODE_V8_COVERAGE']).glob('coverage-*.json'))
+          if not reports:
+              raise SystemExit('No raw V8 profiles')
+          for report in reports:
+              for script in json.loads(report.read_text())['result']:
+                  url = urlsplit(script['url'])
+                  if url.scheme != 'file':
+                      continue
+                  path = Path(unquote(url.path)).resolve()
+                  if path not in expected:
+                      continue
+                  if path in found:
+                      raise SystemExit('Unexpected duplicate production profile: ' + str(path))
+                  functions = script['functions']
+                  if not functions:
+                      raise SystemExit('Empty function denominator')
+                  count = 0
+                  for function in functions:
+                      if function['isBlockCoverage'] is not True or not function['ranges']:
+                          raise SystemExit('Incomplete block coverage map')
+                      for region in function['ranges']:
+                          hit, begin, end = region['count'], region['startOffset'], region['endOffset']
+                          if (type(hit) is not int or hit <= 0 or type(begin) is not int
+                              or type(end) is not int or not 0 <= begin < end):
+                              raise SystemExit('Invalid or uncovered V8 counter')
+                          count += 1
+                  found[path] = {'functions': len(functions), 'ranges': count}
+          if set(found) != expected:
+              raise SystemExit('Missing production coverage: ' + str(expected - set(found)))
+          print('Exact positive V8 counters for every production module:', found)
+          print('Codec unit evidence only; Rust, HTTP and S3 integration are separate.')
+          PY
+      - name: Retain raw Node codec unit profiles only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-codec-unit-v8
+          path: target/coverage/node-codec/coverage-*.json
+          if-no-files-found: error
