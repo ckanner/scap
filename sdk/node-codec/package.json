@@ -1,0 +1,11 @@
+{
+  "name": "@scap/node-codec",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.16.0" },
+  "exports": "./src/codec.js",
+  "scripts": {
+    "test": "node --test --experimental-test-coverage --test-coverage-include=src/codec.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 test/codec.test.js"
+  }
+}
