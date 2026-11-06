@@ -17,3 +17,11 @@
 | Deleted | 拒绝后继，保留身份屏障；物理删除尚未实现 |
 
 AWS端点、区域持久性和生产故障域未通过本地兼容服务测试自动认证。物理GC关闭，orphan和存储费用可增长。
+
+## 本地故障证据的划分
+
+[网络实验](../../experiments/object-network/README.md)分别执行基础合同和 N1 提交／恢复边界。依赖 PUT 转发前崩溃、依赖已持久后崩溃、HEAD 成功后无回包、HEAD 成功后真实 native 失败是不同事实，须分别保存和核对。未转发的请求必须显式终止；终止计算进程本身不撤销已经发送到对象存储的 CAS。
+
+冷恢复需要核对当前 Chunk、Node、Manifest 和保留 Index／Result；其中任一权威依赖缺失或损坏都不能退回旧根。已暖 handle 的发布隔离遵守 [ADR-0022](../adr/0022-production-capacity.md)：已知损坏阻止共享 handle 的后续 HEAD 发布，已经验证并且仍匹配新鲜 HEAD 的只读快照不因此被重新定义。冷恢复失败不自动证明跨进程持久 fencing 或已暖 handle 的全部行为。
+
+各项实测计数、失败尝试和源码绑定见[验证记录入口](../engineering/validation.md)。完整权限／维护／删除竞赛、请求退休、ABA 和目标 AWS 故障域仍须独立完成；不能用这批选定故障代替完整方案矩阵。

@@ -4,7 +4,7 @@
 
 `run.py` 只负责进程与 TCP 故障编排及观察断言。worker 的标准输入 JSON 是实验驱动接口，不是产品 HTTP API 或已发布 SDK。单元覆盖率与本实验分开执行；设置 `LLVM_PROFILE_FILE` 时实验拒绝启动。
 
-这里的小型故障库显式使用 256 KiB 数据配额、每世代 16 个结果条目和 128 MiB 结果保留预算，不依赖或改变生产 `Options::default()` 的 10 GiB 配额。新的 [容量实验](../object-capacity/README.md) 复用同一正式库薄 worker、S3 进程和代理，分别验证真实 1 GiB 数据与默认 10 GiB 边界；两类结果分开报告。
+基础合同的小型故障库显式使用 256 KiB 数据配额、每世代 16 个结果条目和 128 MiB 结果保留预算。提交／恢复扩展合同使用独立的 2 MiB 库、每世代 2 条及 128 MiB 原结果预算，便于在关闭旧请求世代后逐项注入故障。这些是测试输入；生产 `Options::default()` 的配额为 10 GiB，管理员可以调整或取消业务配额。[容量实验](../object-capacity/README.md)复用同一正式库薄 worker、S3 进程和代理，分别验证真实 1 GiB 数据与默认 10 GiB 边界；两类结果分开报告。
 
 ## 运行
 
@@ -27,7 +27,7 @@ python3 experiments/object-network/run.py \
 
 仅作开发诊断时，可以显式用 `--diagnostic` 替代 `--build-record`；摘要会标记诊断执行和未核验构建记录。此类运行不能替代最终 release 门禁。
 
-## 必须完成的十项合同
+## 基础十项合同
 
 | 合同 | 实际观察 |
 | --- | --- |
@@ -44,7 +44,31 @@ python3 experiments/object-network/run.py \
 
 每次 `execute` 成功后，客户端在继续故障注入前，将事先已知的 scope／主体／请求世代／请求 ID、原 SQL、返回的 receipt、完整编码结果与 `RETURNING` 行写入 `ack-ledger.jsonl` 并 `fsync`。返回身份必须先与调用身份相符。最终读取该独立账本，逐条查证并精确比较全部四个 ACK（包括 DDL、随机值写入和最后一条常量写入），缺失或不一致使验收失败。最终行集合由已观察的随机 `RETURNING` 和已知常量 700 组成，再与恢复后的完整查询逐值比较；不能由最终数据库反推期望值，也不能用行数代替值校验。
 
-公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker 的容器与实际 procfs PID、进程启动身份和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag、GET/PUT body 字节；不记录 Authorization 或凭据。
+## 提交与恢复边界
+
+扩展合同使用独立 scope 和真实正式库调用，保留基础十项。下面的边界分别记录，不能由一次进程退出推断所有切点都已验证。
+
+| 场景 | 必须保留的事实与判定 |
+| --- | --- |
+| 不可变依赖上传切点 | 先观察一个固定形态事务的实际 PUT 顺序，再对各序号在转发前、后端成功后分别暂停并 SIGKILL；未转发请求显式丢弃，核对 HEAD 未变化、旧数据仍可恢复、未 ACK 的原身份仍为 Unknown |
+| 全部依赖完成、HEAD 尚未发布 | 暂停 HEAD PUT 并终止调用进程；依赖已上传的 orphan 不构成提交，旧 HEAD 与原数据不变 |
+| HEAD 已接受、调用进程丢失 | 必须先观察真实后端的成功响应，再抑制回包并 SIGKILL；原身份查回 Committed 和原结果，新计算进程恢复对应数据 |
+| HEAD 已接受、native 发布失败 | 专用子进程在 HEAD 成功响应屏障处受到 Linux 文件限长故障；观察 `CommittedButUnavailable` 和 receipt、原 Session 拒绝后续新读写、独立查证与全新恢复，不能把普通 UNKNOWN 回包算成此场景 |
+| native 已发布、检查点受阻 | 独立只读进程持有旧事务，使正式连接的 TRUNCATE 检查点受阻；同时观察 HEAD 成功、`CommittedButUnavailable`、新本地连接看到新值而旧读者仍看到旧值，再丢弃全部计算状态并核对 S3 原结果 |
+| 冷恢复依赖缺失／损坏 | 对当前 Chunk、Node、Manifest 以及保留 Index、Result 分别进行受控删除或条件替换；新 handle 恢复拒绝，HEAD 不变，不自动补空页、空库或退回旧根 |
+| 恢复期间 HEAD 改变 | 暂停所选依赖 GET，由另一进程改变 HEAD；旧激活必须拒绝且不能发布新 HEAD，记录变更前后 body／ETag |
+
+文件限长只施加到实验自行创建的专用计算进程，不改变正式配置或生产代码。控制器保留原硬限，只调整软限，并在观察结果后恢复；该进程明确忽略 `SIGXFSZ`，让本地写失败作为错误返回。代理屏障、限长状态、原始错误和后续查证共同定义该场景。没有 syscall trace 时，不宣称直接观察到了特定 errno 或覆盖了每一种 checkpoint 故障。相关操作语义见 Python 官方 [subprocess](https://docs.python.org/3/library/subprocess.html#subprocess.Popen) 与 [resource](https://docs.python.org/3/library/resource.html#resource.prlimit) 文档。
+
+HEAD 已接受但没有 execute ACK 的场景，在计算丢失前由独立 observer 查证并同步完整 receipt 和 encoded result；之后终止包括 observer 在内的全部场景计算进程、删除完整缓存目录，由新进程恢复并逐字节比较。读到 S3 原结果不被改记成 execute ACK。原 Session 的 `StaleSnapshot` 证明它拒绝后续新工作，不单凭这个错误推断内部 stopped 位的独立原因。
+
+这些提交切点对应实际探测到的一种事务依赖序列；它们不穷举任意 SQL、不同树高、分页布局、DDL、截断和所有请求生命周期的组合。闭包冷恢复与已暖 handle 的隔离也须分别报告，不能用冷恢复失败替代暖 handle 的验证。
+
+## 原始证据与清理
+
+基础公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker 的容器与实际 procfs PID、进程启动身份和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag、GET/PUT body 字节；不记录 Authorization 或凭据。
+
+扩展合同另保留 `fault-plan.json` 的实际探测序列与逐切点计划、`fault-input-ledger.jsonl` 的调用前身份／输入、`fault-ack-ledger.jsonl` 的实际成功调用、`fault-outcome-ledger.jsonl` 的故障后查证原结果，以及 `fault-cases.jsonl` 的逐场景事实与判定。输入和 ACK 在继续注入前同步到独立客户端文件；HEAD 已持久却没有收到成功响应的请求记入 outcome，不计为 execute ACK。基础四条 ACK 与扩展 ACK 分别全量审计。
 
 临时身份、配置、数据库和后端日志在另一个私有临时目录；成功或失败均保留供诊断，不应上传其中的身份文件。运行器仅终止自己创建的进程，失败也执行清理。故障代理的工作线程异常单独记录并阻断完成标记。
 
@@ -52,4 +76,4 @@ python3 experiments/object-network/run.py \
 
 这是**单机 S3 兼容后端、正式 SQLite 引擎及真实进程/TCP 故障实验**。它没有访问 AWS S3，摘要始终保留 `aws_endpoint_gate=NOT_RUN`、`production_slo_passed=false`；没有验证生产云配置、实际跨 AZ 持久性、设备断电、GC/PITR、多库公平性、长期容量或生产延迟。
 
-十项通过只能证明本次准确构建在这些场景中的行为；它们没有被等同为方案 OT-01–OT-15 全部验收，不能代替真实 AWS 对象合同，也不表示 N0–N4 整体完成。当前实验保留全部对象，不能由此声称存储成本收敛。
+基础及扩展合同通过只能证明本次准确构建在实际记录场景中的行为；它们没有被等同为方案 OT-01–OT-08 或 OT-01–OT-15 全部验收，不能代替真实 AWS 对象合同，也不表示 N0–N4 整体完成。同 ETag 的基础竞争仍是原始条件对象 PUT，不构成两个完整 SQL writer 的线性化历史。完整生命周期、退休、ABA、GC/PITR 和多库调度仍需后续验证。生产物理 GC 保持关闭；实验中的受控删除只用于故障注入并随后恢复原字节，不能由此声称长期存储成本收敛。
