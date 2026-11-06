@@ -9,6 +9,7 @@
     "branches"
   ],
   "rust_test_sources": [
+    "crates/scap-object-sqlite/src/alter_tests.rs",
     "crates/scap-object-sqlite/src/capacity_tests.rs",
     "crates/scap-object-sqlite/src/config_tests.rs",
     "crates/scap-object-sqlite/src/file_tests.rs",
