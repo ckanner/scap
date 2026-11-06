@@ -20,9 +20,11 @@
     "crates/scap-object/src/format_tests.rs",
     "crates/scap-object/src/options_tests.rs",
     "crates/scap-object/src/quarantine_tests.rs",
+    "crates/scap-object/src/result_validation_tests.rs",
     "crates/scap-object/src/review_tests.rs",
     "crates/scap-object/src/session_tests.rs",
     "crates/scap-object/src/tests.rs",
+    "crates/scap-sql/src/result_validation_tests.rs",
     "crates/scap-sql/src/tests.rs"
   ],
   "research_harness_roots": [

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-06",
+  "base_commit": "819050679a306a2d799c8c14a76c7a157f3e522d",
+  "status": "DRAFT_NOT_MERGE_READY",
+  "format_changed": false,
+  "quota_changed": false,
+  "s3_authority_changed": false,
+  "verified_baseline_blobs": {
+    "crates/scap-sql/src/lib.rs": "f6948e626ea79029a6dc5b4b456129e8e2ad6f14",
+    "crates/scap-object/src/lib.rs": "34bbd53fcfe526637452c449267325aeb7019c55",
+    "contracts/coverage-policy.json": "b905033278cd47304bf59c21c6a8c8d6dc04a565"
+  },
+  "candidate_rust_sha256": {
+    "crates/scap-object/src/lib.rs": "054d70f8d4f694cc86e8273118aa8535069191c08b2df7b6e986db21b6adbb8e",
+    "crates/scap-object/src/result_validation_tests.rs": "9f939d5494da107939e5029655919623462a4c4638b9ee1bc686b60296acd6aa",
+    "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+    "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+    "crates/scap-sql/src/result_validation_tests.rs": "2b20b9535ed03b119da64909e68282f3440ee73d983a7ed2ceaf46052ff7f2ca"
+  },
+  "new_rust_test_functions": 17,
+  "rust_validation": {
+    "format": "NOT_RUN",
+    "clippy": "NOT_RUN",
+    "compilation": "NOT_RUN",
+    "unit_tests": "NOT_RUN",
+    "coverage": "NOT_RUN",
+    "native_sqlite": "NOT_RUN",
+    "real_s3": "NOT_RUN",
+    "gib_capacity_regression": "NOT_RUN"
+  },
+  "blocker": {
+    "rust_toolchain_installed": false,
+    "dependency_download_exit_code": 6,
+    "dependency_download_error": "curl: (6) Could not resolve host: static.rust-lang.org"
+  },
+  "python_diagnostic": {
+    "status": "passed",
+    "scope": "Python wire-format diagnostic ONLY; no production Rust executed",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "counts": {
+      "differential_inputs": 34504,
+      "valid": 14966,
+      "Invalid": 10,
+      "Limit": 11865,
+      "Malformed": 7663
+    },
+    "gold_vector_sha256": "72cd7aa0f1ebbd2632be0b031fa54932f3657c1ac2ac9384afce7256dd8a9f09",
+    "gold_vector_hex": "53434150524553310200000005000000010000006e0100000069010000007203000000e6968701000000620100000000010000000000000080020000000000000080030a000000e58e9fe7bb93e69e9c00040300000000ff01ffffffffffffffff000000000000008000000000000000000000000000000000ffffffffffffff7f",
+    "production_rust_compile": "NOT_RUN",
+    "production_rust_tests": "NOT_RUN",
+    "production_unit_coverage": "NOT_RUN",
+    "native_sqlite_and_real_s3": "NOT_RUN"
+  },
+  "diagnostic_script_sha256": "a239d32abf1cc8d94af7377d328577b236955484ac8d812724d63efc85855414",
+  "coverage_threshold_changed": false,
+  "production_exclusions_added": false,
+  "merge_authorized_before_required_validation": false
+}

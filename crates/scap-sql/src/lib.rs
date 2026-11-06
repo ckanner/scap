@@ -7,6 +7,9 @@
 
 use sha2::{Digest, Sha256};
 
+mod result_validation;
+pub use result_validation::validate_result;
+
 const REQUEST_MAGIC: &[u8; 8] = b"SCAPSQL1";
 const RESULT_MAGIC: &[u8; 8] = b"SCAPRES1";
 
@@ -330,3 +333,6 @@ pub fn decode_result(bytes: &[u8], limits: SqlLimits) -> Result<TransactionResul
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod result_validation_tests;

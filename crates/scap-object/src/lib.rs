@@ -422,6 +422,12 @@ impl Database {
                 {
                     return Err(self.observe(Error::Corrupt));
                 }
+                // Object integrity and request binding do not imply that the
+                // retained SQL result can be decoded. All lookup and recovery
+                // paths share this check; do not allocate a decoded row graph
+                // or apply the current (possibly lower) SQL admission limits.
+                scap_sql::validate_result(&stored.bytes, durable_sql_limits())
+                    .map_err(|_| self.observe(Error::Corrupt))?;
                 let receipt = Receipt {
                     scope: self.scope.clone(),
                     request: request.clone(),
@@ -721,6 +727,14 @@ impl Database {
         }
     }
 
+    // Keep materialization as a defensive boundary as well as the allocation-
+    // free closure check. This helper accepts untrusted bytes independently;
+    // decoder changes must not turn a historical replay into a fresh write.
+    fn decode_retained_result(&self, bytes: &[u8]) -> Result<TransactionResult, Error> {
+        scap_sql::decode_result(bytes, durable_sql_limits())
+            .map_err(|_| self.observe(Error::Corrupt))
+    }
+
     fn admit(
         &self,
         principal: u64,
@@ -737,8 +751,7 @@ impl Database {
             Resolution::Committed { receipt, bytes } => {
                 return Ok(Admission::Existing(
                     receipt,
-                    scap_sql::decode_result(&bytes, durable_sql_limits())
-                        .map_err(|_| self.observe(Error::Corrupt))?,
+                    self.decode_retained_result(&bytes)?,
                 ))
             }
             Resolution::Cancelled { .. } => return Err(Error::Closed),
@@ -1044,3 +1057,6 @@ mod session_tests;
 
 #[cfg(test)]
 mod quarantine_tests;
+
+#[cfg(test)]
+mod result_validation_tests;
