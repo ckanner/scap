@@ -1,7 +1,7 @@
 # ADR-0022：单库容量配置、分块数据树与可复用 SQLite 会话
 
 - 日期：2026-11-06。
-- 状态：实现候选；容量、真实对象服务与生产阶段的验收结果分别记录。
+- 状态：已实现；本地 HTTP/进程故障、1 GiB 独立数据及默认 10 GiB 文件边界验收已通过，证据见[当前验证记录](../evidence/production-capacity-local-2026-11-06.json)。AWS 与生产阶段分别验收。
 - 范围：替代 [ADR-0021](0021-object-native-runtime.md) 中用于首轮验证的 256 KiB 单库 profile、逐页对象和完整页列表；继续遵守 [ADR-0020](0020-object-storage-native-authority.md) 的唯一对象权威与无旧版本兼容要求。
 - 实现入口：[运行时与会话](../../crates/scap-object/src/lib.rs)、[配置](../../crates/scap-object/src/options.rs)、[格式](../../crates/scap-object/src/format.rs)、[数据树](../../crates/scap-object/src/data_tree.rs)、[原生 SQLite](../../crates/scap-object-sqlite/src/lib.rs)。
 
@@ -102,8 +102,8 @@ HEAD 已接受后，native publication、checkpoint 或最终交付边界失败�
 
 以下仅用于判断配置量级，按 2026-11-06 查阅的官方公开资料记录；厂商的产品合同不证明 SCAP 的实现、正确性或成本。
 
-- [Cloudflare D1 limits](https://developers.cloudflare.com/d1/platform/limits/)：Workers Paid 的单库上限为 **10 GB**，Free 为 **500 MB**；Paid 账户存储上限列为 **1 TB**。单库上限与账户总量是不同指标。这里保留官方 GB/MB/TB 单位，不将其改写为 SCAP 的 GiB。
-- [Turso 官方定价](https://turso.tech/pricing)及[官方用量说明](https://turso.tech/blog/tips-for-maximizing-your-turso-billing-allowances-48a0fca163e9)：套餐 Storage 是数据库组合的存储用量额度，不能当作单库硬上限。当前引用的公开资料未给出可据以承诺的统一单库硬上限，记为**未知**，不从套餐总量反推。
+- [Cloudflare D1 limits](https://developers.cloudflare.com/d1/platform/limits/)：Workers Paid 的单库上限为 **10 GB**，官方明确不能继续提高；Free 为 **500 MB**。Paid 账户存储上限列为 **1 TB**，属于另一个可申请调整的账户指标。这里保留官方 GB/MB/TB 单位，不将其改写为 SCAP 的 GiB。
+- [Turso 官方定价](https://turso.tech/pricing?frequency=monthly)列出 Free / Developer / Scaler / Pro 的 Storage 额度分别为 **5 / 9 / 24 / 50 GB**，超额用量在启用后另计费；[官方说明](https://turso.tech/blog/databases-as-variables)明确多库共用存储额度。付费套餐的 Unlimited 指数据库数量。另有[单库配置 API](https://docs.turso.tech/api-reference/databases/update-configuration)的 `size_limit` 设置数据库最大字节数。当前查阅的公开资料仍未给出可据以承诺的统一单库硬上限，记为**未知**，不从套餐总量反推，也不宣称单库无限。
 
 本轮选择 10 GiB 为可调默认业务配额，同时保留 `None`；没有复制其他产品的限制集合，也没有声称复现 Turso Cloud 的闭源提交或按需读取实现。
 
