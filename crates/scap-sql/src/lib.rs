@@ -283,7 +283,7 @@ impl<'a> Decoder<'a> {
 }
 
 /// Decode a retained result only after the caller has rechecked current
-/// authorization and semantic request identity in the ordered cell state.
+/// authorization and semantic request identity in the current authoritative object snapshot.
 pub fn decode_result(bytes: &[u8], limits: SqlLimits) -> Result<TransactionResult, SqlError> {
     limits.validate()?;
     if bytes.len() > limits.max_result_bytes as usize {

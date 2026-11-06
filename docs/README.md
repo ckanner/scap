@@ -1,76 +1,12 @@
-# 文档地图
+# SCAP 文档
 
-阅读顺序：需求 → 架构 → 一致性 → 存储生命周期 → API → 故障矩阵 → 验证与实施。
+| 主题 | 入口 |
+| --- | --- |
+| 已接受的目标方案 | [对象存储原生方案](architecture/object-storage-native-proposal.md)、[ADR-0020](adr/0020-object-storage-native-authority.md) |
+| 当前实际实现 | [对象运行时](engineering/object-runtime.md)、[ADR-0021](adr/0021-object-native-runtime.md) |
+| 逻辑协议模型 | [N0 验证](engineering/object-authority-n0.md) |
+| 阶段与剩余工作 | [路线图](engineering/roadmap.md) |
+| 正确性与验证 | [验证规范](engineering/validation.md)、[覆盖率](engineering/testability-and-coverage.md)、[本地源码身份](engineering/local-validation.md) |
+| 运行与故障 | [运行说明](operations/runbooks.md)、[故障矩阵](operations/failure-matrix.md) |
 
-## 架构
-
-- [requirements.md](architecture/requirements.md)：范围、假设、故障合同和术语。
-- [overview.md](architecture/overview.md)：组件、部署、流量、扩容及隔离单元。
-- [consistency.md](architecture/consistency.md)：权威状态、提交、读、分区、幂等和恢复协议。
-- [storage-lifecycle.md](architecture/storage-lifecycle.md)：对象布局、快照、归档、GC 和冷库。
-- [api-contracts.md](architecture/api-contracts.md)：SDK、事务、错误、管理接口与兼容性。
-- [tenancy-security.md](architecture/tenancy-security.md)：权限、资源、安全边界与密钥。
-- [technology-stack.md](architecture/technology-stack.md)：语言、组件、工程模块与集成门槛。
-
-## 新目标架构（greenfield）
-
-- [对象存储原生详细方案](<architecture/object-storage-native-proposal.md>)：S3 权威持久化、可丢弃计算、HEAD 条件发布、故障与验证矩阵、GC/PITR、长期结果留存及 N0–N4 从零实施。
-- [ADR-0020](<adr/0020-object-storage-native-authority.md>)：已合入的新目标；用户已确认旧原型未使用，允许完整替换，无迁移、回退、旧格式/SDK 或双后端兼容要求；对象运行时仍未实现、未验收。
-- [N0 逻辑协议与有界模型](engineering/object-authority-n0.md)：HEAD 发布、UNKNOWN、取消、接管和按世代计量的有限留存；[研究模型](../experiments/object-authority-model/README.md)与独立历史判定，不代表真实 S3/SQLite 已通过。
-- 下方 Raft/cell 文档记录当前源码与历史研发路线，不是新目标的结构约束；旧 G0–G4 证据不能作为对象原生协议的通过记录。
-
-## 运行与实施
-
-- [failure-matrix.md](operations/failure-matrix.md)：故障和分区行为。
-- [runbooks.md](operations/runbooks.md)：操作程序与恢复保护条件。
-- [validation.md](engineering/validation.md)：验证模型、故障注入和上线门禁。
-- [roadmap.md](engineering/roadmap.md)：逐阶段交付和拒绝降级的条件。
-- [capacity-cost.md](engineering/capacity-cost.md)：成本模型与测量计划。
-- [performance-slo.md](engineering/performance-slo.md)：明确的延迟、恢复、冷启动和可用性目标及测量口径。
-- [testability-and-coverage.md](engineering/testability-and-coverage.md)：100% 单元覆盖率分母、松耦合架构与设计原则。
-- [g0-evidence.md](engineering/g0-evidence.md)：已运行的原型、测试结果及尚未证明的边界。
-- [raft-rs-integration.md](engineering/raft-rs-integration.md)：Ready 持久完成、应用与快照恢复的集成合同和专项门禁。
-- [runtime-and-rpc.md](engineering/runtime-and-rpc.md)：平台执行、RPC、健康检查和 sqld 依赖设计；peer 网络的当前实现见下一项。
-- [raft-network-runtime.md](engineering/raft-network-runtime.md)：正式 wire/mTLS/runtime、固定与动态成员、撤销复核、RAII 配额、Safe ReadIndex、停止和真实网络证据边界。
-- [membership-operations.md](engineering/membership-operations.md)：受控 Join、learner 追赶、joint 副本替换、管理鉴权和 UNKNOWN 查证。
-- [durable-store.md](engineering/durable-store.md)：正式持久存储策略、磁盘格式、失败后停止、应用与 checkpoint，以及真实契约测试边界。
-- [serial-driver.md](engineering/serial-driver.md)：正式单 cell driver、强类型读票据、取消容量、native 后端和错误完成边界。
-- [raft-safety.md](engineering/raft-safety.md)：PreVote、check_quorum、Safe ReadIndex、分区与快照的实际实现边界。
-- [cell-state-machine.md](engineering/cell-state-machine.md)：有界业务状态机的身份、owner/auth、事务接受、去重和取消规则。
-- [sqlite-engine.md](engineering/sqlite-engine.md)：正式引擎提交、完整结果、前置去重、无变化事务与基线/有限尾部恢复边界。
-- [repository-layout.md](engineering/repository-layout.md)：当前和规划中的目录结构。
-
-## 决策与证据
-
-- [ADR 索引](adr/README.md)。
-- [ADR-0007](adr/0007-tikv-stack-and-rpc-boundaries.md)：参考 TiKV 技术栈，明确采用方向与运行/RPC 边界。
-- [ADR-0012](adr/0012-bounded-raft-network-runtime.md)：正式单 cell 网络运行时、逐次 mTLS、有限资源与回执语义。
-- [ADR-0016](adr/0016-durable-membership-replacement.md)：保持三个 voter 的持久成员变更与故障副本替换。
-- [ADR-0017](adr/0017-bounded-physical-history.md)：有界物理历史、原结果保留、确定的旧格式迁移与通信世代隔离。
-- [开源组件调查](research/components.md)。
-- [Raft 库选型](research/raft-library-selection.md)：TiKV raft-rs 与 OpenRaft 的比较、准确版本来源和采用边界。
-- [TiKV Rust 技术栈审计](research/tikv-rust-stack.md)：固定发布源码、实际调用路径与锁文件；区分直接候选、借鉴设计和暂不引入。
-- [机器可读的设计清单](../contracts/design-contract.json)。
-- [机器可读的技术决策](../contracts/technology-decisions.json)：技术方向、未采用项和不变量；不是服务配置或依赖锁文件。
-- [覆盖率策略](../contracts/coverage-policy.json) 与 [性能目标清单](../contracts/performance-targets.json)。
-- [Raft RPC 真实实验](../experiments/raft-rpc/README.md)：8 项真实 loopback 编码/传输测试已通过；不包含 RawNode、持久化、quorum 或 HA 验证。
-- [Raft/RocksDB 恢复实验](../experiments/raft-store/README.md)：真实 RawNode、同步存储与进程恢复，测试结果和限制单独记录。
-- [三进程故障实验](../experiments/raft-cluster/README.md)：正式 driver/backend 的多数派、少数派、整组重启和快照追赶；受控 IPC 故障模型。
-- [SQLite/cell 接合实验](../experiments/sqlite-cell/README.md)：真实提交前 gate、业务裁决、原生页面发布与保留物理事务恢复；不属于生产 SDK/服务。
-
-- [正式 SQLite adapter 实验](../experiments/sqlite-engine/README.md)：正式模块与真实 cell 的提交、分区、幂等、快照和进程退出恢复合同。
-- [真实 mTLS 网络实验](../experiments/raft-network/README.md)：八项正式网络/runtime 三进程合同；含分区、重启、snapshot、pin 撤销与非持久回执，不执行 SQLite SQL。
-- [真实成员替换实验](../experiments/membership-network/README.md)：四 daemon 的快照追赶、joint 重启、新 voter 的 ACK 恢复与少数派 UNKNOWN。
-- [真实旧格式与历史实验](../experiments/history-network/README.md)：旧 daemon 与真实 S3 数据、不同应用进度的同盘升级、物理基线、原结果和完整重启验证。
-- [2026-11-04 成员替换完整本地证据](evidence/membership-local-2026-11-04.json)：精确单元计数、构建身份、实际故障结果与原始收据哈希。
-
-## 文档解释规则
-
-1. 文档中的“必须”是设计不变量，不能因演示成功而降低。
-2. “目标”表示尚需验证，不能改写为性能或可靠性实测结果。
-3. 一致性细节以 `architecture/consistency.md` 为准；故障操作必须遵守该协议。
-4. 官方组件行为、项目设计选择、待验证集成能力必须分别标识。
-5. 修改协议时，同时检查 API、故障矩阵、验证计划和相关 ADR。
-6. 实验锁定的依赖与结果只适用于所测范围；平台与 sqld 的 fork、模块提取或独立进程边界仍须通过 G0 验证。
-
-最新实现：[正式 SQLite 服务、自动接管与冷生命周期](engineering/sqlite-service.md)、[服务配置与运行](../crates/scap-server/README.md)、[Node SDK](../sdk/node/README.md)，以及 [ADR-0014](adr/0014-sqlite-service-and-cold-lifecycle.md)、[ADR-0015](adr/0015-incremental-blocks-and-isolated-execution.md)和 [ADR-0016](adr/0016-durable-membership-replacement.md)。后续 ADR 分别补齐增量持久块、按库执行隔离与受控副本替换；早期阶段的未实现说明不覆盖这些后续结果，生产规模与 SLO 仍未验收。
+旧三节点原型的事实、代码和证据保留在 [重写前的提交](https://github.com/ckanner/scap/tree/4cd99eb3ce404dfa26a8df2536d881f078c9c809)。它们不约束当前格式或 API，也不计作新实现通过的证据。
