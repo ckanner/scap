@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-06T11:29:17.636723+00:00",
+  "base_main": "819050679a306a2d799c8c14a76c7a157f3e522d",
+  "parent_candidate": "4aba4fa1d6c1d6ab36b41b184c3ab2ce1bd96726",
+  "status": "DRAFT_NOT_MERGE_READY",
+  "runtime_rust_changed_this_increment": false,
+  "native_dependency_changed": false,
+  "fixture_selftests": {
+    "tests": 18,
+    "failures": 0,
+    "errors": 0,
+    "runner": "Python 3.13.5",
+    "coverage_version": "7.13.3",
+    "statements": {
+      "covered": 243,
+      "count": 243
+    },
+    "branches": {
+      "covered": 42,
+      "count": 42
+    },
+    "exclusions": 0,
+    "scope": "new Python fixture module only, mocked native/runtime ports; NOT Rust/S3/project-wide coverage",
+    "matches_project_pinned_coverage_tool": false
+  },
+  "planned_real_contract": {
+    "scenarios": 12,
+    "separate_worker_entrypoints_per_scenario": 5,
+    "expected_execute_ack_records": 30,
+    "executed": false,
+    "status": "NOT_RUN"
+  },
+  "actual_preflight": {
+    "status": "blocked",
+    "real_worker_started": false,
+    "exit_code": 1,
+    "error": "missing prerequisite: /mnt/data/scap-next-validation/missing-worker"
+  },
+  "environment": {
+    "cargo": null,
+    "rustc": null,
+    "rust_download_exit_code": 6,
+    "rust_download_stderr": "curl: (6) Could not resolve host: static.rust-lang.org"
+  },
+  "native_gates": {
+    "format": "NOT_RUN",
+    "clippy": "NOT_RUN",
+    "compile": "NOT_RUN",
+    "unit": "NOT_RUN",
+    "fresh_coverage": "NOT_RUN",
+    "real_s3": "NOT_RUN",
+    "gib1": "NOT_RUN",
+    "full_n1": "NOT_RUN",
+    "aws_standard": "NOT_RUN"
+  },
+  "github_prior_candidate_quality": {
+    "run_id": 42201660598,
+    "conclusion": "failure",
+    "job_steps_available": false
+  },
+  "new_source_sha256": {
+    "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+    "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+    ".github/workflows/quality.yml": "b64084827dc85ddaa30f8305ca42224e1d942c0ed41e1388fb810f6856f371ae",
+    "docs/engineering/retained-result-contract.md": "e522815f2bf07c099c634fe21a9b3e025b41812c5c894f303d66caa89a513964"
+  },
+  "original_workflow_blob": "8706a6bae4d25f76f76716c2af55013c6eb8f4bf",
+  "source_checkout_scope": "partial local checkout for exact modified-file and fixture checks; not a full production build",
+  "production_slo_passed": false,
+  "merge_ready": false
+}

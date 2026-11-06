@@ -132,6 +132,8 @@ jobs:
           echo 'c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  target/object-network-tools/weed.tar.gz' | sha256sum --check --strict
           tar -xzf target/object-network-tools/weed.tar.gz -C target/object-network-tools weed
           target/object-network-tools/weed version
+      - name: Check semantic-result fault fixture controls (not native acceptance)
+        run: python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -147,6 +149,14 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-network"
+      - name: Reject semantically corrupt retained results with valid object hashes
+        # Each entrypoint gets a fresh worker; unit profiles never enter this run.
+        run: |
+          python3 experiments/object-network/retained_result_contract.py \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/retained-result-contract"
       - name: Verify one GiB of actual default-profile data and full recovery
         # Separate release evidence; never merged into unit coverage profiles.
         run: |
@@ -181,4 +191,11 @@ jobs:
             target/evidence/object-capacity-gib1/worker-resources-*.jsonl
             target/evidence/object-capacity-gib1/summary.json
             target/evidence/object-capacity-gib1/build-receipt.json
+            target/evidence/retained-result-contract/history.jsonl
+            target/evidence/retained-result-contract/summary.json
+            target/evidence/retained-result-contract/build-receipt.json
+            target/evidence/retained-result-contract/fault-input-ledger.jsonl
+            target/evidence/retained-result-contract/fault-ack-ledger.jsonl
+            target/evidence/retained-result-contract/fault-outcome-ledger.jsonl
+            target/evidence/retained-result-contract/fault-cases.jsonl
           if-no-files-found: error
