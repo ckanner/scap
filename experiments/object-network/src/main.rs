@@ -1,6 +1,7 @@
 //! Independent process fixture. Every database algorithm remains in the
 //! production crates; this binary translates test commands and observations.
 
+use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -9,7 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use scap_object::format::{
-    decode_object, digest, head_key, object_key, Payload, Permission, Request, Scope,
+    decode_object, digest, head_key, object_key, OutcomeRef, Payload, Permission, Request, Scope,
     MAX_OBJECT_BYTES,
 };
 use scap_object::{request, sql_limits, Database, Options, Receipt, Resolution, Session};
@@ -42,8 +43,38 @@ struct FixtureLimits {
     retention_result_bytes: u64,
 }
 
-fn debug(error: impl std::fmt::Debug) -> String {
-    format!("{error:?}")
+struct Failure {
+    message: String,
+    details: Option<Value>,
+}
+
+impl From<&str> for Failure {
+    fn from(message: &str) -> Self {
+        Self {
+            message: message.into(),
+            details: None,
+        }
+    }
+}
+
+fn debug(error: impl std::fmt::Debug) -> Failure {
+    Failure {
+        message: format!("{error:?}"),
+        details: None,
+    }
+}
+
+fn execution_error(error: scap_object::Error) -> Failure {
+    let details = match &error {
+        scap_object::Error::CommittedButUnavailable(proof) => Some(json!({
+            "kind":"committed_but_unavailable", "receipt":receipt(proof)
+        })),
+        _ => None,
+    };
+    Failure {
+        message: format!("{error:?}"),
+        details,
+    }
 }
 
 fn receipt(value: &Receipt) -> Value {
@@ -92,7 +123,7 @@ fn result(value: &TransactionResult, hash_blobs: bool) -> Value {
     }
 }
 
-fn parameter(value: &Value) -> Result<SqlValue, String> {
+fn parameter(value: &Value) -> Result<SqlValue, Failure> {
     match value["type"].as_str().ok_or("fixture parameter type")? {
         "null" => Ok(SqlValue::Null),
         "integer" => Ok(SqlValue::Integer(
@@ -124,8 +155,8 @@ fn parameter(value: &Value) -> Result<SqlValue, String> {
     }
 }
 
-fn statements(command: &Value) -> Result<Vec<Statement>, String> {
-    let one = |value: &Value| -> Result<Statement, String> {
+fn statements(command: &Value) -> Result<Vec<Statement>, Failure> {
+    let one = |value: &Value| -> Result<Statement, Failure> {
         let parameters = match value["parameters"].as_array() {
             Some(values) => values.iter().map(parameter).collect::<Result<_, _>>()?,
             None => Vec::new(),
@@ -156,13 +187,80 @@ fn resolution(value: Resolution) -> Value {
     }
 }
 
+fn object_role(payload: &Payload) -> &'static str {
+    match payload {
+        Payload::Manifest(_) => "manifest",
+        Payload::Node { .. } => "tree_node",
+        Payload::Chunk { .. } => "chunk",
+        Payload::Index(_) => "index",
+        Payload::Result(_) => "result",
+    }
+}
+
+/// Select exact synthetic-fixture keys through the official object codec.
+/// This inventory never establishes readiness or supplies a recovery image.
+/// Follow the current data tree and retained Index -> Result references only;
+/// a receipt's historical data_root is not another activation dependency.
+fn authority_inventory(
+    config: &Config,
+    objects: &S3,
+    database: &Database,
+    deadline: Instant,
+) -> Result<Value, Failure> {
+    const MAX_FIXTURE_OBJECTS: usize = 4096;
+    let head = database.status(config.principal, deadline).map_err(debug)?;
+    let mut pending = vec![(head.data_root.clone(), None)];
+    pending.extend(
+        head.windows
+            .iter()
+            .map(|window| (window.root.clone(), Some(window.epoch))),
+    );
+    let mut visited = BTreeSet::new();
+    let mut inventory = Vec::new();
+    while let Some((hash, epoch)) = pending.pop() {
+        if !visited.insert(hash.clone()) {
+            continue;
+        }
+        if visited.len() > MAX_FIXTURE_OBJECTS {
+            return Err("fixture inventory exceeds its small-case object bound".into());
+        }
+        let key = object_key(&config.scope, &hash);
+        let stored = objects
+            .get(&key, MAX_OBJECT_BYTES, deadline)
+            .map_err(debug)?;
+        let envelope = decode_object(&stored.bytes, &config.scope, &hash).map_err(debug)?;
+        let role = object_role(&envelope.payload);
+        match envelope.payload {
+            Payload::Manifest(manifest) => {
+                pending.extend(manifest.root.map(|root| (root, None)));
+            }
+            Payload::Node { children, .. } => {
+                pending.extend(children.into_iter().map(|child| (child, None)));
+            }
+            Payload::Index(entries) => {
+                pending.extend(entries.into_iter().filter_map(|entry| match entry.outcome {
+                    OutcomeRef::Committed { result } => Some((result, epoch)),
+                    OutcomeRef::Cancelled { .. } => None,
+                }));
+            }
+            Payload::Chunk { .. } | Payload::Result(_) => {}
+        }
+        if pending.len() > MAX_FIXTURE_OBJECTS {
+            return Err("fixture inventory exceeds its small-case pending bound".into());
+        }
+        inventory.push(json!({"role":role, "key":key, "sha256":hash,
+            "bytes_len":stored.bytes.len(), "epoch":epoch}));
+    }
+    Ok(json!({"head":head,"objects_count":inventory.len(),"objects":inventory}))
+}
+
 fn perform(
     config: &Config,
     objects: &S3,
     database: &Database,
     session: &mut Option<Session>,
     cmd: Value,
-) -> Result<Value, String> {
+) -> Result<Value, Failure> {
     let deadline =
         Instant::now() + Duration::from_millis(cmd["budget_ms"].as_u64().unwrap_or(8000));
     let op = cmd["op"].as_str().ok_or("fixture operation")?;
@@ -193,6 +291,13 @@ fn perform(
         "authority_keys" => database.status(principal, deadline).map(|head| {
             json!({"head":head_key(&config.scope), "data_root":object_key(&config.scope, &head.data_root)})
         }).map_err(debug),
+        "authority_inventory" => authority_inventory(config, objects, database, deadline),
+        "inspect_object" => {
+            let bytes: Vec<u8> = serde_json::from_value(cmd["bytes"].clone()).map_err(debug)?;
+            let hash = digest(&bytes);
+            let envelope = decode_object(&bytes, &config.scope, &hash).map_err(debug)?;
+            Ok(json!({"role":object_role(&envelope.payload),"sha256":hash,"bytes_len":bytes.len()}))
+        }
         "authority_info" => {
             let head = database.status(principal, deadline).map_err(debug)?;
             let root = objects.get(&object_key(&config.scope, &head.data_root), MAX_OBJECT_BYTES, deadline).map_err(debug)?;
@@ -208,6 +313,9 @@ fn perform(
             .map(|head| json!(head)).map_err(debug),
         "takeover" => database
             .takeover(principal, number("revision"), number("nonce"), deadline)
+            .map(|head| json!(head)).map_err(debug),
+        "close_full" => database
+            .close_full(principal, number("revision"), number("nonce"), deadline)
             .map(|head| json!(head)).map_err(debug),
         "set_policy" => {
             let policy: Vec<Permission> = serde_json::from_value(cmd["policy"].clone()).map_err(debug)?;
@@ -233,6 +341,13 @@ fn perform(
         "session_info" => Ok(json!({"page_count":session.as_ref().ok_or("fixture has no session")?.page_count()})),
         "prepare_request" => request(number("epoch"), number("id"), principal, &statements(&cmd)?)
             .map(|identity| json!(identity)).map_err(debug),
+        "decode_result" => {
+            let bytes: Vec<u8> = serde_json::from_value(cmd["encoded"].clone()).map_err(debug)?;
+            let decoded = scap_sql::decode_result(&bytes, sql_limits()).map_err(debug)?;
+            let mut rendered = result(&decoded, false);
+            rendered["encoded"] = json!(bytes);
+            Ok(rendered)
+        }
         "execute" | "session_execute" => {
             let sql = statements(&cmd)?;
             let identity = request(number("epoch"), number("id"), principal, &sql).map_err(debug)?;
@@ -241,7 +356,7 @@ fn perform(
             } else {
                 database.execute(principal, &identity, &sql, &config.cache_root.join(text("directory")), deadline)
             };
-            executed.map(|(proof, data)| json!({"receipt":receipt(&proof),"result":result(&data, false)})).map_err(debug)
+            executed.map(|(proof, data)| json!({"receipt":receipt(&proof),"result":result(&data, false)})).map_err(execution_error)
         }
         "query" | "session_query" => {
             let sql = statements(&cmd)?;
@@ -301,8 +416,28 @@ fn resources() -> Value {
         .unwrap()
         .parse::<u64>()
         .unwrap();
+    let signal_ignored = status
+        .lines()
+        .find_map(|line| line.strip_prefix("SigIgn:"))
+        .unwrap()
+        .trim();
+    let limits = std::fs::read_to_string("/proc/self/limits").unwrap();
+    let mut file_size = limits
+        .lines()
+        .find_map(|line| line.strip_prefix("Max file size"))
+        .unwrap()
+        .split_whitespace();
+    let limit = |value: &str| match value {
+        "unlimited" => None,
+        finite => Some(finite.parse::<u64>().unwrap()),
+    };
+    let file_size_soft = limit(file_size.next().unwrap());
+    let file_size_hard = limit(file_size.next().unwrap());
+    assert_eq!(file_size.next(), Some("bytes"));
     json!({"proc_pid":field("Pid:"),"namespace_pid":std::process::id(),"start_ticks":start,
-        "rss_kib":field("VmRSS:"),"hwm_kib":field("VmHWM:")})
+        "rss_kib":field("VmRSS:"),"hwm_kib":field("VmHWM:"),
+        "signal_ignored_hex":signal_ignored,
+        "file_size_soft_limit_bytes":file_size_soft,"file_size_hard_limit_bytes":file_size_hard})
 }
 
 fn resource_recorder(config: &Config) -> Arc<AtomicBool> {
@@ -394,7 +529,8 @@ fn main() {
                 json!({"ok":true,"value":value,"resources":resources(),"elapsed_ms":started.elapsed().as_secs_f64()*1000.0})
             }
             Err(error) => {
-                json!({"ok":false,"error":error,"resources":resources(),"elapsed_ms":started.elapsed().as_secs_f64()*1000.0})
+                json!({"ok":false,"error":error.message,"error_details":error.details,
+                    "resources":resources(),"elapsed_ms":started.elapsed().as_secs_f64()*1000.0})
             }
         };
         println!("{response}");

@@ -127,7 +127,7 @@ jobs:
         run: |
           mkdir -p target/object-network-tools
           curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
-            https://github.com/chrislusf/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
             --output target/object-network-tools/weed.tar.gz
           echo 'c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  target/object-network-tools/weed.tar.gz' | sha256sum --check --strict
           tar -xzf target/object-network-tools/weed.tar.gz -C target/object-network-tools weed
@@ -165,6 +165,11 @@ jobs:
             target/evidence/object-network/history.jsonl
             target/evidence/object-network/summary.json
             target/evidence/object-network/ack-ledger.jsonl
+            target/evidence/object-network/fault-input-ledger.jsonl
+            target/evidence/object-network/fault-ack-ledger.jsonl
+            target/evidence/object-network/fault-outcome-ledger.jsonl
+            target/evidence/object-network/fault-cases.jsonl
+            target/evidence/object-network/fault-plan.json
             target/evidence/object-network/build-receipt.json
             target/evidence/object-network-build/build.json
             target/evidence/object-network-build/cargo.stdout.jsonl

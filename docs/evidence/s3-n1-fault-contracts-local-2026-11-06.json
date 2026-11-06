@@ -1,0 +1,1233 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-06T05:57:24.259355+00:00",
+  "status": "selected-local-s3-n1-fault-contracts-and-shared-gib1-regression-passed",
+  "pull_request": "https://github.com/ckanner/scap/pull/21",
+  "scope": "Selected S3-authoritative SQLite commit/recovery boundaries on a local S3-compatible endpoint; not full N1 or AWS certification.",
+  "tested_source": {
+    "commit": "75df1d20bcc8eb56ca758d8801eb3060a70a1687",
+    "tree": "8616566636a79caf5d92c39f9882bd839a257c4d",
+    "tracked_files": 89,
+    "source_sha256": "1c40d441ae4e6b38d394dda63b8a145186e72a845aea697f3502db8517f8825e",
+    "before_after_manifest_sha256": "5845e272ae45b39a18d9de5ca25f1d15d4946821445d0d4aa0a141233a91e2fe",
+    "before_after_bytes_identical": true,
+    "original_manifest_not_rewritten": true,
+    "main_base": "12e769b18f91354093adccda9eb818a85361157a",
+    "changed_paths": [
+      ".github/workflows/quality.yml",
+      "docs/engineering/roadmap.md",
+      "docs/engineering/validation.md",
+      "docs/operations/failure-matrix.md",
+      "experiments/object-network/README.md",
+      "experiments/object-network/run.py",
+      "experiments/object-network/src/main.rs"
+    ],
+    "formal_code_manifests_locks_unchanged": true,
+    "formal_paths_compared": 37,
+    "delivery_note": "A later documentation-only commit adds this record and summaries; its source-difference proof must preserve every tested runtime, test, workflow and build input byte."
+  },
+  "release_build": {
+    "source_commit": "75df1d20bcc8eb56ca758d8801eb3060a70a1687",
+    "profile": "release",
+    "status": "passed",
+    "exit_code": 0,
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "experiments/object-network/Cargo.toml",
+      "--message-format=json-render-diagnostics"
+    ],
+    "input_sha256": "bbd187a3c3403f834d294ba01634a2661458d64a080abfd5d165af77c4f23d08",
+    "binary": {
+      "path": "/workspace/scratch/cf20e64ae766/n1-build-target/release/scap-object-network",
+      "sha256": "d83eab437b075da12a4833fa1b6681a1fb6142e1ee7550eb65c942c04a096419"
+    },
+    "native_archives": {
+      "/workspace/scratch/cf20e64ae766/n1-build-target/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+    },
+    "versions": {
+      "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+      "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+    }
+  },
+  "release_input_files": 41,
+  "rust_unit": {
+    "tests_per_run": 130,
+    "stable": {
+      "scap-object": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 65
+      },
+      "scap-object-sqlite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 49
+      },
+      "scap-object-store": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 7
+      },
+      "scap-sql": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 9
+      }
+    },
+    "coverage": {
+      "scap-object": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 65
+      },
+      "scap-object-sqlite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 49
+      },
+      "scap-object-store": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 7
+      },
+      "scap-sql": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 9
+      }
+    },
+    "production_file_count": 13,
+    "totals": {
+      "branches": {
+        "count": 518,
+        "covered": 518
+      },
+      "functions": {
+        "count": 241,
+        "covered": 241
+      },
+      "lines": {
+        "count": 2743,
+        "covered": 2743
+      },
+      "regions": {
+        "count": 4157,
+        "covered": 4157
+      }
+    },
+    "files": [
+      {
+        "branches": {
+          "count": 14,
+          "covered": 14
+        },
+        "functions": {
+          "count": 15,
+          "covered": 15
+        },
+        "lines": {
+          "count": 106,
+          "covered": 106
+        },
+        "path": "crates/scap-object-sqlite/src/config.rs",
+        "regions": {
+          "count": 177,
+          "covered": 177
+        }
+      },
+      {
+        "branches": {
+          "count": 24,
+          "covered": 24
+        },
+        "functions": {
+          "count": 16,
+          "covered": 16
+        },
+        "lines": {
+          "count": 123,
+          "covered": 123
+        },
+        "path": "crates/scap-object-sqlite/src/file.rs",
+        "regions": {
+          "count": 149,
+          "covered": 149
+        }
+      },
+      {
+        "branches": {
+          "count": 20,
+          "covered": 20
+        },
+        "functions": {
+          "count": 13,
+          "covered": 13
+        },
+        "lines": {
+          "count": 104,
+          "covered": 104
+        },
+        "path": "crates/scap-object-sqlite/src/gate.rs",
+        "regions": {
+          "count": 123,
+          "covered": 123
+        }
+      },
+      {
+        "branches": {
+          "count": 38,
+          "covered": 38
+        },
+        "functions": {
+          "count": 3,
+          "covered": 3
+        },
+        "lines": {
+          "count": 64,
+          "covered": 64
+        },
+        "path": "crates/scap-object-sqlite/src/image.rs",
+        "regions": {
+          "count": 74,
+          "covered": 74
+        }
+      },
+      {
+        "branches": {
+          "count": 12,
+          "covered": 12
+        },
+        "functions": {
+          "count": 7,
+          "covered": 7
+        },
+        "lines": {
+          "count": 116,
+          "covered": 116
+        },
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "regions": {
+          "count": 168,
+          "covered": 168
+        }
+      },
+      {
+        "branches": {
+          "count": 6,
+          "covered": 6
+        },
+        "functions": {
+          "count": 6,
+          "covered": 6
+        },
+        "lines": {
+          "count": 46,
+          "covered": 46
+        },
+        "path": "crates/scap-object-sqlite/src/query.rs",
+        "regions": {
+          "count": 75,
+          "covered": 75
+        }
+      },
+      {
+        "branches": {
+          "count": 46,
+          "covered": 46
+        },
+        "functions": {
+          "count": 17,
+          "covered": 17
+        },
+        "lines": {
+          "count": 325,
+          "covered": 325
+        },
+        "path": "crates/scap-object-sqlite/src/sql.rs",
+        "regions": {
+          "count": 356,
+          "covered": 356
+        }
+      },
+      {
+        "branches": {
+          "count": 68,
+          "covered": 68
+        },
+        "functions": {
+          "count": 19,
+          "covered": 19
+        },
+        "lines": {
+          "count": 201,
+          "covered": 201
+        },
+        "path": "crates/scap-object-store/src/lib.rs",
+        "regions": {
+          "count": 282,
+          "covered": 282
+        }
+      },
+      {
+        "branches": {
+          "count": 60,
+          "covered": 60
+        },
+        "functions": {
+          "count": 21,
+          "covered": 21
+        },
+        "lines": {
+          "count": 263,
+          "covered": 263
+        },
+        "path": "crates/scap-object/src/data_tree.rs",
+        "regions": {
+          "count": 416,
+          "covered": 416
+        }
+      },
+      {
+        "branches": {
+          "count": 22,
+          "covered": 22
+        },
+        "functions": {
+          "count": 28,
+          "covered": 28
+        },
+        "lines": {
+          "count": 264,
+          "covered": 264
+        },
+        "path": "crates/scap-object/src/format.rs",
+        "regions": {
+          "count": 515,
+          "covered": 515
+        }
+      },
+      {
+        "branches": {
+          "count": 112,
+          "covered": 112
+        },
+        "functions": {
+          "count": 72,
+          "covered": 72
+        },
+        "lines": {
+          "count": 828,
+          "covered": 828
+        },
+        "path": "crates/scap-object/src/lib.rs",
+        "regions": {
+          "count": 1303,
+          "covered": 1303
+        }
+      },
+      {
+        "branches": {
+          "count": 36,
+          "covered": 36
+        },
+        "functions": {
+          "count": 6,
+          "covered": 6
+        },
+        "lines": {
+          "count": 95,
+          "covered": 95
+        },
+        "path": "crates/scap-object/src/options.rs",
+        "regions": {
+          "count": 111,
+          "covered": 111
+        }
+      },
+      {
+        "branches": {
+          "count": 60,
+          "covered": 60
+        },
+        "functions": {
+          "count": 18,
+          "covered": 18
+        },
+        "lines": {
+          "count": 208,
+          "covered": 208
+        },
+        "path": "crates/scap-sql/src/lib.rs",
+        "regions": {
+          "count": 408,
+          "covered": 408
+        }
+      }
+    ],
+    "each_production_file_exact_four_metric_100_percent": true,
+    "mapped_files": 28,
+    "mapped_test_sources": [
+      "crates/scap-object-sqlite/src/capacity_tests.rs",
+      "crates/scap-object-sqlite/src/config_tests.rs",
+      "crates/scap-object-sqlite/src/file_tests.rs",
+      "crates/scap-object-sqlite/src/image_tests.rs",
+      "crates/scap-object-sqlite/src/query_tests.rs",
+      "crates/scap-object-sqlite/src/tests.rs",
+      "crates/scap-object-store/src/tests.rs",
+      "crates/scap-object/src/data_tree_tests.rs",
+      "crates/scap-object/src/format_tests.rs",
+      "crates/scap-object/src/options_tests.rs",
+      "crates/scap-object/src/quarantine_tests.rs",
+      "crates/scap-object/src/review_tests.rs",
+      "crates/scap-object/src/session_tests.rs",
+      "crates/scap-object/src/tests.rs",
+      "crates/scap-sql/src/tests.rs"
+    ],
+    "integration_or_research_profiles_used": false
+  },
+  "tooling_unit": {
+    "tests": 74,
+    "totals": {
+      "covered_branches": 184,
+      "covered_lines": 401,
+      "excluded_lines": 0,
+      "missing_branches": 0,
+      "missing_lines": 0,
+      "num_branches": 184,
+      "num_partial_branches": 0,
+      "num_statements": 401,
+      "percent_covered": 100.0,
+      "percent_covered_display": "100"
+    },
+    "source_exclusions": 0
+  },
+  "bounded_model": {
+    "unit_tests": 89,
+    "positive_cases": 664,
+    "race_cases": 640,
+    "directed_cases": 24,
+    "negative_controls_recorded_rejected": [
+      {
+        "event_type_at_recorded_rejection": "reply",
+        "events": 22,
+        "first_rejected_event": 12,
+        "history": "counterexamples/ack_before_authority.jsonl",
+        "invariant": "ACK",
+        "name": "ack_before_authority",
+        "reason": "reply precedes observed authority publication",
+        "sha256": "74fdfa723100bd231d6f10a7e6f1433c264e3cbd308b0f555fbd79f9f3d6f5c9"
+      },
+      {
+        "event_type_at_recorded_rejection": "publish",
+        "events": 22,
+        "first_rejected_event": 12,
+        "history": "counterexamples/local_publish_before_authority.jsonl",
+        "invariant": "EARLY_VISIBLE",
+        "name": "local_publish_before_authority",
+        "reason": "local effect exposed before observed authority publication",
+        "sha256": "ce8690b8f5b419b09f700c802905f07c40733e04c9eb7e406ad0a30729887168"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 26,
+        "first_rejected_event": 22,
+        "history": "counterexamples/two_winners_for_one_etag.jsonl",
+        "invariant": "CAS",
+        "name": "two_winners_for_one_etag",
+        "reason": "two successors won the same predecessor ETag",
+        "sha256": "acd2134dfdcbbda22de8fe336f43c0a3d757d264d02614d886bd4a3cfc25d9c1"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 19,
+        "first_rejected_event": 13,
+        "history": "counterexamples/uploaded_result_is_not_committed.jsonl",
+        "invariant": "LOOKUP",
+        "name": "uploaded_result_is_not_committed",
+        "reason": "absence, retirement, or original result misclassified",
+        "sha256": "1ffa58cc77e73206bee5072b0343011e395c54ced2c111304ca7df8a4038e08c"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 19,
+        "first_rejected_event": 13,
+        "history": "counterexamples/absence_is_not_cancelled.jsonl",
+        "invariant": "LOOKUP",
+        "name": "absence_is_not_cancelled",
+        "reason": "absence, retirement, or original result misclassified",
+        "sha256": "b558874cdce44ce8d3d8cd17b33c0901a4c3f49d7eb371728f8b66b594ada333"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 59,
+        "first_rejected_event": 57,
+        "history": "counterexamples/closed_absence_is_not_cancelled.jsonl",
+        "invariant": "LOOKUP",
+        "name": "closed_absence_is_not_cancelled",
+        "reason": "absence, retirement, or original result misclassified",
+        "sha256": "e0fb004cd23a74342b64fe709bf3576397efb6835f710bf9d37653c8bd441a26"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 111,
+        "first_rejected_event": 106,
+        "history": "counterexamples/retired_is_not_cancelled.jsonl",
+        "invariant": "LOOKUP",
+        "name": "retired_is_not_cancelled",
+        "reason": "absence, retirement, or original result misclassified",
+        "sha256": "06f38d383618e29250b56a8b69489dedf1d88eafafa9a1c5f9db8aeb098e2b87"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 21,
+        "first_rejected_event": 18,
+        "history": "counterexamples/lookup_cannot_switch_original_caller.jsonl",
+        "invariant": "AUTH",
+        "name": "lookup_cannot_switch_original_caller",
+        "reason": "lookup changed the caller or authorization after fresh admission",
+        "sha256": "531e7e1ddb901ea18f219ff56e3745e58035cc93e2a2ebfeb879280e40c965c5"
+      },
+      {
+        "event_type_at_recorded_rejection": "lookup",
+        "events": 44,
+        "first_rejected_event": 44,
+        "history": "counterexamples/revoked_principal_cannot_read_old_result.jsonl",
+        "invariant": "AUTH",
+        "name": "revoked_principal_cannot_read_old_result",
+        "reason": "current principal lacks permission",
+        "sha256": "ea1590959e551afe8bb9647884d4c147b76280238732f3bdf86953940529dd7d"
+      },
+      {
+        "event_type_at_recorded_rejection": "read_result",
+        "events": 22,
+        "first_rejected_event": 22,
+        "history": "counterexamples/new_read_cannot_serve_old_cache.jsonl",
+        "invariant": "READ_VALUE",
+        "name": "new_read_cannot_serve_old_cache",
+        "reason": "read returned staged or stale local data",
+        "sha256": "989e2e8a464609e6a626b6adad653a00130e62d876debe48691b818e208887c4"
+      },
+      {
+        "event_type_at_recorded_rejection": "head_read",
+        "events": 22,
+        "first_rejected_event": 20,
+        "history": "counterexamples/new_get_cannot_select_stale_head.jsonl",
+        "invariant": "FRESH_READ",
+        "name": "new_get_cannot_select_stale_head",
+        "reason": "fresh exact-key GET returned a stale or mixed HEAD/ETag",
+        "sha256": "73c031618ef796f6c9a8a6436b64eed1fd4678d00dc376e589e68dde1ad629b7"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/data_without_atomic_request_result.jsonl",
+        "invariant": "ATOMIC_RESULT",
+        "name": "data_without_atomic_request_result",
+        "reason": "acceptance dropped or changed an earlier terminal result",
+        "sha256": "945d4a4d3f04da021d994dd93d7e15666c1b441422584a5abe7efd05c312e883"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/result_without_atomic_data.jsonl",
+        "invariant": "BASE",
+        "name": "result_without_atomic_data",
+        "reason": "physical successor does not extend the exact selected base",
+        "sha256": "cb0afb37788c01c5c3afae6d9b1ea221fde2aead77440e403bf3fa04cab1e8df"
+      },
+      {
+        "event_type_at_recorded_rejection": "closure",
+        "events": 20,
+        "first_rejected_event": 9,
+        "history": "counterexamples/publication_with_missing_dependency.jsonl",
+        "invariant": "CLOSURE",
+        "name": "publication_with_missing_dependency",
+        "reason": "missing dependency deployment/tenant/database/1/objects/82e215e584d27ad006ae8a889d32dec10e9bba44a1336b28d33f7e8813c5ba16",
+        "sha256": "9bc756768536c77697fbb0bd861c6c77b7f291f39c0d899aea11f827f16af379"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/self_consistent_wrong_business_delta.jsonl",
+        "invariant": "BUSINESS_EFFECT",
+        "name": "self_consistent_wrong_business_delta",
+        "reason": "published effect differs from the original staged operation",
+        "sha256": "13afd21a97a237e1a45674dc2b81e5ed9e239b6d0074f63e0f05a1c5cef7965e"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/self_consistent_wrong_original_result.jsonl",
+        "invariant": "ORIGINAL_RESULT",
+        "name": "self_consistent_wrong_original_result",
+        "reason": "original result payload was changed",
+        "sha256": "73dea4db5aec20c2d9fb3c8c7261fa4af3725124cd32ff92e3e6bda7a292f9d9"
+      },
+      {
+        "event_type_at_recorded_rejection": "object_put",
+        "events": 22,
+        "first_rejected_event": 22,
+        "history": "counterexamples/immutable_bytes_overwritten.jsonl",
+        "invariant": "INTEGRITY",
+        "name": "immutable_bytes_overwritten",
+        "reason": "PUT key does not identify its bytes",
+        "sha256": "b1e6759dc28a8b37d17eb2c5e0a7960debf55bfa6114a3e625f4cd1d241fbda4"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 56,
+        "first_rejected_event": 49,
+        "history": "counterexamples/old_writer_accepted_on_fresh_head.jsonl",
+        "invariant": "OWNER",
+        "name": "old_writer_accepted_on_fresh_head",
+        "reason": "stale or inactive writer accepted",
+        "sha256": "43e852de7b494f527146584cf03671a02031eeea140c2e82229948e81603b076"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 56,
+        "first_rejected_event": 49,
+        "history": "counterexamples/old_difference_rebased_on_new_sql_base.jsonl",
+        "invariant": "BASE",
+        "name": "old_difference_rebased_on_new_sql_base",
+        "reason": "old staged difference rebased onto another predecessor",
+        "sha256": "d8d53305bf11520a924503027756157d3789dd0c5c1dbf86f14ce09c1ed8e2f6"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_sent",
+        "events": 26,
+        "first_rejected_event": 21,
+        "history": "counterexamples/old_candidate_rebound_to_fresh_etag.jsonl",
+        "invariant": "REBASE",
+        "name": "old_candidate_rebound_to_fresh_etag",
+        "reason": "staged candidate, base or intent rebound before CAS",
+        "sha256": "92f449c60e2975f1a66902c22e4b628b2c6f346a621c748f721ffaee213a20a9"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 55,
+        "first_rejected_event": 36,
+        "history": "counterexamples/activation_without_recovery_observation.jsonl",
+        "invariant": "RECOVERY",
+        "name": "activation_without_recovery_observation",
+        "reason": "activation used an invented or lost local recovery proof",
+        "sha256": "81d64c15ebd7628af6ebfd5fd1d37888dc39c310cb777ea2bfe3f7e8410d3582"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/retention_contract_drift.jsonl",
+        "invariant": "RETENTION",
+        "name": "retention_contract_drift",
+        "reason": "creation-time retention contract changed",
+        "sha256": "aababddb1ac2bc9307ed5ab98f2de4cd0271d3450ab4f3609de9f44a7cd28013"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 111,
+        "first_rejected_event": 35,
+        "history": "counterexamples/result_retired_before_two_closed_epochs.jsonl",
+        "invariant": "RETENTION",
+        "name": "result_retired_before_two_closed_epochs",
+        "reason": "minimum closed-epoch retention violated",
+        "sha256": "83c75e1fa70027364062ce626fbc02eaa10536a9df029aa506455d36dd9234d8"
+      },
+      {
+        "event_type_at_recorded_rejection": "closure",
+        "events": 111,
+        "first_rejected_event": 33,
+        "history": "counterexamples/closed_retained_result_disappears.jsonl",
+        "invariant": "RETENTION",
+        "name": "closed_retained_result_disappears",
+        "reason": "a closed retained window lost a terminal result",
+        "sha256": "b97070e3e6272f35d8632b962fe651c06568a5ebe40eff68a1ecc4da92d322a6"
+      },
+      {
+        "event_type_at_recorded_rejection": "prepared",
+        "events": 30,
+        "first_rejected_event": 30,
+        "history": "counterexamples/unknown_control_rebuilt_at_fresh_revision.jsonl",
+        "invariant": "CONTROL_REBASE",
+        "name": "unknown_control_rebuilt_at_fresh_revision",
+        "reason": "old control intent admitted against a fresh revision",
+        "sha256": "f5dbed15038df4e260afedf3b14a7061e87671a8b22a1689cd85f51ad6dfdd64"
+      },
+      {
+        "event_type_at_recorded_rejection": "control_lookup",
+        "events": 29,
+        "first_rejected_event": 14,
+        "history": "counterexamples/control_query_changes_original_expected_revision.jsonl",
+        "invariant": "CONTROL_LOOKUP",
+        "name": "control_query_changes_original_expected_revision",
+        "reason": "control query changed its original intent after HEAD selection",
+        "sha256": "525b4a66a78b5fd5b80f4db38b5711486cf4a41f4b775763287f898c9ad39782"
+      },
+      {
+        "event_type_at_recorded_rejection": "control_lookup",
+        "events": 29,
+        "first_rejected_event": 14,
+        "history": "counterexamples/control_query_changes_original_parameters_json.jsonl",
+        "invariant": "CONTROL_LOOKUP",
+        "name": "control_query_changes_original_parameters_json",
+        "reason": "control query changed its original intent after HEAD selection",
+        "sha256": "9ff608237daa945e49de4842998812eb59bbca1bdc4d00fd16514ddb9019dae6"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_response",
+        "events": 20,
+        "first_rejected_event": 17,
+        "history": "counterexamples/later_412_cannot_erase_unknown.jsonl",
+        "invariant": "UNKNOWN",
+        "name": "later_412_cannot_erase_unknown",
+        "reason": "later 412 erased an earlier ambiguous attempt",
+        "sha256": "6df8fc94852eb82628272b74eb59060c21aad1edf04b951890346b7eb74a1bfe"
+      },
+      {
+        "event_type_at_recorded_rejection": "cas_effect",
+        "events": 21,
+        "first_rejected_event": 12,
+        "history": "counterexamples/transition_uses_old_revision_prefix.jsonl",
+        "invariant": "IDENTITY",
+        "name": "transition_uses_old_revision_prefix",
+        "reason": "publication changed its revision-qualified transition identity",
+        "sha256": "81922b48ebba9bfe70d13d87723ef1245852896b20b8f8376edd648b558f0294"
+      },
+      {
+        "event_type_at_recorded_rejection": "closure",
+        "events": 7,
+        "first_rejected_event": 7,
+        "history": "counterexamples/empty_epoch_close_accepted.jsonl",
+        "invariant": "RETENTION",
+        "name": "empty_epoch_close_accepted",
+        "reason": "a closed retained window lost a terminal result",
+        "sha256": "99e134783810759df1e156262362671f95b4e501bb8e9ed07dccbe4a2d2f3c9c"
+      }
+    ],
+    "raw_files_hashed": 694,
+    "raw_positive_events_recounted": 18702,
+    "raw_negative_events_recounted": 1085,
+    "enumeration": {
+      "actors_per_race": 2,
+      "candidate_preparation": "both candidates and all dependencies completed before the six-stage race; receive expands to native publication and application reply without another scheduler actor between them",
+      "default_max_attempts": 8,
+      "default_max_counter": 255,
+      "default_max_objects_including_head_and_orphans": 96,
+      "keep_closed": 2,
+      "linear_extensions_per_response_choice": 20,
+      "ordering": "fixed scenario order, lexicographic response choices, left-first depth-first linear extensions",
+      "product_candidate_window_limit": 128,
+      "race_scenarios": [
+        "commit",
+        "cancel",
+        "takeover",
+        "auth",
+        "maintenance",
+        "delete",
+        "close_takeover",
+        "activate_auth"
+      ],
+      "random_seed": null,
+      "response_choices": [
+        [
+          "ok",
+          "ok"
+        ],
+        [
+          "ok",
+          "lost_cas"
+        ],
+        [
+          "lost_cas",
+          "ok"
+        ],
+        [
+          "lost_cas",
+          "lost_cas"
+        ]
+      ],
+      "stages_per_actor": [
+        "invoke",
+        "effect",
+        "receive"
+      ],
+      "state_identity": "scenario + response choices + complete model.snapshot_state() + next raw event ordinal; this is not a count of all possible protocol states",
+      "window_limit": 2
+    },
+    "production_slo_passed": false,
+    "real_s3_tested": false,
+    "real_sqlite_tested": false
+  },
+  "workflow_gate": {
+    "status": "passed",
+    "actionlint_version": "1.7.12",
+    "both_workflows_checked": true,
+    "external_shellcheck_and_pyflakes_enabled": false
+  },
+  "real_network_contracts": {
+    "status": "passed",
+    "completed_contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state",
+      "each_observed_dependency_upload_cut_retains_previous_authority",
+      "accepted_head_survives_process_loss_and_native_publication_failure",
+      "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+      "changed_head_during_recovery_refuses_old_activation"
+    ],
+    "baseline_ack_count": 4,
+    "baseline_ack_mismatches": 0,
+    "fault_planned_cases": 30,
+    "fault_passed_cases": 30,
+    "fault_case_names": [
+      "dependency_upload_pilot",
+      "dependency_01_before_forward",
+      "dependency_01_after_upstream_response",
+      "dependency_02_before_forward",
+      "dependency_02_after_upstream_response",
+      "dependency_03_before_forward",
+      "dependency_03_after_upstream_response",
+      "dependency_04_before_forward",
+      "dependency_04_after_upstream_response",
+      "dependency_05_before_forward",
+      "dependency_05_after_upstream_response",
+      "dependency_06_before_forward",
+      "dependency_06_after_upstream_response",
+      "dependency_07_before_forward",
+      "dependency_07_after_upstream_response",
+      "head_before_forward",
+      "accepted_head_then_sigkill",
+      "native_file_size_failure_after_head",
+      "native_checkpoint_reader_blocks_truncate",
+      "cold_chunk_missing",
+      "cold_chunk_corrupt",
+      "cold_tree_node_missing",
+      "cold_tree_node_corrupt",
+      "cold_manifest_missing",
+      "cold_manifest_corrupt",
+      "cold_index_missing",
+      "cold_index_corrupt",
+      "cold_result_missing",
+      "cold_result_corrupt",
+      "head_changes_during_cold_activation"
+    ],
+    "fault_ack_recorded_count": 61,
+    "fault_ack_audited_count": 61,
+    "fault_ack_mismatches": 0,
+    "fault_outcome_mismatches": 0,
+    "independent_raw_checks": {
+      "actual_backend_corrupt_cases": 5,
+      "actual_backend_missing_cases": 5,
+      "all_counted_claims_match_raw_evidence": true,
+      "baseline_acks_full_bytes_and_receipts_audited": 4,
+      "case_count": 30,
+      "case_event_counts": {
+        "accepted_head_response_held": 2,
+        "cold_activation_refused": 10,
+        "cold_recovery_dependency_held": 1,
+        "cut_payload_officially_decoded": 14,
+        "exact_cut_reached": 15,
+        "fault_ack_audited": 61,
+        "fault_case_passed": 30,
+        "fault_case_started": 30,
+        "fault_client_ack_recorded": 61,
+        "fault_effects_audited": 30,
+        "fault_outcome_audited": 33,
+        "fault_scope_all_compute_lost": 28,
+        "file_size_limit_armed_after_head": 1,
+        "file_size_limit_restored": 1,
+        "head_observed": 70,
+        "native_baseline_wal_observed": 1,
+        "native_failure_after_accepted_head": 1,
+        "native_old_read_transaction_started": 1,
+        "native_old_reader_killed": 1,
+        "native_published_wal_with_retained_old_reader": 1,
+        "pending_execute_pipe_observed": 18,
+        "trusted_fixture_object_corrupted": 5,
+        "trusted_fixture_object_deleted": 5,
+        "trusted_fixture_original_object_restored": 10
+      },
+      "contract_groups": 14,
+      "dependency_cut_cases": 14,
+      "fault_acks_full_bytes_and_receipts_audited": 61,
+      "head_accepted_then_sigkill_cases": 1,
+      "head_before_forward_cases": 1,
+      "independent_payload_bytes_hashed": 8847360,
+      "independent_private_payload_files_hashed": 60,
+      "lookup_outcome_records": 33,
+      "native_checkpoint_blocked_cases": 1,
+      "native_error_outcome_records": 2,
+      "native_file_size_failure_cases": 1,
+      "original_input_fingerprints_recomputed": 90,
+      "outcome_records": 35,
+      "pilot_dependency_puts": 7,
+      "raw_case_records": 430,
+      "raw_http_history_records": 16384,
+      "recovery_head_race_cases": 1
+    },
+    "coverage_scope": {
+      "additional_http_error_matrix": "NOT_RUN",
+      "aws_endpoint_gate": "NOT_RUN",
+      "dependency_cuts": "before forwarding and after backend 200, before client response",
+      "full_ot_01_08_matrix": "NOT_RUN",
+      "late_forward_after_process_death": "NOT_RUN; pre-forward cuts explicitly abort",
+      "warm_quarantine": "existing_unit_only; not measured by these cold cases"
+    },
+    "proxy_errors": [],
+    "cleanup_errors": [],
+    "helper_cleanup_errors": [],
+    "fixture_profiles": {
+      "baseline": {
+        "database_quota_bytes": 262144,
+        "window_entries": 16,
+        "result_budget_bytes": 134217728
+      },
+      "fault_cases": {
+        "database_quota_bytes": 2097152,
+        "window_entries": 2,
+        "result_budget_bytes": 134217728
+      }
+    },
+    "production_defaults_changed": false
+  },
+  "shared_driver_gib1_regression": {
+    "status": "passed",
+    "default_options_unchanged": true,
+    "default_quota_bytes": 10737418240,
+    "ack_reconciliation": {
+      "count": 39,
+      "exact_receipt_and_encoded_matches": 39,
+      "first_observed_via_counts": {
+        "execute": 38,
+        "lookup_after_unknown": 1
+      },
+      "mismatch_count": 0,
+      "nondeterministic_original_results_decoded": 39,
+      "operation_counts": {
+        "create_payloads": 1,
+        "insert": 32,
+        "update": 6
+      },
+      "unique_invocations": 39
+    },
+    "blob_reconciliation": {
+      "aggregate_sha256": "89d47d0d493efd704e5dee51027055060644c8e40266eb307716de8e2a548eaa",
+      "all_rows_compared": true,
+      "bytes_per_blob": 65536,
+      "distinct_input_hash_count": 16390,
+      "expected_rows_from_ack_bound_inputs": 16384,
+      "independent_input_hash_count_including_updates": 16390,
+      "mismatch_count": 0,
+      "observed_rows": 16384,
+      "payload_bytes": 1073741824,
+      "row_id_range": [
+        1,
+        16384
+      ]
+    },
+    "recovery": {
+      "database_page_count": 264200,
+      "database_logical_bytes": 1082163200,
+      "actual_recovered_allocated_bytes": 1082167296,
+      "pre_loss_workers_sigkilled": 2,
+      "backend_processes_sigkilled": 4,
+      "all_compute_cache_deleted_recorded": true,
+      "backend_directory_identity_preserved": true,
+      "recovered_sql_write_invocations": 0,
+      "reserved_page_crossing_verified": true
+    },
+    "operation_budget_ms": 30000,
+    "recovery_budget_ms": 1800000,
+    "full_initial_materialization": true,
+    "lazy_database_reads": false,
+    "resource_caveat": {
+      "self_report_hwm_decrease_count": 17,
+      "reported_maxima_only": true,
+      "process_hard_rss_bound_verified": false,
+      "kernel_wait4_reported_separately": true,
+      "experiments_concurrent": true,
+      "latency_is_not_a_production_slo": true
+    },
+    "proxy_errors": [],
+    "cleanup_errors": []
+  },
+  "ten_gib_capacity": {
+    "status": "NOT_RERUN_IN_THIS_CHANGE",
+    "historical_tested_commit": "a302840d3232163ae16c85ff384abaae82cb9ff5",
+    "historical_record": "production-capacity-local-2026-11-06.json",
+    "formal_sources_byte_identical_to_capacity_baseline": true,
+    "note": "Preserved PR #20 capacity evidence; the current shared fixture was regression-tested at 1 GiB, not newly certified at 10 GiB."
+  },
+  "remote_ci": {
+    "status": "failed_without_executed_steps",
+    "passing_claim": false,
+    "observed_workflow_runs": 4,
+    "observed_jobs": 10,
+    "all_observed_job_steps": 0,
+    "cause": "not established from available output",
+    "merge_basis": "maintainer authorization for complete local validation; no branch-protection changes"
+  },
+  "retained_nonpassing_attempts": [
+    {
+      "kind": "environment_startup",
+      "artifact": "diagnostics/n1-diagnostic-1.log",
+      "database_tests_executed": false,
+      "cause": "prior-session weed tool path absent; restored the same pinned official binary"
+    },
+    {
+      "kind": "independent_auditor_boundary",
+      "artifact": "diagnostics/n1-gib1-audit-attempt-1.json",
+      "product_failure": false,
+      "cause": "whole-phase GET counts included reads after the point-write ACK; corrected the auditor boundary and preserved both counts"
+    }
+  ],
+  "aws_endpoint_gate": "NOT_RUN",
+  "complete_n1_exit": false,
+  "production_slo_passed": false,
+  "gc_enabled": false,
+  "limitations": [
+    "Thirty fault cases include one pilot and cover one observed seven-PUT transaction shape, not every SQL shape, tree height or complete OT-01 through OT-08 combination.",
+    "Pre-forward cuts explicitly abort the held request; they do not prove general late-forward behavior after process death.",
+    "The two native failures are real OS/SQLite effects. No syscall errno trace was collected; StaleSnapshot observes rejection of new work, not an independent stopped-bit reading.",
+    "The ten cold-dependency cases do not replace additional real-network warm-handle quarantine, lifecycle, retirement, ABA or general concurrent history checks.",
+    "The bounded historical N0 model uses two result slots and retains a historical 128-entry metadata profile; it does not establish current 4096-entry production sizing.",
+    "No AWS Standard, cross-AZ, device power-loss, GC/PITR, multitenant routing or production SLO certification is claimed.",
+    "Cold activation still materializes the complete database. GC is disabled and unreachable immutable objects can accumulate.",
+    "Capacity and network ran on separate local backends concurrently; timing and reported process memory maxima are not production performance or hard-memory guarantees."
+  ],
+  "evidence_artifacts": [
+    {
+      "path": "source-before.json",
+      "bytes": 22943,
+      "sha256": "5845e272ae45b39a18d9de5ca25f1d15d4946821445d0d4aa0a141233a91e2fe"
+    },
+    {
+      "path": "source-after.json",
+      "bytes": 22943,
+      "sha256": "5845e272ae45b39a18d9de5ca25f1d15d4946821445d0d4aa0a141233a91e2fe"
+    },
+    {
+      "path": "source-verify.log",
+      "bytes": 99,
+      "sha256": "2ee64f86cc1e20226f978ac21498f559489a8ab22949ac0d18d85b443c963f62"
+    },
+    {
+      "path": "release-build/build.json",
+      "bytes": 6131,
+      "sha256": "806b4616a10e24e2b1daf3c303fecc11138bb5c962e3c7cc0d257959f482c15a"
+    },
+    {
+      "path": "release-build/cargo.stdout.jsonl",
+      "bytes": 190931,
+      "sha256": "66c960ed91708401d919808125fa2d69e6e44ef92f818c3c6c84848337d1a0b4"
+    },
+    {
+      "path": "release-build/cargo.stderr.log",
+      "bytes": 838,
+      "sha256": "0b446e0ec39beea0fd2fddf240f00dce61189b8ba7f3b74abe3e758726067a64"
+    },
+    {
+      "path": "rust/gate.json",
+      "bytes": 3706,
+      "sha256": "31e42b43b2f1e1ab1d864b42cae34a4f43fadcc1157ae0c35afc788dcc26d43a"
+    },
+    {
+      "path": "rust/unit.json",
+      "bytes": 31705385,
+      "sha256": "a742305f60f3d0364adddd22d9734d8548a34be8ac4fa8e3e4b666fbe8d95f42"
+    },
+    {
+      "path": "rust/coverage-gate.log",
+      "bytes": 1364,
+      "sha256": "8903e84725249eb95c796a2b1829dfd4aebe1273baf238db2d1df5989984a5ad"
+    },
+    {
+      "path": "tooling/gate.json",
+      "bytes": 2533,
+      "sha256": "eb34e7456d65715460c6e189b2daac1b8f95fa0185bcef420501954418059c03"
+    },
+    {
+      "path": "tooling/unit.json",
+      "bytes": 24744,
+      "sha256": "3f1b87fa67215a73ad284c3bd0d2a95f931610fed40cb6590dba25f0d6512b53"
+    },
+    {
+      "path": "model/gate.json",
+      "bytes": 1105,
+      "sha256": "a7b5c78af6a4e334f79ab1690e338074ab2d7b21f6c4707a1603a79a6a3de7c2"
+    },
+    {
+      "path": "model/exploration/summary.json",
+      "bytes": 504623,
+      "sha256": "495c8e17fa99fbe7345bad382d6075bd815c4313a91495afc37f830690b1ab38"
+    },
+    {
+      "path": "harness/gate.json",
+      "bytes": 1236,
+      "sha256": "7768a846571d86ab94e946c6118224965d40747158f6f859a48979aa2ef9a9a6"
+    },
+    {
+      "path": "workflow/gate.json",
+      "bytes": 1229,
+      "sha256": "07037eac6ef517a394dc95667987881472583f13b5f27264cb2d6caef08df10d"
+    },
+    {
+      "path": "network-gate.json",
+      "bytes": 843,
+      "sha256": "acabfcfbb0c54dbf040b261ddb15f79b9f7f56bd8fe79c5bb330e99ae2d1e75b"
+    },
+    {
+      "path": "gib1-gate.json",
+      "bytes": 870,
+      "sha256": "cfa67f5815c2050a067e74ac677976df56ba2547bac65278ef7bd80afb96b0b7"
+    },
+    {
+      "path": "github-candidate-ci.json",
+      "bytes": 136540,
+      "sha256": "4fad2201c23d732805558a4b7d482e2420117d7463a94fc7ef2bc28d38b2221f"
+    },
+    {
+      "path": "n1-independent-quality-audit.json",
+      "bytes": 224716,
+      "sha256": "0048f50b7178de216867d3e59b376120e697637496b5bf879909fd37a4ef9098"
+    },
+    {
+      "path": "n1-independent-final-network-audit.json",
+      "bytes": 9012,
+      "sha256": "91644d8713c43748719ee2e601c0d8155d841f471cdcc0dd8f5a14b8b31e36c8"
+    },
+    {
+      "path": "n1-independent-final-network-raw-audit.json",
+      "bytes": 3924,
+      "sha256": "903a24e08da073915ab2d0f4828d6081862c5bd2692c8178bb3cbaff7d655103"
+    },
+    {
+      "path": "n1-independent-final-gib1-audit.json",
+      "bytes": 17987,
+      "sha256": "794cb240c0380f0af9a801a2b117378b2a363e9a9887bce5cdc49ac608a9d252"
+    },
+    {
+      "path": "network/ack-ledger.jsonl",
+      "bytes": 4999,
+      "sha256": "dee283cbbdd25866c24fedd7a5160f1a4a84bf9516397338206af74b69c32984"
+    },
+    {
+      "path": "network/build-receipt.json",
+      "bytes": 6131,
+      "sha256": "806b4616a10e24e2b1daf3c303fecc11138bb5c962e3c7cc0d257959f482c15a"
+    },
+    {
+      "path": "network/fault-ack-ledger.jsonl",
+      "bytes": 90022,
+      "sha256": "8bc96060d982e664a44ab60282b035be8af16d98ff1d11427a095142e2d01e88"
+    },
+    {
+      "path": "network/fault-cases.jsonl",
+      "bytes": 537051,
+      "sha256": "94435a4d85f31e57feb69e4d6dde90eb72031c79654ff339d2f1752585c7e98b"
+    },
+    {
+      "path": "network/fault-input-ledger.jsonl",
+      "bytes": 118328,
+      "sha256": "5abda59a626b863de847f3f8b5fedc480091b744fbfd6f785b3e2946eb03e446"
+    },
+    {
+      "path": "network/fault-outcome-ledger.jsonl",
+      "bytes": 38295,
+      "sha256": "212b9155d04980d06fe87c24d6bf03996c8692be049031a07305e5ba31f78d01"
+    },
+    {
+      "path": "network/fault-plan.json",
+      "bytes": 5349,
+      "sha256": "76cf4f709ed791ab97c9248ff451eb2e47a74e8975c859d2a223cbb801fa2256"
+    },
+    {
+      "path": "network/history.jsonl",
+      "bytes": 14683138,
+      "sha256": "488fa9814401a0cbf17df554a84ade68f8dd9a60486ffb8ab7b6c1b3b06faa9e"
+    },
+    {
+      "path": "network/summary.json",
+      "bytes": 101214,
+      "sha256": "d1d04ada8d664a1cae94adf59d4bc52260f9b97392e00ef8ae9e471ac2389a9a"
+    },
+    {
+      "path": "gib1/ack-ledger.jsonl",
+      "bytes": 52504,
+      "sha256": "060b86b8094f326da93f0cb31fd8198302e2aafa7f99968f279e94ac724e28cf"
+    },
+    {
+      "path": "gib1/build-receipt.json",
+      "bytes": 6131,
+      "sha256": "806b4616a10e24e2b1daf3c303fecc11138bb5c962e3c7cc0d257959f482c15a"
+    },
+    {
+      "path": "gib1/history.jsonl",
+      "bytes": 79448729,
+      "sha256": "729148ccf8d797fbad7e743265a2d012fe35ec1e22c0447a655b036377c2b5d5"
+    },
+    {
+      "path": "gib1/input-ledger.jsonl",
+      "bytes": 1902015,
+      "sha256": "b972bcfaf89083eb8f5ba6551355b97452f0d2227c9b73fddab51426dea85b62"
+    },
+    {
+      "path": "gib1/resource-samples.jsonl",
+      "bytes": 1786399,
+      "sha256": "d1a16de0c619d4ab62dcc512cf07f02c2469560439be04785ba8f2072dd88aa7"
+    },
+    {
+      "path": "gib1/summary.json",
+      "bytes": 25930,
+      "sha256": "832daeefae6270e03257c5523f44a2c41504048b704eadd8e786f8ab0db93d91"
+    },
+    {
+      "path": "gib1/worker-resources-1.jsonl",
+      "bytes": 358654,
+      "sha256": "86626a8c2940d30a4214250e04a2b12a79f1642ed9f7a28efd7abc710c1d35de"
+    },
+    {
+      "path": "gib1/worker-resources-2.jsonl",
+      "bytes": 93834,
+      "sha256": "a0960ee430fbb36df3773eaaa8d50e565337e5d8c7cf1e40bc47442f7da33534"
+    },
+    {
+      "path": "gib1/worker-resources-3.jsonl",
+      "bytes": 102868,
+      "sha256": "d2ce97928aecc07b153d0ea461649f9224aa0abc682e6d9efd240cafd72c3b81"
+    }
+  ]
+}
