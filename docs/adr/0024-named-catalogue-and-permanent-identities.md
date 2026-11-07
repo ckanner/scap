@@ -30,11 +30,15 @@
 
 取消在 Reserved→Aborting 与 Reserved→Bound 的竞争中决定。Aborting 获胜后，原 Scope 的 HEAD 必须成为永久 Deleted 屏障，或以合法外来占用的不可变证明确认该物理槽位已经不可使用。外来库的字节、权限和数据不得改变。未知格式、损坏、缺失来源或无法确认的占用失败关闭；不能先释放名字再补证明。
 
+对于带命名创建来源的外来 HEAD，合法占用证明必须 exact GET 其实际 `CreateDescriptor`，核对规范字节摘要、完整 Scope 与创建来源。不能仅因 HEAD 中填写了看似有效的来源字段就释放名字。直接创建的 null 来源仍按独立合同核对；不遍历可能重用的外来名称绑定，也不把外来数据库的数据闭包当作取消自身意图的依赖。
+
 永久 `AbortProof` 早于名称 Tombstone，名称后来被重用也不丢失原操作终态。Bound 阶段回答 CannotAbortBound 仍核对 fresh 同来源 HEAD；404 或错误来源是损坏，Ready/Maintenance/正常 Deleted 的状态信息仍遵守当前保留策略的 READ 权限。
 
 ### 删除与固定控制意图
 
 每个 abort/delete 在 durable admission 时保存永久 `ControlDescriptor`，绑定调用主体、操作种类、control operation、完整创建身份、expected revisions 和 nonce。之后即使目标 CAS 返回 412 或 UNKNOWN，同一 control operation 也不能换条件继续。
+
+同一 caller/kind/control operation 的既有 descriptor 必须在访问一个被改写的新目标之前核对完整公开意图；换目标、条件或 nonce 均返回 `Conflict`，即使新目标尚不存在。新的控制意图仍须先通过当前授权再持久准入；原意图重入也不得绕过当前授权。合法外来物理身份占用才使用 `IdentityConflict`。
 
 正常删除由当前 HEAD 的 ADMIN 决定，调用者可以不是创建者，也不需要 READ 或 provision。只从 Ready/Maintenance 发布带原控制来源的 Deleted HEAD，再把匹配的 Bound 变成 Tombstone。普通 `set_lifecycle(Deleted)` 不接受命名库，避免绕开名称协议。删除不会物理删除 HEAD、descriptor、proof 或数据库依赖对象。
 
