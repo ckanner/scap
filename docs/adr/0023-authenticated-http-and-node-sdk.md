@@ -1,6 +1,6 @@
 # ADR-0023：S3 运行时的认证 HTTP 服务与 Node SDK
 
-状态：实现候选；合入以相同源码树上的单元、真实 HTTP/S3 和恢复门禁为准。
+状态：已实现；2026-11-07 的冻结候选通过精确单元、真实 HTTP/S3、全计算恢复及 1 GiB 回归的独立本地审计，见[验收说明](../engineering/http-service-validation.md)及[机器记录](../evidence/http-service-local-2026-11-07.json)。AWS 与生产阶段分别验收。
 
 ## 问题
 
@@ -21,7 +21,7 @@ HTTP 使用版本 1 的严格 JSON。所有 u64 身份、revision、sequence、n
 - 数据 worker 使用稳定的数据库映射和有界队列；租户、数据库轮转避免同一排队主体长期占据下一次调度。
 - 查证、取消、状态和元数据控制使用独立 worker 与 HTTP 准入配额；数据线程中的冷恢复不占满控制执行线程。
 - 恢复有独立准入与并发 semaphore。`open` 显式准备读者/会话，`activate` 在完整恢复后激活；二者使用独立恢复期限。
-- HTTP 配额覆盖读取请求、排队、执行以及响应 body 的生命周期。worker 内缓存有会话数和逻辑页预算，错误之后丢弃会话。
+- HTTP 配额覆盖读取请求、排队、执行、响应 body 及其发出的字节；body 已销毁但传输缓冲的字节或 clone／slice 仍存活时，准入配额继续占用。worker 内缓存有会话数和逻辑页预算，错误之后丢弃会话。
 - 缓存身份包括 incarnation/generation，不能仅按物理 HEAD key 把新的 scope 别名到旧 handle。
 
 固定 data lane 内的运行中请求不可抢占。不同数据库映射到同一 lane 时仍可能互相等待；cache 预算也不是进程 RSS 硬限额。完整冷热隔离、跨进程 owner 路由和规模性能有独立验收，不能从队列单测推导。

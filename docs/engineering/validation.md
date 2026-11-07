@@ -2,6 +2,14 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #27 的认证 HTTP／Node 完整本地验收（2026-11-07）
+
+[验收说明](http-service-validation.md)与[机器记录](../evidence/http-service-local-2026-11-07.json)绑定冻结 commit `aa01150145f6b1017dafc024b9c12c8ad4251556`、tree `a086fb30fc2ae058f9ba5bca1e310a82f7d4e725`。162 个文件的源码前后校验、完整 release 构建及独立原始证据审计通过。
+
+stable／nightly 各 199 tests；23 个生产文件行 3984/3984、函数 382/382、region 6055/6055、分支 790/790。两个结构上无分支的服务入口文件明确记录 0/0。209 份新 unit profile 的实际集合与 merge list 相同；Node codec 与 SDK 每个生产模块的原始 V8 function/range 都是正计数。真实 HTTP/S3 恢复完整核对 10 个唯一请求与 8 次重复成功响应；网络基础、扩展故障、schema、保留结果及 1 GiB 全量恢复回归均通过。独立审计再次只读核对 16,384 个 BLOB、1,073,741,824 字节，零不一致。
+
+原 checkpoint 的不完整日志及本批首次缺最终 Cargo 事件的 worker 构建保持拒绝。成功验收只绑定新的完整记录与真实 incremental 构建重跑。远端 5 个 workflow／8 个 job 的 failure 保持如实记录，原因未确定；AWS Standard、生产 SLO、名称目录、自动协调及 N1/N2 整体退出不在本次通过结论内。后续文档交付单独核对差异，不改写实测源码身份。
+
 ## PR #21 的当前提交／恢复故障证据（2026-11-06）
 
 [机器记录](../evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`、tree `8616566636a79caf5d92c39f9882bd839a257c4d`。89 个 tracked 文件的 source manifest 在全部门禁前后逐字节相同；41 个 release 输入、实际 worker、native archive 与原始构建日志均核对一致。之后只添加这份结果与文档摘要，另保存交付差异证明，保留原测试身份。

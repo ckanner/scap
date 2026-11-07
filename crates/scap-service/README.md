@@ -120,3 +120,5 @@ cargo clippy -p scap-service --all-targets --locked -- -D warnings
 ```
 
 生产文件全部进入精确四维单元覆盖，实际二进制入口也由 unit 目标调用同一源文件。单元中的对象存储 oracle 不等于真实 S3；真实 Rust 服务 + Node SDK + S3 故障与全计算恢复由 [服务实验](../../experiments/object-service/README.md)独立执行。最终完成范围与候选身份以仓库证据记录为准。
+
+2026-11-07 的[完整本地验收](../../docs/engineering/http-service-validation.md)已通过独立审计：冻结候选 stable／nightly 各 199 项 workspace 单元、23 个生产文件精确覆盖、SDK 逐模块 V8 计数、真实服务 18 次成功响应恢复比较，以及同候选 1 GiB 回归。原始不完整日志与首次失败构建保持拒绝，完整成功重跑单独保存。AWS Standard、生产 SLO、名称目录和自动 owner 路由不在本批通过范围内。
