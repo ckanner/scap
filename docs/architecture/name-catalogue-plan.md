@@ -299,6 +299,8 @@ CatalogueError 至少区分 Invalid、Denied、NotFound、Conflict、IdentityCon
 
 ## 10. 模型与 OT-11 / OT-14 验收
 
+冻结候选 `c0b067d` 已完成 121 项模型单元、885 条目录正向历史和 25 个正确拒绝的负对照，原始历史摘要逐份核对。准确交错范围、审阅发现、失败保留与未覆盖项见[模型验收记录](../engineering/named-catalogue-model.md)。这不认证后续正式 Rust 或真实 S3。
+
 先建立一个有界状态模型，覆盖两位创建者、同意图两位续作者、一位取消者、迟到请求及名称重用。模型与独立历史审计必须检查：唯一当前绑定、固定 operation 不换 Scope、来源不可变、Aborting/Bound 互斥、Provisioning 不可服务、终态不可复活、ID 永不重用、UNKNOWN 不被报告为确定失败。模型未执行之前只称“设计论证”，不能写“协议已验证”。
 
 真实场景必须调用正式 crate/HTTP/SDK，并保存原意图、请求/响应、ACK、条件写和 exact GET 的历史。每个 PUT 在发送前、服务端已写/响应未达、收到响应后分别注入故障；只检查最终名字能查到不足以验收。
