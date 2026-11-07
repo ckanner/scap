@@ -169,7 +169,7 @@ class EntrypointTests(unittest.TestCase):
             cargo.write_text('#!' + sys.executable + '\n'
                              'import json,os,pathlib\n'
                              'names=("CARGO_TARGET_DIR","LLVM_PROFILE_FILE","RUSTFLAGS",'
-                             '"CARGO_ENCODED_RUSTFLAGS","RUSTC_WRAPPER","RUSTC_WORKSPACE_WRAPPER",'
+                             '"CARGO_ENCODED_RUSTFLAGS","RUSTC","RUSTC_WRAPPER","RUSTC_WORKSPACE_WRAPPER",'
                              '"NODE_OPTIONS","NODE_PATH","NODE_V8_COVERAGE")\n'
                              'pathlib.Path(os.environ["SCAP_EVIDENCE"],"compiler-environment.json")'
                              '.write_text(json.dumps({n:os.environ.get(n) for n in names}))\n'
@@ -182,6 +182,7 @@ class EntrypointTests(unittest.TestCase):
                                 'SCAP_PYTHON': str(tools / 'python'), 'SCAP_WEED': str(tools / 'weed'),
                                 'PATH': str(tools) + os.pathsep + env['PATH'],
                                 'CARGO_TARGET_DIR': str(root / 'shared-target'),
+                                'RUSTC': '/wrong/rustc',
                                 'CARGO_ENCODED_RUSTFLAGS': '-C\x1finstrument-coverage',
                                 'RUSTC_WORKSPACE_WRAPPER': '/wrong/wrapper'}
                 processes.append((evidence, subprocess.Popen(['bash', str(HERE / 'validate.sh')],

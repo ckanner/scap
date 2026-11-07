@@ -27,7 +27,7 @@ finish() {
   exit "$code"
 }
 trap finish EXIT
-unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
+unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
 unset NODE_OPTIONS NODE_PATH NODE_V8_COVERAGE
 # Validate the evidence boundary first, then record missing/wrong tools as a
 # failed run. A missing executable must not make path-boundary tests pass.

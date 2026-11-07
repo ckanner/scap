@@ -20,6 +20,63 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def sync(stream):
+    stream.flush()
+    os.fsync(stream.fileno())
+
+
+def save_receipt(path, record):
+    def persist():
+        with path.open("w", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+            sync(stream)
+
+    try:
+        persist()
+    except BaseException as error:
+        # A failed receipt sync cannot leave a readable success record. The
+        # failure rewrite is also synced; persistent I/O failure still raises.
+        record["status"] = "failed"
+        record["receipt_error"] = repr(error)
+        persist()
+        raise
+
+
+def cargo_events(path):
+    raw = path.read_bytes()
+    assert raw and raw.endswith(b"\n"), "incomplete Cargo JSONL output"
+    events = [json.loads(line) for line in raw.splitlines()]
+    assert all(isinstance(event, dict) for event in events), "invalid Cargo event"
+    finished = [event for event in events if event.get("reason") == "build-finished"]
+    assert (len(finished) == 1 and finished[0] is events[-1]
+            and finished[0].get("success") is True), "missing final successful Cargo build-finished"
+    return events
+
+
+def release_artifacts(events, target):
+    binaries = [event for event in events if event.get("reason") == "compiler-artifact"
+                and event.get("executable") is not None]
+    assert len(binaries) == 1, "missing or ambiguous release executable artifact"
+    artifact = binaries[0]
+    assert (artifact.get("target", {}).get("name") == "scapd"
+            and artifact["target"].get("kind") == ["bin"]), "unexpected executable target"
+    binary = Path(artifact["executable"]).resolve()
+    assert binary == target / "release" / "scapd", "executable outside the isolated release target"
+    native = [event for event in events if event.get("reason") == "build-script-executed"
+              and event.get("package_id", "").rsplit("#", 1)[-1].split("@", 1)[0] == "libsql-ffi"]
+    assert len(native) == 1, "missing or duplicate native libSQL build record"
+    directory = Path(native[0]["out_dir"]).resolve()
+    assert (directory.name == "out" and directory.parent.name.startswith("libsql-ffi-")
+            and directory.parent.parent == target / "release" / "build"), "native output outside the isolated release target"
+    archives = {}
+    for path in sorted(directory.rglob("*.a")):
+        path = path.resolve()
+        assert path.is_relative_to(directory), "native archive escaped its build directory"
+        archives[str(path)] = digest(path)
+    assert archives, "missing native SQLite build provenance"
+    return binary, archives
+
+
 def inputs():
     paths = {ROOT / name for name in ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml")}
     for directory in ("crates", "sdk/node", "sdk/node-codec", "experiments/object-service",
@@ -50,40 +107,39 @@ def main(args):
     environment = dict(os.environ, CARGO_TARGET_DIR=str(target))
     command = ["cargo", "+1.90.0", "build", "--release", "--locked", "-p", "scap-service",
                "--bin", "scapd", "--message-format=json-render-diagnostics"]
-    record = {"schema": 1, "status": "failed", "profile": "release", "command": command,
-              "inputs": inputs(), "source_commit": subprocess.check_output(
-                  ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-              "rustc": subprocess.check_output(["rustc", "+1.90.0", "-Vv"], text=True),
-              "node": subprocess.check_output(["node", "--version"], text=True).strip()}
+    record = {"schema": 1, "status": "failed", "profile": "release", "command": command}
+    output = evidence / "cargo.stdout.jsonl"
+    errors = evidence / "cargo.stderr.log"
     try:
-        with (evidence / "cargo.stdout.jsonl").open("wb") as out, (evidence / "cargo.stderr.log").open("wb") as err:
-            process = subprocess.run(command, cwd=ROOT, env=environment, stdout=out, stderr=err)
-        record["exit_code"] = process.returncode
+        record["inputs"] = inputs()
+        record["source_commit"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        record["rustc"] = subprocess.check_output(["rustc", "+1.90.0", "-Vv"], text=True)
+        record["node"] = subprocess.check_output(["node", "--version"], text=True).strip()
+        with output.open("wb") as out, errors.open("wb") as err:
+            try:
+                process = subprocess.run(command, cwd=ROOT, env=environment, stdout=out, stderr=err)
+                record["exit_code"] = process.returncode
+            finally:
+                try:
+                    sync(out)
+                finally:
+                    sync(err)
+        record["cargo.stdout.jsonl_sha256"] = digest(output)
+        record["cargo.stderr.log_sha256"] = digest(errors)
         assert process.returncode == 0, "service build failed"
         assert record["inputs"] == inputs(), "source changed during service build"
-        events = [json.loads(line) for line in (evidence / "cargo.stdout.jsonl").read_text().splitlines()]
-        binaries = [event["executable"] for event in events if event.get("reason") == "compiler-artifact"
-                    and event.get("target", {}).get("name") == "scapd" and event.get("executable")]
-        assert len(binaries) == 1
-        binary = Path(binaries[0]).resolve()
-        assert binary == target / "release" / "scapd"
+        events = cargo_events(output)
+        binary, native = release_artifacts(events, target)
         record["binary"] = {"path": str(binary), "sha256": digest(binary)}
-        native = {}
-        for event in events:
-            if event.get("reason") == "build-script-executed" and "libsql-ffi" in event.get("package_id", ""):
-                native.update({str(path): digest(path) for path in Path(event["out_dir"]).rglob("*.a")})
-        assert native
         record["native_archives"] = native
         record["status"] = "passed"
     except BaseException as error:
         record["error"] = repr(error)
         raise
     finally:
-        for name in ("cargo.stdout.jsonl", "cargo.stderr.log"):
-            if (evidence / name).is_file():
-                record[name + "_sha256"] = digest(evidence / name)
-        (evidence / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-    print(json.dumps({"status": record["status"], "binary": record["binary"]}))
+        save_receipt(evidence / "build.json", record)
+    print(json.dumps({"status": record["status"], "binary": record["binary"]}), flush=True)
 
 
 if __name__ == "__main__":
