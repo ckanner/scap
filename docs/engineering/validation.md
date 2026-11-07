@@ -2,6 +2,14 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #28 的本地执行目录防护验收（2026-11-07）
+
+[验收说明](local-storage-validation.md)和[机器记录](../evidence/local-storage-guard-2026-11-07.json)绑定冻结候选 `a11e61ece526c9251b494a781247683284fea56f`，169 文件 source manifest 前后相同。stable／nightly 各 204 tests；24 个生产文件行 4036/4036、函数 392/392、region 6124/6124、分支 792/792，无分支入口另列 0/0。
+
+真实网络、30 场景扩展故障、schema、保留结果 12 场景/60 入口、正式 HTTP/Node 和 1 GiB 回归完成。1 GiB 的 38 次 execute 成功与 1 次 UNKNOWN 后查证分列，16,384 个 BLOB 全量一致。四组最终独立审计使用同一个冻结脚本；现有服务恢复 HTTP 原文未落盘，其完整响应比较由实际 Node probe 断言支持，不冒称离线独立重算。
+
+初始环境失联、d7219a6 fmt 失败、首次两个 release 的零长度目标文件失败及早期审计错误均保留。成功结论绑定新目录中的真实重建与最终证据。实际网络文件系统挂载、AWS、10 GiB 边界和生产 SLO 本轮未运行；完整 N1/N2、目录、GC/PITR 仍继续实施。
+
 ## PR #27 的认证 HTTP／Node 完整本地验收（2026-11-07）
 
 [验收说明](http-service-validation.md)与[机器记录](../evidence/http-service-local-2026-11-07.json)绑定冻结 commit `aa01150145f6b1017dafc024b9c12c8ad4251556`、tree `a086fb30fc2ae058f9ba5bca1e310a82f7d4e725`。162 个文件的源码前后校验、完整 release 构建及独立原始证据审计通过。

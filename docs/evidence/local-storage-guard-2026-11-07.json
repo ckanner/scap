@@ -1,0 +1,1823 @@
+{
+  "schema": 1,
+  "date": "2026-11-07",
+  "status": "LOCAL_GATES_PASSED",
+  "candidate": {
+    "commit": "a11e61ece526c9251b494a781247683284fea56f",
+    "tree": "b5eb36a7f29951ad2643db4100942ea37c21653e",
+    "tracked_files": 169,
+    "source_manifest_sha256": "5017792612249fed465ef013a3cd1b7932d3c43ad1045b8c7a27f021be5a9e45",
+    "source_before": {
+      "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/source-before.json",
+      "bytes": 43575,
+      "sha256": "f88b008a14c2b64fe0437c11cee5a351cb84861782b10eaab079ad4a71e19f25"
+    },
+    "source_verify": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-source-verify.json",
+        "bytes": 825,
+        "sha256": "d8053ee7ce053a357a3b46b97bbe4a95ca49cc5f7f0ee25ff6ac1d14756fb670"
+      },
+      "value": {
+        "command": [
+          "python3",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/source-before.json"
+        ],
+        "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+        "started_unix_ns": 1794067586253739042,
+        "finished_unix_ns": 1794067586362503304,
+        "exit_code": 0,
+        "streams": {
+          "stdout": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-source-verify.stdout.log",
+            "bytes": 99,
+            "sha256": "f9389ded06f1d1b794e6e39efd8184a4a05ea84874a772cd7dc1abfce4771033"
+          },
+          "stderr": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-source-verify.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      }
+    }
+  },
+  "scope": "Linux local execution filesystem admission and unchanged object-authority regression; not complete N1/N2 or cloud acceptance",
+  "evidence_layout": {
+    "runtime": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root",
+    "rust_and_independent_audit": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8"
+  },
+  "rust_unit": {
+    "summary": {
+      "status": "PASS",
+      "scope": "Rust unit and coverage, no integration profile",
+      "commit": "a11e61ece526c9251b494a781247683284fea56f",
+      "tree": "b5eb36a7f29951ad2643db4100942ea37c21653e",
+      "source_sha256": "5017792612249fed465ef013a3cd1b7932d3c43ad1045b8c7a27f021be5a9e45",
+      "tracked_file_count": 169,
+      "source_verified": true,
+      "production_rust_files": 24,
+      "metrics": {
+        "lines": {
+          "covered": 4036,
+          "count": 4036
+        },
+        "functions": {
+          "covered": 392,
+          "count": 392
+        },
+        "regions": {
+          "covered": 6124,
+          "count": 6124
+        },
+        "branches": {
+          "covered": 792,
+          "count": 792
+        }
+      },
+      "unit_tests": {
+        "stable": {
+          "suites": 6,
+          "passed": 204,
+          "failed": 0,
+          "ignored": 0
+        },
+        "nightly": {
+          "suites": 6,
+          "passed": 204,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "commands": [
+        {
+          "name": "source-capture",
+          "exit_code": 0,
+          "duration_seconds": 0.1061802260001059
+        },
+        {
+          "name": "rustup-version",
+          "exit_code": 0,
+          "duration_seconds": 0.05691296299983151
+        },
+        {
+          "name": "stable-version",
+          "exit_code": 0,
+          "duration_seconds": 0.013095742999666982
+        },
+        {
+          "name": "nightly-version",
+          "exit_code": 0,
+          "duration_seconds": 0.01661326600014945
+        },
+        {
+          "name": "llvm-cov-version",
+          "exit_code": 0,
+          "duration_seconds": 0.014730288999999175
+        },
+        {
+          "name": "format",
+          "exit_code": 0,
+          "duration_seconds": 0.24816866099990875
+        },
+        {
+          "name": "clippy",
+          "exit_code": 0,
+          "duration_seconds": 50.96176809200006
+        },
+        {
+          "name": "stable-unit",
+          "exit_code": 0,
+          "duration_seconds": 81.73112368600005
+        },
+        {
+          "name": "nightly-unit",
+          "exit_code": 0,
+          "duration_seconds": 113.72602651899979
+        },
+        {
+          "name": "unit-counters",
+          "exit_code": 0,
+          "duration_seconds": 0.8176851680000254
+        },
+        {
+          "name": "source-verify",
+          "exit_code": 0,
+          "duration_seconds": 0.10117896899964762
+        }
+      ],
+      "unit_binary_count": 12,
+      "branchless_files": [
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/main.rs"
+      ],
+      "artifacts": [
+        {
+          "path": "source-before.json",
+          "bytes": 43575,
+          "sha256": "f88b008a14c2b64fe0437c11cee5a351cb84861782b10eaab079ad4a71e19f25"
+        },
+        {
+          "path": "source-verify.log",
+          "bytes": 99,
+          "sha256": "f9389ded06f1d1b794e6e39efd8184a4a05ea84874a772cd7dc1abfce4771033"
+        },
+        {
+          "path": "format.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "clippy.log",
+          "bytes": 6707,
+          "sha256": "ff4cb6678b6338c72a57124ffbce486a25e3dda5da2af09d0cb3b24503e55a59"
+        },
+        {
+          "path": "stable-unit.log",
+          "bytes": 25778,
+          "sha256": "3607481f62590b59f2255839b0af14e5db12eb7e6f6165000c28f8deaf9381dd"
+        },
+        {
+          "path": "nightly-unit.log",
+          "bytes": 27196,
+          "sha256": "1b79c88e0ebd0b6f1f95c32231e2b1b3f9d1f2f33d506c3d14225e665688a607"
+        },
+        {
+          "path": "unit.json",
+          "bytes": 39933841,
+          "sha256": "f36656a84af197eff0c8a53c98b570d95726dea792456c7456727060126093ee"
+        },
+        {
+          "path": "unit-counters.log",
+          "bytes": 2419,
+          "sha256": "47381ea00a21326bcbef19ed0f09295a1f4ff3f39537b0c92c09267ca42b864b"
+        },
+        {
+          "path": "unit-binaries.json",
+          "bytes": 3444,
+          "sha256": "7134ccbd8b05b41c7df09d85946cb680d717012db79b3c36e46a1a9c4155d4ea"
+        }
+      ],
+      "aws_standard": "NOT_RUN",
+      "network_contracts": "NOT_RUN"
+    },
+    "command_record": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/status.json",
+        "bytes": 7432,
+        "sha256": "ebc1d788f39973047171bc803aa079c6ad27e45f068e7cf2cbf3a821563de404"
+      },
+      "value": {
+        "schema_version": 1,
+        "scope": "frozen-candidate-rust-unit-coverage",
+        "commit": "a11e61ece526c9251b494a781247683284fea56f",
+        "tree": "b5eb36a7f29951ad2643db4100942ea37c21653e",
+        "repository": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+        "created_utc": "2026-11-07T15:42:39.352008+00:00",
+        "evidence": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8",
+        "target_root": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_",
+        "status": "PASS",
+        "commands": [
+          {
+            "name": "source-capture",
+            "argv": [
+              "python3",
+              "scripts/source_manifest.py",
+              "capture",
+              "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/source-before.json"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.355309+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/source-capture.log",
+            "exit_code": 0,
+            "duration_seconds": 0.1061802260001059
+          },
+          {
+            "name": "rustup-version",
+            "argv": [
+              "rustup",
+              "--version"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.464163+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/rustup-version.log",
+            "exit_code": 0,
+            "duration_seconds": 0.05691296299983151
+          },
+          {
+            "name": "stable-version",
+            "argv": [
+              "rustc",
+              "+1.90.0",
+              "-Vv"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.522306+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/stable-version.log",
+            "exit_code": 0,
+            "duration_seconds": 0.013095742999666982
+          },
+          {
+            "name": "nightly-version",
+            "argv": [
+              "rustc",
+              "+nightly-2025-09-18",
+              "-Vv"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.536610+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/nightly-version.log",
+            "exit_code": 0,
+            "duration_seconds": 0.01661326600014945
+          },
+          {
+            "name": "llvm-cov-version",
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "llvm-cov",
+              "--version"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.554883+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/llvm-cov-version.log",
+            "exit_code": 0,
+            "duration_seconds": 0.014730288999999175
+          },
+          {
+            "name": "format",
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "fmt",
+              "--all",
+              "--",
+              "--check"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.571153+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/format.log",
+            "exit_code": 0,
+            "duration_seconds": 0.24816866099990875
+          },
+          {
+            "name": "clippy",
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "clippy",
+              "--workspace",
+              "--all-targets",
+              "--all-features",
+              "--frozen",
+              "--",
+              "-D",
+              "warnings"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:42:39.820841+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/clippy.log",
+            "exit_code": 0,
+            "duration_seconds": 50.96176809200006
+          },
+          {
+            "name": "stable-unit",
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "test",
+              "--workspace",
+              "--lib",
+              "--bins",
+              "--all-features",
+              "--frozen",
+              "--",
+              "--test-threads=1"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/stable-unit",
+            "started_utc": "2026-11-07T15:43:30.784387+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/stable-unit.log",
+            "exit_code": 0,
+            "duration_seconds": 81.73112368600005
+          },
+          {
+            "name": "nightly-unit",
+            "argv": [
+              "cargo",
+              "+nightly-2025-09-18",
+              "llvm-cov",
+              "--workspace",
+              "--lib",
+              "--bins",
+              "--all-features",
+              "--frozen",
+              "--branch",
+              "--no-cfg-coverage",
+              "--no-cfg-coverage-nightly",
+              "--json",
+              "--output-path",
+              "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/unit.json",
+              "--",
+              "--test-threads=1"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/coverage-unit",
+            "started_utc": "2026-11-07T15:44:52.517117+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/nightly-unit.log",
+            "exit_code": 0,
+            "duration_seconds": 113.72602651899979
+          },
+          {
+            "name": "unit-counters",
+            "argv": [
+              "python3",
+              "scripts/check_unit_coverage.py",
+              "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/unit.json"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/coverage-unit",
+            "started_utc": "2026-11-07T15:46:46.249133+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/unit-counters.log",
+            "exit_code": 0,
+            "duration_seconds": 0.8176851680000254
+          },
+          {
+            "name": "source-verify",
+            "argv": [
+              "python3",
+              "scripts/source_manifest.py",
+              "verify",
+              "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/source-before.json"
+            ],
+            "status": "PASS",
+            "target": "/workspace/scratch/b985f6319062/scap-rust-target-a11e61e-uu8iyol_/coverage-unit",
+            "started_utc": "2026-11-07T15:46:47.068792+00:00",
+            "log": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/source-verify.log",
+            "exit_code": 0,
+            "duration_seconds": 0.10117896899964762
+          }
+        ],
+        "aws_standard": "NOT_RUN",
+        "network_contracts": "NOT_RUN",
+        "environment": {
+          "CARGO_HOME": "/workspace/scratch/b985f6319062/scap-toolchain/cargo",
+          "RUSTUP_HOME": "/workspace/scratch/b985f6319062/scap-toolchain/rustup",
+          "LIBCLANG_PATH": "/workspace/scratch/b985f6319062/scap-host-tools/lib/python3.12/site-packages/clang/native",
+          "RUSTUP_TOOLCHAIN": "1.90.0",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CXXFLAGS": "-g0"
+        },
+        "source_sha256": "5017792612249fed465ef013a3cd1b7932d3c43ad1045b8c7a27f021be5a9e45",
+        "tracked_file_count": 169,
+        "source_verified": true,
+        "unit_binary_count": 12,
+        "finished_utc": "2026-11-07T15:46:47.755745+00:00"
+      }
+    },
+    "profiles_record": {
+      "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/unit-profiles.json",
+      "bytes": 62366,
+      "sha256": "b253ec2f1852a4fd0c8c22547f6e52d0cd85b5d105fe401ec1de163e69da4649"
+    },
+    "profile_collection_command": [
+      "cargo",
+      "+nightly-2025-09-18",
+      "llvm-cov",
+      "--workspace",
+      "--lib",
+      "--bins",
+      "--all-features",
+      "--frozen",
+      "--branch",
+      "--no-cfg-coverage",
+      "--no-cfg-coverage-nightly",
+      "--json",
+      "--output-path",
+      "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/unit.json",
+      "--",
+      "--test-threads=1"
+    ],
+    "profile_scope": "fresh target; --workspace --lib --bins --all-features; no integration or doctest invocation",
+    "profile_origin_examples": {
+      "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/profile-origin-examples.json",
+      "bytes": 1103,
+      "sha256": "ed9d717d877b989a8eb5767a74c93c9d54c96d9e5c89b9635444f3fdf8b687fb"
+    },
+    "profile_artifact_counts": {
+      ".profraw": 210,
+      ".profdata": 1
+    }
+  },
+  "other_gates": {
+    "tooling": {
+      "tests": 74,
+      "statements": [
+        401,
+        401
+      ],
+      "branches": [
+        184,
+        184
+      ],
+      "report": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/tooling.json",
+        "bytes": 24744,
+        "sha256": "9e0777442609f5610d130aeedc2c309ac7c76b5741307f8bc4f61eedc3180e34"
+      }
+    },
+    "environment": {
+      "tests": 32,
+      "statements": [
+        280,
+        280
+      ],
+      "branches": [
+        36,
+        36
+      ],
+      "report": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/environment.json",
+        "bytes": 13608,
+        "sha256": "a11644c2bc0b11c6cc4dcc6649655602952b52c0ef7dfc2901e4c608f09cb316"
+      },
+      "status": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/environment-status.json",
+          "bytes": 65,
+          "sha256": "0a80151e2b7a38843404e8ce55a383d19ba6118235d879aed4ea50bf8ec4586e"
+        },
+        "value": {
+          "tests_exit_code": 0,
+          "exact_coverage_gate_exit_code": 0
+        }
+      }
+    },
+    "node": {
+      "codec_unit_tests": 13,
+      "sdk_unit_tests": 24,
+      "separate_http_tests": 4,
+      "production_module_coverage": "all required functions and V8 ranges hit; unit-only coverage",
+      "logs": [
+        {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/node-codec.log",
+          "bytes": 3879,
+          "sha256": "3d25eb1fd817482674bc3f9332270c743efc61666f09387d64b8fdcf85e04a4c"
+        },
+        {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/node-sdk.log",
+          "bytes": 6956,
+          "sha256": "30c2b088b7855f6a7f027d24fff1a5ffc3cd574c787963a779a758a960e318fb"
+        },
+        {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/node-http.log",
+          "bytes": 1101,
+          "sha256": "dc00e99f746fb9b9a042ffe8a365832330a62bcdaa9dc5544094902e7346f125"
+        }
+      ]
+    },
+    "model": {
+      "unit_tests": 89,
+      "accepted_histories": 664,
+      "rejected_negative_controls": 30,
+      "log": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/model-explore.log",
+        "bytes": 345,
+        "sha256": "58e68dd6dcd905e95da5c3a2ec6b50d89b658a93b8d21df63c38e05522ded0bb"
+      }
+    },
+    "fixtures": {
+      "network_tests": 41,
+      "service_tests": 27,
+      "logs": [
+        {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-fixture.log",
+          "bytes": 7637,
+          "sha256": "cbfba75b0cb1625b0b321b5cc55acdf172f4589bf647c048da65358d83e5c855"
+        },
+        {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service-fixture.log",
+          "bytes": 4853,
+          "sha256": "bd693c9297b12b22155861023bcf28c340a3832a40b03f036e0867a7173e0c83"
+        }
+      ]
+    },
+    "lightweight_checkpoint": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/lightweight-status.json",
+        "bytes": 302,
+        "sha256": "8446709908e8731807640ca7f004b834d6ecea44db2bf87c4201168e8df43171"
+      },
+      "value": {
+        "candidate": "a11e61ece526c9251b494a781247683284fea56f",
+        "tree": "b5eb36a7f29951ad2643db4100942ea37c21653e",
+        "lightweight_gate_process_exit_codes": {
+          "tooling_and_docs": 0,
+          "node_codec_sdk_http": 0,
+          "model_and_fixture_tests": 0
+        },
+        "runtime_build_and_fault_verdict": "PENDING"
+      }
+    },
+    "actionlint": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-actionlint.json",
+        "bytes": 977,
+        "sha256": "00d13785fec57dbb498848e7e70234085db512045a67f6601386a8e274c04d77"
+      },
+      "value": {
+        "command": [
+          "/workspace/scratch/b985f6319062/scap-toolchain/actionlint/actionlint",
+          "-shellcheck=",
+          "-pyflakes=",
+          ".github/workflows/developer-tools.yml",
+          ".github/workflows/docs.yml",
+          ".github/workflows/node-codec.yml",
+          ".github/workflows/node-sdk.yml",
+          ".github/workflows/quality.yml"
+        ],
+        "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+        "started_unix_ns": 1794067226402139652,
+        "finished_unix_ns": 1794067226405381701,
+        "exit_code": 0,
+        "streams": {
+          "stdout": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-actionlint.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-actionlint.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      }
+    },
+    "shell_syntax": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-shell-syntax.json",
+        "bytes": 762,
+        "sha256": "64363295ffecfb2dce2b8b17b2a6b8d379d26d742c2656a383c1834397a01295"
+      },
+      "value": {
+        "command": [
+          "bash",
+          "-n",
+          "dev/environment/enter.sh",
+          "dev/environment/validate.sh"
+        ],
+        "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+        "started_unix_ns": 1794067226439680296,
+        "finished_unix_ns": 1794067226441871357,
+        "exit_code": 0,
+        "streams": {
+          "stdout": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-shell-syntax.stdout.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stderr": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-shell-syntax.stderr.log",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      }
+    }
+  },
+  "release_builds": {
+    "network": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-build-retry1/build.json",
+        "bytes": 9385,
+        "sha256": "bf507af781a0d7241167d5bbc450f2eb9b864ae12fb3acef8ae1b93ba7fdfdfb"
+      },
+      "value": {
+        "binary": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/scap-object-network",
+          "sha256": "6cf3ebb5f710bbf8620d9df2be9b842adee1637625ef5d624827dde230be9f28"
+        },
+        "build_stderr_sha256": "8f628cb3838bd8a08a5b72830f83e4f921c2e616c0ec5b05e1adf72d42ecc54f",
+        "build_stdout_sha256": "250c0ca52a3cd163bd24268fc753bf48a121301f099d26bb8c6c91d1a17874a6",
+        "command": [
+          "cargo",
+          "+1.90.0",
+          "build",
+          "--release",
+          "--locked",
+          "--manifest-path",
+          "experiments/object-network/Cargo.toml",
+          "--message-format=json-render-diagnostics"
+        ],
+        "exit_code": 0,
+        "input_sha256": "c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac",
+        "inputs": {
+          "Cargo.lock": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7",
+          "Cargo.toml": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d",
+          "crates/scap-object-sqlite/Cargo.toml": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc",
+          "crates/scap-object-sqlite/src/alter_tests.rs": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b",
+          "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+          "crates/scap-object-sqlite/src/config.rs": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+          "crates/scap-object-sqlite/src/config_tests.rs": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0",
+          "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+          "crates/scap-object-sqlite/src/file_tests.rs": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25",
+          "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+          "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+          "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+          "crates/scap-object-sqlite/src/lib.rs": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a",
+          "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+          "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+          "crates/scap-object-sqlite/src/sql.rs": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+          "crates/scap-object-sqlite/src/storage.rs": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a",
+          "crates/scap-object-sqlite/src/tests.rs": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299",
+          "crates/scap-object-store/Cargo.toml": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339",
+          "crates/scap-object-store/src/lib.rs": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+          "crates/scap-object-store/src/tests.rs": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7",
+          "crates/scap-object/Cargo.toml": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49",
+          "crates/scap-object/src/data_tree.rs": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+          "crates/scap-object/src/data_tree_tests.rs": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21",
+          "crates/scap-object/src/format.rs": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+          "crates/scap-object/src/format_tests.rs": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2",
+          "crates/scap-object/src/lib.rs": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+          "crates/scap-object/src/options.rs": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+          "crates/scap-object/src/options_tests.rs": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e",
+          "crates/scap-object/src/quarantine_tests.rs": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44",
+          "crates/scap-object/src/result_validation_tests.rs": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905",
+          "crates/scap-object/src/review_tests.rs": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12",
+          "crates/scap-object/src/session_tests.rs": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8",
+          "crates/scap-object/src/tests.rs": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a",
+          "crates/scap-service/Cargo.toml": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62",
+          "crates/scap-service/src/auth.rs": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d",
+          "crates/scap-service/src/auth/tests.rs": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd",
+          "crates/scap-service/src/config.rs": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046",
+          "crates/scap-service/src/config/tests.rs": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c",
+          "crates/scap-service/src/daemon.rs": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255",
+          "crates/scap-service/src/daemon/tests.rs": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3",
+          "crates/scap-service/src/engine.rs": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf",
+          "crates/scap-service/src/engine/tests.rs": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541",
+          "crates/scap-service/src/http.rs": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c",
+          "crates/scap-service/src/http/tests.rs": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972",
+          "crates/scap-service/src/lib.rs": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40",
+          "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+          "crates/scap-service/src/scheduler.rs": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207",
+          "crates/scap-service/src/scheduler/tests.rs": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85",
+          "crates/scap-service/src/tests.rs": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546",
+          "crates/scap-service/src/wire.rs": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9",
+          "crates/scap-service/src/wire/tests.rs": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531",
+          "crates/scap-sql/Cargo.toml": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+          "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+          "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+          "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+          "crates/scap-sql/src/tests.rs": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e",
+          "experiments/object-capacity/run.py": "f03e1121775875d3ed8f7d792295ecb5cffede1498b95e8b8d07d4e591c2d061",
+          "experiments/object-network/Cargo.lock": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379",
+          "experiments/object-network/Cargo.toml": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399",
+          "experiments/object-network/build.py": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14",
+          "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+          "experiments/object-network/run.py": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b",
+          "experiments/object-network/schema_contract.py": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250",
+          "experiments/object-network/src/main.rs": "3c18d7f81b29610039e3345f245fb859a7ef29edf03c1f4ef7c64dd79751180f",
+          "experiments/object-network/test_build.py": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b",
+          "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+          "experiments/object-network/test_schema_contract.py": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb",
+          "rust-toolchain.toml": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+        },
+        "native_archives": {
+          "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+        },
+        "profile": "release",
+        "schema": 1,
+        "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+        "status": "passed",
+        "versions": {
+          "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+          "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+          "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+        }
+      }
+    },
+    "service": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service-build-retry1/build.json",
+        "bytes": 10746,
+        "sha256": "3ea2f0a421997cec75524e8953f542a96f947c6c73d11cbcc9415b3d7d709573"
+      },
+      "value": {
+        "binary": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/service/release/scapd",
+          "sha256": "6ea71e20fb70b497015db3ef5b74968efb33fa1d85d7861fe3f7d8274507f7a3"
+        },
+        "cargo.stderr.log_sha256": "347c1658a63afc97b32de86e666953a01b4e43fe9013a08edf5b2c11be08d59e",
+        "cargo.stdout.jsonl_sha256": "8e8d89255ee0b808d869ea2ae52e488a1fba70f6a12e1263fe269e860f9c3f35",
+        "command": [
+          "cargo",
+          "+1.90.0",
+          "build",
+          "--release",
+          "--locked",
+          "-p",
+          "scap-service",
+          "--bin",
+          "scapd",
+          "--message-format=json-render-diagnostics"
+        ],
+        "exit_code": 0,
+        "inputs": {
+          "Cargo.lock": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7",
+          "Cargo.toml": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d",
+          "crates/scap-object-sqlite/Cargo.toml": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc",
+          "crates/scap-object-sqlite/src/alter_tests.rs": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b",
+          "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+          "crates/scap-object-sqlite/src/config.rs": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+          "crates/scap-object-sqlite/src/config_tests.rs": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0",
+          "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+          "crates/scap-object-sqlite/src/file_tests.rs": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25",
+          "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+          "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+          "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+          "crates/scap-object-sqlite/src/lib.rs": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a",
+          "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+          "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+          "crates/scap-object-sqlite/src/sql.rs": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+          "crates/scap-object-sqlite/src/storage.rs": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a",
+          "crates/scap-object-sqlite/src/tests.rs": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299",
+          "crates/scap-object-store/Cargo.toml": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339",
+          "crates/scap-object-store/src/lib.rs": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+          "crates/scap-object-store/src/tests.rs": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7",
+          "crates/scap-object/Cargo.toml": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49",
+          "crates/scap-object/src/data_tree.rs": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+          "crates/scap-object/src/data_tree_tests.rs": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21",
+          "crates/scap-object/src/format.rs": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+          "crates/scap-object/src/format_tests.rs": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2",
+          "crates/scap-object/src/lib.rs": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+          "crates/scap-object/src/options.rs": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+          "crates/scap-object/src/options_tests.rs": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e",
+          "crates/scap-object/src/quarantine_tests.rs": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44",
+          "crates/scap-object/src/result_validation_tests.rs": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905",
+          "crates/scap-object/src/review_tests.rs": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12",
+          "crates/scap-object/src/session_tests.rs": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8",
+          "crates/scap-object/src/tests.rs": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a",
+          "crates/scap-service/Cargo.toml": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62",
+          "crates/scap-service/src/auth.rs": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d",
+          "crates/scap-service/src/auth/tests.rs": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd",
+          "crates/scap-service/src/config.rs": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046",
+          "crates/scap-service/src/config/tests.rs": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c",
+          "crates/scap-service/src/daemon.rs": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255",
+          "crates/scap-service/src/daemon/tests.rs": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3",
+          "crates/scap-service/src/engine.rs": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf",
+          "crates/scap-service/src/engine/tests.rs": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541",
+          "crates/scap-service/src/http.rs": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c",
+          "crates/scap-service/src/http/tests.rs": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972",
+          "crates/scap-service/src/lib.rs": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40",
+          "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+          "crates/scap-service/src/scheduler.rs": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207",
+          "crates/scap-service/src/scheduler/tests.rs": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85",
+          "crates/scap-service/src/tests.rs": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546",
+          "crates/scap-service/src/wire.rs": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9",
+          "crates/scap-service/src/wire/tests.rs": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531",
+          "crates/scap-sql/Cargo.toml": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+          "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+          "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+          "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+          "crates/scap-sql/src/tests.rs": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e",
+          "experiments/object-network/Cargo.lock": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379",
+          "experiments/object-network/Cargo.toml": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399",
+          "experiments/object-network/build.py": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14",
+          "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+          "experiments/object-network/run.py": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b",
+          "experiments/object-network/schema_contract.py": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250",
+          "experiments/object-network/src/main.rs": "3c18d7f81b29610039e3345f245fb859a7ef29edf03c1f4ef7c64dd79751180f",
+          "experiments/object-network/test_build.py": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b",
+          "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+          "experiments/object-network/test_schema_contract.py": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb",
+          "experiments/object-service/build.py": "2009d23c229c17824e2b6eab2e247d6dd0bb121be48d074d5c120eb096f2d2eb",
+          "experiments/object-service/probe.mjs": "8240cc5daac7db2a150df2815779641bc2ad0f777aa6ca7269be2721c2c4539d",
+          "experiments/object-service/run.py": "965d04eb9710ec2c45b6d3db84faa31d2bc855373ca60e9280b24a8a2e8007c8",
+          "experiments/object-service/test_build.py": "961a3bafcb273a79ba85cd44ee0640435dc12ed9952f6e86d1907dcbb43c0fae",
+          "experiments/object-service/test_controls.py": "67e67c5c2665d5689e11fb90dddda7a5753a906aa5fb87bb4b92763b988b121c",
+          "rust-toolchain.toml": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406",
+          "sdk/node-codec/package.json": "fd52cb544885e3cab1d0f997ed795e02fa915b8b030c13290e7a57b105f7c393",
+          "sdk/node-codec/src/codec.js": "78faa6caa15b96f6a33d822984387df4cf691fa5d3b37288042eba8b1813d404",
+          "sdk/node-codec/test/codec.test.js": "3e64eb88966d69de231f2d64268dab778d035f867f951368c6fe1b0e8c7ef416",
+          "sdk/node/package.json": "eeba9a36f4edbec83d2cd414db98982ede9be8062e63d4ac233f51caf23902f1",
+          "sdk/node/src/client.d.ts": "9a6f40904175b540110a8c33e1d174443032bd623d84f9630183ba1f9096da5c",
+          "sdk/node/src/client.js": "c07105f4fbe61343bf239479181f628e2ddb27ad5f624ef3332a476f5330e4d4",
+          "sdk/node/src/errors.js": "5e20674ea7184e1fe6fcf73d93407c454dd9a4853336294badd3765c230e221d",
+          "sdk/node/src/transport.js": "dbdf1f9efc9a8c3065a7968ac049b3880d9ec5b1e519bedc742ed486bc2eafc5",
+          "sdk/node/src/wire.js": "7c31d1bea7e50d77e60d07b5e98b5acc2235bd52e964036dde542919dd4d5599",
+          "sdk/node/test/check-coverage.mjs": "5381aa75825468353d5a48b68b0cad0153851b4e5f1bb18f75d537f874061a4a",
+          "sdk/node/test/http.test.js": "8a2ece39d50d3fe06f6fdef4f814cbd2a3fe52d805fa165bc7299fe36813cc3a",
+          "sdk/node/test/run.mjs": "a5360eb3602263ca97982f01f0d22f816921d54889888739789b51e54e7bff24",
+          "sdk/node/test/unit.test.js": "fa3425c31440e2fc0ca0b09824e28286aedc2ed070787484f8bde37a7ebc1720"
+        },
+        "native_archives": {
+          "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/service/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+        },
+        "node": "v22.16.0",
+        "profile": "release",
+        "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+        "schema": 1,
+        "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+        "status": "passed"
+      }
+    }
+  },
+  "runtime": {
+    "network": {
+      "gate": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-network.json",
+          "bytes": 1138,
+          "sha256": "fe067c22836f806783a8d98260d0db477bcd844c427d9a210b7554d49d080261"
+        },
+        "value": {
+          "command": [
+            "python3",
+            "experiments/object-network/run.py",
+            "--worker",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/scap-object-network",
+            "--weed",
+            "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+            "--build-record",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-build-retry1/build.json",
+            "--evidence",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network"
+          ],
+          "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+          "started_unix_ns": 1794067209826811956,
+          "finished_unix_ns": 1794067266108014966,
+          "exit_code": 0,
+          "streams": {
+            "stdout": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-network.stdout.log",
+              "bytes": 16872138,
+              "sha256": "b43a496685657e525601825546322d3b99125e75ce317de097e4c5f2c3099d62"
+            },
+            "stderr": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-network.stderr.log",
+              "bytes": 1299,
+              "sha256": "feb7fbee3ff6fb61f6e71599dbdd79203539dbea9a3d5a01f9637870268de3a0"
+            }
+          }
+        }
+      },
+      "runner_summary": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network/summary.json",
+        "bytes": 111631,
+        "sha256": "fdb48d9e62c424cbd259e18ea74208868763f8ba36aba5c77f5bc1d69f8748af"
+      },
+      "independent_audit": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-network-final.json",
+          "bytes": 4078,
+          "sha256": "ecc7018d9d6ea9afa9afd5e82895d8fe9aaca23242d69268a15e11f11cc8825e"
+        },
+        "value": {
+          "auditor_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+          "suite": "network",
+          "evidence": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network",
+          "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+          "status": "PASS",
+          "checks": {
+            "build": {
+              "commit": "a11e61ece526c9251b494a781247683284fea56f",
+              "binary_sha256": "6cf3ebb5f710bbf8620d9df2be9b842adee1637625ef5d624827dde230be9f28",
+              "input_sha256": "c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac",
+              "native_archives": 1
+            },
+            "transport": {
+              "requests": 4025,
+              "backend_responses": {
+                "200": 3959,
+                "412": 43,
+                "403": 1,
+                "404": 10
+              },
+              "injected_responses_separate": 2
+            },
+            "backend_restart": {
+              "processes_killed": 4,
+              "same_persistent_directory": true,
+              "zero_compute_at_backend_cut": false
+            },
+            "fault_acks": {
+              "recorded": 61,
+              "successful_execute_observations": 61,
+              "cold_audited": 61,
+              "receipt_and_raw_mismatches": 0,
+              "strict_SCAPRES1_decoded": 61,
+              "independent_SCAPSQL1_fingerprints": 30
+            },
+            "schema": {
+              "original_ACKs": 12,
+              "original_SCAPRES1_and_fingerprint_checks": 12,
+              "exact_lookup_comparisons": 24,
+              "exact_replay_successes": 12,
+              "state_comparisons": 30,
+              "foreign_key_refusals_without_PUT": 2,
+              "mismatches": 0
+            },
+            "network": {
+              "base_ACKs": 4,
+              "base_cold_result_comparisons": 4,
+              "real_same_ETag_races": 8,
+              "backend_conflict_winners": 8,
+              "injected_status_mapping_cases_separate": 2,
+              "actual_pilot_dependency_uploads": 7,
+              "fault_cases": 30,
+              "exact_dependency_or_preHEAD_cuts": 15,
+              "fault_ACKs": 61,
+              "fault_original_result_comparisons": 61,
+              "compute_cache_loss_groups": 28,
+              "cold_missing_or_corrupt_refusals": 10,
+              "non_ACK_committed_original_results": 3,
+              "all_successful_execute_responses": 89,
+              "mismatches": 0
+            }
+          },
+          "limitations": [
+            "blob_file payloads are represented in retained evidence by pre-invocation SHA-256/length; deleted private random bytes cannot be rehashed into SCAPSQL1 offline",
+            "base SQL strings persist with the original ACK ledger rather than a separate pre-invocation SQL ledger; their SCAPSQL1 fingerprints and first result witnesses are independently checked",
+            "all seven actual pilot PUT positions are covered before/after forwarding independently of role labels; raw immutable payload bodies are not retained, so chunk/tree/manifest role decoding remains the running fixture's observation",
+            "base backend restart occurs with recovered compute workers alive; the separate GiB suite proves the stronger zero-compute-at-backend-cut scenario"
+          ],
+          "evidence_sha256": {
+            "summary.json": "fdb48d9e62c424cbd259e18ea74208868763f8ba36aba5c77f5bc1d69f8748af",
+            "build-receipt.json": "bf507af781a0d7241167d5bbc450f2eb9b864ae12fb3acef8ae1b93ba7fdfdfb",
+            "history.jsonl": "b43a496685657e525601825546322d3b99125e75ce317de097e4c5f2c3099d62",
+            "ack-ledger.jsonl": "b506e5359a9a7568baaa723dddd721bc314df8c473fa20ba6581e32623347b14",
+            "fault-input-ledger.jsonl": "b8fcd341e5ca9c614139d36e2fcbd9854d41d82407ca05f651ff919c78bef6bf",
+            "fault-ack-ledger.jsonl": "5d2d47c8111643b0aade9bfba8281fdf110eb98041f5fd8279e8c1b57a97a80f",
+            "fault-cases.jsonl": "c9ea24a4838b3db3c423270a9de0e34377481a71de45c584c784d5ebc010fd53",
+            "fault-outcome-ledger.jsonl": "bdcbea1f98c5307874041241d27ca66169a43c78ff4e2436d11bdf87c093df9c",
+            "fault-plan.json": "63d642c759d459a297a040edbbf3fda5578400663e46b8eb1b1cb4d7aaf758e1",
+            "schema-input-ledger.jsonl": "b7aa5e673127626d1629e876cd395d954ec26fa691f53d4cf11e8d9f8f835f4f",
+            "schema-ack-ledger.jsonl": "942693f194099d538a1f6dfe7270016061710363511e85934b187024fa3fd4cf",
+            "schema-audit.jsonl": "51604202819787f4d59e3cc0cdd295d76a1ebcabaaf0369faacde07f7c8f201f"
+          },
+          "imported_runner_or_production_code": false,
+          "summary_verdict_used_as_oracle": false
+        }
+      }
+    },
+    "result-integrity": {
+      "gate": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-result-integrity.json",
+          "bytes": 1185,
+          "sha256": "90139cf7f3650b5d6af6ebeaa54aaa99560288962f4df0ae306d1ad28429ea40"
+        },
+        "value": {
+          "command": [
+            "python3",
+            "experiments/object-network/retained_result_contract.py",
+            "--worker",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/scap-object-network",
+            "--weed",
+            "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+            "--build-record",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-build-retry1/build.json",
+            "--evidence",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/result-integrity"
+          ],
+          "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+          "started_unix_ns": 1794067209830228268,
+          "finished_unix_ns": 1794067234191778202,
+          "exit_code": 0,
+          "streams": {
+            "stdout": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-result-integrity.stdout.log",
+              "bytes": 9085424,
+              "sha256": "9138226730921bcb3f2dfda0cf7846034cbb0a1a53570544bd4a2ac53b3badd9"
+            },
+            "stderr": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-result-integrity.stderr.log",
+              "bytes": 1299,
+              "sha256": "309bedcc83c5d88f8e9b7ac3ef2bdf83f8b5649aae226518ffbb92db93801448"
+            }
+          }
+        }
+      },
+      "runner_summary": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/result-integrity/summary.json",
+        "bytes": 7957,
+        "sha256": "b4ae7817283b7a991d2f9bf0af21b35f0a67ac385e840639b3e9b5a987a20d53"
+      },
+      "independent_audit": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-result-integrity-final.json",
+          "bytes": 2410,
+          "sha256": "9d68a5f5b53ca61f2cd6050ff894d11d89e58ca67e0c9f58082e76cbdedafa53"
+        },
+        "value": {
+          "auditor_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+          "suite": "result-integrity",
+          "evidence": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/result-integrity",
+          "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+          "status": "PASS",
+          "checks": {
+            "build": {
+              "commit": "a11e61ece526c9251b494a781247683284fea56f",
+              "binary_sha256": "6cf3ebb5f710bbf8620d9df2be9b842adee1637625ef5d624827dde230be9f28",
+              "input_sha256": "c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac",
+              "native_archives": 1
+            },
+            "transport": {
+              "requests": 1848,
+              "backend_responses": {
+                "200": 1836,
+                "412": 12
+              },
+              "injected_responses_separate": 0
+            },
+            "fault_acks": {
+              "recorded": 30,
+              "successful_execute_observations": 30,
+              "cold_audited": 30,
+              "receipt_and_raw_mismatches": 0,
+              "strict_SCAPRES1_decoded": 30,
+              "independent_SCAPSQL1_fingerprints": 12
+            },
+            "semantic_results": {
+              "cases": 12,
+              "entrypoints": 60,
+              "acknowledgements": 30,
+              "reconstructed_corrupt_frames": 12,
+              "independent_decoder_rejections": 12,
+              "recovered_effect_cases": 12,
+              "mismatches": 0
+            }
+          },
+          "limitations": [
+            "blob_file payloads are represented in retained evidence by pre-invocation SHA-256/length; deleted private random bytes cannot be rehashed into SCAPSQL1 offline",
+            "cache deletion is an explicit controller I/O observation cross-checked with killed-process records; this offline audit does not recreate the earlier filesystem state"
+          ],
+          "evidence_sha256": {
+            "summary.json": "b4ae7817283b7a991d2f9bf0af21b35f0a67ac385e840639b3e9b5a987a20d53",
+            "build-receipt.json": "bf507af781a0d7241167d5bbc450f2eb9b864ae12fb3acef8ae1b93ba7fdfdfb",
+            "history.jsonl": "6dc5e494864c7a391bde8cdb81a397c51049c5de274a74a3f9507be31b428d93",
+            "fault-input-ledger.jsonl": "128e04b43e919e1251e2db7201fc13a486d504730cc9084693c3b0fedf8be7d1",
+            "fault-ack-ledger.jsonl": "1cf2688f73aa646f40efb49327a0701402df12ae7169c22fc47610a694a929ec",
+            "fault-cases.jsonl": "b155f8f6048183697486da7b096fff9dff7f45247f7045f414a8c0d96b418ac8",
+            "fault-outcome-ledger.jsonl": "c933ca710beb8c48bc2881578293fdcd888ed3e7871bde69e3177e6b98f14198"
+          },
+          "imported_runner_or_production_code": false,
+          "summary_verdict_used_as_oracle": false
+        }
+      }
+    },
+    "gib1": {
+      "gate": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-gib1.json",
+          "bytes": 1159,
+          "sha256": "f7384310835bcc1c9206573e920bd988c3a7bcc62240ebd3255be52ae9651869"
+        },
+        "value": {
+          "command": [
+            "python3",
+            "experiments/object-capacity/run.py",
+            "--worker",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/scap-object-network",
+            "--weed",
+            "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+            "--build-record",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-build-retry1/build.json",
+            "--evidence",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gib1",
+            "--profile",
+            "gib1"
+          ],
+          "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+          "started_unix_ns": 1794067209825543976,
+          "finished_unix_ns": 1794067387929760696,
+          "exit_code": 0,
+          "streams": {
+            "stdout": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-gib1.stdout.log",
+              "bytes": 79307402,
+              "sha256": "28cd5426112fd4fe2dba9ceb713f357b08616b409f376e23d9ccf9f46dee4eab"
+            },
+            "stderr": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-gib1.stderr.log",
+              "bytes": 1299,
+              "sha256": "7b4cedaf8a72173c6e4dc0b06f70c0e868de7a0e95e2e04e8435dae0d116a174"
+            }
+          }
+        }
+      },
+      "runner_summary": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gib1/summary.json",
+        "bytes": 25940,
+        "sha256": "86c45cd1852e10d26128f754885470e4182c899a20b0d1ba41f10d2a8c0bc586"
+      },
+      "independent_audit": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-gib1-final.json",
+          "bytes": 2829,
+          "sha256": "c6b2d0eda82f09233df9fbf288c7ea63d0ff68c3ab55a717009f3c2076835234"
+        },
+        "value": {
+          "auditor_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+          "suite": "gib1",
+          "evidence": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gib1",
+          "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+          "status": "PASS",
+          "checks": {
+            "build": {
+              "commit": "a11e61ece526c9251b494a781247683284fea56f",
+              "binary_sha256": "6cf3ebb5f710bbf8620d9df2be9b842adee1637625ef5d624827dde230be9f28",
+              "input_sha256": "c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac",
+              "native_archives": 1
+            },
+            "transport": {
+              "requests": 34866,
+              "backend_responses": {
+                "200": 34865
+              },
+              "injected_responses_separate": 0
+            },
+            "backend_restart": {
+              "processes_killed": 4,
+              "same_persistent_directory": true,
+              "zero_compute_at_backend_cut": true
+            },
+            "capacity": {
+              "execute_successes": 38,
+              "committed_lookup_after_unknown": 1,
+              "full_receipt_and_raw_recovered": 39,
+              "strict_SCAPRES1_decoded": 39,
+              "BLOB_rows": 16384,
+              "BLOB_bytes": 1073741824,
+              "mismatches": 0,
+              "original_random_witnesses": 39,
+              "point_network_metrics": {
+                "point_64mib": {
+                  "get_requests": 16,
+                  "put_requests": 8,
+                  "get_response_bytes": 565203,
+                  "put_request_bytes": 282734
+                },
+                "point_1gib_beginning": {
+                  "get_requests": 16,
+                  "put_requests": 8,
+                  "get_response_bytes": 591167,
+                  "put_request_bytes": 292066
+                },
+                "point_1gib_middle": {
+                  "get_requests": 18,
+                  "put_requests": 9,
+                  "get_response_bytes": 854413,
+                  "put_request_bytes": 423571
+                },
+                "point_1gib_end": {
+                  "get_requests": 18,
+                  "put_requests": 9,
+                  "get_response_bytes": 632919,
+                  "put_request_bytes": 312706
+                }
+              }
+            }
+          },
+          "limitations": [
+            "deleted private capacity input files persist only SHA-256/length, so data recovery is checked against pre-invocation hashes rather than rehashing deleted files",
+            "cache deletion and historical block allocation are controller I/O measurements cross-checked with actual wait4 process-loss records"
+          ],
+          "evidence_sha256": {
+            "summary.json": "86c45cd1852e10d26128f754885470e4182c899a20b0d1ba41f10d2a8c0bc586",
+            "build-receipt.json": "bf507af781a0d7241167d5bbc450f2eb9b864ae12fb3acef8ae1b93ba7fdfdfb",
+            "history.jsonl": "28cd5426112fd4fe2dba9ceb713f357b08616b409f376e23d9ccf9f46dee4eab",
+            "input-ledger.jsonl": "41f9a29e8d157e365967631b00f71009cbf9c138d7a701a1a2ad64402b7e5da6",
+            "ack-ledger.jsonl": "b23d9198e3d4a14e0e3d61db7e92491716934b4409d7107a707f47275eac845c"
+          },
+          "imported_runner_or_production_code": false,
+          "summary_verdict_used_as_oracle": false
+        }
+      }
+    },
+    "service": {
+      "gate": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-service.json",
+          "bytes": 1123,
+          "sha256": "91cb02bad6e09614ae221326def28da3328cca420452c9d2aadf760a8917a914"
+        },
+        "value": {
+          "command": [
+            "python3",
+            "experiments/object-service/run.py",
+            "--server",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/service/release/scapd",
+            "--weed",
+            "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+            "--build-record",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service-build-retry1/build.json",
+            "--evidence",
+            "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service"
+          ],
+          "cwd": "/workspace/scratch/b985f6319062/scap-guard-v2-validation",
+          "started_unix_ns": 1794067485954040362,
+          "finished_unix_ns": 1794067530493788213,
+          "exit_code": 0,
+          "streams": {
+            "stdout": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-service.stdout.log",
+              "bytes": 2286289,
+              "sha256": "22023eb85f624bcd29e8dae6d0aa53c88cda2a14b1f4c62181c39aac1bedb2b8"
+            },
+            "stderr": {
+              "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-service.stderr.log",
+              "bytes": 2598,
+              "sha256": "5729477c820ecfe952440f2a5116be18c274bcb53d85692ff96051e943b8c0ed"
+            }
+          }
+        }
+      },
+      "runner_summary": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service/summary.json",
+        "bytes": 16532,
+        "sha256": "64d374af6cfa44b390ad3a5c233f8bc898bb7890cd3a365bdd9a49012d25839c"
+      },
+      "independent_audit": {
+        "record": {
+          "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-service-final.json",
+          "bytes": 2906,
+          "sha256": "31cbd48f33f1544d8f6cdfc81605b2e9bc10d191e52b2fc2bfa8630f6f1c30b8"
+        },
+        "value": {
+          "auditor_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+          "suite": "service",
+          "evidence": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service",
+          "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+          "status": "PASS",
+          "checks": {
+            "build": {
+              "commit": "a11e61ece526c9251b494a781247683284fea56f",
+              "binary_sha256": "6ea71e20fb70b497015db3ef5b74968efb33fa1d85d7861fe3f7d8274507f7a3",
+              "input_sha256": "971e33dc6a156beedd2f4db7e9b42cf28a01dfda1399de0bd5ea81c944b42bc8",
+              "native_archives": 1
+            },
+            "transport": {
+              "requests": 620,
+              "backend_responses": {
+                "200": 616,
+                "412": 3
+              },
+              "injected_responses_separate": 0
+            },
+            "service": {
+              "unique_original_ACKs": 10,
+              "exact_duplicate_ACKs": 8,
+              "successful_execute_responses_recorded": 18,
+              "UNKNOWN_execute_separate": 1,
+              "committed_UNKNOWN_lookup": 1,
+              "strict_original_SCAPRES1_decoded": 11,
+              "SCAPSQL1_fingerprints_recomputed": 12,
+              "exact_input_BLOB_RETURNING_results": 8,
+              "recovery_backend_Result_hashes_verified": 11,
+              "conditional_create_backend_statuses": [
+                200,
+                412
+              ],
+              "mismatches_in_retained_raw_evidence": 0
+            }
+          },
+          "limitations": [
+            "recover HTTP lookup/query response bodies are not persisted: this offline audit verifies all original ACKs, exact duplicate ACKs and actual backend Result GET hashes, but cannot independently compare the 18 returned recovery HTTP bodies or recovered query rows; those assertions exist only in the executed Node probe",
+            "service SIGKILL/wait4 and cache-removal measurements persist in summary.json without complete raw service start/stop/restart timestamps; historical zero-live-process/backend-order claims cannot be independently reconstructed from these files"
+          ],
+          "evidence_sha256": {
+            "summary.json": "64d374af6cfa44b390ad3a5c233f8bc898bb7890cd3a365bdd9a49012d25839c",
+            "build-receipt.json": "3ea2f0a421997cec75524e8953f542a96f947c6c73d11cbcc9415b3d7d709573",
+            "history.jsonl": "b1c42187117b08d8b0d6dfd183193ca668468161323c5d91cba7eb552db57752",
+            "inputs.jsonl": "aca75cdb1efeed8b6ca5f20e6d1053d1f8cab5f53878acd1799b5c0243e391b5",
+            "acks.jsonl": "8bbb73aee7b43c7513f28166b657439823eb29a0fd84f3f7bc55c236df563660",
+            "duplicate-acks.jsonl": "f54ee7e01eabd9ea4d621017545f892f197acfe3e67138fbb0636c706ef2cfc0",
+            "outcomes.jsonl": "1a0b28da0d13056ddb53b15a5f1c75b8963a8e003a0003af3cccd83c2f524885",
+            "data-inputs.jsonl": "b4f7f925d8d7c2939395009cd1a15831d8fef47cd5150a5346f6e20e976fecf3",
+            "state.json": "7223bdd925889060d28e7246f34060b7bf508761dbabdfc099ba4f76e096a75b",
+            "client-phases.jsonl": "a94e81524a62de7c6605bb552c00db7da85a8103ef9fc184cdfd2cb4b09b892d"
+          },
+          "imported_runner_or_production_code": false,
+          "summary_verdict_used_as_oracle": false
+        }
+      }
+    }
+  },
+  "failed_attempts": {
+    "historical_environment": "initial a252080 candidate could not run in prior unavailable executor; status preserved in engineering/status-2026-11-07.md",
+    "format_candidate": {
+      "commit": "d7219a6d817803354e1bdc7ad3b626eda7bb35ef",
+      "status": "FAILED_AT_FMT",
+      "evidence_directory": "/workspace/scratch/b985f6319062/scap-rust-evidence-d7219a6-7owlffmj"
+    },
+    "release": [
+      {
+        "kind": "release_build",
+        "suite": "network",
+        "status": "FAILED_PRESERVED",
+        "build_record": {
+          "record": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/network-build/build.json",
+            "bytes": 9007,
+            "sha256": "0cd5752761cd34df75e28dd86b73029d84b2029c7ba258e7ca53b59c6986c3d8"
+          },
+          "value": {
+            "build_stderr_sha256": "5564644970dfbbd3536185245c479105cf339b2434addc945bbafb391b53ddb9",
+            "build_stdout_sha256": "83b71845245b76909eb17ed4a1d5ecffe6c48ef96db99343b7ef36c719f3e678",
+            "command": [
+              "cargo",
+              "+1.90.0",
+              "build",
+              "--release",
+              "--locked",
+              "--manifest-path",
+              "experiments/object-network/Cargo.toml",
+              "--message-format=json-render-diagnostics"
+            ],
+            "error": "AssertionError('release build exited 101')",
+            "exit_code": 101,
+            "input_sha256": "c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac",
+            "inputs": {
+              "Cargo.lock": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7",
+              "Cargo.toml": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d",
+              "crates/scap-object-sqlite/Cargo.toml": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc",
+              "crates/scap-object-sqlite/src/alter_tests.rs": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b",
+              "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+              "crates/scap-object-sqlite/src/config.rs": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+              "crates/scap-object-sqlite/src/config_tests.rs": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0",
+              "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+              "crates/scap-object-sqlite/src/file_tests.rs": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25",
+              "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+              "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+              "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+              "crates/scap-object-sqlite/src/lib.rs": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a",
+              "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+              "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+              "crates/scap-object-sqlite/src/sql.rs": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+              "crates/scap-object-sqlite/src/storage.rs": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a",
+              "crates/scap-object-sqlite/src/tests.rs": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299",
+              "crates/scap-object-store/Cargo.toml": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339",
+              "crates/scap-object-store/src/lib.rs": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+              "crates/scap-object-store/src/tests.rs": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7",
+              "crates/scap-object/Cargo.toml": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49",
+              "crates/scap-object/src/data_tree.rs": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+              "crates/scap-object/src/data_tree_tests.rs": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21",
+              "crates/scap-object/src/format.rs": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+              "crates/scap-object/src/format_tests.rs": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2",
+              "crates/scap-object/src/lib.rs": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+              "crates/scap-object/src/options.rs": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+              "crates/scap-object/src/options_tests.rs": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e",
+              "crates/scap-object/src/quarantine_tests.rs": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44",
+              "crates/scap-object/src/result_validation_tests.rs": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905",
+              "crates/scap-object/src/review_tests.rs": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12",
+              "crates/scap-object/src/session_tests.rs": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8",
+              "crates/scap-object/src/tests.rs": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a",
+              "crates/scap-service/Cargo.toml": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62",
+              "crates/scap-service/src/auth.rs": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d",
+              "crates/scap-service/src/auth/tests.rs": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd",
+              "crates/scap-service/src/config.rs": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046",
+              "crates/scap-service/src/config/tests.rs": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c",
+              "crates/scap-service/src/daemon.rs": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255",
+              "crates/scap-service/src/daemon/tests.rs": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3",
+              "crates/scap-service/src/engine.rs": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf",
+              "crates/scap-service/src/engine/tests.rs": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541",
+              "crates/scap-service/src/http.rs": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c",
+              "crates/scap-service/src/http/tests.rs": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972",
+              "crates/scap-service/src/lib.rs": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40",
+              "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+              "crates/scap-service/src/scheduler.rs": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207",
+              "crates/scap-service/src/scheduler/tests.rs": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85",
+              "crates/scap-service/src/tests.rs": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546",
+              "crates/scap-service/src/wire.rs": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9",
+              "crates/scap-service/src/wire/tests.rs": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531",
+              "crates/scap-sql/Cargo.toml": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+              "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+              "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+              "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+              "crates/scap-sql/src/tests.rs": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e",
+              "experiments/object-capacity/run.py": "f03e1121775875d3ed8f7d792295ecb5cffede1498b95e8b8d07d4e591c2d061",
+              "experiments/object-network/Cargo.lock": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379",
+              "experiments/object-network/Cargo.toml": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399",
+              "experiments/object-network/build.py": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14",
+              "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+              "experiments/object-network/run.py": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b",
+              "experiments/object-network/schema_contract.py": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250",
+              "experiments/object-network/src/main.rs": "3c18d7f81b29610039e3345f245fb859a7ef29edf03c1f4ef7c64dd79751180f",
+              "experiments/object-network/test_build.py": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b",
+              "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+              "experiments/object-network/test_schema_contract.py": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb",
+              "rust-toolchain.toml": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+            },
+            "profile": "release",
+            "schema": 1,
+            "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+            "status": "failed",
+            "versions": {
+              "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+              "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+              "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+            }
+          }
+        }
+      },
+      {
+        "kind": "release_build",
+        "suite": "service",
+        "status": "FAILED_PRESERVED",
+        "build_record": {
+          "record": {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/service-build/build.json",
+            "bytes": 10378,
+            "sha256": "b166150ab6a5376ef69e78a3e6f6d10cbf2e4180e2d4bbc917a1dd293112eb1b"
+          },
+          "value": {
+            "cargo.stderr.log_sha256": "61db55dac40fb75a3ee69a0d91bb1d9cb20bc18a6dd30b674776ba555473d54f",
+            "cargo.stdout.jsonl_sha256": "8d062954d685131cb7ef01d68d74a9f25626925e30361b32063c9c6a009978a7",
+            "command": [
+              "cargo",
+              "+1.90.0",
+              "build",
+              "--release",
+              "--locked",
+              "-p",
+              "scap-service",
+              "--bin",
+              "scapd",
+              "--message-format=json-render-diagnostics"
+            ],
+            "error": "AssertionError('service build failed')",
+            "exit_code": 101,
+            "inputs": {
+              "Cargo.lock": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7",
+              "Cargo.toml": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d",
+              "crates/scap-object-sqlite/Cargo.toml": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc",
+              "crates/scap-object-sqlite/src/alter_tests.rs": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b",
+              "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+              "crates/scap-object-sqlite/src/config.rs": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+              "crates/scap-object-sqlite/src/config_tests.rs": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0",
+              "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+              "crates/scap-object-sqlite/src/file_tests.rs": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25",
+              "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+              "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+              "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+              "crates/scap-object-sqlite/src/lib.rs": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a",
+              "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+              "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+              "crates/scap-object-sqlite/src/sql.rs": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+              "crates/scap-object-sqlite/src/storage.rs": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a",
+              "crates/scap-object-sqlite/src/tests.rs": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299",
+              "crates/scap-object-store/Cargo.toml": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339",
+              "crates/scap-object-store/src/lib.rs": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+              "crates/scap-object-store/src/tests.rs": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7",
+              "crates/scap-object/Cargo.toml": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49",
+              "crates/scap-object/src/data_tree.rs": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+              "crates/scap-object/src/data_tree_tests.rs": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21",
+              "crates/scap-object/src/format.rs": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+              "crates/scap-object/src/format_tests.rs": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2",
+              "crates/scap-object/src/lib.rs": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+              "crates/scap-object/src/options.rs": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+              "crates/scap-object/src/options_tests.rs": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e",
+              "crates/scap-object/src/quarantine_tests.rs": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44",
+              "crates/scap-object/src/result_validation_tests.rs": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905",
+              "crates/scap-object/src/review_tests.rs": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12",
+              "crates/scap-object/src/session_tests.rs": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8",
+              "crates/scap-object/src/tests.rs": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a",
+              "crates/scap-service/Cargo.toml": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62",
+              "crates/scap-service/src/auth.rs": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d",
+              "crates/scap-service/src/auth/tests.rs": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd",
+              "crates/scap-service/src/config.rs": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046",
+              "crates/scap-service/src/config/tests.rs": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c",
+              "crates/scap-service/src/daemon.rs": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255",
+              "crates/scap-service/src/daemon/tests.rs": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3",
+              "crates/scap-service/src/engine.rs": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf",
+              "crates/scap-service/src/engine/tests.rs": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541",
+              "crates/scap-service/src/http.rs": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c",
+              "crates/scap-service/src/http/tests.rs": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972",
+              "crates/scap-service/src/lib.rs": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40",
+              "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+              "crates/scap-service/src/scheduler.rs": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207",
+              "crates/scap-service/src/scheduler/tests.rs": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85",
+              "crates/scap-service/src/tests.rs": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546",
+              "crates/scap-service/src/wire.rs": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9",
+              "crates/scap-service/src/wire/tests.rs": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531",
+              "crates/scap-sql/Cargo.toml": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+              "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+              "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+              "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+              "crates/scap-sql/src/tests.rs": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e",
+              "experiments/object-network/Cargo.lock": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379",
+              "experiments/object-network/Cargo.toml": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399",
+              "experiments/object-network/build.py": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14",
+              "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+              "experiments/object-network/run.py": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b",
+              "experiments/object-network/schema_contract.py": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250",
+              "experiments/object-network/src/main.rs": "3c18d7f81b29610039e3345f245fb859a7ef29edf03c1f4ef7c64dd79751180f",
+              "experiments/object-network/test_build.py": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b",
+              "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+              "experiments/object-network/test_schema_contract.py": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb",
+              "experiments/object-service/build.py": "2009d23c229c17824e2b6eab2e247d6dd0bb121be48d074d5c120eb096f2d2eb",
+              "experiments/object-service/probe.mjs": "8240cc5daac7db2a150df2815779641bc2ad0f777aa6ca7269be2721c2c4539d",
+              "experiments/object-service/run.py": "965d04eb9710ec2c45b6d3db84faa31d2bc855373ca60e9280b24a8a2e8007c8",
+              "experiments/object-service/test_build.py": "961a3bafcb273a79ba85cd44ee0640435dc12ed9952f6e86d1907dcbb43c0fae",
+              "experiments/object-service/test_controls.py": "67e67c5c2665d5689e11fb90dddda7a5753a906aa5fb87bb4b92763b988b121c",
+              "rust-toolchain.toml": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406",
+              "sdk/node-codec/package.json": "fd52cb544885e3cab1d0f997ed795e02fa915b8b030c13290e7a57b105f7c393",
+              "sdk/node-codec/src/codec.js": "78faa6caa15b96f6a33d822984387df4cf691fa5d3b37288042eba8b1813d404",
+              "sdk/node-codec/test/codec.test.js": "3e64eb88966d69de231f2d64268dab778d035f867f951368c6fe1b0e8c7ef416",
+              "sdk/node/package.json": "eeba9a36f4edbec83d2cd414db98982ede9be8062e63d4ac233f51caf23902f1",
+              "sdk/node/src/client.d.ts": "9a6f40904175b540110a8c33e1d174443032bd623d84f9630183ba1f9096da5c",
+              "sdk/node/src/client.js": "c07105f4fbe61343bf239479181f628e2ddb27ad5f624ef3332a476f5330e4d4",
+              "sdk/node/src/errors.js": "5e20674ea7184e1fe6fcf73d93407c454dd9a4853336294badd3765c230e221d",
+              "sdk/node/src/transport.js": "dbdf1f9efc9a8c3065a7968ac049b3880d9ec5b1e519bedc742ed486bc2eafc5",
+              "sdk/node/src/wire.js": "7c31d1bea7e50d77e60d07b5e98b5acc2235bd52e964036dde542919dd4d5599",
+              "sdk/node/test/check-coverage.mjs": "5381aa75825468353d5a48b68b0cad0153851b4e5f1bb18f75d537f874061a4a",
+              "sdk/node/test/http.test.js": "8a2ece39d50d3fe06f6fdef4f814cbd2a3fe52d805fa165bc7299fe36813cc3a",
+              "sdk/node/test/run.mjs": "a5360eb3602263ca97982f01f0d22f816921d54889888739789b51e54e7bff24",
+              "sdk/node/test/unit.test.js": "fa3425c31440e2fc0ca0b09824e28286aedc2ed070787484f8bde37a7ebc1720"
+            },
+            "node": "v22.16.0",
+            "profile": "release",
+            "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+            "schema": 1,
+            "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+            "status": "failed"
+          }
+        }
+      }
+    ],
+    "release_diagnostics": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/release-failure-diagnostics.json",
+        "bytes": 1534,
+        "sha256": "baa5fe35d1e0c6e8369ec1519f64168685cef41d4c4ee60cb3df6b534726cd8d"
+      },
+      "value": {
+        "status": "failed",
+        "diagnosis": "archive error with observed zero-length object files; cause not established",
+        "zero_length_objects": [
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-build/network/release/deps/clang_sys-dda2b3fd026ca077.clang_sys.663b4e9fbc274da3-cgu.01.rcgu.o",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mtime_ns": 1794066343489410553
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-build/network/release/deps/reqwest-52a3b0772a47b472.reqwest.86d9c797acc82227-cgu.03.rcgu.o",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mtime_ns": 1794066468415714877
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-guard-v2-build/service/release/deps/object_store-bfae9533a60cd95c.object_store.50c33b0056b36a80-cgu.07.rcgu.o",
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mtime_ns": 1794066510448447212
+          }
+        ],
+        "cgroup": {
+          "memory.max": "8589934592\n",
+          "memory.current": "7496224768\n",
+          "memory.peak": "8590708736\n",
+          "memory.events": "low 0\nhigh 0\nmax 33984\noom 0\noom_kill 0\noom_group_kill 0\n",
+          "pids.events": "max 0\n"
+        },
+        "disk": "Filesystem      Size  Used Avail Use% Mounted on\noverlay          63G   12G   48G  20% /\n",
+        "retry": "unchanged frozen a11e61e, stable 1.90.0, default release profile, serial fresh targets"
+      }
+    },
+    "tool_completions": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/build-tool-completions.json",
+        "bytes": 2864,
+        "sha256": "f8331a1c1268289b1397f6bce4457e10d2674072b4a4ca5a6d2e4d0955db901a"
+      },
+      "value": {
+        "record_kind": "captured_tool_completion_metadata",
+        "records": {
+          "guard_v2_release:0": {
+            "status": "fulfilled",
+            "value": {
+              "chunk_id": "cb3c50",
+              "wall_time_seconds": 2.1259e-05,
+              "exit_code": 1,
+              "original_token_count": 117,
+              "output": "Traceback (most recent call last):\n  File \"/workspace/scratch/b985f6319062/scap-guard-v2-validation/experiments/object-network/build.py\", line 164, in <module>\n    run(parser.parse_args())\n  File \"/workspace/scratch/b985f6319062/scap-guard-v2-validation/experiments/object-network/build.py\", line 144, in run\n    assert process.returncode == 0, f\"release build exited {process.returncode}\"\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: release build exited 101\n"
+            }
+          },
+          "guard_v2_release:1": {
+            "status": "fulfilled",
+            "value": {
+              "chunk_id": "c9349d",
+              "wall_time_seconds": 1.6662e-05,
+              "exit_code": 1,
+              "original_token_count": 111,
+              "output": "Traceback (most recent call last):\n  File \"/workspace/scratch/b985f6319062/scap-guard-v2-validation/experiments/object-service/build.py\", line 149, in <module>\n    main(parser.parse_args())\n  File \"/workspace/scratch/b985f6319062/scap-guard-v2-validation/experiments/object-service/build.py\", line 130, in main\n    assert process.returncode == 0, \"service build failed\"\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: service build failed\n"
+            }
+          },
+          "guard_retry_progress:0": {
+            "status": "fulfilled",
+            "value": {
+              "chunk_id": "a6e6d4",
+              "wall_time_seconds": 1.8161e-05,
+              "exit_code": 0,
+              "original_token_count": 76,
+              "output": "{\"binary\": {\"path\": \"/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/network/release/scap-object-network\", \"sha256\": \"6cf3ebb5f710bbf8620d9df2be9b842adee1637625ef5d624827dde230be9f28\"}, \"input_sha256\": \"c51c3dabc5d5eeee8d64708cb711ab6aad4e9c4901bcc9535a549ce89a0829ac\", \"status\": \"passed\"}\n"
+            }
+          },
+          "guard_done:0": {
+            "status": "fulfilled",
+            "value": {
+              "chunk_id": "0a51db",
+              "wall_time_seconds": 1.5943e-05,
+              "exit_code": 0,
+              "original_token_count": 51,
+              "output": "{\"status\": \"passed\", \"binary\": {\"path\": \"/workspace/scratch/b985f6319062/scap-guard-v2-build-retry1/service/release/scapd\", \"sha256\": \"6ea71e20fb70b497015db3ef5b74968efb33fa1d85d7861fe3f7d8274507f7a3\"}}\n"
+            }
+          },
+          "guard_done:1": {
+            "status": "fulfilled",
+            "value": {
+              "chunk_id": "c56ee8",
+              "wall_time_seconds": 1.8809e-05,
+              "exit_code": 0,
+              "original_token_count": 27,
+              "output": "{\"record\": \"/workspace/scratch/b985f6319062/scap-guard-v2-evidence-root/gate-gib1.json\", \"exit_code\": 0}\n"
+            }
+          }
+        }
+      }
+    },
+    "independent_audit_provenance": {
+      "record": {
+        "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/independent-audit-provenance.json",
+        "bytes": 5990,
+        "sha256": "2c4650911c79bf6b9443c8a62cf3820b729d85bf8c2499804436aab4c0f80664"
+      },
+      "value": {
+        "source_commit": "a11e61ece526c9251b494a781247683284fea56f",
+        "frozen_auditor": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/independent_raw_audit_final_bb23ec40c84b.py",
+        "auditor_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+        "final_reports": {
+          "result-integrity": {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-result-integrity-final.json",
+            "sha256": "9d68a5f5b53ca61f2cd6050ff894d11d89e58ca67e0c9f58082e76cbdedafa53",
+            "script_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+            "status": "PASS"
+          },
+          "network": {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-network-final.json",
+            "sha256": "ecc7018d9d6ea9afa9afd5e82895d8fe9aaca23242d69268a15e11f11cc8825e",
+            "script_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+            "status": "PASS"
+          },
+          "gib1": {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-gib1-final.json",
+            "sha256": "c6b2d0eda82f09233df9fbf288c7ea63d0ff68c3ab55a717009f3c2076835234",
+            "script_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+            "status": "PASS"
+          },
+          "service": {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-service-final.json",
+            "sha256": "31cbd48f33f1544d8f6cdfc81605b2e9bc10d191e52b2fc2bfa8630f6f1c30b8",
+            "script_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+            "status": "PASS"
+          }
+        },
+        "prior_reports": [
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-gib1-v1.json",
+            "sha256": "9479b4bec0b1a5c90061f26d1a2947e48038444b71e77eed7c3cd37238bc7c66",
+            "auditor_sha256_recorded": "95595281868da92bf9d9a7a5abc53bfa20c04b0501720cac33c4a1575b2d8a33",
+            "status": "PASS",
+            "error": null,
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-network-v1.json",
+            "sha256": "c51a7a00ff30ae64a91837122d42e3a1323abf9fe395dfa20ef596490907abcc",
+            "auditor_sha256_recorded": "9bd08367d1678e8a0817de0ef721f4dfa3a225e01a5c1301e66edfb60f065246",
+            "status": "FAILED",
+            "error": "cold stale activation lacks actual backend conditional rejection",
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-network-v2.json",
+            "sha256": "62208da2d599ed1021eca209aa9ce08a8ff0d5145ca07ef770366bcff762c9b4",
+            "auditor_sha256_recorded": "046d346579b0bc2a6a0e81c76515970b4ac57e00b7c6aed3cc7350e59be9b0cf",
+            "status": "PASS",
+            "error": null,
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-result-integrity-v1.json",
+            "sha256": "851f52ae9d1f96b4f37216cf086ed3fe90f311d814e49e0a5f4dff752657721f",
+            "auditor_sha256_recorded": "2d6f57854bf380417bc04155b94e16aa86bc7819f8d6d4effab4e645ba9c7473",
+            "status": "FAILED",
+            "error": "refused recovery attempted HEAD publication",
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-result-integrity-v2.json",
+            "sha256": "7aa2f0627c3ba46716748482ccd90d541744dd412b737a2df4b0186758a5b85f",
+            "auditor_sha256_recorded": "821f53dfd723c336ea9c1c11b33d2e41deab24e48c73e7397dd94d74dc0b7f81",
+            "status": "PASS",
+            "error": null,
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          },
+          {
+            "path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/raw-audit-service-v1.json",
+            "sha256": "3a179c834769b923d0311176f2b6d63f7100d4b7dcd134f61496cbb575949062",
+            "auditor_sha256_recorded": "95595281868da92bf9d9a7a5abc53bfa20c04b0501720cac33c4a1575b2d8a33",
+            "status": "PASS",
+            "error": null,
+            "original_code_version_retained": false,
+            "replayability": "original script code was overwritten during development; report retained, original exact script version is not available"
+          }
+        ],
+        "only_existing_raw_evidence_reaudited": true,
+        "database_experiments_repeated": false,
+        "original_evidence_modified": false,
+        "imports_runner_or_production_codec": false,
+        "contract_corrections": [
+          {
+            "report": "raw-audit-result-integrity-v1.json",
+            "cause": "phase label persisted through trusted repair; no-PUT must be bounded by actual refused call interval, all 12 later HEAD repair PUT groups were after refusals"
+          },
+          {
+            "report": "raw-audit-network-v1.json",
+            "cause": "old cold activation contract rejects on a fresh changed HEAD body/ETag before any PUT; it does not require a backend 412, which is covered separately by real same-ETag races"
+          }
+        ],
+        "service_limit": "No persisted recovery HTTP response bodies and no full service lifecycle timestamp ledger; final PASS covers only the explicitly enumerated retained raw evidence checks."
+      }
+    }
+  },
+  "not_run": [
+    "real NFS/EFS/FUSE mounts and their faults",
+    "AWS Standard",
+    "cross-AZ and physical power failure",
+    "10 GiB quota boundary in this candidate",
+    "production SLO and long-running storage costs",
+    "complete N1/N2 exit",
+    "named catalogue production implementation",
+    "routing, segmented request index, pins, GC and PITR"
+  ],
+  "delivery_rule": "Only evidence/documentation may be appended without rerunning runtime; compare all production, tests, locks, workflows and build inputs to frozen candidate and preserve original identities."
+}
