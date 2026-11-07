@@ -12,7 +12,7 @@ target/release/scapd /etc/scap/service.json
 
 配置中的 `worker_instance` 是一次服务进程的身份，必须非零且从未被另一实例使用。重启使用新身份；不要让新旧进程共享这个值。`cache_directory` 为已经存在的绝对私有目录；其子目录是可丢弃缓存。配置按所有者保护，运行用户只拥有必要 bucket 前缀权限。
 
-`GET /healthz` 只返回进程存活，不承诺 S3 可用、任意数据库已激活或数据正确。数据和管理接口统一为 `POST /v1`；HTTPS 在反向代理处终止，daemon 拒绝直接绑定非 loopback 地址。HTTP 客户端用 `Authorization: Bearer …`，不获得 S3 凭据。
+`GET /healthz` 只返回进程存活，不承诺 S3 可用、任意数据库已激活或数据正确。数据库接口为 `POST /v1`，命名目录为显式启用的 `POST /v1/catalogue`；HTTPS 在反向代理处终止，daemon 拒绝直接绑定非 loopback 地址。HTTP 客户端用 `Authorization: Bearer …`，不获得 S3 凭据。
 
 普通请求、控制请求、恢复请求有独立准入。SDK自动发送对应的 `x-scap-admission`，服务核对其操作类别。普通期限与恢复期限均从本次 HTTP 接收开始，排队、读取和执行都计入；慢请求不会在每次内部步骤获得全新 deadline。
 
@@ -23,6 +23,27 @@ target/release/scapd /etc/scap/service.json
 业务代码调用 SDK prepare 绑定精确的 SQL、参数和原请求 ID，并在发出请求前把 save 返回的内容写入应用自己的持久日志。不要只把这份身份存在可能一起丢失的数据库缓存目录。Node API 的整数用 bigint；`number` 表示 f64，`42n` 与 `42` 是不同请求身份。列名和行按数组返回，不把重名列覆盖成对象属性。
 
 `open` 只预热会话，不夺取写权限；可以为独立 reader 显式准备较大的冷库。热 query/execute 每次重新读取远端 HEAD，S3 不可用时不能回退到缓存成功。HTTP body 使用 base64，会在原始字节之外产生编码和解析成本，资源实验必须按实际内存计入。
+
+## 命名创建与删除
+
+目录正式候选的实现与验收状态见 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)。启用方式及严格字段见[目录服务接口](../../crates/scap-service/catalogue.md)；配置缺省时不启用目录，启用时必须完整提供独立队列、worker、HTTP 和期限预算。
+
+创建前先用 `CatalogueClient.prepareIntent` 构造 prepare_create 意图，再将 `saveIntent` 的完整值写入应用的持久日志。`submit` 返回 PreparedCreate 只证明 descriptor 已保存。保存返回的 Creation，再以该原身份调用 resume_create，直到明示 Ready；随后用返回的固定 Scope 显式 activate。UNKNOWN 后先 inspect_create_operation，或显式恢复原意图重入，不改 create operation、名称或 Scope 重新创建。
+
+| 操作结果 | 含义与处理 |
+| --- | --- |
+| NotReserved | 尚未占用名称；不是已经撤销未来创建的证明 |
+| Reserved / Provisioning / Bound | 创建还在推进；Provisioning 不能执行普通 SQL，Bound 已不能按创建取消 |
+| Ready | 名称已绑定对应库；writer 激活状态另外检查 |
+| Aborting | 取消已占据名称转换，但永久屏障/证明/释放仍可能未完成 |
+| Aborted | 原取消屏障与名称释放已成立；永久身份不再复用 |
+| CannotAbortBound | 创建已绑定；需要当前 ADMIN 的正常 delete_name 流程 |
+| Deleting / Deleted | 原正常删除正在收敛或已完成；业务结果不再因删库而可读取 |
+| NameConflict / IdentityConflict | 名称或物理身份已被其他合法来源占有；原 operation 不改身份 |
+
+abort_create 和 delete_name 都先保存完整控制意图，包括 control operation、expected revisions 和 nonce，再发送。相同 control operation 的条件一经持久准入就不能更换；412/UNKNOWN 后按保存的原意图查证/收敛。普通 `set_lifecycle(Deleted)` 不接受命名库。删除完成后按明确的 Tombstone revision 创建新名称绑定，新库使用新 Scope，旧 SQL 对象与旧操作继续指向原库。
+
+创建/取消/操作查证要求当次认证仍允许 provision 且主体仍是 creator；Ready 等业务状态还受当前 READ 约束。正常删除只要求 fresh HEAD 的 ADMIN，管理员不必是 creator，也不把 ADMIN 当成 READ。名称解析每次重新检查绑定、HEAD 来源和当前权限，不能把缓存当授权。
 
 ## 失败后怎么处理
 
@@ -48,6 +69,6 @@ target/release/scapd /etc/scap/service.json
 
 ## 当前持续运行边界
 
-当前目录以不可变 ID 接入，名称目录和自动 owner 协调尚未实现。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK不暗中改变 request epoch。仍需完成自动协调及正式长期留存流程。
+当前有不可变 ID 接口和待完整验收的精确名称目录候选；全目录发现、自动 owner 协调及完整冷热点隔离仍待实施。全部计算丢失后按已知名称或固定操作身份恢复，不等于已经发现 bucket 中全部数据库。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。仍需完成自动协调及正式长期留存流程。
 
 对象物理 GC/pin/PITR 仍未交付，旧块与 orphan 会增长。10 GiB 配额限制当前逻辑数据库，不限制 bucket 总量。服务适合受控开发与验收；生产可用性、总成本与长时间运行仍须完成 N3/N4 的门禁。

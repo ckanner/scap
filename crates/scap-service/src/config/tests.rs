@@ -18,6 +18,7 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     assert_eq!(prepared.s3.access_key, "unit-secret");
     assert!(prepared.s3.session_token.is_none());
     assert_eq!(prepared.service.worker_instance, 100);
+    assert!(prepared.service.catalogue.is_none());
     assert_eq!(prepared.service.admission.limits().control_workers, 1);
     let mut value = value;
     value["s3"]["session_token_env"] = json!("TOKEN");
@@ -31,6 +32,42 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     assert_eq!(result.s3.secret_key, "secret");
     std::env::remove_var("SCAP_TEST_ACCESS");
     std::env::remove_var("SCAP_TEST_SECRET");
+}
+
+#[test]
+fn catalogue_budget_is_explicit_independent_and_globally_bounded() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut base = sample_config(directory.path());
+    base["catalogue"] = json!({"workers":2,"queued_total":32,"queued_per_tenant":16,"queued_per_name":4,"intake":8,"max_body_bytes":65536,"timeout_ms":1000});
+    let prepared = parsed(base.clone()).prepare_with(&environment).unwrap();
+    let admission = prepared.service.catalogue.unwrap();
+    assert_eq!(admission.limits().queued_total, 32);
+    assert_eq!(admission.limits().queued_per_name, 4);
+    for (field, values) in [
+        ("workers", vec![json!(0), json!(33)]),
+        ("queued_total", vec![json!(0), json!(65537)]),
+        ("queued_per_tenant", vec![json!(0), json!(33)]),
+        ("queued_per_name", vec![json!(0), json!(17)]),
+        ("intake", vec![json!(0), json!(4097)]),
+        ("max_body_bytes", vec![json!(0), json!(65537)]),
+        ("timeout_ms", vec![json!(0), json!(86400001)]),
+    ] {
+        for value in values {
+            let mut config = base.clone();
+            config["catalogue"][field] = value;
+            assert!(
+                parsed(config)
+                    .prepare_with(&|_| panic!("budget must fail before credentials"))
+                    .is_err(),
+                "{field}"
+            );
+        }
+        let mut config = base.clone();
+        config["catalogue"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(config.to_string().as_bytes()).is_err());
+    }
+    base["catalogue"]["queued_per_worker"] = json!(8);
+    assert!(Config::parse(base.to_string().as_bytes()).is_err());
 }
 
 #[test]

@@ -2,6 +2,9 @@
 //! All SQL, recovery, authorization and publication run on confined workers.
 
 pub mod auth;
+pub mod catalogue;
+pub mod catalogue_scheduler;
+pub mod catalogue_wire;
 pub mod config;
 pub mod daemon;
 pub mod engine;

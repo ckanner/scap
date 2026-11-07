@@ -89,7 +89,11 @@ class CliPreflightControls(unittest.TestCase):
             else:
                 arguments += ["--server", str(executable_directory / "scapd"),
                               "--weed", str(executable_directory / "weed"),
-                              "--node", str(executable_directory / "node"), "--diagnostic"]
+                              "--node", str(executable_directory / "node")]
+                if script == "catalogue_contract.py":
+                    arguments += ["--build-record", str(directory / "missing-build.json")]
+                else:
+                    arguments += ["--diagnostic"]
             completed = subprocess.run(
                 [sys.executable, str(HERE / script), *arguments], env=environment,
                 capture_output=True, text=True, timeout=10,

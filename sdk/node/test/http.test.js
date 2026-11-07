@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { gzipSync } from 'node:zlib';
-import { Client, UnknownError, ClientError } from '../src/client.js';
+import { Client, CatalogueClient, UnknownError, ClientError } from '../src/client.js';
 
 const TOKEN = 'synthetic-http-only-bearer-credential';
 const SCOPE = {deployment:'1',tenant:'2',database:'3',incarnation:'1',generation:'1'};
@@ -58,4 +58,31 @@ test('the response byte limit applies after actual HTTP decompression',async(t)=
     res.writeHead(200,{'content-type':'application/json','content-encoding':'gzip','content-length':compressed.length});res.end(compressed);
   });
   await assert.rejects(client(endpoint,{maxResponseBytes:512}).query(SQL),error=>error instanceof ClientError&&error.code==='LIMIT');
+});
+
+test('actual catalogue Fetch retains a lost create intent and explicitly inspects its original identity',async(t)=>{
+  const calls=[];
+  const creation={creator:'7',operation:'18446744073709551615',name:'原名字😀',scope:SCOPE,expected_name_revision:null};
+  const {endpoint}=await server(t,async(req,res)=>{
+    const chunks=[];for await(const chunk of req)chunks.push(chunk);
+    const body=JSON.parse(Buffer.concat(chunks));
+    calls.push({path:req.url,headers:req.headers,body});
+    if(body.operation==='prepare_create'){res.destroy();return;}
+    res.writeHead(200,{'content-type':'application/json'});
+    res.end(JSON.stringify({ok:true,value:{creation,phase:'reserved',binding_revision:'1',head_revision:null,
+      initial_quota:{max_bytes:null},retention:{max_entries:4096,max_result_bytes:'268435456'}}}));
+  });
+  const c=new CatalogueClient({endpoint:endpoint+'/catalogue',token:TOKEN,deployment:'1',tenant:'2',principal:'7'});
+  const action={operation:'prepare_create',name:creation.name,create_operation:creation.operation,
+    expected_name_revision:null,options:{quota:{mode:'unlimited'}}};
+  const intent=c.prepareIntent(action),saved=c.saveIntent(intent);
+  await assert.rejects(c.submit(intent),error=>error instanceof UnknownError&&error.reference.intent===intent);
+  assert.equal(calls.length,1);
+  assert.deepEqual(c.restoreIntent(saved),intent);
+  const result=await c.inspectCreateOperation(creation.operation);
+  assert.equal(result.phase,'reserved');assert.equal(result.head_revision,null);
+  assert.equal(calls.length,2);assert.equal(calls[0].path,'/v1/catalogue');
+  for(const call of calls){assert.equal(call.headers['x-scap-admission'],'catalogue');assert.equal(call.headers.authorization,`Bearer ${TOKEN}`);}
+  assert.deepEqual(calls[0].body,{version:1,...action});
+  assert.deepEqual(calls[1].body,{version:1,operation:'inspect_create_operation',create_operation:creation.operation});
 });

@@ -18,8 +18,8 @@
 | 目标 | 当前实现 | 尚未完成的退出条件 |
 | --- | --- | --- |
 | S3 唯一数据库持久权威 | 正式 object authority、条件对象访问、原生提交 gate、请求结果与 owner fencing 已合入 | 完整 OT-01–OT-08、真实 AWS Standard 合同与独立并发历史审计 |
-| 可丢弃计算与容量 | 完整冷恢复、Session、增量数据树、默认 10 GiB 可配置配额，已有冻结候选的本地 1/10 GiB 证据 | 冷恢复仍物化全库；执行存储防护候选须重新编译和验证，不能继承历史结果 |
-| 应用接入和多库服务 | 认证 HTTP、Node SDK、有界准入和独立控制执行已合入 | 持久名称目录、自动 owner 路由、完整冷热隔离及预定义负载活性 |
+| 可丢弃计算与容量 | 完整冷恢复、Session、增量数据树、默认 10 GiB 可配置配额，已有冻结候选的本地 1/10 GiB 证据；执行存储防护已通过 PR #28 的本地验收 | 冷恢复仍物化全库；新候选重新执行受影响门禁，不继承旧源码结果 |
+| 应用接入和多库服务 | 认证 HTTP、Node SDK、有界准入和独立控制执行已合入；名称协议/模型已合入，正式目录/HTTP/SDK 候选正在验收 | 精确目录的真实切点验收、全目录发现、自动 owner 路由、完整冷热隔离及预定义负载活性 |
 | 长期运行 | 已有请求窗口关闭和逻辑退休 | 分段索引、pin、generation、安全 GC、PITR、总存储与请求成本收敛 |
 
 当前机器合同见 [design-contract.json](../../contracts/design-contract.json)，历史证据及各自源码身份见[验证规范](../engineering/validation.md)。本轮遵循以下顺序：先固定本方案、[N1 真实生命周期合同](../engineering/n1-lifecycle-validation-plan.md)和[名称目录协议](name-catalogue-plan.md)，再验证并合入执行存储防护，随后完成 N1 合同、N2 目录与调度、N3 持续存储、N4 生产验收。具体候选和未运行项见[状态记录](../engineering/status-2026-11-07.md)与[路线图](../engineering/roadmap.md)。方案或文档合入不替代运行时验收。
@@ -268,7 +268,7 @@ Admit → ReadHead → ResolveIdentity → VerifyBase → ExecuteStaged
 | HEAD 有效但依赖缺失/损坏 | 隔离拒绝；不造空页、不降到旧快照冒充最新 |
 | 上传完成但竞争失败 | 未发布残留；不作为提交证明，仅安全 GC 可回收 |
 
-SDK 传输重试使用同一候选 bytes/条件、受原 deadline 约束并计量。一次重试得到 412 可能是前一次已成功，因此不能只看最后一次 HTTP 状态。重新执行 SQL 属于更高层的独立决策。
+当前 SDK 每次显式调用只发送一次 POST，不自动重试。任何后续增加的对象传输重试都必须使用同一候选 bytes/条件、受原 deadline 约束并计量；一次重试得到 412 可能是前一次已成功，因此不能只看最后一次 HTTP 状态。重新执行 SQL 属于更高层的独立决策，不能由传输层隐式实施。
 
 崩溃点必须覆盖执行前后、每个依赖上传前后、CAS 发出后响应前、CAS 后 native publish 前、publish 后 HTTP 回包前。不能由本地 WAL 推断远端接受。
 
@@ -342,7 +342,7 @@ Lookup 可返回 committed、cancelled、retired、指纹冲突或 unknown。**�
 
 创建使用固定 operation ID：名称 reservation → Provisioning HEAD → 绑定发布 → HEAD Ready。步骤间并非原子事务，依持久状态幂等协调；中间状态返回 provisioning/不可用，不创建同名第二份库。初版可先用不可变 ID 接入，名称目录随后实现。删除后重建分配新 ID；旧缓存别名必须重新校验身份。
 
-详细状态、固定创建意图、精确名称恢复和全目录枚举按[名称目录实施协议](name-catalogue-plan.md)冻结。正常完成、取消创建、删除及同名重建都必须有持久终态和迟到动作屏障；不能因 reservation 超时直接移除名称记录，也不能删掉别的创建意图占有的 HEAD。未就绪的 Provisioning 不能被普通 core/HTTP 入口绕过。目录仍待实现，本段不表示生产状态机已经支持这些新状态。
+详细状态、固定创建意图、精确名称恢复和全目录枚举按[名称目录实施协议](name-catalogue-plan.md)冻结。正常完成、取消创建、删除及同名重建都必须有持久终态和迟到动作屏障；不能因 reservation 超时直接移除名称记录，也不能删掉别的创建意图占有的 HEAD。未就绪的 Provisioning 不能被普通 core/HTTP 入口绕过。正式核心、HTTP 与 SDK 候选已按 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)接入，仍须完成本轮精确覆盖与真实切点验收；精确名称 API 不代替完整枚举。
 
 每次操作从 HEAD 的 auth epoch/policy root 检查可信主体。单库权限变更与提交同序；外部检查后不绑定版本会留下 TOCTOU 竞态。撤销先发生则旧 CAS 失效；提交先发生则不追溯撤销已提交数据，结果查询仍检查当前权限。
 

@@ -2,7 +2,7 @@
 
 `scapd` 把正式 `scap-object` / SQLite 提交路径接到 HTTP，支持不可变数据库 ID、可信主体鉴权、有界调度、独立强读与显式接管。它不自动重放 SQL，不用本地目录作为数据库权威；S3 不可用时热缓存也不能产生新的成功强读。
 
-服务以数据库的完整 `deployment / tenant / database / incarnation / generation` 标识接入。当前没有名称目录或同名 reservation 协调；调用方必须持久保存原始身份。HEAD 的 key 保持单库固定以隔离旧身份，本地缓存键另包含 incarnation 和 generation，不能用缓存把两代身份混用。
+普通数据库接口以完整 `deployment / tenant / database / incarnation / generation` 标识接入；调用方必须持久保存原始身份。可选的独立 [名称目录接口](catalogue.md)使用 `POST /v1/catalogue`，协调原创建意图、同名 reservation、取消和删除；其新增实现仍须单独冻结验收。HEAD 的 key 保持单库固定以隔离旧身份，本地缓存键另包含 incarnation 和 generation，不能用缓存把两代身份混用。
 
 ## 启动
 
@@ -69,7 +69,7 @@ mkdir -p /absolute/private-cache
 
 ## HTTP 协议
 
-所有业务调用为 `POST /v1`，`Content-Type: application/json`，`Authorization: Bearer …`。重复认证或 admission 头拒绝；body 有字节上限与读取 deadline。`x-scap-admission` 必须与操作匹配，避免大 SQL 消耗控制预留。
+以下数据库调用为 `POST /v1`，`Content-Type: application/json`，`Authorization: Bearer …`。重复认证或 admission 头拒绝；body 有字节上限与读取 deadline。`x-scap-admission` 必须与操作匹配，避免大 SQL 消耗控制预留。
 
 | admission | 操作 | 总时间预算 |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ HTTP 的 data、control、recovery 各有独立 intake 配额，保留到响应 
 
 每个 worker 按会话数及实际页面数 LRU 丢弃本地缓存；失败 session 不复用。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额都是明确资源预算，并不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-同一个 data lane 中的冷库可能延迟映射到该 lane 的其他库。控制独立与队列公平不等于完整冷热点性能隔离，须由后续负载验收量化。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务未实现全局名称目录、动态路由、自动接管、物理对象 GC、PITR 或跨区域灾备。
+同一个 data lane 中的冷库可能延迟映射到该 lane 的其他库。控制独立与队列公平不等于完整冷热点性能隔离，须由后续负载验收量化。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务未实现完整目录枚举及冷启动 inventory、动态路由、自动接管、物理对象 GC、PITR 或跨区域灾备。
 
 ## 验证
 

@@ -1,4 +1,6 @@
-# 对象原生运行时 v2
+# 对象原生运行时：HEAD 3 与 v2 不可变对象
+
+本轮名称目录候选将 HEAD 升为 format 3；不可变 `SCAPOBJ2` 帧仍为 format 2。新增正式路径待本轮冻结源码完整验收，历史验证只认证各自记录的候选，见 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)。
 
 主入口是 `scap_object::Database`，用 `Arc<dyn scap_object_store::Objects>`、不可变 Scope、非零 worker identity 和 `Options` 装配。`Database::new` 使用默认配置；`with_options` 在构造时校验显式配置。S3 adapter 拥有异步 runtime，给独立阻塞 SQL 线程提供同步对象 port，不应从同一异步 executor 直接阻塞调用。
 
@@ -36,7 +38,7 @@ let database = scap_object::Database::with_options(objects, scope, worker_id, op
 
 ## 权威与数据布局
 
-HEAD key 固定绑定 deployment/tenant/database；incarnation 和 authority generation 放入 body，每次读取校验。key 的既有 `scap-object/v1/.../head` 命名空间不随帧版本迁移，避免通过换 key 绕过既有身份或删除屏障。v2 帧不兼容 v1 对象，不自动迁移旧库，不自动重新初始化缺失或不兼容 HEAD。
+HEAD key 固定绑定 deployment/tenant/database；incarnation 和 authority generation 放入 body，每次读取校验。key 的既有 `scap-object/v1/.../head` 命名空间不随版本迁移，避免通过换 key 绕过既有身份或删除屏障。HEAD 3 显式要求 nullable creation/deletion 来源，直接按 Scope 创建时两者均为 null；命名库严格绑定创建/删除来源。不可变 v2 帧不兼容 v1 对象，不自动迁移旧库或 HEAD，也不自动重新初始化缺失或不兼容 HEAD。
 
 不可变对象 key 包含全部 scope 和 SHA-256。GET 的 ETag 是 opaque 条件比较令牌，不当成内容摘要。HEAD 包含 revision/transition、SQL sequence、owner、policy、lifecycle、quota、retention、数据根和三个以内的请求世代索引 root。内部 u64 JSON 字段保持精确；现有 HTTP/Node 入口以规范十进制字符串传递身份，类型化 SQL 另有无损编码，见 [ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
 
@@ -74,12 +76,14 @@ cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝
 - `close_full` 是可信协调器接口，只关闭已满的当前世代。满窗口由条数或剩余结果空间决定，保留两代完整索引，不删除对象。
 - `set_policy` / `set_lifecycle` / `set_quota` 使用同一个 HEAD 排序；旧在途候选不能替换 ETag 继续提交。Deleted 保留身份屏障并拒绝后续操作。
 
+命名目录使用正式 `scap_object::catalogue::Catalogue`，固定 CreateDescriptor 与 ControlDescriptor，按 Reserved→Bound/Aborting 的原 ETag 竞争推进。Provisioning 禁止所有普通数据库入口；命名库只能经目录删除协议进入 Deleted，普通 set_lifecycle 不能绕过名称 Tombstone。目录 prepare 只保存原意图，Ready 与 owner 激活也分别判断；按名称 resolve 不会隐式下载全库或自动接管。具体阶段和权限见[目录协议](../architecture/name-catalogue-plan.md)。
+
 结果预算计量精确编码结果字节，不包含索引/帧开销；满窗口为最大 64 MiB 结果预留空间。请求终态格式最多 65,536 条，默认 4,096 条属于可配置留存合同。对外自动协调、SDK 能力协商和按小时留存尚未实现，不能把内部关闭 API 描述成完整生产网关。
 
 ## 部署边界
 
-`principal` 必须来自可信鉴权，不接受外部客户端直接自报身份；S3 凭据只给可信协议进程。正式认证 HTTP、Node SDK 及有界多库准入已经实现，历史本地验收见[服务验证记录](http-service-validation.md)。命名目录、自动 owner 路由、完整冷热隔离、GC/PITR、真实 AWS Standard 及生产 SLO 仍有独立退出门禁。关闭物理 GC 时，旧块、旧索引和失败上传 orphan 持续占用远端空间，单库当前文件配额不代表 bucket 总量或长期成本有界。
+`principal` 必须来自可信鉴权，不接受外部客户端直接自报身份；S3 凭据只给可信协议进程。正式认证 HTTP、Node SDK 及有界多库准入已经实现，历史本地验收见[服务验证记录](http-service-validation.md)。精确名称目录的正式候选有独立控制准入，其真实门禁仍需完成；全目录发现、自动 owner 路由、完整冷热隔离、GC/PITR、真实 AWS Standard 及生产 SLO 分别验收。关闭物理 GC 时，旧块、旧索引和失败上传 orphan 持续占用远端空间，单库当前文件配额不代表 bucket 总量或长期成本有界。
 
 相关决定及官方产品容量对照见 [ADR-0022](../adr/0022-production-capacity.md)。
 
-本地执行镜像及 WAL/SHM 必须使用可靠的私有本地存储。本分支新增 Linux 目录类型防护候选，参见[SQLite 存储安全](../operations/sqlite-storage-safety.md)；新增代码的编译、原生与覆盖率验证仍为 NOT_RUN，不沿用历史运行时证据。
+本地执行镜像及 WAL/SHM 必须使用可靠的私有本地存储。Linux 目录类型防护已通过 [PR #28 的独立本地验收](local-storage-validation.md)，支持边界见[SQLite 存储安全](../operations/sqlite-storage-safety.md)。目录防护不能证明任意 overlay 底层、设备或真实网络挂载的 I/O 正确性；后续运行时变更仍重新执行受影响门禁。

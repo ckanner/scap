@@ -241,6 +241,9 @@ class Proxy:
         # Capacity experiments import this fixture. Never accumulate their
         # large HTTP histories in memory; only the small fault suite opts in.
         self.capture = False
+        # Catalogue authority JSON is bounded separately from binary objects.
+        # Opt-in only: existing HEAD/capacity evidence remains byte-for-byte shaped as before.
+        self.capture_catalogue = False
         self.observations = []
         owner = self
 
@@ -280,6 +283,9 @@ class Proxy:
                               "if_match": self.headers.get("If-Match"), "if_none_match": self.headers.get("If-None-Match")}
                     if owner.capture and self.path.endswith("/head"):
                         fields["head_request_bytes"] = list(payload)
+                    if owner.capture_catalogue and "/catalogue/v1/" in self.path:
+                        assert len(payload) <= 64 * 1024, "catalogue request capture exceeds 64 KiB"
+                        fields["catalogue_request_bytes"] = list(payload)
                     rule = owner.rule
                     if rule and not rule.matches(self.command, self.path):
                         rule = None
@@ -329,6 +335,9 @@ class Proxy:
                                 "etag": response.getheader("ETag")}
                     if owner.capture and self.path.endswith("/head"):
                         received["head_response_bytes"] = list(body)
+                    if owner.capture_catalogue and "/catalogue/v1/" in self.path:
+                        assert len(body) <= 64 * 1024, "catalogue response capture exceeds 64 KiB"
+                        received["catalogue_response_bytes"] = list(body)
                     owner.event("object_response", status=response.status,
                                 **{key: value for key, value in received.items() if key != "status"},
                                 suppressed=bool(rule and rule.mode in ("drop", "cut")),

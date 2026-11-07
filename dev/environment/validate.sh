@@ -84,7 +84,11 @@ python3 experiments/object-capacity/run.py --worker "$worker" --weed "$SCAP_WEED
   --build-record "$record" --profile gib1 --evidence "$SCAP_EVIDENCE/gib1"
 python3 experiments/object-network/lifecycle_contract.py --worker "$worker" --weed "$SCAP_WEED" \
   --build-record "$record" --evidence "$SCAP_EVIDENCE/lifecycle"
+python3 experiments/object-network/catalogue_contract.py --worker "$worker" --weed "$SCAP_WEED" \
+  --build-record "$record" --evidence "$SCAP_EVIDENCE/catalogue"
 export CARGO_TARGET_DIR="$target_root/service-release"
 python3 experiments/object-service/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/service-build"
 python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/service"
+python3 experiments/object-service/catalogue_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/catalogue-service"

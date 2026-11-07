@@ -41,7 +41,9 @@
     "dual_backend": false
   },
   "profile": {
+    "head_format": 3,
     "object_format": 2,
+    "catalogue_format": 1,
     "page_size": 4096,
     "native_max_pages": 4294967294,
     "default_database_bytes": 10737418240,

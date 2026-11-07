@@ -3,25 +3,27 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { Client } from '../../sdk/node/src/client.js';
+import { createLedger } from './client_ledger.mjs';
 
 const [mode, privatePath, evidence] = process.argv.slice(2);
 const config = JSON.parse(readFileSync(privatePath, 'utf8'));
-let httpAttempts = 0;
+const ledger = createLedger(evidence, mode), contexts = new WeakMap();
+let clientOrdinal = 0;
 const scope = (database = '101', tenant = '7') => ({ deployment: '1', tenant, database, incarnation: '1', generation: '1' });
 function client(options = {}) {
-  return new Client({ endpoint: config.endpoint + '/v1', token: config.tokens.admin,
+  const id = String(++clientOrdinal);
+  const value = new Client({ endpoint: config.endpoint + '/v1', token: config.tokens.admin,
     scope: scope(), principal: '11', timeoutMs: 10000,
-    fetch: (...arguments_) => { httpAttempts++; return globalThis.fetch(...arguments_); }, ...options });
+    fetch: ledger.transport(id), ...options });
+  contexts.set(value, id); return value;
 }
 const a = client();
 const statement = (sql, parameters = []) => ({ sql, parameters });
 const sha = (data) => createHash('sha256').update(data).digest('hex');
-function append(file, value) {
-  const fd = openSync(evidence + '/' + file, 'a', 0o600);
-  try { writeSync(fd, JSON.stringify(value) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
-}
+const append = ledger.append;
+const last = (client) => ledger.last(contexts.get(client));
 function prepared(client, statements, id) {
   const request = client.prepare(statements, { epoch: '1', id });
   append('inputs.jsonl', { request: client.save(request) });
@@ -30,7 +32,7 @@ function prepared(client, statements, id) {
 async function acknowledged(client, request) {
   const value = await client.execute(request);
   assert.equal(value.state, 'committed');
-  append('acks.jsonl', { request: client.save(request), receipt: value.receipt,
+  append('acks.jsonl', { call_id: last(client), request: client.save(request), receipt: value.receipt,
     raw: value.rawResult.toString('base64'), raw_sha256: sha(value.rawResult) });
   return value;
 }
@@ -81,7 +83,7 @@ if (mode === 'initialize') {
       [BigInt(row.id), bytes, label, 9223372036854775807n])], String(i + 2));
     const first = await acknowledged(a, request);
     const duplicate = await a.execute(a.restore(a.save(request)));
-    append('duplicate-acks.jsonl', { request: a.save(request), receipt: duplicate.receipt,
+    append('duplicate-acks.jsonl', { call_id: last(a), request: a.save(request), receipt: duplicate.receipt,
       raw: duplicate.rawResult.toString('base64'), raw_sha256: sha(duplicate.rawResult) });
     assert.deepEqual(duplicate.receipt, first.receipt);
     assert.deepEqual(duplicate.rawResult, first.rawResult);
@@ -134,14 +136,14 @@ if (mode === 'initialize') {
   const state = saved(); state.uncertain = a.save(request);
   state.rows.push({ id: 99, sha256: sha(Buffer.from('uncertain-original-payload')), label: 'unknown' }); remember(state);
   await rejected(() => a.execute(request), ['UNKNOWN']);
-  assert.equal(httpAttempts, 1, 'SDK sent more than one HTTP attempt for the uncertain execute');
-  append('outcomes.jsonl', { request: a.save(request), execute: 'UNKNOWN' });
-  report = { phase: mode, original_outcome: 'UNKNOWN', sdk_http_attempts: httpAttempts };
+  assert.equal(ledger.attempts(), 1, 'SDK sent more than one HTTP attempt for the uncertain execute');
+  append('outcomes.jsonl', { call_id: last(a), request: a.save(request), execute: 'UNKNOWN' });
+  report = { phase: mode, original_outcome: 'UNKNOWN', sdk_http_attempts: ledger.attempts() };
 } else if (mode === 'resolve_unknown') {
   const state = saved(), request = a.restore(state.uncertain);
   const value = await a.lookup(request); assert.equal(value.state, 'committed');
   state.uncertainReceipt = value.receipt; state.uncertainRaw = value.rawResult.toString('base64'); remember(state);
-  append('outcomes.jsonl', { request: state.uncertain, resolved: 'committed', receipt: value.receipt, raw: state.uncertainRaw });
+  append('outcomes.jsonl', { call_id: last(a), request: state.uncertain, resolved: 'committed', receipt: value.receipt, raw: state.uncertainRaw });
   report = { phase: mode, resolved: 'committed', rows_verified: await verifyData(a, state) };
 } else if (mode === 'blackhole') {
   await rejected(() => a.query([statement('SELECT count(*) FROM records')]), ['UNKNOWN']);
@@ -166,11 +168,16 @@ if (mode === 'initialize') {
     const targetClient = target.tenant === '8' ? client({ token: config.tokens.other, scope: target, principal: '22' }) : a;
     const value = await targetClient.lookup(targetClient.restore(ack.request));
     assert.equal(value.state, 'committed'); assert.deepEqual(value.receipt, ack.receipt);
-    assert.equal(value.rawResult.toString('base64'), ack.raw); assert.equal(sha(value.rawResult), ack.raw_sha256); audited++;
+    assert.equal(value.rawResult.toString('base64'), ack.raw); assert.equal(sha(value.rawResult), ack.raw_sha256);
+    append('recoveries.jsonl', { kind: 'ack', ordinal: ++audited, call_id: last(targetClient),
+      original_call_id: ack.call_id, request: ack.request, receipt: value.receipt,
+      raw: value.rawResult.toString('base64'), raw_sha256: sha(value.rawResult) });
   }
   const uncertain = await a.lookup(a.restore(state.uncertain));
   assert.deepEqual(uncertain.receipt, state.uncertainReceipt);
   assert.equal(uncertain.rawResult.toString('base64'), state.uncertainRaw);
+  append('recoveries.jsonl', { kind: 'unknown', call_id: last(a), request: state.uncertain,
+    receipt: uncertain.receipt, raw: uncertain.rawResult.toString('base64'), raw_sha256: sha(uncertain.rawResult) });
   assert.equal((await a.cancel(a.restore(state.cancelled))).state, 'cancelled');
   const b = client({ token: config.tokens.other, scope: scope('202', '8'), principal: '22' });
   const bPrior = await b.status();

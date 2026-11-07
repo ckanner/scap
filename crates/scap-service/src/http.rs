@@ -23,12 +23,20 @@ use crate::{
 pub struct HttpState {
     pub auth: Authenticator,
     pub scheduler: Arc<Scheduler>,
+    pub catalogue: Option<CatalogueState>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
     pub recovery_timeout: Duration,
     pub intake: Arc<Semaphore>,
     pub control_intake: Arc<Semaphore>,
     pub recovery_intake: Arc<Semaphore>,
+}
+
+pub struct CatalogueState {
+    pub scheduler: Arc<crate::catalogue_scheduler::Scheduler>,
+    pub max_body_bytes: usize,
+    pub timeout: Duration,
+    pub intake: Arc<Semaphore>,
 }
 
 pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
@@ -43,9 +51,19 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
     {
         return Err(Failure::new("CONFIG"));
     }
+    if let Some(catalogue) = &state.catalogue {
+        if !(1..=65536).contains(&catalogue.max_body_bytes)
+            || catalogue.timeout.is_zero()
+            || catalogue.timeout > Duration::from_secs(86400)
+            || !(1..=4096).contains(&catalogue.intake.available_permits())
+        {
+            return Err(Failure::new("CONFIG"));
+        }
+    }
     Ok(Router::new()
         .route("/healthz", get(health))
         .route("/v1", post(call))
+        .route("/v1/catalogue", post(catalogue_call))
         .with_state(state))
 }
 
@@ -58,6 +76,7 @@ fn failure(error: Failure) -> Response {
     let status = match error.code {
         "UNAUTHENTICATED" => StatusCode::UNAUTHORIZED,
         "DENIED" => StatusCode::FORBIDDEN,
+        "NOT_FOUND" => StatusCode::NOT_FOUND,
         "INVALID" | "VERSION" => StatusCode::BAD_REQUEST,
         "LIMIT" => StatusCode::PAYLOAD_TOO_LARGE,
         "BACKPRESSURE" | "RECOVERY_BUSY" => StatusCode::TOO_MANY_REQUESTS,
@@ -155,6 +174,10 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
         Err(_) => return failure(Failure::new("BACKPRESSURE")),
     };
     let response = admitted(&state, principal, class, received, request).await;
+    reserved(response, reservation)
+}
+
+fn reserved(response: Response, reservation: OwnedSemaphorePermit) -> Response {
     let (parts, inner) = response.into_parts();
     Response::from_parts(
         parts,
@@ -163,6 +186,76 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
             reservation: Arc::new(reservation),
         }),
     )
+}
+
+async fn catalogue_call(State(state): State<Arc<HttpState>>, request: Request) -> Response {
+    let received = Instant::now();
+    let principal = match state
+        .auth
+        .authenticate(single(request.headers(), "authorization"))
+    {
+        Ok(principal) => principal,
+        Err(error) => return failure(error),
+    };
+    if single(request.headers(), "x-scap-admission") != Some("catalogue") {
+        return failure(Failure::new("INVALID"));
+    }
+    let catalogue = match &state.catalogue {
+        Some(catalogue) => catalogue,
+        None => return failure(Failure::new("UNAVAILABLE")),
+    };
+    let reservation = match catalogue.intake.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => return failure(Failure::new("BACKPRESSURE")),
+    };
+    let response = catalogue_admitted(catalogue, principal, received, request).await;
+    reserved(response, reservation)
+}
+
+async fn catalogue_admitted(
+    state: &CatalogueState,
+    principal: Principal,
+    received: Instant,
+    request: Request,
+) -> Response {
+    if single(request.headers(), "content-type") != Some("application/json") {
+        return failure(Failure::new("INVALID"));
+    }
+    let deadline = received + state.timeout;
+    let bytes = match tokio::time::timeout_at(
+        deadline.into(),
+        to_bytes(request.into_body(), state.max_body_bytes),
+    )
+    .await
+    {
+        Ok(Ok(bytes)) => bytes,
+        Ok(Err(_)) => return failure(Failure::new("LIMIT")),
+        Err(_) => return failure(Failure::new("DEADLINE")),
+    };
+    let call = match parse_catalogue_before(&bytes, deadline) {
+        Ok(call) => call,
+        Err(error) => return failure(error),
+    };
+    let receiver = match state.scheduler.submit(principal, call, deadline) {
+        Ok(receiver) => receiver,
+        Err(error) => return failure(error),
+    };
+    match tokio::time::timeout_at(deadline.into(), receiver).await {
+        Ok(Ok(Ok(value))) => Json(json!({"ok":true,"value":value})).into_response(),
+        Ok(Ok(Err(error))) => failure(error),
+        Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
+    }
+}
+
+fn parse_catalogue_before(
+    bytes: &[u8],
+    deadline: Instant,
+) -> Result<crate::catalogue_wire::Call, Failure> {
+    let call = crate::catalogue_wire::parse(bytes)?;
+    if Instant::now() >= deadline {
+        return Err(Failure::new("DEADLINE"));
+    }
+    Ok(call)
 }
 
 async fn admitted(
@@ -224,3 +317,6 @@ fn parse_before(bytes: &[u8], deadline: Instant) -> Result<wire::Call, Failure> 
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod catalogue_tests;

@@ -9,8 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use scap_object::catalogue::{AbortCreate, Caller, Catalogue, Creation, DeleteNamed, PrepareCreate};
 use scap_object::format::{
-    decode_object, digest, head_key, object_key, Lifecycle, OutcomeRef, Payload, Permission,
+    decode_object, digest, head_key, object_key, DatabaseQuota, Lifecycle, OutcomeRef, Payload, Permission,
     Request, Scope, MAX_OBJECT_BYTES,
 };
 use scap_object::{request, sql_limits, Database, Options, Receipt, Resolution, Session};
@@ -30,6 +31,7 @@ struct Config {
     scope: Scope,
     worker: u64,
     principal: u64,
+    provision: Option<bool>,
     cache_root: PathBuf,
     fixture_limits: Option<FixtureLimits>,
     resource_log: Option<PathBuf>,
@@ -258,6 +260,7 @@ fn perform(
     config: &Config,
     objects: &S3,
     database: &Database,
+    catalogue: &Catalogue,
     session: &mut Option<Session>,
     cmd: Value,
 ) -> Result<Value, Failure> {
@@ -265,9 +268,30 @@ fn perform(
         Instant::now() + Duration::from_millis(cmd["budget_ms"].as_u64().unwrap_or(8000));
     let op = cmd["op"].as_str().ok_or("fixture operation")?;
     let principal = config.principal;
+    let caller = Caller { principal, provision: config.provision.unwrap_or(false) };
     let number = |name: &str| cmd[name].as_u64().unwrap();
     let text = |name: &str| cmd[name].as_str().unwrap();
     match op {
+        "catalogue_prepare" => {
+            let input: PrepareCreate = serde_json::from_value(cmd["input"].clone()).map_err(debug)?;
+            catalogue.prepare(caller, &input, deadline).map(|value| json!(value)).map_err(debug)
+        }
+        "catalogue_resume" => {
+            let input: Creation = serde_json::from_value(cmd["creation"].clone()).map_err(debug)?;
+            catalogue.resume_create(caller, &input, deadline).map(|value| json!(value)).map_err(debug)
+        }
+        "catalogue_abort" => {
+            let input: AbortCreate = serde_json::from_value(cmd["input"].clone()).map_err(debug)?;
+            catalogue.abort_create(caller, &input, deadline).map(|value| json!(value)).map_err(debug)
+        }
+        "catalogue_inspect" => catalogue.inspect_create_operation(caller, number("create_operation"), deadline)
+            .map(|value| json!(value)).map_err(debug),
+        "catalogue_resolve" => catalogue.resolve(caller, text("name"), deadline)
+            .map(|value| json!({"creation":value.creation,"binding_revision":value.binding_revision,"head":value.head})).map_err(debug),
+        "catalogue_delete" => {
+            let input: DeleteNamed = serde_json::from_value(cmd["input"].clone()).map_err(debug)?;
+            catalogue.delete(caller, &input, deadline).map(|value| json!(value)).map_err(debug)
+        }
         "store_get" => objects
             .get(text("key"), MAX_OBJECT_BYTES, deadline)
             .map(|stored| json!({"bytes":stored.bytes,"etag":stored.etag}))
@@ -325,6 +349,11 @@ fn perform(
         "set_lifecycle" => {
             let lifecycle: Lifecycle = serde_json::from_value(cmd["lifecycle"].clone()).map_err(debug)?;
             database.set_lifecycle(principal, number("revision"), number("nonce"), lifecycle, deadline)
+                .map(|head| json!(head)).map_err(debug)
+        }
+        "set_quota" => {
+            let quota: DatabaseQuota = serde_json::from_value(cmd["quota"].clone()).map_err(debug)?;
+            database.set_quota(principal, number("revision"), number("nonce"), quota, deadline)
                 .map(|head| json!(head)).map_err(debug)
         }
         "session_open" => {
@@ -510,9 +539,11 @@ fn main() {
         Arc::new(objects.clone()),
         config.scope.clone(),
         config.worker,
-        options,
+        options.clone(),
     )
     .unwrap();
+    let catalogue = Catalogue::new(Arc::new(objects.clone()), config.scope.deployment,
+        config.scope.tenant, config.worker, options).unwrap();
     let mut session = None;
     println!("{}", json!({"ready":true,"resources":resources()}));
     std::io::stdout().flush().unwrap();
@@ -522,7 +553,7 @@ fn main() {
         let result = if resource_failed.load(Ordering::SeqCst) {
             Err("fixture resource recorder failed".into())
         } else {
-            perform(&config, &objects, &database, &mut session, command)
+            perform(&config, &objects, &database, &catalogue, &mut session, command)
         };
         let result = if resource_failed.load(Ordering::SeqCst) {
             Err("fixture resource recorder failed during operation".into())

@@ -58,7 +58,13 @@ def byte_string(value):
 
 def head(value):
     result = parse(byte_string(value))
-    require(isinstance(result, dict) and result.get("format") == 2, "HEAD body is not format 2")
+    require(isinstance(result, dict) and result.get("format") == 3, "HEAD body is not format 3")
+    # These twelve cases create direct, unnamed databases. HEAD v3 requires
+    # explicit nullable origins; the separate catalogue oracle audits named
+    # creation/deletion proofs. Immutable SCAPOBJ2 frames remain format 2.
+    require("creation" in result and result["creation"] is None
+            and "deletion" in result and result["deletion"] is None,
+            "lifecycle fixture requires explicit unnamed HEAD origins")
     return result
 
 

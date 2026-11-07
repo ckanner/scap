@@ -116,13 +116,25 @@ HEAD 已持久但未收到业务 ACK 的请求单独记录；只有客户端实�
 
 ## 认证 HTTP 与 Node SDK 门禁
 
-正式服务新增的生产文件和实际二进制入口进入同一 Rust 单元分母。SDK 的四个生产 JS 模块逐文件检查 Node 行／函数／分支和原始 V8 function/range map，任何未命中计数或缺文件都失败；真实 Fetch 的重定向、流式超时和解压预算使用另一进程，不混入单元 profile。
+正式服务新增的生产文件和实际二进制入口进入同一 Rust 单元分母。SDK 的所有生产 JS 模块逐文件检查 Node 行／函数／分支和原始 V8 function/range map，任何未命中计数或缺文件都失败；目录候选增加的两个模块同样纳入分母。真实 Fetch 的重定向、流式超时和解压预算使用另一进程，不混入单元 profile。
 
 [真实服务实验](../../experiments/object-service/README.md)从冻结源码构建实际 `scapd`，启动两台 daemon、正式 SDK、网络故障代理和固定本地 S3 后端。构建收据绑定 Rust、SDK、夹具、锁文件、实际二进制及构建时的 native archive 摘要；运行前后重新核对源码与 `scapd`，另核对实际 Node／S3 可执行文件摘要。优化掉 Python assertion 或向真实运行传入单元插桩环境均拒绝。
 
 客户端在发送前保存独立输入；所有成功 execute 响应均记账，包括同一请求的成功重复调用。UNKNOWN 后的查证保留单独分母。全部计算及后端进程终止、计算缓存删除后，以新的 owner 重建两个租户的业务数据库，逐条核对完整 receipt、原结果和业务数据。验收还覆盖跨租户拒绝、暖读撤权、取消、并发条件建库、HEAD 成功响应丢失、热缓存时的 S3 黑洞及旧 owner fence。
 
 这些小库合同不代替名称目录、自动 owner 调度、完整冷热点隔离、GiB 规模、GC/PITR、AWS 和生产性能门禁。具体执行结果和源码身份按独立机器报告记录。
+
+## 名称目录正式实现门禁
+
+[ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)与[切点矩阵](../../experiments/object-network/catalogue-matrix.md)先冻结协议和分母。正式 core、服务、SDK 均进入各自生产覆盖；模型的 885/25 历史只提供前置论证。HEAD 3 与不可变 SCAPOBJ2 format 2 分别校验，原网络、保留结果、生命周期、服务和 1 GiB 回归重新执行，不沿用 HEAD 2 的运行时结果。
+
+`experiments/object-network/catalogue_contract.py` 从实际 pilot 观察发布 PUT，再逐个验证发送前、后端已接受但响应未达、调用方已消费响应后的计算丢失。最后一种切点必须由下一次真实操作已发出或方法响应已被客户端消费证明，代理已经写 socket 不等于调用方消费。独立 oracle 从输入/调用/响应、条件写、body/ETag、ACK、进程退出及恢复账本重算，不接受 runner 的 passed 字段作为证据。
+
+结构合同覆盖原意图冲突、Reserved 的 bind/abort 两种竞争顺序、迟到 provision 与永久 HEAD tombstone、外来合法占用、损坏/缺失失败关闭、所有 Provisioning 普通入口拒绝、正常删除与名称重用。ControlDescriptor 已准入后更换 nonce/revision 必须冲突，原 UNKNOWN 不改为确定未生效。取消后的 NotReserved、CannotAbortBound、Aborting 和 Aborted 分别计数。
+
+`experiments/object-service/catalogue_contract.py` 使用实际 daemon、正式 CatalogueClient 与真实 S3 后端，另验认证主体、当前 provision/READ/ADMIN、完整保存/恢复意图、目录占满时数据库 lookup/cancel 仍有独立准入、删除重用与全部计算丢失。普通服务实验同时保留 HTTP 请求/响应原字节和完整进程链，补齐离线原结果重算所需证据。fixture 测试不能代替这些真实运行。
+
+两个实验均保存源码与 release 收据、实际工具身份、完整失败和全部恢复分母。全目录发现/分页、持续并发下 inventory 完整性、自动 owner 路由、全面冷热隔离、AWS 和生产负载活性另列，不能用已知名称/Scope 名单冒充完整目录恢复。
 
 ## 可配置容量门禁
 

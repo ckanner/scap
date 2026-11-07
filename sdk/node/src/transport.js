@@ -8,7 +8,9 @@ import { record, requireValue, parseJson, envelope } from './wire.js';
 const MAX_WIRE_BYTES = 96 * 1024 * 1024;
 const RECOVERY = new Set(['open', 'activate']);
 const DATA = new Set(['create', 'execute', 'query']);
-const READ = new Set(['status', 'query', 'open']);
+const CATALOGUE = new Set(['prepare_create', 'resume_create', 'abort_create',
+  'inspect_create_operation', 'resolve_name', 'delete_name']);
+const READ = new Set(['status', 'query', 'open', 'inspect_create_operation', 'resolve_name']);
 
 export function duration(value) {
   requireValue(Number.isSafeInteger(value) && value > 0 && value <= 2147483647,
@@ -94,7 +96,8 @@ export class Transport {
         method: 'POST', body: encoded, redirect: 'error', cache: 'no-store', credentials: 'omit',
         referrerPolicy: 'no-referrer', signal: controller.signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${this.#token}`,
-          'x-scap-admission': recovery ? 'recovery' : DATA.has(body.operation) ? 'data' : 'control' },
+          'x-scap-admission': CATALOGUE.has(body.operation) ? 'catalogue' :
+            recovery ? 'recovery' : DATA.has(body.operation) ? 'data' : 'control' },
       }));
       requireValue(response instanceof Response && !response.redirected, 'Invalid or redirected HTTP response');
       const contentType = response.headers.get('content-type');

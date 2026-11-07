@@ -10,7 +10,7 @@
 
 当前 `scap-object` 已有不可变 Scope、条件建库、原子 HEAD 发布、权限、显式接管/激活、请求取消、结果退休及 Deleted 屏障。HTTP/Node SDK 使用 deployment、tenant、database、incarnation、generation 五元组，并保留原 SQL 请求以查证 UNKNOWN。参见[运行时](../engineering/object-runtime.md)、[HTTP ADR](../adr/0023-authenticated-http-and-node-sdk.md)和[路线图](../engineering/roadmap.md)。
 
-主线没有名称 reservation、Provisioning HEAD、名称解析、名称取消/删除/重用或名称枚举。`Lifecycle` 目前只有 Ready、Maintenance、Deleted；`Database::create` 直接建立 Ready、inactive 的 HEAD。本文里的类型和方法都是待实现接口。
+本轮工作分支已在 `crates/scap-object/src/catalogue/` 写入名称 reservation、Provisioning HEAD、名称解析、名称取消/删除/重用的正式实现草稿，并保留 `Database::create` 直接建立 Ready、inactive HEAD 的能力。新增代码仍待完整单元覆盖、独立审查和真实目录合同验收；不能把工作分支的开发回归称为主线验收或 N2 退出。名称枚举仍未实现。
 
 第一版目录提供固定创建意图、逐步创建、**仅在 Reserved 阶段可接受的创建取消**、按名解析和已绑定名称删除。自动 owner 路由、冷热隔离、结果索引分段、GC、PITR 与 lazy VFS 不在此工作包内。全目录枚举有独立门槛，不能以几个调用者已知的名字代替。
 
@@ -22,7 +22,7 @@
 
 第一版名称是 1–128 字节的有效 UTF-8，拒绝 Unicode 控制字符；大小写和 Unicode 字节完全区分，不隐式 trim、大小写转换或归一化。名称键使用 deployment/tenant 前缀与规范名称字节的 SHA-256 摘要；读回仍要核对完整名称和租户。摘要碰撞返回错误，不能把不同字符串当成同名。
 
-HTTP 仅接收名字、固定 operation ID、预期前一名称 revision 和显式创建选项。deployment、tenant、principal 来自受信认证上下文。内部 `CreateIntent` 包含完整 Scope，SDK 保存服务返回的这个固定意图；后续续作不得换 Scope。
+HTTP 仅接收名字、固定 operation ID、预期前一名称 revision 和显式创建选项。deployment、tenant、principal 来自受信认证上下文。返回的 `Creation` 包含完整 Scope，SDK 保存服务返回的这个固定意图；后续续作不得换 Scope。
 
 第一版服务可用固定的身份派生规则避免进程丢失后重新分配：对 ASCII 域分隔符 `SCAP-NAMED-ID-v1`、一个零字节与 deployment、tenant、principal、create operation 的四个 8 字节大端无符号整数依次拼接后计算 SHA-256；摘要的第 0–7、第 8–15 字节按大端 u64 分别作为 database、incarnation，generation 固定为 1。零值或保留值在写入任何记录前拒绝，要求调用者明确使用另一个 operation。该规则必须在实现时以固定测试向量冻结，不能因默认配置、进程、时间或重试次数改变。它只确定候选身份，**不以哈希碰撞概率承担唯一性正确性**；唯一占用由第 2.3 节的永久 HEAD 键决定。其他可信分配器只能在新的协议版本中采用相同的固定意图与永久占用规则。
 
@@ -43,6 +43,18 @@ CreateDescriptor 不累积其他操作，大小固定有界。首次有效默认
 
 Binding 初次只条件创建，随后只以同一次 exact GET 的完整 body/ETag 做 CAS。每次变更递增 revision，溢出拒绝。记录字节上限固定为 64 KiB；不把整个租户目录塞入一个 JSON。
 
+正式实现的内部键固定如下，HTTP/SDK 不接收这些键：
+
+| 记录 | 内部键（`P = scap-object/v1/{deployment}/{tenant}/catalogue/v1`） |
+| --- | --- |
+| CreateDescriptor | `P/create/{creator}/{create_operation}` |
+| ControlDescriptor | `P/control/{caller}/{abort或delete}/{control_operation}` |
+| Binding | `P/name/{sha256(原始UTF-8名称)}` |
+| AbortProof | `P/abort-proof/{creator}/{create_operation}` |
+| HEAD | 继续使用 `scap-object/v1/{deployment}/{tenant}/{database}/head` |
+
+目录记录采用固定字段顺序的规范 JSON，严格拒绝缺字段、额外字段、重复字段、超限及与重新编码不同的字节。名称 revision 按每轮创建预留三个值：`previous + 1` 为 Reserved，`previous + 2` 为 Bound 或 Aborting，`previous + 3` 为 Tombstone；预先拒绝可能溢出的 previous。完整字段和有效默认值进入摘要，不能用可变记录的 ETag 充当永久来源身份。
+
 HEAD 新增来源和控制终态字段采用独立的 v3 HEAD 格式并更新严格格式测试。不可变对象 SCAPOBJ2 与结果 envelope 的 v2 格式/hash 合同不随 HEAD 版本改变。保留现有直接 create API，但直接创建记录不能被收编为命名创建。本文不要求旧格式/旧原型迁移，也不能用缺字段默认值伪造命名来源。
 
 ### 2.3 HEAD 键就是永久身份占用屏障
@@ -54,6 +66,8 @@ HEAD 新增来源和控制终态字段采用独立的 v3 HEAD 格式并更新严
 命名创建遇到已存在 HEAD 时只有两种正常解释：同一个完整创建意图，或 ID 冲突。后一种情况必须保持该 HEAD 原样；不能删除它、收编它或自动给当前 operation 再分配一个 ID。调用者可以取消自己的 Reserved 名称后，以新的 operation 发起新的创建。
 
 格式损坏、未知格式、HEAD key 与 body 的 deployment/tenant/database 不符，不是可接受的“其他占用者”证明，必须失败关闭。只有合法且来源明确的其他身份可以作为 ID 冲突证据。
+
+这里的“来源明确”只核对永久身份元数据：显式直接来源为 `creation = null`；命名来源必须 exact GET 它的 CreateDescriptor，并验证完整 Scope 与实际来源摘要，缺失或不匹配即 Corrupt。ForeignOccupied 不证明该外来库的业务数据闭包或 SQLite 健康，也不遍历外来业务页；其可变名称 Binding 可能早已重用，不能要求仍指向同一旧 HEAD。永久槽占用、确认过的不可变来源与不物理删除的协议共同构成屏障。
 
 ### 2.4 控制意图的持久准入
 
@@ -96,6 +110,8 @@ Bound 只表示名称意图已经发布。只有 fresh HEAD 为 Ready 并通过�
 两个不同创建意图争同名时，只有一个 reservation 能成功。同意图两个进程续作可以返回 CAS 冲突，但不能创建第二个 Scope、重设权限/配额或重放 SQL。
 
 每次调用只有有限步骤、单一绝对 deadline。CAS 冲突和 UNKNOWN 后返回给调用者；显式续作读取持久进度，建立下一步合法候选。不能把失败的旧候选换上新 ETag 再发布，不能将控制步骤的同意图恢复推广为 SQL 自动重试。
+
+多对象 GET 不是原子快照。正式协调器读完 Binding、HEAD、AbortProof 后，再 exact GET 同一个名称键，要求其 body 与 ETag 都等于首次读取；名称改变则返回 Conflict。这样不会把读取期间合法完成的 Reserved → Bound → Ready 错当成“Reserved 下出现 Ready”的损坏，也不会靠换 ETag 重发旧候选。名称 revision 不回绕且不物理删除，是这个稳定名称检查的前提。HEAD 可以在名称 Bound 不变时继续正常推进；后续每个 HEAD 写仍用原始 HEAD ETag 排序。
 
 | 观察状态 | 处理 |
 | --- | --- |
@@ -199,7 +215,7 @@ Ready 完成与后续正常删除仍在同一 HEAD 上排序。一个迟到 comp
 
 公开 Catalogue 自己 exact GET descriptor/Binding/HEAD 并核对来源、权限和恢复闭包；客户端提供的 JSON、Scope、名字或所谓 proof 不能替代这些读取。全部新生产文件进入原精确覆盖分母，不把产品逻辑放在实验目录。
 
-以下是待实现的公开 DTO/方法边界；内部持久记录不等于 HTTP 输入：
+以下是本轮正式模块采用的公开 DTO/方法边界；内部持久记录不等于 HTTP 输入：
 
 ```rust
 pub struct Caller { pub principal: u64, pub provision: bool }
@@ -273,6 +289,8 @@ impl Catalogue {
 ```
 
 `inspect_create_operation` 与 `resolve` 严格只读。精确原 abort/delete 的查证与收敛使用保存原控制意图的对应方法重入。mutation 可以顺序推进有限阶段；遇到 412/UNKNOWN 立即停止该候选，不自动更换 ETag/Scope/条件，不把未完成状态报告为终态。独立有界控制准入不得挤占已有数据库 lookup/cancel。
+
+第一版 `CreationPhase` 不把 Maintenance 包装成 Ready：同意图创建检查/续作遇到 Maintenance 返回 Conflict，正常 delete 仍允许当前 ADMIN 删除该库。`CannotAbortBound` 同样必须核对 fresh 同来源 HEAD：Provisioning 核对初始不变量，Ready/Maintenance/正常 Deleted 遵守当前保留策略的 READ 权限；Bound 配上 HEAD 404 或错误来源必须失败关闭，不能仅凭名称绑定返回正常完成后的状态信息。
 
 CatalogueError 至少区分 Invalid、Denied、NotFound、Conflict、IdentityConflict、Corrupt、Limit、Unknown。Bound 的 HEAD 404 是权威缺失，不能归为“名字未使用”。Aborting 已接受但屏障/证明/名称释放尚未完成，不能报 Aborted。u64 的 HTTP/SDK 表示继续使用规范十进制字符串，禁止 JSON number 丢精度。
 

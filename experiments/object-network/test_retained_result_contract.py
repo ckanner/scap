@@ -28,7 +28,8 @@ def fixture(epoch=1):
     result = contract.pack(metadata, VALID)
     entries = [{"request": request, "outcome": {"state": "committed", "result": contract.sha(result)}}]
     index = contract.pack({"format": 2, "scope": dict(SCOPE), "payload": {"kind": "index", "value": entries}}, b"")
-    head = {"format": 2, "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
+    head = {"format": 3, "creation": None, "deletion": None,
+            "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
             "owner_instance": 101, "active": False, "retention": {"max_result_bytes": 128 * 1024 * 1024},
             "windows": [{"epoch": epoch, "root": contract.sha(index), "count": 1, "result_bytes": len(VALID)}]}
     return head, index, result

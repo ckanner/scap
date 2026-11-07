@@ -21,7 +21,7 @@ impl Worker for Echo {
         }
     }
 }
-fn state() -> Arc<HttpState> {
+pub(super) fn state() -> Arc<HttpState> {
     let token = "a".repeat(32);
     let auth = Authenticator::new(vec![Credential {
         sha256: format!("{:x}", Sha256::digest(&token)),
@@ -49,6 +49,7 @@ fn state() -> Arc<HttpState> {
     Arc::new(HttpState {
         auth,
         scheduler,
+        catalogue: None,
         max_body_bytes: 4096,
         timeout: Duration::from_millis(500),
         recovery_timeout: Duration::from_secs(2),
@@ -57,7 +58,7 @@ fn state() -> Arc<HttpState> {
         recovery_intake: Arc::new(Semaphore::new(1)),
     })
 }
-fn runtime() -> tokio::runtime::Runtime {
+pub(super) fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -70,7 +71,7 @@ fn body(operation: &str, database: u64) -> String {
     }
     value.to_string()
 }
-fn request(operation: &str, database: u64) -> Request {
+pub(super) fn request(operation: &str, database: u64) -> Request {
     let class = match operation {
         "open" | "activate" => "recovery",
         "query" | "execute" | "create" => "data",
@@ -85,7 +86,7 @@ fn request(operation: &str, database: u64) -> Request {
         .body(Body::from(body(operation, database)))
         .unwrap()
 }
-async fn decoded(response: Response) -> Value {
+pub(super) async fn decoded(response: Response) -> Value {
     serde_json::from_slice(&to_bytes(response.into_body(), 100000).await.unwrap()).unwrap()
 }
 
@@ -426,7 +427,7 @@ fn parse_and_worker_failures_preserve_error_codes_without_retry() {
     });
 }
 
-struct PendingBody;
+pub(super) struct PendingBody;
 impl HttpBody for PendingBody {
     type Data = Bytes;
     type Error = std::io::Error;
@@ -483,6 +484,7 @@ fn invalid_state_is_rejected_and_all_failure_classes_have_stable_statuses() {
     for (code, status) in [
         ("UNAUTHENTICATED", 401),
         ("DENIED", 403),
+        ("NOT_FOUND", 404),
         ("INVALID", 400),
         ("VERSION", 400),
         ("LIMIT", 413),

@@ -1,6 +1,6 @@
 # Node.js S3 原生 HTTP SDK
 
-这个无第三方运行时依赖的 ESM 客户端连接新的 `scap-service`，使用 `POST /v1`。它复用 [node-codec](../node-codec/README.md) 的精确 SQL 指纹及结果编解码，保留 u64 身份、i64 整数、负零、Unicode 和 BLOB；没有引入旧 Raft 协议。包目前标记 `private`，从仓库使用，尚未发布到 npm。
+这个无第三方运行时依赖的 ESM 客户端连接新的 `scap-service`。`Client` 使用 `POST /v1`，`CatalogueClient` 使用 `POST /v1/catalogue`。它复用 [node-codec](../node-codec/README.md) 的精确 SQL 指纹及结果编解码，保留 u64 身份、i64 整数、负零、Unicode 和 BLOB；没有引入旧 Raft 协议。包目前标记 `private`，从仓库使用，尚未发布到 npm。
 
 每次方法调用最多发出一个 HTTP 请求。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch、不自动接管 owner，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
 
@@ -85,6 +85,73 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
 
+## 名称目录与完整原意图
+
+`CatalogueClient` 的 `deployment`、`tenant`、`principal` 是应用配置中预期的服务 authority 和调用者。它们用于校验 Creation 和拒绝跨上下文 restore，不作为 HTTP 授权输入；服务端使用自己的配置与 bearer token 取得这些身份。应用须正确绑定 endpoint、凭据和预期上下文。数据库 ID 由持久创建 descriptor 分配，SDK 不生成或替换它。
+
+```javascript
+import { CatalogueClient, UnknownError } from './sdk/node/src/client.js';
+
+const names = new CatalogueClient({
+  endpoint: 'http://127.0.0.1:8080/v1/catalogue',
+  token: process.env.SCAP_TOKEN,
+  deployment: '1', tenant: '2', principal: '7',
+});
+
+const intent = names.prepareIntent({
+  operation: 'prepare_create',
+  name: 'notes', create_operation: '201', expected_name_revision: null,
+  options: { quota: { mode: 'default' } },
+});
+const savedIntent = names.saveIntent(intent);
+// 应用先将 savedIntent 持久化并完成同步，再执行下面这一次提交。
+// saveIntent 本身只返回字符串，不负责磁盘、数据库或浏览器持久化。
+try {
+  const prepared = await names.submit(intent);
+  // prepared 仅证明 descriptor 持久化，还没有承诺名字 Bound 或数据库 Ready。
+  // 后续 resume 也是新的明确调用，宜保存它自己的完整原意图。
+  const resume = names.prepareIntent({ operation: 'resume_create', creation: prepared.creation });
+  const savedResume = names.saveIntent(resume);
+  // 将 savedResume 持久化后，再执行 names.submit(resume)。
+} catch (error) {
+  if (!(error instanceof UnknownError)) throw error;
+  const original = names.restoreIntent(savedIntent);
+  const observed = await names.inspectCreateOperation(original.action.create_operation);
+  // 依据明确 phase 决定下一步。not_reserved 不等于已经取消旧请求。
+  console.log(observed.phase, observed.creation);
+}
+```
+
+本地 `prepareIntent(action)` 复制、严格校验并深度冻结所有原条件；它不会联系服务或分配新的身份。`saveIntent` 返回版本化 JSON，包含 deployment、tenant、principal 及完整 action；`restoreIntent` 校验同一上下文、规范 u64、字段与版本，恢复后仍使用原 create/control operation、Scope、revision、nonce 和 quota choice。保存的内容不是授权证明，也不是防止存储介质篡改的签名；服务端始终与持久 descriptor、控制意图和当前权限重新比较。
+
+| 方法 | 精确输入与结果 |
+| --- | --- |
+| `prepareIntent(action)` | 本地生成 `CatalogueIntent`；action 使用下列 wire 字段及 `operation`，不含外层 version、scope、tenant 或 principal |
+| `saveIntent(intent)` / `restoreIntent(text)` | 保存／恢复最多 64 KiB 的完整原意图，不发请求 |
+| `submit(intent, options?)` | 使用原意图发出一个版本化 POST，校验返回身份与阶段 |
+| `prepareCreate({name, create_operation, expected_name_revision, options}, callOptions?)` | 创建持久 descriptor，返回 `PreparedCreate`；`expected_name_revision` 必填，首次名称用 `null`，重用需准确 tombstone revision |
+| `resumeCreate(creation, options?)` | 按原 Creation 继续有限阶段，返回 `CreationProgress` |
+| `abortCreate({creation, control_operation, expected_name_revision, nonce}, options?)` | 保存同一控制身份与名称条件，返回 `AbortProgress` |
+| `inspectCreateOperation(createOperation, options?)` | 严格只读，按当前调用者的原 create operation 查进度 |
+| `resolveName(name, options?)` | 严格只读，按当前 READ 权限返回 `{creation, binding_revision, head}` |
+| `deleteName({creation, control_operation, expected_name_revision, expected_head_revision, nonce}, options?)` | 使用当前 ADMIN 和两个原预期 revision 正常删除，返回 `DeletionProgress`；调用者可不同于 creator |
+
+六个便利方法各自在内部构造意图后发出一次 POST。需要发送前持久化时，用显式的 `prepareIntent` → `saveIntent` → `submit`。所有目录操作使用 `x-scap-admission: catalogue` 和普通调用 deadline，`callOptions` 仍只有 `timeoutMs`、`signal`；SDK 不循环推进阶段、不自动刷新预期 revision、不重新准备另一 Scope、不重投 SQL。
+
+创建 options 固定为 `{quota: {mode: 'default'}}`、`{quota: {mode: 'unlimited'}}` 或 `{quota: {mode: 'limited', max_bytes: '4096'}}`。limited 值必须为有效页对齐十进制字节数；其他 mode 不接受 `max_bytes`。名称按原 UTF-8 字节保留，长度 1–128 字节，不接受控制字符或非法 surrogate，不做 Unicode 归一化。operation、nonce 等 u64 始终使用规范十进制字符串。应用负责在相应的部署／租户／主体命名空间分配和持久化操作 ID。
+
+`Creation` 固定为 `{creator, operation, name, scope, expected_name_revision}`，其中 operation 永远是原创建 ID。控制响应顶层的 operation 则是原 control ID，删除者不得把 Creation.creator 改成自己。`PreparedCreate` 返回的 `initial_quota` 与 `retention` 是最初 descriptor 的策略；当前数据库 quota 仍以 fresh `head` 为准。
+
+| 响应 | 完整阶段 |
+| --- | --- |
+| `CreationProgress` | `not_reserved`、`reserved`、`provisioning`、`bound`、`ready`、`aborting`、`aborted`、`deleting`、`deleted`、`name_conflict`、`identity_conflict` |
+| `AbortProgress` | `not_reserved`、`cannot_abort_bound`、`aborting`、`aborted` |
+| `DeletionProgress` | `not_deleted`、`deleting`、`deleted` |
+
+所有 progress 保留 nullable `binding_revision`、`head_revision`；名称重用后属于后继 Creation 的 revision 不能当成原操作的新条件。创建进度还包含 `initial_quota` 和 `retention`；控制进度包含原 `operation` 和 `nonce`。目录的 `provisioning` phase 不会成为可供普通 SQL 操作的 DatabaseStatus。
+
+目录 mutation 的 `UnknownError.reference.intent` 保留完整原意图。查创建用 `inspectCreateOperation`；它不证明某个 abort/delete control ID 已成功。原 abort/delete 的查证及收敛应在应用明确决定后，用保存的原完整 intent 再调用 `submit`；这可能继续尚未完成的阶段，不能当作只读查询。`NOT_FOUND`、`IDENTITY_CONFLICT`、`CONFLICT`、`DENIED`、`CORRUPT`、`LIMIT`、`UNKNOWN` 分开返回。未知或 malformed phase 拒绝，不能转成 ready/aborted/deleted。
+
 ## 原始结果和回执校验
 
 客户端逐字段校验 scope、epoch、ID、principal、原 SQL 指纹、序号、转换身份及两个 SHA-256 字段。**`receipt.result_hash` 是整个 `SCAPOBJ2` Result 对象的摘要，并不是裸 `SCAPRES1` 的摘要。** 客户端按固定 v2 格式构造 metadata、长度头和原结果 bytes，以无损数字编码重算对象摘要，再解释 SQL 结果。其他 wire 版本或结构不能被猜测接受。
@@ -99,10 +166,10 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | --- | --- |
 | `ClientError` | 本地输入无效、读取失败、预算或 Abort；不包含自动重放策略 |
 | `RemoteError` | 经过 HTTP 状态与协议核对的服务器错误；`outcome: 'unresolved'`，例如 FENCED、CONFLICT、WINDOW_FULL |
-| `UnknownError` | 有副作用调用的传输／响应不确定，或原请求查证不可用；保留只含身份的 `reference` |
+| `UnknownError` | 有副作用调用的传输／响应不确定，或原请求查证不可用；SQL 保留身份 `reference`，目录额外保留完整原 `reference.intent` |
 | `CommittedResultError` | 已有核对后的提交回执，结果物化失败、deadline 超过或 native publication 不可用；保留 receipt，完整原 bytes 可用时保留 rawResult |
 
-未验证的 HTTP 200、意外 201、重定向、重复 JSON 键、非法 UTF-8、不完整响应、伪造回执、摘要不符都不能产生成功 ACK。异常不保留服务器的任意 message、任意 fetch 错误文本、bearer token 或原 SQL。`save` 的内容包含 SQL 和参数，应用应按业务数据保护它。
+未验证的 HTTP 200、意外 201、重定向、重复 JSON 键、非法 UTF-8、不完整响应、伪造回执、摘要不符都不能产生成功 ACK。异常不保留服务器的任意 message、任意 fetch 错误文本、bearer token 或原 SQL。`save` 的内容包含 SQL 和参数；目录错误引用与 `saveIntent` 含名称、身份、Scope 和控制条件，应用应按业务数据保护它们。
 
 默认普通超时 30 秒、恢复 30 分钟，请求和响应 wire 各最多 96 MiB；构造参数可收紧，不能高于 wire 能力上限。响应限制施加在实际解压后的字节流，`Content-Length` 也先做界限检查。HTTP 表示包含 JSON/base64 开销，因此它和 SQL 原始字节预算不同；预算是逻辑准入限制，不是进程 RSS 硬隔离。
 

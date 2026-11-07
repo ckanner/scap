@@ -104,7 +104,7 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     fixture for a different reason, creating a false positive regression.
     """
     head = load_json(head_bytes)
-    require(head["format"] == 2, "fixture HEAD version")
+    require(head["format"] == 3, "fixture HEAD version")
     selected = [window for window in head["windows"] if window["epoch"] == epoch]
     require(len(selected) == 1, "exact retained window required")
     window = selected[0]
