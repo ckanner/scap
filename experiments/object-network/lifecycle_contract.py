@@ -65,6 +65,7 @@ class LifecycleSuite:
         self.private, self.compute, self.backend, self.proxy = private, compute, backend, proxy
         self.workers, self.config = workers, config
         self.counter = self.worker_number = self.nonce = 0
+        self.call_labels = set()
         self.intents, self.acks, self.cases, self.cancellations = {}, [], [], {}
         self.started_worker_count = 0
         self.paths = {kind: evidence / f"lifecycle-{kind}-ledger.jsonl"
@@ -115,9 +116,11 @@ class LifecycleSuite:
         return worker
 
     def begin(self, case, worker, label, operation, *, intent=None, **values):
+        phase = case["id"] + "/" + label
+        require(phase not in self.call_labels, "duplicate invocation label before transport: " + phase)
+        self.call_labels.add(phase)
         self.counter += 1
         command = {"op": operation, **values}
-        phase = case["id"] + "/" + label
         self.proxy.set_phase(phase)
         row = self.append("client", "call", call_id=self.counter, case=case["id"],
                           label=label, phase=phase, worker=worker.config["worker"],
@@ -404,7 +407,7 @@ class LifecycleSuite:
         self.fact(case, "recovery_started", stage=stage, worker=worker.config["worker"])
         self.snapshot(case, worker, stage + ".head_before")
         if case["deleted"]:
-            self.deleted_checks(case, worker, stage, variant_creates=False)
+            self.deleted_checks(case, worker, stage + ".deleted", variant_creates=False)
         else:
             accepted(self.control(case, worker, stage + ".takeover", "takeover"))
             accepted(self.control(case, worker, stage + ".activate_session", "activate_session",

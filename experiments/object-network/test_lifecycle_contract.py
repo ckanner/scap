@@ -142,6 +142,41 @@ class LedgerAndControllerTests(unittest.TestCase):
         self.assertEqual(rows[-1]["error_type"], "TimeoutError")
         self.assertEqual(len(worker.invocations), 1)
 
+    def test_duplicate_call_label_is_rejected_before_phase_change_or_transport(self):
+        worker = WorkerDouble(self.config, [{"ok": True, "value": {}}])
+        self.suite.call(self.case, worker, "snapshot", "status")
+        with self.assertRaisesRegex(ValueError, "duplicate invocation label before transport"):
+            self.suite.call(self.case, worker, "snapshot", "status")
+        self.assertEqual(len(worker.invocations), 1)
+        self.assertEqual(self.suite.counter, 1)
+        self.proxy.set_phase.assert_called_once_with("LC-01/snapshot")
+
+    def test_deleted_recovery_inner_and_outer_snapshots_have_distinct_call_bindings(self):
+        # Regression for the real 135ef89 run: eight before/after label pairs
+        # were duplicated although every call ID and actual HTTP call existed.
+        for case_number in (3, 6):
+            for stage in ("compute_recovery", "backend_recovery"):
+                case = self.suite.cases[case_number - 1]
+                case["seed"] = {"intent_id": case["id"] + "/seed", "identity": self.identity}
+                snapshot = {"ok": True, "value": {"etag": "same", "bytes": list(b'{"revision":9}')}}
+                lifecycle = {"ok": False, "error": "Lifecycle"}
+                responses = [snapshot, snapshot, lifecycle, lifecycle, lifecycle, lifecycle, lifecycle,
+                             {"ok": False, "error": "Store(Conflict)"}, snapshot, snapshot]
+                worker = WorkerDouble({**self.config, "scope": case["scope"]}, responses)
+                with mock.patch.object(self.suite, "spawn", return_value=worker):
+                    self.suite.audit(case, stage)
+                case["directory"].rmdir()
+                self.assertEqual(worker.responses, [])
+        calls = [row for row in jsonlines(self.suite.paths["client"]) if row["event"] == "call"]
+        self.assertEqual(len(calls), 40)
+        self.assertEqual(len({row["call_id"] for row in calls}), 40)
+        self.assertEqual(len({row["phase"] for row in calls}), 40)
+        for case_number in (3, 6):
+            for stage in ("compute_recovery", "backend_recovery"):
+                labels = {row["label"] for row in calls if row["case"] == f"LC-{case_number:02d}"}
+                self.assertTrue({stage + ".head_before", stage + ".deleted.head_before",
+                                 stage + ".deleted.head_after", stage + ".head_after"} <= labels)
+
     def test_compute_loss_kills_all_owned_instances_and_removes_whole_case_directory(self):
         directory = self.case["directory"]
         (directory / "nested").mkdir(parents=True)

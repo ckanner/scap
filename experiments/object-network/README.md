@@ -106,7 +106,7 @@ python3 experiments/object-network/retained_result_contract.py \
 
 ## 生命周期、取消、退休与 owner 交替
 
-`lifecycle_contract.py` 实现[冻结计划](../../docs/engineering/n1-lifecycle-validation-plan.md)的 LC-01–LC-12。当前实现已经完成夹具自测，**新候选的 Rust 构建与真实生命周期运行仍为 NOT_RUN**；自测结果不能替代下面的独立真实入口。
+`lifecycle_contract.py` 实现[冻结计划](../../docs/engineering/n1-lifecycle-validation-plan.md)的 LC-01–LC-12。 首轮候选 `135ef89` 的真实控制器运行到末尾，但离线审计拒绝 Deleted 恢复的重复调用标签，该轮保留为 FAILED；修复后必须重跑，不能重新标记旧证据为通过。当前实现已经完成夹具自测，**新候选的 Rust 构建与真实生命周期运行仍为 NOT_RUN**；自测结果不能替代下面的独立真实入口。
 
 | 场景 | 必查顺序 |
 | --- | --- |

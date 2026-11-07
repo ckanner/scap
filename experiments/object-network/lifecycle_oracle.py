@@ -210,6 +210,13 @@ def expected_rows(case_id, originals):
     return rows
 
 
+def zero_page_input(name, statements):
+    expected = {"read_execute": "SELECT random() AS token",
+                "zero_execute": "UPDATE events SET label=label WHERE id=-1"}
+    require(name in expected, "unplanned zero-page execution")
+    equal(statements, [{"sql": expected[name]}], "LC-10 read/zero-change input profile changed")
+
+
 class Network:
     def __init__(self, history):
         self.history = history
@@ -769,6 +776,7 @@ class Audit:
             require(self.intents[case + "/changed_principal"]["principal"] == 18, "changed principal check did not use another principal")
             require(self.intents[case + "/future_epoch"]["epoch"] == 2, "future epoch check did not use future epoch")
             for label in ("read_execute", "zero_execute"):
+                zero_page_input(label, self.intents[case + "/" + label]["statements"])
                 call = self.call(case, label)
                 request, _ = self.network.put(call, 200)
                 before = self.network.base(call, request)
@@ -835,7 +843,7 @@ class Audit:
                 equal(before_head[field], frozen_head[field], "recovery selected another durable " + field)
             if deleted:
                 equal(before, frozen, "tombstone changed across process/backend loss")
-                self.deleted(case, stage)
+                self.deleted(case, stage + ".deleted")
             else:
                 self.value(case, stage + ".takeover")
                 self.value(case, stage + ".activate_session")
@@ -949,11 +957,17 @@ class Audit:
         for group in (old, killed["identities"], new):
             equal([row["role"] for row in group], expected_roles, "backend process denominator changed")
         for before, gone, after in zip(old, killed["identities"], new):
-            equal(before["pid"], gone["pid"], "backend killed wrong child")
+            for key in ("pid", "spawn_monotonic_ns", "pid_source", "role"):
+                equal(before[key], gone[key], "backend killed wrong process incarnation")
             require(gone["wait_status"] == -9 and gone["kernel_usage"].get("available") is True,
                     "backend process loss not confirmed")
+            require(gone["kernel_usage"].get("source") == "kernel_wait4_owned_child",
+                    "backend process loss lacks kernel wait4 evidence")
             require((before["pid"], before["spawn_monotonic_ns"]) != (after["pid"], after["spawn_monotonic_ns"]),
                     "backend was not restarted")
+            require(killed["monotonic_ns"] < after["spawn_monotonic_ns"] < restarted["monotonic_ns"],
+                    "replacement backend was not spawned after the confirmed cut")
+            require(after["pid_source"] == "owned_Popen_child", "replacement backend identity is not an owned child")
         final = self.fact(None, "backend_cleanup")
         equal([row["role"] for row in final["identities"]], expected_roles, "final backend cleanup denominator changed")
         for born, gone in zip(new, final["identities"]):
@@ -961,6 +975,8 @@ class Audit:
                 equal(born[key], gone[key], "final backend cleanup stopped another incarnation")
             require(gone["wait_status"] == -9 and gone["kernel_usage"].get("available") is True,
                     "final backend process exit was not observed")
+            require(gone["kernel_usage"].get("source") == "kernel_wait4_owned_child",
+                    "final backend process exit lacks kernel wait4 evidence")
         require(all(self.fact(case, "compute_lost", stage="final_cleanup")["monotonic_ns"] < final["monotonic_ns"]
                     for case in CASE_IDS), "final backend stopped before final compute cleanup")
         build = self.data["build"]

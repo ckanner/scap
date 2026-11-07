@@ -147,6 +147,16 @@ def check_race(data, commit_first=False, cancel=False):
 
 
 class WireAndOriginalTests(unittest.TestCase):
+    def test_zero_page_executions_require_the_exact_frozen_sql_input(self):
+        oracle.zero_page_input("read_execute", [{"sql": "SELECT random() AS token"}])
+        oracle.zero_page_input("zero_execute", [{"sql": "UPDATE events SET label=label WHERE id=-1"}])
+        for name, statements in (("read_execute", [{"sql": "SELECT 1 AS token"}]),
+                                 ("zero_execute", [{"sql": "UPDATE events SET label=label WHERE 0"}]),
+                                 ("zero_execute", [{"sql": "SELECT 1 WHERE 0"}]),
+                                 ("read_execute", [{"sql": "SELECT random() AS token", "parameters": []}])):
+            with self.subTest(name=name, statements=statements), self.assertRaisesRegex(ValueError, "input profile changed"):
+                oracle.zero_page_input(name, statements)
+
     def test_whole_result_frame_has_a_fixed_digest_and_binds_all_bytes(self):
         receipt = {"scope": {"deployment": 1, "tenant": 2, "database": 3, "incarnation": 4, "generation": 5},
                    "request": {"epoch": 1, "id": 9, "principal": 17, "fingerprint": "f" * 64}, "sequence": 2,
@@ -439,6 +449,19 @@ def process_checker():
 
 
 class ProcessEvidenceTests(unittest.TestCase):
+    def test_backend_incarnation_kernel_source_and_replacement_spawn_are_exact(self):
+        checker = process_checker()
+        checker.fact(None, "backend_stopped")["identities"][0]["spawn_monotonic_ns"] = 2
+        with self.assertRaisesRegex(ValueError, "wrong process incarnation"): checker.process_and_build()
+        for event in ("backend_stopped", "backend_cleanup"):
+            checker = process_checker()
+            checker.fact(None, event)["identities"][0]["kernel_usage"]["source"] = "summary_only"
+            with self.subTest(event=event), self.assertRaisesRegex(ValueError, "lacks kernel wait4 evidence"):
+                checker.process_and_build()
+        checker = process_checker()
+        checker.fact(None, "backend_restarted")["identities"][0]["spawn_monotonic_ns"] = 1900
+        with self.assertRaisesRegex(ValueError, "spawned after the confirmed cut"): checker.process_and_build()
+
     def test_both_actual_loss_cycles_new_workers_backend_restart_and_final_exit_are_required(self):
         process_checker().process_and_build()
 

@@ -208,13 +208,15 @@ controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evi
 
 ## 9. 本文交付时的状态
 
+候选 `135ef89` 的真实控制器已运行到十二场景及恢复的末尾，但独立 oracle 因重复 invocation label 拒绝，整轮保留为 **FAILED**。原因是 LC-03／LC-06 在两次恢复中，外层 audit 与内层 Deleted 检查共用了 head_before／head_after 标签；原始调用 ID 没有重复，也没有丢弃实际调用。修复将内层标签固定为 `<stage>.deleted.*`，并在控制器发送前拒绝任何重复标签。新增回归直接覆盖这四组 Deleted 恢复调用图；另补后端进程 incarnation／wait4 source／spawn 时间及 LC-10 精确 SQL 输入的负对照。原失败证据不得重写，新候选仍须重新冻结构建并完整运行。
+
 | 项目 | 状态 |
 | --- | --- |
 | 主线源码与现有合同审阅 | 已完成静态审阅 |
 | 十二类场景、语义及独立账本要求 | 本文已定义 |
 | worker 的 set_lifecycle 扩展 | 已实现；新候选 Rust 编译 NOT_RUN |
 | lifecycle_contract 与独立 oracle | 已实现十二场景、完整账本与独立审计；真实运行 NOT_RUN |
-| 夹具自测 | 33 项通过；使用明确的控制器／证据替身，不是 S3 或产品单元覆盖证据 |
+| 夹具自测 | 37 项通过；使用明确的控制器／证据替身，不是 S3 或产品单元覆盖证据 |
 | 新候选 Rust 编译／原生 SQLite／精确覆盖率 | NOT_RUN |
 | 本计划真实本地 S3 合同 | NOT_RUN |
 | 真实 AWS Standard、跨 AZ、生产 SLO | NOT_RUN |
