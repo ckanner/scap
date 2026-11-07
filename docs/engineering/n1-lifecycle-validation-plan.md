@@ -2,7 +2,7 @@
 
 - 日期：2026-11-07。
 - 源码审阅基线：`e2c44b099132700e1305c275c6551c8e156fe510`，即已合入认证 HTTP 服务与 Node SDK 的主线。
-- 状态：**NOT_IMPLEMENTED / NOT_RUN**。本文是待实施合同，不是测试报告，不表示 N1 退出。
+- 状态：**IMPLEMENTED；真实生命周期合同 NOT_RUN**。控制器、独立 oracle 与夹具自测已经实现；尚待冻结新候选后构建及实际运行，不表示 N1 退出。
 - 前次尝试在首次修改实验 worker 前失去执行能力，未留下可执行生命周期实验。本次已恢复 PR #28 候选工作区，先更新本计划并提交文档，再实施；目前仍没有本计划的构建或运行通过证据。
 - 实施遵守 [AGENTS.md](../../AGENTS.md)、[主方案](../architecture/object-storage-native-proposal.md)、[验证规范](validation.md)与[本地源码身份要求](local-validation.md)。
 
@@ -39,7 +39,7 @@
 | `experiments/object-network/test_lifecycle_oracle.py` | 固定证据样本与逐项负对照 |
 | `experiments/object-network/README.md` | 执行入口、产物、精确范围与限制 |
 
-这些新增实现文件目前不存在，状态为 NOT_IMPLEMENTED。本文未修改 worker。
+上述实现文件现已存在，worker 已增加唯一 `set_lifecycle` 直通。夹具自测已通过；本计划的新候选 Rust 构建与真实 S3 生命周期运行仍为 NOT_RUN。
 
 `set_lifecycle` 的命令形状固定为 `{"op":"set_lifecycle","revision":N,"nonce":M,"lifecycle":"ready|maintenance|deleted"}`；最后一项实际只能传三个值之一，使用正式 `Lifecycle` 的 snake_case serde 格式。principal 来自 worker 的可信配置；不得增加调用者可自行覆盖 principal 的参数。命令返回正式 Head 或正式错误，不补充任何重试逻辑。
 
@@ -129,8 +129,9 @@ Deleted 身份复用测试须包括改变 incarnation／generation 但仍命中�
 | RejectedCandidates | 有明确原候选失败证据的尝试；不等于业务从未提交 |
 | RetiredChecks | 按本次显式关闭步骤和保留合同已退休的身份，预期状态为 Retired |
 | DeletedAccessChecks | 删除后按当前权限／生命周期拒绝查证的身份，不能计为原结果可查恢复通过 |
+| RevokedAccessChecks | 撤权后原主体的 query／lookup 必须 Denied；本批通过新的明确控制意图恢复权限后再审计这些 ACK，不能跨主体用 ADMIN 冒查 |
 
-完整 receipt 包括 scope、request、sequence、transition、data_root、result_hash。原结果必须比较完整 SCAPRES1 字节，不能只比较摘要、行数或部分 JSON 字段；typed 结果的重复列、整数和字节值也不能被有损规范化。
+完整 receipt 包括 scope、request、sequence、transition、data_root、result_hash。原结果必须比较完整 SCAPRES1 字节，不能只比较摘要、行数或部分 JSON 字段；typed 结果的重复列、整数和字节值也不能被有损规范化。实现中的独立 oracle 严格解码全部 SCAPRES1 字节、重算 SCAPSQL1 输入 fingerprint，并按固定 v2 frame 重算整个 Result 对象的 result_hash，将 receipt、原字节、typed statements 和真实发布前对象回读绑定。
 
 对仍保留且仍有权限的每条 ACK，恢复后的 lookup 和成功重复 execute 必须等于原 receipt／原结果。重复 execute 是同一已固定身份的结果返回检查，不能重新生成请求 ID 或重写 SQL。
 
@@ -180,7 +181,7 @@ Deleted 身份复用测试须包括改变 incarnation／generation 但仍命中�
 
 未删除的库使用正式 takeover／activate_session，并核对 data_root、保留结果与当前业务行。关闭窗口和退休屏障在新进程中必须仍然生效。Deleted 库只检查 tombstone、scope 和操作拒绝，不执行恢复到 Ready。
 
-最终可在全部计算停止后重启四个本地 S3 后端进程，再以新计算进程复核各作用域。必须分别记录计算进程丢失与后端重启的实际 wait 状态、身份和检查分母。一机 SeaweedFS 重启仍不是 AWS 持久性、跨 AZ 或设备断电证明。
+独立入口还会在全部计算停止后重启四个本地 S3 后端进程，再以新计算进程复核各作用域。填窗取消在保留窗口内必须用原主体查回原 transition；退休窗口中的取消身份则单列 Retired。必须分别记录计算进程丢失与后端重启的实际 wait 状态、身份和检查分母。一机 SeaweedFS 重启仍不是 AWS 持久性、跨 AZ 或设备断电证明。
 
 ## 8. 构建、失败保留与退出要求
 
@@ -201,7 +202,7 @@ Deleted 身份复用测试须包括改变 incarnation／generation 但仍命中�
 4. **取消与请求保留**：完成 LC-07–LC-11，精确区分 Cancelled／Unknown／Closed／Retired；LC-11 在原 8 秒 S3 timeout 内完成关闭竞争，再独立验证退休后的旧候选对象重发。
 5. **owner／ABA 与恢复**：完成 LC-12，各场清空计算目录恢复；最后后端重启另列检查分母。恢复审计先验证原 ACK，再按需检查同身份重复返回，每次都使用原 SQL／参数。
 6. **冻结后运行**：验证负责人统一冻结所有生产与实验源码并生成新的 release 收据。并行改动尚未结束时只运行不依赖冻结身份的夹具自测，不提前宣称旧收据适用于新脚本。
-7. **独立复核**：控制器结束后，从落盘证据执行独立 oracle，再完成清理与最终源码／二进制身份复核。任何清理错误、代理异常或源码漂移将最终状态变为 failed。
+7. **独立复核**：控制器完成场景后，先关闭代理、等待自有进程退出并复核最终源码／二进制身份，再从完整落盘证据执行独立 oracle。任何清理错误、代理异常或源码漂移将最终状态变为 failed。私有后端和诊断文件的保留与计算目录删除分开报告。
 
 controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evidence 必须为新目录。oracle 入口仅接收 `--evidence`，只读原始文件、向标准输出返回结果，不连接数据库、不调用 worker、不重写原始证据。controller 可将其返回结果同步写入 `lifecycle-oracle.json`；独立复核同样不得把现存 oracle 输出当成输入真值。
 
@@ -211,9 +212,9 @@ controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evi
 | --- | --- |
 | 主线源码与现有合同审阅 | 已完成静态审阅 |
 | 十二类场景、语义及独立账本要求 | 本文已定义 |
-| worker 的 set_lifecycle 扩展 | NOT_IMPLEMENTED |
-| lifecycle_contract 与独立 oracle | NOT_IMPLEMENTED |
-| 夹具自测 | NOT_RUN |
+| worker 的 set_lifecycle 扩展 | 已实现；新候选 Rust 编译 NOT_RUN |
+| lifecycle_contract 与独立 oracle | 已实现十二场景、完整账本与独立审计；真实运行 NOT_RUN |
+| 夹具自测 | 33 项通过；使用明确的控制器／证据替身，不是 S3 或产品单元覆盖证据 |
 | 新候选 Rust 编译／原生 SQLite／精确覆盖率 | NOT_RUN |
 | 本计划真实本地 S3 合同 | NOT_RUN |
 | 真实 AWS Standard、跨 AZ、生产 SLO | NOT_RUN |

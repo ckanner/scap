@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use scap_object::format::{
-    decode_object, digest, head_key, object_key, OutcomeRef, Payload, Permission, Request, Scope,
-    MAX_OBJECT_BYTES,
+    decode_object, digest, head_key, object_key, Lifecycle, OutcomeRef, Payload, Permission,
+    Request, Scope, MAX_OBJECT_BYTES,
 };
 use scap_object::{request, sql_limits, Database, Options, Receipt, Resolution, Session};
 use scap_object_store::{Condition, Objects, S3Config, S3};
@@ -320,6 +320,11 @@ fn perform(
         "set_policy" => {
             let policy: Vec<Permission> = serde_json::from_value(cmd["policy"].clone()).map_err(debug)?;
             database.set_policy(principal, number("revision"), number("nonce"), policy, deadline)
+                .map(|head| json!(head)).map_err(debug)
+        }
+        "set_lifecycle" => {
+            let lifecycle: Lifecycle = serde_json::from_value(cmd["lifecycle"].clone()).map_err(debug)?;
+            database.set_lifecycle(principal, number("revision"), number("nonce"), lifecycle, deadline)
                 .map(|head| json!(head)).map_err(debug)
         }
         "session_open" => {
