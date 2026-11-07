@@ -788,3 +788,40 @@ fn every_failed_admin_or_resolution_call_propagates_without_a_second_attempt() {
     };
     assert_eq!(queried(invalid).unwrap_err().code, "CORRUPT");
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn direct_engine_construction_rejects_unsupported_cache_mounts() {
+    let error = Engine::new(
+        Arc::new(Memory::default()),
+        100,
+        Options::default(),
+        Path::new("/proc"),
+        4,
+        10000,
+        Arc::new(Semaphore::new(1)),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, "CACHE_IO");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn directory_creation_failure_after_storage_admission_is_reported() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut attempted = false;
+    let error = create_cache(directory.path(), |parent| {
+        assert_eq!(parent, directory.path());
+        attempted = true;
+        Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "controlled directory creation failure",
+        ))
+    })
+    .err()
+    .unwrap();
+    assert!(attempted);
+    assert_eq!(error.code, "CACHE_IO");
+    assert!(directory.path().exists());
+}

@@ -34,6 +34,17 @@ pub struct Engine {
     recovery: Arc<Semaphore>,
 }
 
+/// Keep storage admission and its ordering identical when testing a directory
+/// creation failure. Only the actual creation effect can vary.
+fn create_cache(
+    parent: &Path,
+    create: impl FnOnce(&Path) -> std::io::Result<tempfile::TempDir>,
+) -> Result<tempfile::TempDir, Failure> {
+    scap_object_sqlite::validate_cache_directory(parent)
+        .map_err(|_| Failure::new("CACHE_IO"))?;
+    create(parent).map_err(|_| Failure::new("CACHE_IO"))
+}
+
 impl Engine {
     pub fn new(
         objects: Arc<dyn Objects>,
@@ -48,10 +59,13 @@ impl Engine {
             return Err(Failure::new("CONFIG"));
         }
         options.validate().map_err(Failure::from)?;
-        let directory = tempfile::Builder::new()
-            .prefix("scap-worker-")
-            .tempdir_in(cache_parent)
-            .map_err(|_| Failure::new("CACHE_IO"))?;
+        // Engine is also a public trusted Rust boundary; callers can construct
+        // it without Config::prepare. Validate before creating worker files.
+        let directory = create_cache(cache_parent, |parent| {
+            tempfile::Builder::new()
+                .prefix("scap-worker-")
+                .tempdir_in(parent)
+        })?;
         Ok(Self {
             objects,
             worker,

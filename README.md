@@ -14,6 +14,12 @@
 
 [PR #19 的历史本地验证记录](docs/evidence/object-native-local-2026-11-06.json)：87 项 Rust 单元测试通过，11 个生产文件四维覆盖率精确 100%；release 构建的 10 项真实本地 S3/进程故障合同通过。4 条成功写入均由独立持久账本逐条核对原回执与原结果；AWS Standard 保持 `NOT_RUN`。
 
+## SQLite 文件系统边界
+
+S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SHM 作为共享网络文件读写。本地执行镜像仍必须满足 SQLite 的 I/O 语义；误把 `cache_directory` 配成 NFS/EFS/FUSE 不能因“缓存可丢弃”而视为安全。
+
+本分支包含本地目录类型防护候选及补充测试，详见[存储安全说明](docs/operations/sqlite-storage-safety.md)。**本轮环境不可用，新增 Rust、覆盖率与真实存储验证为 NOT_RUN，保持草稿，不继承下方历史验收结果。** 最新主线进展、剩余任务及本批状态见[2026-11-07 审查记录](docs/engineering/status-2026-11-07.md)。
+
 ## 实现入口
 
 | 模块 | 职责 |

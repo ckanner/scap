@@ -1471,6 +1471,7 @@ name = "scap-object-sqlite"
 version = "0.1.0"
 dependencies = [
  "libsql-sys",
+ "rustix 0.38.44",
  "scap-sql",
  "tempfile",
 ]

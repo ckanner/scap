@@ -150,6 +150,10 @@ impl Config {
         {
             return Err(Failure::new("CONFIG"));
         }
+        // Even a disposable execution image requires SQLite-compatible local
+        // I/O. Reject unsupported mounts before credentials or workers are used.
+        scap_object_sqlite::validate_cache_directory(&self.cache_directory)
+            .map_err(|_| Failure::new("CACHE_IO"))?;
         let access_key = secret(&self.s3.access_key_env, environment)?;
         let secret_key = secret(&self.s3.secret_key_env, environment)?;
         let session_token = self

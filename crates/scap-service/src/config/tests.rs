@@ -107,3 +107,16 @@ fn empty_missing_nonunicode_and_invalid_environment_names_fail_without_disclosin
     value["s3"]["session_token_env"] = json!("");
     assert!(parsed(value).prepare_with(&environment).is_err());
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn unsupported_cache_mount_is_rejected_before_resolving_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    value["cache_directory"] = json!("/proc");
+    let error = parsed(value)
+        .prepare_with(&|_| panic!("unsupported storage must fail before credential lookup"))
+        .err()
+        .unwrap();
+    assert_eq!(error.code, "CACHE_IO");
+}
