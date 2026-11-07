@@ -68,7 +68,15 @@ pub(crate) fn open<G: CommitGate + 'static>(
 }
 
 pub(crate) fn authorize(context: AuthContext<'_>) -> Authorization {
-    if let Some(database) = context.database_name {
+    // SQLITE_ALTER_TABLE places the schema in its action arguments. In the
+    // pinned SQLite/libSQL source, DROP COLUMN puts the column name into the
+    // slot exposed as AuthContext::database_name. Do not treat that slot as
+    // the schema, or infer the target from user SQL text.
+    let database = match context.action {
+        AuthAction::AlterTable { database_name, .. } => Some(database_name),
+        _ => context.database_name,
+    };
+    if let Some(database) = database {
         if database != "main" {
             return Authorization::Deny;
         }
@@ -210,6 +218,54 @@ pub(crate) fn authorize(context: AuthContext<'_>) -> Authorization {
     }
 }
 
+// State belongs to one user statement, including any SQLite re-prepare while
+// stepping it. It must never be shared with another statement or read-only API.
+fn authorize_write(context: AuthContext<'_>, main_alter: &mut bool) -> Authorization {
+    let ordinary = authorize(context);
+    if let AuthAction::AlterTable { .. } = context.action {
+        *main_alter = ordinary == Authorization::Allow && context.accessor.is_none();
+        return if *main_alter {
+            Authorization::Allow
+        } else {
+            Authorization::Deny
+        };
+    }
+    if !*main_alter || context.accessor.is_some() {
+        return ordinary;
+    }
+    match context.action {
+        AuthAction::Function { function_name } if context.database_name.is_none() => {
+            // Pinned libSQL alter.c registers these as INTERNAL_FUNCTION, not
+            // ordinary SQL functions. Keep them out of the general/read-only
+            // allowlist and never allow a sqlite_*/libsql_* prefix wholesale.
+            if [
+                "sqlite_rename_column",
+                "sqlite_rename_table",
+                "sqlite_rename_test",
+                "sqlite_drop_column",
+                "sqlite_rename_quotefix",
+                "libsql_alter_column",
+            ]
+            .iter()
+            .any(|name| function_name.eq_ignore_ascii_case(name))
+            {
+                Authorization::Allow
+            } else {
+                ordinary
+            }
+        }
+        AuthAction::Read { table_name, .. } | AuthAction::Update { table_name, .. }
+            if context.database_name == Some("temp") && table_name == "sqlite_temp_master" =>
+        {
+            // Main-schema ALTER validates/rewrites the temporary schema even
+            // when it is empty. This exception permits only that schema table,
+            // not temp data, temp DDL, ATTACH, PRAGMA or transaction control.
+            Authorization::Allow
+        }
+        _ => ordinary,
+    }
+}
+
 pub(crate) fn execute_transaction(
     connection: &rusqlite::Connection,
     statements: &[Statement],
@@ -264,6 +320,14 @@ pub(crate) fn collect_results(
     let mut remaining_rows = limits.sql.max_rows as usize;
     for statement in statements {
         crate::query::check(interrupt)?;
+        if !read_only {
+            // Reset before every Statement, not once per request/transaction.
+            // Keep the callback installed through stepping and re-preparation.
+            let mut main_alter = false;
+            connection.authorizer(Some(move |context: AuthContext<'_>| {
+                authorize_write(context, &mut main_alter)
+            }));
+        }
         let mut batch = Batch::new(connection, &statement.sql);
         let mut prepared = batch
             .next()
@@ -406,3 +470,7 @@ pub(crate) fn rollback(connection: &rusqlite::Connection) {
     // that a proposal with an unknown outcome did not publish an authoritative HEAD.
     let _ = connection.execute_batch("ROLLBACK");
 }
+
+#[cfg(test)]
+#[path = "alter_tests.rs"]
+mod alter_tests;

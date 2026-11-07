@@ -64,6 +64,46 @@ HEAD 已接受但没有 execute ACK 的场景，在计算丢失前由独立 obse
 
 这些提交切点对应实际探测到的一种事务依赖序列；它们不穷举任意 SQL、不同树高、分页布局、DDL、截断和所有请求生命周期的组合。闭包冷恢复与已暖 handle 的隔离也须分别报告，不能用冷恢复失败替代暖 handle 的验证。
 
+## ALTER 与原始结果恢复
+
+同一 `run.py` 还执行 `schema_contract.py` 的两个独立 scope：分别通过 `Database.execute` 和暖 `Session.execute` 创建带索引、视图、触发器与外键的表，写入带 `random()` 的原始 `RETURNING`，然后依次重命名表、重命名列、删除列并再次写入。每个场景六笔成功调用的完整 receipt、编码结果和返回行在故障前同步到独立客户端账本，并由另一个实际 worker 查证。
+
+随后 SIGKILL 场景全部计算进程并删除整个本地缓存目录。全新逻辑 worker 通过 takeover 和 activate_session 从 S3 恢复，逐笔核对全部原始 ACK；以原身份再次发送已经提交的六个事务，必须返回原 receipt、编码结果和行，且 HEAD body/ETag 不变、没有任何 PUT。非幂等 ALTER 也参与重发，因此不能靠重新执行迁移来重造结果。
+
+恢复后的全部随机业务值、确切列形状、视图值、触发器写入、索引归属和外键关系均与故障前的独立输入／返回值核对；外键无效写入必须准确产生 FK ConstraintViolation、没有发布且原请求仍 Unknown。该场景不证明所有 DDL 故障切点已覆盖；它与前面的逐发布边界故障和正式 native 单元验证分别报告。
+
+原生 writer 在 SQL 执行失败后停止，现有单元测试明确要求丢弃它。复用 Session 模式先验证原 Session 的下一次查询准确返回 `StaleSnapshot`，再显式 `session_open`，从当前授权的 HEAD 和数据根恢复新缓存并核对全部已提交数据。重新打开同样不能写 HEAD 或任何对象；失败 SQL 不重放。一次性执行模式的失败发生在另一个短期 writer 中，不影响观察用 Session。此前诊断错误地要求失败的 Session 直接继续查询；该失败记录应保留，不能将其描述为 SQL 数据丢失或为实验改变产品语义。
+
+也可使用同一正式 release 的收据单独执行：
+
+```bash
+python3 experiments/object-network/schema_contract.py \
+  --worker "$PWD/target/object-network-build/release/scap-object-network" \
+  --weed /absolute/path/to/weed \
+  --build-record /absolute/path/to/new-build-evidence/build.json \
+  --evidence /absolute/path/to/new-schema-evidence
+```
+
+独立入口在开始与结束时核对构建收据和源输入，缺少二进制或受插桩污染时返回非零的 `blocked`；场景失败、输入漂移、代理或清理失败均不能写入成功结论。
+
+证据为 `schema-input-ledger.jsonl`、`schema-ack-ledger.jsonl`、`schema-audit.jsonl`，以及独立 `summary.json` 或完整运行中的 `schema_contracts`。两种执行路径共十二笔 ACK，故障后查证、重发和 mismatch 计数来自实际账本；`test_schema_contract.py` 是控制器和独立预期值自测，不算作数据库运行通过，也不计入产品单元覆盖率。
+
+## 正确哈希对象中的损坏原结果
+
+`retained_result_contract.py` 覆盖当前与关闭的请求世代，各注入六种内部结果损坏：错误版本头、截断尾部、多余尾字节、未知值类型、非有限浮点数和非法 UTF-8。它重新计算 Result、Index 和 HEAD 引用，并调整结果字节计数，使外层对象格式和哈希仍合法；正式对象解码器必须接受外层，正式 SQL 结果解码器必须拒绝内部内容。
+
+每个场景分别用五个全新 worker 检查 `lookup_identity`、`cancel_identity`、`activate`、`activate_session` 和 `session_open`：准确返回 `Corrupt`，观察到实际 S3 对损坏 Result 的 200 响应，HEAD body/ETag 不变、没有 HEAD PUT、没有遗留恢复目录。之后由私有测试身份恢复原 HEAD 引用，再用新进程核对原始 receipt、结果和数据。十二个场景、六十次入口检查、三十条原始 ACK 必须全部通过；未启动的场景不能计为通过。
+
+```bash
+python3 experiments/object-network/retained_result_contract.py \
+  --worker "$PWD/target/object-network-build/release/scap-object-network" \
+  --weed /absolute/path/to/weed \
+  --build-record /absolute/path/to/new-build-evidence/build.json \
+  --evidence /absolute/path/to/new-result-evidence
+```
+
+该脚本的自测使用明确的控制器替身；构造并检查损坏载荷不等于执行生产 Rust。两套真实合同都需要同一准确 release 的构建收据，并继续将 AWS Standard 与生产 SLO 标记为未验收。
+
 ## 原始证据与清理
 
 基础公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker 的容器与实际 procfs PID、进程启动身份和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag、GET/PUT body 字节；不记录 Authorization 或凭据。
