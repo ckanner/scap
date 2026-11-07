@@ -219,7 +219,7 @@ controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evi
 | 夹具自测 | 37 项通过；使用明确的控制器／证据替身，不是 S3 或产品单元覆盖证据 |
 | 新候选 Rust 编译／原生 SQLite | 实际 release 和真实运行通过 |
 | 生产精确覆盖率 | 75 个生产／SDK／根依赖文件与已验收 a11e61e 相同；引用原 204 单元／24 文件证据，不伪称本轮重跑 |
-| 本计划真实本地 S3 合同 | NOT_RUN |
+| 本计划真实本地 S3 合同 | LC-01–LC-12 及两轮恢复已通过，详见独立验收记录 |
 | 真实 AWS Standard、跨 AZ、生产 SLO | NOT_RUN |
 | N1 整体退出 | 未达到 |
 
