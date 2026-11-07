@@ -9,6 +9,7 @@
     "branches"
   ],
   "rust_test_sources": [
+    "crates/scap-object-sqlite/src/alter_tests.rs",
     "crates/scap-object-sqlite/src/capacity_tests.rs",
     "crates/scap-object-sqlite/src/config_tests.rs",
     "crates/scap-object-sqlite/src/file_tests.rs",
@@ -20,9 +21,11 @@
     "crates/scap-object/src/format_tests.rs",
     "crates/scap-object/src/options_tests.rs",
     "crates/scap-object/src/quarantine_tests.rs",
+    "crates/scap-object/src/result_validation_tests.rs",
     "crates/scap-object/src/review_tests.rs",
     "crates/scap-object/src/session_tests.rs",
     "crates/scap-object/src/tests.rs",
+    "crates/scap-sql/src/result_validation_tests.rs",
     "crates/scap-sql/src/tests.rs"
   ],
   "research_harness_roots": [

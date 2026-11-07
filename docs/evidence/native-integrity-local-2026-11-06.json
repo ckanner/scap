@@ -1,0 +1,1536 @@
+{
+  "schema_version": 1,
+  "experiment": "native-alter-and-retained-result-local-acceptance",
+  "status": "passed",
+  "generated_utc": "2026-11-07T04:15:31Z",
+  "report_date": "2026-11-06",
+  "report_timezone": "America/New_York",
+  "execution_clock": "UTC; actual commands executed on 2026-11-07",
+  "scope": "four native production crates; original network contracts, schema and retained-result regressions, 1 GiB full recovery",
+  "base_commit": "49408e04c26e89ba5e8125b4aa7223548df924ef",
+  "tested_source": {
+    "commit": "da7328e25ffc4bb1e0dc1319c628d303221b3519",
+    "tree": "fde710f9eec1f2c8eeee6d246d2ea39d476cfa8d",
+    "tracked_file_count": 119,
+    "source_sha256": "54086c3a5d34a0151ef7fb1132d9307e8838c064d5bc879fea8e9ea4d9b5ceac",
+    "before_after_manifest_identical": true,
+    "before_manifest_sha256": "afd9940b28e436f8dbd5760952145456dbf86899e4d6144a6684423a975ac66c",
+    "after_manifest_sha256": "afd9940b28e436f8dbd5760952145456dbf86899e4d6144a6684423a975ac66c",
+    "clean_before_validation": true,
+    "clean_after_validation": true,
+    "post_validation_edit_scope": "README and docs only; final delivery identity and byte-for-byte runtime/input proof are recorded separately"
+  },
+  "build": {
+    "profile": "release",
+    "source_commit": "da7328e25ffc4bb1e0dc1319c628d303221b3519",
+    "input_sha256": "b67df828ef6cf7b1e2b0cc1bb2e48285799f7a3378aa8602bd694cd44012f62b",
+    "input_file_count": 49,
+    "worker_sha256": "be18af00674511ae711f50a5bdbf3a342e3983836bd474f42a8eeee3d3e2a332",
+    "native_archive_sha256": [
+      "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+    ],
+    "release_compilation_executed_after_freeze": true,
+    "dependency_artifacts_reused": true,
+    "same_receipt_and_binary_for_all_s3_runs": true,
+    "unit_instrumentation_in_release": false
+  },
+  "toolchain": {
+    "rust_stable": "1.90.0",
+    "rust_nightly": "nightly-2025-09-18",
+    "llvm_stable": "20.1.8",
+    "llvm_nightly": "21.1.1",
+    "cargo_llvm_cov": "0.6.21",
+    "coverage_py": "7.10.6",
+    "python": "3.12.14",
+    "node": "22.16.0",
+    "libclang": "18.1.1",
+    "cc_cxx": "Ubuntu 13.3.0-6ubuntu2~24.04",
+    "seaweedfs": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "seaweedfs_archive_sha256": "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee",
+    "seaweedfs_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "actionlint": "1.7.12",
+    "actionlint_archive_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+  },
+  "unit": {
+    "stable_tests_passed": 159,
+    "nightly_tests_passed": 159,
+    "by_crate": {
+      "scap-object": 73,
+      "scap-object-sqlite": 61,
+      "scap-object-store": 7,
+      "scap-sql": 18
+    },
+    "production_files": [
+      {
+        "file": "crates/scap-object-sqlite/src/config.rs",
+        "sha256": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+        "lines": {
+          "covered": 106,
+          "total": 106
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "regions": {
+          "covered": 177,
+          "total": 177
+        },
+        "branches": {
+          "covered": 14,
+          "total": 14
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/file.rs",
+        "sha256": "eb199871ab7c951c103cf598a6a1a979a89cb2f1037a3771584e49fc4ccf0ad1",
+        "lines": {
+          "covered": 123,
+          "total": 123
+        },
+        "functions": {
+          "covered": 16,
+          "total": 16
+        },
+        "regions": {
+          "covered": 149,
+          "total": 149
+        },
+        "branches": {
+          "covered": 24,
+          "total": 24
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/gate.rs",
+        "sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+        "lines": {
+          "covered": 104,
+          "total": 104
+        },
+        "functions": {
+          "covered": 13,
+          "total": 13
+        },
+        "regions": {
+          "covered": 123,
+          "total": 123
+        },
+        "branches": {
+          "covered": 20,
+          "total": 20
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/image.rs",
+        "sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+        "lines": {
+          "covered": 64,
+          "total": 64
+        },
+        "functions": {
+          "covered": 3,
+          "total": 3
+        },
+        "regions": {
+          "covered": 74,
+          "total": 74
+        },
+        "branches": {
+          "covered": 38,
+          "total": 38
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/lib.rs",
+        "sha256": "aef77c0aa04b07cd238d60c5b0dd93e5a0d3fce3bc2de3c57c3918d195cd8001",
+        "lines": {
+          "covered": 116,
+          "total": 116
+        },
+        "functions": {
+          "covered": 7,
+          "total": 7
+        },
+        "regions": {
+          "covered": 168,
+          "total": 168
+        },
+        "branches": {
+          "covered": 12,
+          "total": 12
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/query.rs",
+        "sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+        "lines": {
+          "covered": 46,
+          "total": 46
+        },
+        "functions": {
+          "covered": 6,
+          "total": 6
+        },
+        "regions": {
+          "covered": 75,
+          "total": 75
+        },
+        "branches": {
+          "covered": 6,
+          "total": 6
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/sql.rs",
+        "sha256": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+        "lines": {
+          "covered": 366,
+          "total": 366
+        },
+        "functions": {
+          "covered": 20,
+          "total": 20
+        },
+        "regions": {
+          "covered": 409,
+          "total": 409
+        },
+        "branches": {
+          "covered": 70,
+          "total": 70
+        }
+      },
+      {
+        "file": "crates/scap-object-store/src/lib.rs",
+        "sha256": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+        "lines": {
+          "covered": 201,
+          "total": 201
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "regions": {
+          "covered": 282,
+          "total": 282
+        },
+        "branches": {
+          "covered": 68,
+          "total": 68
+        }
+      },
+      {
+        "file": "crates/scap-object/src/data_tree.rs",
+        "sha256": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+        "lines": {
+          "covered": 263,
+          "total": 263
+        },
+        "functions": {
+          "covered": 21,
+          "total": 21
+        },
+        "regions": {
+          "covered": 416,
+          "total": 416
+        },
+        "branches": {
+          "covered": 60,
+          "total": 60
+        }
+      },
+      {
+        "file": "crates/scap-object/src/format.rs",
+        "sha256": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+        "lines": {
+          "covered": 264,
+          "total": 264
+        },
+        "functions": {
+          "covered": 28,
+          "total": 28
+        },
+        "regions": {
+          "covered": 515,
+          "total": 515
+        },
+        "branches": {
+          "covered": 22,
+          "total": 22
+        }
+      },
+      {
+        "file": "crates/scap-object/src/lib.rs",
+        "sha256": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+        "lines": {
+          "covered": 838,
+          "total": 838
+        },
+        "functions": {
+          "covered": 74,
+          "total": 74
+        },
+        "regions": {
+          "covered": 1318,
+          "total": 1318
+        },
+        "branches": {
+          "covered": 112,
+          "total": 112
+        }
+      },
+      {
+        "file": "crates/scap-object/src/options.rs",
+        "sha256": "471557b169b91836903f6421364375a8a9e2272742908d080077749c3598e94d",
+        "lines": {
+          "covered": 95,
+          "total": 95
+        },
+        "functions": {
+          "covered": 6,
+          "total": 6
+        },
+        "regions": {
+          "covered": 111,
+          "total": 111
+        },
+        "branches": {
+          "covered": 36,
+          "total": 36
+        }
+      },
+      {
+        "file": "crates/scap-sql/src/lib.rs",
+        "sha256": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+        "lines": {
+          "covered": 208,
+          "total": 208
+        },
+        "functions": {
+          "covered": 18,
+          "total": 18
+        },
+        "regions": {
+          "covered": 408,
+          "total": 408
+        },
+        "branches": {
+          "covered": 60,
+          "total": 60
+        }
+      },
+      {
+        "file": "crates/scap-sql/src/result_validation.rs",
+        "sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+        "lines": {
+          "covered": 42,
+          "total": 42
+        },
+        "functions": {
+          "covered": 2,
+          "total": 2
+        },
+        "regions": {
+          "covered": 92,
+          "total": 92
+        },
+        "branches": {
+          "covered": 12,
+          "total": 12
+        }
+      }
+    ],
+    "aggregate_covered_and_total": {
+      "lines": 2836,
+      "functions": 248,
+      "regions": 4317,
+      "branches": 554
+    },
+    "each_production_file_four_counters_exact_100_percent": true,
+    "fresh_target_initially_absent": true,
+    "fresh_raw_profiles": 160,
+    "actual_merge_inputs": 160,
+    "actual_merge_inputs_equal_all_fresh_profiles": true,
+    "integration_profiles_contribute": false,
+    "threshold_or_production_exclusions_changed": false
+  },
+  "additional_gates": {
+    "tooling_tests": 74,
+    "tooling_statements": {
+      "covered": 401,
+      "total": 401
+    },
+    "tooling_branches": {
+      "covered": 184,
+      "total": 184
+    },
+    "tooling_exclusions": 0,
+    "fixture_selftests": {
+      "total": 29,
+      "schema": 11,
+      "retained": 18
+    },
+    "model_tests": 89,
+    "model_histories": 664,
+    "model_races": 640,
+    "model_directed": 24,
+    "model_negative_controls_rejected": 30,
+    "developer_tool_tests": 28,
+    "shell_syntax_checks": 2,
+    "node_codec_tests": 13,
+    "node_production_modules": 1,
+    "node_function_records_hit": 17,
+    "node_ranges_hit": 89,
+    "actionlint_workflows": 4
+  },
+  "network": {
+    "status": "passed",
+    "completed_contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state",
+      "each_observed_dependency_upload_cut_retains_previous_authority",
+      "accepted_head_survives_process_loss_and_native_publication_failure",
+      "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+      "changed_head_during_recovery_refuses_old_activation",
+      "alter_schema_original_results_and_all_compute_loss"
+    ],
+    "contract_count": 15,
+    "base_ack_audited": 4,
+    "base_ack_mismatches": 0,
+    "fault_cases": 30,
+    "fault_case_count_includes_one_pilot": true,
+    "fault_ack_audited": 61,
+    "fault_ack_mismatches": 0,
+    "fault_outcome_mismatches": 0,
+    "coverage_scope": {
+      "additional_http_error_matrix": "NOT_RUN",
+      "aws_endpoint_gate": "NOT_RUN",
+      "dependency_cuts": "before forwarding and after backend 200, before client response",
+      "full_ot_01_08_matrix": "NOT_RUN",
+      "late_forward_after_process_death": "NOT_RUN; pre-forward cuts explicitly abort",
+      "warm_quarantine": "existing_unit_only; not measured by these cold cases"
+    },
+    "schema": {
+      "ack_audited_count": 12,
+      "ack_mismatch_count": 0,
+      "ack_recorded_count": 12,
+      "ack_replayed_count": 12,
+      "aws_endpoint_gate": "NOT_RUN",
+      "case_results": [
+        {
+          "ack_count": 6,
+          "all_compute_lost": true,
+          "foreign_key_preserved": true,
+          "mode": "execute",
+          "original_result_replayed_without_put": true,
+          "refused_sql_replayed": false,
+          "scope": {
+            "database": 1,
+            "deployment": 80,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 88
+          },
+          "session_reopened_after_refusal": false,
+          "status": "passed"
+        },
+        {
+          "ack_count": 6,
+          "all_compute_lost": true,
+          "foreign_key_preserved": true,
+          "mode": "session_execute",
+          "original_result_replayed_without_put": true,
+          "refused_sql_replayed": false,
+          "scope": {
+            "database": 2,
+            "deployment": 80,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 88
+          },
+          "session_reopened_after_refusal": true,
+          "status": "passed"
+        }
+      ],
+      "ledger_sha256": {
+        "schema-ack-ledger.jsonl": "c6105e804de6e48e03e86309e187ec4de4b6383bd660f6a2e543b37cca72bebc",
+        "schema-audit.jsonl": "c2babb1c354ab23e93867a5b94dac220b7019223da29c048ff1936d2b52c83ae",
+        "schema-input-ledger.jsonl": "8b1a4984e01e3ffa20054da548b9ea20c8ecbc1a2a5ca2b413c937304490ed53"
+      },
+      "planned_modes": [
+        "execute",
+        "session_execute"
+      ],
+      "status": "passed",
+      "unit_coverage_contribution": false
+    },
+    "proxy_errors": [],
+    "cleanup_errors": []
+  },
+  "retained_results": {
+    "status": "passed",
+    "cases": 12,
+    "independent_entrypoints": 60,
+    "planned_scenarios": [
+      "result_current_bad_magic",
+      "result_current_truncated_footer",
+      "result_current_trailing_byte",
+      "result_current_unknown_tag",
+      "result_current_nonfinite_real",
+      "result_current_invalid_utf8",
+      "result_closed_bad_magic",
+      "result_closed_truncated_footer",
+      "result_closed_trailing_byte",
+      "result_closed_unknown_tag",
+      "result_closed_nonfinite_real",
+      "result_closed_invalid_utf8"
+    ],
+    "entrypoints_per_scenario": [
+      "lookup_identity",
+      "cancel_identity",
+      "activate",
+      "activate_session",
+      "session_open"
+    ],
+    "ack_recorded": 30,
+    "ack_audited": 30,
+    "ack_mismatches": 0,
+    "outcome_mismatches": 0,
+    "cleanup_errors": []
+  },
+  "capacity_gib1": {
+    "status": "passed",
+    "profile": "gib1",
+    "acknowledged_payload_bytes": 1073741824,
+    "blob_bytes": 65536,
+    "blob_audited_bytes": 1073741824,
+    "blob_audited_count": 16384,
+    "blob_mismatch_count": 0,
+    "ack_audited_count": 39,
+    "ack_mismatch_count": 0,
+    "completed_checks": [
+      "one_gib_independent_payload_committed",
+      "warm_point_updates_do_not_transfer_whole_gib",
+      "warm_session_rechecks_permission_and_exact_root",
+      "unknown_resolved_without_sql_replay",
+      "all_compute_and_backend_process_loss_recovered_from_s3",
+      "every_client_ack_retains_exact_receipt_and_original_result",
+      "every_blob_matches_independent_preinvocation_hash",
+      "hot_cache_cannot_bypass_unavailable_fresh_head"
+    ],
+    "disk_observations": [
+      {
+        "backend": {
+          "allocated_bytes": 1108865024,
+          "files": 93,
+          "logical_bytes": 1108573439
+        },
+        "compute": {
+          "allocated_bytes": 1082261504,
+          "files": 3,
+          "logical_bytes": 1082261504
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082163200,
+            "directory": "writer-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "before_compute_loss"
+      },
+      {
+        "backend": {
+          "allocated_bytes": 1106935808,
+          "files": 110,
+          "logical_bytes": 1106591441
+        },
+        "compute": {
+          "allocated_bytes": 1082200064,
+          "files": 3,
+          "logical_bytes": 1082195968
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082167296,
+            "directory": "recovered-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "after_s3_only_recovery"
+      }
+    ],
+    "point_mutations": {
+      "lost_head_result": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.2257080078125,
+        "get_requests": 19,
+        "get_response_bytes": 604616,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.47186279296875,
+        "put_request_bytes": 293068,
+        "put_requests": 8,
+        "put_success_bytes": 293068,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_beginning": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.020492553710938,
+        "get_requests": 16,
+        "get_response_bytes": 591167,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.456573486328125,
+        "put_request_bytes": 292066,
+        "put_requests": 8,
+        "put_success_bytes": 292066,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_end": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.657577514648438,
+        "get_requests": 18,
+        "get_response_bytes": 632919,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.771514892578125,
+        "put_request_bytes": 312706,
+        "put_requests": 9,
+        "put_success_bytes": 312706,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_1gib_middle": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 13.037307739257812,
+        "get_requests": 18,
+        "get_response_bytes": 854413,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 6.4631805419921875,
+        "put_request_bytes": 423571,
+        "put_requests": 9,
+        "put_success_bytes": 423571,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_64mib": {
+        "database_payload_bytes": 67108864,
+        "get_body_amplification": 8.624313354492188,
+        "get_requests": 16,
+        "get_response_bytes": 565203,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.314178466796875,
+        "put_request_bytes": 282734,
+        "put_requests": 8,
+        "put_success_bytes": 282734,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "root_change": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 13.059310913085938,
+        "get_requests": 18,
+        "get_response_bytes": 855855,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 6.4710235595703125,
+        "put_request_bytes": 424085,
+        "put_requests": 9,
+        "put_success_bytes": 424085,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      }
+    },
+    "full_initial_materialization": true,
+    "lazy_database_reads": false,
+    "gc_enabled": false,
+    "default_options_unchanged": true,
+    "default_quota_bytes": 10737418240,
+    "operation_budget_ms": 30000,
+    "recovery_budget_ms": 1800000,
+    "maximum_bulk_payload_bytes": 33554432,
+    "maximum_bulk_rows": 512,
+    "hot_cache_blackhole_elapsed_seconds": 0.201329794999765,
+    "proxy_errors": [],
+    "cleanup_errors": []
+  },
+  "independent_review": {
+    "status": "passed",
+    "distinct_acknowledgements": 146,
+    "complete_receipt_and_encoded_comparisons": 170,
+    "raw_blob_reaudit": {
+      "status": "passed",
+      "preinvocation_operations_applied": 39,
+      "independent_raw_sqlite_reader": "3.53.1",
+      "mode": "immutable read-only recovered local file; not an additional S3 recovery",
+      "wal_bytes": 0,
+      "rows_hashed_from_raw_blob_bytes": 16384,
+      "bytes_hashed": 1073741824,
+      "mismatches": 0,
+      "database_file_bytes": 1082163200,
+      "final_expected_map_sha256": "3d514e2e8a6e034b4318046fe2436e8cde8607f9d5869e28d5180b636b01a06f",
+      "input_ledger_sha256": "8ca1d6559f143e546a6a5d43e0ec81426d317ac3c18032eb30da1050b4373321"
+    },
+    "coverage_merge_list_matches_fresh_profile_set": true
+  },
+  "preserved_diagnostics": [
+    {
+      "name": "original_schema_session_stale_snapshot",
+      "status": "failed_reproduced",
+      "formal_gate": false,
+      "original_worker_build_verified": false,
+      "worker_sha256": "4c122a70b3ca2dccb6b7e616f213493cf97ed550965cfd529732712c8c54c443",
+      "harness_sha256": "d99d00b9389445f5992684236ae2385d72ed5e041e7d55172daa6026e199dc3b",
+      "cause": "fixture tried to query a writer stopped by an expected foreign-key execution error",
+      "fix": "require StaleSnapshot and zero PUT, explicitly reopen unchanged authority, then audit; never replay refused SQL",
+      "corrected_diagnostic_status": "passed",
+      "final_frozen_release_schema_status": "passed"
+    },
+    {
+      "name": "independent_audit_first_attempt",
+      "status": "failed",
+      "formal_gate": false,
+      "cause": "supplementary auditor read execute response encoded at lookup response path; KeyError before comparisons completed",
+      "fix": "read replay result.encoded and result.statements; production and fixture sources unchanged",
+      "corrected_status": "passed"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "format-workspace",
+      "status": "passed",
+      "record": {
+        "file": "format-workspace.exit.json",
+        "bytes": 484,
+        "sha256": "a8d3f2c90c40b94a29239f951cd36b213af71f5ce8ba8fea1b4efd5c43b8f482"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:56Z",
+      "elapsed_seconds": 0.238099016,
+      "log": "format-workspace.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "format-network",
+      "status": "passed",
+      "record": {
+        "file": "format-network.exit.json",
+        "bytes": 550,
+        "sha256": "cb17bcfa35c13e234d57922cb7c8dc3d6fbd02327ab97c912a5a83942412f334"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:56Z",
+      "elapsed_seconds": 0.260027663,
+      "log": "format-network.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "clippy-workspace",
+      "status": "passed",
+      "record": {
+        "file": "clippy-workspace.exit.json",
+        "bytes": 564,
+        "sha256": "15873062694b5b3aee92b2d3f2103691c3970c779a1d7dda4abb0682d482e3e6"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:57Z",
+      "elapsed_seconds": 44.068501798,
+      "log": "clippy-workspace.log",
+      "log_sha256": "6e17d099a458a9a2b8351abfd7d4961a9924538525c76ddc0e5b374b1a30af6b"
+    },
+    {
+      "gate": "clippy-network",
+      "status": "passed",
+      "record": {
+        "file": "clippy-network.exit.json",
+        "bytes": 588,
+        "sha256": "89a8a98ef4946f2dc2a03b6fd12497677f37ef3e6cfe5049ef0c1fc28bbb7522"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:41Z",
+      "elapsed_seconds": 3.771438699,
+      "log": "clippy-network.log",
+      "log_sha256": "5ed99d81f55d76f3d226855c8709cdebcb4864b035045e451d97ea75075a53e3"
+    },
+    {
+      "gate": "stable-unit",
+      "status": "passed",
+      "record": {
+        "file": "stable-unit.exit.json",
+        "bytes": 534,
+        "sha256": "a3876e4ab8baf895108c4b703226f5b048c63f087d8027f5bf1502dd223c2705"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--frozen",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:45Z",
+      "elapsed_seconds": 65.892861407,
+      "log": "stable-unit.log",
+      "log_sha256": "b621f719eaa38d35965a9ccafe67ab9f8b5d55f4e5067faaa2f813777c6fb3e2"
+    },
+    {
+      "gate": "nightly-unit",
+      "status": "passed",
+      "record": {
+        "file": "nightly-unit.exit.json",
+        "bytes": 755,
+        "sha256": "d9af952aa92571ceb5808f43fbd421f3421a7e43443efd2f060653e99d4ead2a"
+      },
+      "command": [
+        "cargo",
+        "+nightly-2025-09-18",
+        "llvm-cov",
+        "--workspace",
+        "--lib",
+        "--bins",
+        "--all-features",
+        "--frozen",
+        "--branch",
+        "--no-cfg-coverage",
+        "--no-cfg-coverage-nightly",
+        "--json",
+        "--output-path",
+        "/workspace/scratch/c495512332ae/native-final-001/unit.json",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:06:50Z",
+      "elapsed_seconds": 95.940328413,
+      "log": "nightly-unit.log",
+      "log_sha256": "6f74cb04442eb91ff480eaa6f1edd4a3085cc88ff42ed93588b4ce11801e6847"
+    },
+    {
+      "gate": "unit-counters",
+      "status": "passed",
+      "record": {
+        "file": "unit-counters.exit.json",
+        "bytes": 431,
+        "sha256": "f94e46a3bef0a76b2cd2f2f42086eb2eaa332e0b2d5c5ac49781bbf289cfbce9"
+      },
+      "command": [
+        "python3",
+        "scripts/check_unit_coverage.py",
+        "/workspace/scratch/c495512332ae/native-final-001/unit.json"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:08:26Z",
+      "elapsed_seconds": 0.642490274,
+      "log": "unit-counters.log",
+      "log_sha256": "d59e6d918f887e664c67fac6091f570e51d49fe680e22074923fe62f09745a45"
+    },
+    {
+      "gate": "tooling-unit",
+      "status": "passed",
+      "record": {
+        "file": "tooling-unit.exit.json",
+        "bytes": 578,
+        "sha256": "fc1770bdbb57fac45d6d397c49c528afa6e995dbd2b74e11c7677d6c98d41898"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "coverage",
+        "run",
+        "--branch",
+        "--source=scripts",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/tooling",
+        "-v"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:56Z",
+      "elapsed_seconds": 1.786999534,
+      "log": "tooling-unit.log",
+      "log_sha256": "95329df35a57b50fd1481d8bed366ac95f2fa8f071ba3f978157cf2015416bc7"
+    },
+    {
+      "gate": "tooling-counters",
+      "status": "passed",
+      "record": {
+        "file": "tooling-counters.exit.json",
+        "bytes": 508,
+        "sha256": "ae17ba921572f740eb3824e5f067867917ec84ca1a8f19eb34316772602c46cd"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "coverage",
+        "report",
+        "--show-missing",
+        "--fail-under=100"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:58Z",
+      "elapsed_seconds": 0.157754022,
+      "log": "tooling-counters.log",
+      "log_sha256": "15732b5f4a95feee69dbbf7c6ed7e6441dea30eb8197dd190c0edad38ff3dba0"
+    },
+    {
+      "gate": "tooling-json",
+      "status": "passed",
+      "record": {
+        "file": "tooling-json.exit.json",
+        "bytes": 535,
+        "sha256": "a5e51a034be28319ce2c875d920a7af17dce8c59f673615ee0a9ba7a332a0bb7"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "coverage",
+        "json",
+        "-o",
+        "/workspace/scratch/c495512332ae/native-final-001/tooling.json"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:58Z",
+      "elapsed_seconds": 0.164921563,
+      "log": "tooling-json.log",
+      "log_sha256": "eef92a098c0bfabf541dbebf6c3ceb2d28f23248200ca7c793c7383ff4494603"
+    },
+    {
+      "gate": "fixture-unit",
+      "status": "passed",
+      "record": {
+        "file": "fixture-unit.exit.json",
+        "bytes": 449,
+        "sha256": "b0d602b8141998173627f2bcc4f2ac0e161c2b051804099624f429c89aaeb814"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-network",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:58Z",
+      "elapsed_seconds": 0.711000556,
+      "log": "fixture-unit.log",
+      "log_sha256": "294b2e87ff382e2c40b4dfd126be7dc8f54808ce9fe2a2311915e6ddac86175e"
+    },
+    {
+      "gate": "model-unit",
+      "status": "passed",
+      "record": {
+        "file": "model-unit.exit.json",
+        "bytes": 455,
+        "sha256": "e7dc0673aa954271acb846335e0209512097521fa6726e5af72eacbdfa912947"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-authority-model",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:59Z",
+      "elapsed_seconds": 1.388749049,
+      "log": "model-unit.log",
+      "log_sha256": "3674beacc0038900fa386152afd80606998244befbcbf5586d36557229156990"
+    },
+    {
+      "gate": "model-explore",
+      "status": "passed",
+      "record": {
+        "file": "model-explore.exit.json",
+        "bytes": 459,
+        "sha256": "ad9f35fdb6f12a9749bdf8aa6a7f7482347d27cacb915b0c680a6cbb2437d56c"
+      },
+      "command": [
+        "python3",
+        "experiments/object-authority-model/explore.py",
+        "--output",
+        "/workspace/scratch/c495512332ae/native-final-001/model"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:00Z",
+      "elapsed_seconds": 14.244874042,
+      "log": "model-explore.log",
+      "log_sha256": "ffb2d54cccf7a0aa40e358cb168a6862616d9b8531faf9d436fc03050c215a60"
+    },
+    {
+      "gate": "repository",
+      "status": "passed",
+      "record": {
+        "file": "repository.exit.json",
+        "bytes": 353,
+        "sha256": "361a6e21e9bb632136336f7ef29756464099c5f361ab4775b5a4856042537ff0"
+      },
+      "command": [
+        "python3",
+        "scripts/check_repo.py"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:15Z",
+      "elapsed_seconds": 0.052971603,
+      "log": "repository.log",
+      "log_sha256": "39731fb9579e6b5b443a586f9c8e3fcdca6fdda6738d62b6b4895bd5ce4596a8"
+    },
+    {
+      "gate": "developer-tools",
+      "status": "passed",
+      "record": {
+        "file": "developer-tools.exit.json",
+        "bytes": 438,
+        "sha256": "035173f6ffbbfb9b7c3b7aea33f2047b9a075733b3d70bf1ff904e4086759544"
+      },
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "dev/environment",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:15Z",
+      "elapsed_seconds": 0.768897,
+      "log": "developer-tools.log",
+      "log_sha256": "93b0d5ba9f1d35578461f156b9d5e800625df240d5ad4c00c111662cd8c85dd8"
+    },
+    {
+      "gate": "developer-enter-syntax",
+      "status": "passed",
+      "record": {
+        "file": "developer-enter-syntax.exit.json",
+        "bytes": 375,
+        "sha256": "ea294ea840b37ec984a2577ec2b5932f40d5c93df5f57195ab14c160577e2e22"
+      },
+      "command": [
+        "bash",
+        "-n",
+        "dev/environment/enter.sh"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:16Z",
+      "elapsed_seconds": 0.002302606,
+      "log": "developer-enter-syntax.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "developer-validate-syntax",
+      "status": "passed",
+      "record": {
+        "file": "developer-validate-syntax.exit.json",
+        "bytes": 381,
+        "sha256": "a8b08eb5a63b27b0ce0bdcde0c5c5926a770438aa580c593c883669565184181"
+      },
+      "command": [
+        "bash",
+        "-n",
+        "dev/environment/validate.sh"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:16Z",
+      "elapsed_seconds": 0.002025106,
+      "log": "developer-validate-syntax.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "node-codec",
+      "status": "passed",
+      "record": {
+        "file": "node-codec.exit.json",
+        "bytes": 439,
+        "sha256": "233592a7a3639959dea34eb311cdd0177ada40a3bb05bb2c1a4574a7550247cb"
+      },
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:16Z",
+      "elapsed_seconds": 1.194241757,
+      "log": "node-codec.log",
+      "log_sha256": "499c3ce5e6ee98afa0dfbb9e9657d672904f1c1ba0c0685a98e081897f70c2b1"
+    },
+    {
+      "gate": "node-exact-counters",
+      "status": "passed",
+      "record": {
+        "file": "node-exact-counters.exit.json",
+        "bytes": 164,
+        "sha256": "c465cb6e99916668165a7050330aa2d13b668f027d6676eca1ef1cab8b9a016d"
+      },
+      "command": [
+        "bash",
+        "/workspace/scratch/c495512332ae/native-final-001/node-exact-gate.sh"
+      ],
+      "exit_code": 0
+    },
+    {
+      "gate": "actionlint",
+      "status": "passed",
+      "record": {
+        "file": "actionlint.exit.json",
+        "bytes": 635,
+        "sha256": "5e5a9ebab6caf4402e8fdd1bf936a4f416486727ed782c9b818da61a601f3b51"
+      },
+      "command": [
+        "/workspace/scratch/c495512332ae/native-final-001/actionlint",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/quality.yml",
+        ".github/workflows/docs.yml",
+        ".github/workflows/developer-tools.yml",
+        ".github/workflows/node-codec.yml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.0029450420006469358
+    },
+    {
+      "gate": "release-build",
+      "status": "passed",
+      "record": {
+        "file": "release-build.exit.json",
+        "bytes": 527,
+        "sha256": "3d709a6e29646123e0541434de6d198ddb289445503d0a5a045c164e55510b9d"
+      },
+      "command": [
+        "python3",
+        "experiments/object-network/build.py",
+        "--target-dir",
+        "/workspace/scratch/c495512332ae/target-s3-release",
+        "--evidence",
+        "/workspace/scratch/c495512332ae/native-final-001/build"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:04:56Z",
+      "elapsed_seconds": 7.820374624,
+      "log": "release-build.log",
+      "log_sha256": "e56b28d74e1ffad6aeef3ee393bf0ee0f208c2819a1a9989b1d924e7085b9a8f"
+    },
+    {
+      "gate": "network",
+      "status": "passed",
+      "record": {
+        "file": "network.exit.json",
+        "bytes": 715,
+        "sha256": "c3434e5e1fb0a8703fe496342eb49749a74f3ffac8f4544202151998398fe198"
+      },
+      "command": [
+        "python3",
+        "experiments/object-network/run.py",
+        "--worker",
+        "/workspace/scratch/c495512332ae/target-s3-release/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/12d4ab0ed5ae/environment/bin/weed",
+        "--build-record",
+        "/workspace/scratch/c495512332ae/native-final-001/build/build.json",
+        "--evidence",
+        "/workspace/scratch/c495512332ae/native-final-001/network"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:05:45Z",
+      "elapsed_seconds": 48.965059524,
+      "log": "network.log",
+      "log_sha256": "7b4893fc8646ae90fa504aaf210dffa5a15175d3f25d7204f641b223052dda25"
+    },
+    {
+      "gate": "retained",
+      "status": "passed",
+      "record": {
+        "file": "retained.exit.json",
+        "bytes": 738,
+        "sha256": "c9b809e0e555ef5d20ec07b5e34c4d71c9134693befa3438e5f8c17307d11259"
+      },
+      "command": [
+        "python3",
+        "experiments/object-network/retained_result_contract.py",
+        "--worker",
+        "/workspace/scratch/c495512332ae/target-s3-release/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/12d4ab0ed5ae/environment/bin/weed",
+        "--build-record",
+        "/workspace/scratch/c495512332ae/native-final-001/build/build.json",
+        "--evidence",
+        "/workspace/scratch/c495512332ae/native-final-001/retained"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:06:34Z",
+      "elapsed_seconds": 26.668874388,
+      "log": "retained.log",
+      "log_sha256": "50b4748a18751ca95024b4219055d898de27d9d1c1b286e4b7d8e2d22539d53c"
+    },
+    {
+      "gate": "gib1",
+      "status": "passed",
+      "record": {
+        "file": "gib1.exit.json",
+        "bytes": 740,
+        "sha256": "bc9e5cae10aa64ee30601f7eebed59942e3c241ddff98fa1d32425e3beb8178a"
+      },
+      "command": [
+        "python3",
+        "experiments/object-capacity/run.py",
+        "--worker",
+        "/workspace/scratch/c495512332ae/target-s3-release/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/12d4ab0ed5ae/environment/bin/weed",
+        "--build-record",
+        "/workspace/scratch/c495512332ae/native-final-001/build/build.json",
+        "--evidence",
+        "/workspace/scratch/c495512332ae/native-final-001/gib1",
+        "--profile",
+        "gib1"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:07:01Z",
+      "elapsed_seconds": 184.539379855,
+      "log": "gib1.log",
+      "log_sha256": "ed7477084b17c7e4e95adba1cef5b685811a2256d5961f543aee6ed2ca7d279e"
+    },
+    {
+      "gate": "source-after",
+      "status": "passed",
+      "record": {
+        "file": "source-after.exit.json",
+        "bytes": 449,
+        "sha256": "1cf0ba65c5505f063be8e6e506a87bc1fb639ce166ebf8f460e2b988ea425ca6"
+      },
+      "command": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/c495512332ae/native-final-001/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_utc": "2026-11-07T04:11:50Z",
+      "elapsed_seconds": 0.082353147,
+      "log": "source-after.log",
+      "log_sha256": "6f745719655f368774164aee4f269de57e67a06362bce8a9495b318a69b4039e"
+    }
+  ],
+  "limitations": {
+    "ten_gib": "HISTORICAL_NOT_RERUN; existing PR #20 evidence only, not evidence for this candidate",
+    "aws_standard": "NOT_RUN",
+    "remote_ci": "NOT_RUN_BY_THIS_VALIDATION",
+    "cross_az": "NOT_RUN",
+    "production_slo_passed": false,
+    "n1_complete": false,
+    "service_and_new_node_sdk": "OUT_OF_SCOPE; developed and validated separately",
+    "physical_gc": "NOT_IMPLEMENTED",
+    "pitr": "NOT_IMPLEMENTED",
+    "multi_database_scheduling": "NOT_VALIDATED",
+    "storage_cost": "GC is off; orphan and retained objects accumulate; file quota is not bucket quota"
+  },
+  "merge_ready_for_validated_native_scope": true,
+  "merge_basis": "maintainer authorization permits complete local acceptance; no assertion of remote CI success",
+  "raw_evidence_directory": "native-final-001",
+  "artifacts": [
+    {
+      "file": "source-before.json",
+      "bytes": 30787,
+      "sha256": "afd9940b28e436f8dbd5760952145456dbf86899e4d6144a6684423a975ac66c"
+    },
+    {
+      "file": "source-after.json",
+      "bytes": 30787,
+      "sha256": "afd9940b28e436f8dbd5760952145456dbf86899e4d6144a6684423a975ac66c"
+    },
+    {
+      "file": "build/build.json",
+      "bytes": 7130,
+      "sha256": "0801b5e2d2a53a25dae42c1e8345ae23e680a1e7a2592677747c98fa18b6ed5d"
+    },
+    {
+      "file": "build/cargo.stdout.jsonl",
+      "bytes": 177354,
+      "sha256": "cdfa895a656be630312a3b971b97d9cce57d2805550da5fe03f5b3e1af5686de"
+    },
+    {
+      "file": "build/cargo.stderr.log",
+      "bytes": 583,
+      "sha256": "263413a25782ab4744da46f3f20ec792eb6622a9fa71c0266364ea6e4da93b14"
+    },
+    {
+      "file": "unit.json",
+      "bytes": 30017936,
+      "sha256": "0a475bc590759ac14cf23cf28c416a1d4b0796bab762b9f9bdc9ddccebf51cc7"
+    },
+    {
+      "file": "unit-counters.log",
+      "bytes": 1464,
+      "sha256": "d59e6d918f887e664c67fac6091f570e51d49fe680e22074923fe62f09745a45"
+    },
+    {
+      "file": "coverage-freshness-before.json",
+      "bytes": 123,
+      "sha256": "4f6af9dfda1f6bc8b99ea4863a3f5e636656667ec5152e165f721c7171699225"
+    },
+    {
+      "file": "coverage-freshness-after.json",
+      "bytes": 42330,
+      "sha256": "5a8c7822721039278497ca053687be8343d7cf44598013e333e2c1dbe11f3e53"
+    },
+    {
+      "file": "unit-profiles/actual-profraw-list.txt",
+      "bytes": 20498,
+      "sha256": "c6687b612f03eb4e02f59be6e163ed499edc2452e30b16400e09150c33f3711e"
+    },
+    {
+      "file": "unit-profiles/scap-native.profdata",
+      "bytes": 2423584,
+      "sha256": "1bbddfd0f30293f6b793dc2fad5d41d1d30ab7886d40e922a73d612444b7174f"
+    },
+    {
+      "file": "tooling.json",
+      "bytes": 24744,
+      "sha256": "d273e4c09d042873f911b91a1f9abcbd19770c453b70de889c7a6d734a8c85eb"
+    },
+    {
+      "file": "model/summary.json",
+      "bytes": 504563,
+      "sha256": "0caacda1f70eceb3653fc14ccf966f1f496d62fd18307f081f43191e30bb3f13"
+    },
+    {
+      "file": "network/summary.json",
+      "bytes": 111627,
+      "sha256": "240c1e92053088505e04121f961e988bce50cc5a8f5ce198083ffa0fad234199"
+    },
+    {
+      "file": "network/history.jsonl",
+      "bytes": 16891818,
+      "sha256": "984923bd5939ee5f3ac6ba7508ea31b5497493ebcdb0502e4cec9aa7e474e859"
+    },
+    {
+      "file": "network/ack-ledger.jsonl",
+      "bytes": 5000,
+      "sha256": "43a23da41ad8663504cbc3a58a4c12b42f9a04d51bb31a782caf9ead61967cce"
+    },
+    {
+      "file": "network/fault-ack-ledger.jsonl",
+      "bytes": 90058,
+      "sha256": "302358a551aeb7ebead2ef4429dfccf0823de287fae99d9822d609461c883321"
+    },
+    {
+      "file": "network/fault-input-ledger.jsonl",
+      "bytes": 118328,
+      "sha256": "a19b2f89e36a8cfa24f8e41198ce0d38f02f21f96ecd236cddbb58b7855fe2d6"
+    },
+    {
+      "file": "network/fault-outcome-ledger.jsonl",
+      "bytes": 38305,
+      "sha256": "76e839dac937b78327f24d320faba52b2cb040fe675bae606b958dcd75dc5b5a"
+    },
+    {
+      "file": "network/fault-cases.jsonl",
+      "bytes": 537057,
+      "sha256": "ab042395bc5e42ef873ab37bf816dff1c651ee80a5041ae1079369854ea9533d"
+    },
+    {
+      "file": "network/schema-ack-ledger.jsonl",
+      "bytes": 18246,
+      "sha256": "c6105e804de6e48e03e86309e187ec4de4b6383bd660f6a2e543b37cca72bebc"
+    },
+    {
+      "file": "network/schema-input-ledger.jsonl",
+      "bytes": 12190,
+      "sha256": "8b1a4984e01e3ffa20054da548b9ea20c8ecbc1a2a5ca2b413c937304490ed53"
+    },
+    {
+      "file": "network/schema-audit.jsonl",
+      "bytes": 79555,
+      "sha256": "c2babb1c354ab23e93867a5b94dac220b7019223da29c048ff1936d2b52c83ae"
+    },
+    {
+      "file": "retained/summary.json",
+      "bytes": 7957,
+      "sha256": "801592787c10f4fde29616df8a5e533f5591c2b452c66c2cb9014423faef2f49"
+    },
+    {
+      "file": "retained/fault-ack-ledger.jsonl",
+      "bytes": 45743,
+      "sha256": "073cd269eb3c2315dd473b449810fe7d30da0b2abfbdd6ac1a789891b5bd3846"
+    },
+    {
+      "file": "retained/fault-input-ledger.jsonl",
+      "bytes": 47334,
+      "sha256": "a6256b52313287b79c06cf03bfd32fe247c438720fef90948049e104f48594fb"
+    },
+    {
+      "file": "retained/fault-outcome-ledger.jsonl",
+      "bytes": 15220,
+      "sha256": "f21a2a4f0b65b64a9e0bc9c6b7752f7f86dd5a5330cd723194e3aff64fb848b7"
+    },
+    {
+      "file": "retained/fault-cases.jsonl",
+      "bytes": 554787,
+      "sha256": "d967e6276ea53c4659d98a7b126d50dc7059db6ee1ab6cfc421e4d191f7aaf85"
+    },
+    {
+      "file": "retained/history.jsonl",
+      "bytes": 9093703,
+      "sha256": "32c080bed3d7fb0de06ce1f5dcf84d5b0607dbc0cb05f9c70ffcf1d0e0d95651"
+    },
+    {
+      "file": "gib1/summary.json",
+      "bytes": 25926,
+      "sha256": "2b34aff4d13bb97fa20abf89e5e6c1ccb485035573078266a7a6a0fae0128506"
+    },
+    {
+      "file": "gib1/ack-ledger.jsonl",
+      "bytes": 52482,
+      "sha256": "b6ed21b2994e4ccece0aa5ff8ce819818cfae74df96d7dd878a8f97464081510"
+    },
+    {
+      "file": "gib1/input-ledger.jsonl",
+      "bytes": 1902015,
+      "sha256": "8ca1d6559f143e546a6a5d43e0ec81426d317ac3c18032eb30da1050b4373321"
+    },
+    {
+      "file": "gib1/history.jsonl",
+      "bytes": 79448395,
+      "sha256": "0f90251dcaa1ecf19fb6deef93865f0115501d3c0754e18a551ce3984d2021aa"
+    },
+    {
+      "file": "independent-audit.json",
+      "bytes": 34876,
+      "sha256": "547919be2f7d8adbe1a1a582b5215218340abff5c27d74b4c31f208f538c6ebb"
+    },
+    {
+      "file": "independent-audit.exit.json",
+      "bytes": 378,
+      "sha256": "0aa6551a8e2b04e6384ab5877a6e95c58ab42f87e3c809a85ecf953f92499bfc"
+    },
+    {
+      "file": "independent-audit.log",
+      "bytes": 598,
+      "sha256": "a6326ed5e7874ce4bed58cc6a2e472c5757013a3c6b19d312d731d0ff1f1c46a"
+    },
+    {
+      "file": "independent-audit-corrected.exit.json",
+      "bytes": 388,
+      "sha256": "89a6dff5787111fa24a00060e5ae625c18bac85441b4bf8633b6f8f65bdc9a39"
+    },
+    {
+      "file": "independent-audit-corrected.log",
+      "bytes": 2872,
+      "sha256": "bcf4711b696e3e5961e93d9c6132f8aacce461543435d7c6bc4e4b6efe1d4386"
+    },
+    {
+      "file": "diagnostics/original-schema-contract.py",
+      "bytes": 16336,
+      "sha256": "d99d00b9389445f5992684236ae2385d72ed5e041e7d55172daa6026e199dc3b"
+    },
+    {
+      "file": "diagnostics/schema-reproduce-001/summary.json",
+      "bytes": 1665,
+      "sha256": "01f87d536ea46344234163b1d68a9fb173d04b3e3e139ef1db3b0057611211d6"
+    },
+    {
+      "file": "diagnostics/schema-reproduce-001/history.jsonl",
+      "bytes": 2099532,
+      "sha256": "48ed9c014dc23fc6b6afb0e21f7d90bf57f8262bd49a493442f35a7e5b2adc3b"
+    },
+    {
+      "file": "diagnostics/schema-corrected-diagnostic-001/summary.json",
+      "bytes": 1847,
+      "sha256": "73960f6bc715371dedee7c33a0e6612055c8cd67f7e6952166b23ce26eee7e24"
+    },
+    {
+      "file": "diagnostics/retained-diagnostic-001/summary.json",
+      "bytes": 6514,
+      "sha256": "a00bcaaa30af9a372cacf991a96fbd933933a55ac38976bbdd5b6a81ac5f56c5"
+    }
+  ]
+}

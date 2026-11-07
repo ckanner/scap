@@ -1440,6 +1440,13 @@ def run(arguments):
         for name in FAULT_CONTRACTS:
             done(name)
         assert completed == CONTRACTS + FAULT_CONTRACTS
+        from schema_contract import CONTRACT as SCHEMA_CONTRACT, SchemaSuite
+        schema = SchemaSuite(sys.modules[__name__], arguments, evidence, private, compute,
+                             proxy, workers, config)
+        summary["schema_contracts"] = schema.summary
+        schema.run()
+        done(SCHEMA_CONTRACT)
+        assert completed == CONTRACTS + FAULT_CONTRACTS + [SCHEMA_CONTRACT]
         assert not proxy.errors, proxy.errors
         summary["status"] = "passed"
     except BaseException as error:

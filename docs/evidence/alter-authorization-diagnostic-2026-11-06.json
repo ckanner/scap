@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-06",
+  "status": "draft-pinned-validation-not-run",
+  "merge_ready": false,
+  "base_commit": "819050679a306a2d799c8c14a76c7a157f3e522d",
+  "base_tree": "5aea288502b83d2e93d2279cf3a308bb778e69fd",
+  "source_scope": "Only modified files materialized locally; not a complete built checkout.",
+  "base_blobs_verified": {
+    "crates/scap-object-sqlite/src/sql.rs": "c9fb463b7d97acbf619f1438b96296f49ebb5e87",
+    "contracts/coverage-policy.json": "b905033278cd47304bf59c21c6a8c8d6dc04a565"
+  },
+  "candidate_files_sha256": {
+    "crates/scap-object-sqlite/src/sql.rs": "072db10911f52a572559c4579351f09b873f63155226f9a31439e674379e3648",
+    "crates/scap-object-sqlite/src/alter_tests.rs": "be9b563c9f4b4fe373b13fdf010365aac20bc0ab438a401e7371f47650c59165",
+    "contracts/coverage-policy.json": "53d68d019be97ee3f9752f70e6ba57b1498a3dffed722f37c6d47459a9269a80"
+  },
+  "upstream_pin": "d8bc862d20bedc72945a1da27c8b7045414c0261",
+  "upstream_sqlite_version": "3.47.0",
+  "diagnostic": {
+    "status": "passed",
+    "test_count": 12,
+    "failures": 0,
+    "errors": 0,
+    "sqlite_version": "3.46.1",
+    "python_version": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "diagnostic_script_sha256": "eb5a1f6928e6facbc7293ae0f681ef148188c7f6c6a28e1149f5db13a4b81125",
+    "callback_invocations": 963,
+    "statements_observed": 45
+  },
+  "diagnostic_is_production_test": false,
+  "diagnostic_policy": "Independent Python mirror with helper names extracted from candidate source, applied to host SQLite. Not Rust or fixed libSQL execution.",
+  "added_rust_test_functions": 12,
+  "added_rust_tests_executed": false,
+  "required_gates": {
+    "rustfmt": "NOT_RUN",
+    "clippy": "NOT_RUN",
+    "rust_compile": "NOT_RUN",
+    "rust_unit": "NOT_RUN",
+    "exact_100_percent_coverage": "NOT_RUN",
+    "s3_fault_contracts": "NOT_RUN",
+    "s3_schema_recovery_contract": "NOT_RUN",
+    "gib1_capacity_regression": "NOT_RUN",
+    "aws_standard": "NOT_RUN"
+  },
+  "environment": {
+    "rustc_available": false,
+    "cargo_available": false,
+    "dependency_download": "Host cannot resolve external dependency domains",
+    "host_sqlite_available": true
+  },
+  "raw_diagnostic_sha256": "3f6b0496b08dd8625a51a5071a47186e45e0e90c2bac0164b91d2295033ea89e",
+  "unchanged_contracts": [
+    "S3 authoritative HEAD/CAS",
+    "10 GiB default and configurable quota",
+    "commit-before-ACK",
+    "UNKNOWN handling",
+    "result retention",
+    "read-only DDL rejection",
+    "100 percent production coverage gate"
+  ],
+  "scope_limits": [
+    "No S3 authority or persistent format changes",
+    "No N1 completion claim",
+    "No multi-tenant service, public SDK, GC or PITR implementation claim",
+    "No production latency or failover claim"
+  ]
+}
