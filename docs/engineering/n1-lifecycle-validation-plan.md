@@ -2,8 +2,8 @@
 
 - 日期：2026-11-07。
 - 源码审阅基线：`e2c44b099132700e1305c275c6551c8e156fe510`，即已合入认证 HTTP 服务与 Node SDK 的主线。
-- 状态：**IMPLEMENTED；真实生命周期合同 NOT_RUN**。控制器、独立 oracle 与夹具自测已经实现；尚待冻结新候选后构建及实际运行，不表示 N1 退出。
-- 前次尝试在首次修改实验 worker 前失去执行能力，未留下可执行生命周期实验。本次已恢复 PR #28 候选工作区，先更新本计划并提交文档，再实施；目前仍没有本计划的构建或运行通过证据。
+- 状态：**LC-01–LC-12 本地真实合同已通过**，绑定冻结候选 `fe1909bf9f6b46cbfdd8536d4b8a649999a784b0`。完整计数、失败保留和独立审计见[验收记录](n1-lifecycle-validation.md)；不表示 N1 整体退出。
+- 前次尝试在首次修改实验 worker 前失去执行能力，未留下可执行生命周期实验。本次已恢复 PR #28 候选工作区，先更新本计划并提交文档，再实施；后续已完成新冻结候选的实际构建和十二场景验收，前轮失联仍保留为历史事实。
 - 实施遵守 [AGENTS.md](../../AGENTS.md)、[主方案](../architecture/object-storage-native-proposal.md)、[验证规范](validation.md)与[本地源码身份要求](local-validation.md)。
 
 ## 1. 目的与准确范围
@@ -39,7 +39,7 @@
 | `experiments/object-network/test_lifecycle_oracle.py` | 固定证据样本与逐项负对照 |
 | `experiments/object-network/README.md` | 执行入口、产物、精确范围与限制 |
 
-上述实现文件现已存在，worker 已增加唯一 `set_lifecycle` 直通。夹具自测已通过；本计划的新候选 Rust 构建与真实 S3 生命周期运行仍为 NOT_RUN。
+上述实现文件现已存在，worker 已增加唯一 `set_lifecycle` 直通。新候选的正式 release 构建、78 项网络夹具自测和十二场景实际运行已通过，生产 Rust／SDK 未改变，精确身份与复用边界见验收记录。
 
 `set_lifecycle` 的命令形状固定为 `{"op":"set_lifecycle","revision":N,"nonce":M,"lifecycle":"ready|maintenance|deleted"}`；最后一项实际只能传三个值之一，使用正式 `Lifecycle` 的 snake_case serde 格式。principal 来自 worker 的可信配置；不得增加调用者可自行覆盖 principal 的参数。命令返回正式 Head 或正式错误，不补充任何重试逻辑。
 
@@ -208,16 +208,17 @@ controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evi
 
 ## 9. 本文交付时的状态
 
-候选 `135ef89` 的真实控制器已运行到十二场景及恢复的末尾，但独立 oracle 因重复 invocation label 拒绝，整轮保留为 **FAILED**。原因是 LC-03／LC-06 在两次恢复中，外层 audit 与内层 Deleted 检查共用了 head_before／head_after 标签；原始调用 ID 没有重复，也没有丢弃实际调用。修复将内层标签固定为 `<stage>.deleted.*`，并在控制器发送前拒绝任何重复标签。新增回归直接覆盖这四组 Deleted 恢复调用图；另补后端进程 incarnation／wait4 source／spawn 时间及 LC-10 精确 SQL 输入的负对照。原失败证据不得重写，新候选仍须重新冻结构建并完整运行。
+候选 `135ef89` 的真实控制器已运行到十二场景及恢复的末尾，但独立 oracle 因重复 invocation label 拒绝，整轮保留为 **FAILED**。原因是 LC-03／LC-06 在两次恢复中，外层 audit 与内层 Deleted 检查共用了 head_before／head_after 标签；原始调用 ID 没有重复，也没有丢弃实际调用。修复将内层标签固定为 `<stage>.deleted.*`，并在控制器发送前拒绝任何重复标签。新增回归直接覆盖这四组 Deleted 恢复调用图；另补后端进程 incarnation／wait4 source／spawn 时间及 LC-10 精确 SQL 输入的负对照。原失败证据没有重写；新候选 `fe1909b` 已重新冻结、实际构建并完整运行，十二场景和两轮恢复全部通过。首次新构建日志缺最终事件仍被门禁拒绝，真实重跑的完整收据另存。
 
 | 项目 | 状态 |
 | --- | --- |
 | 主线源码与现有合同审阅 | 已完成静态审阅 |
 | 十二类场景、语义及独立账本要求 | 本文已定义 |
-| worker 的 set_lifecycle 扩展 | 已实现；新候选 Rust 编译 NOT_RUN |
-| lifecycle_contract 与独立 oracle | 已实现十二场景、完整账本与独立审计；真实运行 NOT_RUN |
+| worker 的 set_lifecycle 扩展 | 正式 release 实际编译、源码／二进制／native archive 收据通过 |
+| lifecycle_contract 与独立 oracle | 12/12 真实场景及两个恢复阶段通过；另有仓库外独立原始账本复核 |
 | 夹具自测 | 37 项通过；使用明确的控制器／证据替身，不是 S3 或产品单元覆盖证据 |
-| 新候选 Rust 编译／原生 SQLite／精确覆盖率 | NOT_RUN |
+| 新候选 Rust 编译／原生 SQLite | 实际 release 和真实运行通过 |
+| 生产精确覆盖率 | 75 个生产／SDK／根依赖文件与已验收 a11e61e 相同；引用原 204 单元／24 文件证据，不伪称本轮重跑 |
 | 本计划真实本地 S3 合同 | NOT_RUN |
 | 真实 AWS Standard、跨 AZ、生产 SLO | NOT_RUN |
 | N1 整体退出 | 未达到 |

@@ -6,6 +6,10 @@
 
 **当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
+[PR #29 的生命周期真实合同](docs/engineering/n1-lifecycle-validation.md)绑定冻结候选 `fe1909b`：十二场景、两轮恢复及独立原始账本复核通过；78 次成功响应／30 个原身份分别核对保留结果、Deleted 和 Retired，零错配。生产 Rust／SDK 与上一验收候选逐字节相同，历史单元证据与本批真实实验分开记录。
+
+[PR #28 的本地执行目录防护验收](docs/engineering/local-storage-validation.md)绑定冻结候选 `a11e61e`：stable／nightly 各 204 项 Rust 单元、24 个生产文件精确覆盖，以及真实 S3/原生故障、HTTP/SDK 和 1 GiB 全量恢复通过。首次格式与 release 构建失败均保留；独立原始审计的可确认范围和服务恢复响应账本的限制分别列明。
+
 [PR #27 的 HTTP／Node 完整本地验收](docs/engineering/http-service-validation.md)绑定冻结候选 `aa01150`：stable／nightly 各 199 项 Rust 单元、23 个生产文件四维逐文件精确 100%，真实服务核对 10 个唯一请求和 8 次重复成功响应。全部计算缓存丢失恢复、原网络故障合同、保留结果及 1 GiB 全量恢复均有独立证据。该历史结果不认证后续源码；名称目录、自动路由、完整 N1/N2、AWS 与生产 SLO 仍未完成。
 
 [PR #26 的 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 该轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
@@ -20,7 +24,7 @@
 
 S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SHM 作为共享网络文件读写。本地执行镜像仍必须满足 SQLite 的 I/O 语义；误把 `cache_directory` 配成 NFS/EFS/FUSE 不能因“缓存可丢弃”而视为安全。
 
-[PR #28](https://github.com/ckanner/scap/pull/28) 提供本地目录类型防护候选及补充测试，详见[存储安全说明](docs/operations/sqlite-storage-safety.md)。**初始候选保存时执行环境不可用，新增 Rust、覆盖率与真实存储验证均为 NOT_RUN；该候选不能继承历史验收结果。** 环境恢复后的方案、实施和验证按[2026-11-07 审查记录](docs/engineering/status-2026-11-07.md)分别更新，完整执行顺序见[路线图](docs/engineering/roadmap.md)。
+[PR #28](https://github.com/ckanner/scap/pull/28) 已完成本地目录类型防护、补充测试及必要本地回归，见[验收说明](docs/engineering/local-storage-validation.md)与[存储安全说明](docs/operations/sqlite-storage-safety.md)。最初环境不可用及后续失败仍保留在[审查记录](docs/engineering/status-2026-11-07.md)；当前结果只绑定本轮冻结候选。真实 NFS/EFS/FUSE 挂载、AWS 和生产门禁没有由本地分类测试代替。后续按[路线图](docs/engineering/roadmap.md)继续。
 
 ## 实现入口
 
