@@ -40,8 +40,7 @@ fn create_cache(
     parent: &Path,
     create: impl FnOnce(&Path) -> std::io::Result<tempfile::TempDir>,
 ) -> Result<tempfile::TempDir, Failure> {
-    scap_object_sqlite::validate_cache_directory(parent)
-        .map_err(|_| Failure::new("CACHE_IO"))?;
+    scap_object_sqlite::validate_cache_directory(parent).map_err(|_| Failure::new("CACHE_IO"))?;
     create(parent).map_err(|_| Failure::new("CACHE_IO"))
 }
 

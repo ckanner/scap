@@ -348,7 +348,7 @@ Lookup 可返回 committed、cancelled、retired、指纹冲突或 unknown。**�
 
 跨库/整租户撤销不是单 HEAD 事务，初版不承诺瞬时原子全租户撤销，必须报告扇出进度、失败关闭和完成确认。若客户要求更强合同，先补协调协议，不依赖 JWT 尚未到期。
 
-删除由 CAS 写 tombstone 并推进 fence，不能 DeleteObject HEAD。PITR 发布新的 incarnation/控制世代，不回写旧 HEAD、不恢复旧权限、不复活旧请求。身份屏障应最小化，不保留业务明文；数据删除、审计和保留期另有明确政策。
+删除由 CAS 写 tombstone 并推进 fence，不能 DeleteObject HEAD。物理 HEAD 键由 deployment/tenant/database 确定，不能仅换 incarnation/generation 复用同一身份槽。PITR 使用新的 database ID 和独立 HEAD，发布新的 incarnation/控制世代，不回写旧 HEAD、不恢复旧权限、不复活旧请求。身份屏障应最小化，不保留业务明文；数据删除、审计和保留期另有明确政策。
 
 <a id="lifecycle"></a>
 ## 11. 增量、恢复、PITR 与垃圾回收
@@ -390,7 +390,7 @@ TTL 到期不证明旧执行器停止。撤销/过期后旧操作不得直接将
 
 ### 11.4 PITR 与区域灾备
 
-PITR 从权威保留提交链选择恢复点，构建隔离目标，验证后以新运行代激活。历史权限、tombstone、请求屏障不能随业务数据一起回退；外部订单等要独立对账。
+PITR 从权威保留提交链选择恢复点，在新的 database ID/HEAD 下构建隔离目标，验证后以新运行代激活。历史权限、tombstone、请求屏障不能随业务数据一起回退；外部订单等要独立对账。
 
 备份闭包包括数据、目录、策略、结果、保留根、格式解释及必要密钥引用。“全部计算丢失、原 S3 健康”是主要验收；跨区域异步副本只保证其完整覆盖的历史位置。
 

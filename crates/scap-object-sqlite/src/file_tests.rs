@@ -415,8 +415,8 @@ fn execution_filesystems_require_explicit_support_and_successful_directory_probe
         0x00c3_6400, // Ceph
         0x5346_414f, // AFS
         0x9fa0,      // procfs
-        0,          // unknown
-        u32::MAX,   // unknown
+        0,           // unknown
+        u32::MAX,    // unknown
     ] {
         let probe = Probe {
             filesystem,
@@ -457,7 +457,9 @@ fn native_execution_storage_checks_actual_directory_and_rejects_symlink_bypass()
     crate::validate_cache_directory(&local_alias).unwrap();
     let missing = root.path().join("missing");
     assert_eq!(
-        crate::validate_cache_directory(&missing).unwrap_err().kind(),
+        crate::validate_cache_directory(&missing)
+            .unwrap_err()
+            .kind(),
         io::ErrorKind::NotFound
     );
     let file = root.path().join("file");

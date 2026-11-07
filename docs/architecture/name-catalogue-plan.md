@@ -1,274 +1,306 @@
-# 名称目录与创建生命周期：待实施工作包
+# 名称目录与创建生命周期：可实施协议与验收门槛
 
 - 日期：2026-11-07。
-- 审查基线：`e2c44b099132700e1305c275c6551c8e156fe510`，已合并 PR #27。
-- 状态：**待实现、待模型审查和原生验收。本文不增加生产能力，不宣布 N1/N2 退出。**
-- 范围：落实[完整方案第 10 节](object-storage-native-proposal.md#catalogue)的可恢复名称绑定；保持 S3 为唯一持久权威，不增加 PostgreSQL、etcd 或必须存活的本地目录。
-- 本次执行环境在源码审查后变为 unavailable；Rust 编译、名称协议运行、覆盖率和真实 S3 名称合同均为 `NOT_RUN`。本工作包不能用主线 #27 的历史证据认证。
+- 代码审查基线：`e2c44b099132700e1305c275c6551c8e156fe510`（已合并 PR #27）；PR #28 保存了第一版待实施方案。
+- 状态：**设计决策已细化；目录生产代码、协议模型及真实验收均未完成。本文不宣布 N1/N2 退出。**
+- 范围：落实[完整方案第 10 节](object-storage-native-proposal.md#catalogue)的可恢复名称绑定；S3 继续是唯一持久权威。
+- 前轮执行环境失联，因而只保存了草稿。当前工作区与原生环境已经恢复；这一事实不等于本文中的协议、覆盖率或真实 S3 合同已经通过，相关新增验证仍为 `NOT_RUN`。
 
-## 1. 当前主线与本工作包的边界
+## 1. 当前能力与本工作包
 
-当前 `scap-object` 已有不可变 Scope、条件建库、原子 HEAD 发布、权限、显式接管/激活、取消、结果退休及 Deleted 屏障。HTTP/Node SDK 已经使用 deployment、tenant、database、incarnation、generation 五元组接入，客户端可以保存原请求并查证 UNKNOWN。参见[运行时](../engineering/object-runtime.md)、[HTTP ADR](../adr/0023-authenticated-http-and-node-sdk.md)及[路线图](../engineering/roadmap.md)。
+当前 `scap-object` 已有不可变 Scope、条件建库、原子 HEAD 发布、权限、显式接管/激活、请求取消、结果退休及 Deleted 屏障。HTTP/Node SDK 使用 deployment、tenant、database、incarnation、generation 五元组，并保留原 SQL 请求以查证 UNKNOWN。参见[运行时](../engineering/object-runtime.md)、[HTTP ADR](../adr/0023-authenticated-http-and-node-sdk.md)和[路线图](../engineering/roadmap.md)。
 
-主线没有名称 reservation、Provisioning HEAD、名称解析、名称删除/重用或名称枚举。主线 `Lifecycle` 只有 Ready、Maintenance、Deleted，`Database::create` 直接创建 Ready、inactive 的 HEAD。文档中的“名称目录在单独推进”不表示已存在可运行实现；本次核对全部远端分支后没有发现名称目录分支。
+主线没有名称 reservation、Provisioning HEAD、名称解析、名称取消/删除/重用或名称枚举。`Lifecycle` 目前只有 Ready、Maintenance、Deleted；`Database::create` 直接建立 Ready、inactive 的 HEAD。本文里的类型和方法都是待实现接口。
 
-本工作包不顺带实现自动 owner 路由、长运行结果窗口协调、冷热资源硬隔离、GC、PITR 或 lazy VFS。它也不能替代完整 OT-01–OT-08 和真实 AWS Standard 验收。涉及这些能力的接口只在明确协议后增加。
+第一版目录提供固定创建意图、逐步创建、**仅在 Reserved 阶段可接受的创建取消**、按名解析和已绑定名称删除。自动 owner 路由、冷热隔离、结果索引分段、GC、PITR 与 lazy VFS 不在此工作包内。全目录枚举有独立门槛，不能以几个调用者已知的名字代替。
 
-## 2. 身份与权威对象
+## 2. 身份与记录
 
-名称是可复用的人类标识；Scope 是不可复用的数据库身份。任何新建、恢复或重试都不能仅凭名称重新分配 Scope。
+名称可以重用；数据库身份不能重用。名称、创建 operation、删除/取消 operation 都不是授权凭证。调用者不能传 S3 key、ETag、HEAD body 或自授角色。
 
-建议采用以下最小记录：
+### 2.1 固定名称和身份规则
 
-| 记录 | 必需内容 | 作用 |
-| --- | --- | --- |
-| 名称记录 Binding | 格式版本、deployment/tenant、完整名称、单调 revision、Reserved/Bound/Tombstone、固定创建意图、创建默认配额/结果留存、终态删除转换 | 名称归属与多步创建进度 |
-| 固定创建意图 CreateIntent | 原名称、完整 Scope、原 principal、operation ID、预期前一名称 revision | 同一次创建在超时、崩溃和换进程后保持身份 |
-| HEAD CreationIntent | 名称键的规范摘要、operation ID、原 principal；HEAD 自身保存完整 Scope | 防止把已有数据库接到另一个创建意图 |
-| HEAD 生命周期 | 新增 Provisioning；继续使用 Ready/Maintenance/Deleted | 未完成目录发布的数据库不能提前开放 |
-| 名称 Tombstone | 前一 Scope、单调名称 revision、原创建意图、对应 HEAD 删除转换 | 禁止旧创建/旧删除覆盖新名称归属 |
+第一版名称是 1–128 字节的有效 UTF-8，拒绝 Unicode 控制字符；大小写和 Unicode 字节完全区分，不隐式 trim、大小写转换或归一化。名称键使用 deployment/tenant 前缀与规范名称字节的 SHA-256 摘要；读回仍要核对完整名称和租户。摘要碰撞返回错误，不能把不同字符串当成同名。
 
-名称对象使用 deployment/tenant 前缀和规范名称的摘要寻址。摘要只是键编码；读回还必须逐字节比较完整名称和租户字段，不能以摘要相同替代记录身份核对。客户端不得传任意 S3 key 或 HEAD body。
+HTTP 仅接收名字、固定 operation ID、预期前一名称 revision 和显式创建选项。deployment、tenant、principal 来自受信认证上下文。内部 `CreateIntent` 包含完整 Scope，SDK 保存服务返回的这个固定意图；后续续作不得换 Scope。
 
-建议第一版名称接受 1–128 字节的有效 UTF-8，拒绝控制字符，大小写与 Unicode 字节完全区分，不执行隐式 trim、大小写转换或 Unicode 归一化。这个边界需要随协议正式冻结；界面显示名可另行处理，不能让不同 SDK 自行决定同名规则。
+第一版服务可用固定的身份派生规则避免进程丢失后重新分配：对 ASCII 域分隔符 `SCAP-NAMED-ID-v1`、一个零字节与 deployment、tenant、principal、create operation 的四个 8 字节大端无符号整数依次拼接后计算 SHA-256；摘要的第 0–7、第 8–15 字节按大端 u64 分别作为 database、incarnation，generation 固定为 1。零值或保留值在写入任何记录前拒绝，要求调用者明确使用另一个 operation。该规则必须在实现时以固定测试向量冻结，不能因默认配置、进程、时间或重试次数改变。它只确定候选身份，**不以哈希碰撞概率承担唯一性正确性**；唯一占用由第 2.3 节的永久 HEAD 键决定。其他可信分配器只能在新的协议版本中采用相同的固定意图与永久占用规则。
 
-名称记录初始只条件创建。后续修改只使用同一次 exact GET 返回的完整 body/ETag；每次转换推进 revision，溢出失败关闭。对象记录有独立编码上界，建议 64 KiB；不在单个租户 JSON 中累积全部库名。
+### 2.2 持久记录
 
-HEAD 与 Binding 是两个 key，S3 不提供跨 key 原子事务。本协议通过单调中间态和幂等协调恢复，不能把两次 PUT 说成一次事务。
-
-## 3. 创建顺序与同意图恢复
-
-固定顺序为：
-
-1. **Reserved：**按名称条件创建 reservation，或在准确匹配的名称 Tombstone 上 CAS 新 reservation。记录完整创建意图、当时确定的默认配额和结果留存。
-2. **Provisioning HEAD：**在指定数据库 HEAD key 上条件创建，保存与 reservation 一致的 CreationIntent。HEAD 不处于可服务状态，owner 未激活。
-3. **Bound：**确认 HEAD 属于同一创建意图后，以 reservation 的原 ETag 将名称记录推进 Bound。
-4. **Ready：**重新核对当前 Bound 与 HEAD 的创建意图，以准确 HEAD ETag 将 Provisioning 推进 Ready。恢复闭包校验通过后才允许这个转换。
-5. **显式激活：**继续遵守当前 takeover/activate 语义；名称 Ready 不等于执行进程已经取得活跃写者资格。
-
-执行器每次调用只推进能够证明正确的固定意图。发生 UNKNOWN、冲突或进程退出后，后续调用读取持久状态，恢复同一意图；不更换 operation ID、Scope 或 principal，不重放 SQL，也不把原候选套到新 ETag 上。
-
-| 观察到的持久状态 | 允许的处理 |
+| 记录 | 内容与约束 |
 | --- | --- |
-| 名称不存在，首次创建没有前序 revision | 条件创建 reservation |
-| 名称不存在，但请求声称替换既有 Tombstone | 冲突；不能把丢失的权威记录当首次创建 |
-| Reserved，HEAD 尚不存在 | 仅同一创建意图可以执行原条件建库步骤 |
-| Reserved，HEAD 为同意图 Provisioning | 跳过已完成建库，尝试原名称 CAS |
-| Bound，HEAD 为同意图 Provisioning | 校验后继续 Ready 转换 |
-| Bound，HEAD 为同意图 Ready | 返回经过当前授权和身份核对的结果；不重建、不清空、不重新设置权限 |
-| Bound，HEAD 缺失、损坏或意图不匹配 | 失败关闭；绝不自动创建空库 |
-| 任意记录属于另一 Scope/operation/principal | 冲突或拒绝；不能“修复”为本次请求 |
-| HEAD 已 Maintenance/Deleted | 不因 create 重入而恢复 Ready |
-| PUT 响应不明确 | 保留 UNKNOWN；显式 inspect 后再决定同意图续作 |
+| CreateDescriptor | 按 deployment/tenant/principal/create operation 寻址的不可变记录。保存完整名称、Scope、原 principal、operation、预期前一名称 revision、原始显式选项及首次确定的有效 quota/retention。仅条件创建；同 operation 改名字、选项或身份必须冲突 |
+| Binding | 格式版本、deployment/tenant、完整名称、单调 revision、状态、CreateDescriptor 的准确引用和摘要、Scope；Aborting/终态另存相应固定控制意图 |
+| HEAD 创建来源 | 明确区分直接创建与命名创建。命名来源保存 CreateDescriptor 引用/摘要及固定创建身份；普通数据库转换不得修改来源 |
+| HEAD 生命周期 | 增加 Provisioning；Ready、Maintenance、Deleted 保留。Provisioning 不开放普通数据库入口，Deleted 不可逆 |
+| AbortIntent / DeleteIntent | 原 principal、独立固定 operation、目标创建意图/Scope、预期名称 revision、原始 nonce；DeleteIntent 另外固定预期 HEAD revision。控制身份由操作种类、主体、目标创建意图和 operation 共同限定 |
+| AbortProof | 按创建意图寻址的永久不可变取消证明。保存胜出的完整 AbortIntent 与准确身份屏障；仅在 Aborting 已被接受且屏障成立后条件创建，在名称 Tombstone 前持久化 |
+| 名称 Tombstone | 被释放的创建意图、Scope、名称 revision、控制意图，以及永久身份屏障的证明类型。不是物理删除名称键 |
 
-reservation 保存创建时的配额/留存，避免另一台机器用新的进程默认值完成同一创建。数据库 Ready 后配额和权限可以由现有有序控制 API 修改；重复 create 不能回写最初值。
+CreateDescriptor 不累积其他操作，大小固定有界。首次有效默认值进入持久记录；后续进程不能按新的默认 quota/retention 重解释同一次创建。明确传入不同选项仍是冲突。重复请求只接受规范编码和完整语义一致，不能只比较一个用户给出的 operation 数字。
 
-### 3.1 不允许绕过 Provisioning
+Binding 初次只条件创建，随后只以同一次 exact GET 的完整 body/ETag 做 CAS。每次变更递增 revision，溢出拒绝。记录字节上限固定为 64 KiB；不把整个租户目录塞入一个 JSON。
 
-`set_lifecycle` 不能将普通库变为 Provisioning，也不能把 Provisioning 直接变为 Ready。普通 `takeover`、`activate`、`execute`、`query`、`session`、配额/权限修改和窗口关闭都必须明确拒绝未完成创建的 HEAD。
+HEAD 新增来源和控制终态字段需要显式版本化并更新严格格式测试。保留现有直接 create API，但直接创建记录不能被收编为命名创建。本文不要求旧格式/旧原型迁移，也不能用缺字段默认值伪造命名来源。
 
-这点不能仅靠 HTTP 层判断：主线 query/session 没有统一要求 Lifecycle Ready，未来增加 Provisioning 时必须同时修改正式 core 的全部入口。否则知道 Scope 的客户端可能绕过名称协调阶段。
+### 2.3 HEAD 键就是永久身份占用屏障
 
-仅目录协调器持有正式的 complete-provisioning 原语。它检查准确创建意图、当前权限、生命周期、恢复闭包及原 revision，再发布 Ready。这个原语不得作为接受客户端任意 intent/key 的裸 HTTP 接口。
+物理 HEAD 键由 deployment/tenant/database 决定；incarnation/generation 在 body 中核对。**不能只换 incarnation/generation 复用同一个 database ID。**
 
-### 3.2 竞争与迟到动作
+所有 HEAD，包括直接创建、Provisioning 和 Deleted，均不得 DeleteObject、TTL 到期或覆盖成另一创建来源。GC 不得回收这些身份屏障。本阶段接受其永久元数据成本，不把它称为免费。
 
-两个不同意图争同名，最多一个 reservation 成功；失败方不能另建同名空库。两个进程续作同意图，可能出现明确 CAS 冲突，但不得形成第二个 Scope 或重复发布 SQL。
+命名创建遇到已存在 HEAD 时只有两种正常解释：同一个完整创建意图，或 ID 冲突。后一种情况必须保持该 HEAD 原样；不能删除它、收编它或自动给当前 operation 再分配一个 ID。调用者可以取消自己的 Reserved 名称后，以新的 operation 发起新的创建。
 
-Ready 转换与删除以同一 HEAD 串行化。名称只有在原 HEAD 已成为不可逆 Deleted 后才能 Tombstone/重用。因此，一个曾读取旧 Bound 的迟到完成动作，不能在名称重用后把旧 HEAD 激活：它的 HEAD CAS 必须被删除转换 fence。
+格式损坏、未知格式、HEAD key 与 body 的 deployment/tenant/database 不符，不是可接受的“其他占用者”证明，必须失败关闭。只有合法且来源明确的其他身份可以作为 ID 冲突证据。
 
-这个论证要求 Deleted 不可逆、旧 HEAD 不做 DeleteObject、名称重用必须采用新的 database ID。仅换 incarnation/generation 而复用原数据库 key 不满足本工作包的初版规则。
+## 3. 创建状态机
 
-## 4. 名称解析与权限
+名字的有效转换为：
 
-`resolve(name)` 先 exact GET 名称记录，再 exact GET 其 Scope 的 HEAD，要求：
+```mermaid
+stateDiagram-v2
+    [*] --> Reserved: 首次条件创建
+    Tombstone --> Reserved: 新意图 + 精确前序 revision
+    Reserved --> Bound: 精确名称 CAS
+    Reserved --> Aborting: 精确名称 CAS
+    Aborting --> Tombstone: 永久身份屏障已核对
+    Bound --> Tombstone: 同意图 HEAD 删除已核对
+```
 
-- 认证 deployment/tenant 与记录作用域相同；
-- 名称记录为 Bound；
-- HEAD scope 与创建来源精确匹配；
-- HEAD 已 Ready；
-- 当前 HEAD 对当前 principal 仍授予 READ；
-- 缺失、损坏、不认识的格式或权威不可达均返回错误。
+Bound 只表示名称意图已经发布。只有 fresh HEAD 为 Ready 并通过当前 READ 授权时，名称解析才成功。
 
-名称绑定本身不授予 READ/WRITE/ADMIN。原创建 principal 不享有绕过当前策略的永久权限。撤权后不能凭早前缓存的名称结果、旧 token 的历史授权或旧创建回执读取数据。
+固定创建顺序：
 
-Ready 名称解析只返回身份/当前控制状态；SQL 执行仍走正式 Session、完整数据校验、fresh HEAD 和提交协议。不能把成功 resolve 描述成整个数据库已物化或依赖已经完成恢复。
+1. `prepare` 条件创建/读取 CreateDescriptor，确认完整固定意图。UNKNOWN 时停止写步骤，不猜测失败。
+2. `reserve` 条件创建 Binding Reserved，或在请求指定的 Tombstone revision 上 CAS。既有 Tombstone 丢失不能视为首次创建。
+3. `provision` 在目标 HEAD 键条件创建同意图、inactive 的 Provisioning HEAD。所有依赖对象按现有不可变上传与回读合同持久化。
+4. `bind` 核对当前 Reserved 和同意图 Provisioning HEAD，以准确名称 ETag 将 Reserved 改为 Bound。
+5. `complete` 重新核对 Bound、完整创建来源、当前主体及 HEAD 恢复闭包，以准确 HEAD ETag 将 Provisioning 改为 Ready。
+6. 显式 takeover/activate 仍单独执行；Ready 不代表当前进程已获得活跃写者资格。
 
-名称缓存只允许作为寻址提示。每次需要强语义的调用最终验证 HEAD 的完整身份；不能把缓存名称指向的新 Scope 悄悄替换到已有 tracked request。旧 SDK 保存的原请求永远属于原 Scope，即使名称已经重用。
+两个不同创建意图争同名时，只有一个 reservation 能成功。同意图两个进程续作可以返回 CAS 冲突，但不能创建第二个 Scope、重设权限/配额或重放 SQL。
 
-`inspect` 是 UNKNOWN 后的只读进度查询。HEAD 尚未建立时仅原创建主体或明确受信的协调角色能查看 reservation；HEAD 已建立后按当前权限授权。若允许检查 Deleted 进度，应只开放必要身份和删除转换，不能为此恢复业务数据访问。
+每次调用只有有限步骤、单一绝对 deadline。CAS 冲突和 UNKNOWN 后返回给调用者；显式续作读取持久进度，建立下一步合法候选。不能把失败的旧候选换上新 ETag 再发布，不能将控制步骤的同意图恢复推广为 SQL 自动重试。
 
-## 5. 删除、重用与未完成创建
+| 观察状态 | 处理 |
+| --- | --- |
+| 只有 CreateDescriptor，名字尚未 Reserved | 尚未占用名字；可按原意图 reserve，不声称创建或取消完成 |
+| Reserved + HEAD 不存在 | 同意图可条件 provision；也可竞争接受 abort |
+| Reserved + 同意图 Provisioning | 可竞争 bind 或 abort |
+| Bound + 同意图 Provisioning | 只继续 complete；本版 abort 已关闭 |
+| Bound + 同意图 Ready | 当前权限允许时返回原身份；不重新初始化 |
+| Aborting | 创建步骤停止，只允许固定取消意图的后续收敛 |
+| Bound + HEAD 缺失/损坏/错来源 | 错误；不能自动建立空库 |
+| Tombstone 或名字已属于后继意图 | 旧创建不能重新 reserve、bind 或 complete |
 
-### 5.1 已绑定名称的删除
+## 4. `abort_create` 的封闭边界
 
-删除请求固定 name、预期 Binding revision、预期 HEAD revision 和 nonce：
+### 4.1 接受取消的唯一排序点
 
-1. exact GET Binding，核对名称、Scope、创建来源与原预期 revision；
-2. 按当前 HEAD ADMIN 权限和准确 revision，以 CAS 发布 Deleted 并推进 writer fence；
-3. 以原 Binding ETag 将名称推进 Tombstone，记录已持久 HEAD 的删除转换；
-4. 返回成功；如果响应丢失，原身份查询/重入只核对持久事实，不再次删除另一数据库。
+**取消只接受 Reserved → Aborting 的名称 CAS。它与 Reserved → Bound 竞争同一个 ETag。** Aborting 保存完整 AbortIntent；成功后任何原创建者都不能再 bind。
 
-若第 2 步已完成而第 3 步失败，名称仍可能 Bound，但 resolve 必须因 fresh HEAD Deleted 而拒绝。续作只接受准确的原 HEAD 删除 revision/nonce；不能把另一次删除或最新状态猜作本次成功。
+- Aborting 赢：取消被持久接受，但还没有完成。必须继续建立 HEAD 永久屏障、发布名称 Tombstone，才能返回 `Aborted`。
+- Bound 赢：返回 `CannotAbortBound`。调用者以原创建意图恢复至 Ready，再按正常 delete 协议删除。不能把已绑定创建当作可取消写入。
+- 只有 descriptor、没有 Reserved：返回 `NotReserved`，**不是永久取消成功**。一个已经在途的 reserve 仍可能完成；调用者先查证/建立原 reservation，再竞争取消。
+- Aborting 已存在：只有同一个 AbortIntent 可以续作。另一个 nonce/operation 不能接管或假装完成这次取消。
 
-名称 Tombstone 已完成后，重复原删除可以返回同一终态。若名称已被新意图重用，旧删除必须冲突，不得触及新 Scope。
+这是一项明确的第一版 API 限制。不能把 `NotReserved` 或 `CannotAbortBound` 包装成“请求已取消”。若未来产品要求在任意准备阶段取消，必须另行设计覆盖 descriptor/在途 reserve 的持久屏障并重新验收，不能放松当前规则。
 
-同名重建要求准确预期 Tombstone revision、新 operation ID、新 database ID，以及新的固定创建意图。原 HEAD/旧身份屏障永久保留；不依赖墙钟、缓存淘汰或 List 不再出现来证明旧请求失效。
+### 4.2 Aborting 后处理 HEAD
 
-### 5.2 未完成创建的取消仍须补协议
+协调器先 fresh GET 这个物理身份槽，不使用只核对当前完整 Scope 的普通 `Database::status` 来掩盖其他 incarnation 的占用。
 
-初始 create 可能在 Reserved 阶段遇到已存在但属于另一意图的 HEAD，例如受授权客户端选了冲突的 database ID。只提供“resume 到 Ready 再 delete”不能解决这种情况；不能把不可完成 reservation 永久占名而宣布生命周期完整。
+| HEAD 观察结果 | 允许动作及名称释放条件 |
+| --- | --- |
+| 不存在 | 在同一物理 HEAD 键 **条件创建** 属于本创建意图、inactive、不可逆 Deleted 的 HEAD；保存 AbortIntent。使用正常有界空根/索引依赖和严格格式，不用一个不可解析的随意 marker |
+| 同意图 Provisioning | 以准确 ETag 发布 Deleted，记录同一 AbortIntent，关闭 active 并推进正常 revision/fence |
+| 同意图 Deleted，且保存同一 AbortIntent | 屏障已完成，不能重新创建/初始化 |
+| 合法但属于其他 Scope 或创建来源 | 不写、不删该 HEAD。其永久占用足以阻止本意图的条件建库；记录 `ForeignOccupied` 类型的释放证明，不对调用者暴露其他数据库的策略或数据 |
+| 同意图 Ready/Maintenance | 属于禁止状态：Aborting 已赢却出现 Ready，意味着来源检查或 Bound 门禁被绕过。返回 Corrupt/协议失败，不能自动删除业务数据 |
+| 同意图 Deleted 但取消证明不同 | 不收编其他控制操作；返回冲突并保留诊断 |
+| 缺失证明、损坏、未知格式、GET 不确定 | 失败关闭；保留 Aborting，不释放名字 |
 
-因此，在 N2 整体退出前还必须冻结 `abort_create` 的规则：
+Absent HEAD 的取消与迟到 provision 都使用 `If-None-Match: *`：
 
-- 取消 reservation 也要封闭迟到 Provisioning/Bound/Ready 动作；
-- 如果 HEAD 尚不存在，必须处理在途条件创建与取消屏障的竞争；
-- 不得删除/修改属于另一意图的 HEAD；
-- 旧 Scope 即使没有成功建库，也不能被静默重新分配；
-- 名称重用前必须证明旧意图不可能再变为可服务数据库；
-- 超时只是状态未知，不能当作 reservation 自动过期。
+- 取消的 Deleted HEAD 先成功，迟到 provision 必须冲突。
+- Provisioning 先成功，取消续作只把**同意图** Provisioning CAS 为 Deleted。
+- 两个候选都不能无条件覆盖。一次 412 不是自动重试许可；UNKNOWN 也不是“没有写入”。
 
-候选是增加持久的创建取消/身份 reservation 屏障，并让 HEAD 建库与完成步骤校验同一身份；具体对象位置、CAS 顺序及回收规则需要先做模型审查。**本文不宣称仅凭 TTL 或删除名称记录就能安全取消。**
+形成永久屏障后，先条件创建并回读校验永久 `AbortProof`，再以准确 Aborting ETag 将名字改为 Tombstone，保存该 proof 的准确引用。proof 包含 `OwnDeleted` 或 `ForeignOccupied` 证明和固定 AbortIntent。`ForeignOccupied` 只保存占用者不可变的 Scope/创建来源，不把会随普通提交改变的 ETag/revision 写成稳定证明。如果最后 CAS/响应丢失，名字仍不可解析；原取消意图可查证或续作。Aborting 不允许 TTL 到期、回到 Reserved 或被新创建覆盖。
 
-在该协议完成前，可以交付明确受限的“创建/续作/解析/删除已绑定名称”候选，但不得把名称冲突取消、无人工介入生命周期或 N2 整体标记完成。
+永久 AbortProof 是必要记录：名字重用后 Binding 会被覆盖，外来占用者的 HEAD 又不能记录本次取消；如果只保留名称 Tombstone，原取消 operation 的胜出证据就会丢失。AbortProof 不能靠名称重用清理，也不能在 Reserved/Bound 阶段预先写成成功。名称已成为同 proof 的 Tombstone，或已经按单调 revision 进入后继创建时，原取消只返回查证结果，不修改新绑定；若名字意外缺失则失败关闭。
 
-## 6. 建议模块与 API
+### 4.3 为什么迟到动作不能复活
 
-建议新增独立 `crates/scap-catalogue`，依赖正式 `scap-object-store::Objects` 与 `scap-object`。core 只增加最小 CreationIntent/Provisioning 及不可绕过的正式转换；目录不复制 SQL、恢复、HEAD 发布或权限算法。
+Aborting 和 Bound 的名称 CAS 互斥，因此取消被接受后，不存在可使本次创建合法 complete 的 Bound。即使 provision 早已在途，永久 HEAD 屏障也会与它在同一个物理键上排序。名称只有在该屏障形成后才变成 Tombstone；新创建必须使用新的固定身份。
 
-以下是接口草案，不是当前可调用 API：
+旧 reserve/bind/abort 使用旧名称 revision/ETag，不能覆盖后继绑定。永久 HEAD 不回收，故旧 `If-None-Match: *` 不能在未来重新成功。这个论证同时依赖严格来源匹配、不可逆 Deleted、名称 revision 不回绕，以及所有直接/命名创建都遵守相同的 HEAD 占用规则；任何一项被绕过都必须阻断上线。
+
+## 5. Provisioning 不可绕过
+
+`scap-object` 必须统一审查以下入口，不能只在 HTTP 层拦截：
+
+- `execute`/Session execute、`query`/Session query、`session`/恢复物化；
+- `lookup`、`cancel`、`close_full`；
+- `takeover`、`activate`、`activate_session`；
+- `set_policy`、`set_quota`、通用 `set_lifecycle`。
+
+这些普通入口不得将 Provisioning 当作可服务数据库。特别是通用 `set_lifecycle(Ready)` 不得完成创建，`takeover/activate` 不能绕过目录。普通状态接口也不能给出“已经可用”的成功结果；目录有专用的最小进度检查。
+
+仅正式目录协调器可以调用 `complete_named`、`abort_named`、`delete_named` 等最小 core 原语。这些原语自己核对固定来源、准确状态/预期 revision、权限和 fence，不能仅相信一段客户端 JSON。不能开放接受任意 key/intent/HEAD 的裸 HTTP 完成接口。
+
+Ready 后的普通权限、配额和 SQL 合同继续由 HEAD 决定。第一版对命名 HEAD 的 Deleted 转换仅允许带固定 DeleteIntent 的正式目录路径；通用 lifecycle 接口必须拒绝绕过删除来源记录。直接创建 API 保留原有显式能力。当前 Maintenance 的读取行为与 GC 屏障问题不因增加 Provisioning 自动解决，见[路线图](../engineering/roadmap.md)。
+
+## 6. 名称解析、主体与权限
+
+`resolve(name)` fresh GET Binding，再 fresh GET 对应 HEAD，要求租户/名字/Scope/创建来源一致、Binding 为 Bound、HEAD 为 Ready，并由**当前 HEAD**授予 READ。名称绑定不授予业务权限，原 creator 也没有永久绕过当前策略的权利。
+
+名称缓存仅是可丢寻址提示。SQL 执行仍经过完整数据恢复、fresh HEAD、权限和提交协议；resolve 成功不是整个数据库已物化的证明。既有 tracked SQL 请求保留原 Scope，不能因名字被重用而改投新库。
+
+第一版的创建续作/取消必须同时满足：认证主体等于 descriptor 中的 principal，且当前认证配置仍授予本租户 provision 能力。HEAD 已 Ready 后返回业务信息还要遵守当前 HEAD 权限。不能把 descriptor、operation 或旧 token 视为能力令牌。
+
+第一版不提供任意跨主体协调员代办。全计算丢失后以原受信主体和固定意图恢复；主体被撤销后保留未完成状态，重新授予同一主体或引入经独立设计/审查的恢复角色才能续作。不能为了清理 orphan 自行绕过撤权。
+
+`inspect_operation` 的参数明确是 **create operation**，按当前 principal 寻址原 CreateDescriptor，返回该创建意图在授权范围内的最小进度；它不把独立 abort/delete operation 当成同一种寻址空间。原取消/删除的精确结果分别通过带完整原意图的 `abort_create`/`delete` 重入查证，不能从创建进度推断某个控制 operation 已成功。HEAD 已 Deleted 时，只能检查保留的来源和对应控制证明，不重新开放 SQL 或数据读取。HTTP 身份认证每次仍必须有效。ID 冲突只向普通调用者返回冲突类型，不泄露其他数据库权限、名称或对象内容。
+
+## 7. 已绑定名称的删除与重用
+
+DeleteIntent 在发送前固定：name、创建来源、Scope、原 principal、独立 operation、预期 Binding revision、预期 HEAD revision、nonce。相同 operation 改任意条件是冲突。
+
+1. fresh GET Binding，要求 Bound、创建来源/Scope/原预期 revision 一致。
+2. fresh GET HEAD，要求同一来源、Ready 或 Maintenance、当前 ADMIN 权限及精确预期 HEAD revision。Bound + Provisioning 必须先按原创建意图 complete，普通 delete 不绕过这一步。构造 inactive、不可逆 Deleted，保存完整 DeleteIntent 证明并推进 revision/fence；只对原 ETag CAS 一次。
+3. fresh 查证原 HEAD 已 Deleted 且删除证明等于**这个** DeleteIntent，才以准确 Binding ETag 发布 Tombstone。
+4. 返回成功。后续查证必须匹配原意图，不把另一位管理员的删除转换归作本次成功。
+
+若第 2 步成功但第 3 步未完成，Binding 可能仍 Bound；fresh HEAD 已 Deleted，resolve 必须拒绝。原删除续作只完成名字步骤，不重新删除，也不把原预期 HEAD revision 换成一个新 revision。若 Binding 已是匹配的 Tombstone，可查证完成；若已进入更高 revision 的另一创建意图，只根据永久旧 HEAD 中准确的原 DeleteIntent 返回已完成/已被后继名称替换的结果，绝不编辑新绑定。名字意外缺失不能作为完成证明。若 HEAD 在首次删除前已被 SQL/权限/其他控制修改，原删除请求冲突；需要调用者明确发起带新预期值的新删除意图。
+
+同名重建只接受当前 Tombstone 的准确 revision 和新 CreateDescriptor/新 database ID。旧 HEAD 永久保留，旧 create/abort/delete/SQL 请求不能作用于新数据库。名称 Tombstone 被后继 reservation 替换，不表示旧身份屏障可以物理删除。
+
+Ready 完成与后续正常删除仍在同一 HEAD 上排序。一个迟到 complete 持有的 Provisioning ETag，在 Ready 或 Deleted 发布后已失效；它不能用新 ETag 重新构造旧创建候选。
+
+## 8. 模块和 API 边界
+
+新增独立 `crates/scap-catalogue`，依赖正式 `scap-object-store::Objects` 与 `scap-object`。目录不复制 SQL、完整恢复、HEAD 发布或当前权限算法。root workspace/coverage 生产文件清单必须同步登记；不能把目录代码藏入实验目录。
+
+建议第一版公开接口如下；类型和返回错误需随实现冻结，当前尚不可调用：
 
 ```rust
-pub struct Create {
+pub struct PrepareCreate {
     pub name: String,
-    pub scope: Scope,
     pub operation: u64,
     pub expected_name_revision: Option<u64>,
+    pub options: CreateOptions,
 }
 
-pub struct Named {
-    pub binding: Binding,
-    pub head: Head,
+pub struct CreateIntent {
+    pub name: String,
+    pub scope: Scope,
+    pub principal: u64,
+    pub operation: u64,
+    pub expected_name_revision: Option<u64>,
+    pub descriptor_hash: String,
 }
 
-pub struct Inspection {
-    pub binding: Binding,
-    pub phase: Phase,
-    pub head: Option<Head>,
+pub struct AbortCreate {
+    pub create: CreateIntent,
+    pub operation: u64,
+    pub expected_reserved_revision: u64,
+    pub nonce: u64,
+}
+
+pub struct DeleteNamed {
+    pub create: CreateIntent,
+    pub operation: u64,
+    pub expected_name_revision: u64,
+    pub expected_head_revision: u64,
+    pub nonce: u64,
 }
 
 impl Catalogue {
     pub fn new(
-        objects: Arc<dyn Objects>,
-        deployment: u64,
-        tenant: u64,
-        worker: u64,
-        options: Options,
+        objects: Arc<dyn Objects>, deployment: u64, tenant: u64,
+        worker: u64, options: Options,
     ) -> Result<Self, Error>;
 
-    pub fn create(
-        &self,
-        principal: u64,
-        intent: &Create,
-        deadline: Instant,
-    ) -> Result<Named, Error>;
-
-    pub fn inspect(
-        &self,
-        principal: u64,
-        name: &str,
-        deadline: Instant,
-    ) -> Result<Inspection, Error>;
-
-    pub fn resolve(
-        &self,
-        principal: u64,
-        name: &str,
-        deadline: Instant,
-    ) -> Result<Named, Error>;
-
-    pub fn delete(
-        &self,
-        principal: u64,
-        name: &str,
-        expected_name_revision: u64,
-        expected_head_revision: u64,
-        nonce: u64,
-        deadline: Instant,
-    ) -> Result<Inspection, Error>;
+    pub fn prepare(&self, principal: u64, input: &PrepareCreate,
+        deadline: Instant) -> Result<CreateIntent, Error>;
+    pub fn resume_create(&self, principal: u64, intent: &CreateIntent,
+        deadline: Instant) -> Result<CreationProgress, Error>;
+    pub fn abort_create(&self, principal: u64, intent: &AbortCreate,
+        deadline: Instant) -> Result<AbortProgress, Error>;
+    pub fn inspect_operation(&self, principal: u64, create_operation: u64,
+        deadline: Instant) -> Result<CreationProgress, Error>;
+    pub fn resolve(&self, principal: u64, name: &str,
+        deadline: Instant) -> Result<Named, Error>;
+    pub fn delete(&self, principal: u64, intent: &DeleteNamed,
+        deadline: Instant) -> Result<DeletionProgress, Error>;
 }
 ```
 
-`create` 可以在一次调用内推进多个已证明安全的创建步骤，但不是自动 SQL 重试器。它不得在 UNKNOWN 后更换身份、延长 deadline 或无条件覆写。原意图由 SDK 在发送前持久保存；调用方明确要求续作时才以原意图恢复。
+`resume_create` 可在一次调用内顺序推进已证明安全的步骤，底层保留 reserve/provision/bind/complete 的明确转换边界供正式故障注入使用。控制意图、状态引用和 S3 key 由服务/正式库校验；SDK 不能自造内部 proof。u64 继续使用规范十进制字符串，禁止 JSON number 丢精度。
 
-HTTP 从 bearer token 派生 principal/deployment/tenant；“允许创建”继续使用受信 provision 权限，不允许客户端自授。所有 u64 继续用规范十进制字符串；不能将 JSON number 当精确身份。SDK 不暴露 S3 key，不把名字绑定变化写回既有请求。
+错误至少区分 invalid、denied、not_found、not_reserved、provisioning、aborting、cannot_abort_bound、deleted、identity_conflict、conflict、corrupt、limit、unknown。Bound 的 HEAD 404 是权威缺失，不是“名字未使用”。Aborting 的屏障尚未建立是未完成，不是已经取消。
 
-建议错误至少区分 invalid、denied、not_found、provisioning、deleted、conflict、corrupt、limit、unknown；不能把 Bound 的 HEAD 404 归为“名称未使用”。wire 与 SDK 必须保留这一差别。
+实施前必须核对的现有核心 API：`Objects::{get,put}` 的 404/409/412/UNKNOWN 映射；`format::{Scope,Head,Lifecycle,Transition}` 严格解码和 HEAD key；`Database::{create,read_head,authorize,control,publish,next,verify_closure,verify_results}`；第 5 节全部入口；Service token/provision 权限、engine 的 create/lifecycle/scope 调度；SDK fixed request、u64 codec 和 UNKNOWN 查证。若必须增加 raw identity-slot 读取，返回类型应只暴露合法占用身份与准确 ETag 给受信 core，不能变成对外任意对象读取 API。
 
-## 7. 枚举、恢复与预算
+## 9. 枚举、预算与仍然阻断 N2 的事项
 
-主线 Objects port 只有 exact GET/条件 PUT，没有 LIST。这批 exact-name 设计即使落地，也只能按已知名称从 S3 恢复；不能凭客户端保存的名称列表宣称全目录重建。
+主线 Objects port 只有 exact GET/条件 PUT，没有 LIST。本工作包即使全部实现，也不能凭 exact-name 或原调用者名单声称完成全目录恢复。
 
-后续枚举可以使用 S3 LIST **发现候选键**，再逐个 exact GET 校验 Binding、Scope 和 HEAD；不能按 LIST 顺序、LastModified 或缓存 ETag 选择当前权威。分页、续传、删除屏障、重复键、读取失败和权限失败都要保留明确状态。
+后续 LIST 只发现候选键，逐项 exact GET Binding/HEAD 才作权威和权限判断。分页边界、重复项、错误、403、截断、错误租户和 continuation 均需单独验证。在线分页不是跨 key 一致快照，不承诺某个时刻的完整目录；不能把未知/缺项结果标为“完整空目录”。
 
-在线分页枚举不天然具有跨 key 的一致快照。需要区分：
+**N2 完整枚举/冷启动恢复仍是独立阻断：**需要冻结并实现发现范围、并发变更合同、完整性凭据/判定及真实恢复实验。若产品要求在持续并发创建/删除时获得准确瞬时 inventory，则必须增加相应的持久索引/协调协议；当前 GET/PUT 名称方案没有证明这个能力。不能把进程内路由表补成所谓权威目录。
 
-- 全计算丢失后、已确认名称记录集合的恢复；
-- 与并发创建/删除交错的在线列表。
-
-后者可以声明有界分页/最终发现，但不得声称完整瞬时目录。若产品需要准确的一致 inventory，必须先设计相应协调/索引协议。遗漏、403、未知结局和截断不能返回“完整空目录”。
-
-预算应在实现前固定，并计入实际证明：
-
-| 资源 | 要求 |
+| 资源 | 第一版约束 |
 | --- | --- |
-| 名称/记录 | 字节和编码上界；拒绝重复/未知字段、非法 UTF-8/数字及溢出 |
-| 创建/删除调用 | 单一绝对 deadline；有限状态步骤；无无限自动 CAS 循环 |
-| 并发 | 使用独立有界控制准入，不能让大量 reservation 挤占 lookup/cancel |
-| 枚举 | 分页条数/字节、在途 exact GET 数、总调用预算和明确 continuation |
-| 持久规模 | 名称 Tombstone 与 ID 屏障的长期数量/成本有独立说明；不因“无 SQL 数据”而视为免费 |
-| 进程缓存 | 名称只是可丢提示；重启无需保存唯一映射，不常驻一库一线程 |
+| 名称/记录 | 名称 128 字节、单记录 64 KiB；严格字段、整数、编码、revision 溢出检查 |
+| 控制操作 | 单一绝对 deadline、有限步骤、每个转换单次条件写；无无限 CAS 循环 |
+| 并发 | 独立有界目录控制准入；大量 reservation 不能挤占现有 lookup/cancel |
+| 持久状态 | descriptor、Aborting、Tombstone、永久 HEAD 和 orphan 的数量/字节分别计量；业务 10 GiB 配额不是 bucket 上限 |
+| 缓存 | 全可丢，不常驻一库一线程，不把名称解析缓存当权限 |
+| 后续枚举 | 固定页数/字节/在途 GET/总 deadline 上限，明确 continuation 和未完成状态 |
 
-权威 key 不配置通用 TTL。名称 Tombstone、旧 HEAD 和未发布对象何时可物理回收属于 N3 协议，不由本工作包默认删除。
+权威名称、descriptor、AbortProof 和 HEAD 不使用通用 TTL。生命周期取消只撤销可服务资格，不声称回收上传对象。物理回收是 N3 的另一套协议。
 
-## 8. OT-11 / OT-14 验收工作单
+## 10. 模型与 OT-11 / OT-14 验收
 
-每个真实场景必须调用正式 crate/HTTP/SDK，保存原 create/delete 意图、观察到的成功响应、准确对象历史与原失败。模型、单元和真实进程验证各自报告，不能混 profile 填满覆盖率。
+先建立一个有界状态模型，覆盖两位创建者、同意图两位续作者、一位取消者、迟到请求及名称重用。模型与独立历史审计必须检查：唯一当前绑定、固定 operation 不换 Scope、来源不可变、Aborting/Bound 互斥、Provisioning 不可服务、终态不可复活、ID 永不重用、UNKNOWN 不被报告为确定失败。模型未执行之前只称“设计论证”，不能写“协议已验证”。
 
-| 场景 | 独立判定 |
+真实场景必须调用正式 crate/HTTP/SDK，并保存原意图、请求/响应、ACK、条件写和 exact GET 的历史。每个 PUT 在发送前、服务端已写/响应未达、收到响应后分别注入故障；只检查最终名字能查到不足以验收。
+
+| 场景 | 必须独立判定的结果 |
 | --- | --- |
-| 两个不同意图争同名 | 最多一个 Scope 能成为当前可服务绑定；失败方不自动分配第二 Scope |
-| 两个进程续作同意图 | 不重复创建/重置 HEAD，不重设权限/配额，不重复执行 SQL |
-| Reserved PUT 前/后成功但回包丢失 | 原意图查回精确状态；UNKNOWN 不冒充失败 |
-| Provisioning HEAD 前/后切点 | 未完成绑定不能通过 direct query/session/activate 开放 |
-| Bound CAS 前/后切点 | Bound+Provisioning 始终不可用；恢复后使用原 Scope |
-| Ready CAS 前/后切点 | Ready 已持久时原意图可查证，重启不重新初始化 |
-| 全计算/本地缓存丢失 | 新进程仅凭 S3、必要配置与原意图续作；已有 ACK 对应原数据库内容 |
-| Binding 存在但 HEAD 缺失/损坏/错意图 | 拒绝；观察零自动空库创建和零无条件 PUT |
-| 名称/租户/数据库/creator/op 不匹配 | 拒绝，不能借另一名称绑定取得授权 |
-| 当前 READ/ADMIN 撤销与查名/创建续作/删除竞争 | 依 fresh HEAD 和同 HEAD CAS 排序；旧名缓存不恢复权限 |
-| HEAD 删除已成功，名称 CAS/回包失败 | resolve 拒绝旧库；原删除可按准确 transition 继续 |
-| 同名重建后旧 create/delete/SDK 到来 | 旧 Scope/旧条件不能操作新库；原请求不被重写为新 Scope |
-| 旧 Bound 完成动作与删除/重建交错 | 删除后的旧 HEAD 永不 Ready；迟到 CAS 不换 ETag |
-| 过期名称缓存、数据库别名 | 缓存只能提示，最终身份不一致拒绝 |
-| 未完成创建取消与迟到条件创建 | 在 abort_create 协议冻结后补完整切点；缺失时 N2 不退出 |
-| 全目录候选枚举 | 分页发现后逐项 exact GET；缺项/错租户/截断/异常与并发边界明确 |
-| 资源耗尽/超时/403/409/412/5xx | 原 deadline 内失败关闭；冲突、UNKNOWN 与不存在不混同 |
-| 原始证据负对照 | 故意丢 ACK、重复身份、错根/错 principal/漏分页等必须使审计器拒绝 |
+| 同一 operation 改名/Scope/选项；跨租户或 principal 复用 | 拒绝；无第二身份，无权限泄漏 |
+| 两个不同意图争同名；两个进程续作同意图 | 最多一个当前绑定；同意图不重初始化、不重放 SQL |
+| descriptor/reserve/provision/bind/complete 各发布切点丢响应或进程退出 | 原意图可查证/续作；UNKNOWN 不换身份、不冒充失败 |
+| bind 与 abort 使用同一 Reserved ETag 并发 | 只有一个成功：Bound 获胜则不可取消；Aborting 获胜则永不 Ready |
+| Aborting 后 HEAD 缺失，迟到 provision 与取消 tombstone 同时条件创建 | 两个顺序都覆盖；永久屏障最终成立，不能无条件覆写 |
+| Aborting 后同意图 Provisioning 已存在 | 精确 CAS Deleted；所有直连 core 入口仍不能服务 |
+| 同 database key，不同 incarnation/generation/来源 | 只处理合法占用证明；其他 HEAD 字节/策略/数据不被修改 |
+| HEAD 冲突发生于 Ready、Maintenance、Deleted、直接创建 | 均不能收编或删除；同一创建 operation 不重新分配 ID |
+| HEAD 损坏、未知格式、错物理 key、无法确认占用 | 保留未完成状态并报错；不释放名字、不自动空库 |
+| Aborting 接受后进程丢失、权限撤销、AbortProof 条件写/回读及最后名称 CAS/响应丢失 | 固定取消意图恢复；当前鉴权仍生效；proof 已写但名称未释放不能报 Aborted |
+| ForeignOccupied 取消后名称被重用，原取消再次到来 | 永久 AbortProof 保留胜出的原意图；不借外来 HEAD 推断另一个取消 operation 成功，不改新绑定 |
+| descriptor-only / Bound 阶段调用 abort | 分别返回 NotReserved / CannotAbortBound；审计不得计为取消成功 |
+| 名称重用后旧 reserve/bind/abort/complete/Delete/SQL 到来 | 旧条件和永久 HEAD 阻断；新库无修改，tracked SQL 不换 Scope |
+| Ready 创建重入，随后 policy/quota/data 已改变 | 不能重设初始策略/配额或旧空根；当前权限决定返回 |
+| 正常删除 HEAD 成功但名称/响应失败；相同/不同 DeleteIntent 重入 | 原删除只完成剩余步骤；不同意图不能冒认结果或使用新 revision 重删 |
+| 查询、Session、lookup/cancel、全部控制入口针对 Provisioning | 无一能够绕过 Bound/complete；专用进度读取不泄漏业务数据 |
+| 全计算和全部本地缓存丢失 | 按固定意图及 S3 恢复同一个库；保留所有原 ACK 对应结果 |
+| 403/409/412/5xx/超时/耗尽/溢出 | 预算内失败关闭；Missing/Conflict/Unknown/Corrupt 分离 |
+| 全目录恢复与在线并发分页 | 独立报告覆盖范围与未完成项；不能以已知名称列表代替 |
+| 审计负对照 | 错意图、漏 ACK、错根、重复身份、漏分页、取消后 Ready 必须使独立审计器拒绝 |
 
-在所有实际发布边界分别暂停/终止进程。前/后端 200 后应明确区分，不从最终名字能查到推断所有切点正确。需包含并发历史，而不仅是顺序 happy path。
+新 crate、受影响 core、HTTP/SDK 均进入正式生产分母，逐文件行/函数/region/分支精确 100% 单元门禁保持不变。单元、模型、原生 SQLite、真实兼容端点、真实 AWS Standard、进程故障各自保留证据，不混 profile 填覆盖率。候选源码、工具链、二进制/native archive 和原始失败/通过记录遵守[本地验证规范](../engineering/local-validation.md)。
 
-新 crate、所有 core 改动、HTTP/SDK 入口都进入正式生产文件分母；逐文件行/函数/region/分支精确 100% 单元门禁保持不变。真实 S3兼容端点与 AWS Standard 分开，候选冻结前后源码、构建、native archive 与原始证据按[本地验证规范](../engineering/local-validation.md)核对。
+## 11. 实施次序与交付判断
 
-## 9. 实施次序与仍需决定的事项
+1. 冻结规范编码、身份派生测试向量、状态/错误与预算；实现有界并发模型及独立判定，先验收第 4 节两个取消竞争顺序。
+2. 增加 core 命名来源、Provisioning、永久取消/删除证明与不可绕过的正式原语；修复全部原单元并增加直连入口反例。
+3. 实现独立 catalogue 的 descriptor、reservation、创建续作、Reserved 取消、名称删除/重用和精确进度查询。
+4. 接入有界 HTTP 控制与 SDK 固定意图；错误和取消接受/完成状态必须完整透传。
+5. 冻结候选，通过逐文件精确覆盖与真实 OT-11/OT-14 切点/历史审计，再报告这批名称能力完成。
+6. 独立完成枚举/完整恢复、owner 路由、冷热隔离和活性门槛，之后才能判断 N2 整体退出。
 
-1. 先冻结创建取消/身份占用模型、名称字节规则、错误与预算；列出可达与禁止状态，验证迟到创建/完成/删除的交错。
-2. 增加 core CreationIntent/Provisioning 和入口阻断测试，确认旧直接 create 的显式接口仍可用，不能把旧直接 HEAD 收编为命名创建。
-3. 实现独立 catalogue、严格格式与原子状态转换，测试故障注入、同意图恢复和名称重用。
-4. 接入有界 HTTP 控制操作与保存原创建意图的 SDK；SDK 的现有 tracked SQL 身份保持原 Scope。
-5. 完成真实 OT-11/OT-14 与独立账本/历史审计，再记录阶段性完成。
-6. 独立实现、验证名称枚举和完整启动恢复；推进自动 owner 路由、冷热活性，最后才能判断 N2 是否退出。
-
-未完成决定包括：未完成创建取消的持久屏障、全局不可复用 ID 的分配/占用机制、在线列表的一致性合同、协调角色跨 principal 的权限、名称 Tombstone 长期成本和紧急撤权时的协调方式。不能用进程内映射、随机 ID“几乎不碰撞”、墙钟 TTL 或无界重试替代这些合同。
-
-本文件是可审查的下一步实现工作单；最终能力以正式代码及与候选绑定的实际验收为准。
+本版不再把 Reserved 取消、ID 冲突和永久身份屏障留作“以后选一种做法”；采用第 4 节的保守协议。其运行正确性仍必须由模型与原生实验验证。任意新发现的未封闭交错都保持阻断，不以文档齐全替代证据。Bound 后快速取消、任意跨主体恢复、精确并发 inventory 仍未提供；不得在实现或产品描述中偷偷扩大合同。
