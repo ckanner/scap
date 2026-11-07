@@ -1,0 +1,2757 @@
+{
+  "schema": 1,
+  "date": "2026-11-07",
+  "status": "LOCAL_SELECTED_LIFECYCLE_CONTRACTS_PASSED",
+  "source": {
+    "schema_version": 1,
+    "scope": "git-tracked-source-only",
+    "commit": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+    "tree": "25ef8eda98950ada53c9284197ab06e09b1c7da7",
+    "files": [
+      {
+        "path": ".editorconfig",
+        "mode": "100644",
+        "git_blob": "c2c12b02212b76ef13b238453306ced7ae24190a",
+        "bytes": 195,
+        "sha256": "bae67c08e7674791dc16cefd56a33810cd4cf8444bc0e05fa4d2ffc6743537fe"
+      },
+      {
+        "path": ".gitattributes",
+        "mode": "100644",
+        "git_blob": "a7e42d05aba3c96e395f32448d1f3b8274347511",
+        "bytes": 148,
+        "sha256": "bcb7381f5a9b05ca9fe48e82b2c1e29edfa9796547f69a99d5ce2b911f279c6f"
+      },
+      {
+        "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+        "mode": "100644",
+        "git_blob": "ae9a39ceb2c94d8ac2987805f14b5867b3231ccb",
+        "bytes": 488,
+        "sha256": "3dc3e00b2779f58a54029335f864ee78b3ed05dd828c79b28e2be527fc672214"
+      },
+      {
+        "path": ".github/ISSUE_TEMPLATE/design_proposal.md",
+        "mode": "100644",
+        "git_blob": "2bdf811ec41d9c63b996c4cb02b0e41a396ffa6a",
+        "bytes": 379,
+        "sha256": "7f6708f1b17f12567747541d28ac77667b6b523e74e6262175f09f7f8a7ca5cb"
+      },
+      {
+        "path": ".github/pull_request_template.md",
+        "mode": "100644",
+        "git_blob": "3da411d59f6548916bfa55bec8239ba13b4a613f",
+        "bytes": 820,
+        "sha256": "58fec5e7943a1dc1626c84114c8255a1633127bef2b8d32195df497891d81bb4"
+      },
+      {
+        "path": ".github/workflows/developer-tools.yml",
+        "mode": "100644",
+        "git_blob": "9dfb05feb5cf0dd9d875681dbf4bbe834eee4198",
+        "bytes": 2506,
+        "sha256": "b2cdd0bfb0dd54abb1297745c06c61342750cc11bed94d3c4c8f654a6b991c6d"
+      },
+      {
+        "path": ".github/workflows/docs.yml",
+        "mode": "100644",
+        "git_blob": "a835c61b9801342d4ba2e2dec0d8a1a5807cb676",
+        "bytes": 1322,
+        "sha256": "76eded903d7092460bda5256488837cd2dbc09c88cb442b644a60f569ec4b61b"
+      },
+      {
+        "path": ".github/workflows/node-codec.yml",
+        "mode": "100644",
+        "git_blob": "32d9b136e9281c002252cdebc7f7f00e89244561",
+        "bytes": 3842,
+        "sha256": "4f1b4e9130a28e02e0b066b5f1bebf65611359f1f232acaa617ed1a1b2c0619d"
+      },
+      {
+        "path": ".github/workflows/node-sdk.yml",
+        "mode": "100644",
+        "git_blob": "6ffe13832b33ffb88655300b1b69f7933ecd853b",
+        "bytes": 1412,
+        "sha256": "e32e7fd2cb9350f8b18f5417f8c5998f654e117c35c99ddce50e97f1360d9005"
+      },
+      {
+        "path": ".github/workflows/quality.yml",
+        "mode": "100644",
+        "git_blob": "e47ecd456910c6cf6bc57dd3022821ef500c3715",
+        "bytes": 12669,
+        "sha256": "1e9c838fee6757d9cf0ecf8b2ecd7cb0adeadb7f0c5dd143e51d1e036a49a47d"
+      },
+      {
+        "path": ".gitignore",
+        "mode": "100644",
+        "git_blob": "17b913e6be2c313669b65d8f5773fc4b5b9b27ed",
+        "bytes": 359,
+        "sha256": "e6c87e543e9ab9526c463952c1e3563513ed6081da9c8a7f7f084d7c87fbf581"
+      },
+      {
+        "path": "AGENTS.md",
+        "mode": "100644",
+        "git_blob": "cc1497f531b4d2b5bebaa4ab3611cdf60920df04",
+        "bytes": 2481,
+        "sha256": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6"
+      },
+      {
+        "path": "CONTRIBUTING.md",
+        "mode": "100644",
+        "git_blob": "771d03f1eb2ce38c1b9958a8219396c14c7ce62b",
+        "bytes": 1253,
+        "sha256": "67364bc6037832075ecc904f89ee983199bada33a87268ea289a3ea20da939eb"
+      },
+      {
+        "path": "Cargo.lock",
+        "mode": "100644",
+        "git_blob": "246beaeb3a9582dc8b9529df109990c989fc8d46",
+        "bytes": 61830,
+        "sha256": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7"
+      },
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "git_blob": "4391d36944dba1197900f1003177d359496256eb",
+        "bytes": 321,
+        "sha256": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d"
+      },
+      {
+        "path": "README.md",
+        "mode": "100644",
+        "git_blob": "dbd70d8569cde3149932c066882b31195fc0af64",
+        "bytes": 10698,
+        "sha256": "2a9150a5b4b5d30115011ffe5653b9d0ea7dfdc56a1913e4b1bf5399f251c6f1"
+      },
+      {
+        "path": "SECURITY.md",
+        "mode": "100644",
+        "git_blob": "f835110142b76aaa84404dadb57e9e29a4075f4b",
+        "bytes": 786,
+        "sha256": "dc516517e95fa600927e9926c381e0315122b0188225bc733ae890b5b85f2927"
+      },
+      {
+        "path": "contracts/coverage-policy.json",
+        "mode": "100644",
+        "git_blob": "f94f060b83f3104b6e7f4d549ff941fbe76660f1",
+        "bytes": 2084,
+        "sha256": "54b8775a26f8f7070c8a92d277c6b3d6db4b5092285c5450faf1c5a791b67195"
+      },
+      {
+        "path": "contracts/design-contract.json",
+        "mode": "100644",
+        "git_blob": "b4247bf0b25929320c918b007f393b92de4b483e",
+        "bytes": 1664,
+        "sha256": "abbeb9351dd322c6611bc58addeceaef57d02e0f6beaa8992ae54898e1f9d8f9"
+      },
+      {
+        "path": "contracts/object-authority-model.json",
+        "mode": "100644",
+        "git_blob": "e527afb71e5191fd4be4c6365848fe973eb38fef",
+        "bytes": 4646,
+        "sha256": "08882d94c9a3bcbf389741d143b6ac191ba738ca7dc17fc2722019bf56e02fe3"
+      },
+      {
+        "path": "crates/scap-object-sqlite/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "446bcf3d3c2572000776a3ca2bf51d2a83a1c756",
+        "bytes": 448,
+        "sha256": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc"
+      },
+      {
+        "path": "crates/scap-object-sqlite/README.md",
+        "mode": "100644",
+        "git_blob": "84040f128a7f9cdee754ea7e254d2d12fd832872",
+        "bytes": 3406,
+        "sha256": "f92375b2552392ac91799aa0c264cf6ae1e15ed15b1165221410916bb92a2942"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/alter_tests.rs",
+        "mode": "100644",
+        "git_blob": "90d941391fcdac73073d95449c663611818651df",
+        "bytes": 21084,
+        "sha256": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/capacity_tests.rs",
+        "mode": "100644",
+        "git_blob": "72dc3455d3ab9af913f4eefaef305bd605782a63",
+        "bytes": 13435,
+        "sha256": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/config.rs",
+        "mode": "100644",
+        "git_blob": "c2c2b5c0d63cea2984d4919731eba253a90ca3a0",
+        "bytes": 6266,
+        "sha256": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/config_tests.rs",
+        "mode": "100644",
+        "git_blob": "5e50ee334c14c51439d2f387d10a65e6de53388e",
+        "bytes": 11842,
+        "sha256": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file.rs",
+        "mode": "100644",
+        "git_blob": "4d6e5e3d6a7eeca86938110eeb3354c07162310f",
+        "bytes": 7050,
+        "sha256": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file_tests.rs",
+        "mode": "100644",
+        "git_blob": "0c51c454d703810235ac3b503195399f857e6ebc",
+        "bytes": 15840,
+        "sha256": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/gate.rs",
+        "mode": "100644",
+        "git_blob": "11e1d19d175468dc6dbb4fef2b483e5ed7d3a6b1",
+        "bytes": 4944,
+        "sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image.rs",
+        "mode": "100644",
+        "git_blob": "dcca8f167f848a12603815becf4f7fd045ebc482",
+        "bytes": 3163,
+        "sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image_tests.rs",
+        "mode": "100644",
+        "git_blob": "ade7e4460753c27574ba98ae0a69f00abfa4a3d3",
+        "bytes": 6777,
+        "sha256": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "df422656fb83b761f3a3e9c996f0127d94e039ae",
+        "bytes": 8956,
+        "sha256": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query.rs",
+        "mode": "100644",
+        "git_blob": "76c739a69b2aa6974b9bb050d2fcfaea4f1c2cd0",
+        "bytes": 2513,
+        "sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query_tests.rs",
+        "mode": "100644",
+        "git_blob": "b46c207afe06366b0be961a83bcf58006fbf9622",
+        "bytes": 9037,
+        "sha256": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/sql.rs",
+        "mode": "100644",
+        "git_blob": "4d4d418263277114aa5d35f3810faefaa175c1fb",
+        "bytes": 16724,
+        "sha256": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/storage.rs",
+        "mode": "100644",
+        "git_blob": "35951b314b4b8ae72245d30513c2a98dd38ee06b",
+        "bytes": 3252,
+        "sha256": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "7e6c94cf0dc7a8843a61c8f7cf0071a496be84e8",
+        "bytes": 28227,
+        "sha256": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299"
+      },
+      {
+        "path": "crates/scap-object-store/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "2fd267f636efb2693cd7afb68ae7d5e1d36274d7",
+        "bytes": 593,
+        "sha256": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339"
+      },
+      {
+        "path": "crates/scap-object-store/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "c776a800a7d92f2be16985248130f8efa58f935e",
+        "bytes": 9763,
+        "sha256": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c"
+      },
+      {
+        "path": "crates/scap-object-store/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "0446fed1d3454fb7ea6f31b6baf7180907e852a6",
+        "bytes": 14881,
+        "sha256": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7"
+      },
+      {
+        "path": "crates/scap-object/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "c107d3cf99549ee54c3fa1185f2c65e91a7713f7",
+        "bytes": 455,
+        "sha256": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49"
+      },
+      {
+        "path": "crates/scap-object/src/data_tree.rs",
+        "mode": "100644",
+        "git_blob": "9d09d735aad190169635f384c046f704200f2be7",
+        "bytes": 10824,
+        "sha256": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43"
+      },
+      {
+        "path": "crates/scap-object/src/data_tree_tests.rs",
+        "mode": "100644",
+        "git_blob": "e857affc8fae763cefd9870f27f767c7db0b3fb1",
+        "bytes": 19311,
+        "sha256": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21"
+      },
+      {
+        "path": "crates/scap-object/src/format.rs",
+        "mode": "100644",
+        "git_blob": "ff9e2f3f4eb506645252b8900aca7ac3f6ee17b6",
+        "bytes": 16758,
+        "sha256": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e"
+      },
+      {
+        "path": "crates/scap-object/src/format_tests.rs",
+        "mode": "100644",
+        "git_blob": "f5035f88ee2031603734cb24282d1ea76e3811b1",
+        "bytes": 25566,
+        "sha256": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2"
+      },
+      {
+        "path": "crates/scap-object/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "f2d0b25d9f1d1ee6bae0555c5accce8a05c41f13",
+        "bytes": 35565,
+        "sha256": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4"
+      },
+      {
+        "path": "crates/scap-object/src/options.rs",
+        "mode": "100644",
+        "git_blob": "7790837e5c67b86fcc05dc46b634e9113ac72b6c",
+        "bytes": 5401,
+        "sha256": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67"
+      },
+      {
+        "path": "crates/scap-object/src/options_tests.rs",
+        "mode": "100644",
+        "git_blob": "bb956da319a94fefa2643be5eac95bf656618b50",
+        "bytes": 4589,
+        "sha256": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e"
+      },
+      {
+        "path": "crates/scap-object/src/quarantine_tests.rs",
+        "mode": "100644",
+        "git_blob": "d806efd44577b7d10be9b98f6f4930dad85d810b",
+        "bytes": 12163,
+        "sha256": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44"
+      },
+      {
+        "path": "crates/scap-object/src/result_validation_tests.rs",
+        "mode": "100644",
+        "git_blob": "4be00a76764340b27d9360dfa5fe20d0873454b9",
+        "bytes": 12604,
+        "sha256": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905"
+      },
+      {
+        "path": "crates/scap-object/src/review_tests.rs",
+        "mode": "100644",
+        "git_blob": "a76b51e74fc9bec4355c501a3ccc9713efdc318c",
+        "bytes": 8894,
+        "sha256": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12"
+      },
+      {
+        "path": "crates/scap-object/src/session_tests.rs",
+        "mode": "100644",
+        "git_blob": "b6f21822f40e94db81b826d79deb1365c093cb0c",
+        "bytes": 19835,
+        "sha256": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8"
+      },
+      {
+        "path": "crates/scap-object/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "9173a9563c0f7651786ce4e949caf967dd99c639",
+        "bytes": 45373,
+        "sha256": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a"
+      },
+      {
+        "path": "crates/scap-service/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "14cdaaa56632827c4f4808b838ff61ff9c53689b",
+        "bytes": 941,
+        "sha256": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62"
+      },
+      {
+        "path": "crates/scap-service/README.md",
+        "mode": "100644",
+        "git_blob": "4ab6ffa06eea2903800cd602b7f1f8c64fadbf1d",
+        "bytes": 9486,
+        "sha256": "ae851c527bbee2c2861eafb0804bf42a318723f9309dc9bf811a6459fa0d54e9"
+      },
+      {
+        "path": "crates/scap-service/src/auth.rs",
+        "mode": "100644",
+        "git_blob": "549b8f9716a0740a28ef8cfe114db5146007df83",
+        "bytes": 3400,
+        "sha256": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d"
+      },
+      {
+        "path": "crates/scap-service/src/auth/tests.rs",
+        "mode": "100644",
+        "git_blob": "8d5762c070538cc7ff8929d2835e30c5bfad496b",
+        "bytes": 2342,
+        "sha256": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd"
+      },
+      {
+        "path": "crates/scap-service/src/config.rs",
+        "mode": "100644",
+        "git_blob": "44b38907c8ed16a12354fc349cd0eff902ab4773",
+        "bytes": 6042,
+        "sha256": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046"
+      },
+      {
+        "path": "crates/scap-service/src/config/tests.rs",
+        "mode": "100644",
+        "git_blob": "01dce88aa631604e92b9c8a1d6013e0d36d21586",
+        "bytes": 5158,
+        "sha256": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c"
+      },
+      {
+        "path": "crates/scap-service/src/daemon.rs",
+        "mode": "100644",
+        "git_blob": "807b374c03e46d0516b1bd1067d241336808c463",
+        "bytes": 4625,
+        "sha256": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255"
+      },
+      {
+        "path": "crates/scap-service/src/daemon/tests.rs",
+        "mode": "100644",
+        "git_blob": "4bab3804e1e62805dde73503f5c7a6bc4a05549a",
+        "bytes": 6838,
+        "sha256": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3"
+      },
+      {
+        "path": "crates/scap-service/src/engine.rs",
+        "mode": "100644",
+        "git_blob": "4cacece117d75e7056a169f65d03757e4e66cef0",
+        "bytes": 12093,
+        "sha256": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf"
+      },
+      {
+        "path": "crates/scap-service/src/engine/tests.rs",
+        "mode": "100644",
+        "git_blob": "e9b8f79ae19b62dc6350a74b4c9b22c2248e4bd3",
+        "bytes": 22980,
+        "sha256": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541"
+      },
+      {
+        "path": "crates/scap-service/src/http.rs",
+        "mode": "100644",
+        "git_blob": "00a7141adc49b2d0f9ceebcda5dbf6999b149c64",
+        "bytes": 7366,
+        "sha256": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c"
+      },
+      {
+        "path": "crates/scap-service/src/http/tests.rs",
+        "mode": "100644",
+        "git_blob": "dae333d40302669f8adeb49a9249a5d31c5dd231",
+        "bytes": 18326,
+        "sha256": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972"
+      },
+      {
+        "path": "crates/scap-service/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "8c4a59b9262372c322585d00bb81643bfac2d244",
+        "bytes": 2441,
+        "sha256": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40"
+      },
+      {
+        "path": "crates/scap-service/src/main.rs",
+        "mode": "100644",
+        "git_blob": "58548fff3beabe3c78052eb084c8eddcf65a9f7c",
+        "bytes": 115,
+        "sha256": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8"
+      },
+      {
+        "path": "crates/scap-service/src/scheduler.rs",
+        "mode": "100644",
+        "git_blob": "ec8c5ab7bbb2c1f16f92ef6aaadbb6b74720fba4",
+        "bytes": 10499,
+        "sha256": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207"
+      },
+      {
+        "path": "crates/scap-service/src/scheduler/tests.rs",
+        "mode": "100644",
+        "git_blob": "1e1d318353691a97be3d436b63cde1140702001b",
+        "bytes": 12330,
+        "sha256": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85"
+      },
+      {
+        "path": "crates/scap-service/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "cf5d7ddc567740814f61a258b05a3de0f01cffd0",
+        "bytes": 7050,
+        "sha256": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546"
+      },
+      {
+        "path": "crates/scap-service/src/wire.rs",
+        "mode": "100644",
+        "git_blob": "1ea93e33c15a45f067a59b8ac04b7eee237c3330",
+        "bytes": 14604,
+        "sha256": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9"
+      },
+      {
+        "path": "crates/scap-service/src/wire/tests.rs",
+        "mode": "100644",
+        "git_blob": "2c23dc3bda1a32b6bc7459e9359fef3b2ceb59ab",
+        "bytes": 12634,
+        "sha256": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531"
+      },
+      {
+        "path": "crates/scap-sql/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "8554d34d72a58a5ff4f4dae4d7fea84a74b5ba13",
+        "bytes": 185,
+        "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+      },
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "5644aead0e814d48b65f3cb6d6d1b1a67f55fae2",
+        "bytes": 10872,
+        "sha256": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71"
+      },
+      {
+        "path": "crates/scap-sql/src/result_validation.rs",
+        "mode": "100644",
+        "git_blob": "bc13a03725ed814f7a42ee433f8562c6a6d218b3",
+        "bytes": 2620,
+        "sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70"
+      },
+      {
+        "path": "crates/scap-sql/src/result_validation_tests.rs",
+        "mode": "100644",
+        "git_blob": "69dd6740ac0c20c3adea6e28bc5c10a364b4f63f",
+        "bytes": 8540,
+        "sha256": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177"
+      },
+      {
+        "path": "crates/scap-sql/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "08af902f77ff5fe74d36f3bb4981f372d5421f2d",
+        "bytes": 12133,
+        "sha256": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e"
+      },
+      {
+        "path": "dev/environment/Dockerfile",
+        "mode": "100644",
+        "git_blob": "a83545e1398118534b0e6001e8f4a98998b967f3",
+        "bytes": 1737,
+        "sha256": "bf196b018292d20c55ef88a29d259aae7bf67c79e58c4a054dc2315189d63aaf"
+      },
+      {
+        "path": "dev/environment/Dockerfile.dockerignore",
+        "mode": "100644",
+        "git_blob": "20a4acf2a95dbbdcb22453eaad90cbc6429b264a",
+        "bytes": 380,
+        "sha256": "0605359418e5bd97bcd25517ef56181dfe527f07fd06061acb597792d72261d4"
+      },
+      {
+        "path": "dev/environment/README.md",
+        "mode": "100644",
+        "git_blob": "3023f4f818e48ae85fd0713bf8dd83691a13b52e",
+        "bytes": 9670,
+        "sha256": "b9eb94adaf4d5eeff119449c04885d318bc9bee2c60c78a5c8cc1a8fac0d81f5"
+      },
+      {
+        "path": "dev/environment/bootstrap.py",
+        "mode": "100644",
+        "git_blob": "8ccfb44156e6d0fcca2f23eb2b0a3fb1bacb7d0b",
+        "bytes": 22129,
+        "sha256": "3791c147fd892de949b6b9da658efe5e714b428ca421c5938310800ffe88ea43"
+      },
+      {
+        "path": "dev/environment/enter.sh",
+        "mode": "100644",
+        "git_blob": "2378a955d7890f142a4e12e942f4e62bccb51c5f",
+        "bytes": 1298,
+        "sha256": "4677b0f5ca815405ddec2d45c42a951e1b69566921ab26df52f2614eaacb7767"
+      },
+      {
+        "path": "dev/environment/node-validation-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "0457f67306a28a03ab53fa2fa7adafd313c83905",
+        "bytes": 5906,
+        "sha256": "b95e4c2db37b93f9b9faaf9b309d965aa1126d2cc2baae75548bccc4c51f4763"
+      },
+      {
+        "path": "dev/environment/test_bootstrap.py",
+        "mode": "100644",
+        "git_blob": "4c9f41a2edc9d1d954d1eda1f53a8f621d0036c8",
+        "bytes": 25564,
+        "sha256": "b49d3bee45ee02a1c5db2b32938e4572e4c99c09a536bcebe38cd02056873c42"
+      },
+      {
+        "path": "dev/environment/test_entrypoints.py",
+        "mode": "100644",
+        "git_blob": "963b11f73bd9d397207541d4cc9526d7ecab93c6",
+        "bytes": 13298,
+        "sha256": "57411aba0fce5f4247b87c0c263e4a8982fcd1e6d8d2bf6230afd3558730055f"
+      },
+      {
+        "path": "dev/environment/validate.sh",
+        "mode": "100644",
+        "git_blob": "0eaa16729ad6afdb0628b44d0ff8befebfb5089f",
+        "bytes": 6195,
+        "sha256": "f070630ca8482ce87190ba4816c1df62bfa0e00bdfddb989094869efa72d9818"
+      },
+      {
+        "path": "docs/README.md",
+        "mode": "100644",
+        "git_blob": "84d805f5a151313409338e772bb6d974234f5e9f",
+        "bytes": 1908,
+        "sha256": "5f4cc11ae3922ecbcf5f29cf2c24812ef7b1da791ff05121b1632778490baa6d"
+      },
+      {
+        "path": "docs/adr/0020-object-storage-native-authority.md",
+        "mode": "100644",
+        "git_blob": "e6c8a88cf9ecc6d0075d10a1188d19ff80ec7655",
+        "bytes": 5937,
+        "sha256": "ca022a648ae40c991ab4a76e4740ecf39e2eec5f022fe8c32a8369ab3a0915e5"
+      },
+      {
+        "path": "docs/adr/0021-object-native-runtime.md",
+        "mode": "100644",
+        "git_blob": "e8f6fd8d1c7d342eac9d08397d064c9ebc040b35",
+        "bytes": 2396,
+        "sha256": "bc1c670e2b41a3de1167dd0cce5ac08f6360387f83d51531e8e65f82c4df8b88"
+      },
+      {
+        "path": "docs/adr/0022-production-capacity.md",
+        "mode": "100644",
+        "git_blob": "8d00f667a392fd4d53e39928264a53c1d3847096",
+        "bytes": 15794,
+        "sha256": "83b6e03fd2056be76b118784a794aa97167013508acf4629f74f5a2cf6cd11d5"
+      },
+      {
+        "path": "docs/adr/0023-authenticated-http-and-node-sdk.md",
+        "mode": "100644",
+        "git_blob": "847e00ade292b64db298519396312e01dc8e647c",
+        "bytes": 5004,
+        "sha256": "0a7c403ebf89ca00153d00b6e5d8d279be86852f941738b662945eabdc2a9680"
+      },
+      {
+        "path": "docs/adr/README.md",
+        "mode": "100644",
+        "git_blob": "099108f247dda901201002c054c29799157443e7",
+        "bytes": 650,
+        "sha256": "4809d9f93d5d57dc73000e92234a3697ec809718defe1527bc15d83c62a79358"
+      },
+      {
+        "path": "docs/architecture/name-catalogue-plan.md",
+        "mode": "100644",
+        "git_blob": "91a17592427610dc5ca3222e87d669dba4af12d1",
+        "bytes": 29998,
+        "sha256": "01d9ce716294c976b843a27688a02194039fab0033e14f6f35d6ba879b034aa2"
+      },
+      {
+        "path": "docs/architecture/object-storage-native-proposal.md",
+        "mode": "100644",
+        "git_blob": "13de840c733036c57b03207e22ea759a002e01dd",
+        "bytes": 60320,
+        "sha256": "4e81becbc2fbd6a32f8799b42c09430fa78e7727159ca5795a173ceb2a5fee12"
+      },
+      {
+        "path": "docs/engineering/alter-authorization.md",
+        "mode": "100644",
+        "git_blob": "3237520e8b2d1c181207d54421e732b74f6312f0",
+        "bytes": 7244,
+        "sha256": "0fb1faac7a1fd3561e0faf61281b5b645046979723c03ed8c4591699ca3a66a5"
+      },
+      {
+        "path": "docs/engineering/http-service-validation.md",
+        "mode": "100644",
+        "git_blob": "b247275e0c928143aed82968de479cf87f8059f3",
+        "bytes": 10576,
+        "sha256": "0cd14d676374643aecda4b0aaa15b8ea8e6aa122e26d7c149ccca564ca303b96"
+      },
+      {
+        "path": "docs/engineering/local-validation.md",
+        "mode": "100644",
+        "git_blob": "4629980660545076e2e0ef2141ecea34bd90a127",
+        "bytes": 4236,
+        "sha256": "ca75699a271cfacaeccff4173675dd7282a987898c5b217a03399348e235ee43"
+      },
+      {
+        "path": "docs/engineering/n1-lifecycle-validation-plan.md",
+        "mode": "100644",
+        "git_blob": "ab7a7bf5c55ec837e222a5a6b9190eaac7b4ee48",
+        "bytes": 24201,
+        "sha256": "531bb46230b0e909479c47a791cfe3616363206c608cc4d1016f822473b4a8cb"
+      },
+      {
+        "path": "docs/engineering/native-integrity-validation.md",
+        "mode": "100644",
+        "git_blob": "dc979fb519eaa15d60491cfcc26f6dd32c194504",
+        "bytes": 9936,
+        "sha256": "3803076c06469a813572b200ce6707c9bbde296a713033790d323e75b1ce14bd"
+      },
+      {
+        "path": "docs/engineering/object-authority-n0.md",
+        "mode": "100644",
+        "git_blob": "83daf7dbeeef7509878396afdf8ca5880c767158",
+        "bytes": 16535,
+        "sha256": "70eb69fc9b3e30e9845d3a32af15e4370d66db2d0fa692c465ec7c3b5bc07d21"
+      },
+      {
+        "path": "docs/engineering/object-runtime.md",
+        "mode": "100644",
+        "git_blob": "e49a4018fc6b6ac9453103aa979f36b4c49eccb7",
+        "bytes": 11739,
+        "sha256": "0e89c7e202548d7cec9d3ebaf9a59f2cceb64cbf87c348395fb02e166ad55f57"
+      },
+      {
+        "path": "docs/engineering/retained-result-contract.md",
+        "mode": "100644",
+        "git_blob": "bf6cffa4e9cce0c205223957cc9ad782e86f7dfa",
+        "bytes": 5963,
+        "sha256": "9bf50605a78183a7f99ff5aff04441b5cf04100b00e5cc3bdd6351371d483508"
+      },
+      {
+        "path": "docs/engineering/retained-result-integrity.md",
+        "mode": "100644",
+        "git_blob": "14f0c3959f261d6e91010324ad6aa890f4395a9a",
+        "bytes": 6426,
+        "sha256": "432f234759c50f4c321e6dc3518c740a715546a4f48300e52455c4cdb3870d5a"
+      },
+      {
+        "path": "docs/engineering/roadmap.md",
+        "mode": "100644",
+        "git_blob": "dfd26fc8429ab81b5464d1ec052fd7c88a2a86fe",
+        "bytes": 3478,
+        "sha256": "acd6a7d8461c1e0a0960515c0143b9a017e3b5aa4d322c6af0bffee19a948704"
+      },
+      {
+        "path": "docs/engineering/status-2026-11-07.md",
+        "mode": "100644",
+        "git_blob": "e5ce6d9b8687857178972020c7aa69e07feea242",
+        "bytes": 7312,
+        "sha256": "46bd3de9c4be784edf7ceebe5de87018c7039238419872c04f48c02a6f76663d"
+      },
+      {
+        "path": "docs/engineering/testability-and-coverage.md",
+        "mode": "100644",
+        "git_blob": "f2afdb6fe669a79a6292e5420dfb6c3608d76a86",
+        "bytes": 1502,
+        "sha256": "bf5c0763420b496a49ce19d4f0b31e1b3e90c92d0fad2a1b977f80d6e0990ee9"
+      },
+      {
+        "path": "docs/engineering/validation.md",
+        "mode": "100644",
+        "git_blob": "4ae777fcbe01657173a1b20f73b95785a277acf8",
+        "bytes": 16486,
+        "sha256": "5b9dd0138fa2afdd25d9706acae880777e63d4d8196dce4d5dfe8f06f5ed6038"
+      },
+      {
+        "path": "docs/evidence/alter-authorization-diagnostic-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "f41b6ebba68c097d4390cc929bd8315c65c3364d",
+        "bytes": 2786,
+        "sha256": "f3042c0536274f36ae321fb71698bca91b304b3f20eea98710b238a82e7af5dc"
+      },
+      {
+        "path": "docs/evidence/http-service-local-2026-11-07.json",
+        "mode": "100644",
+        "git_blob": "d76d97862931a40f9024f007d9d80ccd2f6f6b21",
+        "bytes": 20781,
+        "sha256": "4c9812260e82da026843e6f0d8a598efcbb2939991fba824682fbd9047cfcf4f"
+      },
+      {
+        "path": "docs/evidence/native-integrity-local-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "58d761179dcec04bd7a16a6935405d48923cfc97",
+        "bytes": 47391,
+        "sha256": "56974c5514beb878f9ea1b1e33365d732fe893750bd607cedf7fb67b6a7ad332"
+      },
+      {
+        "path": "docs/evidence/node-codec-local-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "a62299eab4cfd00c5b0433174d46b324d04ffda8",
+        "bytes": 2075,
+        "sha256": "9795688496c9d159ec74a25a60731fd98025582b9c0918b667d587a6ae64a5b2"
+      },
+      {
+        "path": "docs/evidence/object-n0-local-2026-11-05.json",
+        "mode": "100644",
+        "git_blob": "57233ae642a64dc2542e6395093108ceb1b1bac4",
+        "bytes": 8466,
+        "sha256": "bd5528eab4f9642326334d9017439fa12f1b4bcce9139076ffbfdaa279b6ec3b"
+      },
+      {
+        "path": "docs/evidence/object-native-local-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "c4a507a18ceeb8d60097116552fd3f829cb2e431",
+        "bytes": 11214,
+        "sha256": "ed531c708c512098036ff85d30a08f24fee83c0e891f66580f7d164c451dab8b"
+      },
+      {
+        "path": "docs/evidence/production-capacity-local-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "7f93613e8a786ebe240586abdd86d0be61b0de96",
+        "bytes": 188854,
+        "sha256": "3713894a12440522b68bed5bf014549045c8aa332c744c73b3b496a8b218c3d7"
+      },
+      {
+        "path": "docs/evidence/retained-result-diagnostic-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "eb573dc15ae36535587a5b839e57ce79fb6a85b0",
+        "bytes": 2713,
+        "sha256": "f39395d02e45eda3f948d5456fb1243420d5e170d448a0018143a139ce228bf4"
+      },
+      {
+        "path": "docs/evidence/retained-result-harness-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "26e383d3d05f34ef3110be835f297ce835c4fb3b",
+        "bytes": 2523,
+        "sha256": "35a5e41d9f267fe6c5e66863e68f34ef36bcfe28ff5fa6e3597e7ef32d666d6a"
+      },
+      {
+        "path": "docs/evidence/s3-n1-fault-contracts-local-2026-11-06.json",
+        "mode": "100644",
+        "git_blob": "0b86fc121a1f3a78a97b1d126c95ffc3670fd792",
+        "bytes": 42890,
+        "sha256": "e3800ed64f292e47b938de714586e9fde2bda69839ea1510b12086124ef24fcf"
+      },
+      {
+        "path": "docs/operations/failure-matrix.md",
+        "mode": "100644",
+        "git_blob": "7f4942f09373e1374103128e3573ce796cf6e356",
+        "bytes": 2398,
+        "sha256": "f730b833ee7b516444558ddea65ee73a9791fcba1f192b11f394970b316cc114"
+      },
+      {
+        "path": "docs/operations/http-service.md",
+        "mode": "100644",
+        "git_blob": "93773a1f739950ece804ea8bcc1d4997ccc629ec",
+        "bytes": 5097,
+        "sha256": "e0452e541cb19fcff37e6e501e9a651c734f8369251b28f51afb83ac78b637fe"
+      },
+      {
+        "path": "docs/operations/runbooks.md",
+        "mode": "100644",
+        "git_blob": "265819abd8fa40f6e7876ee39899f99497b1b258",
+        "bytes": 3180,
+        "sha256": "31518dde7d0927ee74d9ff01db0211a1de4a64dfc02938e3367714de623abfe2"
+      },
+      {
+        "path": "docs/operations/sqlite-storage-safety.md",
+        "mode": "100644",
+        "git_blob": "0a74a05519b71a1b41202a8e60fdf55044c98fcb",
+        "bytes": 7653,
+        "sha256": "c4ff74521190298a79dbe7790fac5e3b5d704d4a8c6c2ae84fe02f3e90b39fe6"
+      },
+      {
+        "path": "experiments/object-authority-model/README.md",
+        "mode": "100644",
+        "git_blob": "5308d7b82facbfa748fff1d94ab424811a17bafb",
+        "bytes": 3566,
+        "sha256": "afcecc40cd68b706cb23bf6520218d630668aa41268e711c355d082000c70f85"
+      },
+      {
+        "path": "experiments/object-authority-model/explore.py",
+        "mode": "100644",
+        "git_blob": "6e6f30919c93cde00c4ed3fc7126a0c4eda4c06c",
+        "bytes": 39941,
+        "sha256": "2da6e8b2712356c6dde488a526a9545d4ca29b45116d001aca3c8530c4b92712"
+      },
+      {
+        "path": "experiments/object-authority-model/model.py",
+        "mode": "100644",
+        "git_blob": "c32d604f4df2244173226d4e40fff072da215cbe",
+        "bytes": 34605,
+        "sha256": "3c005cdef628fc85269c3b995752541d0cf4ad28e71febdc56ef5aed48b149a1"
+      },
+      {
+        "path": "experiments/object-authority-model/oracle.py",
+        "mode": "100644",
+        "git_blob": "8d5781e73b17d3afb776e341d70eb3543dac07e1",
+        "bytes": 35188,
+        "sha256": "0f8f5576f707f03020b0b1fa09c4ef2b26e8806f3cd62a3681a951dc1e84e845"
+      },
+      {
+        "path": "experiments/object-authority-model/test_model.py",
+        "mode": "100644",
+        "git_blob": "c8fb3ffeaeab628ed02d15ffadfb3939b3baac01",
+        "bytes": 25159,
+        "sha256": "2b77ea06717d303ec7aa2ebd480f5a18cbde5912750c491663d3476e933856a2"
+      },
+      {
+        "path": "experiments/object-authority-model/test_oracle.py",
+        "mode": "100644",
+        "git_blob": "c390dac883c5b88d18357d5356496b1002859986",
+        "bytes": 5153,
+        "sha256": "493f4642eb2d7af360f1ff724755759da2d7baa8c0d15475a6eef66fd0f2b694"
+      },
+      {
+        "path": "experiments/object-capacity/README.md",
+        "mode": "100644",
+        "git_blob": "3a469d78f9ee5b08b9105405c42a38dab9d61781",
+        "bytes": 9221,
+        "sha256": "e036300397d83fae88e5eeae2095320bbf712f1cf40a0d605ffc48cc3a481c71"
+      },
+      {
+        "path": "experiments/object-capacity/run.py",
+        "mode": "100644",
+        "git_blob": "126ec1f96b9bd36d432974c8ac47205030b53ccc",
+        "bytes": 35469,
+        "sha256": "f03e1121775875d3ed8f7d792295ecb5cffede1498b95e8b8d07d4e591c2d061"
+      },
+      {
+        "path": "experiments/object-network/Cargo.lock",
+        "mode": "100644",
+        "git_blob": "5e3254cb9e358bc0fdeff04d3cd85c19a8832485",
+        "bytes": 58699,
+        "sha256": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379"
+      },
+      {
+        "path": "experiments/object-network/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "e3a38a57b7b383c4c6b0c5306dfbd1d105193968",
+        "bytes": 449,
+        "sha256": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399"
+      },
+      {
+        "path": "experiments/object-network/README.md",
+        "mode": "100644",
+        "git_blob": "ecacf1f497bdc917bf312c14621e52518718d275",
+        "bytes": 20861,
+        "sha256": "36bc04c5666f59a196918a523b6bab3ef7bc9f17ee190947f21b6bd3990af1dc"
+      },
+      {
+        "path": "experiments/object-network/build.py",
+        "mode": "100644",
+        "git_blob": "89c1c32a39ea1cfe22fbf76e353ccaf8ddb22464",
+        "bytes": 7349,
+        "sha256": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14"
+      },
+      {
+        "path": "experiments/object-network/lifecycle_contract.py",
+        "mode": "100644",
+        "git_blob": "921e2294f4867fc5770efb9f17bd6f4564961528",
+        "bytes": 33181,
+        "sha256": "b4666513ba729fce3fb904da05468c4076753e4498bc8ec6f0ae47191fd50b96"
+      },
+      {
+        "path": "experiments/object-network/lifecycle_oracle.py",
+        "mode": "100644",
+        "git_blob": "5b7388a8580e6f8519321caaa4b105cf42c6a059",
+        "bytes": 68892,
+        "sha256": "63121783e2f8180ede27e5ed7ed22bd45afdb309d049c5d74cd656a57cbc468b"
+      },
+      {
+        "path": "experiments/object-network/retained_result_contract.py",
+        "mode": "100644",
+        "git_blob": "a81a46ece936187e49843c1338a64e3cf504e8c4",
+        "bytes": 18199,
+        "sha256": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1"
+      },
+      {
+        "path": "experiments/object-network/run.py",
+        "mode": "100644",
+        "git_blob": "4c88d1fd773e7a06cb6609c257681c30c34070c3",
+        "bytes": 84007,
+        "sha256": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b"
+      },
+      {
+        "path": "experiments/object-network/schema_contract.py",
+        "mode": "100644",
+        "git_blob": "00caad5dcf92c76dd98509474b8a858078fda5e3",
+        "bytes": 22815,
+        "sha256": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250"
+      },
+      {
+        "path": "experiments/object-network/src/main.rs",
+        "mode": "100644",
+        "git_blob": "0c9c892fb49d2f6692d2707aae3c152df05cc39b",
+        "bytes": 21898,
+        "sha256": "2698e0d8f7c125e8aa41429255793767ecbc4eed0aced76dcad21ced06a85fb6"
+      },
+      {
+        "path": "experiments/object-network/test_build.py",
+        "mode": "100644",
+        "git_blob": "aef79a74ef5cc3c58f85ec4b9ebd2ed28db40af0",
+        "bytes": 14277,
+        "sha256": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b"
+      },
+      {
+        "path": "experiments/object-network/test_lifecycle_contract.py",
+        "mode": "100644",
+        "git_blob": "9c4850cd318a2e890a00e32508e0857dba6eeedf",
+        "bytes": 16153,
+        "sha256": "0a178ad61cb8ce8ea75ace2191b08a3d557d9f0bfe487d6be2636381b61e3833"
+      },
+      {
+        "path": "experiments/object-network/test_lifecycle_oracle.py",
+        "mode": "100644",
+        "git_blob": "2507f4e32092b949048ba4d206e2e4fd14c38f5d",
+        "bytes": 32903,
+        "sha256": "78e8fd91ff34304a809a5c2b4758b8472b2fe731d55f1b9f836c633faf41733d"
+      },
+      {
+        "path": "experiments/object-network/test_retained_result_contract.py",
+        "mode": "100644",
+        "git_blob": "e1f4e0e846cedb7c40253b3a1711b56e1f46c594",
+        "bytes": 27492,
+        "sha256": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69"
+      },
+      {
+        "path": "experiments/object-network/test_schema_contract.py",
+        "mode": "100644",
+        "git_blob": "5cb85b8b58dacebf29e47f58502e5b2b5df4a36b",
+        "bytes": 12792,
+        "sha256": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb"
+      },
+      {
+        "path": "experiments/object-service/README.md",
+        "mode": "100644",
+        "git_blob": "b9d57c393e7c6514dc055164248ac03a49b013dc",
+        "bytes": 3451,
+        "sha256": "e4359414e846e201bac1b599c71527a067aa9e6ce8ac518585a242826c8dd03f"
+      },
+      {
+        "path": "experiments/object-service/build.py",
+        "mode": "100644",
+        "git_blob": "f86862da27d89cde879e1cf0251071aab0ab7068",
+        "bytes": 6618,
+        "sha256": "2009d23c229c17824e2b6eab2e247d6dd0bb121be48d074d5c120eb096f2d2eb"
+      },
+      {
+        "path": "experiments/object-service/probe.mjs",
+        "mode": "100644",
+        "git_blob": "f81e21788a56f65ad2bc8c6d74715376e5560fa5",
+        "bytes": 12186,
+        "sha256": "8240cc5daac7db2a150df2815779641bc2ad0f777aa6ca7269be2721c2c4539d"
+      },
+      {
+        "path": "experiments/object-service/run.py",
+        "mode": "100644",
+        "git_blob": "d8cd25d822cc37a2f8e6c631cfaddd77d4996843",
+        "bytes": 13712,
+        "sha256": "965d04eb9710ec2c45b6d3db84faa31d2bc855373ca60e9280b24a8a2e8007c8"
+      },
+      {
+        "path": "experiments/object-service/test_build.py",
+        "mode": "100644",
+        "git_blob": "487ca53175b510b2797cf66f85727fa9cdfd3106",
+        "bytes": 847,
+        "sha256": "961a3bafcb273a79ba85cd44ee0640435dc12ed9952f6e86d1907dcbb43c0fae"
+      },
+      {
+        "path": "experiments/object-service/test_controls.py",
+        "mode": "100644",
+        "git_blob": "e054e6ac12aefc67e790ee45ae6a0b195f569f3c",
+        "bytes": 15987,
+        "sha256": "67e67c5c2665d5689e11fb90dddda7a5753a906aa5fb87bb4b92763b988b121c"
+      },
+      {
+        "path": "requirements-dev.txt",
+        "mode": "100644",
+        "git_blob": "fff5ee21bccffb9338c6e7ea48c0817d4068dca5",
+        "bytes": 17,
+        "sha256": "d9809490cb01b3d4b9d448d6171118996c2a7c2d648e856a50bc9dc77906e02b"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "mode": "100644",
+        "git_blob": "50ccecd46ac8344fe41ef5a150faf93b54336820",
+        "bytes": 108,
+        "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+      },
+      {
+        "path": "scripts/check_repo.py",
+        "mode": "100644",
+        "git_blob": "488dabb0288483a4fb0aea1a37465c1967123308",
+        "bytes": 10682,
+        "sha256": "a1acaee94a244718b0a806675b48f83c23a8d7f7702b2c4fec43204ca9767ba3"
+      },
+      {
+        "path": "scripts/check_unit_coverage.py",
+        "mode": "100644",
+        "git_blob": "82ce1304b444fddea599407d7c0e6989630cc636",
+        "bytes": 5260,
+        "sha256": "0ed298caaa0c1222935de2d6b5d73772a266daef1a4f5aa2cda8f3709f81b7a5"
+      },
+      {
+        "path": "scripts/source_manifest.py",
+        "mode": "100644",
+        "git_blob": "10a824ef68ed16a583250960f9939a5acfee5a1f",
+        "bytes": 9241,
+        "sha256": "a6625ed9c23ec63580f0b45acc18ee521ef6a658b08d66e3677d013ec1e9f4ac"
+      },
+      {
+        "path": "sdk/node-codec/README.md",
+        "mode": "100644",
+        "git_blob": "ee4f66b5e809a509ad4313498c3eff4d5e0bdc3b",
+        "bytes": 5898,
+        "sha256": "66c9361ab15dd33364ce845f2297ab3bedeaac38408007f3354b650cf3d8ac28"
+      },
+      {
+        "path": "sdk/node-codec/package.json",
+        "mode": "100644",
+        "git_blob": "fa618b3a4712d2c278682d926cbaef082a579f19",
+        "bytes": 379,
+        "sha256": "fd52cb544885e3cab1d0f997ed795e02fa915b8b030c13290e7a57b105f7c393"
+      },
+      {
+        "path": "sdk/node-codec/src/codec.js",
+        "mode": "100644",
+        "git_blob": "aedf783fbf7278f3bc93fec35884b8232f65cef9",
+        "bytes": 8979,
+        "sha256": "78faa6caa15b96f6a33d822984387df4cf691fa5d3b37288042eba8b1813d404"
+      },
+      {
+        "path": "sdk/node-codec/test/codec.test.js",
+        "mode": "100644",
+        "git_blob": "e3682985dccce93178ff767ee7ca24815f909389",
+        "bytes": 13978,
+        "sha256": "3e64eb88966d69de231f2d64268dab778d035f867f951368c6fe1b0e8c7ef416"
+      },
+      {
+        "path": "sdk/node/README.md",
+        "mode": "100644",
+        "git_blob": "b76a47fc234ac4777bed1afdc340797a9548e181",
+        "bytes": 9977,
+        "sha256": "783362d989558d0478374510f1cfda1e29f2965ec47e799d2857d2677ad96706"
+      },
+      {
+        "path": "sdk/node/package.json",
+        "mode": "100644",
+        "git_blob": "c4c585fe9d07b3228044499ee1e09dddb87fe50b",
+        "bytes": 367,
+        "sha256": "eeba9a36f4edbec83d2cd414db98982ede9be8062e63d4ac233f51caf23902f1"
+      },
+      {
+        "path": "sdk/node/src/client.d.ts",
+        "mode": "100644",
+        "git_blob": "f4a1740c11d5146d29d65fd45af2870d40926bf9",
+        "bytes": 6436,
+        "sha256": "9a6f40904175b540110a8c33e1d174443032bd623d84f9630183ba1f9096da5c"
+      },
+      {
+        "path": "sdk/node/src/client.js",
+        "mode": "100644",
+        "git_blob": "22c845ef6c0af3ee7aaef2b226230db3fefd9001",
+        "bytes": 5770,
+        "sha256": "c07105f4fbe61343bf239479181f628e2ddb27ad5f624ef3332a476f5330e4d4"
+      },
+      {
+        "path": "sdk/node/src/errors.js",
+        "mode": "100644",
+        "git_blob": "1f7e315134cfc5fc6c458d81430505c9a96e736e",
+        "bytes": 1107,
+        "sha256": "5e20674ea7184e1fe6fcf73d93407c454dd9a4853336294badd3765c230e221d"
+      },
+      {
+        "path": "sdk/node/src/transport.js",
+        "mode": "100644",
+        "git_blob": "310526f273e6b0b8e01d801959775353b1d4b877",
+        "bytes": 7722,
+        "sha256": "dbdf1f9efc9a8c3065a7968ac049b3880d9ec5b1e519bedc742ed486bc2eafc5"
+      },
+      {
+        "path": "sdk/node/src/wire.js",
+        "mode": "100644",
+        "git_blob": "5dcb6c74d5ece29dd6bd9f774f900bb505beeb9a",
+        "bytes": 16611,
+        "sha256": "7c31d1bea7e50d77e60d07b5e98b5acc2235bd52e964036dde542919dd4d5599"
+      },
+      {
+        "path": "sdk/node/test/check-coverage.mjs",
+        "mode": "100644",
+        "git_blob": "7a39aaa89ae90f6a7fc673b710861faafc438169",
+        "bytes": 4129,
+        "sha256": "5381aa75825468353d5a48b68b0cad0153851b4e5f1bb18f75d537f874061a4a"
+      },
+      {
+        "path": "sdk/node/test/http.test.js",
+        "mode": "100644",
+        "git_blob": "1af2d1c91af6f9da0684c48974d1322ca4a1d255",
+        "bytes": 3655,
+        "sha256": "8a2ece39d50d3fe06f6fdef4f814cbd2a3fe52d805fa165bc7299fe36813cc3a"
+      },
+      {
+        "path": "sdk/node/test/run.mjs",
+        "mode": "100644",
+        "git_blob": "97e101173d50c5f0ee1268cc0da3cc67005f81b1",
+        "bytes": 1226,
+        "sha256": "a5360eb3602263ca97982f01f0d22f816921d54889888739789b51e54e7bff24"
+      },
+      {
+        "path": "sdk/node/test/unit.test.js",
+        "mode": "100644",
+        "git_blob": "3bee1da0a5fc09a8e01cebd8e27db4450240a5c3",
+        "bytes": 32730,
+        "sha256": "fa3425c31440e2fc0ca0b09824e28286aedc2ed070787484f8bde37a7ebc1720"
+      },
+      {
+        "path": "tests/tooling/test_check_repo.py",
+        "mode": "100644",
+        "git_blob": "e7ffc407d4f806e57edb402909bfefa8cd4d5452",
+        "bytes": 19600,
+        "sha256": "21c336cc68f9cc9bb4af2573304375b753334bd18f736413a18bef98ab39744a"
+      },
+      {
+        "path": "tests/tooling/test_check_unit_coverage.py",
+        "mode": "100644",
+        "git_blob": "c84bac99920b1862d88595d26fab846bcf629d0f",
+        "bytes": 7823,
+        "sha256": "f9c124e81b2a9b1975194aa592c03ca49893713ca4ff8085ae951981d12210f5"
+      },
+      {
+        "path": "tests/tooling/test_source_manifest.py",
+        "mode": "100644",
+        "git_blob": "f4042bd44fb64a3b4f41c5d873688f1296a80526",
+        "bytes": 15220,
+        "sha256": "8aafdfe69c3af08f31d54716b6d941fe1c0dbfe42598fdf2ffcfcc95ab6772a9"
+      }
+    ],
+    "source_sha256": "8e16b336b492941babe54de4c43dcb167c7ee5b4f29e065a3cb5bf32601195d3"
+  },
+  "build": {
+    "binary": {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-build/release/scap-object-network",
+      "sha256": "1380d04f8588c86fe94e5df17e14a2765b8749ae7ec2c524f2e193ad530f5027"
+    },
+    "build_stderr_sha256": "1ff8bbcb4151dc887e69b78a29bc241d5062cba4757aa5f4639926ae712a8181",
+    "build_stdout_sha256": "b976eb0810096e5de8e114caf988293c1f1bd9b0faf795c26dd7ebdcec697ac5",
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "experiments/object-network/Cargo.toml",
+      "--message-format=json-render-diagnostics"
+    ],
+    "exit_code": 0,
+    "input_sha256": "5e2fc86fdb315a02ed7945b40c31c19f6ca890886176a527ef8aec3b3b3caa0e",
+    "inputs": {
+      "Cargo.lock": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7",
+      "Cargo.toml": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d",
+      "crates/scap-object-sqlite/Cargo.toml": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc",
+      "crates/scap-object-sqlite/src/alter_tests.rs": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b",
+      "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+      "crates/scap-object-sqlite/src/config.rs": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13",
+      "crates/scap-object-sqlite/src/config_tests.rs": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0",
+      "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+      "crates/scap-object-sqlite/src/file_tests.rs": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25",
+      "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+      "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+      "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+      "crates/scap-object-sqlite/src/lib.rs": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a",
+      "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+      "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+      "crates/scap-object-sqlite/src/sql.rs": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37",
+      "crates/scap-object-sqlite/src/storage.rs": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a",
+      "crates/scap-object-sqlite/src/tests.rs": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299",
+      "crates/scap-object-store/Cargo.toml": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339",
+      "crates/scap-object-store/src/lib.rs": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+      "crates/scap-object-store/src/tests.rs": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7",
+      "crates/scap-object/Cargo.toml": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49",
+      "crates/scap-object/src/data_tree.rs": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43",
+      "crates/scap-object/src/data_tree_tests.rs": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21",
+      "crates/scap-object/src/format.rs": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e",
+      "crates/scap-object/src/format_tests.rs": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2",
+      "crates/scap-object/src/lib.rs": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4",
+      "crates/scap-object/src/options.rs": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+      "crates/scap-object/src/options_tests.rs": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e",
+      "crates/scap-object/src/quarantine_tests.rs": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44",
+      "crates/scap-object/src/result_validation_tests.rs": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905",
+      "crates/scap-object/src/review_tests.rs": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12",
+      "crates/scap-object/src/session_tests.rs": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8",
+      "crates/scap-object/src/tests.rs": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a",
+      "crates/scap-service/Cargo.toml": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62",
+      "crates/scap-service/src/auth.rs": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d",
+      "crates/scap-service/src/auth/tests.rs": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd",
+      "crates/scap-service/src/config.rs": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046",
+      "crates/scap-service/src/config/tests.rs": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c",
+      "crates/scap-service/src/daemon.rs": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255",
+      "crates/scap-service/src/daemon/tests.rs": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3",
+      "crates/scap-service/src/engine.rs": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf",
+      "crates/scap-service/src/engine/tests.rs": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541",
+      "crates/scap-service/src/http.rs": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c",
+      "crates/scap-service/src/http/tests.rs": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972",
+      "crates/scap-service/src/lib.rs": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40",
+      "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+      "crates/scap-service/src/scheduler.rs": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207",
+      "crates/scap-service/src/scheduler/tests.rs": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85",
+      "crates/scap-service/src/tests.rs": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546",
+      "crates/scap-service/src/wire.rs": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9",
+      "crates/scap-service/src/wire/tests.rs": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531",
+      "crates/scap-sql/Cargo.toml": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472",
+      "crates/scap-sql/src/lib.rs": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71",
+      "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+      "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+      "crates/scap-sql/src/tests.rs": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e",
+      "experiments/object-capacity/run.py": "f03e1121775875d3ed8f7d792295ecb5cffede1498b95e8b8d07d4e591c2d061",
+      "experiments/object-network/Cargo.lock": "3ab3814980f458769c99c932ae8c63361c368743868a2b8e2958c3fc83b98379",
+      "experiments/object-network/Cargo.toml": "9359dfd4981709d2978813cde8017abcf4cc3708797edb2d43cc36792f984399",
+      "experiments/object-network/build.py": "2d6038ad3854d6aad3e8994ab85364f6c12f33e9874905bf4e06841186fe5a14",
+      "experiments/object-network/lifecycle_contract.py": "b4666513ba729fce3fb904da05468c4076753e4498bc8ec6f0ae47191fd50b96",
+      "experiments/object-network/lifecycle_oracle.py": "63121783e2f8180ede27e5ed7ed22bd45afdb309d049c5d74cd656a57cbc468b",
+      "experiments/object-network/retained_result_contract.py": "51227996db81552f317b40b158dab66a71bf83162f7c1b790a3c992eb6fc0ba1",
+      "experiments/object-network/run.py": "635f07c29952e60e8f098135697074e7f3771d10047b77e500fce4c1f7f0bf1b",
+      "experiments/object-network/schema_contract.py": "2386bd1fa2579215c907c0ebd519cd1bef57d93cf8cb9e900b873c63226b9250",
+      "experiments/object-network/src/main.rs": "2698e0d8f7c125e8aa41429255793767ecbc4eed0aced76dcad21ced06a85fb6",
+      "experiments/object-network/test_build.py": "f343cb80c9d7236837c57e5ffb8c2591082f42cf131c7fa4ba4525f3170fea4b",
+      "experiments/object-network/test_lifecycle_contract.py": "0a178ad61cb8ce8ea75ace2191b08a3d557d9f0bfe487d6be2636381b61e3833",
+      "experiments/object-network/test_lifecycle_oracle.py": "78e8fd91ff34304a809a5c2b4758b8472b2fe731d55f1b9f836c633faf41733d",
+      "experiments/object-network/test_retained_result_contract.py": "30b53c3dd5a4c2995d6208a359ba508a14a0dbdaebe405b078bf7f0bae0adf69",
+      "experiments/object-network/test_schema_contract.py": "c28ba262a8f0989ce76aed6e91b19041c535addd0f274b77071d0bc928839edb",
+      "rust-toolchain.toml": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+    },
+    "native_archives": {
+      "/workspace/scratch/b985f6319062/scap-n1-v2-build/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+    },
+    "profile": "release",
+    "schema": 1,
+    "source_commit": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+    "status": "passed",
+    "versions": {
+      "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+      "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+    }
+  },
+  "production_identity": {
+    "production_baseline": "a11e61ece526c9251b494a781247683284fea56f",
+    "candidate": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+    "production_and_sdk_file_count": 75,
+    "production_and_sdk_files": [
+      {
+        "path": "Cargo.lock",
+        "mode": "100644",
+        "git_blob": "246beaeb3a9582dc8b9529df109990c989fc8d46",
+        "sha256": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7"
+      },
+      {
+        "path": "Cargo.toml",
+        "mode": "100644",
+        "git_blob": "4391d36944dba1197900f1003177d359496256eb",
+        "sha256": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d"
+      },
+      {
+        "path": "crates/scap-object-sqlite/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "446bcf3d3c2572000776a3ca2bf51d2a83a1c756",
+        "sha256": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc"
+      },
+      {
+        "path": "crates/scap-object-sqlite/README.md",
+        "mode": "100644",
+        "git_blob": "84040f128a7f9cdee754ea7e254d2d12fd832872",
+        "sha256": "f92375b2552392ac91799aa0c264cf6ae1e15ed15b1165221410916bb92a2942"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/alter_tests.rs",
+        "mode": "100644",
+        "git_blob": "90d941391fcdac73073d95449c663611818651df",
+        "sha256": "dc2538d828648cfbd522c8a408e64790c7ead526e16f59a0c63e904e1fb0ae5b"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/capacity_tests.rs",
+        "mode": "100644",
+        "git_blob": "72dc3455d3ab9af913f4eefaef305bd605782a63",
+        "sha256": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/config.rs",
+        "mode": "100644",
+        "git_blob": "c2c2b5c0d63cea2984d4919731eba253a90ca3a0",
+        "sha256": "f07f9a6df3e8c3888212f2ed770a5fb80b6a6804e5a62f465d1f9982dff74e13"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/config_tests.rs",
+        "mode": "100644",
+        "git_blob": "5e50ee334c14c51439d2f387d10a65e6de53388e",
+        "sha256": "17c3286f5cdb3a5d900105e73688985ceb07fd0ead5ee2ad6e3fa31faaf13ea0"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file.rs",
+        "mode": "100644",
+        "git_blob": "4d6e5e3d6a7eeca86938110eeb3354c07162310f",
+        "sha256": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file_tests.rs",
+        "mode": "100644",
+        "git_blob": "0c51c454d703810235ac3b503195399f857e6ebc",
+        "sha256": "1dbdc2c7dd549d70df269d0047c089590ef7024f1ae911d150bc09b44b04fe25"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/gate.rs",
+        "mode": "100644",
+        "git_blob": "11e1d19d175468dc6dbb4fef2b483e5ed7d3a6b1",
+        "sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image.rs",
+        "mode": "100644",
+        "git_blob": "dcca8f167f848a12603815becf4f7fd045ebc482",
+        "sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image_tests.rs",
+        "mode": "100644",
+        "git_blob": "ade7e4460753c27574ba98ae0a69f00abfa4a3d3",
+        "sha256": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "df422656fb83b761f3a3e9c996f0127d94e039ae",
+        "sha256": "94fdda9c2b3874cd61e3a5e4c2d18f2d541317fff6849a5acaf16390541e2e2a"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query.rs",
+        "mode": "100644",
+        "git_blob": "76c739a69b2aa6974b9bb050d2fcfaea4f1c2cd0",
+        "sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query_tests.rs",
+        "mode": "100644",
+        "git_blob": "b46c207afe06366b0be961a83bcf58006fbf9622",
+        "sha256": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/sql.rs",
+        "mode": "100644",
+        "git_blob": "4d4d418263277114aa5d35f3810faefaa175c1fb",
+        "sha256": "3d996912103935113171a544907c765a15516bd4b2c4cc87ea748e842c6fcc37"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/storage.rs",
+        "mode": "100644",
+        "git_blob": "35951b314b4b8ae72245d30513c2a98dd38ee06b",
+        "sha256": "bd0db169701556c7260694d5085acd941b37f5d8a53a8629a94a61d4009be03a"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "7e6c94cf0dc7a8843a61c8f7cf0071a496be84e8",
+        "sha256": "5ac2c288ddc9b06bf054751647f009558a3ba008c439185033363561b99df299"
+      },
+      {
+        "path": "crates/scap-object-store/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "2fd267f636efb2693cd7afb68ae7d5e1d36274d7",
+        "sha256": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339"
+      },
+      {
+        "path": "crates/scap-object-store/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "c776a800a7d92f2be16985248130f8efa58f935e",
+        "sha256": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c"
+      },
+      {
+        "path": "crates/scap-object-store/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "0446fed1d3454fb7ea6f31b6baf7180907e852a6",
+        "sha256": "7a350e41d736fff53e7bb2050d920dd061172b4e5033829323a62c9e1596b1b7"
+      },
+      {
+        "path": "crates/scap-object/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "c107d3cf99549ee54c3fa1185f2c65e91a7713f7",
+        "sha256": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49"
+      },
+      {
+        "path": "crates/scap-object/src/data_tree.rs",
+        "mode": "100644",
+        "git_blob": "9d09d735aad190169635f384c046f704200f2be7",
+        "sha256": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43"
+      },
+      {
+        "path": "crates/scap-object/src/data_tree_tests.rs",
+        "mode": "100644",
+        "git_blob": "e857affc8fae763cefd9870f27f767c7db0b3fb1",
+        "sha256": "46eeccbe6a8ab88145bd7c23a6b94ed866daa997de217bac076c8079ef640b21"
+      },
+      {
+        "path": "crates/scap-object/src/format.rs",
+        "mode": "100644",
+        "git_blob": "ff9e2f3f4eb506645252b8900aca7ac3f6ee17b6",
+        "sha256": "59ea251aa390ef2ffe9b3aa4c5fe1fa48ed1f8b6376974e951a72e93ea4ca99e"
+      },
+      {
+        "path": "crates/scap-object/src/format_tests.rs",
+        "mode": "100644",
+        "git_blob": "f5035f88ee2031603734cb24282d1ea76e3811b1",
+        "sha256": "0396c985599c7d7d4c4d9c478a52b5c740c1e3e07029262345fa847968a795a2"
+      },
+      {
+        "path": "crates/scap-object/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "f2d0b25d9f1d1ee6bae0555c5accce8a05c41f13",
+        "sha256": "3ff6b9136cd64fbbde44b87c0eab6b431b64216d421995a23c04b2c10aea0ba4"
+      },
+      {
+        "path": "crates/scap-object/src/options.rs",
+        "mode": "100644",
+        "git_blob": "7790837e5c67b86fcc05dc46b634e9113ac72b6c",
+        "sha256": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67"
+      },
+      {
+        "path": "crates/scap-object/src/options_tests.rs",
+        "mode": "100644",
+        "git_blob": "bb956da319a94fefa2643be5eac95bf656618b50",
+        "sha256": "dee321a9bcd199b3bdcefc01d1768b0e0f5c3d6cbf1288fad40f51aa3411505e"
+      },
+      {
+        "path": "crates/scap-object/src/quarantine_tests.rs",
+        "mode": "100644",
+        "git_blob": "d806efd44577b7d10be9b98f6f4930dad85d810b",
+        "sha256": "74f214a03835b92d897f47319fb812ae4a1194bb23694f4e4c05707bfb4c9a44"
+      },
+      {
+        "path": "crates/scap-object/src/result_validation_tests.rs",
+        "mode": "100644",
+        "git_blob": "4be00a76764340b27d9360dfa5fe20d0873454b9",
+        "sha256": "7b60dd2a032be67d06ee90d287e5619a34e1451386c4e0d1163fa71a17b26905"
+      },
+      {
+        "path": "crates/scap-object/src/review_tests.rs",
+        "mode": "100644",
+        "git_blob": "a76b51e74fc9bec4355c501a3ccc9713efdc318c",
+        "sha256": "1fe211c4ebf4fcd74f4be6a5be25bc37aae58debd08c0ba9c9b9d9ba008c3b12"
+      },
+      {
+        "path": "crates/scap-object/src/session_tests.rs",
+        "mode": "100644",
+        "git_blob": "b6f21822f40e94db81b826d79deb1365c093cb0c",
+        "sha256": "47d4f0b7e9f2a9e07e9978b2db8fbb4892a3738e77b44134a94a4a584d551ba8"
+      },
+      {
+        "path": "crates/scap-object/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "9173a9563c0f7651786ce4e949caf967dd99c639",
+        "sha256": "783530f3952687182ff2f6390d72cc7731e28cd71d780ee3d48aa1f50eb1211a"
+      },
+      {
+        "path": "crates/scap-service/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "14cdaaa56632827c4f4808b838ff61ff9c53689b",
+        "sha256": "427cff41d0848000800f637329f429b02fbe02323c5d7ac849f43db161662f62"
+      },
+      {
+        "path": "crates/scap-service/README.md",
+        "mode": "100644",
+        "git_blob": "4ab6ffa06eea2903800cd602b7f1f8c64fadbf1d",
+        "sha256": "ae851c527bbee2c2861eafb0804bf42a318723f9309dc9bf811a6459fa0d54e9"
+      },
+      {
+        "path": "crates/scap-service/src/auth.rs",
+        "mode": "100644",
+        "git_blob": "549b8f9716a0740a28ef8cfe114db5146007df83",
+        "sha256": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d"
+      },
+      {
+        "path": "crates/scap-service/src/auth/tests.rs",
+        "mode": "100644",
+        "git_blob": "8d5762c070538cc7ff8929d2835e30c5bfad496b",
+        "sha256": "8518ea43abdbb0de8729bb011d073845f521357f0151f866e217a90e7a6f55fd"
+      },
+      {
+        "path": "crates/scap-service/src/config.rs",
+        "mode": "100644",
+        "git_blob": "44b38907c8ed16a12354fc349cd0eff902ab4773",
+        "sha256": "b443fef05bedb42ec6a9b549fbeadefa85d6e4ef6527d9050b4b73a819294046"
+      },
+      {
+        "path": "crates/scap-service/src/config/tests.rs",
+        "mode": "100644",
+        "git_blob": "01dce88aa631604e92b9c8a1d6013e0d36d21586",
+        "sha256": "510b7e21a885b80624373df3407588bfdd60f29074a764b45629b834efb0c85c"
+      },
+      {
+        "path": "crates/scap-service/src/daemon.rs",
+        "mode": "100644",
+        "git_blob": "807b374c03e46d0516b1bd1067d241336808c463",
+        "sha256": "75e3981c7327e2b384410158f4bf76c61680b979f7b883ed05ba860e4640f255"
+      },
+      {
+        "path": "crates/scap-service/src/daemon/tests.rs",
+        "mode": "100644",
+        "git_blob": "4bab3804e1e62805dde73503f5c7a6bc4a05549a",
+        "sha256": "074d4f2471a2f95f33c3625d6943efa8420d734399ac8f00cee3ffc694e290e3"
+      },
+      {
+        "path": "crates/scap-service/src/engine.rs",
+        "mode": "100644",
+        "git_blob": "4cacece117d75e7056a169f65d03757e4e66cef0",
+        "sha256": "e5bc7bd9f3a746b4648bb3754934c5f722e64f75a031baee7eff9e1482c414cf"
+      },
+      {
+        "path": "crates/scap-service/src/engine/tests.rs",
+        "mode": "100644",
+        "git_blob": "e9b8f79ae19b62dc6350a74b4c9b22c2248e4bd3",
+        "sha256": "1d62aa5bc5e8af77530982b6532ebbf009168c189a060769bd2d31a27dc72541"
+      },
+      {
+        "path": "crates/scap-service/src/http.rs",
+        "mode": "100644",
+        "git_blob": "00a7141adc49b2d0f9ceebcda5dbf6999b149c64",
+        "sha256": "dcc70d2fc2a4695c665116e0178a8d5375fa9872c5acd32cae55f6437d7eb10c"
+      },
+      {
+        "path": "crates/scap-service/src/http/tests.rs",
+        "mode": "100644",
+        "git_blob": "dae333d40302669f8adeb49a9249a5d31c5dd231",
+        "sha256": "763ceff07d44844b9e4678fa9ec593dcc1d878c0385c7bb9fdb5f439eab84972"
+      },
+      {
+        "path": "crates/scap-service/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "8c4a59b9262372c322585d00bb81643bfac2d244",
+        "sha256": "e5341948f5d348d285c426203b2a0ec7297614fd6fe849484173e0cb54143c40"
+      },
+      {
+        "path": "crates/scap-service/src/main.rs",
+        "mode": "100644",
+        "git_blob": "58548fff3beabe3c78052eb084c8eddcf65a9f7c",
+        "sha256": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8"
+      },
+      {
+        "path": "crates/scap-service/src/scheduler.rs",
+        "mode": "100644",
+        "git_blob": "ec8c5ab7bbb2c1f16f92ef6aaadbb6b74720fba4",
+        "sha256": "4a51e209e47c6c5c9fd8fce76b2686665f11f32840c353f6603b6a415b1ef207"
+      },
+      {
+        "path": "crates/scap-service/src/scheduler/tests.rs",
+        "mode": "100644",
+        "git_blob": "1e1d318353691a97be3d436b63cde1140702001b",
+        "sha256": "3e36880a75009930f3f3c8ae06995c220a269eae9e6d87cf966cd9ff57f7bd85"
+      },
+      {
+        "path": "crates/scap-service/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "cf5d7ddc567740814f61a258b05a3de0f01cffd0",
+        "sha256": "6c9440b8b73e171318206cf0c79d4244cb3054a9a625f510cc3b6d5944192546"
+      },
+      {
+        "path": "crates/scap-service/src/wire.rs",
+        "mode": "100644",
+        "git_blob": "1ea93e33c15a45f067a59b8ac04b7eee237c3330",
+        "sha256": "aa5bba37d6279e9a71ea8960b0cba17e515f2c640469ca443c756589168d0ce9"
+      },
+      {
+        "path": "crates/scap-service/src/wire/tests.rs",
+        "mode": "100644",
+        "git_blob": "2c23dc3bda1a32b6bc7459e9359fef3b2ceb59ab",
+        "sha256": "db608461dcfa76f54e57883336ab6db6350f205011e1b638606ed9a91c824531"
+      },
+      {
+        "path": "crates/scap-sql/Cargo.toml",
+        "mode": "100644",
+        "git_blob": "8554d34d72a58a5ff4f4dae4d7fea84a74b5ba13",
+        "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+      },
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "mode": "100644",
+        "git_blob": "5644aead0e814d48b65f3cb6d6d1b1a67f55fae2",
+        "sha256": "948f7c051391388b18c721e4af260960272b9c06d124d3b1899474c8da196d71"
+      },
+      {
+        "path": "crates/scap-sql/src/result_validation.rs",
+        "mode": "100644",
+        "git_blob": "bc13a03725ed814f7a42ee433f8562c6a6d218b3",
+        "sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70"
+      },
+      {
+        "path": "crates/scap-sql/src/result_validation_tests.rs",
+        "mode": "100644",
+        "git_blob": "69dd6740ac0c20c3adea6e28bc5c10a364b4f63f",
+        "sha256": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177"
+      },
+      {
+        "path": "crates/scap-sql/src/tests.rs",
+        "mode": "100644",
+        "git_blob": "08af902f77ff5fe74d36f3bb4981f372d5421f2d",
+        "sha256": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "mode": "100644",
+        "git_blob": "50ccecd46ac8344fe41ef5a150faf93b54336820",
+        "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+      },
+      {
+        "path": "sdk/node-codec/README.md",
+        "mode": "100644",
+        "git_blob": "ee4f66b5e809a509ad4313498c3eff4d5e0bdc3b",
+        "sha256": "66c9361ab15dd33364ce845f2297ab3bedeaac38408007f3354b650cf3d8ac28"
+      },
+      {
+        "path": "sdk/node-codec/package.json",
+        "mode": "100644",
+        "git_blob": "fa618b3a4712d2c278682d926cbaef082a579f19",
+        "sha256": "fd52cb544885e3cab1d0f997ed795e02fa915b8b030c13290e7a57b105f7c393"
+      },
+      {
+        "path": "sdk/node-codec/src/codec.js",
+        "mode": "100644",
+        "git_blob": "aedf783fbf7278f3bc93fec35884b8232f65cef9",
+        "sha256": "78faa6caa15b96f6a33d822984387df4cf691fa5d3b37288042eba8b1813d404"
+      },
+      {
+        "path": "sdk/node-codec/test/codec.test.js",
+        "mode": "100644",
+        "git_blob": "e3682985dccce93178ff767ee7ca24815f909389",
+        "sha256": "3e64eb88966d69de231f2d64268dab778d035f867f951368c6fe1b0e8c7ef416"
+      },
+      {
+        "path": "sdk/node/README.md",
+        "mode": "100644",
+        "git_blob": "b76a47fc234ac4777bed1afdc340797a9548e181",
+        "sha256": "783362d989558d0478374510f1cfda1e29f2965ec47e799d2857d2677ad96706"
+      },
+      {
+        "path": "sdk/node/package.json",
+        "mode": "100644",
+        "git_blob": "c4c585fe9d07b3228044499ee1e09dddb87fe50b",
+        "sha256": "eeba9a36f4edbec83d2cd414db98982ede9be8062e63d4ac233f51caf23902f1"
+      },
+      {
+        "path": "sdk/node/src/client.d.ts",
+        "mode": "100644",
+        "git_blob": "f4a1740c11d5146d29d65fd45af2870d40926bf9",
+        "sha256": "9a6f40904175b540110a8c33e1d174443032bd623d84f9630183ba1f9096da5c"
+      },
+      {
+        "path": "sdk/node/src/client.js",
+        "mode": "100644",
+        "git_blob": "22c845ef6c0af3ee7aaef2b226230db3fefd9001",
+        "sha256": "c07105f4fbe61343bf239479181f628e2ddb27ad5f624ef3332a476f5330e4d4"
+      },
+      {
+        "path": "sdk/node/src/errors.js",
+        "mode": "100644",
+        "git_blob": "1f7e315134cfc5fc6c458d81430505c9a96e736e",
+        "sha256": "5e20674ea7184e1fe6fcf73d93407c454dd9a4853336294badd3765c230e221d"
+      },
+      {
+        "path": "sdk/node/src/transport.js",
+        "mode": "100644",
+        "git_blob": "310526f273e6b0b8e01d801959775353b1d4b877",
+        "sha256": "dbdf1f9efc9a8c3065a7968ac049b3880d9ec5b1e519bedc742ed486bc2eafc5"
+      },
+      {
+        "path": "sdk/node/src/wire.js",
+        "mode": "100644",
+        "git_blob": "5dcb6c74d5ece29dd6bd9f774f900bb505beeb9a",
+        "sha256": "7c31d1bea7e50d77e60d07b5e98b5acc2235bd52e964036dde542919dd4d5599"
+      },
+      {
+        "path": "sdk/node/test/check-coverage.mjs",
+        "mode": "100644",
+        "git_blob": "7a39aaa89ae90f6a7fc673b710861faafc438169",
+        "sha256": "5381aa75825468353d5a48b68b0cad0153851b4e5f1bb18f75d537f874061a4a"
+      },
+      {
+        "path": "sdk/node/test/http.test.js",
+        "mode": "100644",
+        "git_blob": "1af2d1c91af6f9da0684c48974d1322ca4a1d255",
+        "sha256": "8a2ece39d50d3fe06f6fdef4f814cbd2a3fe52d805fa165bc7299fe36813cc3a"
+      },
+      {
+        "path": "sdk/node/test/run.mjs",
+        "mode": "100644",
+        "git_blob": "97e101173d50c5f0ee1268cc0da3cc67005f81b1",
+        "sha256": "a5360eb3602263ca97982f01f0d22f816921d54889888739789b51e54e7bff24"
+      },
+      {
+        "path": "sdk/node/test/unit.test.js",
+        "mode": "100644",
+        "git_blob": "3bee1da0a5fc09a8e01cebd8e27db4450240a5c3",
+        "sha256": "fa3425c31440e2fc0ca0b09824e28286aedc2ed070787484f8bde37a7ebc1720"
+      }
+    ],
+    "prior_clippy_candidate": "135ef89711f2e9a16cb65ef2425162d7234d88e4",
+    "unchanged_rust_and_dependency_inputs_from_prior_clippy": [
+      "Cargo.lock",
+      "Cargo.toml",
+      "crates/scap-object-sqlite/Cargo.toml",
+      "crates/scap-object-sqlite/src/alter_tests.rs",
+      "crates/scap-object-sqlite/src/capacity_tests.rs",
+      "crates/scap-object-sqlite/src/config.rs",
+      "crates/scap-object-sqlite/src/config_tests.rs",
+      "crates/scap-object-sqlite/src/file.rs",
+      "crates/scap-object-sqlite/src/file_tests.rs",
+      "crates/scap-object-sqlite/src/gate.rs",
+      "crates/scap-object-sqlite/src/image.rs",
+      "crates/scap-object-sqlite/src/image_tests.rs",
+      "crates/scap-object-sqlite/src/lib.rs",
+      "crates/scap-object-sqlite/src/query.rs",
+      "crates/scap-object-sqlite/src/query_tests.rs",
+      "crates/scap-object-sqlite/src/sql.rs",
+      "crates/scap-object-sqlite/src/storage.rs",
+      "crates/scap-object-sqlite/src/tests.rs",
+      "crates/scap-object-store/Cargo.toml",
+      "crates/scap-object-store/src/lib.rs",
+      "crates/scap-object-store/src/tests.rs",
+      "crates/scap-object/Cargo.toml",
+      "crates/scap-object/src/data_tree.rs",
+      "crates/scap-object/src/data_tree_tests.rs",
+      "crates/scap-object/src/format.rs",
+      "crates/scap-object/src/format_tests.rs",
+      "crates/scap-object/src/lib.rs",
+      "crates/scap-object/src/options.rs",
+      "crates/scap-object/src/options_tests.rs",
+      "crates/scap-object/src/quarantine_tests.rs",
+      "crates/scap-object/src/result_validation_tests.rs",
+      "crates/scap-object/src/review_tests.rs",
+      "crates/scap-object/src/session_tests.rs",
+      "crates/scap-object/src/tests.rs",
+      "crates/scap-service/Cargo.toml",
+      "crates/scap-service/src/auth.rs",
+      "crates/scap-service/src/auth/tests.rs",
+      "crates/scap-service/src/config.rs",
+      "crates/scap-service/src/config/tests.rs",
+      "crates/scap-service/src/daemon.rs",
+      "crates/scap-service/src/daemon/tests.rs",
+      "crates/scap-service/src/engine.rs",
+      "crates/scap-service/src/engine/tests.rs",
+      "crates/scap-service/src/http.rs",
+      "crates/scap-service/src/http/tests.rs",
+      "crates/scap-service/src/lib.rs",
+      "crates/scap-service/src/main.rs",
+      "crates/scap-service/src/scheduler.rs",
+      "crates/scap-service/src/scheduler/tests.rs",
+      "crates/scap-service/src/tests.rs",
+      "crates/scap-service/src/wire.rs",
+      "crates/scap-service/src/wire/tests.rs",
+      "crates/scap-sql/Cargo.toml",
+      "crates/scap-sql/src/lib.rs",
+      "crates/scap-sql/src/result_validation.rs",
+      "crates/scap-sql/src/result_validation_tests.rs",
+      "crates/scap-sql/src/tests.rs",
+      "experiments/object-network/Cargo.lock",
+      "experiments/object-network/Cargo.toml",
+      "experiments/object-network/src/main.rs",
+      "rust-toolchain.toml"
+    ],
+    "note": "Byte identity extends the exact historical unit evidence to unchanged inputs; this is not a new unit/coverage execution."
+  },
+  "unit_coverage": {
+    "executed_on_this_candidate": false,
+    "unchanged_input_evidence": "local-storage-guard-2026-11-07.json",
+    "baseline_commit": "a11e61ece526c9251b494a781247683284fea56f",
+    "stable_tests": 204,
+    "nightly_tests": 204,
+    "production_files": 24,
+    "lines": [
+      4036,
+      4036
+    ],
+    "functions": [
+      392,
+      392
+    ],
+    "regions": [
+      6124,
+      6124
+    ],
+    "branches": [
+      792,
+      792
+    ],
+    "zero_branch_denominator_entry_files": [
+      "crates/scap-service/src/lib.rs",
+      "crates/scap-service/src/main.rs"
+    ],
+    "integration_profiles_contribute": false
+  },
+  "fixture_tests": {
+    "network_all": 78,
+    "new_lifecycle_tests": 37,
+    "development_controller": 32
+  },
+  "lifecycle_oracle": {
+    "ack_classifications": {
+      "deleted_access": 5,
+      "retained_original": 71,
+      "retired": 2
+    },
+    "ack_identities": 30,
+    "ack_mismatches": 0,
+    "ack_responses": 78,
+    "aws_endpoint_gate": "NOT_RUN",
+    "cancellation_identities": 12,
+    "cancellation_proof_observations": 34,
+    "case_results": [
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-01",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-02",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "deleted_access",
+        "ack_identities": 2,
+        "ack_responses": 2,
+        "id": "LC-03",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-04",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-05",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "deleted_access",
+        "ack_identities": 3,
+        "ack_responses": 3,
+        "id": "LC-06",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-07",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-08",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-09",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 4,
+        "ack_responses": 14,
+        "id": "LC-10",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retired",
+        "ack_identities": 2,
+        "ack_responses": 2,
+        "id": "LC-11",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-12",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      }
+    ],
+    "checked_cases": 12,
+    "closed_lookup_checks": 1,
+    "committed_observations_before_execute_ack": 1,
+    "deleted_access_checks": 40,
+    "execute_responses": 122,
+    "inputs": 56,
+    "planned_cases": 12,
+    "production_slo_passed": false,
+    "rejected_candidate_calls": [
+      12,
+      44,
+      79,
+      227,
+      358,
+      433
+    ],
+    "resolved_without_execute_ack_identities": 0,
+    "resolved_without_execute_ack_observations": 0,
+    "retired_lookup_checks": 11,
+    "revoked_access_checks": 4,
+    "source_sha256": {
+      "build-receipt.json": "e4e40dbcfe6cf49c3672485be4e99e7c0606ea350c1b76d0d093e47d9cee57ed",
+      "history.jsonl": "112d5c784fa51c7c5e16d27c687a696cbc75aea375198e8513fe7c073e5ee3d4",
+      "lifecycle-ack-ledger.jsonl": "fea1362bd81222c7725ad65edc5a0fc178dce31e41944bc0d618542d471b3f6c",
+      "lifecycle-client-ledger.jsonl": "657a641e1d13dd82119f6cfcb012edd6cdd5624c48dd95bdf6b24b566dde33d9",
+      "lifecycle-facts.jsonl": "6565ea8cac38e5f4cdb4e823340e71659271b1eeb963735e795363bc75508c1c",
+      "lifecycle-input-ledger.jsonl": "75fd7c1f4b5d0bd294f9c4c1d9cf38a989306cff98552fc2df4997a71f514b85",
+      "lifecycle-plan.json": "6234739d93ffef809a1ae9ee19c288afb57b4ee4b90e7acb89a69fb3f873c0bb"
+    },
+    "status": "passed",
+    "unit_coverage_contribution": false
+  },
+  "independent_raw_audit": {
+    "report_path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/n1-v2-independent-audit-final.json",
+    "report_sha256": "6f1bcc80e38212a09a23f98d00d8244cf32dfa26666837628da10e494d19c1fa",
+    "script_path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/independent_n1_raw_audit_final_37d3e1589307.py",
+    "script_sha256": "37d3e15893076e8af5fb95dd512be38a679647eeadd65679c1805f467cc66300",
+    "provenance_path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/n1-v2-independent-audit-provenance.json",
+    "provenance_sha256": "e7bc6a486a485546db5cd69a00ed5aae2ca5e16119d411cefd066269ed7d9ae8",
+    "report": {
+      "status": "PASS",
+      "source_commit": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+      "auditor_sha256": "37d3e15893076e8af5fb95dd512be38a679647eeadd65679c1805f467cc66300",
+      "helper_sha256": "bb23ec40c84b698455ec5abad854d1d2ba7848d3d8dc25d92755fa93b27598c2",
+      "helper_path": "/workspace/scratch/b985f6319062/scap-rust-evidence-a11e61e-i3y_a_t8/independent_raw_audit_final_bb23ec40c84b.py",
+      "imports_repository_runner_or_oracle": false,
+      "summary_verdict_used_as_oracle": false,
+      "checks": {
+        "build": {
+          "commit": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+          "binary_sha256": "1380d04f8588c86fe94e5df17e14a2765b8749ae7ec2c524f2e193ad530f5027",
+          "input_sha256": "5e2fc86fdb315a02ed7945b40c31c19f6ca890886176a527ef8aec3b3b3caa0e"
+        },
+        "inventory": {
+          "calls": 642,
+          "responses": 642,
+          "independent_inputs": 56,
+          "execute_responses": 122,
+          "execute_successes": 78,
+          "ACKs": 78,
+          "original_identities": 30,
+          "SCAPSQL1_fingerprints": 56,
+          "complete_SCAPRES1_decoded": 78,
+          "mismatches": 0
+        },
+        "transport": {
+          "requests": 2125,
+          "backend_responses": {
+            "200": 2090,
+            "412": 35
+          },
+          "injected_responses_separate": 0
+        },
+        "races": {
+          "actual_backend_condition_results": {
+            "412": 6,
+            "200": 5
+          },
+          "proxy_injections": 0,
+          "old_candidate_conditions_preserved": true
+        },
+        "authority_chain": {
+          "physical_HEADs": 12,
+          "accepted_contiguous_revisions": 138,
+          "exact_body_ETag_GET_pairs": 595,
+          "immutable_conditional_create_and_content_hashes": true
+        },
+        "scenario_contracts": {
+          "cases": 12,
+          "independently_checked_denials": {
+            "Denied": 4,
+            "Lifecycle": 34,
+            "Store(Conflict)": 10,
+            "Format(Corrupt)": 4,
+            "Closed": 6,
+            "RequestConflict": 4,
+            "WindowFull": 1,
+            "Conflict": 4,
+            "Fenced": 1
+          },
+          "Deleted_probe_groups": 6,
+          "Deleted_scope_variant_probe_groups": 2,
+          "late_raw_candidate_and_snapshot_412": 3,
+          "read_and_zero_change_original_results": 2,
+          "owner_epoch_and_ABA_version_barriers": true
+        },
+        "recovery": {
+          "all_ACK_classifications": {
+            "retained_original": 71,
+            "deleted_access": 5,
+            "retired": 2
+          },
+          "exact_committed_lookup_or_cancel_observations": 54,
+          "exact_cold_replays": 46,
+          "business_row_queries": 20,
+          "cancellation_identities": 12,
+          "cancellation_observations": 34,
+          "mismatches": 0
+        },
+        "processes": {
+          "compute_processes": 59,
+          "cache_loss_groups": 36,
+          "independent_recovery_stages": 24,
+          "backend_processes_killed_and_replaced": 4,
+          "zero_compute_at_backend_cut": true,
+          "final_compute_and_backend_wait4_confirmed": true
+        }
+      },
+      "limitations": [
+        "Historical cache deletion is a controller I/O measurement, cross-checked with the full raw process identity/wait4 timeline; offline review does not recreate earlier filesystem state."
+      ],
+      "evidence_sha256": {
+        "summary.json": "1d0775be5b8d7f8a3fb264056abaa9527b0d5cd61fac2d08afb2557c2b89a1fb",
+        "build-receipt.json": "e4e40dbcfe6cf49c3672485be4e99e7c0606ea350c1b76d0d093e47d9cee57ed",
+        "lifecycle-plan.json": "6234739d93ffef809a1ae9ee19c288afb57b4ee4b90e7acb89a69fb3f873c0bb",
+        "lifecycle-input-ledger.jsonl": "75fd7c1f4b5d0bd294f9c4c1d9cf38a989306cff98552fc2df4997a71f514b85",
+        "lifecycle-client-ledger.jsonl": "657a641e1d13dd82119f6cfcb012edd6cdd5624c48dd95bdf6b24b566dde33d9",
+        "lifecycle-ack-ledger.jsonl": "fea1362bd81222c7725ad65edc5a0fc178dce31e41944bc0d618542d471b3f6c",
+        "lifecycle-facts.jsonl": "6565ea8cac38e5f4cdb4e823340e71659271b1eeb963735e795363bc75508c1c",
+        "history.jsonl": "112d5c784fa51c7c5e16d27c687a696cbc75aea375198e8513fe7c073e5ee3d4"
+      }
+    }
+  },
+  "network_regression": {
+    "status": "passed",
+    "completed_contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state",
+      "each_observed_dependency_upload_cut_retains_previous_authority",
+      "accepted_head_survives_process_loss_and_native_publication_failure",
+      "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+      "changed_head_during_recovery_refuses_old_activation",
+      "alter_schema_original_results_and_all_compute_loss"
+    ],
+    "ack_audited_count": 4,
+    "ack_mismatch_count": 0,
+    "build_input_sha256": "5e2fc86fdb315a02ed7945b40c31c19f6ca890886176a527ef8aec3b3b3caa0e",
+    "worker_binary_sha256": "1380d04f8588c86fe94e5df17e14a2765b8749ae7ec2c524f2e193ad530f5027",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "cleanup_errors": [],
+    "proxy_errors": []
+  },
+  "network_regression_extended": {
+    "fault_cases": 30,
+    "fault_ack_responses": 61,
+    "fault_ack_mismatches": 0,
+    "schema_contracts": {
+      "ack_audited_count": 12,
+      "ack_mismatch_count": 0,
+      "ack_recorded_count": 12,
+      "ack_replayed_count": 12,
+      "aws_endpoint_gate": "NOT_RUN",
+      "case_results": [
+        {
+          "ack_count": 6,
+          "all_compute_lost": true,
+          "foreign_key_preserved": true,
+          "mode": "execute",
+          "original_result_replayed_without_put": true,
+          "refused_sql_replayed": false,
+          "scope": {
+            "database": 1,
+            "deployment": 80,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 88
+          },
+          "session_reopened_after_refusal": false,
+          "status": "passed"
+        },
+        {
+          "ack_count": 6,
+          "all_compute_lost": true,
+          "foreign_key_preserved": true,
+          "mode": "session_execute",
+          "original_result_replayed_without_put": true,
+          "refused_sql_replayed": false,
+          "scope": {
+            "database": 2,
+            "deployment": 80,
+            "generation": 1,
+            "incarnation": 1,
+            "tenant": 88
+          },
+          "session_reopened_after_refusal": true,
+          "status": "passed"
+        }
+      ],
+      "ledger_sha256": {
+        "schema-ack-ledger.jsonl": "0cd176a0c06f90297e92051c1429f9631f476d118600ed839db7f632f15c34c0",
+        "schema-audit.jsonl": "ee57aba6ceeb28fecde9aa72d1e7c64d1d0b54a85fe686a46713986f9e71e130",
+        "schema-input-ledger.jsonl": "b6906d042935339a329c1afd453855330acbee3161c7137a7c7f1bf195677e29"
+      },
+      "planned_modes": [
+        "execute",
+        "session_execute"
+      ],
+      "status": "passed",
+      "unit_coverage_contribution": false
+    },
+    "raw_summary_sha256": "ae2c307aeb6dac3cb1bf1cafa9f393e5c39586503f7fccf5fcb9f7bf6faba05b"
+  },
+  "gates": [
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/format.json",
+      "sha256": "89e417f4f86bb7602a56e99c4e18a6946d2ca9a6380436151a95dfe76b9f38e2",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067794445096000,
+      "finished_unix_ns": 1794067794745233150,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/format.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/format.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/clippy.json",
+      "sha256": "d00d7f419f5b80fac048d98f71f2f962b701efdc87cc2bc64cd787f502491e9a",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067794790423061,
+      "finished_unix_ns": 1794067871743987549,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/clippy.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/clippy.stderr.log",
+          "bytes": 6338,
+          "sha256": "66a68717c7985220ea421b05ea06d8b6587b0d7beb58522063e7d2d72b6bfeab"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/actionlint.json",
+      "sha256": "adc473039ffaafce2b9ae262d209996843337f517cbdd500b44ad62ffa6a3751",
+      "command": [
+        "/workspace/scratch/b985f6319062/scap-toolchain/actionlint/actionlint",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/developer-tools.yml",
+        ".github/workflows/docs.yml",
+        ".github/workflows/node-codec.yml",
+        ".github/workflows/node-sdk.yml",
+        ".github/workflows/quality.yml"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067829393670474,
+      "finished_unix_ns": 1794067829397543093,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/actionlint.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/actionlint.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/environment-tests.json",
+      "sha256": "dd5805a083adfbed5703daaa6a3737e2f97296751759a835fda4d46caa4378f1",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "dev/environment",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067828091799089,
+      "finished_unix_ns": 1794067829353089538,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/environment-tests.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/environment-tests.stderr.log",
+          "bytes": 5101,
+          "sha256": "237f9f0d6ca9e6b5adf39952b734e64628cd7827099c7e5f587140c38b0bdca9"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/fixture-tests.json",
+      "sha256": "9f99b3831e9eac788ebb4ee73b8825294bd473242cd0344450801c3741d6219e",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-network",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067827108933952,
+      "finished_unix_ns": 1794067828056609101,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/fixture-tests.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/fixture-tests.stderr.log",
+          "bytes": 13699,
+          "sha256": "58b1473b20edccaf9c45dc43302bae57d70bbf7da7c8a228db01a8323692e06b"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/repo.json",
+      "sha256": "6878ba5445cd876b2fa5d9082c415d041cdeaf5f1d235b1903ab8e29f6e821c3",
+      "command": [
+        "python3",
+        "scripts/check_repo.py"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v1-validation",
+      "started_unix_ns": 1794067829455292071,
+      "finished_unix_ns": 1794067829541955212,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/repo.stdout.log",
+          "bytes": 136,
+          "sha256": "544ee15fd2fd3ed7743fb087e1329c8ac488695703e602338592f9b3e3f8e760"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/repo.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/fixture-tests.json",
+      "sha256": "e1f5fb404731007f90aa62589d6b4fb08239170e622408ad380ed465d01d78eb",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-network",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069017910378325,
+      "finished_unix_ns": 1794069018954462681,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/fixture-tests.stdout.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/fixture-tests.stderr.log",
+          "bytes": 14477,
+          "sha256": "b25cd46b7986553f6a17aa51baea1244bc912d9cb49f86262983d9abe445af1f"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/repo.json",
+      "sha256": "36ec0483e52c1035f4fb269d5fa43d15d5bcd390227426fcdb468414cea5dfbf",
+      "command": [
+        "python3",
+        "scripts/check_repo.py"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069018988979860,
+      "finished_unix_ns": 1794069019056634393,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/repo.stdout.log",
+          "bytes": 136,
+          "sha256": "544ee15fd2fd3ed7743fb087e1329c8ac488695703e602338592f9b3e3f8e760"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/repo.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/source-verify.json",
+      "sha256": "08509bd69e92d5b12ba549e65c9478a18705a54bb24e199e919645b292cde7ac",
+      "command": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/source-before.json"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069207944827444,
+      "finished_unix_ns": 1794069208065292333,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/source-verify.stdout.log",
+          "bytes": 99,
+          "sha256": "d838ff88babdd0a89c3f506ac0d612361001b5754ddd5c281cb617801a6218b9"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/source-verify.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/release-retry1/gate.json",
+      "sha256": "cfc6ade4bf74f1c9568d5b39a899d7e0925c7f7a02982e77666b732a0a8b8a85",
+      "command": [
+        "python3",
+        "experiments/object-network/build.py",
+        "--target-dir",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-build",
+        "--evidence",
+        "/tmp/scap-n1-v2-release-retry.CkZBKia3/build"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069017291501173,
+      "finished_unix_ns": 1794069017534378258,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/tmp/scap-n1-v2-release-retry.CkZBKia3/gate.stdout.log",
+          "bytes": 283,
+          "sha256": "01657894b6041b6f3248080d89dc2b6e444fbc9ae8649b07ec8c9ed1a56d6acc"
+        },
+        "stderr": {
+          "path": "/tmp/scap-n1-v2-release-retry.CkZBKia3/gate.stderr.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/runtime/gate.json",
+      "sha256": "dd941c8a566c07ec1b456581708fdc0096daab631674b4d95f6270dee5ce2e65",
+      "command": [
+        "python3",
+        "experiments/object-network/lifecycle_contract.py",
+        "--worker",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-build/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+        "--build-record",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/release-retry1/build/build.json",
+        "--evidence",
+        "/tmp/scap-n1-v2-lifecycle.KyOqbSyR/evidence"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069044420505991,
+      "finished_unix_ns": 1794069084188566211,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/tmp/scap-n1-v2-lifecycle.KyOqbSyR/gate.stdout.log",
+          "bytes": 11443104,
+          "sha256": "135da325a9fa3e593a59b92d2d53c06bb85b0b29cfc6086d54edbfe519780f9f"
+        },
+        "stderr": {
+          "path": "/tmp/scap-n1-v2-lifecycle.KyOqbSyR/gate.stderr.log",
+          "bytes": 1299,
+          "sha256": "07558e691fcd1b35a1e8a0434c732b1f862b031e2e08bf57277a2855f5244eea"
+        }
+      }
+    },
+    {
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/network-regression/gate.json",
+      "sha256": "1bae3ba105f6ef6795006f17defd29e9f2665e4d6b228348ebac22e0331073e1",
+      "command": [
+        "python3",
+        "experiments/object-network/run.py",
+        "--worker",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-build/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/b985f6319062/scap-toolchain/bin/weed",
+        "--build-record",
+        "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/release-retry1/build/build.json",
+        "--evidence",
+        "/tmp/scap-n1-v2-network.lohbthAT/evidence"
+      ],
+      "cwd": "/workspace/scratch/b985f6319062/scap-n1-v2-validation",
+      "started_unix_ns": 1794069268570379512,
+      "finished_unix_ns": 1794069320406950841,
+      "exit_code": 0,
+      "streams": {
+        "stdout": {
+          "path": "/tmp/scap-n1-v2-network.lohbthAT/gate.stdout.log",
+          "bytes": 16873240,
+          "sha256": "0adfc4da48261a08e49873bb544d71a6ce03b7598c4ddc80ba5a45dafbfd0f52"
+        },
+        "stderr": {
+          "path": "/tmp/scap-n1-v2-network.lohbthAT/gate.stderr.log",
+          "bytes": 1299,
+          "sha256": "ee2d0016b40f7b0b5c98815326d2b5a9004275affefd5b1c68653e90d98e4976"
+        }
+      }
+    }
+  ],
+  "retained_failures": [
+    {
+      "candidate": "135ef89711f2e9a16cb65ef2425162d7234d88e4",
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v1-evidence/gate-lifecycle.json",
+      "exit_code": 1,
+      "reason": "Duplicate invocation labels in four LC-03/LC-06 recovery graphs; no successful real lifecycle verdict for this candidate.",
+      "gate_sha256": "7273e93cbe5f6d5f439f0bfbb1ff7547f44ead2889a34bd1ab57133c3781aa9c",
+      "oracle_sha256": "05cb80fac8a0589f142099f8d9e89f266af0ebbd18f98e1fb5035f608a6c9796"
+    },
+    {
+      "candidate": "fe1909bf9f6b46cbfdd8536d4b8a649999a784b0",
+      "path": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/release.json",
+      "guard_exit_code": 1,
+      "cargo_exit_code": 0,
+      "reason": "Cargo returned zero but captured stdout lacked the final build-finished event; receipt guard rejected it. A real subsequent same-source incremental Cargo invocation produced a complete trace.",
+      "gate_sha256": "8a3a8560774ac0929976dd93c62abbc8eb7ba2593517e140dbe70de07233a789",
+      "build_record_sha256": "7ab7d07b46b01ed868a54afed0f6d6dc936cf313e93696689e46653aa41da683"
+    }
+  ],
+  "not_run": [
+    "fresh production unit/coverage execution (all inputs byte-identical to cited baseline)",
+    "new service/SDK or 1/10 GiB runs for this test-only candidate",
+    "AWS Standard",
+    "cross-AZ",
+    "device power loss",
+    "real NFS/EFS/FUSE mounts",
+    "all OT-01 through OT-08 combinations",
+    "named catalogue",
+    "GC/PITR",
+    "production SLO"
+  ],
+  "limitations": [
+    "Deleted and Retired ACKs are separately audited access/identity barriers, not claims of accessible original-result recovery.",
+    "The 4 MiB database and four-entry request window are a bounded fixture, not production sizing.",
+    "SeaweedFS process restart does not establish AWS durability or independent fault domains.",
+    "Historical cache deletion is recorded I/O evidence; offline review cannot recreate the past filesystem."
+  ],
+  "runtime_copy_manifest": {
+    "source": "/tmp/scap-n1-v2-lifecycle.KyOqbSyR",
+    "copy": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/runtime",
+    "files": {
+      "gate.stderr.log": "07558e691fcd1b35a1e8a0434c732b1f862b031e2e08bf57277a2855f5244eea",
+      "gate.json": "dd941c8a566c07ec1b456581708fdc0096daab631674b4d95f6270dee5ce2e65",
+      "gate.stdout.log": "135da325a9fa3e593a59b92d2d53c06bb85b0b29cfc6086d54edbfe519780f9f",
+      "evidence/lifecycle-facts.jsonl": "6565ea8cac38e5f4cdb4e823340e71659271b1eeb963735e795363bc75508c1c",
+      "evidence/summary.json": "1d0775be5b8d7f8a3fb264056abaa9527b0d5cd61fac2d08afb2557c2b89a1fb",
+      "evidence/lifecycle-client-ledger.jsonl": "657a641e1d13dd82119f6cfcb012edd6cdd5624c48dd95bdf6b24b566dde33d9",
+      "evidence/lifecycle-ack-ledger.jsonl": "fea1362bd81222c7725ad65edc5a0fc178dce31e41944bc0d618542d471b3f6c",
+      "evidence/history.jsonl": "112d5c784fa51c7c5e16d27c687a696cbc75aea375198e8513fe7c073e5ee3d4",
+      "evidence/lifecycle-input-ledger.jsonl": "75fd7c1f4b5d0bd294f9c4c1d9cf38a989306cff98552fc2df4997a71f514b85",
+      "evidence/lifecycle-oracle.json": "7cea5feddd5b2a7beb7e7b910078c1b99ee19df993d136a90fb03331a844e434",
+      "evidence/lifecycle-plan.json": "6234739d93ffef809a1ae9ee19c288afb57b4ee4b90e7acb89a69fb3f873c0bb",
+      "evidence/build-receipt.json": "e4e40dbcfe6cf49c3672485be4e99e7c0606ea350c1b76d0d093e47d9cee57ed"
+    },
+    "all_bytes_equal": true
+  },
+  "network_copy_manifest": {
+    "source": "/tmp/scap-n1-v2-network.lohbthAT",
+    "destination": "/workspace/scratch/b985f6319062/scap-n1-v2-evidence/network-regression",
+    "files": [
+      {
+        "path": "evidence/ack-ledger.jsonl",
+        "size": 4998,
+        "sha256": "52329914889f90a24808a7afb724a1336a931b395d6ce01b13fdb9a214f62c66"
+      },
+      {
+        "path": "evidence/build-receipt.json",
+        "size": 9851,
+        "sha256": "e4e40dbcfe6cf49c3672485be4e99e7c0606ea350c1b76d0d093e47d9cee57ed"
+      },
+      {
+        "path": "evidence/fault-ack-ledger.jsonl",
+        "size": 90031,
+        "sha256": "558aec88d7ec370314f89c2ce81ec29e67726a3919e8a73adebd8550c532a738"
+      },
+      {
+        "path": "evidence/fault-cases.jsonl",
+        "size": 536724,
+        "sha256": "b1ba9e9a990cb0e77913b6a908a35a8b40ef1a3c9821e4e4300772336053bf53"
+      },
+      {
+        "path": "evidence/fault-input-ledger.jsonl",
+        "size": 118328,
+        "sha256": "b95b443ded23c3f596e62597145888e0a9f4cf5a2d02795811659790c580e3b0"
+      },
+      {
+        "path": "evidence/fault-outcome-ledger.jsonl",
+        "size": 38310,
+        "sha256": "f2bfdea05311b8a0e50d332d3c17f364888fddf8f525d02433495048adfea5c1"
+      },
+      {
+        "path": "evidence/fault-plan.json",
+        "size": 5349,
+        "sha256": "ce25a9ff3b37580e6e50b425cca3f83692419e99b8aba6ae6d21d899223aa4fb"
+      },
+      {
+        "path": "evidence/history.jsonl",
+        "size": 16873240,
+        "sha256": "0adfc4da48261a08e49873bb544d71a6ce03b7598c4ddc80ba5a45dafbfd0f52"
+      },
+      {
+        "path": "evidence/schema-ack-ledger.jsonl",
+        "size": 18265,
+        "sha256": "0cd176a0c06f90297e92051c1429f9631f476d118600ed839db7f632f15c34c0"
+      },
+      {
+        "path": "evidence/schema-audit.jsonl",
+        "size": 79543,
+        "sha256": "ee57aba6ceeb28fecde9aa72d1e7c64d1d0b54a85fe686a46713986f9e71e130"
+      },
+      {
+        "path": "evidence/schema-input-ledger.jsonl",
+        "size": 12190,
+        "sha256": "b6906d042935339a329c1afd453855330acbee3161c7137a7c7f1bf195677e29"
+      },
+      {
+        "path": "evidence/summary.json",
+        "size": 111634,
+        "sha256": "ae2c307aeb6dac3cb1bf1cafa9f393e5c39586503f7fccf5fcb9f7bf6faba05b"
+      },
+      {
+        "path": "gate.json",
+        "size": 1013,
+        "sha256": "1bae3ba105f6ef6795006f17defd29e9f2665e4d6b228348ebac22e0331073e1"
+      },
+      {
+        "path": "gate.stderr.log",
+        "size": 1299,
+        "sha256": "ee2d0016b40f7b0b5c98815326d2b5a9004275affefd5b1c68653e90d98e4976"
+      },
+      {
+        "path": "gate.stdout.log",
+        "size": 16873240,
+        "sha256": "0adfc4da48261a08e49873bb544d71a6ce03b7598c4ddc80ba5a45dafbfd0f52"
+      }
+    ]
+  },
+  "production_slo_passed": false,
+  "aws_endpoint_gate": "NOT_RUN"
+}

@@ -104,6 +104,44 @@ python3 experiments/object-network/retained_result_contract.py \
 
 该脚本的自测使用明确的控制器替身；构造并检查损坏载荷不等于执行生产 Rust。两套真实合同都需要同一准确 release 的构建收据，并继续将 AWS Standard 与生产 SLO 标记为未验收。
 
+## 生命周期、取消、退休与 owner 交替
+
+`lifecycle_contract.py` 实现[冻结计划](../../docs/engineering/n1-lifecycle-validation-plan.md)的 LC-01–LC-12。 首轮候选 `135ef89` 的真实控制器运行到末尾，但离线审计拒绝 Deleted 恢复的重复调用标签，该轮保留为 FAILED；修复后必须重跑，不能重新标记旧证据为通过。当前实现已经完成夹具自测，**新候选的 Rust 构建与真实生命周期运行仍为 NOT_RUN**；自测结果不能替代下面的独立真实入口。
+
+| 场景 | 必查顺序 |
+| --- | --- |
+| LC-01–LC-03 | 撤权、Maintenance、Deleted 先成功发布，再放行原 SQL 候选；要求后端真实 412 |
+| LC-04–LC-06 | SQL HEAD 后端先返回 200，但响应仍被代理扣住；控制 CAS 随后发布，最后交付原 SQL 的正确 ACK |
+| LC-07–LC-09 | cancel 先胜、commit 先胜及取消响应丢失；精确区分 Cancelled、Committed 与 Store(Unknown) |
+| LC-10 | 同身份原结果重复返回、变 SQL／参数／主体／未来 epoch 拒绝，以及读型 execute 和零变化 UPDATE |
+| LC-11 | 在途候选遇到满窗关闭、原结果保留、完整窗口退休，以及保存的原候选 bytes／ETag 在退休后的条件重发 |
+| LC-12 | A→B→新 A2 实例接管、旧 owner 拒绝、旧 expected revision／ETag 拒绝，以及 Ready→Maintenance→Ready 的 revision 推进 |
+
+每场独立 scope，固定 4 MiB 逻辑配额、当前窗口 4 个终态、128 MiB 原结果预算；窗口关闭仍采用正式协议的 current 加两个 closed epochs。这些小输入用于完成有界竞争，不能外推生产默认 4096 条窗口的容量或保留时长。每个实例使用不同 worker identity，原主体 17 和独立管理员 18 由可信 worker 配置进入 API。
+
+维护状态仍允许已授权的强读。撤权场景先验证原主体的新 query／lookup 返回 Denied，再由独立管理员以新的正式控制意图恢复权限；此后才用原主体和原 Request 审计原结果。Deleted 永不恢复 Ready，删除后的 ACK 单列为访问拒绝检查。LC-11 的退休 ACK 单列为 Retired，已提交业务行仍须恢复；不能把这两类计为原结果逐字节恢复成功。填窗取消的 epoch 2／3 用原主体 18 查回同一 cancellation transition，epoch 1 则明确检查 Retired。
+
+每场先 SIGKILL 所有属于该场的计算进程、核对 wait4、删除整个场景计算目录，再用新实例 takeover／activate_session 恢复。随后再次终止所有计算，SIGKILL 并重启四个后端进程，再逐场用新的计算实例复核。Deleted 场景只读取墓碑和验证访问／管理操作拒绝，不反向激活数据库。LC-11 在 worker 原有 8 秒 S3 timeout 内完成关闭竞争；多轮退休后的重发是保存候选的原始条件 PUT，不是重跑 SQL，也不是声称一个 SQL 调用跨越整个退休过程。
+
+```bash
+python3 -m unittest discover -s experiments/object-network -p 'test_lifecycle*.py' -v
+python3 experiments/object-network/lifecycle_contract.py \
+  --worker "$PWD/target/object-network-build/release/scap-object-network" \
+  --weed /absolute/path/to/weed \
+  --build-record /absolute/path/to/new-build-evidence/build.json \
+  --evidence /absolute/path/to/new-lifecycle-evidence
+python3 experiments/object-network/lifecycle_oracle.py \
+  --evidence /absolute/path/to/new-lifecycle-evidence
+```
+
+这个入口必须使用包含 `set_lifecycle` 的新 worker 和完整冻结输入的 release 收据。它不提供 diagnostic 绕过，不继承 unit 插桩，证据目录必须尚不存在。`run.py` 的原有场景不能替代这一独立入口。
+
+控制器同步保存 `lifecycle-plan.json`、`lifecycle-input-ledger.jsonl`、`lifecycle-client-ledger.jsonl`、`lifecycle-ack-ledger.jsonl` 和 `lifecycle-facts.jsonl`，并复用代理的 `history.jsonl`。每次完整调用和响应都有唯一 call ID；成功重复 execute 也逐条进入 ACK 账本。`lifecycle-oracle.py` 不导入控制器或产品转换算法，只读这些文件和 `build-receipt.json`，重新计算全部十二场景、ACK 分类、取消证明、旧候选拒绝、Retired／Closed、撤权和删除访问检查分母。它的输出保存在 `lifecycle-oracle.json`；再次独立执行只向 stdout 输出，不改写原始证据。
+
+oracle 独立核对 SCAPSQL1 fingerprint，严格解码完整 SCAPRES1 字节，并重算包含全部 receipt 字段的 SCAPOBJ2 Result frame 哈希。它还将实际 GET／PUT 绑定 call 时间区间、scope 的物理键和 request serial，检查首次 ACK 对应真实 HEAD 发布、Result 的发布前回读、连续 HEAD revision／ETag、原条件不刷新以及所有进程的实际存活区间。同步修改所有结果摘要、遗漏首次发布、丢失 ACK、把注入错误当后端 412、错误复活 Deleted、虚构后端重启或把 Retired 改成 Cancelled，均有独立负对照。
+
+控制器在关闭代理、终止自有进程并重新检查冻结源码／二进制之后才运行最终 oracle。任何源码漂移、缺失证据、代理错误或清理失败都会使最终 summary 失败。私有后端目录、worker 配置及诊断日志继续保留供审计；`summary.json` 的 `private_diagnostics` 和 `remaining_case_compute_directories` 分别记录保留与计算目录删除状态。私有目录包含夹具凭据，不应作为公开产物上传。
+
 ## 原始证据与清理
 
 基础公共产物为 `history.jsonl`、`ack-ledger.jsonl`、`summary.json` 和最终运行复制的 `build-receipt.json`。构建目录另有 `build.json`、`cargo.stdout.jsonl`、`cargo.stderr.log`。摘要中的 ACK 总数与 mismatch 数由实际账本审计计算，没有硬编码“零丢失”。原始历史记录调用／响应、worker 的容器与实际 procfs PID、进程启动身份和 SIGKILL 等待状态、后端前后 PID 与相同目录身份、CAS 的 `If-Match`／ETag、GET/PUT body 字节；不记录 Authorization 或凭据。
@@ -116,4 +154,6 @@ python3 experiments/object-network/retained_result_contract.py \
 
 这是**单机 S3 兼容后端、正式 SQLite 引擎及真实进程/TCP 故障实验**。它没有访问 AWS S3，摘要始终保留 `aws_endpoint_gate=NOT_RUN`、`production_slo_passed=false`；没有验证生产云配置、实际跨 AZ 持久性、设备断电、GC/PITR、多库公平性、长期容量或生产延迟。
 
-基础及扩展合同通过只能证明本次准确构建在实际记录场景中的行为；它们没有被等同为方案 OT-01–OT-08 或 OT-01–OT-15 全部验收，不能代替真实 AWS 对象合同，也不表示 N0–N4 整体完成。同 ETag 的基础竞争仍是原始条件对象 PUT，不构成两个完整 SQL writer 的线性化历史。完整生命周期、退休、ABA、GC/PITR 和多库调度仍需后续验证。生产物理 GC 保持关闭；实验中的受控删除只用于故障注入并随后恢复原字节，不能由此声称长期存储成本收敛。
+基础及扩展合同通过只能证明本次准确构建在实际记录场景中的行为；它们没有被等同为方案 OT-01–OT-08 或 OT-01–OT-15 全部验收，不能代替真实 AWS 对象合同，也不表示 N0–N4 整体完成。同 ETag 的基础竞争仍是原始条件对象 PUT，不构成两个完整 SQL writer 的线性化历史。生命周期、退休与 ABA 的具体十二场景由上述独立入口验收，其实现或夹具自测本身不构成真实运行通过；更完整的组合、GC/PITR 和多库调度仍需后续验证。生产物理 GC 保持关闭；实验中的受控删除只用于故障注入并随后恢复原字节，不能由此声称长期存储成本收敛。
+
+本次生命周期合同的实际完成情况见[冻结候选验收记录](../../docs/engineering/n1-lifecycle-validation.md)：12/12 场景、完整原响应／进程时序与独立复核通过。历史失败保留，AWS 与完整 N1 退出未由本地结果替代。

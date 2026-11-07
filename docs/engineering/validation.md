@@ -2,6 +2,12 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #29 的生命周期真实合同（2026-11-07）
+
+[验收说明](n1-lifecycle-validation.md)与[机器记录](../evidence/lifecycle-contracts-local-2026-11-07.json)绑定 `fe1909bf9f6b46cbfdd8536d4b8a649999a784b0`。173 文件源码身份前后相同；78 项网络夹具自测、实际 release、十二类生命周期及原网络回归通过。独立审计确认 78 次 ACK／30 个身份、46 次原结果冷重发、20 次业务行查询、138 个 HEAD revision 和 59 个计算进程 incarnation。Deleted／Retired 分列，完整进程退出与后端重启时零计算进程均由原始账本支持。
+
+75 个生产／SDK／根依赖文件与 a11e61e 相同，使用原精确单元证据的输入身份，不宣称本轮重新采集覆盖率。首次标签重复的真实失败和后续不完整 Cargo 日志的构建拒绝保留。AWS、完整 N1/N2、名称目录、GC/PITR 和生产 SLO 不在通过范围。
+
 ## PR #28 的本地执行目录防护验收（2026-11-07）
 
 [验收说明](local-storage-validation.md)和[机器记录](../evidence/local-storage-guard-2026-11-07.json)绑定冻结候选 `a11e61ece526c9251b494a781247683284fea56f`，169 文件 source manifest 前后相同。stable／nightly 各 204 tests；24 个生产文件行 4036/4036、函数 392/392、region 6124/6124、分支 792/792，无分支入口另列 0/0。

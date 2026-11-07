@@ -6,6 +6,8 @@
 
 **当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
+[PR #29 的生命周期真实合同](docs/engineering/n1-lifecycle-validation.md)绑定冻结候选 `fe1909b`：十二场景、两轮恢复及独立原始账本复核通过；78 次成功响应／30 个原身份分别核对保留结果、Deleted 和 Retired，零错配。生产 Rust／SDK 与上一验收候选逐字节相同，历史单元证据与本批真实实验分开记录。
+
 [PR #28 的本地执行目录防护验收](docs/engineering/local-storage-validation.md)绑定冻结候选 `a11e61e`：stable／nightly 各 204 项 Rust 单元、24 个生产文件精确覆盖，以及真实 S3/原生故障、HTTP/SDK 和 1 GiB 全量恢复通过。首次格式与 release 构建失败均保留；独立原始审计的可确认范围和服务恢复响应账本的限制分别列明。
 
 [PR #27 的 HTTP／Node 完整本地验收](docs/engineering/http-service-validation.md)绑定冻结候选 `aa01150`：stable／nightly 各 199 项 Rust 单元、23 个生产文件四维逐文件精确 100%，真实服务核对 10 个唯一请求和 8 次重复成功响应。全部计算缓存丢失恢复、原网络故障合同、保留结果及 1 GiB 全量恢复均有独立证据。该历史结果不认证后续源码；名称目录、自动路由、完整 N1/N2、AWS 与生产 SLO 仍未完成。

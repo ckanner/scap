@@ -16,3 +16,5 @@
 | 运行与故障 | [运行说明](operations/runbooks.md)、[故障矩阵](operations/failure-matrix.md) |
 
 旧三节点原型的事实、代码和证据保留在 [重写前的提交](https://github.com/ckanner/scap/tree/4cd99eb3ce404dfa26a8df2536d881f078c9c809)。它们不约束当前格式或 API，也不计作新实现通过的证据。
+
+- [N1 生命周期真实合同验收](engineering/n1-lifecycle-validation.md)：十二场景、完整原结果／进程账本与失败记录。

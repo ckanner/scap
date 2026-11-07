@@ -171,6 +171,14 @@ jobs:
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --profile gib1 \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-capacity-gib1"
+      - name: Verify lifecycle races, cancellation, retirement, and owner fencing
+        # Independent raw-history oracle; local S3 never stands in for AWS.
+        run: |
+          python3 experiments/object-network/lifecycle_contract.py \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/lifecycle-contract"
       - name: Build and verify the actual authenticated HTTP service and Node SDK
         run: |
           service_target="$GITHUB_WORKSPACE/target/object-service-build"
@@ -217,6 +225,15 @@ jobs:
             target/evidence/retained-result-contract/fault-ack-ledger.jsonl
             target/evidence/retained-result-contract/fault-outcome-ledger.jsonl
             target/evidence/retained-result-contract/fault-cases.jsonl
+            target/evidence/lifecycle-contract/history.jsonl
+            target/evidence/lifecycle-contract/lifecycle-plan.json
+            target/evidence/lifecycle-contract/lifecycle-input-ledger.jsonl
+            target/evidence/lifecycle-contract/lifecycle-client-ledger.jsonl
+            target/evidence/lifecycle-contract/lifecycle-ack-ledger.jsonl
+            target/evidence/lifecycle-contract/lifecycle-facts.jsonl
+            target/evidence/lifecycle-contract/lifecycle-oracle.json
+            target/evidence/lifecycle-contract/build-receipt.json
+            target/evidence/lifecycle-contract/summary.json
             target/evidence/object-service-build/build.json
             target/evidence/object-service-build/cargo.stdout.jsonl
             target/evidence/object-service-build/cargo.stderr.log

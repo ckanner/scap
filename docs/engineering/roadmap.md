@@ -16,12 +16,12 @@
 
 主线 `e2c44b0` 已合入 #26／#27；#22／#23 已由 #26 替代。仍开放的 #17 属于已废弃的 Raft 架构，不是对象路线的实现前置。
 
-本地执行目录防护（PR #28）已完成冻结候选 `a11e61e` 的必要本地验收：204 项 Rust 单元、24 个生产文件精确覆盖、真实 S3/原生故障、HTTP/Node 与 1 GiB 恢复，见[完整记录](local-storage-validation.md)。最初环境失联、fmt 与 release 构建失败如实保留；真实挂载、AWS 及完整阶段退出另列。后续十二类生命周期合同已进入 [PR #29](https://github.com/ckanner/scap/pull/29)，新候选的真实验收未完成前保持草稿。
+本地执行目录防护（PR #28）已完成冻结候选 `a11e61e` 的必要本地验收：204 项 Rust 单元、24 个生产文件精确覆盖、真实 S3/原生故障、HTTP/Node 与 1 GiB 恢复，见[完整记录](local-storage-validation.md)。最初环境失联、fmt 与 release 构建失败如实保留；真实挂载、AWS 及完整阶段退出另列。后续十二类生命周期合同已进入 [PR #29](https://github.com/ckanner/scap/pull/29)，修正版 `fe1909b` 的十二场景、完整响应／进程账本、两轮恢复和独立原始审计已通过，见[验收记录](n1-lifecycle-validation.md)。完整 N1 和 AWS 仍有独立门禁。
 
 继续顺序：
 
-1. 本地目录防护及精确覆盖／原生／服务／1 GiB 门禁已完成本轮本地验收，保留原始失败与验证范围；按实际远端 head/base 合入。
-2. 实现[生命周期与退休真实合同](n1-lifecycle-validation-plan.md)，补齐仍缺失的 N1 顺序与故障证据；真实 AWS 单独验证。
+1. 本地目录防护及精确覆盖／原生／服务／1 GiB 门禁已完成本轮本地验收，保留原始失败与验证范围；已合入主线 `3f011e5`，合并 tree 与已验证交付 tree 一致。
+2. [生命周期与退休真实合同](n1-lifecycle-validation-plan.md)的 LC-01–LC-12 已完成本地验收；按实际远端 head/base 合入，其他 OT 组合与真实 AWS 单独验证。
 3. 按[名称目录协议](../architecture/name-catalogue-plan.md)先验证模型，再实现固定创建意图、Provisioning、Reserved→Aborting 与 Bound 的竞争、永久 HEAD 身份屏障、删除/重用及逐切点恢复，接入 HTTP／SDK。Bound 后取消不在初版合同内；完整枚举恢复另有门禁，不能用已知名称名单替代。
 4. 自动 owner 路由、冷恢复隔离与负载活性验收。
 5. 请求索引分段、pin／generation／持久 GC 计划、PITR 和多轮成本收敛。
