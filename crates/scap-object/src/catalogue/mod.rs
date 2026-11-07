@@ -18,7 +18,10 @@ use scap_object_store::{Condition, Objects, StoreError};
 
 use crate::format::{self, Head, Lifecycle, NamedDeletionKind, Permission, Scope};
 use crate::{Database, Error, Options, Snapshot};
-use records::{AbortProof, Barrier, Binding, Control, Descriptor, Record};
+use records::{AbortProof, Barrier, Binding, BindingShape, Canonical, Control, Descriptor, Record};
+
+type Source = Canonical<Descriptor>;
+type Admitted = Canonical<Control>;
 
 #[derive(Clone)]
 pub struct Catalogue {
@@ -35,10 +38,40 @@ struct Version<T> {
     etag: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum NameStage {
+    Reserved,
+    Bound,
+    Aborting(Admitted),
+    Aborted { control: Admitted, proof: String },
+    Deleted(Admitted),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Name {
+    record: Version<Canonical<Binding>>,
+    stage: NameStage,
+}
+
+impl std::ops::Deref for Name {
+    type Target = Version<Canonical<Binding>>;
+    fn deref(&self) -> &Self::Target { &self.record }
+}
+
+struct Proof {
+    record: Version<Canonical<AbortProof>>,
+    control: Admitted,
+}
+
+impl std::ops::Deref for Proof {
+    type Target = Version<Canonical<AbortProof>>;
+    fn deref(&self) -> &Self::Target { &self.record }
+}
+
 struct View {
-    binding: Option<Version<Binding>>,
+    binding: Option<Name>,
     head: Option<Snapshot>,
-    proof: Option<Version<AbortProof>>,
+    proof: Option<Proof>,
 }
 
 fn store_error(error: StoreError) -> CatalogueError {
@@ -129,17 +162,16 @@ impl Catalogue {
         format!("{}/name/{}", self.prefix(), format::digest(name.as_bytes()))
     }
 
-    fn control_key(&self, control: &Control) -> String {
-        let kind = match control.kind {
+    fn control_address(&self, principal: u64, kind: &NamedDeletionKind, operation: u64) -> String {
+        let kind = match kind {
             NamedDeletionKind::Abort => "abort",
             NamedDeletionKind::Delete => "delete",
         };
-        format!(
-            "{}/control/{}/{kind}/{}",
-            self.prefix(),
-            control.principal,
-            control.operation
-        )
+        format!("{}/control/{principal}/{kind}/{operation}", self.prefix())
+    }
+
+    fn control_key(&self, control: &Control) -> String {
+        self.control_address(control.principal, &control.kind, control.operation)
     }
 
     fn proof_key(&self, creation: &Creation) -> String {
@@ -155,7 +187,7 @@ impl Catalogue {
         &self,
         key: &str,
         deadline: Instant,
-    ) -> Result<Option<Version<R>>, CatalogueError> {
+    ) -> Result<Option<Version<Canonical<R>>>, CatalogueError> {
         let stored = match self.objects.get(key, records::MAX_RECORD_BYTES, deadline) {
             Ok(stored) => stored,
             Err(StoreError::Missing) => return Ok(None),
@@ -168,28 +200,27 @@ impl Catalogue {
         }))
     }
 
-    fn immutable<R: Record + PartialEq>(
+    fn immutable<R: Record>(
         &self,
         key: &str,
         record: &R,
         deadline: Instant,
-    ) -> Result<(), CatalogueError> {
-        let bytes = records::encode(record)?;
+    ) -> Result<Canonical<R>, CatalogueError> {
+        let candidate = Canonical::new(record.clone())?;
         let stored = match self.read::<R>(key, deadline)? {
             Some(stored) => stored,
             None => {
-                match self.objects.put(key, &bytes, Condition::Absent, deadline) {
+                match self.objects.put(key, candidate.bytes(), Condition::Absent, deadline) {
                     Ok(_) | Err(StoreError::Conflict) => {}
                     Err(error) => return Err(store_error(error)),
                 }
-                self.read::<R>(key, deadline)?
-                    .ok_or(CatalogueError::Corrupt)?
+                self.read::<R>(key, deadline)?.ok_or(CatalogueError::Corrupt)?
             }
         };
-        if stored.body != *record {
+        if stored.body.raw() != record {
             return Err(CatalogueError::Conflict);
         }
-        Ok(())
+        Ok(stored.body)
     }
 
     fn write_binding(
@@ -216,60 +247,46 @@ impl Catalogue {
         creator: u64,
         operation: u64,
         deadline: Instant,
-    ) -> Result<Descriptor, CatalogueError> {
-        let descriptor = self
+    ) -> Result<Source, CatalogueError> {
+        let source = self
             .read::<Descriptor>(&self.descriptor_key(creator, operation), deadline)?
-            .ok_or(CatalogueError::NotFound)?
-            .body;
-        require(
-            descriptor.creation.creator == creator && descriptor.creation.operation == operation,
-        )?;
-        authority(self.creation(&descriptor.creation))?;
-        Ok(descriptor)
+            .ok_or(CatalogueError::NotFound)?.body;
+        require(source.creation.creator == creator && source.creation.operation == operation)?;
+        require(source.creation.scope.deployment == self.deployment
+            && source.creation.scope.tenant == self.tenant)?;
+        Ok(source)
     }
 
-    fn descriptor(
-        &self,
-        creation: &Creation,
-        deadline: Instant,
-    ) -> Result<Descriptor, CatalogueError> {
+    fn descriptor(&self, creation: &Creation, deadline: Instant) -> Result<Source, CatalogueError> {
         self.creation(creation)?;
-        let descriptor = self.read_descriptor(creation.creator, creation.operation, deadline)?;
-        if descriptor.creation != *creation {
-            return Err(CatalogueError::Conflict);
-        }
-        Ok(descriptor)
+        let source = self.read_descriptor(creation.creator, creation.operation, deadline)?;
+        if source.creation != *creation { return Err(CatalogueError::Conflict); }
+        Ok(source)
     }
 
-    fn control_exists(&self, control: &Control, deadline: Instant) -> Result<(), CatalogueError> {
-        let stored = self
-            .read::<Control>(&self.control_key(control), deadline)?
+    fn control_exists(&self, control: &Control, deadline: Instant) -> Result<Admitted, CatalogueError> {
+        let stored = self.read::<Control>(&self.control_key(control), deadline)?
             .ok_or(CatalogueError::Corrupt)?;
-        require(stored.body == *control)
+        require(stored.body.raw() == control)?;
+        Ok(stored.body)
     }
 
-    fn read_binding(
-        &self,
-        name: &str,
-        deadline: Instant,
-    ) -> Result<Option<Version<Binding>>, CatalogueError> {
-        let binding = self.read::<Binding>(&self.binding_key(name), deadline)?;
-        if let Some(value) = &binding {
-            require(value.body.creation.name == name)?;
-            let descriptor = authority(self.read_descriptor(
-                value.body.creation.creator,
-                value.body.creation.operation,
-                deadline,
-            ))?;
-            require(
-                value.body.creation == descriptor.creation
-                    && value.body.origin == descriptor.origin()?,
-            )?;
-            if let Some(control) = &value.body.control {
-                self.control_exists(control, deadline)?;
-            }
-        }
-        Ok(binding)
+    fn read_binding(&self, name: &str, deadline: Instant) -> Result<Option<Name>, CatalogueError> {
+        let Some(record) = self.read::<Binding>(&self.binding_key(name), deadline)? else { return Ok(None); };
+        require(record.body.creation.name == name)?;
+        let source = authority(self.read_descriptor(record.body.creation.creator,
+            record.body.creation.operation, deadline))?;
+        require(record.body.creation == source.creation && record.body.origin == source.origin())?;
+        let stage = match record.body.shape() {
+            BindingShape::Reserved => NameStage::Reserved,
+            BindingShape::Bound => NameStage::Bound,
+            BindingShape::Aborting(control) => NameStage::Aborting(self.control_exists(control, deadline)?),
+            BindingShape::Aborted { control, proof } => NameStage::Aborted {
+                control: self.control_exists(control, deadline)?, proof: proof.clone(),
+            },
+            BindingShape::Deleted(control) => NameStage::Deleted(self.control_exists(control, deadline)?),
+        };
+        Ok(Some(Name { record, stage }))
     }
 
     fn read_slot(
@@ -292,7 +309,7 @@ impl Catalogue {
         if let Some(origin) = &head.creation {
             let source =
                 authority(self.read_descriptor(origin.creator, origin.operation, deadline))?;
-            require(source.creation.scope == head.scope && source.origin()? == *origin)?;
+            require(source.creation.scope == head.scope && source.origin() == *origin)?;
         }
         Ok(Some(Snapshot {
             head,
@@ -300,94 +317,79 @@ impl Catalogue {
         }))
     }
 
-    fn read_proof(
-        &self,
-        descriptor: &Descriptor,
-        deadline: Instant,
-    ) -> Result<Option<Version<AbortProof>>, CatalogueError> {
-        let proof = self.read::<AbortProof>(&self.proof_key(&descriptor.creation), deadline)?;
-        if let Some(value) = &proof {
-            require(
-                value.body.control.creation == descriptor.creation
-                    && value.body.control.origin == descriptor.origin()?,
-            )?;
-            self.control_exists(&value.body.control, deadline)?;
-        }
-        Ok(proof)
+    fn read_proof(&self, source: &Source, deadline: Instant) -> Result<Option<Proof>, CatalogueError> {
+        let Some(record) = self.read::<AbortProof>(&self.proof_key(&source.creation), deadline)?
+            else { return Ok(None); };
+        require(record.body.control.creation == source.creation
+            && record.body.control.origin == source.origin())?;
+        let control = self.control_exists(&record.body.control, deadline)?;
+        Ok(Some(Proof { record, control }))
     }
 
-    fn view(&self, descriptor: &Descriptor, deadline: Instant) -> Result<View, CatalogueError> {
-        let binding = self.read_binding(&descriptor.creation.name, deadline)?;
-        let head = self.read_slot(&descriptor.creation.scope, deadline)?;
-        let proof = self.read_proof(descriptor, deadline)?;
+    fn view(&self, source: &Source, deadline: Instant) -> Result<View, CatalogueError> {
+        let binding = self.read_binding(&source.creation.name, deadline)?;
+        // A proof can appear while an Aborting name stays unchanged. Read the
+        // permanent proof before the HEAD barrier it certifies, so a new proof
+        // cannot be paired with a previously observed absent/Provisioning HEAD.
+        let proof = self.read_proof(source, deadline)?;
+        let head = self.read_slot(&source.creation.scope, deadline)?;
         // Records across keys are not an atomic snapshot. A monotonic name
         // revision and this second exact GET distinguish a changing name from
         // a corrupt stable relationship; no failed candidate is rebased here.
-        let current =
-            self.read::<Binding>(&self.binding_key(&descriptor.creation.name), deadline)?;
-        if current != binding {
+        let current = self.read::<Binding>(&self.binding_key(&source.creation.name), deadline)?;
+        if current.as_ref() != binding.as_ref().map(|name| &name.record) {
             return Err(CatalogueError::Conflict);
         }
-        Ok(View {
-            binding,
-            head,
-            proof,
-        })
+        Ok(View { binding, head, proof })
     }
 
-    fn database(&self, descriptor: &Descriptor) -> Result<Database, CatalogueError> {
+    fn database(&self, source: &Source) -> Database {
         let mut options = self.options.clone();
-        options.quota = descriptor.initial_quota.clone();
-        options.retention = descriptor.retention.clone();
-        Database::with_options(
-            self.objects.clone(),
-            descriptor.creation.scope.clone(),
-            self.worker,
+        options.quota = source.initial_quota.clone();
+        options.retention = source.retention.clone();
+        // Catalogue::new validated worker and runtime options; Source validated
+        // the immutable scope, effective quota and retention. No cross-field
+        // option validation depends on those two replaced values.
+        Database {
+            objects: self.objects.clone(),
+            scope: source.creation.scope.clone(),
+            worker: self.worker,
             options,
-        )
-        .map_err(core_error)
+            quarantined: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
     }
 
-    fn own(descriptor: &Descriptor, head: &Head) -> Result<bool, CatalogueError> {
-        Ok(head.scope == descriptor.creation.scope
-            && head.creation.as_ref() == Some(&descriptor.origin()?))
+    fn own(source: &Source, head: &Head) -> bool {
+        head.scope == source.creation.scope && head.creation.as_ref() == Some(&source.origin())
     }
 
-    fn provisioning(descriptor: &Descriptor, head: &Head) -> Result<(), CatalogueError> {
-        require(Self::own(descriptor, head)? && head.lifecycle == Lifecycle::Provisioning)?;
+    fn provisioning(source: &Source, head: &Head) -> Result<(), CatalogueError> {
+        require(Self::own(source, head) && head.lifecycle == Lifecycle::Provisioning)?;
         require(head.revision == 1 && head.owner_epoch == 1 && head.auth_epoch == 1)?;
-        require(head.quota == descriptor.initial_quota && head.retention == descriptor.retention)?;
-        require(
-            head.policy
-                == vec![Permission {
-                    principal: descriptor.creation.creator,
-                    read: true,
-                    write: true,
-                    admin: true,
-                }],
-        )
+        require(head.quota == source.initial_quota && head.retention == source.retention)?;
+        require(head.policy == vec![Permission {
+            principal: source.creation.creator,
+            read: true,
+            write: true,
+            admin: true,
+        }])
     }
 
-    fn deleted(head: &Head, control: &Control) -> Result<(), CatalogueError> {
+    fn deleted(head: &Head, control: &Admitted) -> Result<(), CatalogueError> {
         let ordinal = match control.kind {
             NamedDeletionKind::Abort => 1,
             NamedDeletionKind::Delete => 2,
         };
-        require(
-            control.expected_name_revision
-                == control.creation.expected_name_revision.unwrap_or(0) + ordinal,
-        )?;
-        require(
-            head.scope == control.creation.scope && head.creation.as_ref() == Some(&control.origin),
-        )?;
-        require(
-            head.lifecycle == Lifecycle::Deleted
-                && head.deletion.as_ref() == Some(&control.mark()?),
-        )
+        require(control.expected_name_revision
+            == control.creation.expected_name_revision.unwrap_or(0) + ordinal)?;
+        require(head.scope == control.creation.scope
+            && head.creation.as_ref() == Some(&control.origin))?;
+        require(head.lifecycle == Lifecycle::Deleted
+            && head.deletion.as_ref() == Some(&control.mark()))
     }
 
-    fn barrier(head: &Head, proof: &AbortProof) -> Result<(), CatalogueError> {
-        match &proof.barrier {
+    fn barrier(head: &Head, proof: &Proof) -> Result<(), CatalogueError> {
+        match &proof.body.barrier {
             Barrier::OwnDeleted { transition } => {
                 Self::deleted(head, &proof.control)?;
                 require(head.transition == *transition)
@@ -398,43 +400,31 @@ impl Catalogue {
         }
     }
 
-    fn tombstone_view(binding: &Binding, view: &View) -> Result<(), CatalogueError> {
-        let control = binding.control.as_ref().ok_or(CatalogueError::Corrupt)?;
+    fn tombstone_view<'a>(binding: &Name, view: &'a View) -> Result<&'a Head, CatalogueError> {
         let head = &view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head;
-        match control.kind {
-            NamedDeletionKind::Abort => {
+        match &binding.stage {
+            NameStage::Aborted { control, proof: expected } => {
                 let proof = view.proof.as_ref().ok_or(CatalogueError::Corrupt)?;
-                require(
-                    proof.body.control == *control
-                        && binding.proof.as_ref()
-                            == Some(&format::digest(&records::encode(&proof.body)?)),
-                )?;
-                Self::barrier(head, &proof.body)
+                require(proof.control == *control && proof.body.hash() == expected)?;
+                Self::barrier(head, proof)?;
             }
-            NamedDeletionKind::Delete => Self::deleted(head, control),
+            NameStage::Deleted(control) => {
+                require(view.proof.is_none())?;
+                Self::deleted(head, control)?;
+            }
+            _ => return Err(CatalogueError::Corrupt),
         }
+        Ok(head)
     }
 
-    fn verify_tombstone(&self, binding: &Binding, deadline: Instant) -> Result<(), CatalogueError> {
-        let control = binding.control.as_ref().ok_or(CatalogueError::Corrupt)?;
-        let head = self
-            .read_slot(&binding.creation.scope, deadline)?
-            .ok_or(CatalogueError::Corrupt)?;
-        match control.kind {
-            NamedDeletionKind::Abort => {
-                let descriptor = authority(self.descriptor(&binding.creation, deadline))?;
-                let proof = self
-                    .read_proof(&descriptor, deadline)?
-                    .ok_or(CatalogueError::Corrupt)?;
-                require(
-                    proof.body.control == *control
-                        && binding.proof.as_ref()
-                            == Some(&format::digest(&records::encode(&proof.body)?)),
-                )?;
-                Self::barrier(&head.head, &proof.body)
-            }
-            NamedDeletionKind::Delete => Self::deleted(&head.head, control),
-        }
+    fn verify_tombstone(&self, binding: &Name, deadline: Instant) -> Result<(), CatalogueError> {
+        let source = authority(self.descriptor(&binding.body.creation, deadline))?;
+        let view = View {
+            binding: None,
+            head: self.read_slot(&binding.body.creation.scope, deadline)?,
+            proof: self.read_proof(&source, deadline)?,
+        };
+        Self::tombstone_view(binding, &view).map(|_| ())
     }
 }
 

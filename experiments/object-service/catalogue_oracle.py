@@ -91,6 +91,8 @@ def catalogue_calls(directory,calls):
         if "value" in row:
             equal(value_of(call),row["value"],"SDK result differs from complete raw HTTP")
             progress(row["value"],intent["action"]["operation"])
+            for field in ("deployment","tenant"):
+                equal(row["value"]["creation"]["scope"][field],intent[field],"response escaped authenticated authority")
             if "creation" in intent["action"]:
                 equal(row["value"]["creation"],intent["action"]["creation"],"response retargeted frozen Creation")
         else:
@@ -221,6 +223,7 @@ def bind_requests(requests,calls,observed,creations):
                 if path.startswith(expected) and database_path(scope,path[len(expected):]):matched=True;break
                 continue
             if call_id not in directory_context:continue
+            if action["operation"] in ("resolve_name","inspect_create_operation") and request["method"]!="GET":continue
             context=directory_context[call_id]
             authority=f"{context['deployment']}/{context['tenant']}/"
             if not path.startswith(authority):continue
@@ -250,17 +253,26 @@ def bind_requests(requests,calls,observed,creations):
                                 matched=True;break
                 elif key.startswith("abort-proof/"):
                     matched=creation is not None and key==f"abort-proof/{creation['creator']}/{creation['operation']}"
+                    if not matched and request["method"]=="GET" and creation is None:
+                        matched=any(value["name"]==name and key==f"abort-proof/{value['creator']}/{value['operation']}" for value in creations.values())
             else:
                 scopes=[creation["scope"]] if creation else [value["scope"] for value in creations.values() if value["name"]==name]
                 matched=any(database_path(scope,target) for scope in scopes)
+                if not matched and request["method"]=="GET":
+                    # Reusing a tombstone proves its former physical identity
+                    # remains Deleted. This is an exact HEAD read, never an
+                    # authorization to write the prior HEAD or load its data.
+                    matched=any(value["name"]==name and target==value["scope"]["database"]+"/head" for value in creations.values())
             if matched:break
         require(matched,"object path/time has no matching authenticated HTTP intent")
 
 
-def network(directory,history,facts,calls,observed,creations,acks):
+def object_exchanges(history):
     serials=defaultdict(list)
     for row in history:
         if "request_serial" in row:serials[row["request_serial"]].append(row)
+    require(serials and all(type(serial) is int and serial>0 for serial in serials),"invalid object request serial")
+    require(sorted(serials)==list(range(1,max(serials)+1)),"object request serial gap")
     requests,responses={},{}
     for serial,events in serials.items():
         request=only([row for row in events if row["event"]=="object_request"],"missing/duplicate object request")
@@ -278,6 +290,11 @@ def network(directory,history,facts,calls,observed,creations,acks):
             if request["method"]=="GET" and response["status"]==200:
                 require(hashlib.sha256(bytes(response["head_response_bytes"])).hexdigest()==response["response_sha256"],"same-GET HEAD bytes changed")
                 require(parse(bytes(response["head_response_bytes"]))["format"]==3,"HEAD must use v3")
+    return requests,responses
+
+
+def network(directory,history,facts,calls,observed,creations,acks):
+    requests,responses=object_exchanges(history)
     bind_requests(requests,calls,observed,creations)
     faults={row["label"]:row for row in facts if row["event"]=="catalogue_fault_observed"}
     require(set(faults)=={"saturation","late_provision","descriptor_response_loss","ready_response_loss","delete_response_loss"},"fault plan changed")

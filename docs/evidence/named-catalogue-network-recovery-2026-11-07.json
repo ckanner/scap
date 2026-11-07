@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "status": "RECOVERED_DRAFT_NOT_COMPILED_NOT_RUN",
+  "repository": "ckanner/scap",
+  "checkpoint_commit": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+  "executor_failure": "exec-server transport closed; environment reported unavailable on 2026-11-07",
+  "recovery_basis": "Full texts reconstructed from successful apply_patch inputs and the exact f16 GitHub runner blob. Uploaded content was fetched back and compared as complete strings. The unavailable local final hashes cannot be compared; trailing blank-line differences are possible. No repository ref, tree or PR was changed by this agent.",
+  "files": [
+    {
+      "path": "experiments/object-network/catalogue_contract.py",
+      "blob_sha": "8ffbed4b71eb2bddac71323abc85b106dae8e59b",
+      "lines": 813,
+      "exact_github_readback": true,
+      "source": "f16 blob 44757e7f22b1d1262b11355221491fec3ee9ddf1 plus recorded successful literal edits",
+      "validation": "native release/real S3 NOT_RUN"
+    },
+    {
+      "path": "experiments/object-network/catalogue_oracle.py",
+      "blob_sha": "89da0c9e974dbe472095a7494b51006615926cc7",
+      "lines": 1828,
+      "exact_github_readback": true,
+      "source": "reconstructed from successful local patch inputs",
+      "validation": "reconstructed bytes NOT_RUN; prior development selftests FAILED"
+    },
+    {
+      "path": "experiments/object-network/test_catalogue_oracle.py",
+      "blob_sha": "cbb97c67921c9710d05c9719d33c1987f0e8756c",
+      "lines": 390,
+      "exact_github_readback": true,
+      "source": "reconstructed from successful Add File patch",
+      "validation": "preserves first failing Trace/golden and source-string test; fixes kept separately"
+    }
+  ],
+  "preserved_in_checkpoint": [
+    {
+      "path": "experiments/object-network/src/main.rs",
+      "blob_sha": "3452062622baa62108065de919beec425cf3176d",
+      "status": "thin production API wiring; rustfmt/compile for combined source NOT_RUN"
+    },
+    {
+      "path": "experiments/object-network/run.py",
+      "blob_sha": "e268bb95ec2be2a868bbab30d2abada40b364060",
+      "status": "bounded opt-in catalogue HTTP body capture"
+    },
+    {
+      "path": "experiments/object-network/test_catalogue_transport.py",
+      "blob_sha": "4be0abe647285c49610dd2848432482f57f23680",
+      "status": "three development HTTP instrumentation tests passed; not S3 acceptance"
+    },
+    {
+      "path": "experiments/object-network/catalogue-matrix.md",
+      "blob_sha": "8c924fb7392713ce988cb176d7675f6b7ec2a931",
+      "status": "plan; update final provenance negative cases and controlled-order limitations before freeze"
+    }
+  ],
+  "proposed_edits": {
+    "suggested_path": "catalogue-recovery-proposed-edits.json",
+    "blob_sha": "27b231c116eb546f5adb13995a820528172c190b",
+    "exact_github_readback": true,
+    "status": "PROPOSED_NOT_APPLIED_NOT_RUN",
+    "changes": [
+      "Trace.facts fixture field",
+      "OpenSSL-derived literal Scope golden",
+      "replace source-substring consumption test by actual predicate tests",
+      "zero-budget valid native prepare must return exactly Unknown, confirmed by core owner"
+    ]
+  },
+  "development_failure": {
+    "command": "python3 -m unittest -v test_catalogue_oracle test_catalogue_transport",
+    "observed_total": 31,
+    "observed_errors": 13,
+    "observed_failures": 1,
+    "observed_passed": 17,
+    "cause": "13 Trace tests failed before protocol checks because SimpleNamespace lacked facts; one expected Scope constant was wrong. This does not prove all remaining checks correct.",
+    "source_access": "unavailable after executor interruption; do not claim raw files below are included in recovery branch",
+    "original_directory": "/workspace/scratch/b985f6319062/scap-catalogue-core-selftests-ydbwkw2m",
+    "original_files": [
+      "attempt-01.log",
+      "attempt-01.json",
+      "attempt-01-sources.json",
+      "scope-openssl-golden.json"
+    ],
+    "original_log_sha256": "NOT_RECOVERED",
+    "original_final_source_sha256": "NOT_RECOVERED"
+  },
+  "openssl_golden": {
+    "command": "openssl dgst -sha256 -binary (input supplied as literal bytes)",
+    "input_hex": "534341502d4e414d45442d49442d7631000000000000000007000000000000000100000000000000110000000000000029",
+    "observed_sha256": "7b617686f61ec1e1c9f41512c320193c093d63545c4ebfe590eef960f86727b8",
+    "database": "8890517461432975841",
+    "incarnation": "14552279466268170556",
+    "generation": 1
+  },
+  "remaining": [
+    "Apply/review proposed fixture fixes and preserve next original failure/pass logs; do not replace prior failures with success.",
+    "Add meaningful controller ledger/cut tests and process-chain/ACK mutation controls; no such new test_catalogue_contract.py was created before interruption.",
+    "Run a source-bound explicitly nonformal debug diagnosis after core refactor completes; original formal CLI must continue requiring release receipts.",
+    "Review ordinary-control invariants, negative outcomes and all catalogue response phases against exact current core DTOs; no successful real catalogue run yet.",
+    "Document that this fixed race matrix serializes candidate releases and complete callbacks; current response-ordered accepted-version audit is not a general arbitrary-concurrent linearizability solver.",
+    "Freeze all agents' complete source, run Rust fmt/clippy/unit/exact unit-only coverage, all Python/Node gates, stable native release and the entire existing/new S3+HTTP matrix.",
+    "Recompute all ACK/lost/retained/deleted denominators from raw evidence and perform independent review before accepting or merging."
+  ],
+  "limits": {
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "real_catalogue_s3": "NOT_RUN",
+    "formal_release": "NOT_RUN",
+    "full_case_put_denominator": "NOT_OBSERVED",
+    "planned_pilot_profiles": 6,
+    "cut_stages": 3,
+    "planned_structural_cases": 32
+  }
+}

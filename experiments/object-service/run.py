@@ -312,9 +312,14 @@ def main(args):
         if summary["status"] == "passed":
             shutil.rmtree(private)
             summary["private_fixture_removed"] = True
+        if args.diagnostic:
+            summary["formal_gate_status"] = "NOT_RUN"
+            if summary["status"] == "passed":
+                summary["status"] = "completed_diagnostic"
+                summary["raw_audit"]["status"] = "diagnostic_checks_completed"
         (evidence / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     print(json.dumps({key: summary.get(key) for key in ("status", "diagnostic", "error", "audit", "cleanup_errors")}))
-    return 0 if summary["status"] == "passed" else 1
+    return 0 if summary["status"] in ("passed", "completed_diagnostic") else 1
 
 
 if __name__ == "__main__":

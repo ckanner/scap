@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "status": "PROPOSED_NOT_APPLIED_NOT_RUN",
+  "source": "failed apply_patch at executor disconnect plus subsequent exact zero-budget classification confirmation",
+  "instructions": "Apply each group only to its expected base Git blob after review. Each literal before must occur exactly once. No Python execution, Rust compilation or S3 acceptance has been performed for these changes.",
+  "changes": [
+    {
+      "path": "experiments/object-network/catalogue_contract.py",
+      "expected_base_blob": "8ffbed4b71eb2bddac71323abc85b106dae8e59b",
+      "edits": [
+        {
+          "before": "require(not result[\"ok\"] and result[\"error\"] in (\"Unknown\", \"Limit\"), \"expired call returned a completed creation\")",
+          "after": "require(not result[\"ok\"] and result[\"error\"] == \"Unknown\", \"expired call returned a completed creation\")"
+        }
+      ]
+    },
+    {
+      "path": "experiments/object-network/catalogue_oracle.py",
+      "expected_base_blob": "89da0c9e974dbe472095a7494b51006615926cc7",
+      "edits": [
+        {
+          "before": "\n\nclass Wire:\n",
+          "after": "\n\ndef consumed_put(wire, call, request, received, delivered, consumed, loss, complete=None):\n    \"\"\"A later same-call GET or complete worker response proves consumption.\"\"\"\n    require(delivered is not None, \"consumed response was never actually delivered\")\n    require(consumed[\"call_id\"] == call[\"call_id\"] and consumed[\"request_serial\"] == request[\"request_serial\"]\n            and delivered[\"monotonic_ns\"] < consumed[\"monotonic_ns\"] < loss[\"monotonic_ns\"],\n            \"response consumption marker has wrong invocation/order\")\n    if consumed[\"proof\"] == \"subsequent_get\":\n        later = wire.only(consumed[\"subsequent\"][\"request_serial\"], \"object_request\")\n        require(later[\"phase\"] == call[\"phase\"] and later[\"method\"] == \"GET\"\n                and received[\"monotonic_ns\"] < later[\"monotonic_ns\"] < consumed[\"monotonic_ns\"],\n                \"next request does not prove this client consumed original PUT response\")\n    else:\n        require(consumed[\"proof\"] == \"complete_worker_response\" and complete is not None,\n                \"socket delivery alone claimed response consumption\")\n        equal(consumed[\"response\"], complete[\"response\"], \"complete response consumption witness changed\")\n        require(complete[\"monotonic_ns\"] <= consumed[\"monotonic_ns\"], \"consumption marker preceded actual response\")\n\n\nclass Wire:\n"
+        },
+        {
+          "before": "                            require(delivered is not None, \"consumed response was never actually delivered\")\n                            consumed = self.fact(target, \"response_consumed\")\n                            require(consumed[\"call_id\"] == cut[\"call_id\"] and consumed[\"request_serial\"] == request[\"request_serial\"]\n                                    and delivered[\"monotonic_ns\"] < consumed[\"monotonic_ns\"] < loss[\"monotonic_ns\"],\n                                    \"response consumption marker has wrong invocation/order\")\n                            if consumed[\"proof\"] == \"subsequent_get\":\n                                later = self.wire.only(consumed[\"subsequent\"][\"request_serial\"], \"object_request\")\n                                require(later[\"phase\"] == cut[\"phase\"] and later[\"method\"] == \"GET\"\n                                        and received[\"monotonic_ns\"] < later[\"monotonic_ns\"] < consumed[\"monotonic_ns\"],\n                                        \"next request does not prove this client consumed original PUT response\")\n                            else:\n                                require(consumed[\"proof\"] == \"complete_worker_response\", \"socket delivery alone claimed response consumption\")\n                                equal(consumed[\"response\"], self.response(cut), \"complete response consumption witness changed\")\n                                require(self.responses[cut[\"call_id\"]][\"monotonic_ns\"] <= consumed[\"monotonic_ns\"], \"consumption marker preceded actual response\")",
+          "after": "                            consumed = self.fact(target, \"response_consumed\")\n                            consumed_put(self.wire, cut, request, received, delivered, consumed, loss,\n                                         self.responses.get(cut[\"call_id\"]))"
+        },
+        {
+          "before": "and self.response(deadline)[\"error\"] in (\"Unknown\", \"Limit\"), \"expired deadline incorrectly acknowledged complete create\")",
+          "after": "and self.response(deadline)[\"error\"] == \"Unknown\", \"expired deadline incorrectly acknowledged complete create\")"
+        }
+      ]
+    },
+    {
+      "path": "experiments/object-network/test_catalogue_oracle.py",
+      "expected_base_blob": "cbb97c67921c9710d05c9719d33c1987f0e8756c",
+      "edits": [
+        {
+          "before": "import hashlib\n",
+          "after": ""
+        },
+        {
+          "before": "self.a = SimpleNamespace(history=[], calls={}, phases={}, ends={}, lost={})",
+          "after": "self.a = SimpleNamespace(history=[], facts=[], calls={}, phases={}, ends={}, lost={})"
+        },
+        {
+          "before": "# Literal independently computed from the published big-endian input.",
+          "after": "# OpenSSL SHA-256 of literal bytes, independently of oracle.derive_scope:\n        # 7b617686f61ec1e1c9f41512c320193c093d63545c4ebfe590eef960f86727b8."
+        },
+        {
+          "before": "16297845144161678939",
+          "after": "8890517461432975841"
+        },
+        {
+          "before": "12343477227053246083",
+          "after": "14552279466268170556"
+        },
+        {
+          "before": "    def test_socket_delivery_is_not_consumption_proof(self):\n        source = Path(oracle.__file__).read_text()\n        self.assertIn('consumed[\"proof\"] == \"complete_worker_response\"', source)\n        self.assertIn('later[\"phase\"] == cut[\"phase\"]', source)",
+          "after": "    def test_socket_delivery_is_not_consumption_proof(self):\n        call = {\"call_id\": 1, \"phase\": \"unit/cut\"}\n        request, received, delivered = {\"request_serial\": 2}, {\"monotonic_ns\": 20}, {\"monotonic_ns\": 30}\n        consumed = {\"call_id\": 1, \"request_serial\": 2, \"monotonic_ns\": 50, \"proof\": \"socket_sent\"}\n        with self.assertRaisesRegex(ValueError, \"socket delivery alone\"):\n            oracle.consumed_put(None, call, request, received, delivered, consumed, {\"monotonic_ns\": 60})\n        consumed.update(proof=\"subsequent_get\", subsequent={\"request_serial\": 3})\n        next_request = {\"method\": \"GET\", \"phase\": \"unit/cut\", \"monotonic_ns\": 40}\n        wire = SimpleNamespace(only=lambda serial, event: next_request)\n        oracle.consumed_put(wire, call, request, received, delivered, consumed, {\"monotonic_ns\": 60})\n        next_request[\"phase\"] = \"unit/unrelated\"\n        with self.assertRaisesRegex(ValueError, \"this client\"):\n            oracle.consumed_put(wire, call, request, received, delivered, consumed, {\"monotonic_ns\": 60})\n\n    def test_complete_response_consumption_preserves_raw_response(self):\n        response = {\"ok\": True, \"value\": {\"phase\": \"ready\"}}\n        consumed = {\"call_id\": 1, \"request_serial\": 2, \"monotonic_ns\": 50,\n                    \"proof\": \"complete_worker_response\", \"response\": response}\n        args = (None, {\"call_id\": 1, \"phase\": \"unit/cut\"}, {\"request_serial\": 2},\n                {\"monotonic_ns\": 20}, {\"monotonic_ns\": 30}, consumed, {\"monotonic_ns\": 60})\n        oracle.consumed_put(*args, complete={\"monotonic_ns\": 40, \"response\": response})\n        with self.assertRaisesRegex(ValueError, \"witness changed\"):\n            oracle.consumed_put(*args, complete={\"monotonic_ns\": 40, \"response\": {\"ok\": False, \"error\": \"Unknown\"}})"
+        }
+      ]
+    }
+  ]
+}

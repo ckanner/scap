@@ -1,420 +1,275 @@
 use super::*;
 use records::BindingState;
 
+struct ControlInput<'a> {
+    creation: &'a Creation,
+    kind: NamedDeletionKind,
+    principal: u64,
+    operation: u64,
+    expected_name_revision: u64,
+    expected_head_revision: Option<u64>,
+    nonce: u64,
+}
+
+enum AbortStep<'a> {
+    Done(AbortPhase),
+    Accept(&'a Name),
+    FenceAbsent,
+    Fence(&'a Snapshot),
+    Prove(Barrier),
+    Release(&'a Name, &'a str),
+}
+
+enum DeleteStep<'a> {
+    Blocked,
+    Publish(&'a Snapshot),
+    Release(&'a Name),
+    Done,
+}
+
+impl DeleteStep<'_> {
+    fn phase(&self) -> DeletionPhase {
+        match self {
+            Self::Blocked | Self::Publish(_) => DeletionPhase::NotDeleted,
+            Self::Release(_) => DeletionPhase::Deleting,
+            Self::Done => DeletionPhase::Deleted,
+        }
+    }
+}
+
 impl Catalogue {
-    /// Cancellation competes only with binding Reserved to Bound. It never
-    /// turns a completed/Bound database into an aborted creation.
-    pub fn abort_create(
-        &self,
-        caller: Caller,
-        input: &AbortCreate,
-        deadline: Instant,
-    ) -> Result<AbortProgress, CatalogueError> {
-        Self::creator(caller, input.creation.creator)?;
-        let deadline = self.options.deadline(deadline, false);
-        let descriptor = self.descriptor(&input.creation, deadline)?;
-        let control = Control {
-            format: 1,
-            creation: input.creation.clone(),
-            origin: descriptor.origin()?,
-            kind: NamedDeletionKind::Abort,
-            principal: caller.principal,
-            operation: input.operation,
-            expected_name_revision: input.expected_name_revision,
-            expected_head_revision: None,
-            nonce: input.nonce,
-        };
-        self.immutable(&self.control_key(&control), &control, deadline)?;
-        let mut view = self.view(&descriptor, deadline)?;
-        if let Some(binding) = &view.binding {
-            if binding.body.creation == input.creation
-                && binding.body.state == BindingState::Reserved
-            {
-                if binding.body.revision != input.expected_name_revision {
-                    return Err(CatalogueError::Conflict);
-                }
-                let mut aborting = binding.body.clone();
-                aborting.state = BindingState::Aborting;
-                aborting.revision += 1;
-                aborting.control = Some(control.clone());
-                self.write_binding(&aborting, Some(&binding.etag), deadline)?;
-                view = self.view(&descriptor, deadline)?;
-            }
-        }
-        let phase = self.abort_phase(&descriptor, &control, &view, deadline)?;
-        if phase != AbortPhase::Aborting {
-            return self.abort_progress(&descriptor, &control, &view, phase);
-        }
-        self.fence_abort(&descriptor, &control, &view, deadline)?;
-        view = self.view(&descriptor, deadline)?;
-        let phase = self.abort_phase(&descriptor, &control, &view, deadline)?;
-        if phase != AbortPhase::Aborting {
-            return self.abort_progress(&descriptor, &control, &view, phase);
-        }
-        let head = &view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head;
-        let barrier = if Self::own(&descriptor, head)? {
-            Self::deleted(head, &control)?;
-            Barrier::OwnDeleted {
-                transition: head.transition.clone(),
-            }
-        } else {
-            Barrier::ForeignOccupied {
-                scope: head.scope.clone(),
-                creation: head.creation.clone(),
-            }
-        };
-        let proof = AbortProof {
-            format: 1,
-            control: control.clone(),
-            barrier,
-        };
-        self.immutable(&self.proof_key(&input.creation), &proof, deadline)?;
-        view = self.view(&descriptor, deadline)?;
-        let phase = self.abort_phase(&descriptor, &control, &view, deadline)?;
-        if phase != AbortPhase::Aborting {
-            return self.abort_progress(&descriptor, &control, &view, phase);
-        }
-        let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
-        let mut tombstone = binding.body.clone();
-        tombstone.state = BindingState::Tombstone;
-        tombstone.revision += 1;
-        tombstone.proof = Some(format::digest(&records::encode(&proof)?));
-        self.write_binding(&tombstone, Some(&binding.etag), deadline)?;
-        view = self.view(&descriptor, deadline)?;
-        let phase = self.abort_phase(&descriptor, &control, &view, deadline)?;
-        require(phase == AbortPhase::Aborted)?;
-        self.abort_progress(&descriptor, &control, &view, phase)
-    }
-
-    fn fence_abort(
-        &self,
-        descriptor: &Descriptor,
-        control: &Control,
-        view: &View,
-        deadline: Instant,
-    ) -> Result<(), CatalogueError> {
-        let database = self.database(descriptor)?;
-        let Some(base) = &view.head else {
-            let mut head = database
-                .initial_head(control.principal, control.nonce, deadline)
-                .map_err(core_error)?;
-            head.lifecycle = Lifecycle::Deleted;
-            head.creation = Some(descriptor.origin()?);
-            head.deletion = Some(control.mark()?);
-            return database.create_head(&head, deadline).map_err(core_error);
-        };
-        if !Self::own(descriptor, &base.head)? {
-            return Ok(());
-        }
-        if base.head.lifecycle == Lifecycle::Deleted {
-            return Self::deleted(&base.head, control);
-        }
-        Self::provisioning(descriptor, &base.head)?;
-        let mut head = Database::next(&base.head, control.nonce).map_err(core_error)?;
-        head.owner_epoch = head
-            .owner_epoch
-            .checked_add(1)
-            .ok_or(CatalogueError::Limit)?;
-        head.active = false;
-        head.lifecycle = Lifecycle::Deleted;
-        head.deletion = Some(control.mark()?);
-        database.publish(base, &head, deadline).map_err(core_error)
-    }
-
-    fn abort_phase(
-        &self,
-        descriptor: &Descriptor,
-        control: &Control,
-        view: &View,
-        deadline: Instant,
-    ) -> Result<AbortPhase, CatalogueError> {
-        let own_head = match &view.head {
-            Some(head) if Self::own(descriptor, &head.head)? => Some(&head.head),
-            _ => None,
-        };
-        let Some(binding) = &view.binding else {
-            require(own_head.is_none() && view.proof.is_none())?;
-            return Ok(AbortPhase::NotReserved);
-        };
-        if binding.body.creation != descriptor.creation {
-            if let Some(proof) = &view.proof {
-                if proof.body.control != *control {
-                    return Err(CatalogueError::Conflict);
-                }
-                require(
-                    binding.body.revision
-                        > descriptor.creation.expected_name_revision.unwrap_or(0) + 3,
-                )?;
-                Self::barrier(
-                    &view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head,
-                    &proof.body,
-                )?;
-                return Ok(AbortPhase::Aborted);
-            }
-            if let Some(head) = own_head {
-                self.deleted_control(descriptor, head, deadline)?;
-                return Ok(AbortPhase::CannotAbortBound);
-            }
-            return Ok(AbortPhase::NotReserved);
-        }
-        match binding.body.state {
-            BindingState::Reserved => Err(CatalogueError::Conflict),
-            BindingState::Bound => {
-                require(view.proof.is_none())?;
-                let head = own_head.ok_or(CatalogueError::Corrupt)?;
-                match head.lifecycle {
-                    Lifecycle::Provisioning => Self::provisioning(descriptor, head)?,
-                    Lifecycle::Ready | Lifecycle::Maintenance => {
-                        Database::permission(head, descriptor.creation.creator, true, false, false)
-                            .map_err(core_error)?;
-                    }
-                    Lifecycle::Deleted => {
-                        self.deleted_control(descriptor, head, deadline)?;
-                    }
-                }
-                Ok(AbortPhase::CannotAbortBound)
-            }
-            BindingState::Aborting | BindingState::Tombstone => {
-                let accepted = binding
-                    .body
-                    .control
-                    .as_ref()
-                    .ok_or(CatalogueError::Corrupt)?;
-                if accepted.kind == NamedDeletionKind::Delete {
-                    self.verify_tombstone(&binding.body, deadline)?;
-                    self.deleted_control(
-                        descriptor,
-                        own_head.ok_or(CatalogueError::Corrupt)?,
-                        deadline,
-                    )?;
-                    return Ok(AbortPhase::CannotAbortBound);
-                }
-                if accepted != control {
-                    return Err(CatalogueError::Conflict);
-                }
-                if let Some(head) = own_head {
-                    match head.lifecycle {
-                        Lifecycle::Provisioning => Self::provisioning(descriptor, head)?,
-                        Lifecycle::Deleted => Self::deleted(head, control)?,
-                        _ => return Err(CatalogueError::Corrupt),
-                    }
-                }
-                if let Some(proof) = &view.proof {
-                    require(proof.body.control == *control)?;
-                    Self::barrier(
-                        &view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head,
-                        &proof.body,
-                    )?;
-                }
-                if binding.body.state == BindingState::Tombstone {
-                    require(view.proof.is_some())?;
-                    self.verify_tombstone(&binding.body, deadline)?;
-                    Ok(AbortPhase::Aborted)
-                } else {
-                    Ok(AbortPhase::Aborting)
-                }
-            }
-        }
-    }
-
-    fn revisions(
-        descriptor: &Descriptor,
-        view: &View,
-    ) -> Result<(Option<u64>, Option<u64>), CatalogueError> {
-        let binding = view
-            .binding
-            .as_ref()
-            .filter(|binding| binding.body.creation == descriptor.creation)
-            .map(|binding| binding.body.revision);
-        let head = match &view.head {
-            Some(head) if Self::own(descriptor, &head.head)? => Some(head.head.revision),
-            _ => None,
-        };
-        Ok((binding, head))
-    }
-
-    fn abort_progress(
-        &self,
-        descriptor: &Descriptor,
-        control: &Control,
-        view: &View,
-        phase: AbortPhase,
-    ) -> Result<AbortProgress, CatalogueError> {
-        let (binding_revision, head_revision) = Self::revisions(descriptor, view)?;
-        Ok(AbortProgress {
-            creation: descriptor.creation.clone(),
-            operation: control.operation,
-            nonce: control.nonce,
-            phase,
-            binding_revision,
-            head_revision,
-        })
-    }
-
-    /// A normal deletion may be admitted by a different current ADMIN. Its
-    /// original binding/HEAD revisions remain fixed for the entire operation.
-    pub fn delete(
-        &self,
-        caller: Caller,
-        input: &DeleteNamed,
-        deadline: Instant,
-    ) -> Result<DeletionProgress, CatalogueError> {
-        Self::caller(caller)?;
-        let deadline = self.options.deadline(deadline, false);
-        let descriptor = self.descriptor(&input.creation, deadline)?;
-        let control = Control {
-            format: 1,
-            creation: input.creation.clone(),
-            origin: descriptor.origin()?,
-            kind: NamedDeletionKind::Delete,
-            principal: caller.principal,
-            operation: input.operation,
-            expected_name_revision: input.expected_name_revision,
-            expected_head_revision: Some(input.expected_head_revision),
-            nonce: input.nonce,
-        };
-        control.validate()?;
-        let view = self.view(&descriptor, deadline)?;
-        Self::admin(&descriptor, &view, caller.principal)?;
-        self.immutable(&self.control_key(&control), &control, deadline)?;
-        let mut view = self.view(&descriptor, deadline)?;
-        let mut phase = self.deletion_phase(&descriptor, &control, &view)?;
-        if phase == DeletionPhase::NotDeleted {
-            let base = Self::admin(&descriptor, &view, caller.principal)?;
-            let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
-            if binding.body.state != BindingState::Bound
-                || base.head.lifecycle == Lifecycle::Provisioning
-            {
-                return self.deletion_progress(&descriptor, &control, &view, phase);
-            }
-            if binding.body.revision != input.expected_name_revision
-                || base.head.revision != input.expected_head_revision
-            {
+    fn precheck_control(&self, input: &ControlInput<'_>, deadline: Instant) -> Result<(), CatalogueError> {
+        self.creation(input.creation)?;
+        records::valid(input.operation != 0 && input.expected_name_revision != 0 && input.nonce != 0)?;
+        records::valid(input.expected_head_revision != Some(0))?;
+        let key = self.control_address(input.principal, &input.kind, input.operation);
+        if let Some(stored) = self.read::<Control>(&key, deadline)? {
+            require(stored.body.principal == input.principal && stored.body.kind == input.kind && stored.body.operation == input.operation)?;
+            require(stored.body.creation.scope.deployment == self.deployment && stored.body.creation.scope.tenant == self.tenant)?;
+            if stored.body.creation != *input.creation
+                || stored.body.expected_name_revision != input.expected_name_revision
+                || stored.body.expected_head_revision != input.expected_head_revision
+                || stored.body.nonce != input.nonce {
                 return Err(CatalogueError::Conflict);
             }
-            let database = self.database(&descriptor)?;
-            let mut head = Database::next(&base.head, input.nonce).map_err(core_error)?;
-            head.owner_epoch = head
-                .owner_epoch
-                .checked_add(1)
-                .ok_or(CatalogueError::Limit)?;
-            head.active = false;
-            head.lifecycle = Lifecycle::Deleted;
-            head.deletion = Some(control.mark()?);
-            database
-                .publish(base, &head, deadline)
-                .map_err(core_error)?;
-            view = self.view(&descriptor, deadline)?;
-            phase = self.deletion_phase(&descriptor, &control, &view)?;
         }
-        if phase == DeletionPhase::Deleting {
-            let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
-            let mut tombstone = binding.body.clone();
-            tombstone.state = BindingState::Tombstone;
-            tombstone.revision += 1;
-            tombstone.control = Some(control.clone());
-            self.write_binding(&tombstone, Some(&binding.etag), deadline)?;
-            view = self.view(&descriptor, deadline)?;
-            phase = self.deletion_phase(&descriptor, &control, &view)?;
-        }
-        self.deletion_progress(&descriptor, &control, &view, phase)
+        Ok(())
     }
 
-    fn admin<'a>(
-        descriptor: &Descriptor,
-        view: &'a View,
-        principal: u64,
-    ) -> Result<&'a Snapshot, CatalogueError> {
-        let binding = view
-            .binding
-            .as_ref()
-            .filter(|binding| binding.body.creation == descriptor.creation);
-        let must_exist = binding.is_some_and(|binding| {
-            matches!(
-                binding.body.state,
-                BindingState::Bound | BindingState::Tombstone
-            )
-        }) || view.proof.is_some();
-        let head = view.head.as_ref().ok_or(if must_exist {
-            CatalogueError::Corrupt
-        } else {
-            CatalogueError::NotFound
-        })?;
+    pub fn abort_create(&self, caller: Caller, input: &AbortCreate, deadline: Instant) -> Result<AbortProgress, CatalogueError> {
+        Self::creator(caller, input.creation.creator)?;
+        let deadline = self.options.deadline(deadline, false);
+        self.precheck_control(&ControlInput { creation: &input.creation, kind: NamedDeletionKind::Abort,
+            principal: caller.principal, operation: input.operation, expected_name_revision: input.expected_name_revision,
+            expected_head_revision: None, nonce: input.nonce }, deadline)?;
+        let source = self.descriptor(&input.creation, deadline)?;
+        let candidate = Control { format: 1, creation: input.creation.clone(), origin: source.origin(), kind: NamedDeletionKind::Abort,
+            principal: caller.principal, operation: input.operation, expected_name_revision: input.expected_name_revision,
+            expected_head_revision: None, nonce: input.nonce };
+        let control = self.immutable(&self.control_key(&candidate), &candidate, deadline)?;
+        for _ in 0..4 {
+            let view = self.view(&source, deadline)?;
+            match self.abort_plan(&source, &control, &view, deadline)? {
+                AbortStep::Done(phase) => return Ok(Self::abort_progress(&source, &control, &view, phase)),
+                AbortStep::Accept(binding) => {
+                    let mut next = binding.body.raw().clone();
+                    next.state = BindingState::Aborting; next.revision += 1; next.control = Some(control.raw().clone());
+                    self.write_binding(&next, Some(&binding.etag), deadline)?;
+                }
+                AbortStep::FenceAbsent => {
+                    let database = self.database(&source);
+                    let mut head = database.initial_head(control.principal, control.nonce, deadline).map_err(core_error)?;
+                    head.lifecycle = Lifecycle::Deleted; head.creation = Some(source.origin()); head.deletion = Some(control.mark());
+                    database.create_head(&head, deadline).map_err(core_error)?;
+                }
+                AbortStep::Fence(base) => {
+                    let mut head = base.head.clone();
+                    // The plan checked the unique initial Provisioning state.
+                    head.revision = 2; head.owner_epoch = 2; head.active = false;
+                    head.transition = format::Transition { revision: 2, nonce: control.nonce };
+                    head.lifecycle = Lifecycle::Deleted; head.deletion = Some(control.mark());
+                    self.database(&source).publish(base, &head, deadline).map_err(core_error)?;
+                }
+                AbortStep::Prove(barrier) => {
+                    self.immutable(&self.proof_key(&input.creation), &AbortProof { format: 1, control: control.raw().clone(), barrier }, deadline)?;
+                }
+                AbortStep::Release(binding, hash) => {
+                    let mut next = binding.body.raw().clone();
+                    next.state = BindingState::Tombstone; next.revision += 1; next.proof = Some(hash.into());
+                    self.write_binding(&next, Some(&binding.etag), deadline)?;
+                }
+            }
+        }
+        let view = self.view(&source, deadline)?;
+        let phase = match self.abort_plan(&source, &control, &view, deadline)? {
+            AbortStep::Done(phase) => phase,
+            AbortStep::Accept(_) => return Err(CatalogueError::Conflict),
+            _ => AbortPhase::Aborting,
+        };
+        Ok(Self::abort_progress(&source, &control, &view, phase))
+    }
+
+    fn abort_plan<'a>(&self, source: &Source, control: &Admitted, view: &'a View, deadline: Instant) -> Result<AbortStep<'a>, CatalogueError> {
+        let own = view.head.as_ref().filter(|h| Self::own(source, &h.head));
+        let Some(binding) = &view.binding else {
+            require(own.is_none() && view.proof.is_none())?;
+            return Ok(AbortStep::Done(AbortPhase::NotReserved));
+        };
+        if binding.body.creation != source.creation {
+            if let Some(proof) = &view.proof {
+                if proof.control != *control { return Err(CatalogueError::Conflict); }
+                require(binding.body.revision > source.creation.expected_name_revision.unwrap_or(0) + 3)?;
+                Self::barrier(&view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head, proof)?;
+                return Ok(AbortStep::Done(AbortPhase::Aborted));
+            }
+            if let Some(head) = own {
+                require(binding.body.revision > source.creation.expected_name_revision.unwrap_or(0) + 3)?;
+                self.delete_source(source, &head.head, deadline)?;
+                Database::permission(&head.head, source.creation.creator, true, false, false).map_err(core_error)?;
+                return Ok(AbortStep::Done(AbortPhase::CannotAbortBound));
+            }
+            return Ok(AbortStep::Done(AbortPhase::NotReserved));
+        }
+        match &binding.stage {
+            NameStage::Reserved => {
+                require(view.proof.is_none())?;
+                if let Some(head) = own { Self::provisioning(source, &head.head)?; }
+                if binding.body.revision != control.expected_name_revision { return Err(CatalogueError::Conflict); }
+                Ok(AbortStep::Accept(binding))
+            }
+            NameStage::Bound => {
+                require(view.proof.is_none())?;
+                let head = &own.ok_or(CatalogueError::Corrupt)?.head;
+                match head.lifecycle {
+                    Lifecycle::Provisioning => Self::provisioning(source, head)?,
+                    Lifecycle::Ready | Lifecycle::Maintenance => {
+                        Database::permission(head, source.creation.creator, true, false, false).map_err(core_error)?;
+                    }
+                    Lifecycle::Deleted => {
+                        self.delete_source(source, head, deadline)?;
+                        Database::permission(head, source.creation.creator, true, false, false).map_err(core_error)?;
+                    }
+                }
+                Ok(AbortStep::Done(AbortPhase::CannotAbortBound))
+            }
+            NameStage::Deleted(_) => {
+                let head = Self::tombstone_view(binding, view)?;
+                Database::permission(head, source.creation.creator, true, false, false).map_err(core_error)?;
+                Ok(AbortStep::Done(AbortPhase::CannotAbortBound))
+            }
+            NameStage::Aborted { control: accepted, .. } => {
+                if accepted != control { return Err(CatalogueError::Conflict); }
+                Self::tombstone_view(binding, view)?;
+                Ok(AbortStep::Done(AbortPhase::Aborted))
+            }
+            NameStage::Aborting(accepted) => {
+                if accepted != control { return Err(CatalogueError::Conflict); }
+                Self::aborting(source, control, view)?;
+                let Some(head) = &view.head else { return Ok(AbortStep::FenceAbsent); };
+                if let Some(proof) = &view.proof { return Ok(AbortStep::Release(binding, proof.body.hash())); }
+                if Self::own(source, &head.head) {
+                    if head.head.lifecycle == Lifecycle::Provisioning { return Ok(AbortStep::Fence(head)); }
+                    Ok(AbortStep::Prove(Barrier::OwnDeleted { transition: head.head.transition.clone() }))
+                } else {
+                    Ok(AbortStep::Prove(Barrier::ForeignOccupied { scope: head.head.scope.clone(), creation: head.head.creation.clone() }))
+                }
+            }
+        }
+    }
+
+    fn abort_progress(source: &Source, control: &Admitted, view: &View, phase: AbortPhase) -> AbortProgress {
+        let (binding_revision, head_revision) = Self::revisions(source, view);
+        AbortProgress { creation: source.creation.clone(), operation: control.operation, nonce: control.nonce, phase, binding_revision, head_revision }
+    }
+
+    pub fn delete(&self, caller: Caller, input: &DeleteNamed, deadline: Instant) -> Result<DeletionProgress, CatalogueError> {
+        Self::caller(caller)?;
+        let deadline = self.options.deadline(deadline, false);
+        self.precheck_control(&ControlInput { creation: &input.creation, kind: NamedDeletionKind::Delete,
+            principal: caller.principal, operation: input.operation, expected_name_revision: input.expected_name_revision,
+            expected_head_revision: Some(input.expected_head_revision), nonce: input.nonce }, deadline)?;
+        let source = self.descriptor(&input.creation, deadline)?;
+        // New admission and old-operation reentry both require current ADMIN.
+        let initial = self.view(&source, deadline)?;
+        Self::admin(&source, &initial, caller.principal)?;
+        let candidate = Control { format: 1, creation: input.creation.clone(), origin: source.origin(), kind: NamedDeletionKind::Delete,
+            principal: caller.principal, operation: input.operation, expected_name_revision: input.expected_name_revision,
+            expected_head_revision: Some(input.expected_head_revision), nonce: input.nonce };
+        let control = self.immutable(&self.control_key(&candidate), &candidate, deadline)?;
+        for _ in 0..2 {
+            let view = self.view(&source, deadline)?;
+            let plan = self.delete_plan(&source, &control, &view)?;
+            match plan {
+                DeleteStep::Blocked | DeleteStep::Done => return Ok(Self::deletion_progress(&source, &control, &view, plan.phase())),
+                DeleteStep::Publish(base) => {
+                    let mut head = Database::next(&base.head, input.nonce).map_err(core_error)?;
+                    head.owner_epoch = head.owner_epoch.checked_add(1).ok_or(CatalogueError::Limit)?;
+                    head.active = false; head.lifecycle = Lifecycle::Deleted; head.deletion = Some(control.mark());
+                    self.database(&source).publish(base, &head, deadline).map_err(core_error)?;
+                }
+                DeleteStep::Release(binding) => {
+                    let mut next = binding.body.raw().clone();
+                    next.state = BindingState::Tombstone; next.revision += 1; next.control = Some(control.raw().clone());
+                    self.write_binding(&next, Some(&binding.etag), deadline)?;
+                }
+            }
+        }
+        let view = self.view(&source, deadline)?;
+        let plan = self.delete_plan(&source, &control, &view)?;
+        Ok(Self::deletion_progress(&source, &control, &view, plan.phase()))
+    }
+
+    fn admin<'a>(source: &Source, view: &'a View, principal: u64) -> Result<&'a Snapshot, CatalogueError> {
+        let binding = view.binding.as_ref().filter(|b| b.body.creation == source.creation);
+        let must_exist = binding.is_some_and(|b| matches!(b.stage, NameStage::Bound | NameStage::Aborted { .. } | NameStage::Deleted(_))) || view.proof.is_some();
+        let head = view.head.as_ref().ok_or(if must_exist { CatalogueError::Corrupt } else { CatalogueError::NotFound })?;
         if let Some(binding) = binding {
-            if binding.body.state == BindingState::Tombstone {
-                Self::tombstone_view(&binding.body, view)?;
-            }
+            if matches!(binding.stage, NameStage::Aborted { .. } | NameStage::Deleted(_)) { Self::tombstone_view(binding, view)?; }
         }
-        if let Some(proof) = &view.proof {
-            Self::barrier(&head.head, &proof.body)?;
-        }
-        if !Self::own(descriptor, &head.head)? {
-            if binding.is_some_and(|binding| binding.body.state == BindingState::Bound) {
-                return Err(CatalogueError::Corrupt);
-            }
+        if let Some(proof) = &view.proof { Self::barrier(&head.head, proof)?; }
+        if !Self::own(source, &head.head) {
+            if binding.is_some_and(|b| b.stage == NameStage::Bound) { return Err(CatalogueError::Corrupt); }
             return Err(CatalogueError::IdentityConflict);
         }
         Database::permission(&head.head, principal, false, false, true).map_err(core_error)?;
         Ok(head)
     }
 
-    fn deletion_phase(
-        &self,
-        descriptor: &Descriptor,
-        control: &Control,
-        view: &View,
-    ) -> Result<DeletionPhase, CatalogueError> {
-        let head = &Self::admin(descriptor, view, control.principal)?.head;
-        let binding = &view.binding.as_ref().ok_or(CatalogueError::Corrupt)?.body;
-        if head.lifecycle != Lifecycle::Deleted {
+    fn delete_plan<'a>(&self, source: &Source, control: &Admitted, view: &'a View) -> Result<DeleteStep<'a>, CatalogueError> {
+        let base = Self::admin(source, view, control.principal)?;
+        let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
+        if base.head.lifecycle != Lifecycle::Deleted {
             require(view.proof.is_none())?;
-            require(binding.creation == descriptor.creation)?;
-            if head.lifecycle == Lifecycle::Provisioning {
-                Self::provisioning(descriptor, head)?;
-            } else {
-                require(binding.state == BindingState::Bound)?;
+            require(binding.body.creation == source.creation)?;
+            if base.head.lifecycle == Lifecycle::Provisioning {
+                Self::provisioning(source, &base.head)?;
+                return Ok(DeleteStep::Blocked);
             }
-            return Ok(DeletionPhase::NotDeleted);
+            require(binding.stage == NameStage::Bound)?;
+            if binding.body.revision != control.expected_name_revision || Some(base.head.revision) != control.expected_head_revision {
+                return Err(CatalogueError::Conflict);
+            }
+            return Ok(DeleteStep::Publish(base));
         }
-        if head.deletion.as_ref() != Some(&control.mark()?) {
-            return Err(CatalogueError::Conflict);
-        }
-        Self::deleted(head, control)?;
+        if base.head.deletion.as_ref() != Some(&control.mark()) { return Err(CatalogueError::Conflict); }
+        Self::deleted(&base.head, control)?;
         require(view.proof.is_none())?;
-        if binding.creation != descriptor.creation {
-            require(
-                binding.revision > descriptor.creation.expected_name_revision.unwrap_or(0) + 3,
-            )?;
-            return Ok(DeletionPhase::Deleted);
+        if binding.body.creation != source.creation {
+            require(binding.body.revision > source.creation.expected_name_revision.unwrap_or(0) + 3)?;
+            return Ok(DeleteStep::Done);
         }
-        match binding.state {
-            BindingState::Bound => {
-                require(binding.revision == control.expected_name_revision)?;
-                Ok(DeletionPhase::Deleting)
+        match &binding.stage {
+            NameStage::Bound => {
+                require(binding.body.revision == control.expected_name_revision)?;
+                Ok(DeleteStep::Release(binding))
             }
-            BindingState::Tombstone => {
-                require(binding.control.as_ref() == Some(control))?;
-                Ok(DeletionPhase::Deleted)
-            }
+            NameStage::Deleted(accepted) => { require(accepted == control)?; Ok(DeleteStep::Done) }
             _ => Err(CatalogueError::Corrupt),
         }
     }
 
-    fn deletion_progress(
-        &self,
-        descriptor: &Descriptor,
-        control: &Control,
-        view: &View,
-        phase: DeletionPhase,
-    ) -> Result<DeletionProgress, CatalogueError> {
-        let (binding_revision, head_revision) = Self::revisions(descriptor, view)?;
-        Ok(DeletionProgress {
-            creation: descriptor.creation.clone(),
-            operation: control.operation,
-            nonce: control.nonce,
-            phase,
-            binding_revision,
-            head_revision,
-        })
+    fn deletion_progress(source: &Source, control: &Admitted, view: &View, phase: DeletionPhase) -> DeletionProgress {
+        let (binding_revision, head_revision) = Self::revisions(source, view);
+        DeletionProgress { creation: source.creation.clone(), operation: control.operation, nonce: control.nonce, phase, binding_revision, head_revision }
     }
 }

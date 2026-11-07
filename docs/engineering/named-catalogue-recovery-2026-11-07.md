@@ -38,7 +38,8 @@
 4. resolve 遇到取消 Tombstone 时验证永久 AbortProof，遇到 Bound 配正常 Deleted HEAD 时验证原 Delete ControlDescriptor，再返回不可服务；不能把损坏伪装成普通 NotFound。
 5. 原 abort 遇同名后继绑定与自身正常 Deleted HEAD 时，要求后继 revision 严格大于旧终态 revision，并核对原正常删除来源；不得编辑新绑定。
 6. Canonical 包装只从严格 decode、语义验证、规范重编码一致的记录构造，保留已验证字节及摘要。名称和 HEAD 仍 fresh exact GET，不能用类型封装消除必要的权威读取。
-7. HEAD JSON format 3 与不可变 SCAPOBJ2 format 2 分别校验；保留 HEAD 2 结果作为历史证据，新源码须重新运行受影响真实合同。
+7. Aborting 的稳定名称下，读取顺序采用 Binding→Proof→HEAD→Binding；Proof 是永久记录且晚于身份屏障发布。必须用 HEAD 从 404 或 Provisioning 并发推进到 Deleted+Proof 的行为测试验证，不能让旧 HEAD 配新 Proof 误报 Corrupt。
+8. HEAD JSON format 3 与不可变 SCAPOBJ2 format 2 分别校验；保留 HEAD 2 结果作为历史证据，新源码须重新运行受影响真实合同。
 
 ## 恢复与继续顺序
 
@@ -56,3 +57,8 @@
 ## 恢复来源清单
 
 精确文件路径、Git blob、来源分类、已知缺失及未执行修复由同批恢复提交的机器清单记录。读回相同 blob 证明保存文本一致，不证明该文本可编译、被实际运行或与失联磁盘最后一刻完全相同。
+
+- [总恢复机器清单](../evidence/named-catalogue-recovery-2026-11-07.json)：精确 Git 基线、文件 blob、来源分类及远端检查状态。
+- [核心恢复清单](named-catalogue-core-recovery-manifest-2026-11-07.md)：类型适配、尚未编译的源码及并发修正。
+- [网络恢复清单](../evidence/named-catalogue-network-recovery-2026-11-07.json)：原首轮失败、无法回取的日志和矩阵边界。
+- [尚未应用的网络修复](named-catalogue-network-proposed-edits-2026-11-07.json)：每项绑定原 blob 和唯一 literal 匹配条件，保持 PROPOSED_NOT_APPLIED_NOT_RUN。
