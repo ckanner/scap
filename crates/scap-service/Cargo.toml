@@ -1,0 +1,32 @@
+[package]
+name = "scap-service"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+scap-object = { path = "../scap-object" }
+scap-object-store = { path = "../scap-object-store" }
+scap-object-sqlite = { path = "../scap-object-sqlite" }
+scap-sql = { path = "../scap-sql" }
+axum = { version = "=0.8.8", default-features = false, features = ["http1", "tokio", "json"] }
+http-body = "=1.1.0"
+tokio = { version = "=1.50.0", features = ["rt-multi-thread", "net", "sync", "time", "signal"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.145", features = ["raw_value"] }
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
+subtle = "=2.6.1"
+tempfile = "=3.27.0"
+
+[dev-dependencies]
+tower = { version = "=0.5.3", features = ["util"] }
+tokio = { version = "=1.50.0", features = ["io-util"] }
+
+[[bin]]
+name = "scapd"
+path = "src/main.rs"
+
+[lints]
+workspace = true

@@ -1,0 +1,13 @@
+{
+  "name": "@scap/node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.16.0" },
+  "exports": { ".": { "types": "./src/client.d.ts", "import": "./src/client.js" } },
+  "scripts": {
+    "test": "node test/run.mjs",
+    "check:coverage": "node test/check-coverage.mjs",
+    "test:http": "node --test test/http.test.js"
+  }
+}

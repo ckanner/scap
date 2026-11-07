@@ -123,6 +123,9 @@ jobs:
           rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
           c++ --version
           dpkg-query --show libclang-18-dev
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
       - name: Fetch the pinned local S3-compatible server
         run: |
           mkdir -p target/object-network-tools
@@ -132,8 +135,10 @@ jobs:
           echo 'c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  target/object-network-tools/weed.tar.gz' | sha256sum --check --strict
           tar -xzf target/object-network-tools/weed.tar.gz -C target/object-network-tools weed
           target/object-network-tools/weed version
-      - name: Check result and schema fixture controls (not native acceptance)
-        run: python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
+      - name: Check semantic-result fault fixture controls (not native acceptance)
+        run: |
+          python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -166,6 +171,17 @@ jobs:
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --profile gib1 \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-capacity-gib1"
+      - name: Build and verify the actual authenticated HTTP service and Node SDK
+        run: |
+          service_target="$GITHUB_WORKSPACE/target/object-service-build"
+          python3 experiments/object-service/build.py \
+            --target-dir "$service_target" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/object-service-build"
+          python3 experiments/object-service/run.py \
+            --server "$service_target/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/object-service"
       - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -201,4 +217,10 @@ jobs:
             target/evidence/retained-result-contract/fault-ack-ledger.jsonl
             target/evidence/retained-result-contract/fault-outcome-ledger.jsonl
             target/evidence/retained-result-contract/fault-cases.jsonl
+            target/evidence/object-service-build/build.json
+            target/evidence/object-service-build/cargo.stdout.jsonl
+            target/evidence/object-service-build/cargo.stderr.log
+            target/evidence/object-service/*.json
+            target/evidence/object-service/*.jsonl
+            target/evidence/object-service/*.log
           if-no-files-found: error

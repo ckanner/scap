@@ -4,6 +4,8 @@
 | --- | --- |
 | 已接受的目标方案 | [对象存储原生方案](architecture/object-storage-native-proposal.md)、[ADR-0020](adr/0020-object-storage-native-authority.md) |
 | 当前实际实现 | [对象运行时](engineering/object-runtime.md)、[ADR-0021](adr/0021-object-native-runtime.md) |
+| HTTP 与 Node 接入 | [ADR-0023](adr/0023-authenticated-http-and-node-sdk.md)、[服务配置](../crates/scap-service/README.md)、[Node SDK](../sdk/node/README.md)、[恢复手册](operations/http-service.md) |
+| HTTP／Node 完整本地验收 | [冻结候选、独立审计与限制](engineering/http-service-validation.md)、[机器证据](evidence/http-service-local-2026-11-07.json) |
 | 逻辑协议模型 | [N0 验证](engineering/object-authority-n0.md) |
 | 阶段与剩余工作 | [路线图](engineering/roadmap.md) |
 | 本批原生修复验收 | [ALTER 与保留结果完整本地验收](engineering/native-integrity-validation.md)、[机器证据](evidence/native-integrity-local-2026-11-06.json) |

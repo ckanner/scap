@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/scap-sql", "crates/scap-object", "crates/scap-object-store", "crates/scap-object-sqlite"]
+members = ["crates/scap-sql", "crates/scap-object", "crates/scap-object-store", "crates/scap-object-sqlite", "crates/scap-service"]
 resolver = "2"
 
 [workspace.package]

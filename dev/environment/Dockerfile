@@ -17,6 +17,8 @@ COPY dev/environment/validate.sh /usr/local/bin/scap-validate
 COPY Cargo.toml Cargo.lock rust-toolchain.toml /tmp/scap-source/
 COPY crates /tmp/scap-source/crates
 COPY experiments/object-network /tmp/scap-source/experiments/object-network
+# prepare installs checksum-pinned Node 22.16.0 plus its bundled npm under
+# /opt/scap/node; enter.sh exposes them without relying on host Node packages.
 RUN python3 /usr/local/lib/scap-environment/bootstrap.py prepare \
       --repo /tmp/scap-source --prefix /opt/scap --libclang /usr/lib/llvm-18/lib \
       --evidence /opt/scap-build-evidence \

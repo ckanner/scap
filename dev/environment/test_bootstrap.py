@@ -26,6 +26,16 @@ def checkout(root):
     return repo, native
 
 
+def fake_node_install(_archive, destination):
+    """Metadata-only fixture; no claim that these files execute Node/npm."""
+    (destination / 'bin').mkdir(parents=True)
+    (destination / 'bin/node').write_bytes(b'fixture-only-node-not-executed')
+    npm = destination / 'lib/node_modules/npm/bin/npm-cli.js'
+    npm.parent.mkdir(parents=True)
+    npm.write_bytes(b'fixture-only-npm-not-executed')
+    (destination / 'bin/npm').symlink_to('../lib/node_modules/npm/bin/npm-cli.js')
+
+
 class FakeCommands:
     """Exercise ordering/failure handling without launching installers."""
     def __init__(self, prefix, failure=None, bad_hash=False, drift=None):
@@ -91,7 +101,8 @@ class UtilityTests(unittest.TestCase):
 
     def test_isolation_removes_ambient_coverage_and_custom_tool_wrappers(self):
         env = {'PATH': '/usr/bin', 'LLVM_PROFILE_FILE': 'old.profraw', 'RUSTFLAGS': '-C instrument-coverage',
-               'CARGO_HOME': '/user/cargo', 'RUSTUP_DIST_SERVER': 'http://untrusted', 'USER_VARIABLE': 'kept'}
+               'CARGO_HOME': '/user/cargo', 'RUSTUP_DIST_SERVER': 'http://untrusted', 'USER_VARIABLE': 'kept',
+               'NODE_OPTIONS': '--require=/wrong.js', 'NODE_PATH': '/wrong', 'NODE_V8_COVERAGE': '/old'}
         with mock.patch.dict(os.environ, env, clear=True):
             actual = b.isolated_environment(Path('/new'), Path('/clang'))
         self.assertNotIn('LLVM_PROFILE_FILE', actual)
@@ -99,6 +110,9 @@ class UtilityTests(unittest.TestCase):
         self.assertNotIn('RUSTUP_DIST_SERVER', actual)
         self.assertEqual(actual['CARGO_HOME'], '/new/cargo')
         self.assertEqual(actual['USER_VARIABLE'], 'kept')
+        self.assertEqual(actual['PATH'], '/new/cargo/bin:/new/node/bin:/usr/bin')
+        for name in ('NODE_OPTIONS', 'NODE_PATH', 'NODE_V8_COVERAGE'):
+            self.assertNotIn(name, actual)
     def test_download_hash_is_checked_before_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)/'binary'; p.write_bytes(b'data'); checksum = Path(tmp)/'sum'
@@ -128,6 +142,46 @@ class UtilityTests(unittest.TestCase):
                 p = archive(str(i)+'.tar.gz', records)
                 with mock.patch.object(b, 'SEAWEED_SHA256', b.sha(p)), self.assertRaises(b.Blocked):
                     b.extract_weed(p, root/f'not-extracted-{i}')
+
+    def test_node_archive_preserves_bundled_npm_and_rejects_unsafe_or_incomplete_layouts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            top = f'node-v{b.NODE}-linux-x64'
+            def archive(name, entries):
+                path = root / name
+                with tarfile.open(path, 'w:xz') as output:
+                    for member, kind, value in entries:
+                        info = tarfile.TarInfo(member); info.mode = 0o755
+                        if kind == 'file':
+                            info.size = len(value); output.addfile(info, io.BytesIO(value))
+                        else:
+                            info.type = tarfile.SYMTYPE; info.linkname = value; output.addfile(info)
+                return path
+            valid = [(top + '/bin/node', 'file', b'node fixture'),
+                     (top + '/lib/node_modules/npm/bin/npm-cli.js', 'file', b'npm fixture'),
+                     (top + '/bin/npm', 'symlink', '../lib/node_modules/npm/bin/npm-cli.js')]
+            source = archive('valid.tar.xz', valid)
+            with self.assertRaisesRegex(b.Blocked, 'SHA-256'):
+                b.extract_node(source, root / 'bad-hash')
+            with mock.patch.object(b, 'NODE_SHA256', b.sha(source)):
+                b.extract_node(source, root / 'node')
+                with self.assertRaisesRegex(b.Blocked, 'already exists'):
+                    b.extract_node(source, root / 'node')
+            self.assertEqual((root / 'node/bin/npm').read_bytes(), b'npm fixture')
+            self.assertTrue((root / 'node/bin/npm').is_symlink())
+            cases = [[], [('unexpected/bin/node', 'file', b'x')], valid[:1],
+                     [(top + '/bin/npm', 'symlink', '/outside/npm')],
+                     [(top + '/../../escape', 'file', b'x')]]
+            for index, entries in enumerate(cases):
+                with self.subTest(index=index):
+                    source = archive(f'bad-{index}.tar.xz', entries)
+                    with mock.patch.object(b, 'NODE_SHA256', b.sha(source)), self.assertRaises(b.Blocked):
+                        b.extract_node(source, root / f'node-{index}')
+                    self.assertFalse((root / f'node-{index}').exists())
+            self.assertFalse((root / 'escape').exists())
+            broken = root / 'broken.tar.xz'; broken.write_bytes(b'not an xz archive')
+            with mock.patch.object(b, 'NODE_SHA256', b.sha(broken)), self.assertRaises(b.Blocked):
+                b.extract_node(broken, root / 'broken-node')
 
 
 class CommandTests(unittest.TestCase):
@@ -164,6 +218,7 @@ class PreparationTests(unittest.TestCase):
              mock.patch.object(b.platform,'machine',return_value='x86_64'), \
              mock.patch.object(b.shutil,'which',return_value='/usr/bin/present'), \
              mock.patch.object(b,'extract_weed'), \
+             mock.patch.object(b,'extract_node',side_effect=fake_node_install), \
              mock.patch.object(b,'smoke',side_effect=b.Blocked('smoke failure') if smoke_fail else None,
                                return_value={'scope':'simulated-control-flow-only'}):
             try:
@@ -177,6 +232,7 @@ class PreparationTests(unittest.TestCase):
             self.assertEqual(result['status'],'environment_ready')
             names = [r['stage'] for r in commands.records]
             self.assertIn('install-stable', names); self.assertIn('install-nightly', names)
+            self.assertIn('download-node', names)
             self.assertIn('offline-metadata-1',names)
             self.assertEqual(result['project_validation'],'NOT_RUN')
             self.assertEqual(b.check_ready(repo,prefix)['status'],'environment_ready')
@@ -187,11 +243,14 @@ class PreparationTests(unittest.TestCase):
                     self.assertEqual(env['CARGO_NET_OFFLINE'],'true')
             self.assertFalse((prefix/'offline-cargo/registry').exists())
             self.assertIn('CARGO_NET_OFFLINE=true',(prefix/'env.sh').read_text())
+            self.assertIn(str(prefix/'node/bin'), (prefix/'env.sh').read_text())
+            self.assertEqual(result['pinned_node'], b.NODE)
+            self.assertEqual(result['node_archive_sha256'], b.NODE_SHA256)
             vendor = next(r for r in commands.records if r['stage']=='vendor-locked-dependencies')['argv']
             self.assertIn('--locked',vendor); self.assertIn('--sync',vendor)
     def test_every_downstream_failure_never_writes_ready(self):
         stages = ('download-rustup','download-rustup-checksum','install-rustup','install-stable','install-nightly',
-                  'install-llvm-cov','create-venv','install-coverage','download-seaweed',
+                  'install-llvm-cov','create-venv','install-coverage','download-seaweed','download-node',
                   'vendor-locked-dependencies','offline-metadata-0','offline-metadata-1','native-compile-probe')
         for stage in stages:
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
@@ -221,16 +280,23 @@ class PreparationTests(unittest.TestCase):
             with mock.patch.object(b.shutil,'which',return_value=None),self.assertRaises(b.Blocked):
                 b.prepare(repo,root/'another',native,commands)
     def test_environment_reuse_detects_dependency_and_configuration_drift(self):
-        for mode in ('dependency','config','runtime_config','relocation','not_ready'):
+        for mode in ('dependency','config','runtime_config','relocation','not_ready','node','npm','npm_command','node_pin','node_archive'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
                 repo,prefix,_,result=self.execute(Path(tmp))
                 if mode=='dependency': (repo/'Cargo.lock').write_text('changed')
                 if mode=='config': (prefix/'cargo/config.toml').write_text('changed')
                 if mode=='runtime_config': (prefix/'offline-cargo/config.toml').write_text('changed')
-                if mode in ('relocation','not_ready'):
+                if mode=='node': (prefix/'node/bin/node').write_bytes(b'changed')
+                if mode=='npm': (prefix/'node/lib/node_modules/npm/bin/npm-cli.js').write_bytes(b'changed')
+                if mode=='npm_command':
+                    (prefix/'node/bin/npm').unlink()
+                    (prefix/'node/bin/npm').write_bytes(b'replaced command')
+                if mode in ('relocation','not_ready','node_pin','node_archive'):
                     state=json.loads((prefix/'READY.json').read_text())
                     if mode=='relocation':state['prefix']='/different-prefix'
-                    else: state['status']='installing'
+                    if mode=='not_ready':state['status']='installing'
+                    if mode=='node_pin':state.pop('pinned_node')
+                    if mode=='node_archive':state['node_archive_sha256']='0'*64
                     (prefix/'READY.json').write_text(json.dumps(state))
                 with self.assertRaises(b.Blocked): b.check_ready(repo,prefix)
     def test_ready_is_not_published_if_env_script_creation_fails(self):
@@ -244,6 +310,7 @@ class PreparationTests(unittest.TestCase):
                 return original(path, *args, **kwargs)
             with mock.patch.object(b.shutil, 'which', return_value='present'), \
                  mock.patch.object(b, 'extract_weed'), \
+                 mock.patch.object(b, 'extract_node', side_effect=fake_node_install), \
                  mock.patch.object(b, 'smoke', return_value={'scope': 'mock only'}), \
                  mock.patch.object(Path, 'write_text', write), self.assertRaises(OSError):
                 b.prepare(repo, prefix, native, commands)
@@ -265,7 +332,8 @@ class PreparationTests(unittest.TestCase):
                 if name=='vendor-locked-dependencies':return 'unrelated=1\n'
                 return original(name,*args,**kw)
             commands.run=run
-            with mock.patch.object(b.shutil,'which',return_value='present'),mock.patch.object(b,'extract_weed'),self.assertRaises(b.Blocked):
+            with mock.patch.object(b.shutil,'which',return_value='present'),mock.patch.object(b,'extract_weed'), \
+                 mock.patch.object(b,'extract_node',side_effect=fake_node_install),self.assertRaises(b.Blocked):
                 b.prepare(repo,prefix,native,commands)
             self.assertFalse((prefix/'READY.json').exists())
 
@@ -277,6 +345,7 @@ class SmokeCommands:
                 'nightly-version':'rustc 1.92.0-nightly (fixture)\nhost: x86_64-unknown-linux-gnu',
                 'llvm-cov-version':'cargo-llvm-cov 0.6.21', 'coverage-version':'Coverage.py 7.10.6',
                 'libclang-smoke':'Ubuntu clang version 18.0.0',
+                'node-version':'v22.16.0\n', 'npm-version':'10.9.2\n',
                 'weed-version':'version 4.51 153ab668c99731a6d29492bf6c61d0b4fa701101 linux amd64'}
         if name=='llvm-smoke':
             (self.prefix/'smoke/llvm.json').write_text(json.dumps({'data':[] if self.failure==name else [{}]}))
@@ -285,7 +354,8 @@ class SmokeCommands:
 
 class SmokeAndCLITests(unittest.TestCase):
     def test_smoke_checks_all_pinned_versions_and_actual_llvm_report(self):
-        for stage in (None,'stable-version','nightly-version','llvm-cov-version','coverage-version','libclang-smoke','weed-version','llvm-smoke'):
+        for stage in (None,'stable-version','nightly-version','llvm-cov-version','coverage-version','libclang-smoke',
+                      'weed-version','node-version','npm-version','llvm-smoke'):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp:
                 p=Path(tmp);commands=SmokeCommands(p,stage)
                 if stage is None:

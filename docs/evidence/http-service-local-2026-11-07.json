@@ -1,0 +1,645 @@
+{
+  "schema_version": 1,
+  "experiment": "authenticated-http-node-sdk-local-acceptance",
+  "report_date": "2026-11-07",
+  "report_timezone": "UTC",
+  "status": "passed",
+  "scope": "Frozen local unit, exact coverage, native HTTP/S3, retained-result and 1 GiB recovery gates; not an overall N1/N2 or production exit.",
+  "tested_source": {
+    "commit": "aa01150145f6b1017dafc024b9c12c8ad4251556",
+    "tree": "a086fb30fc2ae058f9ba5bca1e310a82f7d4e725",
+    "tracked_files": 162,
+    "source_sha256": "51ea5e38c2c70f28adcd53224e36937fdda441a05faa18e56696f4fa725e4ea5",
+    "manifest_sha256": "77db95d024796c4bca9ea3affffce06877ec36b94dbdd8d9c80af66fc952229f"
+  },
+  "source_identity": {
+    "before_after_verified_in": [
+      "runtime-final-002",
+      "runtime-final-002/network-rerun-001",
+      "service-final-002"
+    ],
+    "working_files_changed_during_acceptance": [],
+    "git_blob_bytes_independently_verified": 162,
+    "after_acceptance_changes": "Documentation and evidence only; final delivery tree and unchanged runtime/input proof are recorded separately."
+  },
+  "independent_audit": {
+    "path": "audit/acceptance-v2-audit-001.json",
+    "sha256": "2cd191ab19e1ecb0440e285153ccb320952b0ef65fe0b84ceb1ecf1c76b9df1f",
+    "bytes": 45235,
+    "status": "PASS",
+    "imports_product_fixture": false,
+    "sources": {
+      "acceptance_audit_v2.py": "4eacca45fa3c5deff98e0514b68d505abba081a3682e7c7f84e891c4e6125354",
+      "checkpoint_audit.py": "7fae86895e92bd4d7b77bd980d458088d61210d2486cbb62297da6fb1df74e22"
+    },
+    "exit_records_verified": 54,
+    "exit_log_hashes_and_captured_bytes_match": true
+  },
+  "builds": {
+    "scapd": {
+      "status": "passed",
+      "profile": "release",
+      "source_commit": "aa01150145f6b1017dafc024b9c12c8ad4251556",
+      "input_files": 85,
+      "binary_sha256": "0aedd7548747a26f8f3f402e85594a15f0a2095418484465fd97966e1bd92cee",
+      "native_archive_sha256": [
+        "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      ],
+      "complete_target_native_and_final_build_finished_trace": true,
+      "stdout_bytes": 195852,
+      "stderr_bytes": 6597,
+      "receipt": {
+        "path": "service-final-002/build/build.json",
+        "sha256": "601170ae4f194f3917346a187147d92924d4d3e346cf3cf99a554c667227c24c",
+        "bytes": 10626
+      },
+      "stdout_sha256": "1424cf3c2be7f3550ced541470c785d2613ed5666f606c16dc3d0efbcc8bdf1e",
+      "stderr_sha256": "e8cb979ae810117f6dd09f0a88871a6a6674aa12863fda3bad904ccf1093448c",
+      "input_inventory_independently_complete": true
+    },
+    "worker_successful_rerun": {
+      "status": "passed",
+      "profile": "release",
+      "source_commit": "aa01150145f6b1017dafc024b9c12c8ad4251556",
+      "input_files": 68,
+      "binary_sha256": "ecce081d32c9bab7e3bc33702eb2dfe6913c88ce8c6677f68edcc7707dfdab41",
+      "native_archive_sha256": [
+        "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      ],
+      "complete_target_native_and_final_build_finished_trace": true,
+      "stdout_bytes": 183364,
+      "stderr_bytes": 62,
+      "receipt": {
+        "path": "runtime-final-002/network-rerun-001/build/build.json",
+        "sha256": "3389ad3f324acd0c958c0154d345650cb759d531be90f5a4a3ebd92aeab6b7ef",
+        "bytes": 9265
+      },
+      "stdout_sha256": "431bcd6d947f1baea272b02a7123899a4600ca29d82ee17f1ea5af2a5c471108",
+      "stderr_sha256": "343c13e7f6f2d320993b573f830525e33b59b3c32656ef426e015b1e30f3fdc2",
+      "input_inventory_independently_complete": true,
+      "input_sha256": "1005e10cc020bfba48eb07ba6bbfb8734afa73a9699bec4fcd2f437041d5c8da"
+    }
+  },
+  "toolchain": {
+    "rust_stable": "1.90.0",
+    "rust_nightly": "nightly-2025-09-18 (1.92.0-nightly 4645a7988)",
+    "llvm_stable": "20.1.8",
+    "llvm_nightly": "21.1.1",
+    "cargo_llvm_cov": "0.6.21",
+    "coverage_py": "7.10.6",
+    "node": "22.16.0",
+    "cc_cxx": "Ubuntu 13.3.0-6ubuntu2~24.04",
+    "seaweedfs": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "node_binary_sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d",
+    "seaweedfs_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  },
+  "rust_unit": {
+    "stable_passed": 199,
+    "nightly_passed": 199,
+    "by_target": {
+      "scap-object": 73,
+      "scap-object-sqlite": 61,
+      "scap-object-store": 7,
+      "scap-service_lib": 40,
+      "scapd_bin": 0,
+      "scap-sql": 18
+    },
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "production_file_count": 23,
+    "covered_equals_total": {
+      "lines": 3984,
+      "functions": 382,
+      "regions": 6055,
+      "branches": 790
+    },
+    "per_file_metric_order": [
+      "lines",
+      "functions",
+      "regions",
+      "branches"
+    ],
+    "per_file_covered_equals_total": {
+      "crates/scap-object-sqlite/src/config.rs": [
+        106,
+        15,
+        177,
+        14
+      ],
+      "crates/scap-object-sqlite/src/file.rs": [
+        123,
+        16,
+        149,
+        24
+      ],
+      "crates/scap-object-sqlite/src/gate.rs": [
+        104,
+        13,
+        123,
+        20
+      ],
+      "crates/scap-object-sqlite/src/image.rs": [
+        64,
+        3,
+        74,
+        38
+      ],
+      "crates/scap-object-sqlite/src/lib.rs": [
+        116,
+        7,
+        168,
+        12
+      ],
+      "crates/scap-object-sqlite/src/query.rs": [
+        46,
+        6,
+        75,
+        6
+      ],
+      "crates/scap-object-sqlite/src/sql.rs": [
+        366,
+        20,
+        409,
+        70
+      ],
+      "crates/scap-object-store/src/lib.rs": [
+        201,
+        19,
+        282,
+        68
+      ],
+      "crates/scap-object/src/data_tree.rs": [
+        263,
+        21,
+        416,
+        60
+      ],
+      "crates/scap-object/src/format.rs": [
+        264,
+        28,
+        515,
+        22
+      ],
+      "crates/scap-object/src/lib.rs": [
+        838,
+        74,
+        1318,
+        112
+      ],
+      "crates/scap-object/src/options.rs": [
+        95,
+        6,
+        111,
+        36
+      ],
+      "crates/scap-service/src/auth.rs": [
+        68,
+        11,
+        101,
+        28
+      ],
+      "crates/scap-service/src/config.rs": [
+        91,
+        12,
+        111,
+        48
+      ],
+      "crates/scap-service/src/daemon.rs": [
+        109,
+        19,
+        167,
+        2
+      ],
+      "crates/scap-service/src/engine.rs": [
+        253,
+        15,
+        370,
+        22
+      ],
+      "crates/scap-service/src/http.rs": [
+        143,
+        18,
+        241,
+        28
+      ],
+      "crates/scap-service/src/lib.rs": [
+        36,
+        2,
+        33,
+        0
+      ],
+      "crates/scap-service/src/main.rs": [
+        3,
+        1,
+        6,
+        0
+      ],
+      "crates/scap-service/src/scheduler.rs": [
+        214,
+        24,
+        321,
+        68
+      ],
+      "crates/scap-service/src/wire.rs": [
+        231,
+        32,
+        388,
+        40
+      ],
+      "crates/scap-sql/src/lib.rs": [
+        208,
+        18,
+        408,
+        60
+      ],
+      "crates/scap-sql/src/result_validation.rs": [
+        42,
+        2,
+        92,
+        12
+      ]
+    },
+    "structurally_branchless_files": [
+      "crates/scap-service/src/lib.rs",
+      "crates/scap-service/src/main.rs"
+    ],
+    "branchless_semantics": "These two files are 0/0 branches, not measured 100 percent branch coverage; lines/functions/regions have positive denominators.",
+    "raw_profile_count": 209,
+    "initial_coverage_target_absent": true,
+    "actual_recorded_and_merge_profile_sets_equal": true,
+    "integration_profiles_used": false,
+    "raw_llvm_json": {
+      "path": "runtime-final-002/unit.json",
+      "sha256": "49eca207ceb2c3a9ec604e80579fa8ec7d0438372c05e92c711eaf84de9b7212",
+      "bytes": 35882720
+    },
+    "merge_list_sha256": "79975ba2655f5266353a0ae42d25ea68f2221d5ee42080971c0df4ccb91b6406",
+    "merged_profdata_sha256": "d5df8bf7bcba8941302f5bfda602f193d9cf1359dccde9aaf44e2a6823f6f7f3"
+  },
+  "other_units": {
+    "test_counts": {
+      "tooling-unit": 74,
+      "fixture-unit": 41,
+      "service-fixture-unit": 27,
+      "model-unit": 89,
+      "developer-tools": 32,
+      "node-codec": 13,
+      "node-sdk": 24,
+      "node-sdk-http": 4
+    },
+    "tooling_per_file_exact": {
+      "scripts/check_repo.py": {
+        "statements": 133,
+        "branches": 52
+      },
+      "scripts/check_unit_coverage.py": {
+        "statements": 108,
+        "branches": 64
+      },
+      "scripts/source_manifest.py": {
+        "statements": 160,
+        "branches": 68
+      }
+    },
+    "developer_per_file_exact": {
+      "dev/environment/bootstrap.py": {
+        "statements": 280,
+        "branches": 36
+      }
+    },
+    "tooling_excluded_lines": 0,
+    "node_module_exact_v8": {
+      "sdk/node-codec/src/codec.js": {
+        "functions": 17,
+        "positive_ranges": 89
+      },
+      "sdk/node/src/client.js": {
+        "functions": 31,
+        "positive_ranges": 40
+      },
+      "sdk/node/src/wire.js": {
+        "functions": 38,
+        "positive_ranges": 113
+      },
+      "sdk/node/src/transport.js": {
+        "functions": 14,
+        "positive_ranges": 75
+      },
+      "sdk/node/src/errors.js": {
+        "functions": 5,
+        "positive_ranges": 5
+      }
+    },
+    "node_line_function_branch_tables": "100 percent for each production module; raw V8 every function/range count positive.",
+    "node_http_contract_profiles_used_for_unit": false,
+    "model": {
+      "positive_cases": 664,
+      "negative_controls": 30,
+      "negative_controls_rejected": 30,
+      "independently_hashed_artifacts": 694
+    }
+  },
+  "quality_gates_passed": [
+    "format-workspace",
+    "format-network",
+    "clippy-workspace",
+    "clippy-network",
+    "repository",
+    "actionlint",
+    "developer-enter-syntax",
+    "developer-validate-syntax"
+  ],
+  "http_service": {
+    "status": "PASS",
+    "unique_acknowledged_requests": 10,
+    "exact_duplicate_ack_responses": 8,
+    "independently_decoded_ack_results": 10,
+    "independent_request_fingerprints": 10,
+    "blob_results_independently_hashed": 8,
+    "ack_blob_bytes_hashed": 524288,
+    "recovery_probe_exact_ack_comparisons": 18,
+    "recovery_probe_business_rows": 10,
+    "compute_sigkills": 2,
+    "backend_sigkills": 4,
+    "unknown_separate_from_ack_ledger": true,
+    "suppressed_successful_head_response": true,
+    "summary": {
+      "path": "service-final-002/http-s3/summary.json",
+      "sha256": "3e7980223ce9d170627c7f7057cc8e82d582fdedf1a7038c0568b81899754986",
+      "bytes": 16441
+    },
+    "audit_boundary": "Raw ACK/input bytes independently decoded and hashed. Service recovery is supported by frozen real SDK probe assertions and complete phase records; private service files were already removed. The 1 GiB recovered file received an additional independent read-only rehash."
+  },
+  "network": {
+    "status": "PASS",
+    "base_contracts": 10,
+    "base_acknowledgements": 4,
+    "extended_fault_cases_passed": 30,
+    "extended_fault_acknowledgements": 61,
+    "schema_acknowledgements": 12,
+    "schema_exact_comparisons": 36,
+    "all_receipt_and_encoded_result_mismatches": 0,
+    "summary": {
+      "path": "runtime-final-002/network-rerun-001/network/summary.json",
+      "sha256": "eec7dbc6075a76e7aa46eb2293830ed50524175f825487ad46eb72a49bb5e505",
+      "bytes": 111653
+    }
+  },
+  "retained_result": {
+    "status": "PASS",
+    "scenarios": 12,
+    "entrypoints_per_scenario": 5,
+    "corrupt_refusals": 60,
+    "acknowledgements": 30,
+    "receipt_result_mismatches": 0,
+    "refusal_checks": [
+      "actual_result_get",
+      "head_unchanged",
+      "recovery_directory_absent"
+    ],
+    "summary": {
+      "path": "runtime-final-002/network-rerun-001/retained/summary.json",
+      "sha256": "672ae3b104084dd7749d07a1ba580c966c2cf25cacb094d67f3979c890b93042",
+      "bytes": 7957
+    }
+  },
+  "gib1": {
+    "status": "PASS",
+    "input_operations_applied": 39,
+    "rows_hashed": 16384,
+    "bytes_hashed": 1073741824,
+    "mismatches": 0,
+    "sqlite_reader_version": "3.53.1",
+    "mode": "Independent immutable read-only recovered local SQLite file; not a second S3 recovery.",
+    "wal_bytes": 0,
+    "database_file_bytes": 1082163200,
+    "expected_map_sha256": "c1a042014ad5d06e583ca34d7d7842d1f866cdd51de7cb48e8c701b483b55a7e",
+    "input_ledger_sha256": "e636fa1e6a62cf6d77ae6cc937b9aeedd45e62266cf2227377c6e67e9ebb6144",
+    "acknowledgements": 39,
+    "receipt_and_encoded_result_mismatches": 0,
+    "summary": {
+      "path": "runtime-final-002/network-rerun-001/gib1/summary.json",
+      "sha256": "9929dc44b29208c0e3fcc9fa3c1809e264bca90b081ce1489f2dc6bc416b252d",
+      "bytes": 25949
+    }
+  },
+  "retained_failures": {
+    "prior_checkpoint": {
+      "path": "audit/checkpoint-3f3b4c1.json",
+      "sha256": "c616c78c375640176a32a3139bbb98749891f9c40c5dccf6ad15392bffbb9439",
+      "bytes": 33639,
+      "status": "BLOCKED",
+      "commit": "3f3b4c1fc9f402b0bdb83917ef1fbd54ddb85e6c",
+      "issues": [
+        "Original fixture-unit and developer-tools logs failed their recorded SHA checks; original records preserved and rejected.",
+        "Nightly log had no complete test-result summaries; service Cargo trace lacked the scapd executable artifact.",
+        "Separate retries do not relabel original incomplete logs as passed."
+      ]
+    },
+    "first_v2_network_build": {
+      "status": "REJECTED",
+      "reason": "AssertionError('missing final successful Cargo build-finished')",
+      "record_sha256": "2789a250506ff0b45e675a10cd2064316e20ac56b720b69cd459dee038026c8f",
+      "stdout_sha256": "56686b443d72010771f71e27928f5d2351cb3b83e343141c8bb293afeba0dd88",
+      "stderr_sha256": "9a4982115909446979f741d4f2ba0813b11ef915065ea6b255bbc621e383798a",
+      "superseded_by": "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/build/build.json",
+      "path": "runtime-final-002/build/build.json",
+      "cargo_exit_code": 0,
+      "gate_exit_code": 1,
+      "stdout_bytes": 32429,
+      "stderr_bytes": 1118,
+      "log_hashes_match_failed_receipt": true,
+      "rejection": "Missing final successful Cargo build-finished; no valid target artifact trace.",
+      "recovery": "The unchanged frozen builder was actually rerun incrementally into a new evidence directory; the complete successful trace and receipt supersede only this build attempt.",
+      "root_cause": "Not established; fsync alone did not prove complete child output."
+    }
+  },
+  "remote_observation": {
+    "source": {
+      "path": "audit/pr27-remote-premerge.json",
+      "sha256": "1bf4a825ec14775d5dfef1a726fc46e96829ab92f78677f91db055f1aba86b7b",
+      "bytes": 5322
+    },
+    "observed_utc": "2026-11-07 09:20:27 UTC",
+    "pr": 27,
+    "head": "adf0ccf0b61240846ada0c8bb19aaf58776fdcea",
+    "base": "6052644a25755df38ab3042ba5867cd2989ea75a",
+    "draft": true,
+    "mergeable": true,
+    "mergeable_state": "unstable",
+    "workflow_runs": [
+      {
+        "id": 42358275395,
+        "name": "Node codec exact unit coverage",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 42358275419,
+        "name": "Node SDK exact unit coverage and HTTP contracts",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 42358275431,
+        "name": "Object-native quality and independent evidence",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 42358275405,
+        "name": "Repository checks",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 42358275392,
+        "name": "Developer tooling self-tests",
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ],
+    "observed_jobs": 8,
+    "job_logs_url_and_steps": "Absent in all eight listed job records.",
+    "separately_fetched_empty_steps_job_ids": [
+      128361014347,
+      128361014063
+    ],
+    "cause": "unknown",
+    "remote_ci_passed": false,
+    "merge_basis": "Maintainer authorization allows complete independent local validation; branch protection is not changed. Final remote delivery/tree verification is separate."
+  },
+  "not_run_or_not_claimed": {
+    "aws_standard": "NOT_RUN",
+    "cross_az_and_power_loss": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "default_10_gib_retest_in_this_batch": "NOT_RUN",
+    "complete_OT_01_OT_08_exit": false,
+    "N1_or_N2_overall_exit": false,
+    "catalogue_shipped": false,
+    "automatic_owner_routing": false,
+    "physical_object_gc": false,
+    "PITR": false,
+    "hard_RSS_bound": false,
+    "long_run_storage_cost_convergence": false
+  },
+  "evidence_layout": {
+    "root": "/workspace/scratch/2795fbf1185c",
+    "note": "Paths identify the original local evidence set. Large raw logs, credentials, private databases and fixtures are not copied into the repository. Preserve these artifacts separately; hashes do not replace the artifacts.",
+    "runtime": "runtime-final-002",
+    "service": "service-final-002",
+    "successful_network_and_capacity": "runtime-final-002/network-rerun-001",
+    "audit": "audit/acceptance-v2-audit-001.json"
+  },
+  "commands": {
+    "stable_unit": [
+      "cargo",
+      "+1.90.0",
+      "test",
+      "--workspace",
+      "--lib",
+      "--bins",
+      "--all-features",
+      "--frozen",
+      "--",
+      "--test-threads=1"
+    ],
+    "unit_coverage": [
+      "cargo",
+      "+nightly-2025-09-18",
+      "llvm-cov",
+      "--workspace",
+      "--lib",
+      "--bins",
+      "--all-features",
+      "--frozen",
+      "--branch",
+      "--no-cfg-coverage",
+      "--no-cfg-coverage-nightly",
+      "--json",
+      "--output-path",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/unit.json",
+      "--",
+      "--test-threads=1"
+    ],
+    "source_capture": [
+      "python3",
+      "scripts/source_manifest.py",
+      "capture",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/source-before.json"
+    ],
+    "source_verify": [
+      "python3",
+      "scripts/source_manifest.py",
+      "verify",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/source-before.json"
+    ],
+    "service_build": [
+      "python3",
+      "experiments/object-service/build.py",
+      "--target-dir",
+      "/workspace/scratch/2795fbf1185c/target-runtime-service-final-002",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/service-final-002/build"
+    ],
+    "service_run": [
+      "python3",
+      "experiments/object-service/run.py",
+      "--server",
+      "/workspace/scratch/2795fbf1185c/target-runtime-service-final-002/release/scapd",
+      "--weed",
+      "/workspace/scratch/2795fbf1185c/environment/bin/weed",
+      "--build-record",
+      "/workspace/scratch/2795fbf1185c/service-final-002/build/build.json",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/service-final-002/http-s3"
+    ],
+    "worker_build": [
+      "python3",
+      "experiments/object-network/build.py",
+      "--target-dir",
+      "/workspace/scratch/2795fbf1185c/target-runtime-network-final-002",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/build"
+    ],
+    "network": [
+      "python3",
+      "experiments/object-network/run.py",
+      "--worker",
+      "/workspace/scratch/2795fbf1185c/target-runtime-network-final-002/release/scap-object-network",
+      "--weed",
+      "/workspace/scratch/2795fbf1185c/environment/bin/weed",
+      "--build-record",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/build/build.json",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/network"
+    ],
+    "retained": [
+      "python3",
+      "experiments/object-network/retained_result_contract.py",
+      "--worker",
+      "/workspace/scratch/2795fbf1185c/target-runtime-network-final-002/release/scap-object-network",
+      "--weed",
+      "/workspace/scratch/2795fbf1185c/environment/bin/weed",
+      "--build-record",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/build/build.json",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/retained"
+    ],
+    "gib1": [
+      "python3",
+      "experiments/object-capacity/run.py",
+      "--worker",
+      "/workspace/scratch/2795fbf1185c/target-runtime-network-final-002/release/scap-object-network",
+      "--weed",
+      "/workspace/scratch/2795fbf1185c/environment/bin/weed",
+      "--build-record",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/build/build.json",
+      "--evidence",
+      "/workspace/scratch/2795fbf1185c/runtime-final-002/network-rerun-001/gib1",
+      "--profile",
+      "gib1"
+    ]
+  }
+}

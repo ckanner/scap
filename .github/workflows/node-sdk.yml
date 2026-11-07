@@ -1,0 +1,37 @@
+name: Node SDK exact unit coverage and HTTP contracts
+
+on:
+  push:
+    paths: ['sdk/node/**', 'sdk/node-codec/**', 'crates/scap-service/src/wire.rs', 'crates/scap-object/src/format.rs', '.github/workflows/node-sdk.yml']
+  pull_request:
+    paths: ['sdk/node/**', 'sdk/node-codec/**', 'crates/scap-service/src/wire.rs', 'crates/scap-object/src/format.rs', '.github/workflows/node-sdk.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  node-sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Verify every SDK production module with fresh unit-only V8 maps
+        working-directory: sdk/node
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/target/coverage/node-sdk
+        run: npm test
+      - name: Exercise real Fetch transport separately from unit profiles
+        working-directory: sdk/node
+        run: npm run test:http
+      - name: Retain SDK unit maps
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: node-sdk-unit-v8
+          path: target/coverage/node-sdk/coverage-*.json
+          if-no-files-found: error

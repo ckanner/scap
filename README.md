@@ -4,7 +4,7 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新对象协议的单元覆盖率、真实本地 S3 合同与 AWS Standard 验收分别记录。没有真实 AWS 配置时不宣称 N1 整体通过；HTTP/Node SDK、多库调度、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库已改为默认 10 GiB、可调整或取消业务配额的 v2 实现，实际容量验收与配置分开记录。
+**当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
 [本批 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 本轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
 
@@ -22,6 +22,8 @@
 | [scap-object-store](crates/scap-object-store/src/lib.rs) | 真实签名 S3 exact GET、同响应 ETag、条件创建/替换、截止时间和错误分类 |
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
+| [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制线程、租户／数据库排队与显式恢复 |
+| [Node SDK](sdk/node/README.md) | 固定并保存原请求身份、无损 typed SQL、验证原回执及结果、查证／取消；不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -46,7 +48,9 @@
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入，对外鉴权、自动协调和新 SDK 尚未交付。
+关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。自动协调和名称目录仍未实现。
+
+HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
 
 ## 构建与验证
 
@@ -54,8 +58,11 @@ Rust 固定 1.90.0。native 编译需要 C/C++ 编译器、make 和 libclang。�
 
 ```bash
 cargo build --workspace --locked
-cargo test --workspace --lib --locked -- --test-threads=1
+cargo test --workspace --lib --bins --all-features --locked -- --test-threads=1
 cargo clippy --workspace --all-targets --locked -- -D warnings
+npm --prefix sdk/node-codec test
+npm --prefix sdk/node test
+npm --prefix sdk/node run test:http
 python3 scripts/check_repo.py
 ```
 
@@ -65,7 +72,8 @@ python3 scripts/check_repo.py
 
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。
+- [认证 HTTP 与新 SDK](docs/adr/0023-authenticated-http-and-node-sdk.md)、[真实服务恢复合同](experiments/object-service/README.md)。
 - [路线图](docs/engineering/roadmap.md)、[故障矩阵](docs/operations/failure-matrix.md)、[运行说明](docs/operations/runbooks.md)。
 - [协作要求](AGENTS.md)、[本地验证身份](docs/engineering/local-validation.md)。
 
-本仓库不承诺生产 SLA、跨 AZ 或长期低成本结论；GiB 恢复只按实际候选实验报告范围描述。SDK 和对外服务将在新的权限、目录与准入边界上实现。许可证仍由维护者决定，第三方组件保留各自许可证。
+本仓库不承诺生产 SLA、跨 AZ 或长期低成本结论；GiB 恢复只按实际候选实验报告范围描述。完整阶段退出以路线图及对应证据为准。许可证仍由维护者决定，第三方组件保留各自许可证。

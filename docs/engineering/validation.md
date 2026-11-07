@@ -2,6 +2,14 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #27 的认证 HTTP／Node 完整本地验收（2026-11-07）
+
+[验收说明](http-service-validation.md)与[机器记录](../evidence/http-service-local-2026-11-07.json)绑定冻结 commit `aa01150145f6b1017dafc024b9c12c8ad4251556`、tree `a086fb30fc2ae058f9ba5bca1e310a82f7d4e725`。162 个文件的源码前后校验、完整 release 构建及独立原始证据审计通过。
+
+stable／nightly 各 199 tests；23 个生产文件行 3984/3984、函数 382/382、region 6055/6055、分支 790/790。两个结构上无分支的服务入口文件明确记录 0/0。209 份新 unit profile 的实际集合与 merge list 相同；Node codec 与 SDK 每个生产模块的原始 V8 function/range 都是正计数。真实 HTTP/S3 恢复完整核对 10 个唯一请求与 8 次重复成功响应；网络基础、扩展故障、schema、保留结果及 1 GiB 全量恢复回归均通过。独立审计再次只读核对 16,384 个 BLOB、1,073,741,824 字节，零不一致。
+
+原 checkpoint 的不完整日志及本批首次缺最终 Cargo 事件的 worker 构建保持拒绝。成功验收只绑定新的完整记录与真实 incremental 构建重跑。远端 5 个 workflow／8 个 job 的 failure 保持如实记录，原因未确定；AWS Standard、生产 SLO、名称目录、自动协调及 N1/N2 整体退出不在本次通过结论内。后续文档交付单独核对差异，不改写实测源码身份。
+
 ## PR #21 的当前提交／恢复故障证据（2026-11-06）
 
 [机器记录](../evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`、tree `8616566636a79caf5d92c39f9882bd839a257c4d`。89 个 tracked 文件的 source manifest 在全部门禁前后逐字节相同；41 个 release 输入、实际 worker、native archive 与原始构建日志均核对一致。之后只添加这份结果与文档摘要，另保存交付差异证明，保留原测试身份。
@@ -58,7 +66,7 @@ Chunk、Node、Manifest 及已关闭但保留世代的 Index／Result 各执行�
 
 ## 单元门禁
 
-执行整个新workspace的lib单元。每个生产源文件的行、函数、region、branch计数必须分子等于分母；明确分类测试文件，零分母或缺文件拒绝。命令见[覆盖规范](testability-and-coverage.md)。
+执行整个新 workspace 的 lib 与 binary 单元，包含 `scapd` 实际入口。每个生产源文件的行、函数、region、branch计数必须分子等于分母；明确分类测试文件，零分母或缺文件拒绝。命令见[覆盖规范](testability-and-coverage.md)。
 
 单元测试包含确定性依赖故障和原生gate回调；真实对象服务进程及跨进程历史另外执行，不合并其profile填覆盖率。
 
@@ -75,6 +83,16 @@ Chunk、Node、Manifest 及已关闭但保留世代的 Index／Result 各执行�
 HEAD 已持久但未收到业务 ACK 的请求单独记录；只有客户端实际观察到成功的调用进入 ACK 账本。`CommittedButUnavailable` 必须来自正式 native 提交路径，普通网络 UNKNOWN 与 SIGKILL 不能代替该证据。依赖故障只修改实验专用 scope，并保留修复前后与新 handle 恢复的记录；这不改变生产不可变对象和关闭 GC 的前提。
 
 每个场景的完成情况以冻结候选的机器记录为准。该扩展不等于 OT-01–OT-08 完整退出；SQL 形态、生命周期、请求退休、ABA 及完整并发历史还有独立验收项。
+
+## 认证 HTTP 与 Node SDK 门禁
+
+正式服务新增的生产文件和实际二进制入口进入同一 Rust 单元分母。SDK 的四个生产 JS 模块逐文件检查 Node 行／函数／分支和原始 V8 function/range map，任何未命中计数或缺文件都失败；真实 Fetch 的重定向、流式超时和解压预算使用另一进程，不混入单元 profile。
+
+[真实服务实验](../../experiments/object-service/README.md)从冻结源码构建实际 `scapd`，启动两台 daemon、正式 SDK、网络故障代理和固定本地 S3 后端。构建收据绑定 Rust、SDK、夹具、锁文件、实际二进制及构建时的 native archive 摘要；运行前后重新核对源码与 `scapd`，另核对实际 Node／S3 可执行文件摘要。优化掉 Python assertion 或向真实运行传入单元插桩环境均拒绝。
+
+客户端在发送前保存独立输入；所有成功 execute 响应均记账，包括同一请求的成功重复调用。UNKNOWN 后的查证保留单独分母。全部计算及后端进程终止、计算缓存删除后，以新的 owner 重建两个租户的业务数据库，逐条核对完整 receipt、原结果和业务数据。验收还覆盖跨租户拒绝、暖读撤权、取消、并发条件建库、HEAD 成功响应丢失、热缓存时的 S3 黑洞及旧 owner fence。
+
+这些小库合同不代替名称目录、自动 owner 调度、完整冷热点隔离、GiB 规模、GC/PITR、AWS 和生产性能门禁。具体执行结果和源码身份按独立机器报告记录。
 
 ## 可配置容量门禁
 

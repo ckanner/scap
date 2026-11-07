@@ -29,6 +29,9 @@ NIGHTLY = "nightly-2025-09-18"
 RUSTUP = "1.28.2"
 LLVM_COV = "0.6.21"
 COVERAGE = "7.10.6"
+NODE = "22.16.0"
+NPM = "10.9.2"
+NODE_SHA256 = "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e"
 HOST = "x86_64-unknown-linux-gnu"
 SEAWEED_VERSION = "4.51"
 SEAWEED_SHA256 = "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee"
@@ -37,6 +40,7 @@ TOOLS = ("cc", "c++", "make", "cmake", "git", "curl", "python3", "tar", "xz")
 URLS = {
     "rustup": f"https://static.rust-lang.org/rustup/archive/{RUSTUP}/{HOST}/rustup-init",
     "seaweed": f"https://github.com/seaweedfs/seaweedfs/releases/download/{SEAWEED_VERSION}/linux_amd64.tar.gz",
+    "node": f"https://nodejs.org/dist/v{NODE}/node-v{NODE}-linux-x64.tar.xz",
 }
 LIBCLANG_PROBE = r'''
 import ctypes, json, pathlib, sys
@@ -105,12 +109,14 @@ def isolated_environment(prefix, libclang):
     for name in list(result):
         if name in {"RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "LLVM_PROFILE_FILE", "RUSTC",
                     "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER", "RUSTUP_TOOLCHAIN", "RUSTUP_DIST_SERVER",
-                    "RUSTUP_UPDATE_ROOT", "CARGO_NET_OFFLINE", "CARGO_TARGET_DIR", "PYTHONPATH"}:
+                    "RUSTUP_UPDATE_ROOT", "CARGO_NET_OFFLINE", "CARGO_TARGET_DIR", "PYTHONPATH",
+                    "NODE_OPTIONS", "NODE_PATH", "NODE_V8_COVERAGE"}:
             del result[name]
     result.update(CARGO_HOME=str(prefix / "cargo"), RUSTUP_HOME=str(prefix / "rustup"),
                   LIBCLANG_PATH=str(libclang), CARGO_BUILD_JOBS="2", CXXFLAGS="-g0",
                   RUSTUP_NO_UPDATE_CHECK="1", CARGO_TERM_COLOR="never")
-    result["PATH"] = str(prefix / "cargo/bin") + os.pathsep + result.get("PATH", "")
+    result["PATH"] = os.pathsep.join((str(prefix / "cargo/bin"), str(prefix / "node/bin"),
+                                     result.get("PATH", "")))
     return result
 
 
@@ -162,6 +168,29 @@ def extract_weed(archive, destination):
     Path(destination).chmod(0o755)
 
 
+def extract_node(archive, destination):
+    """Install the complete, checksum-pinned Node/npm distribution privately."""
+    destination = Path(destination)
+    need(sha(archive) == NODE_SHA256, "Node archive SHA-256 mismatch")
+    need(not destination.exists(), "Node destination already exists")
+    top = f"node-v{NODE}-linux-x64"
+    try:
+        with tempfile.TemporaryDirectory(prefix="node-extract-", dir=destination.parent) as staging:
+            with tarfile.open(archive, "r:xz") as source:
+                members = source.getmembers()
+                need(bool(members) and all(m.name == top or m.name.startswith(top + "/") for m in members),
+                     "Unexpected Node archive layout")
+                # Python 3.12's data filter rejects escaping paths/links and
+                # device files while preserving npm's in-tree bin symlinks.
+                source.extractall(staging, members=members, filter="data")
+            installed = Path(staging) / top
+            need((installed / "bin/node").is_file() and (installed / "bin/npm").is_file(),
+                 "Node archive is missing node or npm")
+            installed.rename(destination)
+    except tarfile.TarError as error:
+        raise Blocked("Unsafe or invalid Node archive: " + str(error)) from error
+
+
 def smoke(prefix, libclang, commands, env):
     stable = commands.run("stable-version", ["rustc", "+" + RUST, "-Vv"], env=env)
     need(stable.startswith("rustc " + RUST + " "), "Stable compiler version mismatch")
@@ -176,6 +205,10 @@ def smoke(prefix, libclang, commands, env):
     need(re.search(r"clang version 18\.", clang), "libclang 18 is required; no silent fallback")
     weed = commands.run("weed-version", [prefix / "bin/weed", "version"], env=env)
     need("4.51 153ab668c99731a6d29492bf6c61d0b4fa701101" in weed, "SeaweedFS version mismatch")
+    node = commands.run("node-version", [prefix / "node/bin/node", "--version"], env=env)
+    need(node.strip() == "v" + NODE, "Node version mismatch")
+    npm = commands.run("npm-version", [prefix / "node/bin/npm", "--version"], env=env)
+    need(npm.strip() == NPM, "Bundled npm version mismatch")
     project = prefix / "smoke"
     (project / "src").mkdir(parents=True)
     (project / "Cargo.toml").write_text('[package]\nname="scap-env-smoke"\nversion="0.0.0"\nedition="2021"\n[workspace]\n')
@@ -190,6 +223,7 @@ def smoke(prefix, libclang, commands, env):
     need(bool(content.get("data")), "Missing LLVM smoke counters")
     return {"stable": stable.strip(), "nightly": nightly.strip(), "libclang": clang.strip(),
             "cargo_llvm_cov": llvm_cov.strip(), "coverage": coverage.strip(), "weed": weed.strip(),
+            "node": node.strip(), "npm": npm.strip(),
             "scope": "Compiler/linker/native-library smoke only; NOT project acceptance"}
 
 
@@ -205,7 +239,7 @@ def prepare(repo, prefix, libclang, commands):
         need(shutil.which(program), "Missing host prerequisite: " + program)
     prefix.mkdir(parents=True)
     state = {"status": "installing", "project_validation": "NOT_RUN", "pinned_stable": RUST,
-             "pinned_nightly": NIGHTLY, "prefix": str(prefix), "dependencies": before}
+             "pinned_nightly": NIGHTLY, "pinned_node": NODE, "prefix": str(prefix), "dependencies": before}
     env = isolated_environment(prefix, libclang)
     try:
         downloads = prefix / "downloads"; downloads.mkdir()
@@ -230,6 +264,12 @@ def prepare(repo, prefix, libclang, commands):
         commands.download("download-seaweed", URLS["seaweed"], archive)
         (prefix / "bin").mkdir()
         extract_weed(archive, prefix / "bin/weed")
+        node_archive = downloads / "node.tar.xz"
+        commands.download("download-node", URLS["node"], node_archive)
+        extract_node(node_archive, prefix / "node")
+        state["node_archive_sha256"] = NODE_SHA256
+        state["node_executable_sha256"] = sha(prefix / "node/bin/node")
+        state["npm_cli_sha256"] = sha(prefix / "node/bin/npm")
         vendor = ["cargo", "+" + RUST, "vendor", "--locked", "--versioned-dirs",
                   "--manifest-path", repo / "Cargo.toml"]
         for name in before:
@@ -283,6 +323,10 @@ def check_ready(repo, prefix):
     state = json.loads((prefix / "READY.json").read_text())
     need(state.get("status") == "environment_ready", "Environment was never certified ready")
     need(state["prefix"] == str(prefix), "Installed prefixes/venvs are not relocatable; use docker save/load")
+    need(state.get("pinned_node") == NODE and state.get("node_archive_sha256") == NODE_SHA256,
+         "Pinned Node installation missing or changed; rebuild the environment")
+    need(state["node_executable_sha256"] == sha(prefix / "node/bin/node"), "Node executable changed")
+    need(state["npm_cli_sha256"] == sha(prefix / "node/bin/npm"), "npm CLI changed")
     need(state["dependencies"] == dependency_inputs(repo), "Dependency manifests changed; rebuild the offline environment")
     need(state["vendor_config_sha256"] == sha(prefix / "cargo/config.toml"), "Offline source configuration changed")
     need(state["vendor_config_sha256"] == sha(prefix / "offline-cargo/config.toml"), "Offline runtime configuration changed")
@@ -290,7 +334,7 @@ def check_ready(repo, prefix):
 
 
 def doctor(commands, libclang):
-    items = {name: shutil.which(name) for name in (*TOOLS, "rustup", "rustc", "cargo", "docker")}
+    items = {name: shutil.which(name) for name in (*TOOLS, "rustup", "rustc", "cargo", "node", "npm", "docker")}
     report = {"status": "blocked", "system": platform.system(), "machine": platform.machine(),
               "tools": items, "native_smoke": {}, "network": [], "project_validation": "NOT_RUN"}
     for name, argv in (("cc", ["cc", "--version"]), ("cxx", ["c++", "--version"]),
@@ -301,7 +345,8 @@ def doctor(commands, libclang):
         except Blocked as error:
             report["native_smoke"][name] = {"status": "blocked", "error": str(error)}
     for host, url in (("static.rust-lang.org", URLS["rustup"] + ".sha256"),
-                      ("github.com", "https://github.com/"), ("index.crates.io", "https://index.crates.io/config.json")):
+                      ("github.com", "https://github.com/"), ("index.crates.io", "https://index.crates.io/config.json"),
+                      ("nodejs.org", f"https://nodejs.org/dist/v{NODE}/SHASUMS256.txt")):
         row = {"host": host}
         try:
             commands.run("network-" + host.split(".")[0], ["curl", "--head", "--fail", "--silent", "--show-error",
