@@ -1,0 +1,408 @@
+{
+  "schema": 1,
+  "status": "RECOVERY_CHECKPOINT_NOT_ACCEPTANCE",
+  "recorded_utc": "2026-11-07 18:00:08 UTC",
+  "repository": "ckanner/scap",
+  "recovery_branch": "recovery/named-catalogue-20261107",
+  "parent_docs_commit": "ce7b0ab84d36076b1ee9714140cf2e68086a7c1d",
+  "runtime_development_base": {
+    "commit": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+    "tree": "16186b3085723ce3e71aec53209a6596ef0a43a9",
+    "changed_files": 81,
+    "formal": "NOT_RUN"
+  },
+  "verified_main": {
+    "commit": "d63f41ee274f84cc98b0480f5e348a53f4527f4b",
+    "tree": "934d772f7e960f3297c668e229f7270a4da0ef7a",
+    "merged_prs": [
+      28,
+      29,
+      30
+    ]
+  },
+  "source_preservation": {
+    "method": "GitHub blobs from the known base, recorded patch inputs, and explicitly reconstructed uncompiled candidates; complete tool readbacks",
+    "unavailable_workspace": "/workspace/scratch/b985f6319062/scap-catalogue-work",
+    "exact_final_workspace_snapshot": false,
+    "final_workspace_hashes": "UNKNOWN",
+    "rejected_inference": "A failed or disconnected command is not evidence that a write or test succeeded.",
+    "raw_logs_in_this_commit": false,
+    "self_manifest_is_not_in_file_entries": true
+  },
+  "files": [
+    {
+      "path": "crates/scap-object/src/catalogue/mod.rs",
+      "sha": "6b617f34d47ce18eb460cde7c9d5f85ba0315099",
+      "origin": "new-uncompiled-recovery-candidate",
+      "notes": "Replaces intermediate 48ed; Binding then Proof then HEAD then Binding. New concurrent read fix unexecuted.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/records.rs",
+      "sha": "e2a488b002360e92d96fe9a5911dba4f5044062e",
+      "origin": "recorded-patch-reconstruction",
+      "notes": "Canonical and BindingShape; rebuilt bytes not compiled.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/inspect.rs",
+      "sha": "9e23e21801203152e94115878e0fc258d464fb3c",
+      "origin": "new-uncompiled-recovery-candidate",
+      "notes": "Rebuilt from f16 and retained implementation structure, not a byte-exact unavailable disk snapshot.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/create.rs",
+      "sha": "337c33e019074d67703d8f40296987d180866af4",
+      "origin": "new-uncompiled-recovery-candidate",
+      "notes": "Typed creation plan; await compiler and unit checks.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/control.rs",
+      "sha": "4204aedfeeadaf93f0dfe5dc985c4293927a4d0b",
+      "origin": "proposed-final-control-write-unconfirmed",
+      "notes": "Intended final control file; last executor write was not confirmed. Never compiled.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/fault_tests.rs",
+      "sha": "8ee9dde327dee9dd906bd2c45198c2129df55367",
+      "origin": "recorded-old-interface-test-edits",
+      "notes": "Canonical type adaptations still pending; not a compiling test candidate.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "docs/architecture/name-catalogue-plan.md",
+      "sha": "9795da53c99437f927ac17b30a7d5d7cce191ec6",
+      "origin": "updated-protocol-and-recovery-notes",
+      "notes": "Fixed control precheck, error classification, Proof read order and both concurrency gates.",
+      "formal": "NOT_RUN",
+      "compile": "NOT_COMPILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-service/README.md",
+      "sha": "e188a56e088eb159f8c7960e05682fd12dc3bccc",
+      "bytes": 8287,
+      "stage": "reconstructed-applied-service-patches",
+      "formal": "NOT_RUN",
+      "base": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-service/catalogue_oracle.py",
+      "sha": "75e30595a6d16f221341e18afcd70ea9a344f649",
+      "bytes": 31393,
+      "stage": "reconstructed-applied-service-patches",
+      "formal": "NOT_RUN",
+      "base": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-service/run.py",
+      "sha": "050a67c099dc1ad8c796383839d7f864c7718029",
+      "bytes": 17706,
+      "stage": "reconstructed-applied-service-patches",
+      "formal": "NOT_RUN",
+      "base": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-service/test_catalogue_controls.py",
+      "sha": "bac0444cfcbde93f4ffddea5a4d03117bbdb9cb8",
+      "bytes": 9591,
+      "stage": "reconstructed-applied-service-patches",
+      "formal": "NOT_RUN",
+      "base": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-network/catalogue_contract.py",
+      "sha": "8ffbed4b71eb2bddac71323abc85b106dae8e59b",
+      "origin": "f16 blob 44757e7f22b1d1262b11355221491fec3ee9ddf1 plus recorded successful literal edits",
+      "formal": "NOT_RUN",
+      "notes": "native release/real S3 NOT_RUN",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-network/catalogue_oracle.py",
+      "sha": "89da0c9e974dbe472095a7494b51006615926cc7",
+      "origin": "reconstructed from successful local patch inputs",
+      "formal": "NOT_RUN",
+      "notes": "reconstructed bytes NOT_RUN; prior development selftests FAILED",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "experiments/object-network/test_catalogue_oracle.py",
+      "sha": "cbb97c67921c9710d05c9719d33c1987f0e8756c",
+      "origin": "reconstructed from successful Add File patch",
+      "formal": "NOT_RUN",
+      "notes": "preserves first failing Trace/golden and source-string test; fixes kept separately",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "docs/engineering/named-catalogue-network-proposed-edits-2026-11-07.json",
+      "sha": "27b231c116eb546f5adb13995a820528172c190b",
+      "origin": "unapplied-exact-literal-edits",
+      "formal": "NOT_RUN",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "docs/evidence/named-catalogue-network-recovery-2026-11-07.json",
+      "sha": "449986048f0a081270b380a29b4c44f083886bcd",
+      "origin": "network-recovery-source-and-failure-manifest",
+      "formal": "NOT_RUN",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "docs/engineering/named-catalogue-core-recovery-manifest-2026-11-07.md",
+      "sha": "49ecb222ba348eaaea4147e436cf1a0555c0599f",
+      "origin": "core-source-recovery-and-unexecuted-test-adaptation-notes",
+      "formal": "NOT_RUN",
+      "mode": "100644",
+      "type": "blob"
+    },
+    {
+      "path": "docs/engineering/named-catalogue-recovery-2026-11-07.md",
+      "sha": "e79b32b2c45789fdb717be217c4631cd3f4e53e5",
+      "origin": "root-recovery-guide-with-source-inventory-links",
+      "formal": "NOT_RUN",
+      "mode": "100644",
+      "type": "blob"
+    }
+  ],
+  "environment": {
+    "status": "unavailable",
+    "probe": "pwd",
+    "probe_result": "No usable execution environment is available. Wait for an environment to become available before using this tool.",
+    "compile": "NOT_COMPILED",
+    "post_reconstruction_tests": "NOT_RUN"
+  },
+  "remote_ci": {
+    "source_commit": "f16a4f6d12c0b8275e0563f56fa9d5017c3293ac",
+    "observed_runs": 8,
+    "observed_jobs": 14,
+    "all_jobs_conclusion": "failure",
+    "all_jobs_step_count": 0,
+    "jobs": [
+      {
+        "run": 42395869489,
+        "id": 128472985821,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869547,
+        "id": 128472985380,
+        "name": "node-sdk",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869574,
+        "id": 128472985906,
+        "name": "environment-controller",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869511,
+        "id": 128472985558,
+        "name": "Tooling unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869511,
+        "id": 128472985784,
+        "name": "Rust unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869511,
+        "id": 128472985829,
+        "name": "Real local S3 HTTP and process recovery",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395869511,
+        "id": 128472985861,
+        "name": "N0 bounded model and independent oracle",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825650,
+        "id": 128472851869,
+        "name": "environment-controller",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825500,
+        "id": 128472851438,
+        "name": "node-sdk",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825697,
+        "id": 128472851938,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825805,
+        "id": 128472852925,
+        "name": "N0 bounded model and independent oracle",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825805,
+        "id": 128472853040,
+        "name": "Real local S3 HTTP and process recovery",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825805,
+        "id": 128472853069,
+        "name": "Tooling unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      },
+      {
+        "run": 42395825805,
+        "id": 128472853132,
+        "name": "Rust unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": 0
+      }
+    ],
+    "root_cause": "NOT_CONFIRMED",
+    "check_run_detail": "Connector rejected the check-runs endpoint as unsupported; no cause inferred."
+  },
+  "known_gaps": [
+    "Canonical production/test signatures have not been compiled together; old test helpers require adaptation.",
+    "Old development coverage was below required exact per-file counts; no old profile certifies these bytes.",
+    "Two Aborting/Proof multi-key concurrency examples are statically identified and have not been behaviorally tested.",
+    "Core create.rs candidate has not had final independent line-by-line review.",
+    "Network oracle first run failed (13 errors, 1 failure among 31); exact proposed fixes remain unapplied and unrun.",
+    "No complete real core catalogue S3 run or actual full PUT denominator has been observed.",
+    "Last root external HTTP-auditor negative-control command outcome could not be retrieved.",
+    "Post-checkpoint development raw logs and final source hashes remain inaccessible in the unavailable executor; they are not falsely described as archived here.",
+    "Full inventory, automatic owner routing, full cold/hot isolation, segmented index/pins/GC/PITR, AWS Standard and production SLO remain separate unfinished goals."
+  ],
+  "independent_static_review": {
+    "scope": [
+      {
+        "path": "crates/scap-object/src/catalogue/records.rs",
+        "blob": "e2a488b002360e92d96fe9a5911dba4f5044062e"
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/control.rs",
+        "blob": "4204aedfeeadaf93f0dfe5dc985c4293927a4d0b"
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/inspect.rs",
+        "blob": "9e23e21801203152e94115878e0fc258d464fb3c"
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/mod.rs",
+        "blob": "6b617f34d47ce18eb460cde7c9d5f85ba0315099"
+      },
+      {
+        "path": "docs/architecture/name-catalogue-plan.md",
+        "blob": "9795da53c99437f927ac17b30a7d5d7cce191ec6"
+      }
+    ],
+    "outcome": "Specified fixes present in static review; compilation and behavior NOT_RUN",
+    "new_counterexample": "HEAD-before-Proof could combine stale 404/Provisioning with a newly published permanent Proof while name remains Aborting.",
+    "candidate_order": "Binding -> Proof -> HEAD -> same Binding",
+    "retained_checks": "Same exact GET name body and ETag; no retry/rebase."
+  },
+  "proposed_network_edits": {
+    "path": "docs/engineering/named-catalogue-network-proposed-edits-2026-11-07.json",
+    "status": "PROPOSED_NOT_APPLIED_NOT_RUN",
+    "literal_preflight": [
+      {
+        "path": "experiments/object-network/catalogue_contract.py",
+        "edits": 1,
+        "literal_preflight": "exactly_once_in_order",
+        "applied": false,
+        "validation": "NOT_RUN"
+      },
+      {
+        "path": "experiments/object-network/catalogue_oracle.py",
+        "edits": 3,
+        "literal_preflight": "exactly_once_in_order",
+        "applied": false,
+        "validation": "NOT_RUN"
+      },
+      {
+        "path": "experiments/object-network/test_catalogue_oracle.py",
+        "edits": 6,
+        "literal_preflight": "exactly_once_in_order",
+        "applied": false,
+        "validation": "NOT_RUN"
+      }
+    ]
+  },
+  "prior_archive": {
+    "filename": "SCAP-verification-2026-11-07-PR28-30.zip",
+    "bytes": 59683039,
+    "sha256": "e23d65324a2941276503a61c7c98091ae63d203b856b4c7e74b6ee2fb734d7fe",
+    "contains_this_runtime": false
+  },
+  "merge_status": "DRAFT_NOT_MERGE_READY",
+  "production_slo_passed": false,
+  "aws_standard": "NOT_RUN"
+}
