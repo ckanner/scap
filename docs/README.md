@@ -18,3 +18,5 @@
 旧三节点原型的事实、代码和证据保留在 [重写前的提交](https://github.com/ckanner/scap/tree/4cd99eb3ce404dfa26a8df2536d881f078c9c809)。它们不约束当前格式或 API，也不计作新实现通过的证据。
 
 - [N1 生命周期真实合同验收](engineering/n1-lifecycle-validation.md)：十二场景、完整原结果／进程账本与失败记录。
+
+- [名称目录有界模型验收](engineering/named-catalogue-model.md)：固定意图、永久身份屏障、发布竞争、910 份原始历史摘要及证明范围。

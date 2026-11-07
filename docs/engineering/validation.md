@@ -2,6 +2,10 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #30 的名称目录有界模型（2026-11-07）
+
+[验收说明](named-catalogue-model.md)与[机器记录](../evidence/named-catalogue-model-local-2026-11-07.json)绑定冻结候选 `c0b067da5a8337c72c3c674dff64845787dde7d3`。121 项模型单元、885 条目录正向历史／25 个拒绝负对照、原 authority 664/30 回归、32 项环境控制器测试及文档/workflow检查通过；181 文件源码清单前后一致，910 份目录原始历史摘要逐份核对。独立审阅发现的旧 GET 跨计算丢失反例已修复并在冻结源码重放；此前失败与范围限制保留。无生产 Rust／SDK 变化，不把纯模型当作真实 S3、精确生产覆盖或完整 N2 退出。
+
 ## PR #29 的生命周期真实合同（2026-11-07）
 
 [验收说明](n1-lifecycle-validation.md)与[机器记录](../evidence/lifecycle-contracts-local-2026-11-07.json)绑定 `fe1909bf9f6b46cbfdd8536d4b8a649999a784b0`。173 文件源码身份前后相同；78 项网络夹具自测、实际 release、十二类生命周期及原网络回归通过。独立审计确认 78 次 ACK／30 个身份、46 次原结果冷重发、20 次业务行查询、138 个 HEAD revision 和 59 个计算进程 incarnation。Deleted／Retired 分列，完整进程退出与后端重启时零计算进程均由原始账本支持。
