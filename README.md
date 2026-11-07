@@ -6,7 +6,9 @@
 
 **当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
-[本批 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 本轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
+[PR #27 的 HTTP／Node 完整本地验收](docs/engineering/http-service-validation.md)绑定冻结候选 `aa01150`：stable／nightly 各 199 项 Rust 单元、23 个生产文件四维逐文件精确 100%，真实服务核对 10 个唯一请求和 8 次重复成功响应。全部计算缓存丢失恢复、原网络故障合同、保留结果及 1 GiB 全量恢复均有独立证据。该历史结果不认证后续源码；名称目录、自动路由、完整 N1/N2、AWS 与生产 SLO 仍未完成。
+
+[PR #26 的 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 该轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
 
 [PR #21 的历史故障验证记录](docs/evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`：基础 10 类合同加 4 类扩展全部通过，扩展包含 30 个场景（其中 1 个为依赖序列 pilot）。实际验证了 14 个依赖上传切点、HEAD 成功后进程丢失及两种 native 失败、五类依赖的缺失／损坏、恢复期间 HEAD 变化；基础 4 条与扩展 61 条 execute ACK 的完整回执和原结果均一致。正式单元与四维覆盖再次通过；同一 release 二进制复跑 1 GiB 数据，39 条已确认请求及全部 16,384 个 BLOB 核对无差异。本批扩展实验、观察接口和 CI，不改变正式生产源码；完整 OT-01–OT-08 与 AWS 仍未完成。
 
@@ -18,7 +20,7 @@
 
 S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SHM 作为共享网络文件读写。本地执行镜像仍必须满足 SQLite 的 I/O 语义；误把 `cache_directory` 配成 NFS/EFS/FUSE 不能因“缓存可丢弃”而视为安全。
 
-本分支包含本地目录类型防护候选及补充测试，详见[存储安全说明](docs/operations/sqlite-storage-safety.md)。**本轮环境不可用，新增 Rust、覆盖率与真实存储验证为 NOT_RUN，保持草稿，不继承下方历史验收结果。** 最新主线进展、剩余任务及本批状态见[2026-11-07 审查记录](docs/engineering/status-2026-11-07.md)。
+[PR #28](https://github.com/ckanner/scap/pull/28) 提供本地目录类型防护候选及补充测试，详见[存储安全说明](docs/operations/sqlite-storage-safety.md)。**初始候选保存时执行环境不可用，新增 Rust、覆盖率与真实存储验证均为 NOT_RUN；该候选不能继承历史验收结果。** 环境恢复后的方案、实施和验证按[2026-11-07 审查记录](docs/engineering/status-2026-11-07.md)分别更新，完整执行顺序见[路线图](docs/engineering/roadmap.md)。
 
 ## 实现入口
 

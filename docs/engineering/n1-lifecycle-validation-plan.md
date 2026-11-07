@@ -3,7 +3,7 @@
 - 日期：2026-11-07。
 - 源码审阅基线：`e2c44b099132700e1305c275c6551c8e156fe510`，即已合入认证 HTTP 服务与 Node SDK 的主线。
 - 状态：**NOT_IMPLEMENTED / NOT_RUN**。本文是待实施合同，不是测试报告，不表示 N1 退出。
-- 本次环境在首次修改实验 worker 前失去执行能力；没有新增可执行生命周期实验，没有构建、运行或产生本计划的通过证据。
+- 前次尝试在首次修改实验 worker 前失去执行能力，未留下可执行生命周期实验。本次已恢复 PR #28 候选工作区，先更新本计划并提交文档，再实施；目前仍没有本计划的构建或运行通过证据。
 - 实施遵守 [AGENTS.md](../../AGENTS.md)、[主方案](../architecture/object-storage-native-proposal.md)、[验证规范](validation.md)与[本地源码身份要求](local-validation.md)。
 
 ## 1. 目的与准确范围
@@ -28,7 +28,22 @@
 
 唯一必需的新实验命令是 `set_lifecycle`：将输入严格解析为正式 `Lifecycle`，直接调用 `Database::set_lifecycle(principal, expected_revision, nonce, lifecycle, deadline)`。不得在 worker 内自行编辑 HEAD 代替正式控制 API，也不增加无条件对象写入接口。
 
-计划新增 `experiments/object-network/lifecycle_contract.py` 及其独立自测文件，复用 [现有代理与进程装配](../../experiments/object-network/run.py)。这些文件目前不存在，状态为 NOT_IMPLEMENTED。本文未修改 worker。
+计划采用下列固定入口，复用 [现有代理与进程装配](../../experiments/object-network/run.py)：
+
+| 路径 | 职责 |
+| --- | --- |
+| `experiments/object-network/src/main.rs` | 只增加 `set_lifecycle` 正式 API 直通 |
+| `experiments/object-network/lifecycle_contract.py` | 十二场景的进程、调用、故障时序与证据记录 |
+| `experiments/object-network/lifecycle_oracle.py` | 只读离线审计；不导入 controller、Rust 协议实现或 controller 的通过结论 |
+| `experiments/object-network/test_lifecycle_contract.py` | 控制器记录、错误、清理与入口先决条件的夹具自测 |
+| `experiments/object-network/test_lifecycle_oracle.py` | 固定证据样本与逐项负对照 |
+| `experiments/object-network/README.md` | 执行入口、产物、精确范围与限制 |
+
+这些新增实现文件目前不存在，状态为 NOT_IMPLEMENTED。本文未修改 worker。
+
+`set_lifecycle` 的命令形状固定为 `{"op":"set_lifecycle","revision":N,"nonce":M,"lifecycle":"ready|maintenance|deleted"}`；最后一项实际只能传三个值之一，使用正式 `Lifecycle` 的 snake_case serde 格式。principal 来自 worker 的可信配置；不得增加调用者可自行覆盖 principal 的参数。命令返回正式 Head 或正式错误，不补充任何重试逻辑。
+
+初始 create 只建立创建者权限。每场先由该创建者通过正式 `set_policy` 加入独立管理员，然后开始竞争。原主体与管理员使用不同进程；同主体的 cancel 观察者也使用独立 worker identity，不能冒用当前 owner identity。
 
 ## 3. 冻结的夹具语义
 
@@ -123,6 +138,23 @@ Deleted 身份复用测试须包括改变 incarnation／generation 但仍命中�
 
 随机字段的期望值来自首次实际成功响应或单独的已提交查证见证，绝不从恢复后的数据库反读生成期望。重复成功响应不新增预期业务行；未提交和 cancelled 候选不得出现在业务行集合中。
 
+### 5.1 固定证据文件与交叉核对
+
+| 文件 | 内容与约束 |
+| --- | --- |
+| `lifecycle-plan.json` | 发送任何数据库命令前落盘的版本化十二场景清单、scope、profile 和必查集合 |
+| `lifecycle-input-ledger.jsonl` | 调用前的独立 SQL／参数意图及其正式 Request 身份；按 intent ID 关联，不能覆盖早先输入 |
+| `lifecycle-client-ledger.jsonl` | 单调唯一 call ID、完整命令、scope／principal／worker、调用与响应时刻，以及完整实际响应；既记录业务调用，也记录控制、查证和拒绝 |
+| `lifecycle-ack-ledger.jsonl` | 每次实际成功 execute 的完整响应与其 call／intent ID；包括相同身份的重复成功响应 |
+| `lifecycle-facts.jsonl` | 故障命中的 request serial、release 边界、进程 wait 状态、计算目录删除前后事实、恢复阶段；不能以这些文件中的预先判断替代网络证据 |
+| `history.jsonl` | 现有代理输出的实际 GET／PUT、HEAD bytes、条件、后端响应及传输事件 |
+| `lifecycle-oracle.json` | 离线审计器从以上原始输入重新计算的场景与 ACK 分类分母、失败原因及证据摘要 |
+| `build-receipt.json`、`summary.json` | 冻结构建的副本，以及包含退出／清理状态的运行摘要 |
+
+新增账本使用同步追加。oracle 必须逐一交叉核对 client ledger 中所有成功 execute 与 ACK ledger，缺一条、多一条、重复 call ID 或响应内容不同均失败；不能单凭 ACK ledger 自己的长度宣称分母完整。`prepare_request` 用于获得正式 fingerprint，但预期业务效果仍由调用前 SQL／参数和客户端首次返回构成。计划中每个必查项必须有对应记录，未运行不能通过空集合的全称判断。
+
+`run.py` 的 phase 是请求进入代理时的标签，不能独自证明并发顺序。oracle 使用同一 request serial 串联 `object_request`、`object_forwarded`、`object_response` 与交付／丢弃事件，并结合客户端 call ID 的单进程未完成调用约束和时间区间。必须同时保留原候选 HEAD bytes 与 If-Match，匹配此前同一次 GET 的 bytes／ETag；phase 只用于定位，不能替代该因果证据。
+
 ## 6. 独立 oracle 与负对照
 
 场景控制器只负责输入、故障注入与记录。另建只读审计器，读取冻结账本和代理历史，不导入 controller 的“通过”状态，不导入正式数据库转换算法作为自己的预期生成器。
@@ -160,6 +192,18 @@ Deleted 身份复用测试须包括改变 incarnation／generation 但仍命中�
 6. 独立审计器重算全部分母和结果。任一漏记、错序、原结果不一致、旧候选成功或缓存丢失未完成，均为失败。
 7. 单机兼容端点与真实 AWS 分开标记。没有 AWS 配置时保持 AWS NOT_RUN，不自动创建云资源。
 8. 按现有协作规范，所需验证缺失时只能草稿审查，不合并、不借用其他提交的历史测试结果。
+
+### 8.1 最小实施顺序与冻结边界
+
+1. **先文档**：提交本计划、主方案与 validation 入口的对应更新。实施前文件仍标 NOT_IMPLEMENTED／NOT_RUN。
+2. **接口与证据基础**：增加唯一 Rust 直通命令；实现同步输入／client／ACK／事实账本、唯一调用身份、独立 oracle 的证据读取与完整性检查。先让负对照证明缺失和伪造证据不能通过。
+3. **生命周期先后序**：完成 LC-01–LC-06，分别证明控制先胜与提交先胜；不将晚到 ACK 错判为撤权后新提交。
+4. **取消与请求保留**：完成 LC-07–LC-11，精确区分 Cancelled／Unknown／Closed／Retired；LC-11 在原 8 秒 S3 timeout 内完成关闭竞争，再独立验证退休后的旧候选对象重发。
+5. **owner／ABA 与恢复**：完成 LC-12，各场清空计算目录恢复；最后后端重启另列检查分母。恢复审计先验证原 ACK，再按需检查同身份重复返回，每次都使用原 SQL／参数。
+6. **冻结后运行**：验证负责人统一冻结所有生产与实验源码并生成新的 release 收据。并行改动尚未结束时只运行不依赖冻结身份的夹具自测，不提前宣称旧收据适用于新脚本。
+7. **独立复核**：控制器结束后，从落盘证据执行独立 oracle，再完成清理与最终源码／二进制身份复核。任何清理错误、代理异常或源码漂移将最终状态变为 failed。
+
+controller 入口沿用 `--worker --weed --build-record --evidence`，每次 evidence 必须为新目录。oracle 入口仅接收 `--evidence`，只读原始文件、向标准输出返回结果，不连接数据库、不调用 worker、不重写原始证据。controller 可将其返回结果同步写入 `lifecycle-oracle.json`；独立复核同样不得把现存 oracle 输出当成输入真值。
 
 ## 9. 本文交付时的状态
 
