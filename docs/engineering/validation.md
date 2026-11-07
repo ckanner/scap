@@ -58,7 +58,7 @@ Chunk、Node、Manifest 及已关闭但保留世代的 Index／Result 各执行�
 
 ## 单元门禁
 
-执行整个新workspace的lib单元。每个生产源文件的行、函数、region、branch计数必须分子等于分母；明确分类测试文件，零分母或缺文件拒绝。命令见[覆盖规范](testability-and-coverage.md)。
+执行整个新 workspace 的 lib 与 binary 单元，包含 `scapd` 实际入口。每个生产源文件的行、函数、region、branch计数必须分子等于分母；明确分类测试文件，零分母或缺文件拒绝。命令见[覆盖规范](testability-and-coverage.md)。
 
 单元测试包含确定性依赖故障和原生gate回调；真实对象服务进程及跨进程历史另外执行，不合并其profile填覆盖率。
 
@@ -75,6 +75,16 @@ Chunk、Node、Manifest 及已关闭但保留世代的 Index／Result 各执行�
 HEAD 已持久但未收到业务 ACK 的请求单独记录；只有客户端实际观察到成功的调用进入 ACK 账本。`CommittedButUnavailable` 必须来自正式 native 提交路径，普通网络 UNKNOWN 与 SIGKILL 不能代替该证据。依赖故障只修改实验专用 scope，并保留修复前后与新 handle 恢复的记录；这不改变生产不可变对象和关闭 GC 的前提。
 
 每个场景的完成情况以冻结候选的机器记录为准。该扩展不等于 OT-01–OT-08 完整退出；SQL 形态、生命周期、请求退休、ABA 及完整并发历史还有独立验收项。
+
+## 认证 HTTP 与 Node SDK 门禁
+
+正式服务新增的生产文件和实际二进制入口进入同一 Rust 单元分母。SDK 的四个生产 JS 模块逐文件检查 Node 行／函数／分支和原始 V8 function/range map，任何未命中计数或缺文件都失败；真实 Fetch 的重定向、流式超时和解压预算使用另一进程，不混入单元 profile。
+
+[真实服务实验](../../experiments/object-service/README.md)从冻结源码构建实际 `scapd`，启动两台 daemon、正式 SDK、网络故障代理和固定本地 S3 后端。构建收据绑定 Rust、SDK、夹具、锁文件、实际二进制及构建时的 native archive 摘要；运行前后重新核对源码与 `scapd`，另核对实际 Node／S3 可执行文件摘要。优化掉 Python assertion 或向真实运行传入单元插桩环境均拒绝。
+
+客户端在发送前保存独立输入；所有成功 execute 响应均记账，包括同一请求的成功重复调用。UNKNOWN 后的查证保留单独分母。全部计算及后端进程终止、计算缓存删除后，以新的 owner 重建两个租户的业务数据库，逐条核对完整 receipt、原结果和业务数据。验收还覆盖跨租户拒绝、暖读撤权、取消、并发条件建库、HEAD 成功响应丢失、热缓存时的 S3 黑洞及旧 owner fence。
+
+这些小库合同不代替名称目录、自动 owner 调度、完整冷热点隔离、GiB 规模、GC/PITR、AWS 和生产性能门禁。具体执行结果和源码身份按独立机器报告记录。
 
 ## 可配置容量门禁
 

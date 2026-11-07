@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "scope": "environment controller and private Node/npm installation; not complete bootstrap or Docker acceptance",
+  "generated_utc": "2026-11-07T04:27:10Z",
+  "source_inputs": {
+    "dev/environment/Dockerfile": "bf196b018292d20c55ef88a29d259aae7bf67c79e58c4a054dc2315189d63aaf",
+    "dev/environment/Dockerfile.dockerignore": "0605359418e5bd97bcd25517ef56181dfe527f07fd06061acb597792d72261d4",
+    "dev/environment/README.md": "8fbbef925eba6bc8fae74d4772d3e771b00e6264713fb923fd428ed70ce87379",
+    "dev/environment/bootstrap.py": "3791c147fd892de949b6b9da658efe5e714b428ca421c5938310800ffe88ea43",
+    "dev/environment/enter.sh": "4677b0f5ca815405ddec2d45c42a951e1b69566921ab26df52f2614eaacb7767",
+    "dev/environment/test_bootstrap.py": "b49d3bee45ee02a1c5db2b32938e4572e4c99c09a536bcebe38cd02056873c42",
+    "dev/environment/test_entrypoints.py": "b75b376801a6de9a9c4088ffd5828fd5170ad005e0d215a5fbf829bf454b03ae",
+    "dev/environment/validate.sh": "e6c6f6d97291be728e120fae53ffb069501698fdadf713bca0da1b7b2964d0cf"
+  },
+  "inputs_unchanged": true,
+  "controller_tests": 31,
+  "python": "3.12.14",
+  "coverage_py": "7.10.6",
+  "controller_coverage": {
+    "covered_lines": 280,
+    "num_statements": 280,
+    "percent_covered": 100.0,
+    "percent_covered_display": "100",
+    "missing_lines": 0,
+    "excluded_lines": 0,
+    "num_branches": 36,
+    "num_partial_branches": 0,
+    "covered_branches": 36,
+    "missing_branches": 0
+  },
+  "node": {
+    "version": "22.16.0",
+    "npm_version": "10.9.2",
+    "archive_sha256": "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e",
+    "node_executable_sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d",
+    "npm_cli_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "archive_origin": "previously downloaded official archive; no fresh Node download claimed",
+    "official_checksums_sha256": "e1f5ad5e2a5654721e7b89d84d27f406e582c46ca0b5cde304c5dcdd7bab8b31",
+    "new_prefix_install_executed": true,
+    "installation_seconds": 3.4699640159997216,
+    "platform_smoke_tests": 2,
+    "platform_smoke": "npm offline, node:test, signed 64-bit DataView, UTF-8, AbortController, loopback HTTP fetch"
+  },
+  "fresh_official_manifest_fetch": {
+    "status": "BLOCKED",
+    "error": "curl (28): Proxy CONNECT aborted due to timeout",
+    "previous_verified_manifest_and_pinned_digest_used": true
+  },
+  "docker_build": "NOT_RUN",
+  "full_bootstrap_prepare": "NOT_RUN",
+  "full_project_validator": "NOT_RUN",
+  "service_and_sdk_runtime_acceptance": "SEPARATE_GATE",
+  "aws_standard": "NOT_RUN",
+  "artifacts": [
+    {
+      "file": "SHASUMS256.txt",
+      "bytes": 3777,
+      "sha256": "e1f5ad5e2a5654721e7b89d84d27f406e582c46ca0b5cde304c5dcdd7bab8b31"
+    },
+    {
+      "file": "controller-json.exit.json",
+      "bytes": 465,
+      "sha256": "34d3f93e701d36f692bb2e0256f0234371e948d64e3752e59d0887db347c47fd"
+    },
+    {
+      "file": "controller-json.log",
+      "bytes": 96,
+      "sha256": "a38e54e84722f16598224d005062574db2c7aafb0f9bd0d261d83d52111fac31"
+    },
+    {
+      "file": "controller-tests.exit.json",
+      "bytes": 499,
+      "sha256": "d9466f0ce6aa98b8126269a24c434047d2530ec8da9c21a5c93a858356dfefd6"
+    },
+    {
+      "file": "controller-tests.log",
+      "bytes": 4899,
+      "sha256": "ccde1c234faef2e855cbca216353ee581938b71f12e80017d4e7db9554dc4701"
+    },
+    {
+      "file": "controller.coverage",
+      "bytes": 94208,
+      "sha256": "e46b0957eb448420bd8004cece3084bd0d154361928f700f1f50d99018fc2c9c"
+    },
+    {
+      "file": "controller.json",
+      "bytes": 13608,
+      "sha256": "afc6f51f2a82cecc80955cfed85d32a7e55d4ee80c88d5fdcabcf121984b4da2"
+    },
+    {
+      "file": "enter-syntax.exit.json",
+      "bytes": 341,
+      "sha256": "33361dd8b875168fe14d182877f8f51da3fd288889980a65a8c191044ef58b86"
+    },
+    {
+      "file": "enter-syntax.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "inputs-after.json",
+      "bytes": 832,
+      "sha256": "41d0435cf98d6a54679c63a5d38996dc1599b834b86bb6dd2d53a70428c9f292"
+    },
+    {
+      "file": "inputs-before.json",
+      "bytes": 832,
+      "sha256": "41d0435cf98d6a54679c63a5d38996dc1599b834b86bb6dd2d53a70428c9f292"
+    },
+    {
+      "file": "node-platform-smoke.exit.json",
+      "bytes": 463,
+      "sha256": "193fa6f4d828bb681294916963f31cb023ac1b561c04b2ac9534aafa9e9fc803"
+    },
+    {
+      "file": "node-platform-smoke.log",
+      "bytes": 537,
+      "sha256": "eb127d9053621c6182155697fc8c728299563c8350c92ced85bc708d2ea9ed53"
+    },
+    {
+      "file": "node-version.exit.json",
+      "bytes": 383,
+      "sha256": "538d6de345dfedd7c342ae0af1c38cd618ec3ad5977e97dfef00e30875610e4e"
+    },
+    {
+      "file": "node-version.log",
+      "bytes": 9,
+      "sha256": "256a8e08ee35cb8ad36ae16385257192c3dbe7d80cfdeff9eaa886531b2f83bc"
+    },
+    {
+      "file": "npm-version.exit.json",
+      "bytes": 380,
+      "sha256": "7e84981a2e4553d680a58da5bbf0f6e1ff746b162f777db395e1c97e8b6871ef"
+    },
+    {
+      "file": "npm-version.log",
+      "bytes": 7,
+      "sha256": "b90f6efb804599bb0ba84fec754b8c7807381dabfcdc1ffe3437ff37f18fb0f5"
+    },
+    {
+      "file": "validate-syntax.exit.json",
+      "bytes": 347,
+      "sha256": "920ec9088e2a2daffc9d62e4cc17b647793f2b69b5be0307ca5b5074aa36289e"
+    },
+    {
+      "file": "validate-syntax.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "whitespace.exit.json",
+      "bytes": 355,
+      "sha256": "34f32812241a14e66f5183c7484da458774559a0e9a2ab6d3c6733b692ebd3df"
+    },
+    {
+      "file": "whitespace.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

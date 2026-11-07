@@ -10,7 +10,7 @@ check_root=$(mktemp -d "${TMPDIR:-/tmp}/scap-environment-check.XXXXXXXX")
 evidence="$check_root/check"
 python3 "$bootstrap" check \
   --repo "$repo" --prefix "$prefix" --evidence "$evidence"
-export PATH="$prefix/cargo/bin:$prefix/python/bin:$prefix/bin:$PATH"
+export PATH="$prefix/cargo/bin:$prefix/python/bin:$prefix/node/bin:$prefix/bin:$PATH"
 export RUSTUP_HOME="$prefix/rustup"
 export LIBCLANG_PATH=/usr/lib/llvm-18/lib
 export CARGO_BUILD_JOBS=2 CXXFLAGS=-g0 CARGO_NET_OFFLINE=true RUSTUP_NO_UPDATE_CHECK=1
@@ -21,5 +21,6 @@ cp "$prefix/cargo/config.toml" "$CARGO_HOME/config.toml"
 unset RUSTUP_TOOLCHAIN RUSTUP_DIST_SERVER RUSTUP_UPDATE_ROOT
 unset RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS LLVM_PROFILE_FILE PYTHONPATH
+unset NODE_OPTIONS NODE_PATH NODE_V8_COVERAGE
 cd "$repo"
 exec "$@"

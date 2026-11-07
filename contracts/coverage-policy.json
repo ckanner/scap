@@ -25,13 +25,22 @@
     "crates/scap-object/src/review_tests.rs",
     "crates/scap-object/src/session_tests.rs",
     "crates/scap-object/src/tests.rs",
+    "crates/scap-service/src/auth/tests.rs",
+    "crates/scap-service/src/config/tests.rs",
+    "crates/scap-service/src/daemon/tests.rs",
+    "crates/scap-service/src/engine/tests.rs",
+    "crates/scap-service/src/http/tests.rs",
+    "crates/scap-service/src/scheduler/tests.rs",
+    "crates/scap-service/src/tests.rs",
+    "crates/scap-service/src/wire/tests.rs",
     "crates/scap-sql/src/result_validation_tests.rs",
     "crates/scap-sql/src/tests.rs"
   ],
   "research_harness_roots": [
     "experiments/object-authority-model",
     "experiments/object-network",
-    "experiments/object-capacity"
+    "experiments/object-capacity",
+    "experiments/object-service"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

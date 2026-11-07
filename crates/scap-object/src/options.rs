@@ -108,7 +108,7 @@ impl Options {
 
 /// Decode retained outcomes using format capabilities, not today's admission
 /// settings. Lowering a caller's result budget never invalidates old receipts.
-pub(crate) fn durable_sql_limits() -> SqlLimits {
+pub fn durable_sql_limits() -> SqlLimits {
     SqlLimits {
         max_statements: 65536,
         max_sql_bytes: MAX_REQUEST_BYTES as u32,

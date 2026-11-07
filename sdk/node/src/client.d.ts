@@ -1,0 +1,166 @@
+/** Canonical nonzero u64 decimal string; runtime validation is mandatory. */
+export type Decimal = string;
+
+export interface Scope {
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly database: Decimal;
+  readonly incarnation: Decimal;
+  readonly generation: Decimal;
+}
+
+export type SqlValue = null | bigint | number | string | Uint8Array;
+export interface Statement { readonly sql: string; readonly parameters: readonly SqlValue[] }
+export interface RequestIdentity {
+  readonly epoch: Decimal;
+  readonly id: Decimal;
+  readonly principal: Decimal;
+  readonly fingerprint: string;
+}
+export interface Transition { readonly revision: Decimal; readonly nonce: Decimal }
+export interface Receipt {
+  readonly scope: Scope;
+  readonly request: RequestIdentity;
+  readonly sequence: Decimal;
+  readonly transition: Transition;
+  readonly data_root: string;
+  readonly result_hash: string;
+}
+
+declare const preparedRequest: unique symbol;
+/** Obtain only through Client.prepare or Client.restore; do not construct it. */
+export interface TrackedRequest {
+  readonly [preparedRequest]: true;
+  readonly scope: Scope;
+  readonly request: RequestIdentity;
+  readonly statements: readonly unknown[];
+}
+export interface StatementResult {
+  columns: string[];
+  rows: SqlValue[][];
+  affectedRows: bigint;
+  lastInsertRowid: bigint;
+}
+export interface TransactionResult { statements: StatementResult[] }
+export interface Committed {
+  readonly state: 'committed';
+  readonly receipt: Receipt;
+  /** A Node Buffer at runtime, with independent retained bytes. */
+  readonly rawResult: Uint8Array;
+  readonly result: TransactionResult;
+}
+export type Resolution = Committed |
+  { readonly state: 'cancelled'; readonly transition: Transition } |
+  { readonly state: 'unknown' | 'closed' | 'retired' };
+
+export type Lifecycle = 'ready' | 'maintenance' | 'deleted';
+export interface DatabaseStatus {
+  readonly scope: Scope;
+  readonly revision: Decimal;
+  readonly sequence: Decimal;
+  readonly owner_epoch: Decimal;
+  readonly owner_instance: Decimal;
+  readonly active: boolean;
+  readonly auth_epoch: Decimal;
+  readonly lifecycle: Lifecycle;
+  readonly request_epoch: Decimal;
+  readonly max_bytes: Decimal | null;
+  readonly transition: Transition;
+  readonly retention: {
+    readonly max_entries: number;
+    readonly max_result_bytes: Decimal;
+    readonly oldest_epoch: Decimal;
+  };
+}
+export interface Permission {
+  readonly principal: Decimal;
+  readonly read: boolean;
+  readonly write: boolean;
+  readonly admin: boolean;
+}
+export interface AdministrativeInput { readonly expectedRevision: Decimal; readonly nonce: Decimal }
+export interface CallOptions { readonly timeoutMs?: number; readonly signal?: AbortSignal }
+export interface ResultLimits {
+  readonly maxStatements?: number;
+  readonly maxSqlBytes?: number;
+  readonly maxParameters?: number;
+  readonly maxColumns?: number;
+  readonly maxRows?: number;
+  readonly maxResultBytes?: number;
+  readonly maxValueBytes?: number;
+  readonly maxInputBytes?: number;
+}
+export interface AllocationLimits {
+  readonly maxRows?: number;
+  readonly maxValues?: number;
+  readonly maxColumns?: number;
+}
+export interface ClientOptions {
+  readonly endpoint: string;
+  readonly token: string;
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  readonly timeoutMs?: number;
+  readonly recoveryTimeoutMs?: number;
+  readonly maxRequestBytes?: number;
+  readonly maxResponseBytes?: number;
+  readonly resultLimits?: ResultLimits;
+  readonly allocation?: AllocationLimits;
+  readonly allowInsecureHttp?: boolean;
+  /** Trusted transport injection; it must preserve standard Fetch semantics. */
+  readonly fetch?: typeof globalThis.fetch;
+}
+
+export interface OperationReference {
+  readonly scope: Scope;
+  readonly operation?: string;
+  readonly request?: RequestIdentity;
+  readonly nonce?: Decimal;
+  readonly expectedRevision?: Decimal;
+}
+export class ClientError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string, cause?: unknown);
+}
+export class RemoteError extends ClientError {
+  readonly outcome: 'unresolved';
+  readonly reference: OperationReference;
+  constructor(code: string, message: string, reference: OperationReference);
+}
+export class UnknownError extends ClientError {
+  readonly code: 'UNKNOWN';
+  readonly outcome: 'unknown';
+  readonly reference: OperationReference;
+  constructor(reference: OperationReference, cause?: unknown);
+}
+export class CommittedResultError extends ClientError {
+  readonly outcome: 'committed';
+  readonly receipt: Receipt;
+  readonly rawResult?: Uint8Array;
+  constructor(code: string, receipt: Receipt, rawResult?: Uint8Array, cause?: unknown);
+}
+
+export class Client {
+  constructor(options: ClientOptions);
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  prepare(statements: readonly Statement[], request: { readonly epoch: Decimal; readonly id: Decimal }): TrackedRequest;
+  save(request: TrackedRequest): string;
+  restore(serialized: string): TrackedRequest;
+  status(options?: CallOptions): Promise<DatabaseStatus>;
+  open(options?: CallOptions): Promise<DatabaseStatus>;
+  create(input: { readonly nonce: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  query(statements: readonly Statement[], options?: CallOptions): Promise<TransactionResult>;
+  execute(request: TrackedRequest, options?: CallOptions): Promise<Committed>;
+  lookup(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
+  cancel(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
+  activate(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  takeover(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  closeFull(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
+  setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;
+  setLifecycle(input: AdministrativeInput & { readonly lifecycle: Lifecycle }, options?: CallOptions): Promise<DatabaseStatus>;
+}
+
+export function validateResult(bytes: Uint8Array, overrides?: ResultLimits): void;
+export function decodeResult(bytes: Uint8Array, overrides?: ResultLimits, allocation?: AllocationLimits): TransactionResult;
