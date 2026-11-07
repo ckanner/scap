@@ -65,6 +65,7 @@ npm --prefix sdk/node run test:http 2>&1 | tee "$SCAP_EVIDENCE/node-sdk-http.log
 python3 scripts/check_repo.py 2>&1 | tee "$SCAP_EVIDENCE/repo.log"
 python3 -m unittest discover -s experiments/object-authority-model -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/model-unit.log"
 python3 experiments/object-authority-model/explore.py --output "$SCAP_EVIDENCE/model"
+python3 experiments/object-authority-model/named_catalogue_model.py --output "$SCAP_EVIDENCE/catalogue-model"
 python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/fixture-tests.log"
 python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/service-fixture-tests.log"
