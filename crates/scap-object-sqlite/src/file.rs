@@ -49,6 +49,7 @@ impl PreparedImage {
 /// real storage and deterministic unit faults.
 pub(crate) trait Files {
     type Output: Write;
+    fn validate_directory(&mut self, path: &Path) -> io::Result<()>;
     fn create_directory(&mut self, path: &Path) -> io::Result<()>;
     fn create_file(&mut self, path: &Path) -> io::Result<Self::Output>;
     fn sync_file(&mut self, file: &Self::Output) -> io::Result<()>;
@@ -60,6 +61,10 @@ pub(crate) struct NativeFiles;
 
 impl Files for NativeFiles {
     type Output = File;
+
+    fn validate_directory(&mut self, path: &Path) -> io::Result<()> {
+        crate::validate_cache_directory(path)
+    }
 
     fn create_directory(&mut self, path: &Path) -> io::Result<()> {
         fs::DirBuilder::new().mode(0o700).create(path)
@@ -130,11 +135,18 @@ impl<F: Files> Builder<F> {
         if parent.as_os_str().is_empty() {
             return Err(invalid_parent());
         }
+        files.validate_directory(parent).map_err(Error::Io)?;
         files.create_directory(directory).map_err(Error::Io)?;
         let mut directory = Directory {
             files,
             path: directory.to_owned(),
         };
+        // Recheck the actual owned directory before creating any SQLite file.
+        // Once creation succeeds, every failure removes only this private dir.
+        directory
+            .files
+            .validate_directory(&directory.path)
+            .map_err(Error::Io)?;
         let output = directory
             .files
             .create_file(&directory.path.join("database.sqlite"))

@@ -1,4 +1,5 @@
 use crate::file::{Builder, Files, NativeFiles};
+use crate::storage::{validate_with, DirectoryProbe};
 use crate::{Error, ImageBuilder, MAX_DATABASE_PAGES, PAGE_SIZE};
 use std::cell::RefCell;
 use std::fs;
@@ -49,6 +50,16 @@ struct ControlledFiles(Rc<RefCell<Trace>>);
 impl Files for ControlledFiles {
     type Output = MemoryFile;
 
+    fn validate_directory(&mut self, path: &Path) -> io::Result<()> {
+        let event = if path == Path::new("/owned") {
+            "validate_parent"
+        } else {
+            assert_eq!(path, Path::new("/owned/new-worker"));
+            "validate_directory"
+        };
+        self.0.borrow_mut().event(event)
+    }
+
     fn create_directory(&mut self, path: &Path) -> io::Result<()> {
         assert_eq!(path, Path::new("/owned/new-worker"));
         self.0.borrow_mut().event("directory")
@@ -90,7 +101,9 @@ fn header() -> [u8; PAGE_SIZE] {
 #[test]
 fn all_streaming_filesystem_faults_stop_before_a_prepared_image_can_escape() {
     let order = [
+        "validate_parent",
         "directory",
+        "validate_directory",
         "file",
         "write",
         "write_tail",
@@ -115,11 +128,11 @@ fn all_streaming_filesystem_faults_stop_before_a_prepared_image_can_escape() {
         })();
         assert!(matches!(result, Err(Error::Io(_))));
         let mut expected = order[..=index].to_vec();
-        if index != 0 {
+        if index >= 2 {
             expected.push("remove");
         }
         assert_eq!(trace.borrow().events, expected);
-        if index == 3 {
+        if *fail_at == "write_tail" {
             assert_eq!(trace.borrow().bytes, &header()[..2]);
             assert!(!trace.borrow().events.contains(&"sync_file"));
         }
@@ -257,7 +270,15 @@ fn partial_writes_poison_the_builder_and_never_sync_a_partial_snapshot() {
     assert!(matches!(builder.finish(), Err(Error::Stopped)));
     assert_eq!(
         trace.borrow().events,
-        ["directory", "file", "write", "write_tail", "remove"]
+        [
+            "validate_parent",
+            "directory",
+            "validate_directory",
+            "file",
+            "write",
+            "write_tail",
+            "remove"
+        ]
     );
 }
 
@@ -344,4 +365,121 @@ fn native_streaming_is_exclusive_private_and_cleans_owned_sidecars() {
     assert_eq!(empty.page_count(), 0);
     drop(empty);
     assert!(!empty_directory.exists());
+}
+
+struct Probe {
+    filesystem: u32,
+    fail_at: Option<&'static str>,
+    events: RefCell<Vec<&'static str>>,
+}
+
+impl DirectoryProbe for Probe {
+    type Handle = u64;
+
+    fn open_directory(&self, path: &Path) -> io::Result<Self::Handle> {
+        assert_eq!(path, Path::new("/cache"));
+        self.events.borrow_mut().push("open");
+        if self.fail_at == Some("open") {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "open"));
+        }
+        Ok(41)
+    }
+
+    fn filesystem(&self, directory: &Self::Handle) -> io::Result<u32> {
+        assert_eq!(*directory, 41);
+        self.events.borrow_mut().push("fstatfs");
+        if self.fail_at == Some("fstatfs") {
+            return Err(io::Error::other("fstatfs"));
+        }
+        Ok(self.filesystem)
+    }
+}
+
+#[test]
+fn execution_filesystems_require_explicit_support_and_successful_directory_probe() {
+    for filesystem in [0xef53, 0x5846_5342, 0x9123_683e, 0x0102_1994, 0x794c_7630] {
+        let probe = Probe {
+            filesystem,
+            fail_at: None,
+            events: RefCell::new(Vec::new()),
+        };
+        validate_with(&probe, Path::new("/cache")).unwrap();
+        assert_eq!(*probe.events.borrow(), ["open", "fstatfs"]);
+    }
+    for filesystem in [
+        0x6969,      // NFS, including EFS mounts
+        0xff53_4d42, // CIFS
+        0xfe53_4d42, // SMB2
+        0x6573_5546, // FUSE, including object-store mounts
+        0x0102_1997, // 9p
+        0x00c3_6400, // Ceph
+        0x5346_414f, // AFS
+        0x9fa0,      // procfs
+        0,           // unknown
+        u32::MAX,    // unknown
+    ] {
+        let probe = Probe {
+            filesystem,
+            fail_at: None,
+            events: RefCell::new(Vec::new()),
+        };
+        let error = validate_with(&probe, Path::new("/cache")).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+        assert!(error.to_string().contains(&format!("0x{filesystem:x}")));
+        assert_eq!(*probe.events.borrow(), ["open", "fstatfs"]);
+    }
+    for fail_at in ["open", "fstatfs"] {
+        let probe = Probe {
+            filesystem: 0xef53,
+            fail_at: Some(fail_at),
+            events: RefCell::new(Vec::new()),
+        };
+        let error = validate_with(&probe, Path::new("/cache")).unwrap_err();
+        assert_eq!(error.to_string(), fail_at);
+        let expected = if fail_at == "open" {
+            vec!["open"]
+        } else {
+            vec!["open", "fstatfs"]
+        };
+        assert_eq!(*probe.events.borrow(), expected);
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn native_execution_storage_checks_actual_directory_and_rejects_symlink_bypass() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().unwrap();
+    crate::validate_cache_directory(root.path()).unwrap();
+    let local_alias = root.path().join("local-alias");
+    symlink(root.path(), &local_alias).unwrap();
+    crate::validate_cache_directory(&local_alias).unwrap();
+    let missing = root.path().join("missing");
+    assert_eq!(
+        crate::validate_cache_directory(&missing)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::NotFound
+    );
+    let file = root.path().join("file");
+    fs::write(&file, b"").unwrap();
+    assert!(crate::validate_cache_directory(&file).is_err());
+
+    // procfs is a real rejected Linux filesystem accessible without mounting a
+    // test NFS server or requiring mount privileges. A symlink must inspect it,
+    // not infer eligibility from the path's location inside the local tempdir.
+    let unsupported_alias = root.path().join("unsupported-alias");
+    symlink("/proc", &unsupported_alias).unwrap();
+    assert_eq!(
+        crate::validate_cache_directory(&unsupported_alias)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::Unsupported
+    );
+    assert!(matches!(
+        ImageBuilder::create_new(&unsupported_alias.join("must-not-create"), 0, 1),
+        Err(Error::Io(error)) if error.kind() == io::ErrorKind::Unsupported
+    ));
+    assert!(!unsupported_alias.join("must-not-create").exists());
 }

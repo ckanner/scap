@@ -38,7 +38,7 @@ let database = scap_object::Database::with_options(objects, scope, worker_id, op
 
 HEAD key 固定绑定 deployment/tenant/database；incarnation 和 authority generation 放入 body，每次读取校验。key 的既有 `scap-object/v1/.../head` 命名空间不随帧版本迁移，避免通过换 key 绕过既有身份或删除屏障。v2 帧不兼容 v1 对象，不自动迁移旧库，不自动重新初始化缺失或不兼容 HEAD。
 
-不可变对象 key 包含全部 scope 和 SHA-256。GET 的 ETag 是 opaque 条件比较令牌，不当成内容摘要。HEAD 包含 revision/transition、SQL sequence、owner、policy、lifecycle、quota、retention、数据根和三个以内的请求世代索引 root。内部 u64 JSON 字段保持精确；未来 JavaScript 网络入口需要无损编码。
+不可变对象 key 包含全部 scope 和 SHA-256。GET 的 ETag 是 opaque 条件比较令牌，不当成内容摘要。HEAD 包含 revision/transition、SQL sequence、owner、policy、lifecycle、quota、retention、数据根和三个以内的请求世代索引 root。内部 u64 JSON 字段保持精确；现有 HTTP/Node 入口以规范十进制字符串传递身份，类型化 SQL 另有无损编码，见 [ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
 
 数据 Manifest 只保存 `page_count` 和树根。每块最多 **32 页 / 128 KiB**，树节点最多 256 个子引用，零起始 level 最高为 3，足以覆盖整个原生页号空间。节点的 level、范围、子引用数量和块的起始页、长度逐项绑定。增长必须提供所有新页，不能用空洞或补零掩盖缺失页。唯一的引擎格式例外是 SQLite 第 262145 页锁字节保留页：原生适配器只在首次跨越时显式提供该页的确定零字节，计入变化页预算；已存在的权威字节不被覆盖。数据树本身仍要求页齐全。截断只改变引用，不删除远端对象。热修改只加载受影响块和祖先路径，未变化子树继续引用原不可变对象。
 
@@ -61,7 +61,7 @@ v2 使用固定 framing、严格元数据 JSON 和原始字节区；数据块及
 
 SQL 在私有事务执行，最终物理变化页和精确原结果先进入 commit gate。只有依赖持久并回读、原 ETag 的 HEAD CAS 成功、native publication 成功且检查点完成后，调用方才观察成功。每次 native commit 后核验 `wal_checkpoint(TRUNCATE)` 的实际完成状态，防止长期会话积累无界 WAL。接受后本地发布、checkpoint 或期限失败返回 `CommittedButUnavailable`，停止连接；原结果通过原身份查证，不能重做 SQL。
 
-cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝，不能提前发布。变化页预算、VM、SQL 和结果预算都是真实执行限制，但不是整个进程的硬 RSS 上限。64 MiB 变化页也不是总上传预算：128 KiB 块中每块只变一页时，16,384 个脏页可以重写约 2 GiB 块数据，另外还有路径、索引和回读。当前由 deadline 约束总操作时间，没有单次对象总流量/次数硬预算。结果、typed 输入、SQLite 及对象编码还有独立内存开销；公平调度和进程资源隔离尚未完成。
+cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝，不能提前发布。变化页预算、VM、SQL 和结果预算都是真实执行限制，但不是整个进程的硬 RSS 上限。64 MiB 变化页也不是总上传预算：128 KiB 块中每块只变一页时，16,384 个脏页可以重写约 2 GiB 块数据，另外还有路径、索引和回读。当前由 deadline 约束总操作时间，没有单次对象总流量/次数硬预算。结果、typed 输入、SQLite 及对象编码还有独立内存开销。现有服务具备有界队列、租户/数据库轮转及独立控制线程；固定 data lane 内的恢复仍不可抢占，完整冷热隔离、负载公平性与进程资源硬隔离尚未完成。
 
 `Database::execute` / `query` 保留单次便利接口，冷物化也计入它们同一个操作 deadline。GiB 库应显式准备 Session。查询的静态输入校验在冷下载之前执行。任何自动 SQL 或 CAS 重试均禁止；条件失败只描述本次 CAS，UNKNOWN 不证明未提交。
 
@@ -78,6 +78,8 @@ cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝
 
 ## 部署边界
 
-`principal` 必须来自可信鉴权，不接受外部客户端直接自报身份；S3 凭据只给可信协议进程。命名目录、HTTP/Node SDK、多库调度、硬资源隔离、GC/PITR、真实 AWS Standard 及生产 SLO 仍有独立退出门禁。关闭物理 GC 时，旧块、旧索引和失败上传 orphan 持续占用远端空间，单库当前文件配额不代表 bucket 总量或长期成本有界。
+`principal` 必须来自可信鉴权，不接受外部客户端直接自报身份；S3 凭据只给可信协议进程。正式认证 HTTP、Node SDK 及有界多库准入已经实现，历史本地验收见[服务验证记录](http-service-validation.md)。命名目录、自动 owner 路由、完整冷热隔离、GC/PITR、真实 AWS Standard 及生产 SLO 仍有独立退出门禁。关闭物理 GC 时，旧块、旧索引和失败上传 orphan 持续占用远端空间，单库当前文件配额不代表 bucket 总量或长期成本有界。
 
 相关决定及官方产品容量对照见 [ADR-0022](../adr/0022-production-capacity.md)。
+
+本地执行镜像及 WAL/SHM 必须使用可靠的私有本地存储。本分支新增 Linux 目录类型防护候选，参见[SQLite 存储安全](../operations/sqlite-storage-safety.md)；新增代码的编译、原生与覆盖率验证仍为 NOT_RUN，不沿用历史运行时证据。

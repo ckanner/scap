@@ -11,6 +11,7 @@ mod gate;
 mod image;
 mod query;
 mod sql;
+mod storage;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,6 +23,7 @@ use scap_sql::{SqlLimits, Statement, TransactionResult};
 
 pub use file::{ImageBuilder, PreparedImage};
 use gate::{Attempt, GateState, GateWal, Resolution};
+pub use storage::validate_cache_directory;
 
 pub const PAGE_SIZE: usize = 4096;
 /// SQLite's physical page-number limit, separate from a deployment's quota.

@@ -6,13 +6,23 @@
 
 **当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
-[本批 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 本轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
+[PR #28 的本地执行目录防护验收](docs/engineering/local-storage-validation.md)绑定冻结候选 `a11e61e`：stable／nightly 各 204 项 Rust 单元、24 个生产文件精确覆盖，以及真实 S3/原生故障、HTTP/SDK 和 1 GiB 全量恢复通过。首次格式与 release 构建失败均保留；独立原始审计的可确认范围和服务恢复响应账本的限制分别列明。
+
+[PR #27 的 HTTP／Node 完整本地验收](docs/engineering/http-service-validation.md)绑定冻结候选 `aa01150`：stable／nightly 各 199 项 Rust 单元、23 个生产文件四维逐文件精确 100%，真实服务核对 10 个唯一请求和 8 次重复成功响应。全部计算缓存丢失恢复、原网络故障合同、保留结果及 1 GiB 全量恢复均有独立证据。该历史结果不认证后续源码；名称目录、自动路由、完整 N1/N2、AWS 与生产 SLO 仍未完成。
+
+[PR #26 的 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 该轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
 
 [PR #21 的历史故障验证记录](docs/evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`：基础 10 类合同加 4 类扩展全部通过，扩展包含 30 个场景（其中 1 个为依赖序列 pilot）。实际验证了 14 个依赖上传切点、HEAD 成功后进程丢失及两种 native 失败、五类依赖的缺失／损坏、恢复期间 HEAD 变化；基础 4 条与扩展 61 条 execute ACK 的完整回执和原结果均一致。正式单元与四维覆盖再次通过；同一 release 二进制复跑 1 GiB 数据，39 条已确认请求及全部 16,384 个 BLOB 核对无差异。本批扩展实验、观察接口和 CI，不改变正式生产源码；完整 OT-01–OT-08 与 AWS 仍未完成。
 
 [PR #20 的本地容量基线](docs/evidence/production-capacity-local-2026-11-06.json)绑定运行时提交 `a302840d3232163ae16c85ff384abaae82cb9ff5`：130 项 Rust 单元、13 个生产文件四维精确 100%，74 项工具单元、89 项模型测试和 10 项真实本地 S3/进程合同通过。同一 release 二进制完成 1 GiB 独立随机数据验收及默认 **10 GiB 实际 SQLite 文件边界**验收；后者恢复后逐条核对 **363 条 ACK、162,564 个 BLOB**，原回执、原结果和全部数据哈希均无差异。达到配额后同尺寸更新成功，新页面分配被拒绝且 HEAD 不变。后续文档提交不改变实测源码；AWS Standard、完整 N1 和生产 SLO 仍未完成。
 
 [PR #19 的历史本地验证记录](docs/evidence/object-native-local-2026-11-06.json)：87 项 Rust 单元测试通过，11 个生产文件四维覆盖率精确 100%；release 构建的 10 项真实本地 S3/进程故障合同通过。4 条成功写入均由独立持久账本逐条核对原回执与原结果；AWS Standard 保持 `NOT_RUN`。
+
+## SQLite 文件系统边界
+
+S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SHM 作为共享网络文件读写。本地执行镜像仍必须满足 SQLite 的 I/O 语义；误把 `cache_directory` 配成 NFS/EFS/FUSE 不能因“缓存可丢弃”而视为安全。
+
+[PR #28](https://github.com/ckanner/scap/pull/28) 已完成本地目录类型防护、补充测试及必要本地回归，见[验收说明](docs/engineering/local-storage-validation.md)与[存储安全说明](docs/operations/sqlite-storage-safety.md)。最初环境不可用及后续失败仍保留在[审查记录](docs/engineering/status-2026-11-07.md)；当前结果只绑定本轮冻结候选。真实 NFS/EFS/FUSE 挂载、AWS 和生产门禁没有由本地分类测试代替。后续按[路线图](docs/engineering/roadmap.md)继续。
 
 ## 实现入口
 
