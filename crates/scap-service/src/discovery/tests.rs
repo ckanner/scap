@@ -51,6 +51,47 @@ pub(crate) fn seed(memory: Arc<Memory>, tenant: u64, count: u64) -> Vec<core::Cr
 }
 
 #[test]
+fn finalization_reserve_keeps_incomplete_cursors_within_the_original_http_deadline() {
+    let started = Instant::now();
+    assert_eq!(read_deadline(started, started), started);
+    assert_eq!(
+        read_deadline(started, started + Duration::from_millis(500)),
+        started
+    );
+    assert_eq!(
+        read_deadline(started, started + TIMEOUT),
+        started + Duration::from_secs(4)
+    );
+    let memory = Arc::new(Memory::default());
+    let d = discovery(memory.clone());
+    let p = Principal {
+        deployment_inventory: true,
+        ..principal()
+    };
+    for operation in ["list_names", "deployment_inventory"] {
+        // With less than the reserve left, do no I/O. Still return the exact
+        // unadvanced checkpoint so the caller can explicitly resume it.
+        let bytes = d
+            .reader
+            .execute(
+                &p,
+                call(operation, Value::Null),
+                Instant::now() + Duration::from_millis(500),
+            )
+            .unwrap();
+        let value = serde_json::from_slice::<Value>(&bytes).unwrap();
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["value"]["stopped"], "UNKNOWN");
+        assert!(value["value"]["cursor"].is_string());
+        assert!(memory.calls.lock().unwrap().is_empty());
+        let resumed = page(&d, &p, operation, value["value"]["cursor"].clone());
+        assert_eq!(resumed["cursor"], Value::Null);
+        assert_eq!(resumed["stopped"], Value::Null);
+        memory.calls.lock().unwrap().clear();
+    }
+}
+
+#[test]
 fn separate_admission_bounds_global_and_tenant_work_until_the_last_owner_drops() {
     let gate = Admission::default();
     let p = principal();

@@ -14,14 +14,14 @@ struct ListState {
     fault: Option<(String, Result<ListPage, ListError>)>,
 }
 
-struct Listing {
+pub(in crate::catalogue) struct Listing {
     objects: Arc<Memory>,
     size: usize,
     state: Mutex<ListState>,
 }
 
 impl Listing {
-    fn new(objects: Arc<Memory>) -> Arc<Self> {
+    pub(in crate::catalogue) fn new(objects: Arc<Memory>) -> Arc<Self> {
         Arc::new(Self {
             objects,
             size: 3,

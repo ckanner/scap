@@ -151,7 +151,7 @@ fn blocking_panic_and_expired_body_are_explicit_failures_without_leaked_admissio
             discovery.clone(),
             principal(),
             reservation,
-            Instant::now() + Duration::from_secs(1),
+            Instant::now() + scan::TIMEOUT,
             request("list_names"),
         )
         .await;
@@ -179,7 +179,11 @@ fn blocking_panic_and_expired_body_are_explicit_failures_without_leaked_admissio
 
 #[test]
 fn timed_out_request_retains_its_scan_slot_until_the_plain_worker_finishes() {
-    struct SlowList;
+    use std::sync::{mpsc, Mutex};
+    struct SlowList {
+        entered: mpsc::Sender<()>,
+        release: Mutex<mpsc::Receiver<()>>,
+    }
     impl scap_object_store::Listings for SlowList {
         fn list_page(
             &self,
@@ -187,7 +191,14 @@ fn timed_out_request_retains_its_scan_slot_until_the_plain_worker_finishes() {
             _: Instant,
         ) -> Result<scap_object_store::ListPage, scap_object_store::ListError> {
             assert!(tokio::runtime::Handle::try_current().is_err());
-            std::thread::sleep(Duration::from_millis(80));
+            // Deliberately ignore the earlier read deadline to prove that the
+            // outer HTTP timeout cannot release a still-running port call.
+            self.entered.send(()).unwrap();
+            self.release
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap();
             Ok(scap_object_store::ListPage {
                 entries: vec![],
                 end: scap_object_store::ListEnd::Exhausted,
@@ -195,10 +206,15 @@ fn timed_out_request_retains_its_scan_slot_until_the_plain_worker_finishes() {
             })
         }
     }
+    let (entered, started) = mpsc::channel();
+    let (release, held) = mpsc::channel();
     let d = Arc::new(
         scan::Discovery::new(
             Arc::new(Memory::default()),
-            Arc::new(SlowList),
+            Arc::new(SlowList {
+                entered,
+                release: Mutex::new(held),
+            }),
             100,
             codec(),
         )
@@ -210,15 +226,17 @@ fn timed_out_request_retains_its_scan_slot_until_the_plain_worker_finishes() {
             d.clone(),
             principal(),
             lease,
-            Instant::now() + Duration::from_millis(20),
+            Instant::now() + Duration::from_secs(2),
             request("list_names"),
         )
         .await;
         assert_eq!(decoded(response).await["error"]["code"], "DEADLINE");
+        started.try_recv().unwrap();
         assert_eq!(
             d.admission.acquire(&principal()).err().unwrap().code,
             "BACKPRESSURE"
         );
+        release.send(()).unwrap();
     });
     drop(d);
 }

@@ -201,7 +201,7 @@ impl Catalogue {
         }))
     }
 
-    fn metadata_state(
+    pub(super) fn metadata_state(
         &self,
         source: &Source,
         view: &View,

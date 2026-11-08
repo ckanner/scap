@@ -47,7 +47,7 @@ def valid_contract() -> dict:
         "quality": {"unit_coverage_percent": 100, "integration_profiles_count_as_unit": False},
         "compatibility": {"legacy_runtime": False, "legacy_sdk": False, "dual_backend": False},
         "profile": {
-            "head_format": 3,
+            "head_format": 4,
             "object_format": 2,
             "catalogue_format": 1,
             "page_size": 4096,

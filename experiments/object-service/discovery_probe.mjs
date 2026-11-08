@@ -211,6 +211,29 @@ if (phase === 'setup') {
   const rows = await complete(discovery(), phase, state.faultCursor);
   const observed = [...state.faultNames, ...names(rows)];
   assert.deepEqual(observed, [state.first.name]);
+} else if (phase === 'slow_progress') {
+  const client = discovery(), collected = [];
+  let cursor = null, incomplete = 0, finished = false;
+  for (let index = 0; index < 16; index++) {
+    const value = await page(client, `slow_progress_${index}`, cursor);
+    collected.push(...value.names);
+    if (value.cursor === null) {
+      assert.equal(value.traversal_exhausted, true);
+      assert.equal(value.stopped, null);
+      finished = true; break;
+    }
+    assert.equal(value.stopped, 'UNKNOWN');
+    assert.equal(value.traversal_exhausted, false);
+    assert.equal(typeof value.cursor, 'string');
+    assert.notEqual(value.cursor, cursor);
+    cursor = value.cursor; incomplete++;
+  }
+  assert.ok(finished && incomplete >= 2, 'steady-latency pages must retain progress and complete');
+  assert.deepEqual(names(collected), [state.first.name]);
+} else if (phase === 'prime_hot') {
+  const client = database();
+  const value = await call(client, 'prime_hot_query', 'query', () => client.query([statement('SELECT id, label FROM witness ORDER BY id')]));
+  assert.deepEqual(value.statements[0].rows, [[1n, 'discovery-native-witness']]);
 } else if (phase === 'hold_timeout') {
   await page(discovery(), 'held_client_timeout', null, false, 'DEADLINE', { timeoutMs: 180 });
 } else if (phase === 'hold_abort') {

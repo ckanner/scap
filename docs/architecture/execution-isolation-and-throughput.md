@@ -27,7 +27,9 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 
 **256 只限制这组数据库调度线程，并非整个进程线程数。** 可选目录 pool 有独立最多 32 workers；当前 HTTP Tokio runtime 有 2 个 worker，S3 I/O runtime 有 1 个 worker；运行时与依赖内部辅助线程另计。空闲 actor 的连接与线程回收都不依赖新请求。单 reaper 被某次析构阻塞时，后续已退出但未 join 的 actor 也继续保留额度；此时可用容量减少并触发限流，不无界增加线程，也不让 HTTP 提交线程等待 join。
 
-## 验证矩阵
+## 当前验收与历史开发矩阵
+
+本文件最初开发时的 scoped 单元记录保留如下。后续 #31/#32 的组合 workspace、真实 HTTP/S3 与冷热隔离验收已完成并合入，最新冻结身份和失败修正过程见[验收记录](../engineering/catalogue-actors-validation.md)。下方最初阶段的 NOT_RUN 不是该后续候选的状态，后续新增目录/恢复/索引仍须按自己的输入单独验证。
 
 本候选的 Rust 1.90 服务 unit **70/70**、workspace 严格 clippy 和 fresh nightly unit 已运行。来自完整 workspace unit-only profile 的 12 个 `scap-service` 生产文件行/函数/region/branch 计数均覆盖全部实际分母；`catalogue.rs`、`lib.rs`、`main.rs` 没有可测 branch region，明确为 0/0，不把它们宣称为测得的 100% 分支覆盖。主要改动文件的精确计数如下。
 
@@ -52,7 +54,7 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 
 此改动消除固定哈希 lane 上的跨库恢复阻塞，但每个库的 SQL 仍串行，且活跃库数受线程上限约束。它不是十万热库的调度终点。下一阶段若要大量热库共享少量线程，应把恢复拆成可跨线程的已验证私有 image 与本线程 native open，并设计 continuation、完成事件预留、原始 deadline、fresh HEAD 校验和所有权交接；只搬下载、仍在热线程执行完整 integrity check 不能获得完整隔离。
 
-热强读每次仍做 exact HEAD GET 与权限/数据根校验，再在本地查询。冷恢复仍顺序下载整个不可变树、校验历史结果并做 native integrity check。写提交按 128 KiB chunk / 256 路数据树做 COW，并非每次全库上传；然而新对象依赖逐个 PUT + exact GET、结果索引整窗重写、HEAD CAS、native publication 和同步 checkpoint 都位于提交路径。没有 group commit、同库并发 reader pool、MVCC 或 S3 Express 专用适配器，不能借 Turso 公布的其他架构/硬件基准宣称本项目 TPS。
+热强读每次仍做 exact HEAD GET 与权限/数据根校验，再在本地查询。冷恢复仍顺序下载整个不可变树、校验历史结果并做 native integrity check。写提交按 128 KiB chunk / 256 路数据树做 COW，并非每次全库上传；然而新对象依赖逐个 PUT + exact GET、分段请求索引路径更新、HEAD CAS、native publication 和同步 checkpoint 都位于提交路径。没有 group commit、同库并发 reader pool、MVCC 或 S3 Express 专用适配器，不能借 Turso 公布的其他架构/硬件基准宣称本项目 TPS。
 
 数据 actor、control pool 仍共享对象客户端、网络、磁盘、CPU 和 HTTP runtime。HTTP JSON 解码仍在 runtime 内同步执行，缓存页预算没有入场磁盘预留，GC 仍关闭；这些边界必须在容量/延迟实验中独立测量。`BACKPRESSURE` 与 `RECOVERY_BUSY` 是可观察的资源限制，不能宣传成无限扩展。
 

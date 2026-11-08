@@ -100,8 +100,8 @@ pub struct DiscoveryUsage {
 /// bit, ADMIN grant or client JSON is not a recovery capability. This capability
 /// permits metadata inspection; it grants no SQL permission or mutation.
 pub struct RecoveryCapability {
-    deployment: u64,
-    worker: u64,
+    pub(super) deployment: u64,
+    pub(super) worker: u64,
 }
 
 impl RecoveryCapability {

@@ -24,7 +24,8 @@ FAULTS = {"denied": "DENIED", "missing": "UNKNOWN", "missing_truncation": "CORRU
           "head_missing": "CORRUPT", "head_corrupt_head": "CORRUPT"}
 PHASES = ("setup", "reader_first", "revoke_continue", "capabilities", "cursor_bindings",
           *(item for name in FAULTS for item in ("fault_" + name, "after_fault_" + name)),
-          "hold_timeout", "one_held_probe", "hold_abort", "held_probes", "release_recovered", "cursor_before_loss", "restart")
+          "slow_progress", "prime_hot", "hold_timeout", "one_held_probe", "hold_abort", "held_probes",
+          "release_recovered", "cursor_before_loss", "restart")
 ROLE_SCOPE = {"admin": ("1", "7", "11", True, False), "reader": ("1", "7", "12", False, False),
               "operator": ("1", "7", "13", False, True), "other": ("1", "8", "22", True, False),
               "third": ("1", "9", "33", False, False), "foreign": ("2", "7", "44", True, True)}
@@ -161,8 +162,14 @@ def network(data, calls):
     require(sorted(grouped) == list(range(1, len(grouped) + 1)), "S3 invocation denominator has gaps")
     objects, version_requests, version_responses = {}, {}, {}
     allowed = {"request", "forwarded", "backend_response", "delivery_started", "delivery_finished", "delivery_disconnected",
-               "fault_armed", "fault_observed", "hold_released"}
+               "fault_armed", "fault_observed", "hold_released", "latency_armed", "latency_disabled",
+               "delay_started", "delay_finished"}
     require(all(row["event"] in allowed for row in history), "unplanned S3 event")
+    latency = only([row for row in history if row["event"] == "latency_armed"], "steady latency arm")
+    latency_end = only([row for row in history if row["event"] == "latency_disabled"], "steady latency end")
+    require(latency["label"] == latency_end["label"] == "slow_progress" and latency["seconds"] == 0.03
+            and stamp(latency) < stamp(latency_end), "steady exact-GET latency contract changed")
+    delayed = 0
     for serial, events in grouped.items():
         by = defaultdict(list)
         for row in events:
@@ -178,6 +185,17 @@ def network(data, calls):
         require(dict(pairs) == request["query"] and len(pairs) == len(request["query"]), "raw S3 query differs")
         require(unquote(parsed.path).removeprefix("/scap-test/") == request["key"], "raw S3 key differs")
         incoming, upstream, outgoing = raw(request["request"]), raw(backend["body"]), raw(delivery["body"])
+        slow = request["method"] == "GET" and not request["query"] and stamp(latency) < stamp(request) < stamp(latency_end)
+        require(request["latency"] == ("slow_progress" if slow else None), "steady latency selected another request")
+        if slow:
+            start = only(by["delay_started"], "missing exact-GET delay start")
+            end = only(by["delay_finished"], "missing exact-GET delay end")
+            require(start["label"] == end["label"] == "slow_progress" and start["seconds"] == 0.03
+                    and stamp(backend) < stamp(start) < stamp(end) < stamp(delivery)
+                    and stamp(end) - stamp(start) >= 30_000_000, "actual exact-GET delay was shorter than specified")
+            delayed += 1
+        else:
+            require(not by["delay_started"] and not by["delay_finished"], "unplanned delayed request")
         if request["method"] == "GET":
             require(incoming == b"" and request["if_match"] is None and request["if_none_match"] is None, "GET body/conditions changed")
         else:
@@ -278,6 +296,7 @@ def network(data, calls):
         require(field("KeyCount") == str(len(entries)) and field("IsTruncated") == str(len(expected) > 32).lower(),
                 "LIST completeness/count differs from observed permanent inventory")
     return objects, {"signed_backend_requests": len(objects), "list_requests": listing_count, "versions": versions,
+                     "exact_gets_with_observed_30ms_latency": delayed,
                      "original_backend_response_body_bytes": sum(len(obj["upstream"]) for obj in objects.values()),
                      "delivered_response_body_bytes": sum(len(obj["outgoing"]) for obj in objects.values())}
 
@@ -421,6 +440,85 @@ def pages(data, observed, objects):
             "inventory_scans": 2, "data_recovery": "not_run"}
 
 
+def classified_name(reads, creation):
+    """Prove a stable Ready metadata view, including READ-denied candidates."""
+    scope = creation["scope"]
+    prefix = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+    key = prefix + "catalogue/v1/name/" + sha(creation["name"].encode())
+    names = [obj for obj in reads[key] if obj["delivery"]["status"] == 200
+             and numeric_wire(parse(obj["outgoing"])["creation"]) == creation]
+    descriptors = [obj for obj in reads[prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}"]
+                   if obj["delivery"]["status"] == 200 and numeric_wire(parse(obj["outgoing"])["creation"]) == creation]
+    proofs = [obj for obj in reads[prefix + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}"]
+              if obj["delivery"]["status"] == 404]
+    for head in reads[prefix + scope["database"] + "/head"]:
+        if head["delivery"]["status"] != 200:
+            continue
+        body = parse(head["outgoing"])
+        if body["lifecycle"] != "ready" or numeric_wire(body["scope"]) != scope:
+            continue
+        source = any(sha(obj["outgoing"]) == body["creation"]["descriptor_hash"]
+                     and stamp(obj["delivery"]) < stamp(head["request"]) for obj in descriptors)
+        for after in names:
+            if stamp(after["request"]) <= stamp(head["delivery"]):
+                continue
+            before = [obj for obj in names if obj["outgoing"] == after["outgoing"]
+                      and obj["delivery"]["etag"] == after["delivery"]["etag"]
+                      and stamp(obj["delivery"]) < stamp(head["request"])]
+            barrier = any(stamp(proof["delivery"]) < stamp(head["request"])
+                          and any(stamp(prior["delivery"]) < stamp(proof["request"]) for prior in before) for proof in proofs)
+            if source and before and barrier:
+                return True
+    return False
+
+
+def slow_progress(observed, objects, history, ordered):
+    scan = [call for call in observed.values() if call["request"]["phase"] == "slow_progress"]
+    require(3 <= len(scan) <= 16 and [call["label"] for call in scan] == [f"slow_progress_{index}" for index in range(len(scan))],
+            "steady-latency scan omitted/reordered explicit pages")
+    armed = only([row for row in history if row["event"] == "latency_armed"], "steady latency arm")
+    disabled = only([row for row in history if row["event"] == "latency_disabled"], "steady latency end")
+    prefix = "scap-object/v1/1/7/catalogue/v1/name/"
+    expected = {prefix + sha(creation["name"].encode()): creation for creation in ordered}
+    frontiers, values = [], []
+    for index, call in enumerate(scan):
+        require(stamp(armed) < stamp(call["request"]) < stamp(call["response"]) < stamp(disabled),
+                "slow scan was not covered by actual sustained latency")
+        value = value_of(call)
+        values.append(value)
+        require(call["body"]["cursor"] == (None if index == 0 else values[index - 1]["cursor"]),
+                "steady-latency continuation reset or replaced its original cursor")
+        lists = within(objects, call, listing=True)
+        require(lists and all(obj["request"]["query"]["prefix"] == prefix for obj in lists),
+                "steady-latency scan lacks the actual tenant LIST")
+        frontiers.append(lists[0]["request"]["query"].get("start-after", ""))
+        if index < len(scan) - 1:
+            elapsed = stamp(call["response"]) - stamp(call["request"])
+            require(value["stopped"] == "UNKNOWN" and isinstance(value["cursor"], str)
+                    and value["traversal_exhausted"] is False and 3_500_000_000 <= elapsed < 5_000_000_000,
+                    "scan deadline discarded a partial cursor or extended the original HTTP deadline")
+        else:
+            require(value["cursor"] is None and value["traversal_exhausted"] is True and value["stopped"] is None,
+                    "steady-latency explicit continuation never finished")
+    require(frontiers[0] == "" and all(left < right for left, right in zip(frontiers, frontiers[1:]))
+            and all(key in expected for key in frontiers[1:]), "steady-latency lower bound reset/stalled/escaped its candidates")
+    covered = []
+    for index, call in enumerate(scan):
+        upper = frontiers[index + 1] if index + 1 < len(scan) else max(expected)
+        reads = defaultdict(list)
+        for obj in within(objects, call, listing=False):
+            reads[obj["request"]["key"]].append(obj)
+        for key, creation in expected.items():
+            if frontiers[index] < key <= upper:
+                require(classified_name(reads, creation), "steady-latency continuation advanced past an unclassified name")
+                covered.append(key)
+    require(covered == list(expected), "steady-latency scan omitted/repeated a preexisting name")
+    require([item["creation"] for value in values for item in value["names"]] == [ordered[0]],
+            "steady-latency pagination lost/repeated an authorized name")
+    return {"pages": len(scan), "unknown_pages_with_continuation": len(scan) - 1,
+            "classified_preexisting_names": len(covered), "completed": True}
+
+
 def cases(observed, objects, history):
     setup = {f"prepare_{index}" for index in range(129)} | {f"ready_{index}" for index in range(129)} | {
         "prepare_other", "ready_other", "prepare_foreign", "ready_foreign", "prepare_dormant", "control_dormant",
@@ -468,7 +566,10 @@ def cases(observed, objects, history):
                 "S3 failure was turned into successful empty discovery")
         target = only([obj for obj in objects.values() if obj["request"]["fault"] == label], "actual original fault denominator")
         require(window(call, stamp(target["request"])) and stamp(target["delivery"]) < stamp(call["response"]), "fault has no matching API invocation")
-        recovery = [value for name, value in observed.items() if name.startswith("after_fault_" + label + "_")]
+        phase = "after_fault_" + label
+        recovery = [value for value in observed.values() if value["request"]["phase"] == phase]
+        require([value["label"] for value in recovery] == [f"{phase}_{index}" for index in range(len(recovery))],
+                "fault recovery page suffixes are not contiguous canonical decimal indices")
         require(recovery and recovery[0]["body"]["cursor"] == page["cursor"] and value_of(recovery[-1])["cursor"] is None,
                 "fault recovery silently restarted or omitted the explicit cursor")
         all_names = page["names"] + [item for value in recovery for item in value_of(value)["names"]]
@@ -478,13 +579,23 @@ def cases(observed, objects, history):
             lists = within(objects, recovery[0], listing=True)
             require(lists and lists[0]["request"]["query"].get("start-after") == "scap-object/v1/1/7/catalogue/v1/name/" + sha(ordered[0]["name"].encode()),
                     "continuation advanced to unclassified LIST page tail")
+    progress = slow_progress(observed, objects, history, ordered)
+    hot = observed["while_held_query"]
+    resident = only(within(objects, hot), "resident hot query performed extra object I/O")
+    require(resident["request"]["method"] == "GET" and not resident["request"]["query"]
+            and resident["request"]["key"] == f"scap-object/v1/1/7/{ordered[0]['scope']['database']}/head"
+            and resident["delivery"]["status"] == 200, "resident hot query was not a fresh exact HEAD-only read")
+    prime = observed["prime_hot_query"]
+    require(prime["request"]["phase"] == "prime_hot" and stamp(prime["response"]) < stamp(hot["request"]),
+            "resident probe was not explicitly primed before the holds")
     held = {}
     for label, call_label, code in (("slot_timeout", "held_client_timeout", "DEADLINE"), ("slot_abort", "held_client_abort", "ABORTED")):
         observed_fault = only([row for row in history if row["event"] == "fault_observed" and row["label"] == label], "held LIST observation")
         release = only([row for row in history if row["event"] == "hold_released" and row["label"] == label], "held LIST release")
         call = observed[call_label]
         require(call["outcome"]["error"]["code"] == code and call["response"]["event"] == "http_transport_error", "client did not actually timeout/drop")
-        require(stamp(call["request"]) < stamp(observed_fault) < stamp(call["response"]) < stamp(release)
+        require(stamp(prime["response"]) < stamp(observed_fault)
+                and stamp(call["request"]) < stamp(observed_fault) < stamp(call["response"]) < stamp(release)
                 and stamp(release) < stamp(call["request"]) + 5_000_000_000, "held job escaped the original fixed server deadline")
         held[label] = (observed_fault, release)
     probes = {"same_tenant_still_busy", "aborted_tenant_still_busy", "global_two_still_busy"}
@@ -510,7 +621,8 @@ def cases(observed, objects, history):
     require(any(name.startswith("after_release_") and call.get("value", {}).get("ok") is True for name, call in observed.items()),
             "released workers never made admission available again")
     return {"seed_ready_names": 131, "observed_response_faults": 6, "invalid_cursor_bindings": len(cursors),
-            "held_running_workers": 2, "hot_and_control_successes_while_blocked": 3}
+            "held_running_workers": 2, "hot_and_control_successes_while_blocked": 3,
+            "resident_hot_query_head_only": True, "steady_latency_progress": progress}
 
 
 def sql(data, observed, objects):
@@ -543,12 +655,12 @@ def sql(data, observed, objects):
                 require(head["data_root"] == receipt["data_root"] and numeric_wire(head["scope"]) == saved["scope"], "ACK durable HEAD differs")
                 witnesses.append(obj)
     require(len(witnesses) == 1, "native execute ACK lacks its accepted conditional HEAD")
-    for label in ("while_held_query", "after_restart_query"):
+    for label in ("prime_hot_query", "while_held_query", "after_restart_query"):
         call = observed[label]
         equal(call["body"]["statements"], [{"sql": "SELECT id, label FROM witness ORDER BY id", "params": []}], "native witness query changed")
         decoded = result(b64(value_of(call)["result"]))
         require(len(decoded) == 1 and decoded[0]["rows"] == [[1, "discovery-native-witness"]], "actual SQLite business row differs")
-    return {"original_execute_ack": 1, "identical_lookup_cancel_results": 4, "native_business_readbacks": 2}
+    return {"original_execute_ack": 1, "identical_lookup_cancel_results": 4, "native_business_readbacks": 3}
 
 
 def processes(data, calls, build):
@@ -681,11 +793,45 @@ def controls(directory):
     def fake_cache_loss(data):
         row = only([row for row in data["process-ledger.jsonl"] if row["event"] == "cache_directory_removed" and row["owner_instance"] == 7001], "control cache")
         row["exists"] = True
+    def lost_slow_checkpoint(data):
+        def replace(value):
+            value.clear(); value.update(ok=False, error={"code": "DEADLINE", "message": "DEADLINE"})
+        mutate_response(data, "slow_progress_0", replace)
+        terminal = only([row for row in data["discovery-calls.jsonl"] if row["event"] == "call_finished"
+                         and row["label"] == "slow_progress_0"], "slow checkpoint control")
+        terminal.pop("value")
+        terminal["error"] = {"code": "DEADLINE", "name": "ScapError"}
+        response = only([row for row in data["http-client-ledger.jsonl"] if row.get("call_id") == terminal["call_id"]
+                         and row["event"] == "http_response"], "slow checkpoint response")
+        response["status"] = 503
+    def reset_slow_cursor(data):
+        terminal = only([row for row in data["discovery-calls.jsonl"] if row["event"] == "call_finished"
+                         and row["label"] == "slow_progress_1"], "slow cursor control")
+        request = only([row for row in data["http-client-ledger.jsonl"] if row.get("call_id") == terminal["call_id"]
+                        and row["event"] == "http_request"], "slow cursor request")
+        value = parse(b64(request["body"]))
+        value["cursor"] = None
+        encoded = json.dumps(value, separators=(",", ":")).encode()
+        request["body"], request["body_sha256"] = base64.b64encode(encoded).decode(), sha(encoded)
+    def nonresident_hot(data):
+        _, observed, _ = http_calls(data)
+        prime, hot = observed["prime_hot_query"], observed["while_held_query"]
+        trace = data["discovery-s3.jsonl"]
+        cold = next(row for row in trace if row["event"] == "request" and window(prime, stamp(row))
+                    and row["method"] == "GET" and "/objects/" in row["key"])
+        moved = [row for row in trace if row.get("request_serial") == cold["request_serial"]]
+        for index, row in enumerate(moved):
+            row["monotonic_ns"] = stamp(hot["request"]) + 10_000 + index
+        trace.sort(key=stamp)
+        for index, row in enumerate(trace, 1):
+            row["sequence"] = index
     reports = []
     for name, alter in (("false_complete_empty_404", false_empty), ("tampered_cursor_false_success", cursor_success),
                         ("completed_inventory_omitted_slot", omitted_inventory), ("release_before_hot_delivery", early_release),
                         ("missing_owned_wait4", missing_wait), ("missing_original_result_recovery", missing_ack),
-                        ("replaced_original_cas_condition", replaced_cas), ("false_complete_cache_loss", fake_cache_loss)):
+                        ("replaced_original_cas_condition", replaced_cas), ("false_complete_cache_loss", fake_cache_loss),
+                        ("slow_deadline_discarded_checkpoint", lost_slow_checkpoint), ("slow_cursor_reset", reset_slow_cursor),
+                        ("nonresident_hot_query", nonresident_hot)):
         data = copy.deepcopy(baseline)
         alter(data)
         try:

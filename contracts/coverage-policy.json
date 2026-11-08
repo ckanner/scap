@@ -29,6 +29,8 @@
     "crates/scap-object/src/catalogue/inspect_boundary_tests.rs",
     "crates/scap-object/src/catalogue/protocol_tests.rs",
     "crates/scap-object/src/catalogue/records_tests.rs",
+    "crates/scap-object/src/catalogue/recovery_budget_tests.rs",
+    "crates/scap-object/src/catalogue/recovery_job_tests.rs",
     "crates/scap-object/src/catalogue/recovery_tests.rs",
     "crates/scap-object/src/catalogue/tests.rs",
     "crates/scap-object/src/data_tree_tests.rs",

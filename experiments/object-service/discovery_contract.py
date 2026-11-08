@@ -174,6 +174,13 @@ class Suite:
             assert rule.arrived.is_set() and rule.used == 1 and rule.finished.wait(3), "exact HEAD fault did not execute"
             self.phase("after_fault_" + label)
 
+        self.proxy.delay_exact_gets("slow_progress", 0.03)
+        try:
+            self.phase("slow_progress")
+        finally:
+            self.proxy.clear_latency()
+        self.phase("prime_hot")
+
         timeout = self.proxy.arm("slot_timeout", "hold", prefix=prefix)
         abort = self.proxy.arm("slot_abort", "hold", prefix="scap-object/v1/1/8/catalogue/v1/name/")
         self.begin("hold_timeout")

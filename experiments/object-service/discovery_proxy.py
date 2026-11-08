@@ -116,6 +116,7 @@ class Proxy:
         self.trace = Trace(evidence / "discovery-s3.jsonl")
         self.lock, self.serial = threading.Lock(), 0
         self.rules, self.errors = [], []
+        self.latency = None
         owner = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -150,6 +151,7 @@ class Proxy:
                     with owner.lock:
                         owner.serial += 1
                         serial = owner.serial
+                        latency = owner.latency if self.command == "GET" and not query else None
                         for rule in owner.rules:
                             if rule.matches(self.command, object_key, query):
                                 selected = rule
@@ -158,7 +160,8 @@ class Proxy:
                     fields = {"request_serial": serial, "method": self.command, "path": self.path,
                               "key": object_key, "query": query, "request": body(payload),
                               "if_match": self.headers.get("If-Match"), "if_none_match": self.headers.get("If-None-Match"),
-                              "signing": signed, "fault": selected.label if selected else None}
+                              "signing": signed, "fault": selected.label if selected else None,
+                              "latency": latency[0] if latency else None}
                     owner.trace.emit("request", **fields)
                     if selected:
                         owner.trace.emit("fault_observed", request_serial=serial, label=selected.label, mode=selected.mode)
@@ -178,6 +181,10 @@ class Proxy:
                             raise ValueError("fixture response bound")
                         original = {"status": response.status, "body": body(raw), "etag": response.getheader("ETag")}
                         owner.trace.emit("backend_response", request_serial=serial, **original)
+                        if latency:
+                            owner.trace.emit("delay_started", request_serial=serial, label=latency[0], seconds=latency[1])
+                            time.sleep(latency[1])
+                            owner.trace.emit("delay_finished", request_serial=serial, label=latency[0])
                         status, delivered = fault_response(raw, response.status, selected.mode if selected else None)
                         outgoing = {"status": status, "body": body(delivered), "etag": response.getheader("ETag")}
                         # The pre-send event bounds the actual returned body. A
@@ -225,6 +232,23 @@ class Proxy:
     def release(self, rule):
         self.trace.emit("hold_released", label=rule.label, request_serial=rule.serial)
         rule.release.set()
+
+    def delay_exact_gets(self, label, seconds):
+        if not 0 < seconds <= 0.1:
+            raise ValueError("fixture exact-GET delay bound")
+        with self.lock:
+            if self.latency is not None:
+                raise ValueError("fixture exact-GET latency already active")
+            self.latency = (label, seconds)
+        self.trace.emit("latency_armed", label=label, seconds=seconds)
+
+    def clear_latency(self):
+        with self.lock:
+            if self.latency is None:
+                raise ValueError("fixture exact-GET latency not active")
+            label, _ = self.latency
+            self.latency = None
+        self.trace.emit("latency_disabled", label=label)
 
     def close(self):
         for rule in self.rules:

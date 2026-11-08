@@ -18,6 +18,7 @@ use crate::{
 };
 
 pub const TIMEOUT: Duration = Duration::from_secs(5);
+const FINALIZATION_RESERVE: Duration = Duration::from_secs(1);
 pub const MAX_BODY_BYTES: usize = 65536;
 pub const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 type Tenant = (u64, u64);
@@ -184,9 +185,14 @@ impl Reader {
         call: Call,
         deadline: Instant,
     ) -> Result<Vec<u8>, Failure> {
-        if Instant::now() >= deadline {
+        let started = Instant::now();
+        if started >= deadline {
             return Err(Failure::new("DEADLINE"));
         }
+        // I/O must stop before the outer HTTP deadline so a bounded partial
+        // page can still be encoded and sealed. Using the same deadline for
+        // both discarded every continuation under sustained slow storage.
+        let read_deadline = read_deadline(started, deadline);
         // Recheck current trusted capability before decrypting any cursor or
         // touching the bucket. Provision/ADMIN never grants this capability.
         if call.operation == Operation::Inventory && !principal.deployment_inventory {
@@ -217,7 +223,7 @@ impl Reader {
                 }
                 .map_err(wire::error)?;
                 let page = names
-                    .page(caller, cursor, core::DiscoveryBudget::default(), deadline)
+                    .page(caller, cursor, core::DiscoveryBudget::default(), read_deadline)
                     .expect("same coordinator, validated caller and fixed valid budget; I/O stops stay in page");
                 let token = if page.traversal_exhausted {
                     None
@@ -252,7 +258,7 @@ impl Reader {
                     None => inventory.begin(),
                 };
                 let page = inventory
-                    .page(cursor, core::DiscoveryBudget::default(), deadline)
+                    .page(cursor, core::DiscoveryBudget::default(), read_deadline)
                     .expect("same coordinator and fixed valid budget; I/O stops stay in page");
                 let token = if page.completion.traversal_exhausted {
                     None
@@ -272,6 +278,13 @@ impl Reader {
         };
         bounded(value, deadline)
     }
+}
+
+fn read_deadline(started: Instant, deadline: Instant) -> Instant {
+    started
+        + deadline
+            .saturating_duration_since(started)
+            .saturating_sub(FINALIZATION_RESERVE)
 }
 
 fn bounded(value: Value, deadline: Instant) -> Result<Vec<u8>, Failure> {
