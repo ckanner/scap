@@ -1,0 +1,1408 @@
+{
+  "schema": 1,
+  "date": "2026-11-08",
+  "status": "required_local_gates_passed",
+  "pull_request": 35,
+  "includes_pull_request": 34,
+  "source": {
+    "published_implementation": "5a04716a3f68ab51776c1ea8706097efe001fa2a",
+    "frozen_local_implementation": "94e6d51658ac18382a1a176dc14e5a4ea4fd2d26",
+    "tree": "da90d317d1fdc6697cb92667fbae119d9f3ba2bd",
+    "file_count": 323,
+    "all_file_bytes_equal": true,
+    "original_e8_local": "e8cbc61082c1cf49722fb6a6fc5cbdaa018c3be1",
+    "original_e8_published_checkpoint": "f076cb717eda40ad758c1bd1eca63562c912b195",
+    "original_e8_tree": "78672c3c55e593680a687c78d6d31b82b2962e93",
+    "original_e8_files": 321,
+    "original_e8_failure_not_relabelled": true,
+    "unit_reuse": "All 101 Rust files and complete unit/Cargo inputs are equal between e8 and 94; the repair changes only deployment-recovery Python/imports/README.",
+    "delivery_delta": "Only documentation and this compact evidence record are added after the tested implementation."
+  },
+  "units": {
+    "stable_tests": 416,
+    "nightly_tests": 416,
+    "ignored": 0,
+    "stable_source": "94e6d51",
+    "nightly_source": "e8cbc61",
+    "counts": {
+      "object": 212,
+      "sqlite": 69,
+      "store": 25,
+      "service": 92,
+      "sql": 18
+    },
+    "production_files": [
+      {
+        "file": "crates/scap-object-sqlite/src/config.rs",
+        "lines": {
+          "covered": 129,
+          "total": 129
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "regions": {
+          "covered": 205,
+          "total": 205
+        },
+        "branches": {
+          "covered": 16,
+          "total": 16
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/file.rs",
+        "lines": {
+          "covered": 131,
+          "total": 131
+        },
+        "functions": {
+          "covered": 17,
+          "total": 17
+        },
+        "regions": {
+          "covered": 163,
+          "total": 163
+        },
+        "branches": {
+          "covered": 24,
+          "total": 24
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/gate.rs",
+        "lines": {
+          "covered": 104,
+          "total": 104
+        },
+        "functions": {
+          "covered": 13,
+          "total": 13
+        },
+        "regions": {
+          "covered": 123,
+          "total": 123
+        },
+        "branches": {
+          "covered": 20,
+          "total": 20
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/image.rs",
+        "lines": {
+          "covered": 64,
+          "total": 64
+        },
+        "functions": {
+          "covered": 3,
+          "total": 3
+        },
+        "regions": {
+          "covered": 74,
+          "total": 74
+        },
+        "branches": {
+          "covered": 38,
+          "total": 38
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/lib.rs",
+        "lines": {
+          "covered": 116,
+          "total": 116
+        },
+        "functions": {
+          "covered": 7,
+          "total": 7
+        },
+        "regions": {
+          "covered": 168,
+          "total": 168
+        },
+        "branches": {
+          "covered": 12,
+          "total": 12
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/query.rs",
+        "lines": {
+          "covered": 46,
+          "total": 46
+        },
+        "functions": {
+          "covered": 6,
+          "total": 6
+        },
+        "regions": {
+          "covered": 75,
+          "total": 75
+        },
+        "branches": {
+          "covered": 6,
+          "total": 6
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/sql.rs",
+        "lines": {
+          "covered": 368,
+          "total": 368
+        },
+        "functions": {
+          "covered": 20,
+          "total": 20
+        },
+        "regions": {
+          "covered": 414,
+          "total": 414
+        },
+        "branches": {
+          "covered": 70,
+          "total": 70
+        }
+      },
+      {
+        "file": "crates/scap-object-sqlite/src/storage.rs",
+        "lines": {
+          "covered": 70,
+          "total": 70
+        },
+        "functions": {
+          "covered": 10,
+          "total": 10
+        },
+        "regions": {
+          "covered": 100,
+          "total": 100
+        },
+        "branches": {
+          "covered": 10,
+          "total": 10
+        }
+      },
+      {
+        "file": "crates/scap-object-store/src/lib.rs",
+        "lines": {
+          "covered": 207,
+          "total": 207
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "regions": {
+          "covered": 289,
+          "total": 289
+        },
+        "branches": {
+          "covered": 68,
+          "total": 68
+        }
+      },
+      {
+        "file": "crates/scap-object-store/src/listing.rs",
+        "lines": {
+          "covered": 121,
+          "total": 121
+        },
+        "functions": {
+          "covered": 12,
+          "total": 12
+        },
+        "regions": {
+          "covered": 186,
+          "total": 186
+        },
+        "branches": {
+          "covered": 46,
+          "total": 46
+        }
+      },
+      {
+        "file": "crates/scap-object-store/src/listing_guard.rs",
+        "lines": {
+          "covered": 79,
+          "total": 79
+        },
+        "functions": {
+          "covered": 11,
+          "total": 11
+        },
+        "regions": {
+          "covered": 143,
+          "total": 143
+        },
+        "branches": {
+          "covered": 16,
+          "total": 16
+        }
+      },
+      {
+        "file": "crates/scap-object-store/src/listing_xml.rs",
+        "lines": {
+          "covered": 216,
+          "total": 216
+        },
+        "functions": {
+          "covered": 14,
+          "total": 14
+        },
+        "regions": {
+          "covered": 379,
+          "total": 379
+        },
+        "branches": {
+          "covered": 66,
+          "total": 66
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/control.rs",
+        "lines": {
+          "covered": 404,
+          "total": 404
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "regions": {
+          "covered": 659,
+          "total": 659
+        },
+        "branches": {
+          "covered": 74,
+          "total": 74
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/create.rs",
+        "lines": {
+          "covered": 113,
+          "total": 113
+        },
+        "functions": {
+          "covered": 4,
+          "total": 4
+        },
+        "regions": {
+          "covered": 214,
+          "total": 214
+        },
+        "branches": {
+          "covered": 10,
+          "total": 10
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/discovery.rs",
+        "lines": {
+          "covered": 293,
+          "total": 293
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "regions": {
+          "covered": 397,
+          "total": 397
+        },
+        "branches": {
+          "covered": 76,
+          "total": 76
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/discovery_budget.rs",
+        "lines": {
+          "covered": 96,
+          "total": 96
+        },
+        "functions": {
+          "covered": 10,
+          "total": 10
+        },
+        "regions": {
+          "covered": 125,
+          "total": 125
+        },
+        "branches": {
+          "covered": 24,
+          "total": 24
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/discovery_names.rs",
+        "lines": {
+          "covered": 143,
+          "total": 143
+        },
+        "functions": {
+          "covered": 7,
+          "total": 7
+        },
+        "regions": {
+          "covered": 167,
+          "total": 167
+        },
+        "branches": {
+          "covered": 30,
+          "total": 30
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/discovery_records.rs",
+        "lines": {
+          "covered": 279,
+          "total": 279
+        },
+        "functions": {
+          "covered": 16,
+          "total": 16
+        },
+        "regions": {
+          "covered": 555,
+          "total": 555
+        },
+        "branches": {
+          "covered": 48,
+          "total": 48
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/inspect.rs",
+        "lines": {
+          "covered": 247,
+          "total": 247
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "regions": {
+          "covered": 403,
+          "total": 403
+        },
+        "branches": {
+          "covered": 26,
+          "total": 26
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/mod.rs",
+        "lines": {
+          "covered": 324,
+          "total": 324
+        },
+        "functions": {
+          "covered": 34,
+          "total": 34
+        },
+        "regions": {
+          "covered": 522,
+          "total": 522
+        },
+        "branches": {
+          "covered": 52,
+          "total": 52
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/records.rs",
+        "lines": {
+          "covered": 230,
+          "total": 230
+        },
+        "functions": {
+          "covered": 23,
+          "total": 23
+        },
+        "regions": {
+          "covered": 350,
+          "total": 350
+        },
+        "branches": {
+          "covered": 54,
+          "total": 54
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/recovery_budget.rs",
+        "lines": {
+          "covered": 161,
+          "total": 161
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "regions": {
+          "covered": 205,
+          "total": 205
+        },
+        "branches": {
+          "covered": 52,
+          "total": 52
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/recovery_job.rs",
+        "lines": {
+          "covered": 287,
+          "total": 287
+        },
+        "functions": {
+          "covered": 13,
+          "total": 13
+        },
+        "regions": {
+          "covered": 385,
+          "total": 385
+        },
+        "branches": {
+          "covered": 32,
+          "total": 32
+        }
+      },
+      {
+        "file": "crates/scap-object/src/catalogue/types.rs",
+        "lines": {
+          "covered": 8,
+          "total": 8
+        },
+        "functions": {
+          "covered": 1,
+          "total": 1
+        },
+        "regions": {
+          "covered": 8,
+          "total": 8
+        },
+        "branches": {
+          "covered": 0,
+          "total": 0
+        }
+      },
+      {
+        "file": "crates/scap-object/src/data_tree.rs",
+        "lines": {
+          "covered": 263,
+          "total": 263
+        },
+        "functions": {
+          "covered": 21,
+          "total": 21
+        },
+        "regions": {
+          "covered": 416,
+          "total": 416
+        },
+        "branches": {
+          "covered": 60,
+          "total": 60
+        }
+      },
+      {
+        "file": "crates/scap-object/src/format.rs",
+        "lines": {
+          "covered": 383,
+          "total": 383
+        },
+        "functions": {
+          "covered": 40,
+          "total": 40
+        },
+        "regions": {
+          "covered": 720,
+          "total": 720
+        },
+        "branches": {
+          "covered": 52,
+          "total": 52
+        }
+      },
+      {
+        "file": "crates/scap-object/src/lib.rs",
+        "lines": {
+          "covered": 844,
+          "total": 844
+        },
+        "functions": {
+          "covered": 78,
+          "total": 78
+        },
+        "regions": {
+          "covered": 1333,
+          "total": 1333
+        },
+        "branches": {
+          "covered": 110,
+          "total": 110
+        }
+      },
+      {
+        "file": "crates/scap-object/src/options.rs",
+        "lines": {
+          "covered": 95,
+          "total": 95
+        },
+        "functions": {
+          "covered": 6,
+          "total": 6
+        },
+        "regions": {
+          "covered": 111,
+          "total": 111
+        },
+        "branches": {
+          "covered": 36,
+          "total": 36
+        }
+      },
+      {
+        "file": "crates/scap-object/src/request_index.rs",
+        "lines": {
+          "covered": 203,
+          "total": 203
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "regions": {
+          "covered": 278,
+          "total": 278
+        },
+        "branches": {
+          "covered": 24,
+          "total": 24
+        }
+      },
+      {
+        "file": "crates/scap-service/src/auth.rs",
+        "lines": {
+          "covered": 69,
+          "total": 69
+        },
+        "functions": {
+          "covered": 11,
+          "total": 11
+        },
+        "regions": {
+          "covered": 102,
+          "total": 102
+        },
+        "branches": {
+          "covered": 28,
+          "total": 28
+        }
+      },
+      {
+        "file": "crates/scap-service/src/catalogue.rs",
+        "lines": {
+          "covered": 50,
+          "total": 50
+        },
+        "functions": {
+          "covered": 3,
+          "total": 3
+        },
+        "regions": {
+          "covered": 86,
+          "total": 86
+        },
+        "branches": {
+          "covered": 0,
+          "total": 0
+        }
+      },
+      {
+        "file": "crates/scap-service/src/catalogue_scheduler.rs",
+        "lines": {
+          "covered": 202,
+          "total": 202
+        },
+        "functions": {
+          "covered": 30,
+          "total": 30
+        },
+        "regions": {
+          "covered": 288,
+          "total": 288
+        },
+        "branches": {
+          "covered": 32,
+          "total": 32
+        }
+      },
+      {
+        "file": "crates/scap-service/src/catalogue_wire.rs",
+        "lines": {
+          "covered": 200,
+          "total": 200
+        },
+        "functions": {
+          "covered": 26,
+          "total": 26
+        },
+        "regions": {
+          "covered": 368,
+          "total": 368
+        },
+        "branches": {
+          "covered": 24,
+          "total": 24
+        }
+      },
+      {
+        "file": "crates/scap-service/src/config.rs",
+        "lines": {
+          "covered": 143,
+          "total": 143
+        },
+        "functions": {
+          "covered": 17,
+          "total": 17
+        },
+        "regions": {
+          "covered": 179,
+          "total": 179
+        },
+        "branches": {
+          "covered": 50,
+          "total": 50
+        }
+      },
+      {
+        "file": "crates/scap-service/src/daemon.rs",
+        "lines": {
+          "covered": 146,
+          "total": 146
+        },
+        "functions": {
+          "covered": 22,
+          "total": 22
+        },
+        "regions": {
+          "covered": 219,
+          "total": 219
+        },
+        "branches": {
+          "covered": 2,
+          "total": 2
+        }
+      },
+      {
+        "file": "crates/scap-service/src/discovery.rs",
+        "lines": {
+          "covered": 206,
+          "total": 206
+        },
+        "functions": {
+          "covered": 17,
+          "total": 17
+        },
+        "regions": {
+          "covered": 274,
+          "total": 274
+        },
+        "branches": {
+          "covered": 32,
+          "total": 32
+        }
+      },
+      {
+        "file": "crates/scap-service/src/discovery_cursor.rs",
+        "lines": {
+          "covered": 165,
+          "total": 165
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "regions": {
+          "covered": 258,
+          "total": 258
+        },
+        "branches": {
+          "covered": 20,
+          "total": 20
+        }
+      },
+      {
+        "file": "crates/scap-service/src/discovery_wire.rs",
+        "lines": {
+          "covered": 94,
+          "total": 94
+        },
+        "functions": {
+          "covered": 13,
+          "total": 13
+        },
+        "regions": {
+          "covered": 159,
+          "total": 159
+        },
+        "branches": {
+          "covered": 2,
+          "total": 2
+        }
+      },
+      {
+        "file": "crates/scap-service/src/engine.rs",
+        "lines": {
+          "covered": 264,
+          "total": 264
+        },
+        "functions": {
+          "covered": 18,
+          "total": 18
+        },
+        "regions": {
+          "covered": 382,
+          "total": 382
+        },
+        "branches": {
+          "covered": 22,
+          "total": 22
+        }
+      },
+      {
+        "file": "crates/scap-service/src/http.rs",
+        "lines": {
+          "covered": 216,
+          "total": 216
+        },
+        "functions": {
+          "covered": 24,
+          "total": 24
+        },
+        "regions": {
+          "covered": 377,
+          "total": 377
+        },
+        "branches": {
+          "covered": 44,
+          "total": 44
+        }
+      },
+      {
+        "file": "crates/scap-service/src/http/discovery.rs",
+        "lines": {
+          "covered": 57,
+          "total": 57
+        },
+        "functions": {
+          "covered": 4,
+          "total": 4
+        },
+        "regions": {
+          "covered": 101,
+          "total": 101
+        },
+        "branches": {
+          "covered": 4,
+          "total": 4
+        }
+      },
+      {
+        "file": "crates/scap-service/src/lib.rs",
+        "lines": {
+          "covered": 36,
+          "total": 36
+        },
+        "functions": {
+          "covered": 2,
+          "total": 2
+        },
+        "regions": {
+          "covered": 33,
+          "total": 33
+        },
+        "branches": {
+          "covered": 0,
+          "total": 0
+        }
+      },
+      {
+        "file": "crates/scap-service/src/main.rs",
+        "lines": {
+          "covered": 3,
+          "total": 3
+        },
+        "functions": {
+          "covered": 1,
+          "total": 1
+        },
+        "regions": {
+          "covered": 6,
+          "total": 6
+        },
+        "branches": {
+          "covered": 0,
+          "total": 0
+        }
+      },
+      {
+        "file": "crates/scap-service/src/scheduler.rs",
+        "lines": {
+          "covered": 451,
+          "total": 451
+        },
+        "functions": {
+          "covered": 47,
+          "total": 47
+        },
+        "regions": {
+          "covered": 740,
+          "total": 740
+        },
+        "branches": {
+          "covered": 104,
+          "total": 104
+        }
+      },
+      {
+        "file": "crates/scap-service/src/wire.rs",
+        "lines": {
+          "covered": 235,
+          "total": 235
+        },
+        "functions": {
+          "covered": 32,
+          "total": 32
+        },
+        "regions": {
+          "covered": 392,
+          "total": 392
+        },
+        "branches": {
+          "covered": 40,
+          "total": 40
+        }
+      },
+      {
+        "file": "crates/scap-sql/src/lib.rs",
+        "lines": {
+          "covered": 208,
+          "total": 208
+        },
+        "functions": {
+          "covered": 18,
+          "total": 18
+        },
+        "regions": {
+          "covered": 408,
+          "total": 408
+        },
+        "branches": {
+          "covered": 60,
+          "total": 60
+        }
+      },
+      {
+        "file": "crates/scap-sql/src/result_validation.rs",
+        "lines": {
+          "covered": 42,
+          "total": 42
+        },
+        "functions": {
+          "covered": 2,
+          "total": 2
+        },
+        "regions": {
+          "covered": 92,
+          "total": 92
+        },
+        "branches": {
+          "covered": 12,
+          "total": 12
+        }
+      }
+    ],
+    "integration_profiles_used": false,
+    "strict_workspace_all_target_all_feature_clippy": "passed"
+  },
+  "tooling": {
+    "tests": 74,
+    "statements": [
+      401,
+      401
+    ],
+    "branches": [
+      184,
+      184
+    ]
+  },
+  "environment_controller": {
+    "tests": 32,
+    "statements": [
+      280,
+      280
+    ],
+    "branches": [
+      36,
+      36
+    ]
+  },
+  "other_static_gates": "Node SDK/codec, exact production V8 counts, real Fetch, strict TypeScript, models, fmt, repository links, actionlint and shell parsing passed. Original combined Python import failure is preserved; repaired deployment fixture 22 tests passed.",
+  "actual_release_sha256": {
+    "service": "a84e262602c90633d87118f822a7a362235830d9d1c1d3dd9b35b6388a837e7b",
+    "network": "82881cf8410e9f132e8c6408226574bd7cf0c9aaffb6864f17b327f7e2996e55",
+    "fresh_deployment_recovery": "124b4cdaa6b567489f02e43ad013d419b6a5bd34793455219a28719e75601363",
+    "native_archive": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3",
+    "provenance": "Network/service retain their original e8 build source and full verified receipts; fresh recovery was built on 94. Actual inputs/native/binaries were rechecked, not relabelled."
+  },
+  "deployment_recovery": {
+    "oracle": {
+      "aws_standard_contract": "NOT_RUN",
+      "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+      "input_outcomes": {
+        "cancelled": 1,
+        "deleted_barrier": 1,
+        "retained_ack": 8,
+        "retained_committed_without_native_ack": 1,
+        "retired_barrier": 2
+      },
+      "list_pages": 1480,
+      "original_ack_count": 11,
+      "original_inputs": 13,
+      "processes": 62,
+      "production_throughput_slo": "NOT_RUN",
+      "profiles": {
+        "admin_without_read": {
+          "closure_objects": 27,
+          "data_not_required": 4,
+          "data_verified": 4,
+          "metadata_classified": 65,
+          "native_bytes": 73728,
+          "native_rows": 10,
+          "raw_http_body_bytes": 643926,
+          "recovery_complete": false,
+          "required_heads": 5,
+          "steps": 139,
+          "stopped": "PermissionBlocked",
+          "usage": {
+            "candidates": 139,
+            "data_bytes": 117599,
+            "exact_gets": 468,
+            "list_bytes": 296024,
+            "list_pages": 365,
+            "metadata_bytes": 20145063
+          }
+        },
+        "complete": {
+          "closure_objects": 32,
+          "data_not_required": 4,
+          "data_verified": 5,
+          "metadata_classified": 65,
+          "native_bytes": 86016,
+          "native_rows": 11,
+          "raw_http_body_bytes": 663537,
+          "recovery_complete": true,
+          "required_heads": 5,
+          "steps": 140,
+          "stopped": null,
+          "usage": {
+            "candidates": 139,
+            "data_bytes": 135728,
+            "exact_gets": 475,
+            "list_bytes": 296024,
+            "list_pages": 365,
+            "metadata_bytes": 20146545
+          }
+        },
+        "interrupted": {
+          "closure_objects": 13,
+          "data_not_required": 0,
+          "data_verified": 2,
+          "metadata_classified": 5,
+          "native_bytes": 36864,
+          "native_rows": 5,
+          "raw_http_body_bytes": 103137,
+          "recovery_complete": false,
+          "required_heads": 5,
+          "steps": 12,
+          "stopped": null,
+          "usage": {
+            "candidates": 12,
+            "data_bytes": 53815,
+            "exact_gets": 36,
+            "list_bytes": 36505,
+            "list_pages": 35,
+            "metadata_bytes": 1383833
+          }
+        },
+        "missing_reader": {
+          "closure_objects": 27,
+          "data_not_required": 4,
+          "data_verified": 4,
+          "metadata_classified": 65,
+          "native_bytes": 73728,
+          "native_rows": 10,
+          "raw_http_body_bytes": 643926,
+          "recovery_complete": false,
+          "required_heads": 5,
+          "steps": 139,
+          "stopped": "PermissionBlocked",
+          "usage": {
+            "candidates": 139,
+            "data_bytes": 117599,
+            "exact_gets": 468,
+            "list_bytes": 296024,
+            "list_pages": 365,
+            "metadata_bytes": 20145063
+          }
+        },
+        "missing_retained_result": {
+          "closure_objects": 13,
+          "data_not_required": 0,
+          "data_verified": 2,
+          "metadata_classified": 58,
+          "native_bytes": 36864,
+          "native_rows": 5,
+          "raw_http_body_bytes": 544993,
+          "recovery_complete": false,
+          "required_heads": 5,
+          "steps": 130,
+          "stopped": "Corrupt",
+          "usage": {
+            "candidates": 130,
+            "data_bytes": 67259794,
+            "exact_gets": 363,
+            "list_bytes": 287753,
+            "list_pages": 350,
+            "metadata_bytes": 19303102
+          }
+        }
+      },
+      "signed_s3_requests": 4088,
+      "verification_scope": "full"
+    },
+    "negative_controls": 23,
+    "positive_controls": 1,
+    "metadata_only_is_not_data_recovery": true,
+    "completion_is_per_slot_not_global_snapshot": true
+  },
+  "service_combination": {
+    "status": "passed",
+    "stage_count": 9,
+    "stages": [
+      {
+        "name": "ordinary-http",
+        "exit_code": 0,
+        "stdout_sha256": "54ea3018271483db62cd0671bb5bfc2f7c25515ce2ca7fb8d4bd2041a83cc60d",
+        "stderr_sha256": "8917c2b0f54553a532c7dcbf4d9d13ae520788dc527766c847e15093e0e1cd06"
+      },
+      {
+        "name": "catalogue-http",
+        "exit_code": 0,
+        "stdout_sha256": "73e8ee0c5043c5e223cac5568f495a2d4b94e6d97fb6ebd868ef72e6d67a8278",
+        "stderr_sha256": "6144e25bd9bb74a2e8842bc8a3f45b46cc50a3f13f9d998317a38b4a42d18620"
+      },
+      {
+        "name": "catalogue-oracle",
+        "exit_code": 0,
+        "stdout_sha256": "74bfa70707e2839398c42f0bd93e37221445482382d305259a9cb99d5a8828e9",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "isolation-http",
+        "exit_code": 0,
+        "stdout_sha256": "6d5e2f81fd44a71b6dd6bc4a7c574e4200f6c50aeae053f1f9810fc7c3cd1b66",
+        "stderr_sha256": "2dcd5e4defb06b48cf713e71861c37b0de1461fe216df98e6043fcc436e4ac10"
+      },
+      {
+        "name": "isolation-controls",
+        "exit_code": 0,
+        "stdout_sha256": "ed6fb4eee2b48c3640f19917099d280862f6a7b732124e75baffa469c7539b20",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "segmented-http",
+        "exit_code": 0,
+        "stdout_sha256": "c55603e349234d4466d3460366f7c991955cd437bc2e147e8dca15b78595c68b",
+        "stderr_sha256": "862c103faa3e31e3c35862d065f2d648d2fec7b48e62d1b025429abbaea1b1ed"
+      },
+      {
+        "name": "segmented-oracle",
+        "exit_code": 0,
+        "stdout_sha256": "b9f286c21111df474f78c89041793accc4e96b147cdc290038289bbed5b243ce",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "segmented-controls",
+        "exit_code": 0,
+        "stdout_sha256": "a1248df304a9698f87e09549f56d3644511486a09a140cecffb4bbc0014e7a74",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "discovery-http",
+        "exit_code": 0,
+        "stdout_sha256": "395cb98772679e97e8a0d3bb17bb426bd2f36f889b7ca0e7e17f02b756fb6ace",
+        "stderr_sha256": "fee2364e1daa7fb22d9dae4a32ae09ad1f1a857e17d0fb3fdaeac9e4ffadb0fc"
+      }
+    ]
+  },
+  "network": {
+    "controller": "passed",
+    "independent_status": "observations_verified",
+    "limits_preserved": true,
+    "processes": {
+      "complete_responses": 893,
+      "killed_pending_unknown": 16,
+      "observed_invocations": 909,
+      "owned_wait4": 83,
+      "worker_incarnations": 83
+    },
+    "report": {
+      "bytes": 22537,
+      "path": "acceptance-deployment-recovery-94e6d51-01/network-independent.json",
+      "sha256": "4e3692e29cb0596d050c05fd8b453994b3c121d88f5f98eda58acc18cd6209d6"
+    },
+    "wire": {
+      "actual_backend_statuses": {
+        "200": 4055,
+        "403": 1,
+        "404": 10,
+        "412": 13
+      },
+      "complete_head_captures": {
+        "request": 863,
+        "response": 863
+      },
+      "fixture_injected_responses": 2,
+      "original_events": 19079,
+      "request_denominator": 4091
+    }
+  },
+  "retained_results": {
+    "cases": 12,
+    "cold_entrypoints_per_case": 6,
+    "controller": "passed",
+    "direct_query_included": true,
+    "independent_status": "observations_verified",
+    "negative_controls": 3,
+    "original_acks": 30,
+    "positive_controls": 1,
+    "strict_refusals": 72,
+    "v1_auditor_failure_retained": {
+      "bytes": 3070,
+      "path": "acceptance-deployment-recovery-94e6d51-01/result-integrity-independent.json",
+      "sha256": "0b86e33a3e4795d631141df2c7491bcbbc0b12432e51d73e51057a2bd0c6fbd4"
+    },
+    "v2_report": {
+      "bytes": 15626,
+      "path": "acceptance-deployment-recovery-94e6d51-01/result-integrity-independent-v2.json",
+      "sha256": "e6a33cff1f03fd560842dbb7a842091317577486104c900850f896549b1ccb55"
+    }
+  },
+  "lifecycle": {
+    "ack_classifications": {
+      "deleted_access": 5,
+      "retained_original": 71,
+      "retired": 2
+    },
+    "ack_identities": 30,
+    "ack_mismatches": 0,
+    "ack_responses": 78,
+    "checked_cases": 12,
+    "inputs": 56,
+    "planned_cases": 12,
+    "status": "passed"
+  },
+  "catalogue": {
+    "ack_classifications": {
+      "catalogue_progress": 728,
+      "deleted": 26,
+      "retained": 246
+    },
+    "ack_responses": 1000,
+    "actual_http_statuses": {
+      "backend_200": 18219,
+      "backend_404": 1947,
+      "backend_412": 307,
+      "linearization_constraints": 21108
+    },
+    "checked_cases": 116,
+    "complete_responses": 2791,
+    "explicit_lost_unknown": 153,
+    "invoked_calls": 2944,
+    "mismatch_count": 0,
+    "status": "passed"
+  },
+  "capacity_gib1": {
+    "status": "passed",
+    "acknowledged_results": 39,
+    "execute_ack": 38,
+    "unknown_then_lookup": 1,
+    "unknown_request_id": 39,
+    "rows": 16384,
+    "payload_bytes": 1073741824,
+    "actual_calls": 394,
+    "s3_requests": 34866,
+    "backend_200": 34865,
+    "hot_head_blackholes": 1,
+    "worker_incarnations": 3,
+    "backend_incarnations": 8,
+    "actual_closed_image_rehashed": true,
+    "image_sha256": "de6f76a6e39085f55c2effb1aeb73482fedd6217d7801aa56e4f7982b67ca5ca",
+    "row_hash_aggregate": "2644971da6ca3a0b4595c0eb82fcb42bea1fde0c6a098ef482cd89e43014bdf7",
+    "read_only_auditor_sha256": "cbfe361db7a221e65f221a1a84993dc7cabee79ce19b0c1d037c14d7b96dccce",
+    "start_free_bytes": 10931236864,
+    "internal_guard_bytes": 4294967296,
+    "limits": [
+      "Original per-operation random input files were unlinked by the unchanged fixture. Six overwritten historical row versions and their complete SQL fingerprints remain unavailable for offline byte recomputation.",
+      "This separate SQLite reader verifies the closed production-produced image; it does not substitute for the original actual libSQL native execution and its recorded binary/build identity.",
+      "AWS endpoint, long-running production SLO and a fresh default-10-GiB profile were not run."
+    ]
+  },
+  "original_capacity_failure": {
+    "status": "FAILED",
+    "reason": "Unchanged internal 4-GiB free-space guard before root_change; no root_change invocation.",
+    "original_inputs": 37,
+    "original_acks": 37,
+    "final_global_loss_reached": false,
+    "start_free_bytes": 7334854656,
+    "observed_guard_failure_free_bytes": 3811942400,
+    "source_profile_threshold_unchanged": true,
+    "backend_public_inputs_binary_native_preserved": true
+  },
+  "preserved_failures": [
+    "Discovery old deadline reproduced twice on the same old binary.",
+    "Discovery real01 phase-oracle error; real02 actual low-disk 500; real03 is a separate pass.",
+    "Temporary-directory candidate ebf had one uncovered region; original profiles and actual binaries are preserved.",
+    "Original e8 full recovery oracle rejected distinct RequestId bytes in two independently verified 404 witnesses; new 94 formal execution passed.",
+    "Original combined Python import gate and old five-entrance retained-result auditor failures remain separate from repaired passes.",
+    "Capacity first attempt failed before final recovery; second same-source run and actual final-image hashing passed."
+  ],
+  "not_run_or_not_claimed": [
+    "AWS Standard",
+    "actual NFS/EFS/FUSE mounts",
+    "fresh 10-GiB profile",
+    "automatic owner routing in this change",
+    "physical GC",
+    "PITR",
+    "production TPS/P99/SLO",
+    "bounded total bucket storage",
+    "complete N1-N4 exit"
+  ],
+  "remote_ci": {
+    "observed_head": "5a04716a3f68ab51776c1ea8706097efe001fa2a",
+    "check_count": 13,
+    "reported_conclusion": "failure",
+    "job_steps": null,
+    "attempted_job_log": "BlobNotFound",
+    "specific_reason": "not established",
+    "success_claimed": false,
+    "branch_protection_modified": false
+  },
+  "evidence": [
+    {
+      "artifact": "deployment-recovery-unit-01-original-identities.json",
+      "bytes": 156414,
+      "sha256": "e49a51556fbca417950edc86121585a6b7b328c293679204689524abe2bd7b21"
+    },
+    {
+      "artifact": "deployment-recovery-unit-01-counters.log",
+      "bytes": 4910,
+      "sha256": "f62bd9e522f26b50e9df703ccf750f213cc50d6ff37d2352c4fda58a2333ce67"
+    },
+    {
+      "artifact": "deployment-recovery-lightweight-01/summary.json",
+      "bytes": 202,
+      "sha256": "659e2ca73d66d157e8b4143bb0f148c5b094963d16a116e34ad05b4374791259"
+    },
+    {
+      "artifact": "deployment-recovery-service-02/summary.json",
+      "bytes": 289,
+      "sha256": "4d4201c72faa5b534722e648d1d00fd1faa0ca39d7242863e9eca290fc37ef73"
+    },
+    {
+      "artifact": "deployment-recovery-service-02/stages.json",
+      "bytes": 6679,
+      "sha256": "f1e9fb143882771395df5ba435aa42a1d359e2b1d71f295a9b5dc21baa10f8d2"
+    },
+    {
+      "artifact": "recovery-publication-equivalence-001.json",
+      "bytes": 245,
+      "sha256": "e66c040f53d5155b1fa940a2d394db24a1eeda17a79b4c35e47a7c7371cb5429"
+    },
+    {
+      "artifact": "recovery-original-e8-equivalence-001.json",
+      "bytes": 56794,
+      "sha256": "bf6a9fefdc116d66f669e7adf36c3dcad6ae3b652d50fc053f0195533a708a3e"
+    },
+    {
+      "artifact": "recovery-5a04716-remote-ci-001.json",
+      "bytes": 71650,
+      "sha256": "cc37938da4144c4f4496e02259860b3ccb61dbe574e0b4f1763ea4d154c674ce"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/final-assigned-acceptance-handoff.json",
+      "bytes": 44881,
+      "sha256": "3f0f3aab08664cf407445295c490990c2609a9ff245235be2969363120b4cd4e"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/d-acceptance-complete.json",
+      "bytes": 261870,
+      "sha256": "a9c48835315983a9b02957291848adff9bd38326fab65a7a9f613b97b8b90e2d"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/reuse-verification/verification.json",
+      "bytes": 41987,
+      "sha256": "265d95fbe8a4227b783659cf86493a10eab6278d26afe74171a6d7cbee0a5981"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/network-independent.json",
+      "bytes": 22537,
+      "sha256": "4e3692e29cb0596d050c05fd8b453994b3c121d88f5f98eda58acc18cd6209d6"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/result-integrity-independent.json",
+      "bytes": 3070,
+      "sha256": "0b86e33a3e4795d631141df2c7491bcbbc0b12432e51d73e51057a2bd0c6fbd4"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/result-integrity-independent-v2.json",
+      "bytes": 15626,
+      "sha256": "e6a33cff1f03fd560842dbb7a842091317577486104c900850f896549b1ccb55"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/catalogue/catalogue-oracle.json",
+      "bytes": 36993,
+      "sha256": "cdf9fad41c30f544da15f87720113d6917a6717e2bcdfb0273a93b41e7100cf9"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/lifecycle/lifecycle-oracle.json",
+      "bytes": 5487,
+      "sha256": "03540d84911f3a6b29666152ab8c80c875597f0c7f2f0c5dc48a5db9ff9b05cb"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-01/gib1-failure-preservation.json",
+      "bytes": 53206,
+      "sha256": "1a672b1d7217af8c44f69c890d882819041fc2179ac1e8f3671438be73f8554e"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-capacity-02/gib1-independent.json",
+      "bytes": 5627,
+      "sha256": "a869ca94e1d6a572625e447602f2be0f7bbf4782705f1945c27ebcba5e7ecefc"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-capacity-02/actual-recovered-image-review.json",
+      "bytes": 31789,
+      "sha256": "d29c745bda95bcd50c31270947fd76bf6b52332bf3176d5b14d69deec2a49da0"
+    },
+    {
+      "artifact": "acceptance-deployment-recovery-94e6d51-capacity-02/review_actual_image.py",
+      "bytes": 7135,
+      "sha256": "cbfe361db7a221e65f221a1a84993dc7cabee79ce19b0c1d037c14d7b96dccce"
+    }
+  ]
+}
