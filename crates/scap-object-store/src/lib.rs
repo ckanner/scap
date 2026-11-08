@@ -1,4 +1,13 @@
-//! Bounded exact-key object access for the object-authoritative database.
+//! Bounded exact-key access and candidate discovery for object-authoritative databases.
+
+mod listing;
+mod listing_guard;
+mod listing_xml;
+
+pub use listing::{
+    ListEnd, ListEntry, ListError, ListKind, ListMode, ListPage, ListRequest, Listings,
+    MAX_LIST_ENTRIES, MAX_LIST_RESPONSE_BYTES,
+};
 
 use std::future::Future;
 use std::sync::Arc;
@@ -65,12 +74,14 @@ pub struct S3Config {
 ///
 /// Construct, call and drop this adapter outside an asynchronous runtime. Clones
 /// share one I/O runtime and connection pool. Every write has a condition; the
-/// adapter never refreshes an ETag, retries a write, or issues a listing.
+/// adapter never refreshes an ETag, follows redirects, retries a request, or
+/// performs an implicit listing.
 #[derive(Clone)]
 pub struct S3 {
-    store: Arc<dyn ObjectStore>,
+    store: Arc<AmazonS3>,
     runtime: Arc<Runtime>,
     max_object_bytes: usize,
+    bucket: String,
 }
 
 impl S3 {
@@ -103,6 +114,7 @@ impl S3 {
             return Err(StoreError::Invalid);
         }
         let _ = rustls::crypto::ring::default_provider().install_default();
+        let bucket = config.bucket.clone();
         let mut builder = AmazonS3Builder::new()
             .with_endpoint(config.endpoint)
             .with_region(config.region)
@@ -112,6 +124,10 @@ impl S3 {
             .with_virtual_hosted_style_request(false)
             .with_allow_http(config.allow_http)
             .with_conditional_put(S3ConditionalPut::ETagMatch)
+            .with_http_connector(listing_guard::Connector(listing_guard::Direct {
+                timeout: config.timeout,
+                allow_http: config.allow_http,
+            }))
             .with_retry(RetryConfig {
                 max_retries: 0,
                 ..RetryConfig::default()
@@ -132,6 +148,7 @@ impl S3 {
             store: Arc::new(store),
             runtime: Arc::new(runtime),
             max_object_bytes: config.max_object_bytes,
+            bucket,
         })
     }
 

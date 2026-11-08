@@ -1397,9 +1397,12 @@ dependencies = [
 name = "scap-object-store"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "futures-util",
+ "http",
  "object_store",
+ "quick-xml",
  "reqwest",
  "rustls",
  "tokio",
