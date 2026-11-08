@@ -220,5 +220,3 @@ def receipt(directory, required=True, *, profile, require_artifacts=True, source
             "cargo_process_exit_code":0,"original_cargo_build_finished":True,"binary":binary,
             "local_source_manifest_matches":source_matches,"retrieved_artifacts":retrieved,"unavailable_artifacts":unavailable,
             "executable_native_bytes":"verified" if not unavailable else "NOT_AVAILABLE"}
-
-

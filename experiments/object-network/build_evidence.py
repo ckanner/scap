@@ -49,5 +49,3 @@ def capture(record, evidence, *, value, root, inputs, save_receipt, sync, log_ke
     assert value["inputs"] == inputs(), "source changed while capturing original build evidence"
     save_receipt(evidence / "build-receipt.json", value)
     return value
-
-

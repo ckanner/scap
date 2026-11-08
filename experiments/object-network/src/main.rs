@@ -9,10 +9,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use scap_object::catalogue::{AbortCreate, Caller, Catalogue, Creation, DeleteNamed, PrepareCreate};
+use scap_object::catalogue::{
+    AbortCreate, Caller, Catalogue, Creation, DeleteNamed, PrepareCreate,
+};
 use scap_object::format::{
-    decode_object, digest, head_key, object_key, DatabaseQuota, Lifecycle, OutcomeRef, Payload, Permission,
-    Request, Scope, MAX_OBJECT_BYTES,
+    decode_object, digest, head_key, object_key, DatabaseQuota, Lifecycle, OutcomeRef, Payload,
+    Permission, Request, Scope, MAX_OBJECT_BYTES,
 };
 use scap_object::{request, sql_limits, Database, Options, Receipt, Resolution, Session};
 use scap_object_store::{Condition, Objects, S3Config, S3};
@@ -268,7 +270,10 @@ fn perform(
         Instant::now() + Duration::from_millis(cmd["budget_ms"].as_u64().unwrap_or(8000));
     let op = cmd["op"].as_str().ok_or("fixture operation")?;
     let principal = config.principal;
-    let caller = Caller { principal, provision: config.provision.unwrap_or(false) };
+    let caller = Caller {
+        principal,
+        provision: config.provision.unwrap_or(false),
+    };
     let number = |name: &str| cmd[name].as_u64().unwrap();
     let text = |name: &str| cmd[name].as_str().unwrap();
     match op {
@@ -542,8 +547,14 @@ fn main() {
         options.clone(),
     )
     .unwrap();
-    let catalogue = Catalogue::new(Arc::new(objects.clone()), config.scope.deployment,
-        config.scope.tenant, config.worker, options).unwrap();
+    let catalogue = Catalogue::new(
+        Arc::new(objects.clone()),
+        config.scope.deployment,
+        config.scope.tenant,
+        config.worker,
+        options,
+    )
+    .unwrap();
     let mut session = None;
     println!("{}", json!({"ready":true,"resources":resources()}));
     std::io::stdout().flush().unwrap();
@@ -553,7 +564,14 @@ fn main() {
         let result = if resource_failed.load(Ordering::SeqCst) {
             Err("fixture resource recorder failed".into())
         } else {
-            perform(&config, &objects, &database, &catalogue, &mut session, command)
+            perform(
+                &config,
+                &objects,
+                &database,
+                &catalogue,
+                &mut session,
+                command,
+            )
         };
         let result = if resource_failed.load(Ordering::SeqCst) {
             Err("fixture resource recorder failed during operation".into())

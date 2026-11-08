@@ -129,6 +129,32 @@ def process_fixture():
 
 
 class ProcessTimelineControls(unittest.TestCase):
+    def test_child_hello_may_precede_parent_started_log_and_post_popen_identity_observation(self):
+        for delay_identity in (False,True):
+            facts,http=process_fixture()
+            phase=oracle.PHASES[0]
+            child=next(row for row in facts if row["event"]=="client_process_started" and row["phase"]==phase)
+            finished=next(row for row in facts if row["event"]=="client_phase_finished" and row["phase"]==phase)
+            child["monotonic_ns"]=105
+            if delay_identity:
+                child["identity"]["spawn_monotonic_ns"]=104
+                finished["identity"]["spawn_monotonic_ns"]=104
+            facts.sort(key=lambda row:row["monotonic_ns"])
+            for ordinal,row in enumerate(facts,1):row["sequence"]=ordinal
+            # Phase starts at 100, child hello is 103, and wait4 is 106.
+            with self.subTest(delay_identity=delay_identity):
+                self.assertTrue(oracle.processes(facts,http)["kernel_wait4_verified"])
+
+    def test_hello_requires_pre_spawn_phase_finish_and_the_same_owned_child(self):
+        for fault in ("before_phase","at_phase","at_finish","after_finish","different_child"):
+            facts,http=process_fixture()
+            phase=oracle.PHASES[0]
+            hello=next(row for row in http if row["event"]=="client_process_hello" and row["phase"]==phase)
+            if fault=="different_child":
+                next(row for row in facts if row["event"]=="client_phase_finished" and row["phase"]==phase)["identity"]["pid"]+=1
+            else:hello["monotonic_ns"]=str({"before_phase":99,"at_phase":100,"at_finish":106,"after_finish":107}[fault])
+            with self.subTest(fault=fault),self.assertRaises(ValueError):oracle.processes(facts,http)
+
     def test_consistently_relabelled_duplicate_service_backend_and_client_incarnations_fail(self):
         def replace(value,old,new):
             if isinstance(value,list):

@@ -144,7 +144,10 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
         require(stamp(begun) <= child["identity"]["spawn_monotonic_ns"] <= stamp(child) < stamp(finished), "client lifetime order")
         hello = only([row for row in http if row["event"] == "client_process_hello" and row["phase"] == phase], "client self-observation inventory")
         require(hello["pid_source"] == "node_process.pid" and type(hello["self_pid"]) is int and hello["self_pid"] > 0, "client self PID source")
-        require(stamp(child) < stamp(hello) < stamp(finished), "client hello outside process lifetime")
+        # Both spawn_monotonic_ns and client_process_started are parent-side
+        # observations made after Popen. The child may run before either is
+        # logged; the persisted phase boundary is the actual pre-spawn bound.
+        require(stamp(begun) < stamp(hello) < stamp(finished), "client hello outside pre-spawn/finish bounds")
         for row in [row for row in http if row["phase"] == phase and row["event"] != "client_process_hello"]:
             require(stamp(hello) <= stamp(row) <= stamp(finished), "HTTP event outside client lifetime")
             require(row["call_id"].startswith(f"{phase}:{hello['self_pid']}:"), "call ID belongs to another client")
