@@ -241,11 +241,14 @@ fn authority_inventory(
             Payload::Node { children, .. } => {
                 pending.extend(children.into_iter().map(|child| (child, None)));
             }
-            Payload::Index(entries) => {
+            Payload::Index(scap_object::format::RequestIndex::Leaf { entries, .. }) => {
                 pending.extend(entries.into_iter().filter_map(|entry| match entry.outcome {
                     OutcomeRef::Committed { result } => Some((result, epoch)),
                     OutcomeRef::Cancelled { .. } => None,
                 }));
+            }
+            Payload::Index(scap_object::format::RequestIndex::Branch { children, .. }) => {
+                pending.extend(children.into_iter().map(|child| (child.hash, epoch)));
             }
             Payload::Chunk { .. } | Payload::Result(_) => {}
         }

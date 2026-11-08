@@ -75,10 +75,65 @@ pub(crate) struct Memory {
     pub(crate) values: Mutex<BTreeMap<String, Stored>>,
     pub(crate) calls: Mutex<Vec<String>>,
     pub(crate) fail_get: Mutex<Option<StoreError>>,
+    pub(crate) fail_list: Mutex<Option<scap_object_store::ListError>>,
     pub(crate) fail_put: Mutex<Option<StoreError>>,
     pub(crate) lose_head: Mutex<bool>,
     pub(crate) fail_head_after: Mutex<Option<usize>>,
     serial: Mutex<u64>,
+}
+
+impl scap_object_store::Listings for Memory {
+    fn list_page(
+        &self,
+        request: &scap_object_store::ListRequest<'_>,
+        deadline: Instant,
+    ) -> Result<scap_object_store::ListPage, scap_object_store::ListError> {
+        use scap_object_store::{ListEnd, ListEntry, ListError, ListKind, ListMode, ListPage};
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("LIST {}", request.prefix));
+        if Instant::now() >= deadline {
+            return Err(ListError::Unknown);
+        }
+        if let Some(error) = self.fail_list.lock().unwrap().take() {
+            return Err(error);
+        }
+        let mut entries = BTreeMap::new();
+        for key in self.values.lock().unwrap().keys() {
+            let Some(rest) = key.strip_prefix(request.prefix) else {
+                continue;
+            };
+            let (key, kind) = match (request.mode, rest.find('/')) {
+                (ListMode::Children, Some(index)) => (
+                    format!("{}{}", request.prefix, &rest[..=index]),
+                    ListKind::Prefix,
+                ),
+                _ => (key.clone(), ListKind::Object),
+            };
+            if request.after.is_none_or(|after| key.as_str() > after) {
+                entries.insert(key, kind);
+            }
+        }
+        let more = entries.len() > 32;
+        let entries: Vec<_> = entries
+            .into_iter()
+            .take(32)
+            .map(|(key, kind)| ListEntry { key, kind })
+            .collect();
+        let end = if more {
+            ListEnd::More {
+                after: entries.last().unwrap().key.clone(),
+            }
+        } else {
+            ListEnd::Exhausted
+        };
+        Ok(ListPage {
+            entries,
+            end,
+            response_bytes: 128,
+        })
+    }
 }
 
 impl Objects for Memory {
@@ -158,6 +213,7 @@ pub(crate) fn principal() -> auth::Principal {
         tenant: 2,
         principal: 3,
         provision: true,
+        deployment_inventory: false,
     }
 }
 

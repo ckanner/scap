@@ -7,6 +7,10 @@ publish = false
 
 [workspace]
 
+[[example]]
+name = "scap-object-listing"
+path = "listing_worker.rs"
+
 [dependencies]
 scap-object = { path = "../../crates/scap-object" }
 scap-object-store = { path = "../../crates/scap-object-store" }

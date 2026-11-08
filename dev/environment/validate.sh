@@ -44,6 +44,7 @@ mkdir -p "$repo/target"
 target_root=$(mktemp -d "$repo/target/acceptance.XXXXXXXX")
 printf '%s\n' "$target_root" > "$SCAP_EVIDENCE/target-directory.txt"
 export CARGO_NET_OFFLINE=true
+export CARGO_INCREMENTAL=0
 export CARGO_TARGET_DIR="$target_root/stable-unit"
 export COVERAGE_FILE="$SCAP_EVIDENCE/tooling.coverage"
 cargo +1.90.0 fmt --all -- --check 2>&1 | tee "$SCAP_EVIDENCE/format.log"
@@ -69,11 +70,23 @@ python3 experiments/object-authority-model/named_catalogue_model.py --output "$S
 python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/fixture-tests.log"
 python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/service-fixture-tests.log"
+python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/discovery-fixture-tests.log"
 unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 export CARGO_TARGET_DIR="$target_root/network-release"
 cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
 cargo +1.90.0 clippy --manifest-path experiments/object-network/Cargo.toml --all-targets --frozen -- -D warnings
+cargo +1.90.0 fmt --manifest-path experiments/object-discovery/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/object-discovery/Cargo.toml --all-targets --frozen -- -D warnings
 python3 experiments/object-network/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/build"
+python3 experiments/object-network/listing_build.py --target-dir "$CARGO_TARGET_DIR" --release \
+  --evidence "$SCAP_EVIDENCE/listing-build"
+python3 experiments/object-network/listing_contract.py \
+  --worker "$CARGO_TARGET_DIR/release/examples/scap-object-listing" --weed "$SCAP_WEED" \
+  --build-receipt "$SCAP_EVIDENCE/listing-build/build.json" --evidence "$SCAP_EVIDENCE/listing"
+python3 experiments/object-network/response_contract.py \
+  --worker "$CARGO_TARGET_DIR/release/examples/scap-object-listing" --weed "$SCAP_WEED" \
+  --build-receipt "$SCAP_EVIDENCE/listing-build/build.json" --bounded --evidence "$SCAP_EVIDENCE/response-bounds"
 worker="$CARGO_TARGET_DIR/release/scap-object-network"
 record="$SCAP_EVIDENCE/build/build.json"
 python3 experiments/object-network/run.py --worker "$worker" --weed "$SCAP_WEED" \
@@ -86,6 +99,17 @@ python3 experiments/object-network/lifecycle_contract.py --worker "$worker" --we
   --build-record "$record" --evidence "$SCAP_EVIDENCE/lifecycle"
 python3 experiments/object-network/catalogue_contract.py --worker "$worker" --weed "$SCAP_WEED" \
   --build-record "$record" --evidence "$SCAP_EVIDENCE/catalogue"
+python3 experiments/object-discovery/discovery_build.py --target-dir "$CARGO_TARGET_DIR" \
+  --evidence "$SCAP_EVIDENCE/discovery-build"
+python3 experiments/object-discovery/discovery_contract.py \
+  --seed-worker "$worker" --seed-build "$record" \
+  --worker "$CARGO_TARGET_DIR/release/scap-object-discovery" \
+  --build "$SCAP_EVIDENCE/discovery-build/build.json" --weed "$SCAP_WEED" \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery"
+python3 experiments/object-discovery/discovery_oracle.py \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery" > "$SCAP_EVIDENCE/deployment-recovery-oracle.json"
+python3 experiments/object-discovery/discovery_controls.py \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery" > "$SCAP_EVIDENCE/deployment-recovery-controls.json"
 export CARGO_TARGET_DIR="$target_root/service-release"
 python3 experiments/object-service/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/service-build"
 python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
@@ -96,3 +120,11 @@ python3 experiments/object-service/isolation_contract.py --server "$CARGO_TARGET
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/isolation-service"
 python3 experiments/object-service/isolation_controls.py --evidence "$SCAP_EVIDENCE/isolation-service" \
   --output "$SCAP_EVIDENCE/isolation-controls"
+python3 experiments/object-service/segmented_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/segmented-service"
+python3 experiments/object-service/segmented_oracle.py "$SCAP_EVIDENCE/segmented-service" \
+  > "$SCAP_EVIDENCE/segmented-oracle.json"
+python3 experiments/object-service/segmented_controls.py --evidence "$SCAP_EVIDENCE/segmented-service" \
+  --output "$SCAP_EVIDENCE/segmented-controls"
+python3 experiments/object-service/discovery_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/discovery-service"

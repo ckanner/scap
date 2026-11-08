@@ -424,3 +424,27 @@ fn prepared_startup_failure_and_completed_shutdown_signal_are_observable() {
         .await;
     });
 }
+
+#[test]
+fn discovery_startup_requires_a_listing_transport_and_validates_the_direct_worker_identity() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    let mut p = prepared(directory.path()).service;
+    p.discovery = Some(crate::discovery::tests::codec());
+    assert_eq!(assemble(p, memory.clone()).err().unwrap().code, "CONFIG");
+    let mut p = prepared(directory.path()).service;
+    p.discovery = Some(crate::discovery::tests::codec());
+    p.worker_instance = 0;
+    assert_eq!(
+        assemble_with_listings(p, memory.clone(), Some(memory.clone()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    let mut p = prepared(directory.path()).service;
+    p.discovery = Some(crate::discovery::tests::codec());
+    let (_, state) = assemble_with_listings(p, memory.clone(), Some(memory)).unwrap();
+    assert!(state.discovery.is_some());
+    drop(state);
+}

@@ -41,7 +41,7 @@
     "dual_backend": false
   },
   "profile": {
-    "head_format": 3,
+    "head_format": 4,
     "object_format": 2,
     "catalogue_format": 1,
     "page_size": 4096,

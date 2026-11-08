@@ -7,6 +7,7 @@ fn credential(token: &str) -> Credential {
         tenant: Decimal(2),
         principal: Decimal(3),
         provision: false,
+        deployment_inventory: false,
     }
 }
 
@@ -73,4 +74,21 @@ fn credential_configuration_is_strict_and_secret_free() {
     }
     assert!(decode_hash(&"0".repeat(64)).is_ok());
     assert!(decode_hash(&"abcdef0123456789".repeat(4)).is_ok());
+}
+
+#[test]
+fn deployment_inventory_is_a_separate_explicit_credential_capability() {
+    let token = "synthetic-inventory-credential-32bytes";
+    let mut c = credential(token);
+    c.deployment_inventory = true;
+    c.provision = false;
+    let p = Authenticator::new(vec![c])
+        .unwrap()
+        .authenticate(Some(&format!("Bearer {token}")))
+        .unwrap();
+    assert!(p.deployment_inventory);
+    assert!(!p.provision);
+    let encoded = serde_json::json!({"sha256":"a".repeat(64),"deployment":"1","tenant":"2","principal":"3","provision":true});
+    let decoded: Credential = serde_json::from_value(encoded).unwrap();
+    assert!(!decoded.deployment_inventory);
 }

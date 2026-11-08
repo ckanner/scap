@@ -56,10 +56,14 @@ fn install(
         .unwrap();
     let root = database
         .upload(
-            Payload::Index(vec![Entry {
-                request: request.clone(),
-                outcome: OutcomeRef::Committed { result: root },
-            }]),
+            crate::tests::index_payload(
+                1,
+                vec![Entry {
+                    result_bytes: length,
+                    request: request.clone(),
+                    outcome: OutcomeRef::Committed { result: root },
+                }],
+            ),
             deadline(),
         )
         .unwrap();
@@ -72,7 +76,9 @@ fn install(
         // HEAD or padding the scenario with unrelated result records.
         head.retention.max_entries = 1;
         head.request_epoch = 2;
-        let empty = database.upload(Payload::Index(vec![]), deadline()).unwrap();
+        let empty = database
+            .upload(crate::tests::index_payload(2, vec![]), deadline())
+            .unwrap();
         head.windows.insert(
             0,
             Window {
@@ -99,6 +105,111 @@ fn assert_unchanged(objects: &Memory, database: &Database, before: &Stored) {
     );
     assert!(matches!(database.healthy(), Err(Error::Corrupt)));
     assert!(matches!(database.clone().healthy(), Err(Error::Corrupt)));
+}
+
+#[test]
+fn original_result_length_is_verified_against_each_leaf_claim() {
+    for operation in 0..3 {
+        let (objects, database, request, _) = install(valid_result(), false, false);
+        let mut head = database.read_head(deadline()).unwrap().head;
+        let mut entries =
+            crate::tests::index_entries(&database, &head.windows[0], deadline()).unwrap();
+        entries[0].result_bytes += 1;
+        head.windows[0].result_bytes += 1;
+        head.windows[0].root = database
+            .upload(crate::tests::index_payload(1, entries), deadline())
+            .unwrap();
+        objects.set(head_key(&scope()), encode_head(&head).unwrap());
+        let before = objects
+            .get(&head_key(&scope()), MAX_HEAD_BYTES, deadline())
+            .unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        let error = match operation {
+            0 => database.lookup(7, &request, deadline()).unwrap_err(),
+            1 => database
+                .query(
+                    7,
+                    &sql("SELECT 1"),
+                    &temporary.path().join("cold-query"),
+                    deadline(),
+                )
+                .unwrap_err(),
+            _ => match database.session(7, &temporary.path().join("cold-open"), deadline()) {
+                Err(error) => error,
+                Ok(_) => panic!("incorrect length claim survived recovery"),
+            },
+        };
+        assert!(matches!(error, Error::Corrupt));
+        assert_unchanged(&objects, &database, &before);
+    }
+}
+
+#[test]
+fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit() {
+    for open in [false, true] {
+        let (objects, database) = fixture();
+        let mut head = database.read_head(deadline()).unwrap().head;
+        head.retention.max_entries = 4096;
+        let mut children = Vec::new();
+        for first in [1, 100] {
+            let index = RequestIndex::Leaf {
+                epoch: 1,
+                entries: (first..first + 64)
+                    .map(|id| Entry {
+                        request: identity(id),
+                        outcome: OutcomeRef::Cancelled {
+                            transition: head.transition.clone(),
+                        },
+                        result_bytes: 0,
+                    })
+                    .collect(),
+            };
+            let summary = index.summary();
+            let hash = database.upload(Payload::Index(index), deadline()).unwrap();
+            children.push(IndexChild { hash, summary });
+        }
+        let missing = object_key(&scope(), &children[1].hash);
+        head.windows[0].count = 128;
+        head.windows[0].root = database
+            .upload(
+                Payload::Index(RequestIndex::Branch {
+                    epoch: 1,
+                    level: 1,
+                    children,
+                }),
+                deadline(),
+            )
+            .unwrap();
+        objects.set(head_key(&scope()), encode_head(&head).unwrap());
+        let before = objects
+            .get(&head_key(&scope()), MAX_HEAD_BYTES, deadline())
+            .unwrap();
+        objects.fail(false, missing.clone(), StoreError::Missing);
+        assert!(matches!(
+            database.lookup(7, &identity(1), deadline()),
+            Ok(Resolution::Cancelled { .. })
+        ));
+        let preceding = objects.gets_for(&missing);
+        let temporary = tempfile::tempdir().unwrap();
+        let error = if open {
+            match database.session(7, &temporary.path().join("open"), deadline()) {
+                Err(error) => error,
+                Ok(_) => panic!("cold Open omitted a retained branch"),
+            }
+        } else {
+            database
+                .query(
+                    7,
+                    &sql("SELECT 1"),
+                    &temporary.path().join("query"),
+                    deadline(),
+                )
+                .unwrap_err()
+        };
+        assert!(matches!(error, Error::Store(StoreError::Missing)));
+        assert_eq!(objects.gets_for(&missing), preceding + 1);
+        assert_unchanged(&objects, &database, &before);
+    }
 }
 
 #[test]
@@ -164,7 +275,7 @@ fn lookup_rejects_semantically_invalid_results_despite_correct_object_hashes() {
                 .iter()
                 .find(|entry| entry.epoch == request.epoch)
                 .unwrap();
-            let entries = database.index(window, deadline()).unwrap();
+            let entries = crate::tests::index_entries(&database, window, deadline()).unwrap();
             let OutcomeRef::Committed { result } = &entries[0].outcome else {
                 panic!("fixture is a committed reference");
             };
@@ -292,15 +403,14 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
     let corrupt_result = database
         .upload(Payload::Result(stored), deadline())
         .unwrap();
-    let mut entries = database
-        .index(&original.head.windows[0], deadline())
-        .unwrap();
+    let mut entries =
+        crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
     entries[0].outcome = OutcomeRef::Committed {
         result: corrupt_result,
     };
     let mut damaged = original.head.clone();
     damaged.windows[0].root = database
-        .upload(Payload::Index(entries), deadline())
+        .upload(crate::tests::index_payload(1, entries), deadline())
         .unwrap();
     objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
     assert!(matches!(

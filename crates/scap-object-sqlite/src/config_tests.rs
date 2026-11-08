@@ -4,11 +4,12 @@ use libsql_sys::rusqlite::config::DbConfig;
 use libsql_sys::rusqlite::limits::Limit;
 use libsql_sys::rusqlite::{self, Connection};
 
-use crate::config::{configure, ConfigOps};
+use crate::config::{configure, validate_global_temporary_directory, ConfigOps};
 use crate::{Error, SqlLimits, WriterLimits};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Event {
+    TemporaryDirectory,
     Settings,
     NoWait,
     PageSize,
@@ -20,6 +21,7 @@ enum Event {
 }
 
 struct FakeConfig {
+    temporary_directory: Option<String>,
     fail_at: Vec<usize>,
     events: RefCell<Vec<Event>>,
     page_size: i64,
@@ -32,6 +34,7 @@ struct FakeConfig {
 impl FakeConfig {
     fn new() -> Self {
         Self {
+            temporary_directory: None,
             fail_at: Vec::new(),
             events: RefCell::default(),
             page_size: 4096,
@@ -56,6 +59,11 @@ impl FakeConfig {
 }
 
 impl ConfigOps for FakeConfig {
+    fn temporary_directory(&self) -> rusqlite::Result<Option<String>> {
+        self.step(Event::TemporaryDirectory)?;
+        Ok(self.temporary_directory.clone())
+    }
+
     fn settings(&self, sql: &str) -> rusqlite::Result<()> {
         assert_eq!(sql, "PRAGMA page_size=4096; PRAGMA synchronous=FULL; PRAGMA cache_spill=ON; PRAGMA wal_autocheckpoint=0; PRAGMA temp_store=FILE; PRAGMA foreign_keys=ON; PRAGMA cache_size=-256;");
         self.step(Event::Settings)
@@ -122,6 +130,7 @@ fn limits() -> WriterLimits {
 
 fn expected_events() -> Vec<Event> {
     vec![
+        Event::TemporaryDirectory,
         Event::Settings,
         Event::NoWait,
         Event::PageSize,
@@ -206,7 +215,7 @@ fn native_configuration_uses_the_same_ordered_effects_as_the_policy() {
 #[test]
 fn every_fallible_configuration_effect_stops_the_sequence() {
     let expected = expected_events();
-    for fail_at in [1, 2, 3, 4, 5, 12, 13, 14, 15] {
+    for fail_at in [1, 2, 3, 4, 5, 6, 13, 14, 15, 16] {
         let mut fake = FakeConfig::new();
         fake.fail_at = vec![fail_at];
         let Err(Error::Sqlite(rusqlite::Error::InvalidParameterName(error))) =
@@ -215,17 +224,17 @@ fn every_fallible_configuration_effect_stops_the_sequence() {
             panic!("wrong failure classification")
         };
         assert_eq!(error, format!("step {fail_at}"));
-        let end = if fail_at == 14 { 15 } else { fail_at };
+        let end = if fail_at == 15 { 16 } else { fail_at };
         assert_eq!(*fake.events.borrow(), expected[..end]);
     }
     let mut fake = FakeConfig::new();
-    fake.fail_at = vec![14, 15];
+    fake.fail_at = vec![15, 16];
     let Err(Error::Sqlite(rusqlite::Error::InvalidParameterName(error))) =
         configure(&fake, limits(), 99)
     else {
         panic!("wrong restoration failure")
     };
-    assert_eq!(error, "step 15");
+    assert_eq!(error, "step 16");
     assert_eq!(*fake.events.borrow(), expected);
 }
 
@@ -236,23 +245,23 @@ fn rejected_page_integrity_capacity_or_security_settings_never_continue() {
         let count = match field {
             0 => {
                 fake.page_size = 8192;
-                3
+                4
             }
             1 => {
                 fake.integrity = "corrupt";
-                15
+                16
             }
             2 => {
                 fake.max_pages = 100;
-                12
+                13
             }
             3 => {
                 fake.defensive = false;
-                4
+                5
             }
             _ => {
                 fake.trusted = true;
-                5
+                6
             }
         };
         assert!(matches!(
@@ -280,6 +289,49 @@ fn native_effects_preserve_actual_sqlite_errors_and_constraints() {
     assert!(matches!(
         configure(&large, limits(), 1),
         Err(Error::InvalidImage)
+    ));
+}
+
+#[test]
+fn global_temporary_directory_override_is_rejected_before_other_configuration() {
+    // Use one effect-boundary implementation for successful and failed opens.
+    // Distinct closure types would create one-outcome generic instantiations.
+    fn opener(config: Option<FakeConfig>) -> impl FnOnce() -> rusqlite::Result<FakeConfig> {
+        move || config.ok_or(rusqlite::Error::InvalidQuery)
+    }
+    assert!(matches!(
+        validate_global_temporary_directory(opener(None)),
+        Err(Error::Sqlite(rusqlite::Error::InvalidQuery))
+    ));
+    validate_global_temporary_directory(opener(Some(FakeConfig::new()))).unwrap();
+    let mut unreadable = FakeConfig::new();
+    unreadable.fail_at = vec![1];
+    assert!(matches!(
+        validate_global_temporary_directory(opener(Some(unreadable))),
+        Err(Error::Sqlite(_))
+    ));
+    for directory in ["/host-private-temp", ""] {
+        let mut fake = FakeConfig::new();
+        fake.temporary_directory = Some(directory.into());
+        assert!(
+            matches!(configure(&fake, limits(), 99), Err(Error::Io(error))
+            if error.kind() == std::io::ErrorKind::Unsupported)
+        );
+        assert_eq!(*fake.events.borrow(), [Event::TemporaryDirectory]);
+        assert!(
+            matches!(validate_global_temporary_directory(opener(Some(fake))), Err(Error::Io(error))
+            if error.kind() == std::io::ErrorKind::Unsupported)
+        );
+    }
+
+    let connection = Connection::open_in_memory().unwrap();
+    connection.authorizer(Some(|_: libsql_sys::rusqlite::hooks::AuthContext<'_>| {
+        libsql_sys::rusqlite::hooks::Authorization::Deny
+    }));
+    assert!(ConfigOps::temporary_directory(&connection).is_err());
+    assert!(matches!(
+        configure(&connection, limits(), 99),
+        Err(Error::Sqlite(_))
     ));
 }
 

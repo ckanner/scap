@@ -54,11 +54,23 @@ SQLite 官方在 2026 年公开 WAL-reset 缺陷：同一文件上的多个连�
 
 文件系统编号取自 Linux UAPI 的 `magic.h`；检测通过固定版本 rustix 的安全 API 实现，没有第一方 unsafe 代码。[S8][S9]
 
+## 独立临时文件目录准入
+
+本候选在每次正式 native 连接打开之前，对固定 Unix VFS 的全部候选目录执行同一目录描述符 `fstatfs` allowlist：`SQLITE_TMPDIR`、`TMPDIR`、`/var/tmp`、`/usr/tmp`、`/tmp`、当前工作目录。空环境变量忽略；打开时明确不存在的候选跳过且不创建，权限错误、非目录和其他打开失败直接拒绝；已打开目录的查询错误即使是 `NotFound` 也不能当成候选不存在。任意已存在候选是 NFS/FUSE/未知类型即拒绝，即使排在它之前的本地目录当前可用。这是刻意保守的准入，不复制 SQLite 当前一次的可写性选择后忽略其他回退路径。[S10][S11]
+
+固定 VFS 还会优先使用进程全局 `sqlite3_temp_directory`。正式文件连接打开前先建立一个私有内存连接，通过安全 rusqlite API 读取 `PRAGMA temp_store_directory`，任何返回值都拒绝；不接受宿主事先设置的全局覆盖，即使它指向本地目录。该查询在固定 pragma 表中不要求读取文件 schema。拒绝早于 libSQL 文件连接打开时的内部 `journal_mode=WAL` SQL；后者会要求 schema 初始化，不能把 libSQL 的打开过程误称为尚未执行内部 SQL。正式连接配置时再次验证覆盖仍不存在，然后才执行配置、结构扫描和业务语句。SCAP 不写这个全局变量，不执行全局目录切换，也不修改进程环境。[S11][S12]
+
+这些检查要求默认的固定 Unix VFS，不支持宿主注册的 auto-extension。`SQLITE_TMPDIR` / `TMPDIR` 的指针在首次 SQLite 初始化时缓存，所以环境和工作目录必须从**首次 SQLite 初始化之前**到整个进程退出都保持不变；不能在初始化后换环境值再依赖一次新检查。宿主不得并发改变全局临时目录或注册替代 VFS，运维不得在准入后新建、替换或重新挂载候选目录。以上属于与主执行目录相同的受信任进程和命名空间边界，不是对恶意宿主的沙箱。
+
+`PRAGMA temp_store=FILE` 保持不变，排序等工作仍可溢出到通过准入的本地文件系统。没有将所有临时数据搬入内存，也没有把页面缓存配置当成硬 RSS 或磁盘预留。临时文件类型和位置取决于固定 SQLite 实现；更换内核、VFS 或打开路径时必须重新审查。主文件、相邻 journal/WAL/SHM 与独立临时目录分别检查，公开 SQL 仍不能使用 ATTACH、任意 PRAGMA 或扩展来另开存储路径。[S10]
+
+本候选的新增单元与真实回归状态单独记录；此处描述实现和适用前提，不把 PR #28 的旧验收自动归给它。测试包含默认/空/缺失/非 Unicode 环境、低优先级不安全目录、打开和查询失败，以及独立子进程的真实目录、procfs、symlink、工作目录和宿主全局覆盖。子进程只改变自己的启动环境，全局覆盖注入也只发生在单线程的新进程，父测试进程不变更共享 SQLite 全局状态。
+
 ## 这项检查不提供的保证
 
 `fstatfs` 只识别当前描述符所属的文件系统类型。它无法完整检查 overlay 的下层挂载、管理员之后的 mount 变更、磁盘固件或所有云块设备故障。允许列表是防误配置措施，不是任意底层存储正确性的证明。执行目录及其挂载命名空间必须由可信运维控制，不能由租户替换。
 
-`PRAGMA temp_store=FILE` 使用的排序、物化和 statement journal 等临时文件可能位于 SQLite 选择的另一个 OS 临时目录；`SQLITE_TMPDIR`、`TMPDIR` 等部署设置同样必须指向可信本地存储。[S10] 本次检查覆盖主数据库及相邻 WAL/SHM，未声称已经约束全部 SQLite 临时路径。不能仅将 `temp_store` 改成 MEMORY 就声称获得硬内存上限；完整临时文件路径约束、并发内存／磁盘预算和压力验证仍应分别验收。
+目录准入不是每次 VFS 文件打开时的沙箱拦截，不能阻止有权改变进程、全局配置或挂载命名空间的代码绕过部署前提。并发内存／磁盘预算、实际网络挂载故障与压力验证仍须分别验收；真实 procfs 拒绝不能冒充 EFS/NFS 实验。
 
 对象数据前缀禁止外部覆盖、删除可达对象及任意 bucket TTL。GC/pin/PITR 尚未完整实现，不能用“缓存可丢弃”替代它们的正确性合同。主文件逻辑配额也不限制对象存储总量。
 
@@ -82,3 +94,5 @@ SQLite 官方在 2026 年公开 WAL-reset 缺陷：同一文件上的多个连�
 - [S8：Linux UAPI — magic.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/magic.h)
 - [S9：rustix 0.38.44 — filesystem descriptor operations](https://github.com/bytecodealliance/rustix/blob/v0.38.44/src/fs/fd.rs)
 - [S10：SQLite — Temporary Files Used By SQLite](https://www.sqlite.org/tempfiles.html)
+- [S11：固定 libSQL Unix VFS 临时目录选择和初始化](https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-sqlite3/src/os_unix.c)
+- [S12：SQLite — Name Of The Folder Holding Temporary Files](https://www.sqlite.org/c3ref/temp_directory.html)

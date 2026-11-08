@@ -5,6 +5,7 @@ pub mod format;
 pub mod options;
 
 mod data_tree;
+mod request_index;
 
 use std::cell::RefCell;
 use std::path::Path;
@@ -291,9 +292,9 @@ impl Database {
 
     fn initial_head(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
         let data_root = data_tree::empty(self, deadline)?;
-        let index = self.upload(Payload::Index(Vec::new()), deadline)?;
+        let index = request_index::empty(self, 1, deadline)?;
         let head = Head {
-            format: 3,
+            format: 4,
             scope: self.scope.clone(),
             revision: 1,
             transition: Transition { revision: 1, nonce },
@@ -352,36 +353,12 @@ impl Database {
 
     fn verify_results(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
         for window in &head.windows {
-            let mut bytes = 0_u64;
-            for entry in self.index(window, deadline)? {
-                if let Resolution::Committed { bytes: result, .. } =
-                    self.resolve_entry(head, &entry.request, &entry.outcome, deadline)?
-                {
-                    // A window has at most 65,536 independently bounded 64 MiB
-                    // results, so its exact aggregate fits in u64.
-                    bytes += result.len() as u64;
-                }
-            }
-            if bytes != window.result_bytes {
-                return Err(self.observe(Error::Corrupt));
-            }
+            request_index::walk(self, window, deadline, |entry| {
+                self.resolve_index_entry(head, &entry, deadline).map(|_| ())
+            })
+            .map_err(|error| self.observe(error))?;
         }
         Ok(())
-    }
-
-    fn index(&self, window: &Window, deadline: Instant) -> Result<Vec<Entry>, Error> {
-        let entries = match self.load(&window.root, deadline)? {
-            Payload::Index(entries) => entries,
-            _ => return Err(self.observe(Error::Corrupt)),
-        };
-        if entries.len() != window.count as usize
-            || entries
-                .iter()
-                .any(|entry| entry.request.epoch != window.epoch)
-        {
-            return Err(self.observe(Error::Corrupt));
-        }
-        Ok(entries)
     }
 
     fn resolve(
@@ -401,10 +378,8 @@ impl Database {
         else {
             return Ok(Resolution::Retired);
         };
-        let entries = self.index(window, deadline)?;
-        let Some(entry) = entries
-            .into_iter()
-            .find(|entry| entry.request.id == request.id)
+        let Some(entry) = request_index::lookup(self, window, request.id, deadline)
+            .map_err(|error| self.observe(error))?
         else {
             return Ok(if request.epoch == head.request_epoch {
                 Resolution::Unknown
@@ -415,7 +390,22 @@ impl Database {
         if entry.request != *request {
             return Err(Error::RequestConflict);
         }
-        self.resolve_entry(head, request, &entry.outcome, deadline)
+        self.resolve_index_entry(head, &entry, deadline)
+    }
+
+    fn resolve_index_entry(
+        &self,
+        head: &Head,
+        entry: &Entry,
+        deadline: Instant,
+    ) -> Result<Resolution, Error> {
+        let resolution = self.resolve_entry(head, &entry.request, &entry.outcome, deadline)?;
+        if let Resolution::Committed { bytes, .. } = &resolution {
+            if bytes.len() as u64 != entry.result_bytes {
+                return Err(self.observe(Error::Corrupt));
+            }
+        }
+        Ok(resolution)
     }
 
     fn resolve_entry(
@@ -609,7 +599,7 @@ impl Database {
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.request_epoch = head.request_epoch.checked_add(1).ok_or(Error::Limit)?;
-        let root = self.upload(Payload::Index(Vec::new()), deadline)?;
+        let root = request_index::empty(self, head.request_epoch, deadline)?;
         head.windows.insert(
             0,
             Window {
@@ -624,31 +614,19 @@ impl Database {
         Ok(head)
     }
 
-    fn append(
-        &self,
-        head: &mut Head,
-        entry: Entry,
-        result_bytes: u64,
-        deadline: Instant,
-    ) -> Result<(), Error> {
-        let mut entries = self.index(&head.windows[0], deadline)?;
-        if entries.len() == head.retention.max_entries as usize {
+    fn append(&self, head: &mut Head, entry: Entry, deadline: Instant) -> Result<(), Error> {
+        if head.windows[0].count == head.retention.max_entries {
             return Err(Error::WindowFull);
         }
         let bytes = head.windows[0]
             .result_bytes
-            .checked_add(result_bytes)
+            .checked_add(entry.result_bytes)
             .ok_or(Error::Limit)?;
         if bytes > head.retention.max_result_bytes {
             return Err(Error::WindowFull);
         }
-        if entries.iter().any(|old| old.request.id == entry.request.id) {
-            return Err(Error::RequestConflict);
-        }
-        entries.push(entry);
-        head.windows[0].count = entries.len() as u32;
-        head.windows[0].result_bytes = bytes;
-        head.windows[0].root = self.upload(Payload::Index(entries), deadline)?;
+        head.windows[0] = request_index::insert(self, &head.windows[0], entry, deadline)
+            .map_err(|error| self.observe(error))?;
         Ok(())
     }
 
@@ -676,8 +654,8 @@ impl Database {
                 outcome: OutcomeRef::Cancelled {
                     transition: transition.clone(),
                 },
+                result_bytes: 0,
             },
-            0,
             deadline,
         )?;
         self.publish(&base, &head, deadline)?;
@@ -720,8 +698,8 @@ impl Database {
                 outcome: OutcomeRef::Committed {
                     result: result_hash.clone(),
                 },
+                result_bytes: result.len() as u64,
             },
-            result.len() as u64,
             deadline,
         )?;
         self.publish(base, &head, deadline)?;
@@ -917,6 +895,9 @@ impl Database {
         input_budget(statements, self.options.max_input_bytes)?;
         scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
         let mut session = self.restore(&snapshot, directory, deadline)?;
+        // Direct cold queries, like Open, validate the entire retained history.
+        // Warm Session::query remains a fresh HEAD plus local SQLite operation.
+        self.verify_results(&snapshot.head, deadline)?;
         session
             .writer
             .query(statements, Arc::new(move || Instant::now() >= deadline))

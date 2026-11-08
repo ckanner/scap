@@ -172,7 +172,7 @@ pub trait Listings: Send + Sync {
 
 ### 9.3 建议的最小安全包裹层
 
-为 listing client 安装一个请求局部的 HttpConnector/HttpService guard，委托官方 ReqwestConnector 执行已签名请求，保留原 SDK 凭据、签名及连接配置。现有 `max_retries: 0` 保持不变。
+为 client 安装请求局部的 HttpConnector/HttpService guard，保留 object_store 的凭据、签名与序列化，由显式配置的 reqwest client 执行已签名请求。固定版本的默认 ReqwestConnector 会跟随 redirect；实际故障代理已证明仅设置 `max_retries: 0` 不能保证一次物理请求。实现必须同时关闭 reqwest retry 与 redirect、自动代理和解压，维持绝对 deadline；原 SDK 的 `max_retries: 0` 仍保留。guard 由 LIST、GET、PUT 共用，不能只限制 LIST 而让条件写在另一条连接路径重试。实现与实际故障证据见 [LIST 合同](../../experiments/object-network/listing-contract.md)。
 
 - 请求 extensions 携带本次规范 bucket/prefix/options、字节上限与 deadline。只有带内部类型的合法 LIST 请求走 guard；不用全局可变“当前请求”变量，不跨并发调用共享解析状态。
 - 按 bytes_stream 在复制前累计并限制字节；Content-Length 仅作额外提前拒绝，不能替代流式计数。非 2xx 不伪造成功，错误体同样有界。
@@ -236,6 +236,6 @@ XML 校验器需要独立精确单元覆盖和真实故障代理负对照。可�
 
 `api-probe-evidence.json` 记录实际编译器、依赖 rlib 和源文件哈希；该探针没有执行网络请求、native SQLite 或产品恢复测试。后续实施和新门禁均为 NOT_RUN。
 
-## 13. 首版恢复状态的固定解释
+## 14. 首版恢复状态的固定解释
 
 元数据协调器仅设置 metadata_classified 与槽覆盖状态，data_recovery 固定为 NOT_RUN，recovery_complete 固定为 false。严格全量恢复 profile 中，permission_blocked 仍表示对应 data/result/native 未验证，不能被计入“所有数据健康”；此类身份需单列并使 recovery_complete 为 false。Catalogue::resolve 对若干中间状态统一返回 NotFound，完整分类必须复用 crate 内部的严格 typed inspect/DatabaseSlot 路径，不能冒用 descriptor creator，也不能仅靠公开 resolve 推断全部状态。

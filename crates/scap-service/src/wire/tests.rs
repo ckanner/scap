@@ -172,7 +172,7 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         "cancelled"
     );
     let head = Head {
-        format: 3,
+        format: 4,
         creation: None,
         deletion: None,
         scope,

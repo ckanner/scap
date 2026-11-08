@@ -107,7 +107,7 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
             panic!("committed receipt must reference its stored result");
         };
         let payload = if mutation == 0 {
-            Payload::Index(vec![])
+            crate::tests::index_payload(1, vec![])
         } else {
             match mutation {
                 1 => stored.request.principal += 1,
@@ -118,15 +118,14 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
             Payload::Result(stored)
         };
         let replacement = database.upload(payload, deadline()).unwrap();
-        let mut entries = database
-            .index(&original.head.windows[0], deadline())
-            .unwrap();
+        let mut entries =
+            crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
         entries[0].outcome = OutcomeRef::Committed {
             result: replacement,
         };
         let mut damaged = original.head.clone();
         damaged.windows[0].root = database
-            .upload(Payload::Index(entries), deadline())
+            .upload(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
         if mutation == 4 {

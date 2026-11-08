@@ -1,4 +1,4 @@
-//! Strict v3 HEAD values and unchanged v2 immutable object frames.
+//! Strict v4 HEAD values and unchanged v2 immutable object frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -14,6 +14,11 @@ pub const TREE_FANOUT: usize = 256;
 pub const MAX_TREE_LEVEL: u8 = 3;
 pub const MAX_PAGES: u32 = u32::MAX - 1;
 pub const MAX_REQUESTS: u32 = 65_536;
+pub const REQUEST_LEAF_CAPACITY: usize = 128;
+pub const REQUEST_BRANCH_CAPACITY: usize = 32;
+/// Leaves are level zero. A level-four root would require at least
+/// 2 * 16^3 * 64 = 524,288 entries, beyond MAX_REQUESTS.
+pub const MAX_REQUEST_INDEX_LEVEL: u8 = 3;
 pub const MAX_RESULT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_HEAD_BYTES: usize = 256 * 1024;
 pub const MAX_OBJECT_BYTES: usize = MAX_RESULT_BYTES + 64 * 1024;
@@ -21,7 +26,6 @@ pub const MAX_PRINCIPALS: usize = 1024;
 const MAGIC: &[u8; 8] = b"SCAPOBJ2";
 const FRAME_BYTES: usize = 20;
 const SMALL_METADATA_BYTES: usize = 64 * 1024 - FRAME_BYTES;
-const INDEX_METADATA_BYTES: usize = MAX_REQUESTS as usize * 512 + SMALL_METADATA_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FormatError {
@@ -240,7 +244,7 @@ pub struct Head {
 
 impl Head {
     fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 3)?;
+        check(self.format == 4)?;
         self.scope.validate()?;
         nonzero(&[
             self.revision,
@@ -358,6 +362,132 @@ pub enum OutcomeRef {
 pub struct Entry {
     pub request: Request,
     pub outcome: OutcomeRef,
+    /// Exact original Result payload length; cancelled entries carry zero.
+    pub result_bytes: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IndexSummary {
+    pub first: u64,
+    pub last: u64,
+    pub count: u32,
+    pub result_bytes: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IndexChild {
+    pub hash: String,
+    pub summary: IndexSummary,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RequestIndex {
+    Leaf {
+        epoch: u64,
+        entries: Vec<Entry>,
+    },
+    Branch {
+        epoch: u64,
+        level: u8,
+        children: Vec<IndexChild>,
+    },
+}
+
+impl RequestIndex {
+    pub(crate) fn epoch(&self) -> u64 {
+        match self {
+            Self::Leaf { epoch, .. } | Self::Branch { epoch, .. } => *epoch,
+        }
+    }
+
+    pub(crate) fn level(&self) -> u8 {
+        match self {
+            Self::Leaf { .. } => 0,
+            Self::Branch { level, .. } => *level,
+        }
+    }
+
+    /// Only the root may be under half full. Edge verification enforces the
+    /// non-root minimum; the codec validates each independently stored node.
+    pub(crate) fn occupancy(&self) -> (usize, usize) {
+        match self {
+            Self::Leaf { entries, .. } => (entries.len(), REQUEST_LEAF_CAPACITY),
+            Self::Branch { children, .. } => (children.len(), REQUEST_BRANCH_CAPACITY),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), FormatError> {
+        nonzero(&[self.epoch()])?;
+        let mut previous = 0;
+        match self {
+            Self::Leaf { epoch, entries } => {
+                budget(entries.len(), REQUEST_LEAF_CAPACITY)?;
+                for entry in entries {
+                    entry.request.validate()?;
+                    check(entry.request.epoch == *epoch)?;
+                    check(entry.request.id > previous)?;
+                    previous = entry.request.id;
+                    check(entry.result_bytes <= MAX_RESULT_BYTES as u64)?;
+                    match &entry.outcome {
+                        OutcomeRef::Committed { result } => check(hash_valid(result))?,
+                        OutcomeRef::Cancelled { transition } => {
+                            transition.validate()?;
+                            check(entry.result_bytes == 0)?;
+                        }
+                    }
+                }
+            }
+            Self::Branch {
+                level, children, ..
+            } => {
+                check(*level != 0 && *level <= MAX_REQUEST_INDEX_LEVEL)?;
+                check(children.len() >= 2)?;
+                budget(children.len(), REQUEST_BRANCH_CAPACITY)?;
+                let minimum = (REQUEST_LEAF_CAPACITY / 2) as u32
+                    * (REQUEST_BRANCH_CAPACITY as u32 / 2).pow(*level as u32 - 1);
+                let maximum = REQUEST_LEAF_CAPACITY as u32
+                    * (REQUEST_BRANCH_CAPACITY as u32).pow(*level as u32 - 1);
+                let mut count = 0_u32;
+                for child in children {
+                    check(hash_valid(&child.hash))?;
+                    let summary = &child.summary;
+                    check(summary.first > previous && summary.last >= summary.first)?;
+                    check(summary.count >= minimum && summary.count <= maximum)?;
+                    check(summary.last - summary.first >= summary.count as u64 - 1)?;
+                    check(summary.result_bytes <= summary.count as u64 * MAX_RESULT_BYTES as u64)?;
+                    previous = summary.last;
+                    count += summary.count;
+                }
+                budget(count as usize, MAX_REQUESTS as usize)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Called only after local validation. All sums fit: at most 65,536
+    /// independently bounded 64 MiB results, and at most 32 bounded children.
+    pub(crate) fn summary(&self) -> IndexSummary {
+        match self {
+            Self::Leaf { entries, .. } => IndexSummary {
+                first: entries.first().map_or(0, |entry| entry.request.id),
+                last: entries.last().map_or(0, |entry| entry.request.id),
+                count: entries.len() as u32,
+                result_bytes: entries.iter().map(|entry| entry.result_bytes).sum(),
+            },
+            Self::Branch { children, .. } => IndexSummary {
+                first: children[0].summary.first,
+                last: children[children.len() - 1].summary.last,
+                count: children.iter().map(|child| child.summary.count).sum(),
+                result_bytes: children
+                    .iter()
+                    .map(|child| child.summary.result_bytes)
+                    .sum(),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -379,7 +509,7 @@ pub enum Payload {
     },
     Manifest(Manifest),
     Result(StoredResult),
-    Index(Vec<Entry>),
+    Index(RequestIndex),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -424,20 +554,7 @@ impl Envelope {
                 check(hash_valid(&result.data_root))?;
                 budget(result.bytes.len(), MAX_RESULT_BYTES)?;
             }
-            Payload::Index(entries) => {
-                budget(entries.len(), MAX_REQUESTS as usize)?;
-                let mut identities = BTreeSet::new();
-                let mut epoch = None;
-                for entry in entries {
-                    entry.request.validate()?;
-                    check(identities.insert(entry.request.id))?;
-                    check(*epoch.get_or_insert(entry.request.epoch) == entry.request.epoch)?;
-                    match &entry.outcome {
-                        OutcomeRef::Committed { result } => check(hash_valid(result))?,
-                        OutcomeRef::Cancelled { transition } => transition.validate()?,
-                    }
-                }
-            }
+            Payload::Index(index) => index.validate()?,
         }
         Ok(())
     }
@@ -485,13 +602,33 @@ pub fn decode_head(bytes: &[u8], scope: &Scope) -> Result<Head, FormatError> {
 /// Internal identity-slot inspection must not confuse another incarnation with
 /// a missing HEAD. The public database path still checks the complete Scope.
 pub(crate) fn decode_head_slot(bytes: &[u8], scope: &Scope) -> Result<Head, FormatError> {
+    decode_head_at_slot(
+        bytes,
+        &DatabaseSlot {
+            deployment: scope.deployment,
+            tenant: scope.tenant,
+            database: scope.database,
+        },
+    )
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DatabaseSlot {
+    pub deployment: u64,
+    pub tenant: u64,
+    pub database: u64,
+}
+
+/// Discovery knows the permanent physical slot, not an expected incarnation.
+/// Validate the complete stored Scope without manufacturing a placeholder.
+pub(crate) fn decode_head_at_slot(bytes: &[u8], slot: &DatabaseSlot) -> Result<Head, FormatError> {
     budget(bytes.len(), MAX_HEAD_BYTES)?;
     let head: Head = serde_json::from_slice(bytes).map_err(|_| FormatError::Corrupt)?;
     head.validate().map_err(|_| FormatError::Corrupt)?;
     check(
-        head.scope.deployment == scope.deployment
-            && head.scope.tenant == scope.tenant
-            && head.scope.database == scope.database,
+        head.scope.deployment == slot.deployment
+            && head.scope.tenant == slot.tenant
+            && head.scope.database == slot.database,
     )
     .map_err(|_| FormatError::Corrupt)?;
     Ok(head)
@@ -519,7 +656,6 @@ pub fn encode_object(envelope: &Envelope) -> Result<Vec<u8>, FormatError> {
         ),
         payload => (payload.clone(), &[][..]),
     };
-    let maximum = metadata_limit(&payload);
     encode_frame(
         &Metadata {
             format: envelope.format,
@@ -527,7 +663,7 @@ pub fn encode_object(envelope: &Envelope) -> Result<Vec<u8>, FormatError> {
             payload,
         },
         raw,
-        maximum,
+        SMALL_METADATA_BYTES,
     )
 }
 
@@ -560,14 +696,13 @@ pub fn decode_object(
     let metadata_len =
         u32::from_le_bytes(bytes[8..12].try_into().expect("fixed frame field")) as usize;
     let raw_len = u64::from_le_bytes(bytes[12..20].try_into().expect("fixed frame field"));
-    check(metadata_len <= INDEX_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
+    check(metadata_len <= SMALL_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
     check(raw_len <= MAX_RESULT_BYTES as u64).map_err(|_| FormatError::Corrupt)?;
     check(bytes.len() == FRAME_BYTES + metadata_len + raw_len as usize)
         .map_err(|_| FormatError::Corrupt)?;
     let metadata: Metadata =
         serde_json::from_slice(&bytes[FRAME_BYTES..FRAME_BYTES + metadata_len])
             .map_err(|_| FormatError::Corrupt)?;
-    budget(metadata_len, metadata_limit(&metadata.payload)).map_err(|_| FormatError::Corrupt)?;
     let raw = &bytes[FRAME_BYTES + metadata_len..];
     let mut payload = metadata.payload;
     match &mut payload {
@@ -585,14 +720,6 @@ pub fn decode_object(
     envelope.validate().map_err(|_| FormatError::Corrupt)?;
     check(envelope.scope == *scope).map_err(|_| FormatError::Corrupt)?;
     Ok(envelope)
-}
-
-fn metadata_limit(payload: &Payload) -> usize {
-    if matches!(payload, Payload::Index(_)) {
-        INDEX_METADATA_BYTES
-    } else {
-        SMALL_METADATA_BYTES
-    }
 }
 
 fn encode(value: &impl Serialize, maximum: usize) -> Result<Vec<u8>, FormatError> {

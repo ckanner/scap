@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use std::sync::Mutex;
 use std::thread;
 
-fn config(endpoint: impl Into<String>) -> S3Config {
+pub(crate) fn config(endpoint: impl Into<String>) -> S3Config {
     S3Config {
         endpoint: endpoint.into(),
         region: "us-east-1".into(),
@@ -18,25 +18,27 @@ fn config(endpoint: impl Into<String>) -> S3Config {
     }
 }
 
-fn deadline() -> Instant {
+pub(crate) fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(2)
 }
 
-struct Reply {
-    status: u16,
-    declared_size: usize,
-    body: Vec<u8>,
-    etag: Option<String>,
-    delay: Duration,
+pub(crate) struct Reply {
+    pub status: u16,
+    pub declared_size: usize,
+    pub body: Vec<u8>,
+    pub etag: Option<String>,
+    pub delay: Duration,
+    pub location: Option<String>,
 }
 
-fn reply(status: u16, body: &[u8]) -> Reply {
+pub(crate) fn reply(status: u16, body: &[u8]) -> Reply {
     Reply {
         status,
         declared_size: body.len(),
         body: body.to_vec(),
         etag: Some("\"unit-version\"".into()),
         delay: Duration::ZERO,
+        location: None,
     }
 }
 
@@ -44,7 +46,7 @@ type CapturedRequests = Arc<Mutex<Vec<String>>>;
 
 /// A deterministic response transport, not an S3 correctness implementation.
 /// Real object-store and process fault contracts execute separately.
-fn transport(replies: Vec<Reply>) -> (String, thread::JoinHandle<()>, CapturedRequests) {
+pub(crate) fn transport(replies: Vec<Reply>) -> (String, thread::JoinHandle<()>, CapturedRequests) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
@@ -92,6 +94,9 @@ fn transport(replies: Vec<Reply>) -> (String, thread::JoinHandle<()>, CapturedRe
             );
             if let Some(etag) = response.etag {
                 headers.push_str(&format!("ETag: {etag}\r\n"));
+            }
+            if let Some(location) = response.location {
+                headers.push_str(&format!("Location: {location}\r\n"));
             }
             headers.push_str("\r\n");
             let _ = socket.write_all(headers.as_bytes());

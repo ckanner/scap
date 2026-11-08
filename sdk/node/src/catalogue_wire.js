@@ -38,7 +38,7 @@ function name(value) {
 
 function revision(value) { return value === null ? null : wire.decimal(value); }
 
-function creation(value, caller) {
+export function creation(value, caller) {
   wire.record(value, CREATION);
   const result = { creator: wire.decimal(value.creator), operation: wire.decimal(value.operation),
     name: name(value.name), scope: wire.scope(value.scope),

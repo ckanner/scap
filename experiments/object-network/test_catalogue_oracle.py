@@ -33,7 +33,7 @@ def binding(c, state="reserved", control=None, proof=None):
 
 
 def initial_head(c, *, named=True, lifecycle="provisioning", nonce=None, changed_scope=None):
-    return {"format": 3, "scope": changed_scope or c["scope"], "revision": 1,
+    return {"format": 4, "scope": changed_scope or c["scope"], "revision": 1,
             "transition": {"revision": 1, "nonce": nonce or c["operation"]}, "sequence": 0,
             "owner_epoch": 1, "owner_instance": 50001, "active": False, "auth_epoch": 1,
             "policy": [{"principal": 17, "read": True, "write": True, "admin": True}],
@@ -200,7 +200,7 @@ def ledger():
                "expected_name_revision": None, "options": {"quota": {"kind": "default"}}}}
     value = {k: descriptor(c)[k] for k in ("creation", "initial_quota", "retention")}
     response = {"ok": True, "value": value}
-    return {"plan": {"version": 1, "head_format": 3, "immutable_format": 2, "catalogue_record_bytes": 65536,
+    return {"plan": {"version": 1, "head_format": 4, "immutable_format": 2, "catalogue_record_bytes": 65536,
                      "fixture_limits": oracle.PROFILE, "pilot_profiles": list(oracle.PILOTS), "cut_stages": list(oracle.CUTS)},
             "history": [], "facts": [{"event": "case_started", "case": "unit", "input": request["input"]},
                                        {"event": "worker_started", "case": "unit", "worker": 50001, "scope": c["scope"], "principal": 17}],

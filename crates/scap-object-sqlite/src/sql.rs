@@ -47,6 +47,8 @@ pub(crate) fn open<G: CommitGate + 'static>(
     interrupt: &ReadInterrupt,
 ) -> Result<NativeConnection<G>, Error> {
     crate::query::check(interrupt)?;
+    crate::storage::validate_temporary_directories().map_err(Error::Io)?;
+    crate::config::validate_global_temporary_directory(rusqlite::Connection::open_in_memory)?;
     let manager = Sqlite3WalManager::default().wrap(gate);
     let connection = libsql_sys::Connection::open(
         path,

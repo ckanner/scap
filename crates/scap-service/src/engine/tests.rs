@@ -355,6 +355,7 @@ fn ownership_quota_policy_and_lifecycle_use_the_same_remote_order() {
     let reader = Principal {
         principal: 9,
         provision: false,
+        deployment_inventory: false,
         ..principal()
     };
     assert!(second
@@ -523,6 +524,7 @@ fn invalid_inputs_fail_before_database_io_and_startup_does_not_make_unbounded_re
             .execute(
                 &Principal {
                     provision: false,
+                    deployment_inventory: false,
                     ..principal()
                 },
                 call(Action::Create { nonce: Decimal(1) }),
