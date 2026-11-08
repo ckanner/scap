@@ -1,6 +1,7 @@
 """Synthetic catalogue oracle controls, never real service acceptance evidence."""
 import copy
 import hashlib
+import json
 import unittest
 
 import catalogue_oracle as oracle
@@ -112,6 +113,55 @@ class CatalogueNetworkBindingControls(unittest.TestCase):
                 oracle.bind_requests({1:{**request,**change}},calls,observed,known)
         known["prior"]["name"]="another name"
         with self.assertRaises(ValueError):oracle.bind_requests({1:request},calls,observed,known)
+
+    def reuse_proof_fixture(self):
+        calls,observed,known=self.fixture()
+        prior=copy.deepcopy(creation());known["prior"]=prior
+        current=known["main"];current["operation"]="5001";current["scope"]["database"]="50"
+        current["expected_name_revision"]="3"
+        original={"creator":11,"operation":1001,"name":prior["name"],
+                  "scope":{key:int(value) for key,value in prior["scope"].items()},"expected_name_revision":None}
+        binding={"format":1,"state":"tombstone","revision":3,"creation":original}
+        prefix="/scap-test/scap-object/v1/1/7/catalogue/v1/"
+        trace=Trace()
+        trace.exchange("GET",begin=20,end=30,path=prefix+"name/"+hashlib.sha256(prior["name"].encode()).hexdigest(),
+                       response=json.dumps(binding).encode(),etag='"original-tombstone"')
+        trace.exchange("GET",begin=50,end=60,path=prefix+"abort-proof/11/1001",status=404,response=b"absent")
+        requests,responses=oracle.object_exchanges(trace.history)
+        return calls,observed,known,requests,responses
+
+    def test_reuse_reads_old_proof_only_after_actual_same_call_exact_tombstone(self):
+        calls,observed,known,requests,responses=self.reuse_proof_fixture()
+        self.assertEqual(oracle.bind_requests(requests,calls,observed,known,responses=responses)[2],{"call-1"})
+        # A previously known Creation alone cannot authorize the extra read.
+        with self.assertRaises(ValueError):oracle.bind_requests(requests,calls,observed,known)
+
+    def test_reuse_old_proof_cannot_cross_name_authority_revision_method_or_read_interval(self):
+        for fault in ("missing_binding","missing_response","non_tombstone","wrong_revision","missing_expected_revision",
+                      "unknown_old_creation","other_name","other_tenant","changed_generation","boolean_identity",
+                      "binding_after_proof","binding_before_http","proof_after_http","proof_put","unrelated_proof"):
+            calls,observed,known,requests,responses=self.reuse_proof_fixture()
+            binding=json.loads(bytes(responses[1]["catalogue_response_bytes"]))
+            if fault=="missing_binding":del requests[1]
+            elif fault=="missing_response":del responses[1]
+            elif fault=="non_tombstone":binding["state"]="bound"
+            elif fault=="wrong_revision":binding["revision"]=4
+            elif fault=="missing_expected_revision":known["main"]["expected_name_revision"]=None
+            elif fault=="unknown_old_creation":del known["prior"]
+            elif fault=="other_name":binding["creation"]["name"]="another name"
+            elif fault=="other_tenant":requests[2]["path"]=requests[2]["path"].replace("/1/7/","/1/8/")
+            elif fault=="changed_generation":binding["creation"]["scope"]["generation"]+=1
+            elif fault=="boolean_identity":binding["creation"]["scope"]["deployment"]=True
+            elif fault=="binding_after_proof":responses[1]["monotonic_ns"]=55
+            elif fault=="binding_before_http":requests[1]["monotonic_ns"]=9
+            elif fault=="proof_after_http":requests[2]["monotonic_ns"]=101
+            elif fault=="proof_put":requests[2]["method"]="PUT"
+            else:requests[2]["path"]=requests[2]["path"].replace("1001","1002")
+            if 1 in responses:
+                raw=json.dumps(binding).encode();responses[1].update(catalogue_response_bytes=list(raw),response_bytes=len(raw),
+                                                                   response_sha256=hashlib.sha256(raw).hexdigest())
+            with self.subTest(fault=fault),self.assertRaises(ValueError):
+                oracle.bind_requests(requests,calls,observed,known,responses=responses)
 
     def test_global_object_serial_inventory_cannot_silently_omit_an_exchange(self):
         trace=Trace()
