@@ -190,10 +190,11 @@ pub(crate) fn sample_config(parent: &std::path::Path) -> serde_json::Value {
         "s3": {"endpoint":"http://127.0.0.1:1", "region":"test", "bucket":"scap-test",
             "access_key_env":"SCAP_TEST_ACCESS", "secret_key_env":"SCAP_TEST_SECRET",
             "session_token_env":null, "allow_http":true, "timeout_ms":1000},
-        "admission": {"workers":2, "control_workers":1, "queued_per_worker":8, "queued_per_tenant":6,
+        "admission": {"active_database_actors":2, "active_database_actors_per_tenant":2,
+            "actor_idle_timeout_ms":60000, "control_workers":1, "queued_total":8, "queued_per_tenant":6,
             "queued_per_database":4, "reserved_controls":1, "data_intake":4, "control_intake":2,
             "recovery_intake":1, "max_body_bytes":1048576, "timeout_ms":1000, "recovery_timeout_ms":2000},
-        "cache":{"sessions_per_worker":2, "pages_per_worker":2621440, "parallel_recoveries":1},
+        "cache":{"pages_per_actor":2621440, "parallel_recoveries":1},
         "credentials":[{"sha256":format!("{:x}", Sha256::digest("a".repeat(32))), "deployment":"1", "tenant":"2",
             "principal":"3", "provision":true}]
     })

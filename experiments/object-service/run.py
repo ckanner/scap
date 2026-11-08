@@ -64,11 +64,12 @@ def config(port, owner, cache, endpoint, tokens):
             "region": "us-east-1", "bucket": "scap-test", "access_key_env": "SCAP_TEST_ACCESS",
             "secret_key_env": "SCAP_TEST_SECRET", "session_token_env": None,
             "allow_http": True, "timeout_ms": 2000}, "admission": {
-            "workers": 4, "control_workers": 2, "queued_per_worker": 32, "queued_per_tenant": 16,
+            "active_database_actors": 16, "active_database_actors_per_tenant": 12,
+            "actor_idle_timeout_ms": 60000, "control_workers": 2, "queued_total": 128, "queued_per_tenant": 16,
             "queued_per_database": 8, "reserved_controls": 2, "data_intake": 8, "control_intake": 4,
             "recovery_intake": 2, "max_body_bytes": 100663296, "timeout_ms": 5000,
-            "recovery_timeout_ms": 30000}, "cache": {"sessions_per_worker": 4,
-            "pages_per_worker": 5242880, "parallel_recoveries": 2}, "credentials": credentials}
+            "recovery_timeout_ms": 30000}, "cache": {
+            "pages_per_actor": 5242880, "parallel_recoveries": 2}, "credentials": credentials}
 
 
 class Service:

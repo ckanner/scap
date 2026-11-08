@@ -46,9 +46,11 @@ pub struct ObjectConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Admission {
-    pub workers: usize,
+    pub active_database_actors: usize,
+    pub active_database_actors_per_tenant: usize,
+    pub actor_idle_timeout_ms: u64,
     pub control_workers: usize,
-    pub queued_per_worker: usize,
+    pub queued_total: usize,
     pub queued_per_tenant: usize,
     pub queued_per_database: usize,
     pub reserved_controls: usize,
@@ -63,9 +65,11 @@ pub struct Admission {
 impl Admission {
     pub fn limits(&self) -> Limits {
         Limits {
-            workers: self.workers,
+            active_database_actors: self.active_database_actors,
+            active_database_actors_per_tenant: self.active_database_actors_per_tenant,
+            actor_idle_timeout: Duration::from_millis(self.actor_idle_timeout_ms),
             control_workers: self.control_workers,
-            queued_per_worker: self.queued_per_worker,
+            queued_total: self.queued_total,
             queued_per_tenant: self.queued_per_tenant,
             queued_per_database: self.queued_per_database,
             reserved_controls: self.reserved_controls,
@@ -116,8 +120,7 @@ impl CatalogueAdmission {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Cache {
-    pub sessions_per_worker: usize,
-    pub pages_per_worker: u64,
+    pub pages_per_actor: u64,
     pub parallel_recoveries: usize,
 }
 
@@ -168,6 +171,7 @@ impl Config {
         environment: &dyn Fn(&str) -> Option<OsString>,
     ) -> Result<Prepared, Failure> {
         let admission = &self.admission;
+        admission.limits().validate()?;
         // This listener has no TLS termination. It can only be exposed through
         // a separately configured authenticated TLS reverse proxy.
         if self.version != 1
@@ -175,14 +179,11 @@ impl Config {
             || self.worker_instance.0 == 0
             || !self.cache_directory.is_absolute()
             || !self.cache_directory.is_dir()
-            || self.cache.sessions_per_worker == 0
-            || self.cache.sessions_per_worker > 4096
-            || self.cache.pages_per_worker == 0
+            || self.cache.pages_per_actor == 0
             || self.cache.parallel_recoveries == 0
             || self.cache.parallel_recoveries > 256
             || admission.max_body_bytes == 0
             || admission.max_body_bytes > 128 * 1024 * 1024
-            || admission.queued_per_worker > 65536
             || !(1..=4096).contains(&admission.data_intake)
             || !(1..=4096).contains(&admission.control_intake)
             || !(1..=4096).contains(&admission.recovery_intake)

@@ -16,6 +16,8 @@ target/release/scapd /etc/scap/service.json
 
 普通请求、控制请求、恢复请求有独立准入。SDK自动发送对应的 `x-scap-admission`，服务核对其操作类别。普通期限与恢复期限均从本次 HTTP 接收开始，排队、读取和执行都计入；慢请求不会在每次内部步骤获得全新 deadline。
 
+数据库执行采用显式有界 actor 配置：`active_database_actors`、`active_database_actors_per_tenant`、`actor_idle_timeout_ms`、全局 `queued_total` 与缓存 `pages_per_actor`。每个活跃 HEAD 独占一个线程并保留至多一个完整 scope Session，闲置超时自动关闭。旧 `workers`、`queued_per_worker`、`sessions_per_worker`、`pages_per_worker` 配置必须迁移，严格解析不会沿用旧语义。示例见[服务配置](../../crates/scap-service/README.md)，不变量及剩余吞吐边界见[执行隔离设计](../architecture/execution-isolation-and-throughput.md)。
+
 ## 建库与接入
 
 使用服务配置允许 provision 的凭据，以全新不可变数据库 ID 调用 create。返回 `active: false` 后，使用同一服务的 owner 以及当前 revision 调用 activate；库存在并不表示恢复完成。并发创建同一身份只有一个条件 HEAD 创建能够成功，冲突方读取 status 核对既有库，不能换身份偷偷再建一份。
@@ -69,6 +71,6 @@ abort_create 和 delete_name 都先保存完整控制意图，包括 control ope
 
 ## 当前持续运行边界
 
-当前有不可变 ID 接口和待完整验收的精确名称目录候选；全目录发现、自动 owner 协调及完整冷热点隔离仍待实施。全部计算丢失后按已知名称或固定操作身份恢复，不等于已经发现 bucket 中全部数据库。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。仍需完成自动协调及正式长期留存流程。
+当前有不可变 ID 接口和待完整验收的精确名称目录候选；全目录发现、自动 owner 协调仍待实施。专属 actor 消除跨库固定 lane 的恢复阻塞，但共享存储、网络、CPU、HTTP 解析与磁盘容量仍须单独限流和负载验收。全部计算丢失后按已知名称或固定操作身份恢复，不等于已经发现 bucket 中全部数据库。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。仍需完成自动协调及正式长期留存流程。
 
 对象物理 GC/pin/PITR 仍未交付，旧块与 orphan 会增长。10 GiB 配额限制当前逻辑数据库，不限制 bucket 总量。服务适合受控开发与验收；生产可用性、总成本与长时间运行仍须完成 N3/N4 的门禁。

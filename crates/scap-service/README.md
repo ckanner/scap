@@ -31,9 +31,11 @@ mkdir -p /absolute/private-cache
     "timeout_ms": 30000
   },
   "admission": {
-    "workers": 4,
+    "active_database_actors": 16,
+    "active_database_actors_per_tenant": 8,
+    "actor_idle_timeout_ms": 60000,
     "control_workers": 2,
-    "queued_per_worker": 32,
+    "queued_total": 128,
     "queued_per_tenant": 16,
     "queued_per_database": 8,
     "reserved_controls": 2,
@@ -45,8 +47,7 @@ mkdir -p /absolute/private-cache
     "recovery_timeout_ms": 1800000
   },
   "cache": {
-    "sessions_per_worker": 4,
-    "pages_per_worker": 5242880,
+    "pages_per_actor": 5242880,
     "parallel_recoveries": 2
   },
   "credentials": [
@@ -104,13 +105,15 @@ mkdir -p /absolute/private-cache
 
 ## 并发与资源边界
 
-SQL / 恢复 worker 按固定 HEAD key 路由，以便同一库的 SQLite 会话只在所属线程创建、调用和销毁。每个 lane 在租户间轮转，再在该租户的数据库间轮转。每库、租户和 lane 均限制排队请求数，并为控制请求预留槽位；控制 burst 最多连续三次后让排队 SQL 前进。`lookup`、`cancel` 及元数据转换另有独立 control worker pool，慢恢复不会占用它们的执行线程。
+SQL / 恢复请求按固定 HEAD key 定位专属 actor；同一库的 SQLite 会话在同一线程创建、恢复、调用和销毁。`active_database_actors` 与 `active_database_actors_per_tenant` 分别限制全实例及每租户的活跃库数，actor、control worker 加固定一个 reaper 的总数最多 256。首次访问在限额内懒创建 actor；容量满时新库返回 `BACKPRESSURE`，已有热 actor 继续运行。空闲达到 `actor_idle_timeout_ms` 后线程自行关闭 Session；固定 reaper 在请求路径之外等待旧线程完整退出，再释放槽位。慢 native / TLS 析构只延迟旧槽位回收，提交请求本身不执行 join。
+
+全局、每租户、每 HEAD 的排队预算跨所有 actor 与 control lane 统一计算，`queued_total` 不随线程数倍增。`reserved_controls` 预留只允许真正 control 请求使用，`open` / `activate` 不得挤占。actor 内的 priority burst 最多三次后让排队 SQL 前进；独立 control worker pool 在租户及数据库间轮转。`lookup`、`cancel` 及元数据转换不占 SQL / 恢复执行线程。严格 JSON 拒绝原 `workers` / `queued_per_worker` / `sessions_per_worker` / `pages_per_worker`，应显式迁移配置。
 
 HTTP 的 data、control、recovery 各有独立 intake 配额，保留到响应 body 及其发出的字节均被释放。底层 HTTP 在发出最后一帧后可先销毁 body，传输缓冲中的字节及其 clone／slice 仍持有配额，慢客户端不能靠这个生命周期差异提前释放名额。绑定不会复制响应 payload。执行开始后，即使客户端断开，worker 也只完成该次原请求；它不会回滚一个已发布 HEAD，也不会重做 SQL。尚未开始且接收端已消失的排队请求会被丢弃，超出原 deadline 的排队请求不会执行。
 
-每个 worker 按会话数及实际页面数 LRU 丢弃本地缓存；失败 session 不复用。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额都是明确资源预算，并不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
+每个 actor 最多保留一个完整 scope 的 Session，`pages_per_actor` 按操作完成后的实际页面数决定缓存保留；失败 session 不复用。此阈值不预留恢复期间所需磁盘，单库超过阈值时会在操作后丢弃 Session。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-同一个 data lane 中的冷库可能延迟映射到该 lane 的其他库。控制独立与队列公平不等于完整冷热点性能隔离，须由后续负载验收量化。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务未实现完整目录枚举及冷启动 inventory、动态路由、自动接管、物理对象 GC、PITR 或跨区域灾备。
+一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务未实现完整目录枚举及冷启动 inventory、动态 owner 路由、自动接管、物理对象 GC、PITR 或跨区域灾备。
 
 ## 验证
 

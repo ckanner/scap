@@ -60,8 +60,8 @@ pub fn assemble(
             prepared.worker_instance,
             Options::default(),
             &prepared.cache_directory,
-            prepared.cache.sessions_per_worker,
-            prepared.cache.pages_per_worker,
+            1,
+            prepared.cache.pages_per_actor,
             recovery.clone(),
         )?))
     });
