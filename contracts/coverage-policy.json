@@ -16,6 +16,8 @@
     "crates/scap-object-sqlite/src/image_tests.rs",
     "crates/scap-object-sqlite/src/query_tests.rs",
     "crates/scap-object-sqlite/src/tests.rs",
+    "crates/scap-object-store/src/gc_tests.rs",
+    "crates/scap-object-store/src/gc_xml_tests.rs",
     "crates/scap-object-store/src/listing_guard_tests.rs",
     "crates/scap-object-store/src/listing_tests.rs",
     "crates/scap-object-store/src/listing_xml_tests.rs",
@@ -66,7 +68,8 @@
     "experiments/object-network",
     "experiments/object-capacity",
     "experiments/object-service",
-    "experiments/object-discovery"
+    "experiments/object-discovery",
+    "experiments/object-gc-store"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

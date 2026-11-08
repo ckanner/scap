@@ -1,8 +1,12 @@
 //! Bounded exact-key access and candidate discovery for object-authoritative databases.
 
+mod gc;
+mod gc_xml;
 mod listing;
 mod listing_guard;
 mod listing_xml;
+
+pub use gc::{DeleteOutcome, GcBatch, GcError, GcS3, MAX_DELETE_BATCH, MAX_GC_RESPONSE_BYTES};
 
 pub use listing::{
     ListEnd, ListEntry, ListError, ListKind, ListMode, ListPage, ListRequest, Listings,
