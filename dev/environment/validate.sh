@@ -70,10 +70,14 @@ python3 experiments/object-authority-model/named_catalogue_model.py --output "$S
 python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/fixture-tests.log"
 python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/service-fixture-tests.log"
+python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/discovery-fixture-tests.log"
 unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 export CARGO_TARGET_DIR="$target_root/network-release"
 cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
 cargo +1.90.0 clippy --manifest-path experiments/object-network/Cargo.toml --all-targets --frozen -- -D warnings
+cargo +1.90.0 fmt --manifest-path experiments/object-discovery/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/object-discovery/Cargo.toml --all-targets --frozen -- -D warnings
 python3 experiments/object-network/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/build"
 python3 experiments/object-network/listing_build.py --target-dir "$CARGO_TARGET_DIR" --release \
   --evidence "$SCAP_EVIDENCE/listing-build"
@@ -95,6 +99,17 @@ python3 experiments/object-network/lifecycle_contract.py --worker "$worker" --we
   --build-record "$record" --evidence "$SCAP_EVIDENCE/lifecycle"
 python3 experiments/object-network/catalogue_contract.py --worker "$worker" --weed "$SCAP_WEED" \
   --build-record "$record" --evidence "$SCAP_EVIDENCE/catalogue"
+python3 experiments/object-discovery/discovery_build.py --target-dir "$CARGO_TARGET_DIR" \
+  --evidence "$SCAP_EVIDENCE/discovery-build"
+python3 experiments/object-discovery/discovery_contract.py \
+  --seed-worker "$worker" --seed-build "$record" \
+  --worker "$CARGO_TARGET_DIR/release/scap-object-discovery" \
+  --build "$SCAP_EVIDENCE/discovery-build/build.json" --weed "$SCAP_WEED" \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery"
+python3 experiments/object-discovery/discovery_oracle.py \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery" > "$SCAP_EVIDENCE/deployment-recovery-oracle.json"
+python3 experiments/object-discovery/discovery_controls.py \
+  --evidence "$SCAP_EVIDENCE/deployment-recovery" > "$SCAP_EVIDENCE/deployment-recovery-controls.json"
 export CARGO_TARGET_DIR="$target_root/service-release"
 python3 experiments/object-service/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/service-build"
 python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \

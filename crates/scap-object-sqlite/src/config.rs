@@ -2,13 +2,14 @@ use std::time::Duration;
 
 use libsql_sys::rusqlite::config::DbConfig;
 use libsql_sys::rusqlite::limits::Limit;
-use libsql_sys::rusqlite::{self, Connection};
+use libsql_sys::rusqlite::{self, Connection, OptionalExtension};
 
 use crate::{Error, WriterLimits};
 
 /// The narrow effect boundary keeps the same configuration ordering and
 /// fail-closed decisions for native calls and deterministic unit I/O faults.
 pub(crate) trait ConfigOps {
+    fn temporary_directory(&self) -> rusqlite::Result<Option<String>>;
     fn settings(&self, sql: &str) -> rusqlite::Result<()>;
     fn no_wait(&self) -> rusqlite::Result<()>;
     fn page_size(&self) -> rusqlite::Result<i64>;
@@ -20,6 +21,11 @@ pub(crate) trait ConfigOps {
 }
 
 impl ConfigOps for Connection {
+    fn temporary_directory(&self) -> rusqlite::Result<Option<String>> {
+        self.query_row("PRAGMA temp_store_directory", [], |row| row.get(0))
+            .optional()
+    }
+
     fn settings(&self, sql: &str) -> rusqlite::Result<()> {
         self.execute_batch(sql)
     }
@@ -55,6 +61,33 @@ impl ConfigOps for Connection {
     }
 }
 
+/// Probe the global override through a private in-memory connection before
+/// libSQL opens the file-backed connection and runs its internal WAL pragma.
+/// The opener is an effect boundary; native admission uses open_in_memory.
+pub(crate) fn validate_global_temporary_directory<C: ConfigOps>(
+    open: impl FnOnce() -> rusqlite::Result<C>,
+) -> Result<(), Error> {
+    reject_global_temporary_directory(&open().map_err(Error::Sqlite)?)
+}
+
+fn reject_global_temporary_directory(connection: &impl ConfigOps) -> Result<(), Error> {
+    // A host embedding SQLite could have set this process-global override
+    // before SCAP starts. It precedes the Unix environment/fallback candidates.
+    // Read through the safe native API and reject any override before the
+    // structural scan or business SQL. SCAP never mutates this global setting.
+    if connection
+        .temporary_directory()
+        .map_err(Error::Sqlite)?
+        .is_some()
+    {
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "SQLite global temporary-directory overrides are unsupported",
+        )));
+    }
+    Ok(())
+}
+
 /// Called only after validate_limits and with the bounded database page limit.
 /// A successfully created connection is not published until every step succeeds.
 pub(crate) fn configure(
@@ -62,6 +95,7 @@ pub(crate) fn configure(
     limits: WriterLimits,
     max_database_pages: u32,
 ) -> Result<(), Error> {
+    reject_global_temporary_directory(connection)?;
     connection
         .settings(&format!(
             "PRAGMA page_size=4096; PRAGMA synchronous=FULL; \

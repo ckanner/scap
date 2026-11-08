@@ -110,7 +110,7 @@ jobs:
   object-network:
     name: Real local S3 HTTP and process recovery
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
       CARGO_TARGET_DIR: ${{ github.workspace }}/target/object-network-build
@@ -143,10 +143,13 @@ jobs:
         run: |
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
           cargo +1.90.0 clippy --manifest-path experiments/object-network/Cargo.toml --all-targets --locked -- -D warnings
+          cargo +1.90.0 fmt --manifest-path experiments/object-discovery/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/object-discovery/Cargo.toml --all-targets --locked -- -D warnings
           python3 experiments/object-network/build.py \
             --target-dir "$CARGO_TARGET_DIR" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-network-build"
@@ -206,6 +209,24 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/catalogue-contract"
+      - name: Recover all physical slots from the deployment root after total compute loss
+        run: |
+          python3 experiments/object-discovery/discovery_build.py \
+            --target-dir "$CARGO_TARGET_DIR" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/deployment-recovery-build"
+          python3 experiments/object-discovery/discovery_contract.py \
+            --seed-worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --seed-build "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-discovery" \
+            --build "$GITHUB_WORKSPACE/target/evidence/deployment-recovery-build/build.json" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/deployment-recovery"
+          python3 experiments/object-discovery/discovery_oracle.py \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/deployment-recovery" \
+            > "$GITHUB_WORKSPACE/target/evidence/deployment-recovery-oracle.json"
+          python3 experiments/object-discovery/discovery_controls.py \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/deployment-recovery" \
+            > "$GITHUB_WORKSPACE/target/evidence/deployment-recovery-controls.json"
       - name: Build and verify the actual authenticated HTTP service and Node SDK
         run: |
           service_target="$GITHUB_WORKSPACE/target/object-service-build"
@@ -260,6 +281,10 @@ jobs:
         with:
           name: object-network-local-s3
           path: |
+            target/evidence/deployment-recovery/**
+            target/evidence/deployment-recovery-build/**
+            target/evidence/deployment-recovery-oracle.json
+            target/evidence/deployment-recovery-controls.json
             target/evidence/object-network/history.jsonl
             target/evidence/object-network/summary.json
             target/evidence/object-network/ack-ledger.jsonl

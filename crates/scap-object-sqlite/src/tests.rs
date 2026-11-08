@@ -53,6 +53,127 @@ fn uninterrupted() -> ReadInterrupt {
     Arc::new(|| false)
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn temporary_directory_native_admission_uses_isolated_process_environment() {
+    use std::os::unix::fs::symlink;
+    use std::process::Command;
+
+    let root = tempfile::tempdir().unwrap();
+    let local = root.path().as_os_str();
+    let missing = root.path().join("absent");
+    let alias = root.path().join("network-like-alias");
+    symlink("/proc", &alias).unwrap();
+    let cases = [
+        ("allowed", local, local, root.path(), "allow"),
+        (
+            "selected-unsupported",
+            std::ffi::OsStr::new("/proc"),
+            local,
+            root.path(),
+            "deny",
+        ),
+        (
+            "unused-fallback-unsupported",
+            local,
+            std::ffi::OsStr::new("/proc"),
+            root.path(),
+            "deny",
+        ),
+        (
+            "symlink-unsupported",
+            alias.as_os_str(),
+            local,
+            root.path(),
+            "deny",
+        ),
+        (
+            "cwd-unsupported",
+            local,
+            local,
+            std::path::Path::new("/proc"),
+            "deny",
+        ),
+        (
+            "missing-candidate",
+            missing.as_os_str(),
+            local,
+            root.path(),
+            "allow",
+        ),
+        (
+            "empty-candidate",
+            std::ffi::OsStr::new(""),
+            local,
+            root.path(),
+            "allow",
+        ),
+        ("host-global-override", local, local, root.path(), "global"),
+    ];
+    for (name, sqlite_tmp, tmp, cwd, expected) in cases {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tests::temporary_directory_native_child",
+                "--nocapture",
+            ])
+            .env("SCAP_SQLITE_TEMP_CHILD", expected)
+            .env("SCAP_SQLITE_TEMP_ROOT", root.path())
+            .env("SQLITE_TMPDIR", sqlite_tmp)
+            .env("TMPDIR", tmp)
+            .current_dir(cwd)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{name}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn temporary_directory_native_child() {
+    let Some(expected) = std::env::var_os("SCAP_SQLITE_TEMP_CHILD") else {
+        return;
+    };
+    let root = std::path::PathBuf::from(std::env::var_os("SCAP_SQLITE_TEMP_ROOT").unwrap());
+    if expected == "global" {
+        // This exact child is a fresh process running one test. Set the host
+        // override before any SCAP/native worker exists; never mutate the
+        // parent test process's shared SQLite state or environment.
+        let host = libsql_sys::rusqlite::Connection::open_in_memory().unwrap();
+        host.pragma_update(None, "temp_store_directory", root.to_str().unwrap())
+            .unwrap();
+    }
+    let directory = tempfile::tempdir_in(root).unwrap();
+    let plan = Rc::new(RefCell::new(Plan::default()));
+    let result = create_writer(
+        &directory.path().join("database"),
+        Vec::new(),
+        limits(),
+        Gate(plan.clone()),
+    );
+    if expected == "allow" {
+        let mut writer = result.unwrap();
+        writer
+            .execute(
+                &[statement("CREATE TABLE temp_checked (id INTEGER)")],
+                uninterrupted(),
+            )
+            .unwrap();
+        assert_eq!(plan.borrow().writes.len(), 1);
+    } else {
+        assert!(expected == "deny" || expected == "global");
+        assert!(
+            matches!(result, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::Unsupported)
+        );
+        assert!(plan.borrow().writes.is_empty());
+    }
+}
+
 fn create_writer<G: CommitGate + 'static>(
     directory: &std::path::Path,
     bytes: Vec<u8>,

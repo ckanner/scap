@@ -1,11 +1,15 @@
 use crate::file::{Builder, Files, NativeFiles};
-use crate::storage::{validate_with, DirectoryProbe};
+use crate::storage::{
+    temporary_candidates, validate_temporary_with, validate_with, DirectoryProbe,
+    TemporaryEnvironment,
+};
 use crate::{Error, ImageBuilder, MAX_DATABASE_PAGES, PAGE_SIZE};
 use std::cell::RefCell;
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 #[derive(Default)]
@@ -371,6 +375,169 @@ struct Probe {
     filesystem: u32,
     fail_at: Option<&'static str>,
     events: RefCell<Vec<&'static str>>,
+}
+
+struct TempEnvironment([Option<OsString>; 2]);
+
+impl TemporaryEnvironment for TempEnvironment {
+    fn directory(&self, variable: &str) -> Option<OsString> {
+        let index = match variable {
+            "SQLITE_TMPDIR" => 0,
+            "TMPDIR" => 1,
+            _ => panic!("unexpected environment lookup"),
+        };
+        self.0[index].clone()
+    }
+}
+
+#[test]
+fn temporary_candidates_preserve_native_order_and_non_unicode_paths() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let defaults = ["/var/tmp", "/usr/tmp", "/tmp", "."].map(PathBuf::from);
+    assert_eq!(
+        temporary_candidates(&TempEnvironment([None, None])),
+        defaults
+    );
+    assert_eq!(
+        temporary_candidates(&TempEnvironment([Some(OsString::new()), None])),
+        defaults
+    );
+    let non_unicode = OsString::from_vec(b"/private/\xff-temp".to_vec());
+    let candidates = temporary_candidates(&TempEnvironment([
+        Some(non_unicode.clone()),
+        Some(OsString::from("relative-temp")),
+    ]));
+    assert_eq!(candidates.len(), 6);
+    assert_eq!(candidates[0], PathBuf::from(non_unicode));
+    assert_eq!(candidates[1], Path::new("relative-temp"));
+    assert_eq!(&candidates[2..], &defaults);
+}
+
+struct TempProbe {
+    entries: Vec<(PathBuf, Result<u32, io::ErrorKind>)>,
+    filesystem_error: Option<(PathBuf, io::ErrorKind)>,
+    events: RefCell<Vec<(String, PathBuf)>>,
+}
+
+impl TempProbe {
+    fn new(entries: &[(&str, Result<u32, io::ErrorKind>)]) -> Self {
+        Self {
+            entries: entries
+                .iter()
+                .map(|(p, v)| (PathBuf::from(p), *v))
+                .collect(),
+            filesystem_error: None,
+            events: RefCell::new(Vec::new()),
+        }
+    }
+
+    fn paths(&self) -> Vec<PathBuf> {
+        self.entries.iter().map(|(path, _)| path.clone()).collect()
+    }
+}
+
+impl DirectoryProbe for TempProbe {
+    type Handle = PathBuf;
+
+    fn open_directory(&self, path: &Path) -> io::Result<Self::Handle> {
+        self.events.borrow_mut().push(("open".into(), path.into()));
+        let (_, entry) = self.entries.iter().find(|(p, _)| p == path).unwrap();
+        match entry {
+            Ok(_) => Ok(path.into()),
+            Err(kind) => Err(io::Error::new(*kind, "temporary directory open")),
+        }
+    }
+
+    fn filesystem(&self, path: &Self::Handle) -> io::Result<u32> {
+        self.events
+            .borrow_mut()
+            .push(("filesystem".into(), path.clone()));
+        if let Some((failed, kind)) = &self.filesystem_error {
+            if failed == path {
+                return Err(io::Error::new(*kind, "temporary directory filesystem"));
+            }
+        }
+        Ok(self
+            .entries
+            .iter()
+            .find(|(p, _)| p == path)
+            .unwrap()
+            .1
+            .unwrap())
+    }
+}
+
+#[test]
+fn temporary_admission_checks_unsafe_fallback_even_after_a_supported_directory() {
+    let probe = TempProbe::new(&[
+        ("/first", Ok(0xef53)),
+        ("/missing", Err(io::ErrorKind::NotFound)),
+        ("/network-fallback", Ok(0x6969)),
+        ("/later", Ok(0xef53)),
+    ]);
+    let error = validate_temporary_with(&probe, &probe.paths()).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+    assert!(error.to_string().contains("0x6969"));
+    assert_eq!(
+        *probe.events.borrow(),
+        [
+            ("open".into(), "/first".into()),
+            ("filesystem".into(), "/first".into()),
+            ("open".into(), "/missing".into()),
+            ("open".into(), "/network-fallback".into()),
+            ("filesystem".into(), "/network-fallback".into()),
+        ]
+    );
+}
+
+#[test]
+fn temporary_admission_skips_only_missing_opens_and_never_missing_filesystem_results() {
+    let probe = TempProbe::new(&[
+        ("/missing", Err(io::ErrorKind::NotFound)),
+        ("/local", Ok(0x0102_1994)),
+        ("/also-missing", Err(io::ErrorKind::NotFound)),
+        ("/local-fallback", Ok(0x5846_5342)),
+    ]);
+    validate_temporary_with(&probe, &probe.paths()).unwrap();
+    assert_eq!(probe.events.borrow().len(), 6);
+
+    let missing = TempProbe::new(&[("/missing", Err(io::ErrorKind::NotFound))]);
+    assert_eq!(
+        validate_temporary_with(&missing, &missing.paths())
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::NotFound
+    );
+    assert_eq!(
+        validate_temporary_with(&missing, &[]).unwrap_err().kind(),
+        io::ErrorKind::NotFound
+    );
+
+    for kind in [
+        io::ErrorKind::PermissionDenied,
+        io::ErrorKind::NotADirectory,
+        io::ErrorKind::Other,
+    ] {
+        let failed = TempProbe::new(&[("/failure", Err(kind)), ("/later", Ok(0xef53))]);
+        assert_eq!(
+            validate_temporary_with(&failed, &failed.paths())
+                .unwrap_err()
+                .kind(),
+            kind
+        );
+        assert_eq!(failed.events.borrow().len(), 1);
+    }
+
+    let mut failed = TempProbe::new(&[("/first", Ok(0xef53)), ("/failure", Ok(0xef53))]);
+    failed.filesystem_error = Some((PathBuf::from("/failure"), io::ErrorKind::NotFound));
+    assert_eq!(
+        validate_temporary_with(&failed, &failed.paths())
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::NotFound
+    );
+    assert_eq!(failed.events.borrow().len(), 4);
 }
 
 impl DirectoryProbe for Probe {

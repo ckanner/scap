@@ -60,7 +60,7 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 
 ## SQLite、NFS 与原生依赖
 
-本地镜像由 `ImageBuilder` 创建为私有目录和独占文件，config / Engine / builder 在打开的目录句柄上验证 Linux 文件系统 allowlist。S3 通过 immutable objects 与 HEAD 条件更新提供数据库权威，不挂载成 SQLite 的共享 `.db` / WAL。Overlay 底层及进程临时文件目录仍是明确的部署信任边界。
+本地镜像由 `ImageBuilder` 创建为私有目录和独占文件，config / Engine / builder 在打开的目录句柄上验证 Linux 文件系统 allowlist。native 打开前还检查全部已存在的 Unix 临时目录候选，配置最先拒绝宿主全局临时目录覆盖。S3 通过 immutable objects 与 HEAD 条件更新提供数据库权威，不挂载成 SQLite 的共享 `.db` / WAL。环境须从首次 SQLite 初始化前保持不变；overlay 底层、默认 VFS 和不可变挂载命名空间仍是部署信任边界，见[执行存储说明](../operations/sqlite-storage-safety.md)。
 
 固定 libSQL commit `d8bc862d20bedc72945a1da27c8b7045414c0261` 的默认 bundled 头文件报告 SQLite **3.47.0**，不能把 Cargo package `0.10.0` 当成 SQLite 版本。SQLite 官方记录了并发 writer / checkpointer 的 WAL-reset 缺陷；当前私有单连接、禁自动 checkpoint、同线程 `TRUNCATE` 不提供该并发拓扑。将来增加共享本地连接或外部 checkpointer 前，必须确认 upstream 修复或适配回补并做原生回归；本批 actor 隔离不会解除这个约束。
 
