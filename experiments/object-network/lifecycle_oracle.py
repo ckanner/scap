@@ -58,7 +58,13 @@ def byte_string(value):
 
 def head(value):
     result = parse(byte_string(value))
-    require(isinstance(result, dict) and result.get("format") == 2, "HEAD body is not format 2")
+    require(isinstance(result, dict) and result.get("format") == 3, "HEAD body is not format 3")
+    # These twelve cases create direct, unnamed databases. HEAD v3 requires
+    # explicit nullable origins; the separate catalogue oracle audits named
+    # creation/deletion proofs. Immutable SCAPOBJ2 frames remain format 2.
+    require("creation" in result and result["creation"] is None
+            and "deletion" in result and result["deletion"] is None,
+            "lifecycle fixture requires explicit unnamed HEAD origins")
     return result
 
 
@@ -889,6 +895,11 @@ class Audit:
                                   "recovery_stages": list(STAGES)})
 
     def process_and_build(self):
+        from audit_build import OwnedChildren, receipt
+        self.build_audit=receipt(self.data["_evidence_directory"],profile="network",
+                                require_artifacts=self.data.get("_require_artifacts",True))
+        equal(self.build_audit["binary"],self.data["build"]["binary"],"archived receipt differs from loaded original build")
+        children=OwnedChildren()
         stopped = set()
         lifetimes = {}
         identity_fields = {"pid", "spawn_monotonic_ns", "pid_source", "self_proc_pid", "self_start_ticks"}
@@ -896,6 +907,8 @@ class Audit:
             require(set(started["identity"]) == identity_fields, "worker lacks complete Popen/procfs identity")
             history = [row for row in self.history if row["event"] == "worker_started" and row["worker"] == worker_id]
             require(len(history) == 1, "worker start fact lacks unique original observation")
+            equal(history[0]["binary"],self.build_audit["binary"],"actual owned worker used another release executable")
+            equal(started["binary"],history[0]["binary"],"worker fact changed original executable identity")
             equal(started["identity"], {key: history[0][key] for key in identity_fields}, "worker start identities differ")
             require(history[0]["monotonic_ns"] <= started["monotonic_ns"], "worker fact precedes original start observation")
             lifetimes[worker_id] = [started["monotonic_ns"], None]
@@ -904,12 +917,18 @@ class Audit:
                 loss = self.fact(case, "compute_lost", stage=stage)
                 require(loss["existed_before"] is True and loss["exists_after"] is False and loss["stopped"],
                         "compute directory deletion or process-loss denominator missing")
+                require(Path(loss["directory"]).name==case,"compute deletion selected another case directory")
+                equal(loss["directory"],self.fact(case,"compute_lost",stage="compute_recovery")["directory"],
+                      "cache deletion changed the original per-case compute tree")
                 for process in loss["stopped"]:
                     require(process["wait_status"] == -9 and process["kernel_usage"].get("available") is True
                             and process["kernel_usage"].get("source") == "kernel_wait4_owned_child",
                             "compute SIGKILL lacks actual wait4 evidence")
+                    require(type(process["kernel_usage"].get("maxrss_bytes")) is int and process["kernel_usage"]["maxrss_bytes"]>0,
+                            "compute wait4 lacks actual kernel resource witness")
                     worker_id = process["worker"]
                     require(worker_id not in stopped and worker_id in self.workers, "worker missing/double-counted in loss evidence")
+                    require(self.workers[worker_id]["case"]==case,"cache loss counted another case's computation")
                     equal(process["pid"], self.workers[worker_id]["identity"]["pid"], "killed an unrelated process")
                     stopped.add(worker_id)
                     events = [row for row in self.history if row["event"] == "worker_stopped" and row["worker"] == worker_id]
@@ -920,7 +939,13 @@ class Audit:
                         equal(process[key], self.workers[worker_id]["identity"][key], "stopped another process incarnation")
                     require(events[0]["monotonic_ns"] < loss["monotonic_ns"], "directory loss recorded before worker termination")
                     lifetimes[worker_id][1] = events[0]["monotonic_ns"]
+                    children.register(self.workers[worker_id]["identity"],events[0]["monotonic_ns"])
         equal(sorted(stopped), sorted(self.workers), "some compute processes never lost their full cache")
+        raw_started=[row["worker"] for row in self.history if row["event"]=="worker_started"]
+        equal(sorted(raw_started),sorted(self.workers),"original process start denominator differs from worker facts")
+        invoked=[row for row in self.history if row["event"]=="client_invoked"]
+        observed=[row for row in self.history if row["event"]=="client_observed"]
+        require(len(invoked)==len(self.calls) and len(observed)==len(self.responses),"original invocation/response denominator changed")
         for call in self.calls.values():
             start, end = lifetimes[call["worker"]]
             require(start <= call["monotonic_ns"] < self.responses[call["call_id"]]["monotonic_ns"] <= end,
@@ -929,6 +954,15 @@ class Audit:
             identity = self.workers[call["worker"]]["identity"]
             equal([resources["namespace_pid"], resources["proc_pid"], resources["start_ticks"]],
                   [identity["pid"], identity["self_proc_pid"], identity["self_start_ticks"]], "response came from another process")
+            ending=self.responses[call["call_id"]]["monotonic_ns"]
+            original=[row for row in invoked if row["worker"]==call["worker"] and call["monotonic_ns"]<=row["monotonic_ns"]<ending]
+            require(len(original)==1 and original[0]["operation"]==call["command"]["op"] and original[0]["pid"]==identity["pid"],
+                    "client ledger changed original stdin invocation/process")
+            original=[row for row in observed if row["worker"]==call["worker"] and call["monotonic_ns"]<row["monotonic_ns"]<=ending]
+            require(len(original)==1,"complete response lacks original owned process observation")
+            response=self.response(call)
+            equal([original[0]["ok"],original[0]["error"],original[0]["resources"]],
+                  [response["ok"],response.get("error"),response["resources"]],"original owned process response changed")
         old = self.fact(None, "backend_started")["identities"]
         killed = self.fact(None, "backend_stopped")
         stopping = self.fact(None, "backend_stopping")
@@ -963,25 +997,30 @@ class Audit:
                     "backend process loss not confirmed")
             require(gone["kernel_usage"].get("source") == "kernel_wait4_owned_child",
                     "backend process loss lacks kernel wait4 evidence")
+            require(type(gone["kernel_usage"].get("maxrss_bytes")) is int and gone["kernel_usage"]["maxrss_bytes"]>0,
+                    "backend wait4 lacks original kernel resource witness")
             require((before["pid"], before["spawn_monotonic_ns"]) != (after["pid"], after["spawn_monotonic_ns"]),
                     "backend was not restarted")
             require(killed["monotonic_ns"] < after["spawn_monotonic_ns"] < restarted["monotonic_ns"],
                     "replacement backend was not spawned after the confirmed cut")
             require(after["pid_source"] == "owned_Popen_child", "replacement backend identity is not an owned child")
+            require(before["spawn_monotonic_ns"]<self.fact(None,"backend_started")["monotonic_ns"],"backend start preceded owned spawn")
+            children.register(before,killed["monotonic_ns"])
         final = self.fact(None, "backend_cleanup")
         equal([row["role"] for row in final["identities"]], expected_roles, "final backend cleanup denominator changed")
         for born, gone in zip(new, final["identities"]):
+            children.register(born,final["monotonic_ns"])
             for key in ("pid", "spawn_monotonic_ns", "pid_source", "role"):
                 equal(born[key], gone[key], "final backend cleanup stopped another incarnation")
             require(gone["wait_status"] == -9 and gone["kernel_usage"].get("available") is True,
                     "final backend process exit was not observed")
             require(gone["kernel_usage"].get("source") == "kernel_wait4_owned_child",
                     "final backend process exit lacks kernel wait4 evidence")
+            require(type(gone["kernel_usage"].get("maxrss_bytes")) is int and gone["kernel_usage"]["maxrss_bytes"]>0,
+                    "backend cleanup lacks original kernel resource witness")
         require(all(self.fact(case, "compute_lost", stage="final_cleanup")["monotonic_ns"] < final["monotonic_ns"]
                     for case in CASE_IDS), "final backend stopped before final compute cleanup")
         build = self.data["build"]
-        require(build["status"] == "passed" and build["profile"] == "release" and build["native_archives"],
-                "missing exact native release build evidence")
         equal(build["binary"]["sha256"], self.plan["binary_sha256"], "wrong worker build")
         equal(build["input_sha256"], self.plan["input_sha256"], "wrong source inputs")
         for stage in ("before", "after"):
@@ -990,7 +1029,9 @@ class Audit:
                 equal(checked[key], self.plan[key], "frozen candidate identity changed")
         cleanup = self.fact(None, "cleanup_observed")
         require(cleanup["proxy_errors"] == [] and cleanup["cleanup_errors"] == [], "cleanup errors cannot pass")
-        require(not any(row["event"] == "transport_fixture_failed" for row in self.history), "proxy failure hidden")
+        require(not any(row["event"] in ("transport_fixture_failed","client_transport_failed","client_invocation_lost_with_process")
+                        for row in self.history), "original transport/process failure hidden")
+        self.build_audit["unique_child_incarnations"]=len(children.incarnations)
 
     def run(self):
         self.inventory()
@@ -1042,14 +1083,19 @@ def read_sources(evidence):
         raw = (evidence / name).read_bytes()
         require(raw and raw.endswith(b"\n"), "missing/truncated evidence: " + name)
         data[key] = [parse(line) for line in raw.splitlines()] if name.endswith("jsonl") else parse(raw)
+    data["_evidence_directory"]=Path(evidence)
     return data
 
 
-def audit(evidence):
+def audit(evidence, *, require_artifacts=True):
     checker = None
     try:
-        checker = Audit(read_sources(evidence))
+        data=read_sources(evidence)
+        data["_require_artifacts"]=require_artifacts
+        checker = Audit(data)
         result = checker.run()
+        result["build"]=checker.build_audit
+        if checker.build_audit["verification_scope"]!="full":result["status"]="partial"
     except Exception as error:
         result = {"status": "failed", "planned_cases": 12,
                   "checked_cases": 0 if checker is None else len(checker.case_results),
@@ -1064,8 +1110,9 @@ def audit(evidence):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--allow-unavailable-artifacts",action="store_true",help="explicit partial offline audit; never a full release gate")
     arguments = parser.parse_args(argv)
-    result = audit(arguments.evidence.resolve())
+    result = audit(arguments.evidence.resolve(),require_artifacts=not arguments.allow_unavailable_artifacts)
     print(json.dumps(result, sort_keys=True))
     return 0 if result["status"] == "passed" else 1
 

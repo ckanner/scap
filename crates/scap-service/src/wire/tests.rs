@@ -172,7 +172,9 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         "cancelled"
     );
     let head = Head {
-        format: 2,
+        format: 3,
+        creation: None,
+        deletion: None,
         scope,
         revision: 2,
         transition: receipt_value.transition.clone(),
@@ -237,6 +239,21 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         statements: vec![]
     }
     .priority());
+}
+
+#[test]
+fn ordinary_lifecycle_cannot_enter_internal_provisioning() {
+    assert_eq!(
+        Action::Lifecycle {
+            expected_revision: Decimal(1),
+            nonce: Decimal(2),
+            lifecycle: scap_object::format::Lifecycle::Provisioning
+        }
+        .validate()
+        .unwrap_err()
+        .code,
+        "INVALID"
+    );
 }
 
 #[test]

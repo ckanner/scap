@@ -99,9 +99,9 @@ def inventory_data():
 
 def race_fixture(commit_first=False, cancel=False):
     path = "/scap-test/scap-object/v1/7/1/1/head"
-    before = list(json.dumps({"format": 2, "revision": 5, "scope": SCOPE}).encode())
-    candidate_bytes = list(json.dumps({"format": 2, "revision": 6, "scope": SCOPE}).encode())
-    barrier_bytes = list(json.dumps({"format": 2, "revision": 7, "scope": SCOPE}).encode())
+    before = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE}).encode())
+    candidate_bytes = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE}).encode())
+    barrier_bytes = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 7, "scope": SCOPE}).encode())
     history = []
 
     def fields(serial, phase, method, body, etag=None):
@@ -147,6 +147,19 @@ def check_race(data, commit_first=False, cancel=False):
 
 
 class WireAndOriginalTests(unittest.TestCase):
+    def test_head_three_requires_explicit_unnamed_origins(self):
+        value = {"format": 3, "scope": SCOPE, "revision": 1,
+                 "creation": None, "deletion": None}
+        self.assertEqual(oracle.head(list(json.dumps(value).encode())), value)
+        invalid = [{**value, "format": 2}, {**value, "format": 4},
+                   {**value, "creation": {"creator": 17}},
+                   {**value, "deletion": {"operation": 1}}]
+        for missing in ("creation", "deletion"):
+            invalid.append({key: item for key, item in value.items() if key != missing})
+        for item in invalid:
+            with self.subTest(item=item), self.assertRaises(ValueError):
+                oracle.head(list(json.dumps(item).encode()))
+
     def test_zero_page_executions_require_the_exact_frozen_sql_input(self):
         oracle.zero_page_input("read_execute", [{"sql": "SELECT random() AS token"}])
         oracle.zero_page_input("zero_execute", [{"sql": "UPDATE events SET label=label WHERE id=-1"}])
@@ -285,7 +298,7 @@ def network_checker():
                     "head_response_bytes": response_bytes, "response_sha256": hashlib.sha256(bytes(response_bytes)).hexdigest()}
         checker.history.append({"event": "object_response", "monotonic_ns": when + 2, **fields, **response})
         checker.history.append({"event": "object_response_delivered", "monotonic_ns": when + 3, **fields, **response})
-    heads = [list(json.dumps({"format": 2, "scope": SCOPE, "revision": number}).encode()) for number in (1, 2, 3)]
+    heads = [list(json.dumps({"format": 3, "creation": None, "deletion": None, "scope": SCOPE, "revision": number}).encode()) for number in (1, 2, 3)]
     for index, label, operation in ((1, "create", "create"), (2, "takeover", "takeover"), (3, "activate", "activate")):
         start = 10 * index
         phase = "LC-01/" + label
@@ -368,8 +381,8 @@ class NetworkOrderTests(unittest.TestCase):
 
     def test_tombstone_cannot_be_reactivated_with_a_successful_control(self):
         data = race_fixture()
-        before = {"format": 2, "revision": 5, "scope": SCOPE, "lifecycle": "deleted"}
-        after = {"format": 2, "revision": 6, "scope": SCOPE, "lifecycle": "ready"}
+        before = {"format": 3, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE, "lifecycle": "deleted"}
+        after = {"format": 3, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE, "lifecycle": "ready"}
         for row in data["history"]:
             if row["request_serial"] == 1 and row["event"] == "object_response":
                 row["head_response_bytes"] = list(json.dumps(before).encode())
@@ -385,25 +398,27 @@ class NetworkOrderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "deleted identity"): checker.transitions()
 
 
-def process_checker():
+def process_checker(evidence):
     """Fixed process observations only; no SQLite or authority algorithm double."""
     checker = oracle.Audit(empty_data())
-    checker.plan = {"binary_sha256": "a" * 64, "input_sha256": "b" * 64}
-    checker.data["build"] = {"status": "passed", "profile": "release", "native_archives": {"libsql.a": "c" * 64},
-                             "binary": {"sha256": "a" * 64}, "input_sha256": "b" * 64}
+    checker.data["build"]=json.loads((evidence/"build-receipt.json").read_text())
+    checker.data["_evidence_directory"]=evidence
+    binary=checker.data["build"]["binary"]
+    checker.plan={"binary_sha256":binary["sha256"],"input_sha256":checker.data["build"]["input_sha256"]}
     checker.workers = {}
 
     def fact(case, event, when, **values):
+        if event=="compute_lost":values.setdefault("directory","/synthetic-compute/"+case)
         checker.facts.append({"event": event, "case": case, "monotonic_ns": when, **values})
 
     def worker(case, number, started, ended):
         identity = {"pid": number + 1000, "spawn_monotonic_ns": started - 1, "pid_source": "owned_Popen_child",
                     "self_proc_pid": number + 10000, "self_start_ticks": number + 100000}
         record = {"event": "worker_started", "case": case, "worker": number, "principal": 17,
-                  "scope": SCOPE, "identity": identity, "monotonic_ns": started + 1}
+                  "scope": SCOPE, "identity": identity, "monotonic_ns": started + 1,"binary":copy.deepcopy(binary)}
         checker.facts.append(record)
         checker.workers[number] = record
-        checker.history.append({"event": "worker_started", "worker": number, "monotonic_ns": started, **identity})
+        checker.history.append({"event": "worker_started", "worker": number, "monotonic_ns": started,"binary":copy.deepcopy(binary), **identity})
         stopped = {"worker": number, **identity, "wait_status": -9,
                    "kernel_usage": {"available": True, "source": "kernel_wait4_owned_child", "maxrss_bytes": 8192}}
         checker.history.append({"event": "worker_stopped", "fault": True, "monotonic_ns": ended, **stopped})
@@ -413,11 +428,14 @@ def process_checker():
         fact(case, "recovery_started", started + 2, stage=stage, worker=number)
         call_id = len(checker.calls) + 1
         checker.calls[call_id] = {"call_id": call_id, "case": case, "worker": number,
-                                  "label": stage + ".rows", "monotonic_ns": started + 3}
+                                  "label": stage + ".rows", "monotonic_ns": started + 3,"command":{"op":"status"}}
         checker.responses[call_id] = {"monotonic_ns": started + 4,
-                                      "response": {"resources": {"namespace_pid": number + 1000,
+                                      "response": {"ok":True,"value":{},"resources": {"namespace_pid": number + 1000,
                                                                   "proc_pid": number + 10000,
                                                                   "start_ticks": number + 100000}}}
+        checker.history.extend([{"event":"client_invoked","worker":number,"pid":number+1000,"operation":"status","monotonic_ns":started+3},
+                                {"event":"client_observed","worker":number,"pid":number+1000,"operation":"status","monotonic_ns":started+4,
+                                 "ok":True,"error":None,"resources":copy.deepcopy(checker.responses[call_id]["response"]["resources"])}])
 
     for index, case in enumerate(oracle.CASE_IDS, 1):
         base = 100 * index
@@ -435,7 +453,7 @@ def process_checker():
     new = [{"role": role, "pid": 600 + index, "spawn_monotonic_ns": 2015, "pid_source": "owned_Popen_child"}
            for index, role in enumerate(roles)]
     def dead(items):
-        return [{**item, "wait_status": -9, "kernel_usage": {"available": True, "source": "kernel_wait4_owned_child"}}
+        return [{**item, "wait_status": -9, "kernel_usage": {"available": True, "source": "kernel_wait4_owned_child","maxrss_bytes":4096}}
                 for item in items]
     fact(None, "backend_started", 5, identities=old)
     fact(None, "backend_stopping", 2000, live_compute_workers=0)
@@ -449,51 +467,97 @@ def process_checker():
 
 
 class ProcessEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        from test_audit_build import build_fixture
+        self.fixture,self.record,self.evidence=build_fixture(self)
+
+    def checker(self,kind="lifecycle"):
+        value=process_checker(self.evidence)
+        if kind=="lifecycle":return value
+        import catalogue_oracle
+        changed=catalogue_oracle.Auditor(value.data)
+        changed.plan=value.plan
+        changed.workers=value.workers
+        changed.calls=value.calls
+        changed.responses=value.responses
+        changed.ends=value.responses
+        changed.cases={case:{} for case in oracle.CASE_IDS}
+        return changed
+
+    def test_complete_archived_build_binds_both_process_auditors_to_the_original_executable(self):
+        for kind in ("lifecycle","catalogue"):
+            with self.subTest(kind=kind):self.checker(kind).process_and_build()
+
+    def test_consistently_relabelled_children_missing_raw_events_and_another_binary_fail(self):
+        def replace(value,old,new):
+            if isinstance(value,list):
+                for item in value:replace(item,old,new)
+            elif isinstance(value,dict):
+                if all(value.get(key)==item for key,item in old.items()):value.update(new)
+                for item in value.values():replace(item,old,new)
+        for kind in ("lifecycle","catalogue"):
+            for fault in ("backend_roles","compute_owners","binary","missing_raw_call","missing_raw_start"):
+                checker=self.checker(kind)
+                if fault=="backend_roles":
+                    for event in ("backend_started","backend_stopped"):
+                        identities=checker.fact(None,event)["identities"]
+                        for item in identities[1:]:item.update(pid=identities[0]["pid"],spawn_monotonic_ns=identities[0]["spawn_monotonic_ns"])
+                elif fault=="compute_owners":
+                    old=copy.deepcopy(checker.workers[20]["identity"]);new=copy.deepcopy(checker.workers[10]["identity"])
+                    replace(checker.facts,old,new);replace(checker.history,old,new)
+                elif fault=="binary":
+                    checker.workers[10]["binary"]["sha256"]="e"*64
+                    next(row for row in checker.history if row["event"]=="worker_started" and row["worker"]==10)["binary"]["sha256"]="e"*64
+                else:
+                    event="client_invoked" if fault=="missing_raw_call" else "worker_started"
+                    checker.history.remove(next(row for row in checker.history if row["event"]==event))
+                with self.subTest(kind=kind,fault=fault),self.assertRaises(ValueError):checker.process_and_build()
+
     def test_backend_incarnation_kernel_source_and_replacement_spawn_are_exact(self):
-        checker = process_checker()
+        checker = self.checker()
         checker.fact(None, "backend_stopped")["identities"][0]["spawn_monotonic_ns"] = 2
         with self.assertRaisesRegex(ValueError, "wrong process incarnation"): checker.process_and_build()
         for event in ("backend_stopped", "backend_cleanup"):
-            checker = process_checker()
+            checker = self.checker()
             checker.fact(None, event)["identities"][0]["kernel_usage"]["source"] = "summary_only"
             with self.subTest(event=event), self.assertRaisesRegex(ValueError, "lacks kernel wait4 evidence"):
                 checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         checker.fact(None, "backend_restarted")["identities"][0]["spawn_monotonic_ns"] = 1900
         with self.assertRaisesRegex(ValueError, "spawned after the confirmed cut"): checker.process_and_build()
 
     def test_both_actual_loss_cycles_new_workers_backend_restart_and_final_exit_are_required(self):
-        process_checker().process_and_build()
+        self.checker().process_and_build()
 
     def test_backend_restart_cannot_be_moved_after_recovery_or_before_compute_loss(self):
-        checker = process_checker()
+        checker = self.checker()
         checker.fact(None, "backend_restarted")["monotonic_ns"] = 9000
         with self.assertRaisesRegex(ValueError, "recovery preceded actual restart"): checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         checker.fact("LC-01", "compute_lost", stage="before_backend")["monotonic_ns"] = 2005
         with self.assertRaisesRegex(ValueError, "backend cut preceded complete compute loss"): checker.process_and_build()
 
     def test_worker_facts_must_match_original_start_wait4_and_actual_recovery_calls(self):
-        checker = process_checker()
+        checker = self.checker()
         checker.workers[10]["identity"]["pid"] += 1
         with self.assertRaisesRegex(ValueError, "start identities differ"): checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         loss = checker.fact("LC-01", "compute_lost", stage="compute_recovery")
         loss["stopped"][0] = copy.deepcopy(loss["stopped"][0])
         loss["stopped"][0]["kernel_usage"]["maxrss_bytes"] += 1
         with self.assertRaisesRegex(ValueError, "wait4/identity facts differ"): checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         checker.fact("LC-01", "recovery_started", stage="compute_recovery")["worker"] = 10
         with self.assertRaisesRegex(ValueError, "different worker from actual calls"): checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         checker.responses[1]["response"]["resources"]["namespace_pid"] = 1
         with self.assertRaisesRegex(ValueError, "another process"): checker.process_and_build()
 
     def test_missing_cache_deletion_or_final_backend_exit_cannot_pass(self):
-        checker = process_checker()
+        checker = self.checker()
         checker.fact("LC-01", "compute_lost", stage="final_cleanup")["exists_after"] = True
         with self.assertRaisesRegex(ValueError, "directory deletion"): checker.process_and_build()
-        checker = process_checker()
+        checker = self.checker()
         checker.fact(None, "backend_cleanup")["identities"][0]["wait_status"] = 0
         with self.assertRaisesRegex(ValueError, "final backend process exit"): checker.process_and_build()
 

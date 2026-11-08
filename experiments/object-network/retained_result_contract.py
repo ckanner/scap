@@ -104,7 +104,7 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     fixture for a different reason, creating a false positive regression.
     """
     head = load_json(head_bytes)
-    require(head["format"] == 2, "fixture HEAD version")
+    require(head["format"] == 3, "fixture HEAD version")
     selected = [window for window in head["windows"] if window["epoch"] == epoch]
     require(len(selected) == 1, "exact retained window required")
     window = selected[0]
@@ -271,10 +271,9 @@ def main(argv=None):
             require(path.is_file(), "missing prerequisite: " + str(path))
         import build
         import run as support
-        compiled = build.verify(arguments.build_record, arguments.worker)
+        compiled = build.capture_receipt(arguments.build_record, arguments.worker, evidence)
         summary.update(worker_sha256=compiled["binary"]["sha256"], build_inputs_sha256=compiled["input_sha256"],
                        source_commit=compiled["source_commit"], harness_sha256=sha(Path(__file__).read_bytes()))
-        shutil.copyfile(arguments.build_record, evidence / "build-receipt.json")
         private = Path(tempfile.mkdtemp(prefix="scap-result-integrity-private-"))
         compute = private / "compute"
         compute.mkdir(mode=0o700)

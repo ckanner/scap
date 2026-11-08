@@ -241,6 +241,9 @@ class Proxy:
         # Capacity experiments import this fixture. Never accumulate their
         # large HTTP histories in memory; only the small fault suite opts in.
         self.capture = False
+        # Catalogue authority JSON is bounded separately from binary objects.
+        # Opt-in only: existing HEAD/capacity evidence remains byte-for-byte shaped as before.
+        self.capture_catalogue = False
         self.observations = []
         owner = self
 
@@ -280,6 +283,9 @@ class Proxy:
                               "if_match": self.headers.get("If-Match"), "if_none_match": self.headers.get("If-None-Match")}
                     if owner.capture and self.path.endswith("/head"):
                         fields["head_request_bytes"] = list(payload)
+                    if owner.capture_catalogue and "/catalogue/v1/" in self.path:
+                        assert len(payload) <= 64 * 1024, "catalogue request capture exceeds 64 KiB"
+                        fields["catalogue_request_bytes"] = list(payload)
                     rule = owner.rule
                     if rule and not rule.matches(self.command, self.path):
                         rule = None
@@ -329,6 +335,9 @@ class Proxy:
                                 "etag": response.getheader("ETag")}
                     if owner.capture and self.path.endswith("/head"):
                         received["head_response_bytes"] = list(body)
+                    if owner.capture_catalogue and "/catalogue/v1/" in self.path:
+                        assert len(body) <= 64 * 1024, "catalogue response capture exceeds 64 KiB"
+                        received["catalogue_response_bytes"] = list(body)
                     owner.event("object_response", status=response.status,
                                 **{key: value for key, value in received.items() if key != "status"},
                                 suppressed=bool(rule and rule.mode in ("drop", "cut")),
@@ -441,6 +450,9 @@ class Proxy:
 
 class Worker:
     def __init__(self, binary, config, private, number, evidence, *, ignore_file_size_signal=False):
+        def binary_digest():
+            with binary.open("rb") as stream:return hashlib.file_digest(stream,"sha256").hexdigest()
+        self.binary={"path":str(binary.resolve()),"sha256":binary_digest()}
         self.config = config
         self.evidence = evidence
         self.path = private / f"worker-{number}.private.json"
@@ -459,17 +471,25 @@ class Worker:
         finally:
             if ignore_file_size_signal:
                 signal.signal(signal.SIGXFSZ, previous)
-        ready = self.read(10)
-        assert ready["ready"] is True
-        self.ready_resources = ready["resources"]
-        if ignore_file_size_signal:
-            assert int(ready["resources"]["signal_ignored_hex"], 16) & (1 << (signal.SIGXFSZ - 1))
-        self.pending = None
-        self.identity = process_identity(self.process)
-        assert ready["resources"]["namespace_pid"] == self.process.pid
-        self.identity.update(self_proc_pid=ready["resources"]["proc_pid"],
-                             self_start_ticks=ready["resources"]["start_ticks"])
-        record(evidence, "worker_started", worker=config["worker"], resources=ready["resources"], **self.identity)
+        try:
+            ready = self.read(10)
+            assert ready["ready"] is True
+            self.ready_resources = ready["resources"]
+            if ignore_file_size_signal:
+                assert int(ready["resources"]["signal_ignored_hex"], 16) & (1 << (signal.SIGXFSZ - 1))
+            self.pending = None
+            self.identity = process_identity(self.process)
+            assert ready["resources"]["namespace_pid"] == self.process.pid
+            self.identity.update(self_proc_pid=ready["resources"]["proc_pid"],
+                                 self_start_ticks=ready["resources"]["start_ticks"])
+            assert binary_digest()==self.binary["sha256"],"worker binary changed across Popen"
+            record(evidence, "worker_started", worker=config["worker"], resources=ready["resources"], binary=self.binary, **self.identity)
+        except BaseException:
+            # Construction has not yet transferred ownership to the suite.
+            if self.process.poll() is None:self.process.kill()
+            wait_child(self.process,5)
+            self.process.stdin.close();self.process.stdout.close()
+            raise
 
     def read(self, timeout):
         assert select.select([self.process.stdout], [], [], timeout)[0], "worker response deadline"
@@ -1183,9 +1203,8 @@ def run(arguments):
     evidence.mkdir(mode=0o700, parents=True, exist_ok=False)
     build = None
     if arguments.build_record:
-        from build import verify
-        build = verify(arguments.build_record, arguments.worker)
-        shutil.copyfile(arguments.build_record, evidence / "build-receipt.json")
+        from build import capture_receipt
+        build = capture_receipt(arguments.build_record, arguments.worker, evidence)
     private = Path(tempfile.mkdtemp(prefix="scap-object-network-private-"))
     compute = private / "compute"
     compute.mkdir(mode=0o700)

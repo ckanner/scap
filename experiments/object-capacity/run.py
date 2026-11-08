@@ -164,9 +164,8 @@ class Capacity:
         self.evidence.mkdir(mode=0o700, parents=True, exist_ok=False)
         build = None
         if arguments.build_record:
-            from build import verify
-            build = verify(arguments.build_record, arguments.worker)
-            shutil.copyfile(arguments.build_record, self.evidence / "build-receipt.json")
+            from build import capture_receipt
+            build = capture_receipt(arguments.build_record, arguments.worker, self.evidence)
         self.private = Path(tempfile.mkdtemp(prefix="scap-object-capacity-private-"))
         self.compute = self.private / "compute"
         self.compute.mkdir(mode=0o700)

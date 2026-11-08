@@ -118,20 +118,135 @@ export interface OperationReference {
   readonly nonce?: Decimal;
   readonly expectedRevision?: Decimal;
 }
+
+export type QuotaChoice =
+  { readonly mode: 'default' | 'unlimited'; readonly max_bytes?: never } |
+  { readonly mode: 'limited'; readonly max_bytes: Decimal };
+export interface Creation {
+  readonly creator: Decimal;
+  /** The original create operation, including when another ADMIN deletes it. */
+  readonly operation: Decimal;
+  readonly name: string;
+  readonly scope: Scope;
+  readonly expected_name_revision: Decimal | null;
+}
+export interface PrepareCreateInput {
+  readonly name: string;
+  readonly create_operation: Decimal;
+  /** Required: null for a never-bound name, or the exact observed tombstone revision. */
+  readonly expected_name_revision: Decimal | null;
+  readonly options: { readonly quota: QuotaChoice };
+}
+export interface AbortCreateInput {
+  readonly creation: Creation;
+  readonly control_operation: Decimal;
+  readonly expected_name_revision: Decimal;
+  readonly nonce: Decimal;
+}
+export interface DeleteNameInput extends AbortCreateInput {
+  readonly expected_head_revision: Decimal;
+}
+export type CatalogueAction =
+  ({ readonly operation: 'prepare_create' } & PrepareCreateInput) |
+  { readonly operation: 'resume_create'; readonly creation: Creation } |
+  ({ readonly operation: 'abort_create' } & AbortCreateInput) |
+  { readonly operation: 'inspect_create_operation'; readonly create_operation: Decimal } |
+  { readonly operation: 'resolve_name'; readonly name: string } |
+  ({ readonly operation: 'delete_name' } & DeleteNameInput);
+
+declare const preparedCatalogueIntent: unique symbol;
+type FrozenCatalogueValue<T> = T extends object ? { readonly [K in keyof T]: FrozenCatalogueValue<T[K]> } : T;
+/** Obtain through prepareIntent/restoreIntent; persist saveIntent before sending. */
+export interface CatalogueIntent<A extends CatalogueAction = CatalogueAction> {
+  readonly [preparedCatalogueIntent]: true;
+  readonly version: 1;
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly principal: Decimal;
+  readonly action: FrozenCatalogueValue<A>;
+}
+export interface CatalogueReference {
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly principal: Decimal;
+  readonly operation: CatalogueAction['operation'];
+  readonly intent: CatalogueIntent;
+}
+export type RequestReference = OperationReference | CatalogueReference;
+
+export interface PreparedCreate {
+  readonly creation: Creation;
+  /** Immutable initial policy, not the current HEAD quota. */
+  readonly initial_quota: { readonly max_bytes: Decimal | null };
+  readonly retention: { readonly max_entries: number; readonly max_result_bytes: Decimal };
+}
+export type CreationPhase = 'not_reserved' | 'reserved' | 'provisioning' | 'bound' | 'ready' |
+  'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict';
+export interface CreationProgress extends PreparedCreate {
+  readonly phase: CreationPhase;
+  readonly binding_revision: Decimal | null;
+  readonly head_revision: Decimal | null;
+}
+export interface AbortProgress {
+  readonly creation: Creation;
+  /** The control operation; creation.operation remains the original create ID. */
+  readonly operation: Decimal;
+  readonly nonce: Decimal;
+  readonly phase: 'not_reserved' | 'cannot_abort_bound' | 'aborting' | 'aborted';
+  readonly binding_revision: Decimal | null;
+  readonly head_revision: Decimal | null;
+}
+export interface DeletionProgress extends Omit<AbortProgress, 'phase'> {
+  readonly phase: 'not_deleted' | 'deleting' | 'deleted';
+}
+export interface Named {
+  readonly creation: Creation;
+  readonly binding_revision: Decimal;
+  readonly head: DatabaseStatus;
+}
+export type CatalogueResult<A extends CatalogueAction = CatalogueAction> =
+  A extends { readonly operation: 'prepare_create' } ? PreparedCreate :
+  A extends { readonly operation: 'resume_create' | 'inspect_create_operation' } ? CreationProgress :
+  A extends { readonly operation: 'abort_create' } ? AbortProgress :
+  A extends { readonly operation: 'delete_name' } ? DeletionProgress : Named;
+export interface CatalogueClientOptions extends Omit<ClientOptions, 'scope' | 'resultLimits' | 'allocation'> {
+  /** Expected server authority, used locally and never sent as caller-supplied authorization. */
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+}
+
+export class CatalogueClient {
+  constructor(options: CatalogueClientOptions);
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly principal: Decimal;
+  prepareIntent<A extends CatalogueAction>(action: A): CatalogueIntent<A>;
+  saveIntent(intent: CatalogueIntent): string;
+  restoreIntent(serialized: string): CatalogueIntent;
+  /** One HTTP POST; no automatic lookup, refresh, condition change or retry. */
+  submit<A extends CatalogueAction>(intent: CatalogueIntent<A>, options?: CallOptions): Promise<CatalogueResult<A>>;
+  prepareCreate(input: PrepareCreateInput, options?: CallOptions): Promise<PreparedCreate>;
+  resumeCreate(creation: Creation, options?: CallOptions): Promise<CreationProgress>;
+  abortCreate(input: AbortCreateInput, options?: CallOptions): Promise<AbortProgress>;
+  inspectCreateOperation(createOperation: Decimal, options?: CallOptions): Promise<CreationProgress>;
+  resolveName(name: string, options?: CallOptions): Promise<Named>;
+  deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
+}
+
 export class ClientError extends Error {
   readonly code: string;
   constructor(code: string, message: string, cause?: unknown);
 }
 export class RemoteError extends ClientError {
   readonly outcome: 'unresolved';
-  readonly reference: OperationReference;
-  constructor(code: string, message: string, reference: OperationReference);
+  readonly reference: RequestReference;
+  constructor(code: string, message: string, reference: RequestReference);
 }
 export class UnknownError extends ClientError {
   readonly code: 'UNKNOWN';
   readonly outcome: 'unknown';
-  readonly reference: OperationReference;
-  constructor(reference: OperationReference, cause?: unknown);
+  readonly reference: RequestReference;
+  constructor(reference: RequestReference, cause?: unknown);
 }
 export class CommittedResultError extends ClientError {
   readonly outcome: 'committed';

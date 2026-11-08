@@ -2,6 +2,8 @@
 
 状态：已实现；2026-11-07 的冻结候选通过精确单元、真实 HTTP/S3、全计算恢复及 1 GiB 回归的独立本地审计，见[验收说明](../engineering/http-service-validation.md)及[机器记录](../evidence/http-service-local-2026-11-07.json)。AWS 与生产阶段分别验收。
 
+后续[ADR-0024](0024-named-catalogue-and-permanent-identities.md)增加独立名称目录入口并将 HEAD 升为 format 3；本 ADR 的格式 2 与名称尚未实现描述保留为首次服务交付时的边界，不扩展原历史验收结论。
+
 ## 问题
 
 对象权威和 native SQLite 已能提交、强读、取消与恢复，但内部 Rust API 的 `principal` 是可信输入。业务客户端不能直接调用这个边界，也不能拿到 bucket 凭据。已有 Node codec 仅能计算指纹、解析结果，尚不能证明网络请求的身份、原结果或未知结局。

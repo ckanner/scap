@@ -14,7 +14,7 @@ use tokio::sync::Semaphore;
 use crate::{
     config::{Config, Prepared, ServiceConfig},
     engine::Engine,
-    http::{self, HttpState},
+    http::{self, CatalogueState, HttpState},
     scheduler::{Factory, Scheduler},
     Failure,
 };
@@ -27,6 +27,31 @@ pub fn assemble(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    let catalogue = match prepared.catalogue {
+        Some(admission) => {
+            // The scheduler validates queue/worker limits at construction;
+            // transport budgets must also hold for this direct entry point.
+            admission.validate_transport()?;
+            let objects = objects.clone();
+            let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
+                Ok(Box::new(crate::catalogue::Worker::new(
+                    objects.clone(),
+                    prepared.worker_instance,
+                    Options::default(),
+                )))
+            });
+            Some(CatalogueState {
+                scheduler: Arc::new(crate::catalogue_scheduler::Scheduler::new(
+                    admission.limits(),
+                    factory,
+                )?),
+                max_body_bytes: admission.max_body_bytes,
+                timeout: Duration::from_millis(admission.timeout_ms),
+                intake: Arc::new(Semaphore::new(admission.intake)),
+            })
+        }
+        None => None,
+    };
     let limits = prepared.admission.limits();
     let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
     let factory: Factory = Arc::new(move |_| {
@@ -47,6 +72,7 @@ pub fn assemble(
         Arc::new(HttpState {
             auth: prepared.auth,
             scheduler,
+            catalogue,
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),
             recovery_timeout: Duration::from_millis(admission.recovery_timeout_ms),

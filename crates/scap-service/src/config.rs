@@ -25,6 +25,7 @@ pub struct Config {
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
     pub admission: Admission,
+    pub catalogue: Option<CatalogueAdmission>,
     pub cache: Cache,
     pub credentials: Vec<Credential>,
 }
@@ -72,6 +73,46 @@ impl Admission {
     }
 }
 
+/// Missing configuration disables name operations. Every enabled capacity is
+/// explicit and independent of the existing database admission pools.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogueAdmission {
+    pub workers: usize,
+    pub queued_total: usize,
+    pub queued_per_tenant: usize,
+    pub queued_per_name: usize,
+    pub intake: usize,
+    pub max_body_bytes: usize,
+    pub timeout_ms: u64,
+}
+
+impl CatalogueAdmission {
+    pub fn limits(&self) -> crate::catalogue_scheduler::Limits {
+        crate::catalogue_scheduler::Limits {
+            workers: self.workers,
+            queued_total: self.queued_total,
+            queued_per_tenant: self.queued_per_tenant,
+            queued_per_name: self.queued_per_name,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), Failure> {
+        self.limits().validate()?;
+        self.validate_transport()
+    }
+
+    pub(crate) fn validate_transport(&self) -> Result<(), Failure> {
+        if !(1..=4096).contains(&self.intake)
+            || !(1..=65536).contains(&self.max_body_bytes)
+            || !(1..=86400000).contains(&self.timeout_ms)
+        {
+            return Err(Failure::new("CONFIG"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Cache {
@@ -90,6 +131,7 @@ pub struct ServiceConfig {
     pub worker_instance: u64,
     pub cache_directory: PathBuf,
     pub admission: Admission,
+    pub catalogue: Option<CatalogueAdmission>,
     pub cache: Cache,
     pub auth: Authenticator,
 }
@@ -150,6 +192,9 @@ impl Config {
         {
             return Err(Failure::new("CONFIG"));
         }
+        if let Some(catalogue) = &self.catalogue {
+            catalogue.validate()?;
+        }
         // Even a disposable execution image requires SQLite-compatible local
         // I/O. Reject unsupported mounts before credentials or workers are used.
         scap_object_sqlite::validate_cache_directory(&self.cache_directory)
@@ -179,6 +224,7 @@ impl Config {
                 worker_instance: self.worker_instance.0,
                 cache_directory: self.cache_directory,
                 admission: self.admission,
+                catalogue: self.catalogue,
                 cache: self.cache,
                 auth: Authenticator::new(self.credentials)?,
             },

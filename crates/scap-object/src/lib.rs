@@ -1,5 +1,6 @@
 //! Object-authoritative SQLite. Local files never establish committed state.
 
+pub mod catalogue;
 pub mod format;
 pub mod options;
 
@@ -170,9 +171,19 @@ impl Database {
         write: bool,
         admin: bool,
     ) -> Result<(), Error> {
-        if head.lifecycle == Lifecycle::Deleted {
+        if matches!(head.lifecycle, Lifecycle::Deleted | Lifecycle::Provisioning) {
             return Err(Error::Lifecycle);
         }
+        Self::permission(head, principal, read, write, admin)
+    }
+
+    fn permission(
+        head: &Head,
+        principal: u64,
+        read: bool,
+        write: bool,
+        admin: bool,
+    ) -> Result<(), Error> {
         let policy = head
             .policy
             .iter()
@@ -273,10 +284,16 @@ impl Database {
     /// Explicit provisioning only. A missing HEAD on every other path is an
     /// error. Reusing a database ID is rejected by conditional creation.
     pub fn create(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
+        let head = self.initial_head(principal, nonce, deadline)?;
+        self.create_head(&head, deadline)?;
+        Ok(head)
+    }
+
+    fn initial_head(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
         let data_root = data_tree::empty(self, deadline)?;
         let index = self.upload(Payload::Index(Vec::new()), deadline)?;
         let head = Head {
-            format: 2,
+            format: 3,
             scope: self.scope.clone(),
             revision: 1,
             transition: Transition { revision: 1, nonce },
@@ -292,6 +309,8 @@ impl Database {
                 admin: true,
             }],
             lifecycle: Lifecycle::Ready,
+            creation: None,
+            deletion: None,
             quota: self.options.quota.clone(),
             retention: self.options.retention.clone(),
             data_root,
@@ -303,11 +322,15 @@ impl Database {
                 result_bytes: 0,
             }],
         };
-        let bytes = encode_head(&head).map_err(Error::Format)?;
+        Ok(head)
+    }
+
+    fn create_head(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
+        let bytes = encode_head(head).map_err(Error::Format)?;
         self.objects
             .put(&head_key(&self.scope), &bytes, Condition::Absent, deadline)
             .map_err(Error::Store)?;
-        Ok(head)
+        Ok(())
     }
 
     pub fn status(&self, principal: u64, deadline: Instant) -> Result<Head, Error> {
@@ -537,6 +560,11 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        if lifecycle == Lifecycle::Provisioning
+            || (base.head.creation.is_some() && lifecycle == Lifecycle::Deleted)
+        {
+            return Err(Error::Lifecycle);
+        }
         let mut head = Self::next(&base.head, nonce)?;
         head.lifecycle = lifecycle;
         self.publish(&base, &head, deadline)?;
@@ -754,7 +782,7 @@ impl Database {
         Self::authorize(&base.head, principal, true, true, false)?;
         match self.resolve(&base.head, identity, deadline)? {
             Resolution::Committed { receipt, bytes } => {
-                return self.decode_retained_admission(receipt, &bytes)
+                return self.decode_retained_admission(receipt, &bytes);
             }
             Resolution::Cancelled { .. } => return Err(Error::Closed),
             Resolution::Closed => return Err(Error::Closed),

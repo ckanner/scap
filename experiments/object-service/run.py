@@ -24,6 +24,7 @@ if not __debug__:
     raise RuntimeError("validation requires Python assertions; disable -O/PYTHONOPTIMIZE")
 
 import build
+import service_oracle
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "experiments" / "object-network"))
@@ -34,12 +35,30 @@ def sha(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+class Facts:
+    def __init__(self, evidence):
+        self.path = evidence / "process-ledger.jsonl"
+        self.sequence = 0
+
+    def emit(self, event, **fields):
+        self.sequence += 1
+        row = {"schema": 1, "sequence": self.sequence, "event": event,
+               "monotonic_ns": time.monotonic_ns(), **fields}
+        with self.path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        return row
+
+
 def config(port, owner, cache, endpoint, tokens):
     credentials = [
         {"sha256": sha(tokens["admin"]), "deployment": "1", "tenant": "7", "principal": "11", "provision": True},
         {"sha256": sha(tokens["reader"]), "deployment": "1", "tenant": "7", "principal": "12", "provision": False},
         {"sha256": sha(tokens["other"]), "deployment": "1", "tenant": "8", "principal": "22", "provision": True},
     ]
+    if "rival" in tokens:
+        credentials.append({"sha256": sha(tokens["rival"]), "deployment": "1", "tenant": "7", "principal": "13", "provision": True})
     return {"version": 1, "listen": f"127.0.0.1:{port}", "worker_instance": str(owner),
             "cache_directory": str(cache), "s3": {"endpoint": endpoint,
             "region": "us-east-1", "bucket": "scap-test", "access_key_env": "SCAP_TEST_ACCESS",
@@ -53,22 +72,32 @@ def config(port, owner, cache, endpoint, tokens):
 
 
 class Service:
-    def __init__(self, binary, private, owner, endpoint, tokens, backend):
+    def __init__(self, binary, private, owner, endpoint, tokens, backend, facts, catalogue=None):
         self.owner = owner
+        self.facts = facts
+        self.stopped = None
         self.port = free_port(set())
         self.cache = private / f"compute-{owner}"
         self.cache.mkdir(mode=0o700)
         self.configuration = private / f"service-{owner}.private.json"
-        self.configuration.write_text(json.dumps(config(self.port, owner, self.cache, endpoint, tokens)))
+        configuration = config(self.port, owner, self.cache, endpoint, tokens)
+        if catalogue is not None:
+            configuration["catalogue"] = catalogue
+            configuration["s3"]["timeout_ms"] = 5000
+        self.configuration.write_text(json.dumps(configuration))
         self.configuration.chmod(0o600)
         environment = dict(os.environ, SCAP_TEST_ACCESS=backend.access, SCAP_TEST_SECRET=backend.secret)
         self.log = private / f"service-{owner}.private.log"
+        executable = {"path": str(binary.resolve()), "sha256": build.digest(binary)}
         with self.log.open("wb") as stream:
             self.process = subprocess.Popen([str(binary), str(self.configuration)], env=environment,
                                             stdout=stream, stderr=stream)
         self.identity = process_identity(self.process)
         self.endpoint = f"http://127.0.0.1:{self.port}"
+        self.facts.emit("service_started", owner_instance=self.owner, identity=self.identity,
+                        endpoint=self.endpoint, cache_directory=str(self.cache), binary=executable)
         try:
+            assert build.digest(binary) == executable["sha256"], "service binary changed across Popen"
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 assert self.process.poll() is None, "daemon exited before liveness probe"
@@ -78,6 +107,7 @@ class Service:
                     response = connection.getresponse()
                     body = json.loads(response.read(4096))
                     if response.status == 200 and body == {"status": "alive", "protocol": 1}:
+                        self.facts.emit("service_ready", owner_instance=self.owner, identity=self.identity)
                         return
                 except (OSError, ValueError, http.client.HTTPException):
                     pass
@@ -89,11 +119,16 @@ class Service:
             self.stop()
             raise
 
-    def stop(self):
+    def stop(self, reason="cleanup"):
+        if self.stopped is not None:
+            return self.stopped
+        self.facts.emit("service_stop_requested", owner_instance=self.owner, identity=self.identity, reason=reason)
         if self.process.poll() is None:
             self.process.kill()
         status, usage = wait_child(self.process, 10)
-        return {"owner_instance": self.owner, **self.identity, "wait_status": status, "kernel_usage": usage}
+        self.stopped = {"owner_instance": self.owner, **self.identity, "wait_status": status, "kernel_usage": usage}
+        self.facts.emit("service_stopped", reason=reason, **self.stopped)
+        return self.stopped
 
 
 def audit(evidence):
@@ -113,8 +148,9 @@ def audit(evidence):
         key = json.dumps([original["scope"], original["request"]], sort_keys=True)
         assert key not in identities, "duplicate ACK ledger entry"
         identities.add(key)
+    fields = ("request", "receipt", "raw", "raw_sha256")
     for duplicate in duplicates:
-        assert duplicate in acks, "duplicate execute did not return an exact original ACK"
+        assert any(all(duplicate[field] == ack[field] for field in fields) for ack in acks), "duplicate execute did not return an exact original ACK"
     assert len(duplicates) == 8
     phases = [json.loads(line) for line in (evidence / "client-phases.jsonl").read_text().splitlines()]
     expected = ["initialize", "concurrent_create", "unknown_write", "resolve_unknown", "blackhole", "takeover", "recover"]
@@ -137,6 +173,7 @@ def main(args):
     summary = {"schema": 1, "status": "blocked", "diagnostic": args.diagnostic,
                "aws_standard": "NOT_RUN", "production_slo_passed": False}
     private = Path(tempfile.mkdtemp(prefix="scap-service-private-", dir=evidence.parent))
+    facts = Facts(evidence)
     backend = proxy = None
     services = []
     before = build.inputs()
@@ -157,18 +194,19 @@ def main(args):
         summary["tools"] = tools_before
         if not args.diagnostic:
             assert args.build_record, "a final run requires the service build receipt"
-            receipt = build.verify(args.build_record, args.server)
+            receipt = build.capture_receipt(args.build_record, args.server, evidence)
             assert receipt["node"] == tools_before["node"]["version"], "Node differs from build receipt"
-            (evidence / "build-receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
         summary.update(status="running", binary_sha256=build.digest(args.server), inputs=before)
         backend = Backend(args.weed.resolve(), private / "backend")
         backend.start()
+        directory_identity = sha(str(backend.directory.resolve()))
+        facts.emit("backend_started", processes=backend.identities(), directory_identity=directory_identity)
         proxy = Proxy(backend.port, evidence)
         proxy.capture = True
         tokens = {key: secrets.token_hex(32) for key in ("admin", "reader", "other")}
-        first = Service(args.server.resolve(), private, 5001, proxy.endpoint, tokens, backend)
+        first = Service(args.server.resolve(), private, 5001, proxy.endpoint, tokens, backend, facts)
         services.append(first)
-        second = Service(args.server.resolve(), private, 5002, proxy.endpoint, tokens, backend)
+        second = Service(args.server.resolve(), private, 5002, proxy.endpoint, tokens, backend, facts)
         services.append(second)
         probe_config = private / "client.private.json"
 
@@ -178,9 +216,19 @@ def main(args):
                                                "secondary": secondary.endpoint, "tokens": tokens}))
             probe_config.chmod(0o600)
             command = [str(node), str(Path(__file__).with_name("probe.mjs")), name, str(probe_config), str(evidence)]
+            facts.emit("client_phase_started", phase=name, primary=primary.identity, secondary=secondary.identity)
             with (evidence / (name + ".stdout.log")).open("wb") as out, (evidence / (name + ".stderr.log")).open("wb") as err:
-                completed = subprocess.run(command, cwd=ROOT, stdout=out, stderr=err, timeout=90)
-            assert completed.returncode == 0, f"real SDK phase failed: {name}; inspect its stderr"
+                child = subprocess.Popen(command, cwd=ROOT, stdout=out, stderr=err)
+                identity = process_identity(child)
+                facts.emit("client_process_started", phase=name, identity=identity)
+                try:
+                    status, usage = wait_child(child, 90)
+                except BaseException:
+                    child.kill()
+                    wait_child(child, 10)
+                    raise
+            facts.emit("client_phase_finished", phase=name, identity=identity, wait_status=status, kernel_usage=usage)
+            assert status == 0, f"real SDK phase failed: {name}; inspect its stderr"
 
         phase("initialize")
         phase("concurrent_create")
@@ -198,16 +246,23 @@ def main(args):
         assert blackhole.arrived.is_set()
         proxy.clear()
         phase("takeover")
-        summary["compute_loss"] = [service.stop() for service in services]
+        facts.emit("compute_loss_started", processes=[service.identity for service in services])
+        summary["compute_loss"] = [service.stop(reason="compute_loss") for service in services]
         assert all(item["wait_status"] == -signal.SIGKILL for item in summary["compute_loss"])
         for service in services:
             shutil.rmtree(service.cache)
             assert not service.cache.exists()
+            facts.emit("cache_directory_removed", owner_instance=service.owner, identity=service.identity,
+                        cache_directory=str(service.cache), exists=False)
         services.clear()
         summary["all_cache_directories_removed"] = True
+        facts.emit("all_compute_lost", live_service_processes=0, all_cache_directories_removed=True)
+        facts.emit("backend_stop_requested", processes=backend.identities(), directory_identity=directory_identity)
         summary["backend_loss"] = backend.stop(verify=True)
+        facts.emit("backend_stopped", processes=summary["backend_loss"], directory_identity=directory_identity)
         backend.start()
-        recovered = Service(args.server.resolve(), private, 5003, proxy.endpoint, tokens, backend)
+        facts.emit("backend_restarted", processes=backend.identities(), directory_identity=directory_identity)
+        recovered = Service(args.server.resolve(), private, 5003, proxy.endpoint, tokens, backend, facts)
         services.append(recovered)
         phase("recover", recovered, recovered)
         summary["audit"] = audit(evidence)
@@ -237,7 +292,8 @@ def main(args):
                 cleanup.append(repr(error))
         if backend is not None:
             try:
-                backend.stop()
+                stopped = backend.stop()
+                facts.emit("backend_cleanup", processes=stopped)
             except BaseException as error:
                 cleanup.append(repr(error))
         summary["cleanup_errors"] = cleanup
@@ -246,12 +302,25 @@ def main(args):
         # Keep the private tree for failure diagnosis; it is NEVER an artifact
         # upload target and contains fixture credentials and database files.
         summary["private_fixture_removed"] = False
+        summary["private_fixture_path"] = str(private)
+        facts.emit("cleanup_finished", errors=cleanup)
+        if summary["status"] == "passed":
+            try:
+                summary["raw_audit"] = service_oracle.audit(evidence, require_build=not args.diagnostic)
+            except BaseException as error:
+                summary["status"] = "failed"
+                summary["raw_audit_error"] = repr(error)
         if summary["status"] == "passed":
             shutil.rmtree(private)
             summary["private_fixture_removed"] = True
+        if args.diagnostic:
+            summary["formal_gate_status"] = "NOT_RUN"
+            if summary["status"] == "passed":
+                summary["status"] = "completed_diagnostic"
+                summary["raw_audit"]["status"] = "diagnostic_checks_completed"
         (evidence / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     print(json.dumps({key: summary.get(key) for key in ("status", "diagnostic", "error", "audit", "cleanup_errors")}))
-    return 0 if summary["status"] == "passed" else 1
+    return 0 if summary["status"] in ("passed", "completed_diagnostic") else 1
 
 
 if __name__ == "__main__":

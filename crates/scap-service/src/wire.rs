@@ -217,6 +217,15 @@ impl Action {
     /// Reject malformed control values before any provisioning objects or HEAD
     /// reads. A client typo is INVALID, not evidence of corrupted durable data.
     pub fn validate(&self) -> Result<(), Failure> {
+        if matches!(
+            self,
+            Self::Lifecycle {
+                lifecycle: scap_object::format::Lifecycle::Provisioning,
+                ..
+            }
+        ) {
+            return Err(Failure::new("INVALID"));
+        }
         let transition = match self {
             Self::Create { nonce } => Some((1, nonce.0)),
             Self::Activate {

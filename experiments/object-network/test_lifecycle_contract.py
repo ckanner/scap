@@ -22,6 +22,7 @@ class WorkerDouble:
         self.config, self.responses = config, list(responses)
         self.pending, self.invocations = None, []
         self.identity = {"pid": config["worker"]}
+        self.binary={"path":"/synthetic/scap-object-network","sha256":"a"*64}
 
     def begin(self, operation, **values):
         if self.pending is not None:
@@ -70,6 +71,15 @@ class LedgerAndControllerTests(unittest.TestCase):
 
     def prepared(self, worker):
         return self.suite.prepare(self.case, worker, "seed", 1, 2, contract.rows_sql("LC-01", 1))
+
+    def test_fact_metadata_can_contain_kind_without_changing_ledger(self):
+        self.suite.fact(self.case, "case_started", kind="pilot", profile="prepare")
+        observed = jsonlines(self.suite.paths["facts"])[-1]
+        self.assertEqual(observed["event"], "case_started")
+        self.assertEqual(observed["case"], self.case["id"])
+        self.assertEqual(observed["kind"], "pilot")
+        self.assertEqual(observed["profile"], "prepare")
+        self.assertEqual(jsonlines(self.suite.paths["client"]), [])
 
     def test_fixed_twelve_case_profile_is_durable_before_first_worker_command(self):
         plan = json.loads((self.suite.evidence / "lifecycle-plan.json").read_text())
@@ -256,6 +266,7 @@ class EntrypointTests(unittest.TestCase):
                 if problem == "backend_cleanup": backend.stop.side_effect = OSError("cleanup failed")
                 if problem == "proxy_error": proxy.errors = ["real proxy failure"]
                 with mock.patch.object(build, "verify", side_effect=verify), \
+                     mock.patch.object(build, "capture_receipt", side_effect=lambda record,worker,evidence:build.verify(record,worker)), \
                      mock.patch.object(support, "Backend", return_value=backend), \
                      mock.patch.object(support, "Proxy", return_value=proxy), \
                      mock.patch.object(contract, "LifecycleSuite", return_value=suite), \

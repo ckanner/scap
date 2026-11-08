@@ -1,5 +1,7 @@
 use super::*;
 
+type Mutation<T> = Box<dyn Fn(&mut T)>;
+
 fn scope() -> Scope {
     Scope {
         deployment: 1,
@@ -28,7 +30,7 @@ fn transition() -> Transition {
 
 fn head() -> Head {
     Head {
-        format: 2,
+        format: 3,
         scope: scope(),
         revision: 1,
         transition: transition(),
@@ -44,6 +46,8 @@ fn head() -> Head {
             admin: true,
         }],
         lifecycle: Lifecycle::Ready,
+        creation: None,
+        deletion: None,
         data_root: digest(b"data"),
         quota: DatabaseQuota {
             max_bytes: Some(10 * 1024 * 1024 * 1024),
@@ -60,6 +64,187 @@ fn head() -> Head {
             result_bytes: 0,
         }],
     }
+}
+
+fn named_head(lifecycle: Lifecycle) -> Head {
+    let mut head = head();
+    head.lifecycle = lifecycle;
+    head.creation = Some(NamedCreation {
+        creator: 1,
+        operation: 2,
+        name_hash: digest(b"named database"),
+        descriptor_hash: digest(b"fixed create descriptor"),
+    });
+    head
+}
+
+fn named_deleted(kind: NamedDeletionKind) -> Head {
+    let mut head = named_head(Lifecycle::Deleted);
+    let expected_head_revision = if kind == NamedDeletionKind::Delete {
+        head.revision = 2;
+        head.transition.revision = 2;
+        Some(1)
+    } else {
+        None
+    };
+    head.deletion = Some(NamedDeletion {
+        kind,
+        principal: 1,
+        operation: 3,
+        expected_name_revision: 1,
+        expected_head_revision,
+        nonce: head.transition.nonce,
+        descriptor_hash: digest(b"fixed control descriptor"),
+    });
+    head
+}
+
+#[test]
+fn head_v3_mandatory_nullable_origins_do_not_change_immutable_v2_frames() {
+    for candidate in [
+        head(),
+        named_head(Lifecycle::Provisioning),
+        named_head(Lifecycle::Ready),
+        named_head(Lifecycle::Maintenance),
+        named_deleted(NamedDeletionKind::Abort),
+        named_deleted(NamedDeletionKind::Delete),
+    ] {
+        let encoded = encode_head(&candidate).unwrap();
+        assert_eq!(decode_head(&encoded, &scope()).unwrap(), candidate);
+        for field in ["creation", "deletion"] {
+            let mut value = serde_json::to_value(&candidate).unwrap();
+            value.as_object_mut().unwrap().remove(field);
+            assert_eq!(
+                decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+                Err(FormatError::Corrupt)
+            );
+        }
+    }
+    let mut old = head();
+    old.format = 2;
+    assert_eq!(
+        decode_head(&serde_json::to_vec(&old).unwrap(), &scope()),
+        Err(FormatError::Corrupt)
+    );
+    let object = envelope(Payload::Index(Vec::new()));
+    let bytes = encode_object(&object).unwrap();
+    assert_eq!(&bytes[..8], b"SCAPOBJ2");
+    assert_eq!(
+        decode_object(&bytes, &scope(), &digest(&bytes))
+            .unwrap()
+            .format,
+        2
+    );
+}
+
+#[test]
+fn physical_head_slots_require_prefix_identity_but_allow_distinct_immutable_origins() {
+    let mut foreign = head();
+    foreign.scope.incarnation += 1;
+    let encoded = encode_head(&foreign).unwrap();
+    assert_eq!(decode_head(&encoded, &scope()), Err(FormatError::Corrupt));
+    assert_eq!(decode_head_slot(&encoded, &scope()).unwrap(), foreign);
+    foreign.scope.generation += 1;
+    assert_eq!(
+        decode_head_slot(&encode_head(&foreign).unwrap(), &scope()).unwrap(),
+        foreign
+    );
+    for change in [0, 1, 2] {
+        let mut bad = foreign.clone();
+        match change {
+            0 => bad.scope.deployment += 1,
+            1 => bad.scope.tenant += 1,
+            _ => bad.scope.database += 1,
+        }
+        assert_eq!(
+            decode_head_slot(&encode_head(&bad).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+}
+
+#[test]
+fn named_head_and_deletion_proofs_are_strictly_validated() {
+    let mutations: Vec<Mutation<Head>> = vec![
+        Box::new(|h| h.creation.as_mut().unwrap().creator = 0),
+        Box::new(|h| h.creation.as_mut().unwrap().operation = 0),
+        Box::new(|h| h.creation.as_mut().unwrap().name_hash = "bad".into()),
+        Box::new(|h| h.creation.as_mut().unwrap().descriptor_hash = "bad".into()),
+        Box::new(|h| h.creation = None),
+        Box::new(|h| h.active = true),
+        Box::new(|h| h.sequence = 1),
+        Box::new(|h| h.request_epoch = 2),
+        Box::new(|h| h.windows[0].count = 1),
+        Box::new(|h| h.windows[0].result_bytes = 1),
+    ];
+    for mutate in mutations {
+        let mut invalid = named_head(Lifecycle::Provisioning);
+        mutate(&mut invalid);
+        assert!(invalid.validate_named().is_err());
+        assert!(invalid.validate().is_err());
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&invalid).unwrap(), &invalid.scope),
+            Err(FormatError::Corrupt)
+        );
+    }
+    let mutations: Vec<Mutation<Head>> = vec![
+        Box::new(|h| h.deletion.as_mut().unwrap().principal = 0),
+        Box::new(|h| h.deletion.as_mut().unwrap().operation = 0),
+        Box::new(|h| h.deletion.as_mut().unwrap().expected_name_revision = 0),
+        Box::new(|h| h.deletion.as_mut().unwrap().nonce = 0),
+        Box::new(|h| h.deletion.as_mut().unwrap().descriptor_hash = "bad".into()),
+        Box::new(|h| h.deletion.as_mut().unwrap().expected_head_revision = Some(1)),
+        Box::new(|h| h.active = true),
+        Box::new(|h| h.transition.nonce += 1),
+        Box::new(|h| h.policy[0].principal = 2),
+        Box::new(|h| h.policy[0].admin = false),
+        Box::new(|h| h.creation.as_mut().unwrap().creator += 1),
+        Box::new(|h| h.revision = 3),
+        Box::new(|h| h.sequence = 1),
+        Box::new(|h| h.request_epoch = 2),
+        Box::new(|h| h.windows[0].count = 1),
+        Box::new(|h| h.windows[0].result_bytes = 1),
+        Box::new(|h| h.deletion = None),
+        Box::new(|h| h.creation = None),
+        Box::new(|h| h.lifecycle = Lifecycle::Ready),
+    ];
+    for mutate in mutations {
+        let mut invalid = named_deleted(NamedDeletionKind::Abort);
+        mutate(&mut invalid);
+        assert!(invalid.validate_named().is_err());
+    }
+    for expected in [None, Some(0), Some(2), Some(u64::MAX)] {
+        let mut invalid = named_deleted(NamedDeletionKind::Delete);
+        invalid.deletion.as_mut().unwrap().expected_head_revision = expected;
+        assert!(invalid.validate_named().is_err());
+    }
+    let mut valid = named_deleted(NamedDeletionKind::Delete);
+    valid.deletion.as_mut().unwrap().principal = 2;
+    valid.policy.push(Permission {
+        principal: 2,
+        read: false,
+        write: false,
+        admin: true,
+    });
+    assert!(valid.validate().is_ok());
+    let wire = serde_json::to_value(&valid).unwrap();
+    for path in ["/creation", "/deletion"] {
+        let mut value = wire.clone();
+        value.pointer_mut(path).unwrap()["extra"] = 1.into();
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    let mut value = wire;
+    value["deletion"]
+        .as_object_mut()
+        .unwrap()
+        .remove("expected_head_revision");
+    assert_eq!(
+        decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+        Err(FormatError::Corrupt)
+    );
 }
 
 fn envelope(payload: Payload) -> Envelope {
@@ -786,7 +971,7 @@ fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
         );
     }
     let wire = String::from_utf8(encode_head(&head()).unwrap()).unwrap();
-    let duplicate = wire.replacen("\"format\":2", "\"format\":2,\"format\":2", 1);
+    let duplicate = wire.replacen("\"format\":3", "\"format\":3,\"format\":3", 1);
     assert_eq!(
         decode_head(duplicate.as_bytes(), &scope()),
         Err(FormatError::Corrupt)

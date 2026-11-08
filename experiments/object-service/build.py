@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -89,12 +90,32 @@ def inputs():
 
 
 def verify(record, binary):
-    value = json.loads(Path(record).read_text())
+    record = Path(record)
+    value = json.loads(record.read_text())
     assert value["status"] == "passed" and value["profile"] == "release"
+    assert type(value.get("exit_code")) is int and value["exit_code"] == 0, "Cargo did not exit successfully"
     assert value["inputs"] == inputs(), "service/SDK/fixture source changed after build"
+    assert isinstance(value.get("binary"), dict) and set(value["binary"]) == {"path", "sha256"}, "missing service binary provenance"
+    assert Path(value["binary"]["path"]).resolve() == Path(binary).resolve(), "service executable path differs"
     assert value["binary"]["sha256"] == digest(binary), "service binary changed"
     assert value["native_archives"], "missing native SQLite build provenance"
+    for name in ("cargo.stdout.jsonl", "cargo.stderr.log"):
+        assert value[name + "_sha256"] == digest(record.parent / name), "original Cargo log changed"
+    compiled, native = release_artifacts(cargo_events(record.parent / "cargo.stdout.jsonl"),
+                                         Path(binary).resolve().parents[1])
+    assert compiled == Path(binary).resolve(), "Cargo executable differs from supplied binary"
+    assert native == value["native_archives"], "native SQLite archives changed after build"
     return value
+
+
+def capture_receipt(record, binary, evidence):
+    specification=importlib.util.spec_from_file_location("scap_build_evidence_capture",
+        Path(__file__).resolve().parent.parent/"object-network"/"build_evidence.py")
+    module=importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module.capture(record,evidence,value=verify(record,binary),root=ROOT,inputs=inputs,
+                          save_receipt=save_receipt,sync=sync,
+                          log_keys=("cargo.stdout.jsonl_sha256","cargo.stderr.log_sha256"))
 
 
 def main(args):
@@ -112,6 +133,7 @@ def main(args):
     errors = evidence / "cargo.stderr.log"
     try:
         record["inputs"] = inputs()
+        record["source_root"] = str(ROOT.resolve())
         record["source_commit"] = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         record["rustc"] = subprocess.check_output(["rustc", "+1.90.0", "-Vv"], text=True)

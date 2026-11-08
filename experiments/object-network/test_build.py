@@ -40,7 +40,7 @@ class BuildEvidenceCases:
         self.directory = Path(temporary.name)
         self.source = self.directory / "source"
         for relative in ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-                         "crates/scap-service/src/main.rs", "crates/scap-sql/src/lib.rs",
+                         "crates/scap-service/Cargo.toml", "crates/scap-service/src/main.rs", "crates/scap-sql/src/lib.rs",
                          "experiments/object-network/Cargo.toml", "experiments/object-network/Cargo.lock",
                          "experiments/object-network/src/main.rs", "experiments/object-capacity/run.py",
                          "experiments/object-service/build.py", "sdk/node/src/client.js"):
@@ -60,9 +60,12 @@ class BuildEvidenceCases:
         self.archive.write_bytes(b"synthetic native archive, not SQLite")
         self.events = [
             {"reason": "build-script-executed", "package_id": "git+https://example.invalid/libsql#libsql-ffi@0.10.0",
-             "out_dir": str(self.native)},
-            {"reason": "compiler-artifact", "target": {"name": self.target_name, "kind": ["bin"]},
-             "executable": str(self.binary)},
+             "out_dir": str(self.native), "linked_libs":["static=libsql"], "linked_paths":["native="+str(self.native)]},
+            {"reason": "compiler-artifact", "target": {"name": self.target_name, "kind": ["bin"],
+             "src_path":str(self.source/("crates/scap-service/src/main.rs" if self.target_name=="scapd" else "experiments/object-network/src/main.rs"))},
+             "manifest_path":str(self.source/("crates/scap-service/Cargo.toml" if self.target_name=="scapd" else "experiments/object-network/Cargo.toml")),
+             "profile":{"opt_level":"3","debuginfo":0,"debug_assertions":False,"overflow_checks":False,"test":False},
+             "filenames":[str(self.binary)], "executable": str(self.binary)},
             {"reason": "build-finished", "success": True},
         ]
         self.stdout = self.encode(self.events)
@@ -97,7 +100,8 @@ class BuildEvidenceCases:
     def version(self, command, **kwargs):
         if self.tool_error:
             raise self.tool_error
-        return "f" * 40 + "\n" if command[0] == "git" else "fixture-version\n"
+        return {"git":"f"*40+"\n","rustc":"rustc 1.90.0 (1159e78c4 2025-09-14)\nrelease: 1.90.0\n",
+                "cargo":"cargo 1.90.0 (synthetic version witness)\n","node":"v22.16.0\n","cc":"synthetic native compiler identity\n"}[command[0]]
 
     def synced(self, descriptor):
         opened = os.fstat(descriptor)

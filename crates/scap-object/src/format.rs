@@ -1,4 +1,4 @@
-//! Strict v2 authority values and length-delimited immutable object frames.
+//! Strict v3 HEAD values and unchanged v2 immutable object frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -133,9 +133,63 @@ pub struct Permission {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Lifecycle {
+    Provisioning,
     Ready,
     Maintenance,
     Deleted,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamedCreation {
+    pub creator: u64,
+    pub operation: u64,
+    pub name_hash: String,
+    pub descriptor_hash: String,
+}
+
+impl NamedCreation {
+    pub(crate) fn validate(&self) -> Result<(), FormatError> {
+        nonzero(&[self.creator, self.operation])?;
+        check(hash_valid(&self.name_hash))?;
+        check(hash_valid(&self.descriptor_hash))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NamedDeletionKind {
+    Abort,
+    Delete,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamedDeletion {
+    pub kind: NamedDeletionKind,
+    pub principal: u64,
+    pub operation: u64,
+    pub expected_name_revision: u64,
+    #[serde(deserialize_with = "required_option")]
+    pub expected_head_revision: Option<u64>,
+    pub nonce: u64,
+    pub descriptor_hash: String,
+}
+
+impl NamedDeletion {
+    fn validate(&self) -> Result<(), FormatError> {
+        nonzero(&[
+            self.principal,
+            self.operation,
+            self.expected_name_revision,
+            self.nonce,
+        ])?;
+        check(hash_valid(&self.descriptor_hash))?;
+        match self.kind {
+            NamedDeletionKind::Abort => check(self.expected_head_revision.is_none()),
+            NamedDeletionKind::Delete => check(self.expected_head_revision.is_some_and(|r| r != 0)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -173,6 +227,10 @@ pub struct Head {
     pub auth_epoch: u64,
     pub policy: Vec<Permission>,
     pub lifecycle: Lifecycle,
+    #[serde(deserialize_with = "required_option")]
+    pub creation: Option<NamedCreation>,
+    #[serde(deserialize_with = "required_option")]
+    pub deletion: Option<NamedDeletion>,
     pub data_root: String,
     pub quota: DatabaseQuota,
     pub retention: Retention,
@@ -182,7 +240,7 @@ pub struct Head {
 
 impl Head {
     fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 2)?;
+        check(self.format == 3)?;
         self.scope.validate()?;
         nonzero(&[
             self.revision,
@@ -217,7 +275,45 @@ impl Head {
                 check(window.full(&self.retention))?;
             }
         }
+        self.validate_named()?;
         Ok(())
+    }
+
+    fn validate_named(&self) -> Result<(), FormatError> {
+        if let Some(creation) = &self.creation {
+            creation.validate()?;
+        }
+        if self.lifecycle == Lifecycle::Provisioning {
+            check(self.creation.is_some())?;
+            check(!self.active && self.sequence == 0 && self.request_epoch == 1)?;
+            check(self.windows[0].count == 0 && self.windows[0].result_bytes == 0)?;
+        }
+        match (&self.creation, &self.deletion, &self.lifecycle) {
+            (Some(creation), Some(deletion), Lifecycle::Deleted) => {
+                deletion.validate()?;
+                check(!self.active && self.transition.nonce == deletion.nonce)?;
+                check(
+                    self.policy
+                        .iter()
+                        .any(|p| p.principal == deletion.principal && p.admin),
+                )?;
+                match deletion.kind {
+                    NamedDeletionKind::Abort => {
+                        check(deletion.principal == creation.creator)?;
+                        check(self.revision <= 2 && self.sequence == 0 && self.request_epoch == 1)?;
+                        check(self.windows[0].count == 0 && self.windows[0].result_bytes == 0)
+                    }
+                    NamedDeletionKind::Delete => check(
+                        deletion
+                            .expected_head_revision
+                            .and_then(|r| r.checked_add(1))
+                            == Some(self.revision),
+                    ),
+                }
+            }
+            (Some(_), None, Lifecycle::Deleted) | (_, Some(_), _) => Err(FormatError::Invalid),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -381,10 +477,23 @@ pub fn encode_head(head: &Head) -> Result<Vec<u8>, FormatError> {
 }
 
 pub fn decode_head(bytes: &[u8], scope: &Scope) -> Result<Head, FormatError> {
+    let head = decode_head_slot(bytes, scope)?;
+    check(head.scope == *scope).map_err(|_| FormatError::Corrupt)?;
+    Ok(head)
+}
+
+/// Internal identity-slot inspection must not confuse another incarnation with
+/// a missing HEAD. The public database path still checks the complete Scope.
+pub(crate) fn decode_head_slot(bytes: &[u8], scope: &Scope) -> Result<Head, FormatError> {
     budget(bytes.len(), MAX_HEAD_BYTES)?;
     let head: Head = serde_json::from_slice(bytes).map_err(|_| FormatError::Corrupt)?;
     head.validate().map_err(|_| FormatError::Corrupt)?;
-    check(head.scope == *scope).map_err(|_| FormatError::Corrupt)?;
+    check(
+        head.scope.deployment == scope.deployment
+            && head.scope.tenant == scope.tenant
+            && head.scope.database == scope.database,
+    )
+    .map_err(|_| FormatError::Corrupt)?;
     Ok(head)
 }
 

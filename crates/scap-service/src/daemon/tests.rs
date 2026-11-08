@@ -59,6 +59,61 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
 }
 
 #[test]
+fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_configuration() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut configuration = prepared(directory.path());
+    configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+    });
+    let (_, state) = assemble(configuration.service, Arc::new(Memory::default())).unwrap();
+    let call=crate::catalogue_wire::parse(br#"{"version":1,"operation":"prepare_create","name":"catalogue","create_operation":"1","expected_name_revision":null,"options":{"quota":{"mode":"default"}}}"#).unwrap();
+    let value = state
+        .catalogue
+        .as_ref()
+        .unwrap()
+        .scheduler
+        .submit(principal(), call, until())
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(value["creation"]["name"], "catalogue");
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    let mut configuration = prepared(directory.path());
+    configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 0,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+    });
+    assert!(assemble(configuration.service, Arc::new(Memory::default())).is_err());
+    let mut configuration = prepared(directory.path());
+    configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 0,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+    });
+    assert!(assemble(configuration.service, Arc::new(Memory::default())).is_err());
+}
+
+#[test]
 fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
     let directory = tempfile::tempdir().unwrap();
     let mut configuration = prepared(directory.path());

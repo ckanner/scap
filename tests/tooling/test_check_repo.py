@@ -47,7 +47,9 @@ def valid_contract() -> dict:
         "quality": {"unit_coverage_percent": 100, "integration_profiles_count_as_unit": False},
         "compatibility": {"legacy_runtime": False, "legacy_sdk": False, "dual_backend": False},
         "profile": {
+            "head_format": 3,
             "object_format": 2,
+            "catalogue_format": 1,
             "page_size": 4096,
             "native_max_pages": 4294967294,
             "default_database_bytes": 10737418240,
@@ -188,6 +190,9 @@ class ContractTests(unittest.TestCase):
             (("compatibility", "legacy_sdk"), True, "no legacy SDK"),
             (("compatibility", "dual_backend"), True, "no dual backend"),
             (("profile", "native_max_pages"), 65, "configurable production capacity profile"),
+            (("profile", "head_format"), 2, "configurable production capacity profile"),
+            (("profile", "object_format"), 3, "configurable production capacity profile"),
+            (("profile", "catalogue_format"), 2, "configurable production capacity profile"),
             (("profile", "page_size"), 8192, "configurable production capacity profile"),
             (("profile", "unknown_capacity"), 1, "configurable production capacity profile"),
         )

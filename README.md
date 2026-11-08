@@ -6,7 +6,7 @@
 
 **当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
 
-[PR #30 的名称目录协议与有界模型](docs/engineering/named-catalogue-model.md)已通过冻结候选的 885 条正向历史和 25 个拒绝负对照。正式目录、HTTP／SDK 接入与真实逐切点验收继续实施；模型不代替产品门禁。
+[PR #30 的名称目录协议与有界模型](docs/engineering/named-catalogue-model.md)已通过冻结候选的 885 条正向历史和 25 个拒绝负对照。本轮正式目录候选已接入 Rust、HTTP 与 SDK，正在补齐精确覆盖及真实逐切点验收，见 [ADR-0024](docs/adr/0024-named-catalogue-and-permanent-identities.md)；模型不代替产品门禁。HEAD 采用 format 3，不可变 SCAPOBJ2 帧仍为 format 2，旧 HEAD 不自动迁移。
 
 [PR #29 的生命周期真实合同](docs/engineering/n1-lifecycle-validation.md)绑定冻结候选 `fe1909b`：十二场景、两轮恢复及独立原始账本复核通过；78 次成功响应／30 个原身份分别核对保留结果、Deleted 和 Retired，零错配。生产 Rust／SDK 与上一验收候选逐字节相同，历史单元证据与本批真实实验分开记录。
 
@@ -32,12 +32,12 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 | 模块 | 职责 |
 | --- | --- |
-| [scap-object](crates/scap-object/src/lib.rs) | HEAD/对象格式、权限、精确请求身份、提交/取消/关闭窗口、接管/激活、独立强读 |
+| [scap-object](crates/scap-object/src/lib.rs) | HEAD/对象格式、权限、精确请求身份、提交/取消/关闭窗口、接管/激活、独立强读及名称目录 |
 | [scap-object-store](crates/scap-object-store/src/lib.rs) | 真实签名 S3 exact GET、同响应 ETag、条件创建/替换、截止时间和错误分类 |
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
-| [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制线程、租户／数据库排队与显式恢复 |
-| [Node SDK](sdk/node/README.md) | 固定并保存原请求身份、无损 typed SQL、验证原回执及结果、查证／取消；不自动重放 SQL |
+| [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
+| [Node SDK](sdk/node/README.md) | 固定并保存原 SQL／目录意图、无损 typed SQL、验证原回执及结果、查证／取消；不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -62,9 +62,11 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。自动协调和名称目录仍未实现。
+关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。精确名称目录候选正在验收，全目录发现与自动协调仍待实施。
 
 HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
+
+命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。
 
 ## 构建与验证
 
@@ -87,6 +89,7 @@ python3 scripts/check_repo.py
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。
 - [认证 HTTP 与新 SDK](docs/adr/0023-authenticated-http-and-node-sdk.md)、[真实服务恢复合同](experiments/object-service/README.md)。
+- [名称目录与永久身份](docs/adr/0024-named-catalogue-and-permanent-identities.md)、[目录协议与范围](docs/architecture/name-catalogue-plan.md)。
 - [路线图](docs/engineering/roadmap.md)、[故障矩阵](docs/operations/failure-matrix.md)、[运行说明](docs/operations/runbooks.md)。
 - [协作要求](AGENTS.md)、[本地验证身份](docs/engineering/local-validation.md)。
 

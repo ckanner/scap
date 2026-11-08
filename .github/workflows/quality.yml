@@ -183,6 +183,14 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/lifecycle-contract"
+      - name: Verify named catalogue publication cuts and permanent identity fences
+        # Exact-name recovery only; full inventory and AWS are separate gates.
+        run: |
+          python3 experiments/object-network/catalogue_contract.py \
+            --worker "$CARGO_TARGET_DIR/release/scap-object-network" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-network-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/catalogue-contract"
       - name: Build and verify the actual authenticated HTTP service and Node SDK
         run: |
           service_target="$GITHUB_WORKSPACE/target/object-service-build"
@@ -194,6 +202,13 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-service"
+      - name: Verify catalogue HTTP intents, independent admission, and recovery
+        run: |
+          python3 experiments/object-service/catalogue_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/catalogue-service"
       - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -238,10 +253,23 @@ jobs:
             target/evidence/lifecycle-contract/lifecycle-oracle.json
             target/evidence/lifecycle-contract/build-receipt.json
             target/evidence/lifecycle-contract/summary.json
+            target/evidence/catalogue-contract/history.jsonl
+            target/evidence/catalogue-contract/catalogue-plan.json
+            target/evidence/catalogue-contract/catalogue-cut-plan.json
+            target/evidence/catalogue-contract/catalogue-input-ledger.jsonl
+            target/evidence/catalogue-contract/catalogue-client-ledger.jsonl
+            target/evidence/catalogue-contract/catalogue-ack-ledger.jsonl
+            target/evidence/catalogue-contract/catalogue-facts.jsonl
+            target/evidence/catalogue-contract/catalogue-oracle.json
+            target/evidence/catalogue-contract/build-receipt.json
+            target/evidence/catalogue-contract/summary.json
             target/evidence/object-service-build/build.json
             target/evidence/object-service-build/cargo.stdout.jsonl
             target/evidence/object-service-build/cargo.stderr.log
             target/evidence/object-service/*.json
             target/evidence/object-service/*.jsonl
             target/evidence/object-service/*.log
+            target/evidence/catalogue-service/*.json
+            target/evidence/catalogue-service/*.jsonl
+            target/evidence/catalogue-service/*.log
           if-no-files-found: error

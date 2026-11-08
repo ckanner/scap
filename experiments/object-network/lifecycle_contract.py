@@ -92,9 +92,9 @@ class LifecycleSuite:
         self.fact(None, "build_verified", stage="before", binary_sha256=plan["binary_sha256"],
                   input_sha256=plan["input_sha256"])
 
-    def append(self, kind, event, **values):
+    def append(self, ledger, event, **values):
         row = {"event": event, "monotonic_ns": time.monotonic_ns(), **values}
-        self.support.append_synced(self.paths[kind], row)
+        self.support.append_synced(self.paths[ledger], row)
         return row
 
     def fact(self, case, event, **values):
@@ -112,7 +112,7 @@ class LifecycleSuite:
         case["workers"].append(worker)
         self.started_worker_count += 1
         self.fact(case, "worker_started", worker=number, principal=principal,
-                  scope=config["scope"], identity=worker.identity)
+                  scope=config["scope"], identity=worker.identity, binary=worker.binary)
         return worker
 
     def begin(self, case, worker, label, operation, *, intent=None, **values):
@@ -510,8 +510,7 @@ def main(argv=None):
             require(path.is_file(), "missing prerequisite: " + str(path))
         import build
         import run as support
-        compiled = build.verify(arguments.build_record, arguments.worker)
-        shutil.copyfile(arguments.build_record, evidence / "build-receipt.json")
+        compiled = build.capture_receipt(arguments.build_record, arguments.worker, evidence)
         private = Path(tempfile.mkdtemp(prefix="scap-lifecycle-private-"))
         compute = private / "compute"
         compute.mkdir(mode=0o700)

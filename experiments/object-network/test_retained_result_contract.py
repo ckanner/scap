@@ -28,7 +28,8 @@ def fixture(epoch=1):
     result = contract.pack(metadata, VALID)
     entries = [{"request": request, "outcome": {"state": "committed", "result": contract.sha(result)}}]
     index = contract.pack({"format": 2, "scope": dict(SCOPE), "payload": {"kind": "index", "value": entries}}, b"")
-    head = {"format": 2, "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
+    head = {"format": 3, "creation": None, "deletion": None,
+            "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
             "owner_instance": 101, "active": False, "retention": {"max_result_bytes": 128 * 1024 * 1024},
             "windows": [{"epoch": epoch, "root": contract.sha(index), "count": 1, "result_bytes": len(VALID)}]}
     return head, index, result
@@ -410,6 +411,7 @@ class RunnerTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(contract.tempfile, "mkdtemp", return_value=str(private)))
             builder = types.SimpleNamespace(verify=mock.Mock(return_value={
                 "binary": {"sha256": "fake-worker-hash"}, "input_sha256": "fake-source-hash", "source_commit": "fake-test"}))
+            builder.capture_receipt=lambda record,worker,evidence:builder.verify(record,worker)
             if verify_failure: builder.verify.side_effect = ValueError("mismatched build inputs")
             support = types.SimpleNamespace(Backend=FakeBackend, Proxy=FakeProxy, FaultSuite=FakeSuite)
             stack.enter_context(mock.patch.dict(sys.modules, {"build": builder, "run": support}))
