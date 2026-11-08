@@ -92,3 +92,7 @@ python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/sc
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/service"
 python3 experiments/object-service/catalogue_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/catalogue-service"
+python3 experiments/object-service/isolation_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/isolation-service"
+python3 experiments/object-service/isolation_controls.py --evidence "$SCAP_EVIDENCE/isolation-service" \
+  --output "$SCAP_EVIDENCE/isolation-controls"

@@ -59,6 +59,163 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
 }
 
 #[test]
+fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object_io() {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use scap_object_store::{Condition, StoreError, Stored};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{mpsc, Mutex};
+    use std::time::Instant;
+
+    struct Paused {
+        memory: Memory,
+        armed: AtomicBool,
+        entered: mpsc::SyncSender<()>,
+        release: Mutex<mpsc::Receiver<()>>,
+    }
+    impl Objects for Paused {
+        fn get(&self, key: &str, maximum: usize, deadline: Instant) -> Result<Stored, StoreError> {
+            if key.starts_with("scap-object/v1/1/2/10/inc/")
+                && self.armed.swap(false, Ordering::SeqCst)
+            {
+                self.entered.send(()).unwrap();
+                self.release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap();
+            }
+            self.memory.get(key, maximum, deadline)
+        }
+        fn put(
+            &self,
+            key: &str,
+            bytes: &[u8],
+            condition: Condition<'_>,
+            deadline: Instant,
+        ) -> Result<String, StoreError> {
+            self.memory.put(key, bytes, condition, deadline)
+        }
+    }
+    fn receive(
+        reply: tokio::sync::oneshot::Receiver<Result<serde_json::Value, Failure>>,
+    ) -> serde_json::Value {
+        runtime().unwrap().block_on(async {
+            tokio::time::timeout(Duration::from_secs(5), reply)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()
+        })
+    }
+    fn submit(
+        state: &HttpState,
+        database: u64,
+        action: Action,
+    ) -> tokio::sync::oneshot::Receiver<Result<serde_json::Value, Failure>> {
+        let mut call = call(action);
+        call.scope.database.0 = database;
+        state.scheduler.submit(principal(), call, until()).unwrap()
+    }
+    fn query() -> Action {
+        Action::Query {
+            statements: vec![crate::wire::WireStatement {
+                sql: "SELECT x FROM t".into(),
+                params: vec![],
+            }],
+        }
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let (entered, paused) = mpsc::sync_channel(1);
+    let (release, wait) = mpsc::sync_channel(1);
+    let objects = Arc::new(Paused {
+        memory: Memory::default(),
+        armed: AtomicBool::new(false),
+        entered,
+        release: Mutex::new(wait),
+    });
+    let (_, state) = assemble(prepared(directory.path()).service, objects.clone()).unwrap();
+    for database in [10, 20] {
+        receive(submit(
+            &state,
+            database,
+            Action::Create { nonce: Decimal(1) },
+        ));
+        receive(submit(
+            &state,
+            database,
+            Action::Activate {
+                expected_revision: Decimal(1),
+                nonce: Decimal(2),
+            },
+        ));
+        let statements: Vec<_> = ["CREATE TABLE t(x INTEGER)", "INSERT INTO t VALUES (44)"]
+            .into_iter()
+            .map(|sql| crate::wire::WireStatement {
+                sql: sql.into(),
+                params: vec![],
+            })
+            .collect();
+        let request =
+            scap_object::request(1, 1, 3, &crate::wire::statements(&statements).unwrap()).unwrap();
+        receive(submit(
+            &state,
+            database,
+            Action::Execute {
+                request: crate::wire::Identity {
+                    epoch: Decimal(1),
+                    id: Decimal(1),
+                    principal: Decimal(3),
+                    fingerprint: request.fingerprint,
+                },
+                statements,
+            },
+        ));
+    }
+    objects.memory.calls.lock().unwrap().clear();
+    objects.armed.store(true, Ordering::SeqCst);
+    let mut cold = submit(&state, 10, Action::Open {});
+    paused.recv_timeout(Duration::from_secs(5)).unwrap();
+    let hot = receive(submit(&state, 20, query()));
+    let result = STANDARD.decode(hot["result"].as_str().unwrap()).unwrap();
+    let decoded =
+        scap_sql::decode_result(&result, scap_object::options::durable_sql_limits()).unwrap();
+    assert_eq!(
+        decoded.statements[0].rows,
+        vec![vec![scap_sql::Value::Integer(44)]]
+    );
+    assert_eq!(
+        objects
+            .memory
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|call| call.contains("/1/2/20/"))
+            .cloned()
+            .collect::<Vec<_>>(),
+        ["GET scap-object/v1/1/2/20/head"]
+    );
+    assert!(matches!(
+        cold.try_recv(),
+        Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+    ));
+    receive(submit(&state, 10, Action::Status {}));
+    release.send(()).unwrap();
+    receive(cold);
+    objects.memory.calls.lock().unwrap().clear();
+    assert_eq!(receive(submit(&state, 10, query())), hot);
+    assert_eq!(
+        *objects.memory.calls.lock().unwrap(),
+        ["GET scap-object/v1/1/2/10/head"]
+    );
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
 fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_configuration() {
     let directory = tempfile::tempdir().unwrap();
     let mut configuration = prepared(directory.path());
@@ -117,7 +274,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
 fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
     let directory = tempfile::tempdir().unwrap();
     let mut configuration = prepared(directory.path());
-    configuration.service.admission.workers = 0;
+    configuration.service.admission.active_database_actors = 0;
     assert!(assemble(configuration.service, Arc::new(Memory::default())).is_err());
     let mut configuration = prepared(directory.path());
     configuration.service.cache_directory = directory.path().join("missing");
@@ -254,7 +411,7 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
 fn prepared_startup_failure_and_completed_shutdown_signal_are_observable() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = prepared(directory.path());
-    config.service.admission.workers = 0;
+    config.service.admission.active_database_actors = 0;
     assert_eq!(
         serve(config, Box::pin(async {})).unwrap_err().code,
         "CONFIG"

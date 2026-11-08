@@ -209,6 +209,16 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/catalogue-service"
+      - name: Verify hot queries and controls while a cold database restore is blocked
+        run: |
+          python3 experiments/object-service/isolation_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/isolation-service"
+          python3 experiments/object-service/isolation_controls.py \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/isolation-service" \
+            --output "$GITHUB_WORKSPACE/target/evidence/isolation-controls"
       - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -272,4 +282,6 @@ jobs:
             target/evidence/catalogue-service/*.json
             target/evidence/catalogue-service/*.jsonl
             target/evidence/catalogue-service/*.log
+            target/evidence/isolation-service/*
+            target/evidence/isolation-controls/**
           if-no-files-found: error

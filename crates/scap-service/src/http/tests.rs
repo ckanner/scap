@@ -35,9 +35,11 @@ pub(super) fn state() -> Arc<HttpState> {
     let scheduler = Arc::new(
         Scheduler::new(
             Limits {
-                workers: 1,
+                active_database_actors: 4,
+                active_database_actors_per_tenant: 4,
+                actor_idle_timeout: Duration::from_secs(60),
                 control_workers: 1,
-                queued_per_worker: 8,
+                queued_total: 8,
                 queued_per_tenant: 6,
                 queued_per_database: 4,
                 reserved_controls: 1,

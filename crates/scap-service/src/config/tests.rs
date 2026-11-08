@@ -87,15 +87,14 @@ fn every_structural_and_budget_error_is_rejected_before_opening_a_listener() {
         assert!(parsed(value).prepare_with(&environment).is_err(), "{field}");
     }
     for (group, field, replacements) in [
-        ("cache", "sessions_per_worker", vec![json!(0), json!(4097)]),
-        ("cache", "pages_per_worker", vec![json!(0)]),
+        ("cache", "pages_per_actor", vec![json!(0)]),
         ("cache", "parallel_recoveries", vec![json!(0), json!(257)]),
         (
             "admission",
             "max_body_bytes",
             vec![json!(0), json!(134217729)],
         ),
-        ("admission", "queued_per_worker", vec![json!(65537)]),
+        ("admission", "queued_total", vec![json!(65537)]),
         ("admission", "data_intake", vec![json!(0), json!(4097)]),
         ("admission", "control_intake", vec![json!(0), json!(4097)]),
         ("admission", "recovery_intake", vec![json!(0), json!(4097)]),
@@ -124,6 +123,38 @@ fn every_structural_and_budget_error_is_rejected_before_opening_a_listener() {
     assert!(Config::parse(&serde_json::to_vec(&value).unwrap()).is_err());
     assert!(Config::parse(b"{}").is_err());
     assert!(Config::parse(&vec![0; 4 * 1024 * 1024 + 1]).is_err());
+}
+
+#[test]
+fn actor_configuration_rejects_legacy_fields_without_silently_reinterpreting_capacity() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    for (group, field) in [
+        ("admission", "workers"),
+        ("admission", "queued_per_worker"),
+        ("cache", "sessions_per_worker"),
+        ("cache", "pages_per_worker"),
+    ] {
+        let mut value = base.clone();
+        value[group][field] = json!(4);
+        assert!(
+            Config::parse(value.to_string().as_bytes()).is_err(),
+            "{field}"
+        );
+    }
+    for field in [
+        "active_database_actors",
+        "active_database_actors_per_tenant",
+        "actor_idle_timeout_ms",
+        "queued_total",
+    ] {
+        let mut value = base.clone();
+        value["admission"].as_object_mut().unwrap().remove(field);
+        assert!(
+            Config::parse(value.to_string().as_bytes()).is_err(),
+            "{field}"
+        );
+    }
 }
 
 #[test]
