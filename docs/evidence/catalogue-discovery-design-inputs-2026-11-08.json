@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "status": "DESIGN_ONLY_NOT_ACCEPTANCE",
+  "original_design_evidence": {
+    "scope": "read-only design inputs; no production change or acceptance claim",
+    "commit_at_capture": "5b4e97e276988bd10ecfd25ff7abbf2a547a6459",
+    "tree_at_capture": "62aa55862c2798230f43136206c1958c26cf294c",
+    "recorded_ns": 1794151803114763763,
+    "inputs": [
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/AGENTS.md",
+        "bytes": 2481,
+        "sha256": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/Cargo.lock",
+        "bytes": 61830,
+        "sha256": "8d5cd58941db17d620a35b091caee623113b682294b03de028d145cdff9ca6c7"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object-store/Cargo.toml",
+        "bytes": 593,
+        "sha256": "b5f5c8096c07d34eaf8410be43d84f35888667b6601f034b66a32054235ec339"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/docs/architecture/name-catalogue-plan.md",
+        "bytes": 43641,
+        "sha256": "3d613908e0fe35a7e2db90f12bcded98401b07c21370dba2dac5b4de70c40fb0"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/docs/architecture/object-storage-native-proposal.md",
+        "bytes": 64545,
+        "sha256": "a1080a396855f427c60e49c3a6c75af45f17e05d30d1b322f27218250d7f84dd"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object-store/src/lib.rs",
+        "bytes": 9763,
+        "sha256": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/mod.rs",
+        "bytes": 16175,
+        "sha256": "6793b2a793ce6fb4db446b7c34626800aad8dbd9d0c27b0d00c1e35e46b3c519"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/inspect.rs",
+        "bytes": 12777,
+        "sha256": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/records.rs",
+        "bytes": 12662,
+        "sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/types.rs",
+        "bytes": 4466,
+        "sha256": "5dc0b8433dad203160f3466e37b84b4fae77713d2a0049dbce8883f5e9780e06"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/format.rs",
+        "bytes": 20722,
+        "sha256": "5daf67f01e634abe050367783b36cee8ec4b4457429ad0a61a36e485c227840c"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-service/src/auth.rs",
+        "bytes": 3400,
+        "sha256": "875120f75e47732d7cfc4771dc418676d46c10318a207dc47361975b265c575d"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/list.rs",
+        "bytes": 3229,
+        "sha256": "8b003325c791edbe4ca1b01041c533a23076fda15c0401ce7b9d07cff1f3a205"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/aws/mod.rs",
+        "bytes": 69177,
+        "sha256": "e9a77ae524df8d2dfbb8c75d702267f0496bde928c3d34518c387da03a76f86a"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/aws/client.rs",
+        "bytes": 50156,
+        "sha256": "3fccd6d5ff271df5236d6832794a6549923cee6fd5dddc87f146edb74116b2b0"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/aws/builder.rs",
+        "bytes": 83313,
+        "sha256": "fa68f85ff48efecd5ff26e94e64e085c3e451004cf12583e3cf9d342f3b7abd2"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/client/s3.rs",
+        "bytes": 5125,
+        "sha256": "f1410924d621c1093e8d489f6f6251ef7fcf0a8e06674d96ad29b7aa7ccf5b5c"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/client/http/connection.rs",
+        "bytes": 14646,
+        "sha256": "2a4e3fb63c7b48f2135fe1b4dd34fbbe31cbe92c6f87e23af45cf148faf4164d"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/client/http/body.rs",
+        "bytes": 7277,
+        "sha256": "86a3dc804c1945071650fcbd1a79b4887adf226a8be32cf650d46b0b9d26b577"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/path/mod.rs",
+        "bytes": 26439,
+        "sha256": "c06669274202915113c67005033a59be2bf52de8f063b32e6dfbb306e5f59430"
+      },
+      {
+        "path": "/workspace/scratch/6533830bd3dc/scap-env/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/object_store-0.14.2/src/lib.rs",
+        "bytes": 99731,
+        "sha256": "41e29dadb4dbee57f53c03dd2cdccb46887748072adf1c0407499bf6fcc7fcb4"
+      }
+    ],
+    "fixed_dependencies": [
+      {
+        "name": "async-trait",
+        "version": "0.1.92",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667",
+        "dependencies": [
+          "proc-macro2",
+          "quote",
+          "syn 3.0.9"
+        ]
+      },
+      {
+        "name": "http",
+        "version": "1.5.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0",
+        "dependencies": [
+          "bytes",
+          "itoa"
+        ]
+      },
+      {
+        "name": "object_store",
+        "version": "0.14.2",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "f1796bc93603f78c5760a69f2d58badc9618d22adade0a95385bb2adbae4eb94",
+        "dependencies": [
+          "async-trait",
+          "base64 0.23.1",
+          "bytes",
+          "chrono",
+          "crc-fast",
+          "form_urlencoded",
+          "futures-channel",
+          "futures-core",
+          "futures-util",
+          "http",
+          "http-body-util",
+          "humantime",
+          "hyper",
+          "itertools",
+          "md-5",
+          "parking_lot",
+          "percent-encoding",
+          "quick-xml",
+          "rand",
+          "reqwest",
+          "ring",
+          "rustls-pki-types",
+          "serde",
+          "serde_json",
+          "serde_urlencoded",
+          "thiserror 2.0.21",
+          "tokio",
+          "tracing",
+          "url",
+          "wasm-bindgen-futures",
+          "web-time"
+        ]
+      },
+      {
+        "name": "quick-xml",
+        "version": "0.41.0",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1",
+        "dependencies": [
+          "memchr",
+          "serde"
+        ]
+      },
+      {
+        "name": "ring",
+        "version": "0.17.14",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7",
+        "dependencies": [
+          "cc",
+          "cfg-if",
+          "getrandom 0.2.17",
+          "libc",
+          "untrusted",
+          "windows-sys 0.52.0"
+        ]
+      }
+    ],
+    "design": {
+      "path": "/workspace/scratch/6533830bd3dc/catalogue-discovery-design/design.zh-CN.md",
+      "bytes": 30115,
+      "sha256": "84cfedeb8640a98650a551af1725a2661b64a2e0e94615caf454376f88d5ed38"
+    },
+    "initial_design_sha256": "8773f026f90833ac52a2f08cd49c8b287186e697374b68a43b79e93f3cc7cc35",
+    "design_finalized_ns": 1794151883408470167
+  },
+  "published_document": {
+    "path": "docs/architecture/catalogue-discovery-plan.md",
+    "sha256": "68dea57eb759b739d77e200ae469323d2b1592a0c1ce2e3fa5ce5d248ac95881"
+  },
+  "note": "Published document adjusts repository links and clarifies the reviewed completeness/permission boundaries; original design input identities are preserved."
+}

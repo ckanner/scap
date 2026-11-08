@@ -1,0 +1,521 @@
+{
+  "schema": 1,
+  "status": "DESIGN_ONLY_NOT_ACCEPTANCE",
+  "original_design_evidence": {
+    "schema": "scap-n3-design-source-evidence-v1",
+    "status": "DESIGN_ONLY_NOT_IMPLEMENTED",
+    "captured_at_utc": "2026-11-08T16:04:37.246247+00:00",
+    "repository": {
+      "url": "https://github.com/ckanner/scap",
+      "source_root": "/workspace/scratch/6533830bd3dc/scap",
+      "commit": "5b4e97e276988bd10ecfd25ff7abbf2a547a6459",
+      "tree": "62aa55862c2798230f43136206c1958c26cf294c",
+      "read_only": true
+    },
+    "planned_first_batch_base": {
+      "commit": "32f3369e13cd89e32521d5d371ecbfda6834322c",
+      "tree": "bc3eba30cd74dec3436e38f157a72122c98d438d",
+      "branch": "feat/segmented-request-index",
+      "worktree": "/workspace/scratch/6533830bd3dc/scap-segmented-index",
+      "not_implementation_evidence": true
+    },
+    "document": {
+      "path": "/workspace/scratch/6533830bd3dc/storage-reclamation-design/design.zh-CN.md",
+      "sha256": "ed43f6632e8f2382d0d0238c699287c92e9c1fc61bca67ecebc390ed9de83f36",
+      "bytes": 23305,
+      "encoding": "UTF-8"
+    },
+    "source_files": [
+      {
+        "path": "AGENTS.md",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/AGENTS.md",
+        "sha256": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6",
+        "bytes": 2481,
+        "lines": 28,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 1,
+            "line_end": 28,
+            "kind": "observed_source_fact",
+            "fact": "Greenfield; original ETag; exact per-file four-dimensional units; release/native/S3 evidence separate; disabled GC growth disclosed."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/format.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/format.rs",
+        "sha256": "5daf67f01e634abe050367783b36cee8ec4b4457429ad0a61a36e485c227840c",
+        "bytes": 20722,
+        "lines": 639,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 8,
+            "line_end": 24,
+            "kind": "observed_source_fact",
+            "fact": "Hard object/HEAD/request bounds."
+          },
+          {
+            "line_start": 35,
+            "line_end": 50,
+            "kind": "observed_source_fact",
+            "fact": "Full logical Scope includes generation."
+          },
+          {
+            "line_start": 112,
+            "line_end": 120,
+            "kind": "observed_source_fact",
+            "fact": "Retention bounds."
+          },
+          {
+            "line_start": 197,
+            "line_end": 277,
+            "kind": "observed_source_fact",
+            "fact": "Window aggregates, at most three windows, HEAD format 3."
+          },
+          {
+            "line_start": 370,
+            "line_end": 399,
+            "kind": "observed_source_fact",
+            "fact": "Flat Payload::Index(Vec<Entry>); immutable envelope format 2."
+          },
+          {
+            "line_start": 458,
+            "line_end": 471,
+            "kind": "observed_source_fact",
+            "fact": "HEAD key and full Scope immutable key."
+          },
+          {
+            "line_start": 495,
+            "line_end": 565,
+            "kind": "observed_source_fact",
+            "fact": "SCAPOBJ2 framing and raw chunk/result bytes."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/records.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/records.rs",
+        "sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe",
+        "bytes": 12662,
+        "lines": 396,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 82,
+            "line_end": 132,
+            "kind": "observed_source_fact",
+            "fact": "Deterministic Scope from named creation, generation 1, strict full identity comparison."
+          },
+          {
+            "line_start": 150,
+            "line_end": 188,
+            "kind": "observed_source_fact",
+            "fact": "Descriptor and NamedCreation bind creation provenance."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/mod.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/mod.rs",
+        "sha256": "6793b2a793ce6fb4db446b7c34626800aad8dbd9d0c27b0d00c1e35e46b3c519",
+        "bytes": 16175,
+        "lines": 482,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 365,
+            "line_end": 409,
+            "kind": "observed_source_fact",
+            "fact": "Binding/HEAD verification; Database inherits creation Scope; own requires exact Scope and origin."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/create.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/catalogue/create.rs",
+        "sha256": "26fb36e2b9981b437d95fd47e8553d95d077cd2c6486c9f8a71e2bc2ebc88ddc",
+        "bytes": 5855,
+        "lines": 142,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 16,
+            "line_end": 49,
+            "kind": "observed_source_fact",
+            "fact": "Frozen canonical descriptor; conditional create; conflict cannot overwrite identity."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/lib.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/lib.rs",
+        "sha256": "ad749075178e3d8813b861d51ec6577d8bc9325f19856c4934173382bde31433",
+        "bytes": 36426,
+        "lines": 1092,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 154,
+            "line_end": 177,
+            "kind": "observed_source_fact",
+            "fact": "Exact HEAD body/ETag GET; Maintenance remains readable."
+          },
+          {
+            "line_start": 198,
+            "line_end": 271,
+            "kind": "observed_source_fact",
+            "fact": "Writer readiness; immutable upload/readback; closure inheritance while GC disabled."
+          },
+          {
+            "line_start": 342,
+            "line_end": 460,
+            "kind": "observed_source_fact",
+            "fact": "Cold full closure verification, flat indices, complete Request comparison, original result receipt root."
+          },
+          {
+            "line_start": 470,
+            "line_end": 570,
+            "kind": "observed_source_fact",
+            "fact": "Fresh lookup authorization and administrative transitions."
+          },
+          {
+            "line_start": 597,
+            "line_end": 652,
+            "kind": "observed_source_fact",
+            "fact": "Logical retirement and full flat-index append."
+          },
+          {
+            "line_start": 687,
+            "line_end": 735,
+            "kind": "observed_source_fact",
+            "fact": "Data/result/index under original CAS."
+          },
+          {
+            "line_start": 810,
+            "line_end": 858,
+            "kind": "observed_source_fact",
+            "fact": "Restore plus all retained result validation."
+          },
+          {
+            "line_start": 888,
+            "line_end": 934,
+            "kind": "observed_source_fact",
+            "fact": "ACK/native publication, cold query, current DataObjects context."
+          },
+          {
+            "line_start": 985,
+            "line_end": 1075,
+            "kind": "observed_source_fact",
+            "fact": "Session identity/alignment and warm HEAD-only object I/O."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object/src/options.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object/src/options.rs",
+        "sha256": "f43dc51197ac957a5f9678adb89262f4fd676191a9670866825bf37d484adf67",
+        "bytes": 5401,
+        "lines": 147,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 30,
+            "line_end": 55,
+            "kind": "observed_source_fact",
+            "fact": "Defaults: retention 4096/256MiB, cache 64MiB, ordinary 30s/recovery 1800s."
+          }
+        ]
+      },
+      {
+        "path": "crates/scap-object-store/src/lib.rs",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/crates/scap-object-store/src/lib.rs",
+        "sha256": "8249dcab0188e40fd7d2b51be00939eb0cfa6a3291ee6b4478986e0df330a56c",
+        "bytes": 9763,
+        "lines": 301,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 32,
+            "line_end": 68,
+            "kind": "observed_source_fact",
+            "fact": "Only exact GET and conditional PUT; no LIST/DELETE/hidden retries."
+          },
+          {
+            "line_start": 106,
+            "line_end": 124,
+            "kind": "observed_source_fact",
+            "fact": "ETag match with zero retries."
+          },
+          {
+            "line_start": 138,
+            "line_end": 199,
+            "kind": "observed_source_fact",
+            "fact": "Deadline behavior, same-GET body/ETag, conditional PUT; no VersionId."
+          }
+        ]
+      },
+      {
+        "path": "sdk/node/src/client.js",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/sdk/node/src/client.js",
+        "sha256": "4988a936e9710396ec2983eca3c5c2cfdbf91681f5727d45a133eb5b19d43a85",
+        "bytes": 5820,
+        "lines": 141,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 62,
+            "line_end": 80,
+            "kind": "observed_source_fact",
+            "fact": "Administrative expected revision contract constrains technical head_serial separation."
+          }
+        ]
+      },
+      {
+        "path": "docs/architecture/object-storage-native-proposal.md",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/docs/architecture/object-storage-native-proposal.md",
+        "sha256": "a1080a396855f427c60e49c3a6c75af45f17e05d30d1b322f27218250d7f84dd",
+        "bytes": 64545,
+        "lines": 670,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 373,
+            "line_end": 421,
+            "kind": "observed_source_fact",
+            "fact": "Pin/GC ordering, no TTL quiescence proof, new identity PITR obligations."
+          }
+        ]
+      },
+      {
+        "path": "docs/engineering/object-runtime.md",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/docs/engineering/object-runtime.md",
+        "sha256": "67979a1cb4b9b9216aaae47b59cd45c53caff0a52db44f7777960e26cf293b1d",
+        "bytes": 12924,
+        "lines": 89,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 41,
+            "line_end": 58,
+            "kind": "observed_source_fact",
+            "fact": "HEAD3/object2 and receipt data_root versus retained snapshot distinction."
+          }
+        ]
+      },
+      {
+        "path": "experiments/object-service/audit_wire.py",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/experiments/object-service/audit_wire.py",
+        "sha256": "26783466e9cfb47fce343e12782e7e17f0c8e064080070edddffa81313dae3b8",
+        "bytes": 22069,
+        "lines": 408,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 167,
+            "line_end": 167,
+            "kind": "observed_source_fact",
+            "fact": "SCAPOBJ2 independent object hash."
+          },
+          {
+            "line_start": 210,
+            "line_end": 210,
+            "kind": "observed_source_fact",
+            "fact": "Independent oracle strictly expects HEAD3."
+          }
+        ]
+      },
+      {
+        "path": "experiments/object-service/service_oracle.py",
+        "absolute_path": "/workspace/scratch/6533830bd3dc/scap/experiments/object-service/service_oracle.py",
+        "sha256": "03e14f963360ab8660636ed95c5e5144ed57b0576dfb021a4f375698548c9cf9",
+        "bytes": 27551,
+        "lines": 401,
+        "commit_content_verified": true,
+        "claims": [
+          {
+            "line_start": 358,
+            "line_end": 359,
+            "kind": "observed_source_fact",
+            "fact": "Current HEAD3 summary; new format must have independently verified typed tree."
+          }
+        ]
+      }
+    ],
+    "official_sources": [
+      {
+        "id": "conditional-writes",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html",
+        "fact": "If-None-Match checks current existence; a missing key or current delete marker allows creation.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn22view0",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "conditional-deletes",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-deletes.html",
+        "fact": "General purpose/directory buckets support conditional DELETE; current ETag and per-item outcomes matter.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn22view1",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "list-v2",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html",
+        "fact": "Up to 1000 items per page, opaque continuation, HTTP200 can contain invalid XML.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn22view2",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "consistency",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html",
+        "fact": "Strong GET/LIST visibility and single-key atomicity do not provide multi-key transactions.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn22view3",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "etag",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/API/API_Object.html",
+        "fact": "ETag reflects content; ordinary plaintext/SSE-S3 PUT can use MD5; multipart/KMS not generally MD5.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn24view0",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "delete-versioning",
+        "url": "https://docs.aws.amazon.com/en_en/AmazonS3/latest/API/API_DeleteObject.html",
+        "fact": "Unversioned delete removes object; enabled versioning normally adds marker; permanent version deletion needs VersionId.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn24view1",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      },
+      {
+        "id": "delete-marker",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html",
+        "fact": "Delete markers retain key/version identity, incur storage charges and do not remove prior versions.",
+        "kind": "official_documentation",
+        "retrieval_ref": "turn24view2",
+        "retrieved_on_utc": "2026-11-08",
+        "raw_http_capture_included": false
+      }
+    ],
+    "derived_inferences": [
+      {
+        "id": "scope-is-identity",
+        "from": [
+          "catalogue/records.rs",
+          "catalogue/mod.rs",
+          "format.rs"
+        ],
+        "claim": "Physical GC must not reuse logical Scope.generation."
+      },
+      {
+        "id": "late-put-orphan",
+        "from": [
+          "conditional-writes",
+          "consistency"
+        ],
+        "claim": "A prior paused CreateOnly request can recreate a deleted retired key; HEAD fencing prevents authority regain, not residual storage."
+      },
+      {
+        "id": "etag-not-generation",
+        "from": [
+          "etag",
+          "conditional-deletes"
+        ],
+        "claim": "Identical bytes can reuse ETag; delayed DELETE needs never-reused physical namespaces."
+      },
+      {
+        "id": "pin-write-cost",
+        "from": [
+          "lib.rs:248-271",
+          "lib.rs:1062-1075"
+        ],
+        "claim": "Per-call pin Add/Release adds at least two HEAD CAS and conflicts with sealed candidates; fully local warm reads need no object pin."
+      },
+      {
+        "id": "retirement-not-reclamation",
+        "from": [
+          "lib.rs:597-652",
+          "crates/scap-object-store/src/lib.rs"
+        ],
+        "claim": "Current window retirement removes references but does not remove immutable objects."
+      }
+    ],
+    "unimplemented_requirements": [
+      "Typed segmented index and strict explicit new HEAD format, preserving original Result framing.",
+      "Monotone independent storage_generation with one active/staging and no allocation reuse.",
+      "Monotone head_serial separate from public revision/transition; no sealed business candidate rebinding.",
+      "Bounded durable batch pins/local guards; paused pins block GC without expiry-based deletion.",
+      "Freeze/Copying/Seal/Promote/Sweep with restartable bounded exact deletion plans.",
+      "Repeated fair retired-range sweeps; no permanent-empty claim from finite LIST observations.",
+      "Explicit retained snapshots before fresh-identity PITR."
+    ],
+    "liveness_assumptions": [
+      "Finite old operations, no fresh old-generation admission, each prior PUT eventually terminates.",
+      "Storage available; fair complete repeated scans of all retired ranges.",
+      "Retained snapshot and database identity sets bounded; catalogue identity growth has separate contract.",
+      "Paused pins explicitly released or separately proven quiescence/revocation; TTL insufficient.",
+      "Continuous-load reclamation capacity exceeds garbage production with copy reserve.",
+      "After quiescence, current-generation orphans may require a final evacuation."
+    ],
+    "validation_status": {
+      "source_anchor_byte_comparison": "PASS",
+      "official_documentation_review": "DONE",
+      "document_json_readback": "PASS",
+      "segmented_index_implementation": "NOT_RUN",
+      "new_code_four_dimensional_unit_coverage": "NOT_RUN",
+      "gc_state_model": "NOT_RUN",
+      "real_paused_put_delete_contract": "NOT_RUN",
+      "aws_standard_cloud_contract": "NOT_RUN",
+      "pitr_contract": "NOT_RUN",
+      "long_run_cost_measurement": "NOT_RUN"
+    },
+    "claim_limits": [
+      "Proposal is not completed reclamation or accepted code.",
+      "No TPS/AWS/cloud durability/global physical-cost guarantee follows from code reading or SeaweedFS.",
+      "Logical retirement may still leave physical late-upload orphans.",
+      "Permanent HEAD/catalogue/name barriers and unbounded DB creation are outside single-database payload GC.",
+      "Prior actor gates and development checks are not new segmented-index release evidence."
+    ],
+    "minimum_first_batch": {
+      "production_scope": [
+        "crates/scap-object/src/format.rs",
+        "crates/scap-object/src/lib.rs",
+        "crates/scap-object/src/request_index.rs and owned submodules"
+      ],
+      "test_scope": [
+        "owned unit tests",
+        "independent flat-map model",
+        "affected strict format oracles",
+        "native HTTP signedS3 original-result/cancel/retirement/restart/corruption/fault contracts"
+      ],
+      "excluded": [
+        "physical DELETE",
+        "store/service/SDK semantic changes",
+        "pin/GC/PITR runtime"
+      ],
+      "gates": [
+        "exact per-production-file line/function/region/branch100% unit coverage",
+        "fmt/strict clippy and whole-workspace previous gates",
+        "frozen-source actual release binary receipt",
+        "all-call raw HTTP/S3 independently audited contracts",
+        "no DELETE/no ETag rebinding in real traces"
+      ]
+    }
+  },
+  "published_document": {
+    "path": "docs/architecture/storage-reclamation-plan.md",
+    "sha256": "47e30a8c257ec39d121f8e31fba7c3a49330da5e0cc35a55dd912dfd74aff637"
+  },
+  "note": "Published document adjusts repository links and clarifies the reviewed completeness/permission boundaries; original design input identities are preserved."
+}

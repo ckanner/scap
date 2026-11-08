@@ -1,6 +1,6 @@
 # ADR-0024：名称目录、固定控制意图与永久数据库身份
 
-状态：方案已接受，正式实现候选待完整验收。前置[协议与有界模型](../engineering/named-catalogue-model.md)已通过其冻结范围；该结果不认证本 ADR 的 Rust、HTTP、SDK 或真实故障路径。正式验收范围见[验证规范](../engineering/validation.md)。
+状态：方案已接受，正式 Rust/HTTP/SDK 已通过 [PR #31 的必要本地验收](../engineering/catalogue-actors-validation.md)并合入。前置[协议与有界模型](../engineering/named-catalogue-model.md)和真实运行分别记录；全目录发现、AWS 及完整 N2 退出仍未完成。正式验收范围见[验证规范](../engineering/validation.md)。
 
 ## 问题
 
