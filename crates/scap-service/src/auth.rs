@@ -13,6 +13,7 @@ pub struct Principal {
     pub tenant: u64,
     pub principal: u64,
     pub provision: bool,
+    pub deployment_inventory: bool,
 }
 
 impl Principal {
@@ -32,6 +33,8 @@ pub struct Credential {
     pub tenant: Decimal,
     pub principal: Decimal,
     pub provision: bool,
+    #[serde(default)]
+    pub deployment_inventory: bool,
 }
 
 #[derive(Clone)]
@@ -59,6 +62,7 @@ impl Authenticator {
                     tenant: credential.tenant.0,
                     principal: credential.principal.0,
                     provision: credential.provision,
+                    deployment_inventory: credential.deployment_inventory,
                 },
             ));
         }
@@ -87,7 +91,7 @@ impl Authenticator {
     }
 }
 
-fn decode_hash(text: &str) -> Result<[u8; 32], Failure> {
+pub(crate) fn decode_hash(text: &str) -> Result<[u8; 32], Failure> {
     if text.len() != 64
         || !text
             .bytes()

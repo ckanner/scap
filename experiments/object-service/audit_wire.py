@@ -207,7 +207,7 @@ def capture(row, *, response=False):
     if prefix == "head" and ((response and row["method"] == "GET" and row["status"] == 200)
                               or (not response and row["method"] == "PUT")):
         head = parse(raw)
-        require(type(head.get("format")) is int and head["format"] == 3, "HEAD is not format 3")
+        require(type(head.get("format")) is int and head["format"] == 4, "HEAD is not format 4")
     return raw
 
 

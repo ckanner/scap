@@ -10,6 +10,7 @@ import { Transport, duration } from '../src/transport.js';
 import * as wire from '../src/wire.js';
 // One test process owns every production profile; no integration maps are merged.
 import './catalogue.test.js';
+import './discovery.test.js';
 
 const SCOPE = { deployment: '1', tenant: '2', database: '9007199254740993', incarnation: '4', generation: '5' };
 const TOKEN = 'synthetic-unit-only-bearer-credential';

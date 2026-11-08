@@ -1,5 +1,5 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, Client, UnknownError, type Creation, type PreparedCreate,
+import { CatalogueClient, DiscoveryClient, Client, UnknownError, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
@@ -38,11 +38,19 @@ async function contract() {
   // @ts-expect-error Normal deletion preserves its explicit original HEAD revision.
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
+  const discovery = new DiscoveryClient({ endpoint: 'https://example.invalid/v1/discovery', token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
+  const names: NamePage = await discovery.listNames();
+  const inventory: InventoryPage = await discovery.deploymentInventory(names.cursor);
+  const incomplete: false = inventory.completion.recovery_complete;
+  // @ts-expect-error Cursors are opaque strings, never client-authored frontiers.
+  discovery.listNames({ after: 'key' });
+  // @ts-expect-error Metadata inventory cannot claim completed data recovery.
+  const recovered: true = inventory.completion.recovery_complete;
   // @ts-expect-error Provisioning is a catalogue phase, never a public lifecycle input.
   db.setLifecycle({ expectedRevision: '1', nonce: '1', lifecycle: 'provisioning' });
   try { await client.submit(create); } catch (error) {
     if (error instanceof UnknownError && 'intent' in error.reference) client.saveIntent(error.reference.intent);
   }
-  return { prepared, observed, progress, inspected, named, aborted, deleted, alsoDeleted, forged };
+  return { prepared, observed, progress, inspected, named, aborted, deleted, alsoDeleted, forged, incomplete, recovered };
 }
 void contract;

@@ -99,9 +99,9 @@ def inventory_data():
 
 def race_fixture(commit_first=False, cancel=False):
     path = "/scap-test/scap-object/v1/7/1/1/head"
-    before = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE}).encode())
-    candidate_bytes = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE}).encode())
-    barrier_bytes = list(json.dumps({"format": 3, "creation": None, "deletion": None, "revision": 7, "scope": SCOPE}).encode())
+    before = list(json.dumps({"format": 4, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE}).encode())
+    candidate_bytes = list(json.dumps({"format": 4, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE}).encode())
+    barrier_bytes = list(json.dumps({"format": 4, "creation": None, "deletion": None, "revision": 7, "scope": SCOPE}).encode())
     history = []
 
     def fields(serial, phase, method, body, etag=None):
@@ -147,11 +147,11 @@ def check_race(data, commit_first=False, cancel=False):
 
 
 class WireAndOriginalTests(unittest.TestCase):
-    def test_head_three_requires_explicit_unnamed_origins(self):
-        value = {"format": 3, "scope": SCOPE, "revision": 1,
+    def test_head_four_requires_explicit_unnamed_origins(self):
+        value = {"format": 4, "scope": SCOPE, "revision": 1,
                  "creation": None, "deletion": None}
         self.assertEqual(oracle.head(list(json.dumps(value).encode())), value)
-        invalid = [{**value, "format": 2}, {**value, "format": 4},
+        invalid = [{**value, "format": 2}, {**value, "format": 3}, {**value, "format": 5},
                    {**value, "creation": {"creator": 17}},
                    {**value, "deletion": {"operation": 1}}]
         for missing in ("creation", "deletion"):
@@ -298,7 +298,7 @@ def network_checker():
                     "head_response_bytes": response_bytes, "response_sha256": hashlib.sha256(bytes(response_bytes)).hexdigest()}
         checker.history.append({"event": "object_response", "monotonic_ns": when + 2, **fields, **response})
         checker.history.append({"event": "object_response_delivered", "monotonic_ns": when + 3, **fields, **response})
-    heads = [list(json.dumps({"format": 3, "creation": None, "deletion": None, "scope": SCOPE, "revision": number}).encode()) for number in (1, 2, 3)]
+    heads = [list(json.dumps({"format": 4, "creation": None, "deletion": None, "scope": SCOPE, "revision": number}).encode()) for number in (1, 2, 3)]
     for index, label, operation in ((1, "create", "create"), (2, "takeover", "takeover"), (3, "activate", "activate")):
         start = 10 * index
         phase = "LC-01/" + label
@@ -381,8 +381,8 @@ class NetworkOrderTests(unittest.TestCase):
 
     def test_tombstone_cannot_be_reactivated_with_a_successful_control(self):
         data = race_fixture()
-        before = {"format": 3, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE, "lifecycle": "deleted"}
-        after = {"format": 3, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE, "lifecycle": "ready"}
+        before = {"format": 4, "creation": None, "deletion": None, "revision": 5, "scope": SCOPE, "lifecycle": "deleted"}
+        after = {"format": 4, "creation": None, "deletion": None, "revision": 6, "scope": SCOPE, "lifecycle": "ready"}
         for row in data["history"]:
             if row["request_serial"] == 1 and row["event"] == "object_response":
                 row["head_response_bytes"] = list(json.dumps(before).encode())

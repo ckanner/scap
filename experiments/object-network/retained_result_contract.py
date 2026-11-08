@@ -23,7 +23,7 @@ FRAME_SIZE = 20
 MAX_BYTES = 64 * 1024 * 1024 + 64 * 1024
 MUTATIONS = ("bad_magic", "truncated_footer", "trailing_byte", "unknown_tag",
              "nonfinite_real", "invalid_utf8")
-PROBES = ("lookup_identity", "cancel_identity", "activate", "activate_session", "session_open")
+PROBES = ("lookup_identity", "cancel_identity", "activate", "activate_session", "session_open", "query")
 SCENARIOS = tuple(f"result_{epoch}_{damage}" for epoch in ("current", "closed") for damage in MUTATIONS)
 
 
@@ -104,7 +104,7 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     fixture for a different reason, creating a false positive regression.
     """
     head = load_json(head_bytes)
-    require(head["format"] == 3, "fixture HEAD version")
+    require(head["format"] == 4, "fixture HEAD version")
     selected = [window for window in head["windows"] if window["epoch"] == epoch]
     require(len(selected) == 1, "exact retained window required")
     window = selected[0]
@@ -117,8 +117,11 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     stored = result["payload"]["value"]
     require(stored["bytes"] == [], "result must use v2 raw bytes")
     require(stored["request"]["epoch"] == epoch, "fixture request epoch mismatch")
-    entries = index["payload"]["value"]
-    require(len(entries) == window["count"], "fixture index count mismatch")
+    node = index["payload"]["value"]
+    require(set(node) == {"kind", "epoch", "entries"} and node["kind"] == "leaf" and node["epoch"] == epoch, "fixture requires one explicit epoch-bound leaf")
+    entries = node["entries"]
+    require(len(entries) == window["count"] and len(entries) <= 128, "fixture index count mismatch")
+    require(sum(entry["result_bytes"] for entry in entries) == window["result_bytes"], "fixture leaf aggregate mismatch")
     matches = [entry for entry in entries if entry["request"] == stored["request"]]
     require(len(matches) == 1, "exact request reference required")
     outcome = matches[0]["outcome"]
@@ -127,6 +130,8 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     changed_result = pack(result, changed_raw)
     new_result_root = sha(changed_result)
     outcome["result"] = new_result_root
+    require(matches[0]["result_bytes"] == len(raw), "original result leaf length differs")
+    matches[0]["result_bytes"] = len(changed_raw)
     changed_index = pack(index, b"")
     window["root"] = sha(changed_index)
     before_count = window["result_bytes"]
@@ -174,7 +179,7 @@ def run_case(suite, epoch_kind, damage):
     selected = next(window for window in taken["windows"] if window["epoch"] == epoch)
     index_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], selected["root"])))["bytes"])
     index, _ = unpack(index_bytes)
-    entry = next(entry for entry in reversed(index["payload"]["value"]) if entry["outcome"]["state"] == "committed")
+    entry = next(entry for entry in reversed(index["payload"]["value"]["entries"]) if entry["outcome"]["state"] == "committed")
     result_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], entry["outcome"]["result"])))["bytes"])
     original_metadata, original_raw = unpack(result_bytes)
     value(owner.call("decode_result", encoded=list(original_raw)))
@@ -206,6 +211,8 @@ def run_case(suite, epoch_kind, damage):
         arguments = {"identity": plan["request"]} if operation.endswith("identity") else {"directory": operation}
         if operation in ("activate", "activate_session"):
             arguments.update(revision=taken["revision"], nonce=801)
+        if operation == "query":
+            arguments["sql"] = "SELECT 1"
         response = probe.call(operation, **arguments)
         after = suite.snapshot(case, probe, "after_" + operation)
         require_refusal(response, damaged, after, suite.trace(phase), plan["result_key"], sha(plan["result"]))
@@ -293,7 +300,7 @@ def main(argv=None):
         check_final(suite)
         build.verify(arguments.build_record, arguments.worker)
         summary.update(status="passed", real_worker_started=True,
-                       case_results=suite.summary["case_results"], verified_entrypoint_checks=60,
+                       case_results=suite.summary["case_results"], verified_entrypoint_checks=len(SCENARIOS) * len(PROBES),
                        ack_recorded_count=suite.ack_number, ack_audited_count=len(suite.audited),
                        ack_mismatch_count=0, outcome_mismatch_count=0)
     except BaseException as error:

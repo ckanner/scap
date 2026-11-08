@@ -26,6 +26,7 @@ pub struct Config {
     pub s3: ObjectConfig,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
+    pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
     pub credentials: Vec<Credential>,
 }
@@ -124,6 +125,14 @@ pub struct Cache {
     pub parallel_recoveries: usize,
 }
 
+/// Discovery uses the fixed v1 resource profile and a separate admission pool.
+/// The environment variable contains a 32-byte lowercase hex master key.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DiscoveryConfig {
+    pub cursor_key_env: String,
+}
+
 pub struct Prepared {
     pub service: ServiceConfig,
     pub s3: S3Config,
@@ -135,6 +144,7 @@ pub struct ServiceConfig {
     pub cache_directory: PathBuf,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
+    pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
     pub cache: Cache,
     pub auth: Authenticator,
 }
@@ -169,6 +179,18 @@ impl Config {
     fn prepare_with(
         self,
         environment: &dyn Fn(&str) -> Option<OsString>,
+    ) -> Result<Prepared, Failure> {
+        self.prepare_using(environment, crate::discovery_cursor::CursorCodec::new)
+    }
+
+    fn prepare_using(
+        self,
+        environment: &dyn Fn(&str) -> Option<OsString>,
+        create_cursor: fn(
+            [u8; 32],
+            [u8; 32],
+            u64,
+        ) -> Result<crate::discovery_cursor::CursorCodec, Failure>,
     ) -> Result<Prepared, Failure> {
         let admission = &self.admission;
         admission.limits().validate()?;
@@ -208,6 +230,22 @@ impl Config {
             .as_ref()
             .map(|name| secret(name, environment))
             .transpose()?;
+        let discovery = match self.discovery {
+            Some(config) => {
+                let key = crate::auth::decode_hash(&secret(&config.cursor_key_env, environment)?)?;
+                let namespace = crate::discovery_cursor::namespace(
+                    &self.s3.endpoint,
+                    &self.s3.region,
+                    &self.s3.bucket,
+                );
+                Some(std::sync::Arc::new(create_cursor(
+                    key,
+                    namespace,
+                    self.worker_instance.0,
+                )?))
+            }
+            None => None,
+        };
         Ok(Prepared {
             s3: S3Config {
                 endpoint: self.s3.endpoint,
@@ -226,6 +264,7 @@ impl Config {
                 cache_directory: self.cache_directory,
                 admission: self.admission,
                 catalogue: self.catalogue,
+                discovery,
                 cache: self.cache,
                 auth: Authenticator::new(self.credentials)?,
             },

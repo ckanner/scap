@@ -150,6 +150,21 @@ jobs:
           python3 experiments/object-network/build.py \
             --target-dir "$CARGO_TARGET_DIR" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-network-build"
+      - name: Verify bounded LIST and single-attempt signed HTTP
+        run: |
+          python3 experiments/object-network/listing_build.py \
+            --target-dir "$CARGO_TARGET_DIR" --release \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/listing-build"
+          python3 experiments/object-network/listing_contract.py \
+            --worker "$CARGO_TARGET_DIR/release/examples/scap-object-listing" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-receipt "$GITHUB_WORKSPACE/target/evidence/listing-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/listing"
+          python3 experiments/object-network/response_contract.py \
+            --worker "$CARGO_TARGET_DIR/release/examples/scap-object-listing" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-receipt "$GITHUB_WORKSPACE/target/evidence/listing-build/build.json" --bounded \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/response-bounds"
       - name: Run independent HTTP and process evidence
         # Private loopback services only. AWS Standard and production SLO remain NOT_RUN.
         run: |
@@ -219,6 +234,26 @@ jobs:
           python3 experiments/object-service/isolation_controls.py \
             --evidence "$GITHUB_WORKSPACE/target/evidence/isolation-service" \
             --output "$GITHUB_WORKSPACE/target/evidence/isolation-controls"
+      - name: Verify segmented request index growth and full cold integrity
+        run: |
+          python3 experiments/object-service/segmented_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/segmented-service"
+          python3 experiments/object-service/segmented_oracle.py \
+            "$GITHUB_WORKSPACE/target/evidence/segmented-service" \
+            > "$GITHUB_WORKSPACE/target/evidence/segmented-oracle.json"
+          python3 experiments/object-service/segmented_controls.py \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/segmented-service" \
+            --output "$GITHUB_WORKSPACE/target/evidence/segmented-controls"
+      - name: Verify bounded discovery, current authorization, and independent admission
+        run: |
+          python3 experiments/object-service/discovery_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$GITHUB_WORKSPACE/target/evidence/discovery-service"
       - name: Retain public network evidence only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -284,4 +319,11 @@ jobs:
             target/evidence/catalogue-service/*.log
             target/evidence/isolation-service/*
             target/evidence/isolation-controls/**
+            target/evidence/listing-build/**
+            target/evidence/listing/**
+            target/evidence/response-bounds/**
+            target/evidence/segmented-service/**
+            target/evidence/segmented-oracle.json
+            target/evidence/segmented-controls/**
+            target/evidence/discovery-service/**
           if-no-files-found: error

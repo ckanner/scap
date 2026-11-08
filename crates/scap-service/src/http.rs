@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Semaphore;
 
 use crate::{
     auth::{Authenticator, Principal},
@@ -24,6 +24,7 @@ pub struct HttpState {
     pub auth: Authenticator,
     pub scheduler: Arc<Scheduler>,
     pub catalogue: Option<CatalogueState>,
+    pub discovery: Option<Arc<crate::discovery::Discovery>>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
     pub recovery_timeout: Duration,
@@ -64,6 +65,7 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
         .route("/healthz", get(health))
         .route("/v1", post(call))
         .route("/v1/catalogue", post(catalogue_call))
+        .route("/v1/discovery", post(discovery::call))
         .with_state(state))
 }
 
@@ -77,7 +79,7 @@ fn failure(error: Failure) -> Response {
         "UNAUTHENTICATED" => StatusCode::UNAUTHORIZED,
         "DENIED" => StatusCode::FORBIDDEN,
         "NOT_FOUND" => StatusCode::NOT_FOUND,
-        "INVALID" | "VERSION" => StatusCode::BAD_REQUEST,
+        "INVALID" | "VERSION" | "CURSOR_INVALID" => StatusCode::BAD_REQUEST,
         "LIMIT" => StatusCode::PAYLOAD_TOO_LARGE,
         "BACKPRESSURE" | "RECOVERY_BUSY" => StatusCode::TOO_MANY_REQUESTS,
         "UNKNOWN" | "UNAVAILABLE" | "DEADLINE" | "COMMITTED_BUT_UNAVAILABLE" => {
@@ -102,7 +104,7 @@ fn single<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 /// without copying the potentially large response allocation.
 struct ReservedBytes {
     bytes: Bytes,
-    _reservation: Arc<OwnedSemaphorePermit>,
+    _reservation: Arc<dyn Send + Sync>,
 }
 
 impl AsRef<[u8]> for ReservedBytes {
@@ -115,7 +117,7 @@ impl AsRef<[u8]> for ReservedBytes {
 /// Dropping a client does not cancel or repeat a running SQL call.
 struct ReservedBody {
     inner: Body,
-    reservation: Arc<OwnedSemaphorePermit>,
+    reservation: Arc<dyn Send + Sync>,
 }
 
 impl HttpBody for ReservedBody {
@@ -177,7 +179,7 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
     reserved(response, reservation)
 }
 
-fn reserved(response: Response, reservation: OwnedSemaphorePermit) -> Response {
+fn reserved(response: Response, reservation: impl Send + Sync + 'static) -> Response {
     let (parts, inner) = response.into_parts();
     Response::from_parts(
         parts,
@@ -320,3 +322,5 @@ mod tests;
 
 #[cfg(test)]
 mod catalogue_tests;
+
+mod discovery;

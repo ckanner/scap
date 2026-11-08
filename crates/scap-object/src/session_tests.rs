@@ -344,18 +344,33 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
         Err(Error::Corrupt)
     ));
     let entry = Entry {
+        result_bytes: 0,
         request: identity(3),
         outcome: OutcomeRef::Cancelled {
             transition: head.transition.clone(),
         },
     };
     assert!(matches!(
-        database.append(&mut head, entry.clone(), u64::MAX, deadline()),
+        database.append(
+            &mut head,
+            Entry {
+                result_bytes: u64::MAX,
+                ..entry.clone()
+            },
+            deadline()
+        ),
         Err(Error::Limit)
     ));
     head.windows[0].result_bytes = 0;
     assert!(matches!(
-        database.append(&mut head, entry, u64::MAX, deadline()),
+        database.append(
+            &mut head,
+            Entry {
+                result_bytes: u64::MAX,
+                ..entry
+            },
+            deadline()
+        ),
         Err(Error::WindowFull)
     ));
 

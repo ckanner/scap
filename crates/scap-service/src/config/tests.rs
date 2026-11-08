@@ -188,3 +188,66 @@ fn unsupported_cache_mount_is_rejected_before_resolving_credentials() {
         .unwrap();
     assert_eq!(error.code, "CACHE_IO");
 }
+
+#[test]
+fn discovery_is_disabled_by_default_and_requires_a_named_strict_cursor_secret() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .discovery
+        .is_none());
+    value["discovery"] = json!({"cursor_key_env":"CURSOR_KEY"});
+    let config = parsed(value.clone())
+        .prepare_with(&|name| {
+            Some(OsString::from(if name == "CURSOR_KEY" {
+                "ab".repeat(32)
+            } else {
+                "unit-secret".into()
+            }))
+        })
+        .unwrap();
+    assert!(config.service.discovery.is_some());
+    for key in [None, Some("bad".into()), Some("AB".repeat(32))] {
+        assert!(parsed(value.clone())
+            .prepare_with(&|name| if name == "CURSOR_KEY" {
+                key.clone().map(OsString::from)
+            } else {
+                environment(name)
+            })
+            .is_err());
+    }
+    value["discovery"]["workers"] = json!(0);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
+fn cursor_key_construction_failure_blocks_startup() {
+    fn failed(
+        _: [u8; 32],
+        _: [u8; 32],
+        _: u64,
+    ) -> Result<crate::discovery_cursor::CursorCodec, Failure> {
+        Err(Failure::new("CONFIG"))
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    value["discovery"] = json!({"cursor_key_env":"CURSOR_KEY"});
+    assert_eq!(
+        parsed(value)
+            .prepare_using(
+                &|name| Some(OsString::from(if name == "CURSOR_KEY" {
+                    "ab".repeat(32)
+                } else {
+                    "unit-secret".into()
+                })),
+                failed
+            )
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}

@@ -1,5 +1,209 @@
 use super::*;
 
+fn index(entries: Vec<Entry>) -> Payload {
+    Payload::Index(RequestIndex::Leaf { epoch: 1, entries })
+}
+
+fn reference(first: u64, count: u32) -> IndexChild {
+    IndexChild {
+        hash: digest(&first.to_le_bytes()),
+        summary: IndexSummary {
+            first,
+            last: first + (count as u64 - 1),
+            count,
+            result_bytes: 0,
+        },
+    }
+}
+
+fn index_branch() -> RequestIndex {
+    RequestIndex::Branch {
+        epoch: 1,
+        level: 1,
+        children: vec![reference(1, 64), reference(100, 64)],
+    }
+}
+
+#[test]
+fn segmented_node_codec_bounds_ranges_occupancy_and_aggregates() {
+    object_round_trip(envelope(Payload::Index(index_branch())));
+    for epoch in [0, 2] {
+        reject_object(
+            envelope(Payload::Index(RequestIndex::Leaf {
+                epoch,
+                entries: vec![committed()],
+            })),
+            FormatError::Invalid,
+        );
+    }
+    let mut large = committed();
+    large.result_bytes = MAX_RESULT_BYTES as u64 + 1;
+    reject_object(envelope(index(vec![large])), FormatError::Invalid);
+    let mut cancelled_bytes = cancelled();
+    cancelled_bytes.result_bytes = 1;
+    reject_object(envelope(index(vec![cancelled_bytes])), FormatError::Invalid);
+    reject_object(
+        envelope(index(vec![cancelled(), committed()])),
+        FormatError::Invalid,
+    );
+    for level in [0, MAX_REQUEST_INDEX_LEVEL + 1] {
+        let RequestIndex::Branch {
+            epoch, children, ..
+        } = index_branch()
+        else {
+            panic!()
+        };
+        reject_object(
+            envelope(Payload::Index(RequestIndex::Branch {
+                epoch,
+                level,
+                children,
+            })),
+            FormatError::Invalid,
+        );
+    }
+    for count in [0, 1, 33] {
+        let children = (0..count).map(|i| reference(i * 64 + 1, 64)).collect();
+        reject_object(
+            envelope(Payload::Index(RequestIndex::Branch {
+                epoch: 1,
+                level: 1,
+                children,
+            })),
+            if count == 33 {
+                FormatError::Limit
+            } else {
+                FormatError::Invalid
+            },
+        );
+    }
+    let mutations: Vec<Mutation<IndexChild>> = vec![
+        Box::new(|child| child.hash.clear()),
+        Box::new(|child| child.summary.first = 0),
+        Box::new(|child| child.summary.last = 0),
+        Box::new(|child| child.summary.last = 63),
+        Box::new(|child| child.summary.count = 63),
+        Box::new(|child| child.summary.count = 129),
+        Box::new(|child| child.summary.result_bytes = 64 * MAX_RESULT_BYTES as u64 + 1),
+    ];
+    for mutate in mutations {
+        let RequestIndex::Branch {
+            epoch,
+            level,
+            mut children,
+        } = index_branch()
+        else {
+            panic!()
+        };
+        mutate(&mut children[0]);
+        reject_object(
+            envelope(Payload::Index(RequestIndex::Branch {
+                epoch,
+                level,
+                children,
+            })),
+            FormatError::Invalid,
+        );
+    }
+    let children = vec![reference(1, 64), reference(64, 64)];
+    reject_object(
+        envelope(Payload::Index(RequestIndex::Branch {
+            epoch: 1,
+            level: 1,
+            children,
+        })),
+        FormatError::Invalid,
+    );
+    let children = (0..5).map(|i| reference(i * 16384 + 1, 16384)).collect();
+    reject_object(
+        envelope(Payload::Index(RequestIndex::Branch {
+            epoch: 1,
+            level: 3,
+            children,
+        })),
+        FormatError::Limit,
+    );
+}
+
+#[test]
+fn worst_case_index_nodes_fit_the_original_small_metadata_limit() {
+    let entries = (0..REQUEST_LEAF_CAPACITY)
+        .map(|offset| Entry {
+            request: Request {
+                epoch: u64::MAX,
+                id: u64::MAX - REQUEST_LEAF_CAPACITY as u64 + 1 + offset as u64,
+                principal: u64::MAX,
+                fingerprint: "f".repeat(64),
+            },
+            outcome: OutcomeRef::Committed {
+                result: "f".repeat(64),
+            },
+            result_bytes: MAX_RESULT_BYTES as u64,
+        })
+        .collect();
+    let scope = Scope {
+        deployment: u64::MAX,
+        tenant: u64::MAX,
+        database: u64::MAX,
+        incarnation: u64::MAX,
+        generation: u64::MAX,
+    };
+    let leaf = Envelope {
+        format: 2,
+        scope: scope.clone(),
+        payload: Payload::Index(RequestIndex::Leaf {
+            epoch: u64::MAX,
+            entries,
+        }),
+    };
+    let leaf_bytes = encode_object(&leaf).unwrap();
+    assert!(leaf_bytes.len() < 43 * 1024);
+    assert_eq!(
+        decode_object(&leaf_bytes, &scope, &digest(&leaf_bytes)),
+        Ok(leaf)
+    );
+    let children = (0..REQUEST_BRANCH_CAPACITY)
+        .map(|offset| {
+            let mut child = reference(u64::MAX - 4096 + 1 + offset as u64 * 128, 128);
+            child.summary.result_bytes = 128 * MAX_RESULT_BYTES as u64;
+            child
+        })
+        .collect();
+    let branch = Envelope {
+        format: 2,
+        scope: scope.clone(),
+        payload: Payload::Index(RequestIndex::Branch {
+            epoch: u64::MAX,
+            level: 1,
+            children,
+        }),
+    };
+    let bytes = encode_object(&branch).unwrap();
+    assert!(bytes.len() < 8 * 1024);
+    assert_eq!(decode_object(&bytes, &scope, &digest(&bytes)), Ok(branch));
+}
+
+#[test]
+fn discovery_decodes_only_the_actual_slot_and_legacy_head_is_rejected() {
+    let mut value = head();
+    value.scope.incarnation += 1;
+    value.scope.generation += 1;
+    let bytes = encode_head(&value).unwrap();
+    let slot = DatabaseSlot {
+        deployment: value.scope.deployment,
+        tenant: value.scope.tenant,
+        database: value.scope.database,
+    };
+    assert_eq!(decode_head_at_slot(&bytes, &slot), Ok(value.clone()));
+    assert_eq!(decode_head(&bytes, &scope()), Err(FormatError::Corrupt));
+    value.format = 3;
+    assert_eq!(encode_head(&value), Err(FormatError::Invalid));
+    assert_eq!(
+        decode_head_at_slot(&serde_json::to_vec(&value).unwrap(), &slot),
+        Err(FormatError::Corrupt)
+    );
+}
+
 type Mutation<T> = Box<dyn Fn(&mut T)>;
 
 fn scope() -> Scope {
@@ -30,7 +234,7 @@ fn transition() -> Transition {
 
 fn head() -> Head {
     Head {
-        format: 3,
+        format: 4,
         scope: scope(),
         revision: 1,
         transition: transition(),
@@ -126,7 +330,7 @@ fn head_v3_mandatory_nullable_origins_do_not_change_immutable_v2_frames() {
         decode_head(&serde_json::to_vec(&old).unwrap(), &scope()),
         Err(FormatError::Corrupt)
     );
-    let object = envelope(Payload::Index(Vec::new()));
+    let object = envelope(index(Vec::new()));
     let bytes = encode_object(&object).unwrap();
     assert_eq!(&bytes[..8], b"SCAPOBJ2");
     assert_eq!(
@@ -274,6 +478,7 @@ fn result() -> StoredResult {
 
 fn committed() -> Entry {
     Entry {
+        result_bytes: 0,
         request: request(),
         outcome: OutcomeRef::Committed {
             result: digest(b"original result"),
@@ -283,6 +488,7 @@ fn committed() -> Entry {
 
 fn cancelled() -> Entry {
     Entry {
+        result_bytes: 0,
         request: Request { id: 4, ..request() },
         outcome: OutcomeRef::Cancelled {
             transition: transition(),
@@ -661,8 +867,8 @@ fn all_object_variants_round_trip_without_json_byte_expansion() {
         root: None,
     })));
     object_round_trip(envelope(Payload::Result(result())));
-    object_round_trip(envelope(Payload::Index(Vec::new())));
-    object_round_trip(envelope(Payload::Index(vec![committed(), cancelled()])));
+    object_round_trip(envelope(index(Vec::new())));
+    object_round_trip(envelope(index(vec![committed(), cancelled()])));
     assert!(!format!("{:?}", envelope(Payload::Manifest(manifest()))).is_empty());
 }
 
@@ -818,37 +1024,33 @@ fn stored_results_keep_identity_and_exact_maximum_raw_byte_capacity() {
 
 #[test]
 fn index_budget_identity_epoch_and_both_outcome_variants_are_checked() {
-    let entries: Vec<_> = (1..=MAX_REQUESTS as u64 + 1)
+    let entries: Vec<_> = (1..=REQUEST_LEAF_CAPACITY as u64 + 1)
         .map(|id| Entry {
+            result_bytes: 0,
             request: Request { id, ..request() },
             ..committed()
         })
         .collect();
+    reject_object(envelope(index(entries.clone())), FormatError::Limit);
+    object_round_trip(envelope(index(entries[..REQUEST_LEAF_CAPACITY].to_vec())));
     reject_object(
-        envelope(Payload::Index(entries.clone())),
-        FormatError::Limit,
-    );
-    object_round_trip(envelope(Payload::Index(
-        entries[..MAX_REQUESTS as usize].to_vec(),
-    )));
-    reject_object(
-        envelope(Payload::Index(vec![committed(), committed()])),
+        envelope(index(vec![committed(), committed()])),
         FormatError::Invalid,
     );
     let mut entry = committed();
     entry.request.fingerprint.clear();
-    reject_object(envelope(Payload::Index(vec![entry])), FormatError::Invalid);
+    reject_object(envelope(index(vec![entry])), FormatError::Invalid);
     let mut entry = cancelled();
     entry.request.epoch = 2;
     reject_object(
-        envelope(Payload::Index(vec![committed(), entry])),
+        envelope(index(vec![committed(), entry])),
         FormatError::Invalid,
     );
     let mut entry = committed();
     entry.outcome = OutcomeRef::Committed {
         result: "bad".into(),
     };
-    reject_object(envelope(Payload::Index(vec![entry])), FormatError::Invalid);
+    reject_object(envelope(index(vec![entry])), FormatError::Invalid);
     let mut entry = cancelled();
     entry.outcome = OutcomeRef::Cancelled {
         transition: Transition {
@@ -856,7 +1058,7 @@ fn index_budget_identity_epoch_and_both_outcome_variants_are_checked() {
             ..transition()
         },
     };
-    reject_object(envelope(Payload::Index(vec![entry])), FormatError::Invalid);
+    reject_object(envelope(index(vec![entry])), FormatError::Invalid);
 }
 
 #[test]
@@ -880,7 +1082,7 @@ fn wire_budgets_exact_framing_and_object_scope_fail_closed() {
         encode_frame(&"abcd", b"raw", 6).unwrap(),
         frame(b"\"abcd\"", b"raw")
     );
-    let bytes = encode_object(&envelope(Payload::Index(Vec::new()))).unwrap();
+    let bytes = encode_object(&envelope(index(Vec::new()))).unwrap();
     assert_eq!(
         decode_object(&bytes, &scope(), "wrong"),
         Err(FormatError::Corrupt)
@@ -905,7 +1107,7 @@ fn wire_budgets_exact_framing_and_object_scope_fail_closed() {
     invalid[0] ^= 1;
     reject_wire(&invalid);
     let mut invalid = bytes.clone();
-    invalid[8..12].copy_from_slice(&((INDEX_METADATA_BYTES + 1) as u32).to_le_bytes());
+    invalid[8..12].copy_from_slice(&((SMALL_METADATA_BYTES + 1) as u32).to_le_bytes());
     reject_wire(&invalid);
     let mut invalid = bytes.clone();
     invalid[12..20].copy_from_slice(&u64::MAX.to_le_bytes());
@@ -916,7 +1118,7 @@ fn wire_budgets_exact_framing_and_object_scope_fail_closed() {
     reject_wire(&bytes[..bytes.len() - 1]);
     reject_wire(&frame(b"{", &[]));
     reject_wire(&frame(
-        &serde_json::to_vec(&envelope(Payload::Index(vec![]))).unwrap(),
+        &serde_json::to_vec(&envelope(index(vec![]))).unwrap(),
         b"unexpected raw",
     ));
     let mut metadata = serde_json::to_vec(&envelope(Payload::Manifest(manifest()))).unwrap();
@@ -971,7 +1173,7 @@ fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
         );
     }
     let wire = String::from_utf8(encode_head(&head()).unwrap()).unwrap();
-    let duplicate = wire.replacen("\"format\":3", "\"format\":3,\"format\":3", 1);
+    let duplicate = wire.replacen("\"format\":4", "\"format\":4,\"format\":4", 1);
     assert_eq!(
         decode_head(duplicate.as_bytes(), &scope()),
         Err(FormatError::Corrupt)
@@ -1004,25 +1206,25 @@ fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
             "/payload/value/request",
         ),
         (
-            envelope(Payload::Index(vec![committed()])),
-            "/payload/value/0",
+            envelope(index(vec![committed()])),
+            "/payload/value/entries/0",
         ),
         (
-            envelope(Payload::Index(vec![committed()])),
-            "/payload/value/0/outcome",
+            envelope(index(vec![committed()])),
+            "/payload/value/entries/0/outcome",
         ),
         (
-            envelope(Payload::Index(vec![cancelled()])),
-            "/payload/value/0/outcome",
+            envelope(index(vec![cancelled()])),
+            "/payload/value/entries/0/outcome",
         ),
-        (envelope(Payload::Index(vec![])), "/payload"),
-        (envelope(Payload::Index(vec![])), ""),
+        (envelope(index(vec![])), "/payload"),
+        (envelope(index(vec![])), ""),
     ] {
         let mut json = serde_json::to_value(object).unwrap();
         json.pointer_mut(path).unwrap()["extra"] = 1.into();
         reject_wire(&frame(&serde_json::to_vec(&json).unwrap(), &[]));
     }
-    let metadata = serde_json::to_string(&envelope(Payload::Index(vec![]))).unwrap();
+    let metadata = serde_json::to_string(&envelope(index(vec![]))).unwrap();
     reject_wire(&frame(
         metadata
             .replacen("\"format\":2", "\"format\":2,\"format\":2", 1)

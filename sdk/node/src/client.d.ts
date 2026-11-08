@@ -172,7 +172,13 @@ export interface CatalogueReference {
   readonly operation: CatalogueAction['operation'];
   readonly intent: CatalogueIntent;
 }
-export type RequestReference = OperationReference | CatalogueReference;
+export interface DiscoveryReference {
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly principal: Decimal;
+  readonly operation: 'list_names' | 'deployment_inventory';
+}
+export type RequestReference = OperationReference | CatalogueReference | DiscoveryReference;
 
 export interface PreparedCreate {
   readonly creation: Creation;
@@ -231,6 +237,63 @@ export class CatalogueClient {
   inspectCreateOperation(createOperation: Decimal, options?: CallOptions): Promise<CreationProgress>;
   resolveName(name: string, options?: CallOptions): Promise<Named>;
   deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
+}
+
+export type DiscoveryStop = 'INVALID' | 'DENIED' | 'LIMIT' | 'CONFLICT' | 'UNKNOWN' | 'CORRUPT' | null;
+export interface VisibleName {
+  readonly creation: Creation;
+  readonly binding_revision: Decimal;
+  readonly head_revision: Decimal;
+}
+export interface NamePage {
+  readonly names: readonly VisibleName[];
+  /** Opaque, caller-bound and short-lived. A restart requires beginning again. */
+  readonly cursor: string | null;
+  readonly traversal_exhausted: boolean;
+  readonly stopped: DiscoveryStop;
+}
+export interface InventoryRecord {
+  readonly key: string;
+  readonly kind: 'name' | 'create' | 'control' | 'abort_proof' | 'head' | 'orphan_prefix';
+  readonly state: 'descriptor_only' | 'reserved' | 'provisioning' | 'bound' | 'ready' | 'maintenance' |
+    'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict' | 'control_admitted' | 'orphan';
+  readonly creation: Creation | null;
+  readonly scope: Scope | null;
+  readonly control: ObservedControl | null;
+  readonly binding_revision: Decimal | null;
+  readonly head_revision: Decimal | null;
+}
+export type ObservedControl = {
+  readonly principal: Decimal;
+  readonly operation: Decimal;
+  readonly expected_name_revision: Decimal;
+  readonly nonce: Decimal;
+} & ({ readonly kind: 'abort'; readonly expected_head_revision: null } |
+  { readonly kind: 'delete'; readonly expected_head_revision: Decimal });
+export interface InventoryPage {
+  readonly records: readonly InventoryRecord[];
+  readonly cursor: string | null;
+  readonly stopped: DiscoveryStop;
+  readonly completion: {
+    readonly traversal_exhausted: boolean;
+    readonly preexisting_slots_covered: boolean;
+    readonly metadata_classified: Decimal;
+    readonly data_recovery: 'not_run';
+    readonly recovery_complete: false;
+  };
+  readonly usage: { readonly list_pages: number; readonly candidates: number; readonly exact_gets: number;
+    readonly list_bytes: number; readonly metadata_bytes: number };
+}
+export class DiscoveryClient {
+  /** Use the /v1/discovery endpoint. Enabled only by trusted server configuration. */
+  constructor(options: CatalogueClientOptions);
+  readonly deployment: Decimal;
+  readonly tenant: Decimal;
+  readonly principal: Decimal;
+  /** One page with fresh READ checks; no automatic retries or continuation. */
+  listNames(cursor?: string | null, options?: CallOptions): Promise<NamePage>;
+  /** Requires the explicit deployment_inventory credential capability; metadata only. */
+  deploymentInventory(cursor?: string | null, options?: CallOptions): Promise<InventoryPage>;
 }
 
 export class ClientError extends Error {

@@ -168,8 +168,8 @@ def json_record(raw):
 
 def head_record(raw, path):
     value = parse(raw)
-    fields(value, HEAD_FIELDS, "incomplete HEAD v3")
-    require(value["format"] == 3, "HEAD is not format 3")
+    fields(value, HEAD_FIELDS, "incomplete HEAD v4")
+    require(value["format"] == 4, "HEAD is not format 4")
     scope(value["scope"])
     equal(head_path(value["scope"]), path, "HEAD lies under another physical key")
     for key in ("revision", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch"):
@@ -952,7 +952,7 @@ class Auditor:
                 "expected_head_revision": saved.get("expected_head_revision"), "nonce": saved["nonce"]}
 
     def inventory(self):
-        require(self.plan["version"] == 1 and self.plan["head_format"] == 3 and self.plan["immutable_format"] == 2
+        require(self.plan["version"] == 1 and self.plan["head_format"] == 4 and self.plan["immutable_format"] == 2
                 and self.plan["catalogue_record_bytes"] == 65536, "catalogue wire/capture plan changed")
         equal(self.plan["fixture_limits"], PROFILE, "fixture resource profile changed")
         equal(self.plan["pilot_profiles"], list(PILOTS), "pilot denominator changed")

@@ -355,7 +355,7 @@ def network(history,calls):
         require(len(witnesses)==1,"successful execute missing unique original durable HEAD")
     uncertain=[(request,response,head) for request,response,head in accepted if request["phase"]=="unknown_write"]
     require(len(uncertain)==1 and uncertain[0][1]["suppressed"] is True,"UNKNOWN lacks real accepted HEAD/response loss")
-    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":3,"result_format":2,
+    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":4,"result_format":2,
             "object_version_audit":versions}
 
 

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use scap_object::Options;
-use scap_object_store::{Objects, S3};
+use scap_object_store::{Listings, Objects, S3};
 use tokio::sync::Semaphore;
 
 use crate::{
@@ -27,6 +27,25 @@ pub fn assemble(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    assemble_with_listings(prepared, objects, None)
+}
+
+/// The same configured backend must provide object authority and candidate
+/// listing. Enabling discovery without its transport fails at startup.
+pub fn assemble_with_listings(
+    prepared: ServiceConfig,
+    objects: Arc<dyn Objects>,
+    listings: Option<Arc<dyn Listings>>,
+) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    let discovery = match prepared.discovery {
+        Some(codec) => Some(Arc::new(crate::discovery::Discovery::new(
+            objects.clone(),
+            listings.ok_or_else(|| Failure::new("CONFIG"))?,
+            prepared.worker_instance,
+            codec,
+        )?)),
+        None => None,
+    };
     let catalogue = match prepared.catalogue {
         Some(admission) => {
             // The scheduler validates queue/worker limits at construction;
@@ -73,6 +92,7 @@ pub fn assemble(
             auth: prepared.auth,
             scheduler,
             catalogue,
+            discovery,
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),
             recovery_timeout: Duration::from_millis(admission.recovery_timeout_ms),
@@ -86,9 +106,9 @@ pub fn assemble(
 pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
-    let objects: Arc<dyn Objects> =
-        Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
-    let (address, state) = assemble(prepared.service, objects)?;
+    let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
+    let (address, state) =
+        assemble_with_listings(prepared.service, backend.clone(), Some(backend))?;
     run(address, state, shutdown, runtime)
 }
 

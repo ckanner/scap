@@ -29,6 +29,7 @@ pub(super) fn state() -> Arc<HttpState> {
         tenant: Decimal(2),
         principal: Decimal(3),
         provision: true,
+        deployment_inventory: false,
     }])
     .unwrap();
     let factory: Factory = Arc::new(|_| Ok(Box::new(Echo)));
@@ -52,6 +53,7 @@ pub(super) fn state() -> Arc<HttpState> {
         auth,
         scheduler,
         catalogue: None,
+        discovery: None,
         max_body_bytes: 4096,
         timeout: Duration::from_millis(500),
         recovery_timeout: Duration::from_secs(2),

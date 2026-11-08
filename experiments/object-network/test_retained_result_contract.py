@@ -26,9 +26,9 @@ def fixture(epoch=1):
         "request": request, "sequence": 2, "transition": {"revision": 6, "nonce": 2},
         "data_root": "b" * 64, "bytes": []}}}
     result = contract.pack(metadata, VALID)
-    entries = [{"request": request, "outcome": {"state": "committed", "result": contract.sha(result)}}]
-    index = contract.pack({"format": 2, "scope": dict(SCOPE), "payload": {"kind": "index", "value": entries}}, b"")
-    head = {"format": 3, "creation": None, "deletion": None,
+    entries = [{"result_bytes": len(VALID), "request": request, "outcome": {"state": "committed", "result": contract.sha(result)}}]
+    index = contract.pack({"format": 2, "scope": dict(SCOPE), "payload": {"kind": "index", "value": {"kind": "leaf", "epoch": epoch, "entries": entries}}}, b"")
+    head = {"format": 4, "creation": None, "deletion": None,
             "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
             "owner_instance": 101, "active": False, "retention": {"max_result_bytes": 128 * 1024 * 1024},
             "windows": [{"epoch": epoch, "root": contract.sha(index), "count": 1, "result_bytes": len(VALID)}]}
@@ -53,7 +53,7 @@ class PureFixtureTests(unittest.TestCase):
                     self.assertEqual(root, contract.sha(plan["index"]))
                     new_index, raw_index = contract.unpack(plan["index"])
                     self.assertFalse(raw_index)
-                    link = new_index["payload"]["value"][0]["outcome"]["result"]
+                    link = new_index["payload"]["value"]["entries"][0]["outcome"]["result"]
                     self.assertEqual(link, contract.sha(plan["result"]))
                     new_result, new_raw = contract.unpack(plan["result"])
                     old_result, old_raw = contract.unpack(result)
@@ -62,7 +62,7 @@ class PureFixtureTests(unittest.TestCase):
                     self.assertEqual(changed["windows"][0]["result_bytes"], len(new_raw))
                     old["windows"] = changed["windows"]
                     self.assertEqual(changed, old)
-                    self.assertEqual(contract.unpack(index)[0]["payload"]["value"][0]["outcome"]["result"], contract.sha(result))
+                    self.assertEqual(contract.unpack(index)[0]["payload"]["value"]["entries"][0]["outcome"]["result"], contract.sha(result))
                     self.assertEqual(plan["request"], old_result["payload"]["value"]["request"])
 
     def test_mutation_vectors_are_independent_and_have_targeted_invalid_bytes(self):
@@ -116,14 +116,14 @@ class PureFixtureTests(unittest.TestCase):
                 if change == "embedded_bytes": rm["payload"]["value"]["bytes"] = [0]
                 if change == "epoch": rm["payload"]["value"]["request"]["epoch"] += 1
                 if change == "count": head["windows"][0]["count"] = 2
-                if change == "request_missing": im["payload"]["value"][0]["request"]["id"] += 1
-                if change == "outcome": im["payload"]["value"][0]["outcome"]["result"] = "0" * 64
+                if change == "request_missing": im["payload"]["value"]["entries"][0]["request"]["id"] += 1
+                if change == "outcome": im["payload"]["value"]["entries"][0]["outcome"]["result"] = "0" * 64
                 if change == "negative_counter": head["windows"][0]["result_bytes"] = 0
                 if change == "overflow": head["retention"]["max_result_bytes"] = 0
                 if change == "format_overflow": head["windows"][0]["result_bytes"] = 64 * 1024 * 1024
                 # Recompute unrelated links so each test reaches its intended guard.
                 result = contract.pack(rm, rr)
-                if change != "outcome": im["payload"]["value"][0]["outcome"]["result"] = contract.sha(result)
+                if change != "outcome": im["payload"]["value"]["entries"][0]["outcome"]["result"] = contract.sha(result)
                 index = contract.pack(im, ir)
                 if change != "hash": head["windows"][0]["root"] = contract.sha(index)
                 with self.assertRaises(ValueError):
@@ -192,7 +192,7 @@ class FakeWorker:
             corrupt = None
             for window in head["windows"]:
                 im, _ = contract.unpack(bytes(case["objects"][contract.object_key(head["scope"], window["root"])]["bytes"]))
-                for entry in im["payload"]["value"]:
+                for entry in im["payload"]["value"]["entries"]:
                     key = contract.object_key(head["scope"], entry["outcome"]["result"])
                     rm, raw = contract.unpack(bytes(case["objects"][key]["bytes"]))
                     if raw != VALID: corrupt = key
@@ -243,7 +243,7 @@ class FakeSuite:
         im, _ = contract.unpack(index); rm, _ = contract.unpack(result)
         im["scope"] = rm["scope"] = case["scope"]
         result = contract.pack(rm, VALID)
-        im["payload"]["value"][0]["outcome"]["result"] = contract.sha(result)
+        im["payload"]["value"]["entries"][0]["outcome"]["result"] = contract.sha(result)
         index = contract.pack(im, b"")
         self.store(case, contract.object_key(case["scope"], contract.sha(result)), result)
         self.store(case, contract.object_key(case["scope"], contract.sha(index)), index)
@@ -259,10 +259,10 @@ class FakeSuite:
         im, _ = contract.unpack(index); rm, _ = contract.unpack(result)
         im["scope"] = rm["scope"] = dict(scope)
         result = contract.pack(rm, VALID)
-        im["payload"]["value"][0]["outcome"]["result"] = contract.sha(result)
+        im["payload"]["value"]["entries"][0]["outcome"]["result"] = contract.sha(result)
         index = contract.pack(im, b"")
         head["windows"][0]["root"] = contract.sha(index)
-        empty = contract.pack({"format": 2, "scope": scope, "payload": {"kind": "index", "value": []}}, b"")
+        empty = contract.pack({"format": 2, "scope": scope, "payload": {"kind": "index", "value": {"kind": "leaf", "epoch": 2, "entries": []}}}, b"")
         head["windows"].insert(0, {"epoch": 2, "root": contract.sha(empty), "count": 0, "result_bytes": 0})
         case = {"name": name, "scope": scope, "directory": directory, "workers": [], "objects": {}, "invocation": {}}
         case["head_key"] = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/head"
@@ -312,7 +312,7 @@ class ScenarioTests(unittest.TestCase):
             for epoch in ("current", "closed"):
                 for damage in contract.MUTATIONS: contract.run_case(suite, epoch, damage)
             contract.check_final(suite)
-            self.assertEqual(len([event for event in suite.events if event["event"] == "semantic_result_refused"]), 60)
+            self.assertEqual(len([event for event in suite.events if event["event"] == "semantic_result_refused"]), 72)
             self.assertEqual(len([event for event in suite.events if event["event"] == "audit_called"]), 12)
             self.assertFalse(suite.workers)
 
@@ -426,7 +426,7 @@ class RunnerTests(unittest.TestCase):
     def test_runner_requires_build_identity_before_and_after_all_scenarios(self):
         code, report, calls = self.run_main()
         self.assertEqual(code, 0); self.assertEqual(report["status"], "passed")
-        self.assertEqual(report["verified_entrypoint_checks"], 60)
+        self.assertEqual(report["verified_entrypoint_checks"], 72)
         self.assertEqual(report["ack_audited_count"], 30); self.assertEqual(calls, 2)
         self.assertEqual(report["cleanup_errors"], [])
         self.assertTrue(FakeBackend.created[0].stopped)

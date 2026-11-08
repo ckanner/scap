@@ -5,10 +5,16 @@
 
 mod control;
 mod create;
+mod discovery;
+mod discovery_budget;
+mod discovery_names;
+mod discovery_records;
 mod inspect;
 mod records;
 mod types;
 
+pub use discovery::*;
+pub use discovery_names::*;
 pub use types::*;
 
 use std::sync::Arc;

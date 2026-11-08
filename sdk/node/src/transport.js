@@ -10,7 +10,8 @@ const RECOVERY = new Set(['open', 'activate']);
 const DATA = new Set(['create', 'execute', 'query']);
 const CATALOGUE = new Set(['prepare_create', 'resume_create', 'abort_create',
   'inspect_create_operation', 'resolve_name', 'delete_name']);
-const READ = new Set(['status', 'query', 'open', 'inspect_create_operation', 'resolve_name']);
+const DISCOVERY = new Set(['list_names', 'deployment_inventory']);
+const READ = new Set(['status', 'query', 'open', 'inspect_create_operation', 'resolve_name', ...DISCOVERY]);
 
 export function duration(value) {
   requireValue(Number.isSafeInteger(value) && value > 0 && value <= 2147483647,
@@ -96,7 +97,7 @@ export class Transport {
         method: 'POST', body: encoded, redirect: 'error', cache: 'no-store', credentials: 'omit',
         referrerPolicy: 'no-referrer', signal: controller.signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${this.#token}`,
-          'x-scap-admission': CATALOGUE.has(body.operation) ? 'catalogue' :
+          'x-scap-admission': DISCOVERY.has(body.operation) ? 'discovery' : CATALOGUE.has(body.operation) ? 'catalogue' :
             recovery ? 'recovery' : DATA.has(body.operation) ? 'data' : 'control' },
       }));
       requireValue(response instanceof Response && !response.redirected, 'Invalid or redirected HTTP response');

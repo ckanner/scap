@@ -211,7 +211,9 @@ fn empty_and_manifest_validation_never_invent_data() {
         .borrow()
         .iter()
         .all(|observed| *observed == end));
-    let wrong = store.save(Payload::Index(vec![]), end).unwrap();
+    let wrong = store
+        .save(crate::tests::index_payload(1, vec![]), end)
+        .unwrap();
     assert!(matches!(manifest(&store, &wrong, end), Err(Error::Corrupt)));
     let invalid = Manifest {
         page_count: 1,
@@ -499,7 +501,7 @@ fn every_accessed_node_and_chunk_is_bound_to_its_exact_range_and_kind() {
     let tree = value.root.as_ref().unwrap();
     let child = children(&original, tree);
     for payload in [
-        Payload::Index(vec![]),
+        crate::tests::index_payload(1, vec![]),
         Payload::Node {
             level: 1,
             first_chunk: 0,
@@ -537,7 +539,7 @@ fn every_accessed_node_and_chunk_is_bound_to_its_exact_range_and_kind() {
         ));
     }
     for payload in [
-        Payload::Index(vec![]),
+        crate::tests::index_payload(1, vec![]),
         Payload::Chunk {
             first_page: 33,
             bytes: vec![0; CHUNK_BYTES],

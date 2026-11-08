@@ -278,8 +278,15 @@ def network(history, calls, observed, originals, facts, configuration):
         require(payload["kind"] == "result" and raw == originals[name]["raw"], "durable result differs from original ACK bytes")
         index_key = prefix + head["windows"][0]["root"]
         index, raw = envelope(objects[index_key], index_key)
-        require(index["kind"] == "index" and not raw and len(index["value"]) == 1 and
-                index["value"][0]["outcome"] == {"state": "committed", "result": result_key.rsplit("/", 1)[1]}, "committed index lost original result reference")
+        expected_index = {"kind": "leaf", "epoch": 1, "entries": [{
+            "request": payload["value"]["request"],
+            "outcome": {"state": "committed", "result": result_key.rsplit("/", 1)[1]},
+            "result_bytes": len(originals[name]["raw"])}]}
+        require(index["kind"] == "index" and not raw and index["value"] == expected_index,
+                "committed index lost original request/result/length reference")
+        require(head["windows"][0]["count"] == 1 and
+                head["windows"][0]["result_bytes"] == len(originals[name]["raw"]),
+                "committed leaf aggregate differs from HEAD")
         dependencies = trees[name][0] | {result_key, index_key}
         for key in dependencies:
             publications = [number for number, request in requests.items() if request["path"] == key and request["method"] == "PUT" and responses[number]["status"] == 200]

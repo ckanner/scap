@@ -343,6 +343,8 @@ pub(super) fn descriptor(catalogue: &Catalogue, creation: &Creation) -> Source {
 
 #[path = "boundary_tests.rs"]
 mod boundary_tests;
+#[path = "discovery_tests.rs"]
+mod discovery_tests;
 #[path = "fault_tests.rs"]
 mod fault_tests;
 #[path = "protocol_tests.rs"]

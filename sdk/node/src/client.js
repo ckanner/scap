@@ -6,6 +6,7 @@ import { Transport } from './transport.js';
 
 export { ClientError, RemoteError, UnknownError, CommittedResultError } from './errors.js';
 export { CatalogueClient } from './catalogue.js';
+export { DiscoveryClient } from './discovery.js';
 export { decodeResult, validateResult } from '../../node-codec/src/codec.js';
 
 const EMPTY = Buffer.from('534341505245533100000000', 'hex');

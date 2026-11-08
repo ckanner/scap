@@ -40,6 +40,7 @@ fn publish_no_change(database: &Database, id: u64) -> Receipt {
 fn full_cancelled_index(epoch: u64) -> Vec<Entry> {
     (1..=TEST_WINDOW as u64)
         .map(|id| Entry {
+            result_bytes: 0,
             request: Request {
                 epoch,
                 ..identity(id)
@@ -117,8 +118,12 @@ fn missing_retained_result_blocks_target_lookup_and_cold_publication() {
 fn missing_closed_epoch_blocks_cold_activation_and_first_session_write() {
     let (objects, database) = fixture();
     let closed = database
-        .upload(Payload::Index(full_cancelled_index(1)), deadline())
+        .upload(
+            crate::tests::index_payload(1, full_cancelled_index(1)),
+            deadline(),
+        )
         .unwrap();
+    let current = request_index::empty(&database, 2, deadline()).unwrap();
     replace_head(&objects, &database, |head| {
         head.revision = 3;
         head.transition = Transition {
@@ -127,6 +132,7 @@ fn missing_closed_epoch_blocks_cold_activation_and_first_session_write() {
         };
         head.request_epoch = 2;
         head.windows[0].epoch = 2;
+        head.windows[0].root = current.clone();
         head.windows.push(Window {
             epoch: 1,
             root: closed.clone(),

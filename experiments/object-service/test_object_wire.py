@@ -11,7 +11,7 @@ HEAD = "/scap-test/scap-object/v1/1/7/10/head"
 
 
 def body(revision):
-    return json.dumps({"format":3,"revision":revision},separators=(",",":")).encode()
+    return json.dumps({"format":4,"revision":revision},separators=(",",":")).encode()
 
 
 class Trace:

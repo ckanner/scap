@@ -639,7 +639,9 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         database.image(&base.head, deadline()),
         Err(Error::Format(_))
     ));
-    let wrong = database.upload(Payload::Index(vec![]), deadline()).unwrap();
+    let wrong = database
+        .upload(crate::tests::index_payload(1, vec![]), deadline())
+        .unwrap();
     let mut head = base.head.clone();
     head.data_root = wrong.clone();
     assert!(matches!(
@@ -684,33 +686,37 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
     let mut window = base.head.windows[0].clone();
     window.root = head.data_root;
     assert!(matches!(
-        database.index(&window, deadline()),
+        crate::tests::index_entries(&database, &window, deadline()),
         Err(Error::Corrupt)
     ));
     window = base.head.windows[0].clone();
     window.count = 1;
     assert!(matches!(
-        database.index(&window, deadline()),
+        crate::tests::index_entries(&database, &window, deadline()),
         Err(Error::Corrupt)
     ));
     let mut foreign = identity(3);
     foreign.epoch = 2;
     window.root = database
         .upload(
-            Payload::Index(vec![Entry {
-                request: foreign,
-                outcome: OutcomeRef::Cancelled {
-                    transition: Transition {
-                        revision: 1,
-                        nonce: 1,
+            crate::tests::index_payload(
+                2,
+                vec![Entry {
+                    result_bytes: 0,
+                    request: foreign,
+                    outcome: OutcomeRef::Cancelled {
+                        transition: Transition {
+                            revision: 1,
+                            nonce: 1,
+                        },
                     },
-                },
-            }]),
+                }],
+            ),
             deadline(),
         )
         .unwrap();
     assert!(matches!(
-        database.index(&window, deadline()),
+        crate::tests::index_entries(&database, &window, deadline()),
         Err(Error::Corrupt)
     ));
 }
@@ -848,10 +854,10 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
         database.append(
             &mut head,
             Entry {
+                result_bytes: 0,
                 request: identity(1),
                 outcome: OutcomeRef::Cancelled { transition }
             },
-            0,
             deadline()
         ),
         Err(Error::RequestConflict)
@@ -1063,12 +1069,12 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
             .append(
                 &mut head,
                 Entry {
+                    result_bytes: scap_sql::encode_result(&empty_result(), sql_limits())
+                        .unwrap()
+                        .len() as u64,
                     request: identity(1),
                     outcome: OutcomeRef::Committed { result },
                 },
-                scap_sql::encode_result(&empty_result(), sql_limits())
-                    .unwrap()
-                    .len() as u64,
                 deadline(),
             )
             .unwrap();
@@ -1077,6 +1083,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         let mut head = database.read_head(deadline()).unwrap().head;
         let entries = (1..=TEST_WINDOW as u64)
             .map(|id| Entry {
+                result_bytes: 0,
                 request: identity(id),
                 outcome: OutcomeRef::Cancelled {
                     transition: head.transition.clone(),
@@ -1084,7 +1091,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
             })
             .collect();
         head.windows[0].root = database
-            .upload(Payload::Index(entries), deadline())
+            .upload(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         head.windows[0].count = TEST_WINDOW;
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
@@ -1270,7 +1277,9 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
 fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     let (objects, database) = fixture();
     let head = database.read_head(deadline()).unwrap().head;
-    let wrong_kind = database.upload(Payload::Index(vec![]), deadline()).unwrap();
+    let wrong_kind = database
+        .upload(crate::tests::index_payload(1, vec![]), deadline())
+        .unwrap();
     assert!(matches!(
         database.resolve_entry(
             &head,
@@ -1332,10 +1341,10 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
         .append(
             &mut accepted,
             Entry {
+                result_bytes: b"bad codec".len() as u64,
                 request: identity(1),
                 outcome: OutcomeRef::Committed { result },
             },
-            b"bad codec".len() as u64,
             deadline(),
         )
         .unwrap();
@@ -1484,4 +1493,21 @@ fn activation_rejects_changed_body_even_if_broken_transport_reuses_etag() {
         database.activate(7, head.revision, 5, deadline()),
         Err(Error::Conflict)
     ));
+}
+
+pub(crate) fn index_payload(epoch: u64, entries: Vec<Entry>) -> Payload {
+    Payload::Index(RequestIndex::Leaf { epoch, entries })
+}
+
+pub(crate) fn index_entries(
+    database: &Database,
+    window: &Window,
+    end: Instant,
+) -> Result<Vec<Entry>, Error> {
+    let mut entries = Vec::new();
+    request_index::walk(database, window, end, |entry| {
+        entries.push(entry);
+        Ok(())
+    })?;
+    Ok(entries)
 }
