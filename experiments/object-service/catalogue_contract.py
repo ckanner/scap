@@ -56,6 +56,7 @@ class Suite:
         self.facts.emit("backend_started", processes=self.backend.identities(), directory_identity=self.backend_directory)
         self.proxy = fixture.Proxy(self.backend.port, self.evidence)
         self.proxy.capture = True
+        self.proxy.capture_catalogue = True
         self.tokens = {key:secrets.token_hex(32) for key in ("admin","reader","other","rival")}
         self.first, self.second = self.start_service(5001), self.start_service(5002)
 
@@ -197,9 +198,8 @@ def main(args):
         version=subprocess.check_output([str(node),"--version"],text=True).strip()
         assert version=="v22.16.0"
         tools={"node":build.digest(node),"weed":build.digest(args.weed)}
-        receipt=build.verify(args.build_record,args.server)
+        receipt=build.capture_receipt(args.build_record,args.server,evidence)
         assert receipt["node"]==version
-        build.save_receipt(evidence/"build-receipt.json",receipt)
         plan={"schema":1,"phases":list(PHASES),"contracts":list(CONTRACTS),"admission":ADMISSION,
               "successful_sql_responses":6,"unique_sql_requests":3,"deleted_sql_responses":2,
               "retained_sql_responses":4,"unknown_directory_responses":3,"known_original_intents_only":True}

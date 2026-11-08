@@ -201,7 +201,7 @@ class EntrypointTests(unittest.TestCase):
                     proxy.errors.append("broken proxy")
                 private = directory / "private"
                 private.mkdir()
-                with mock.patch.dict("sys.modules", {"build": types.SimpleNamespace(verify=verifier),
+                with mock.patch.dict("sys.modules", {"build": types.SimpleNamespace(verify=verifier,capture_receipt=lambda record,worker,evidence:verifier(record,worker)),
                                                      "run": support}), \
                         mock.patch.object(contract, "SchemaSuite", return_value=suite), \
                         mock.patch.object(contract.tempfile, "mkdtemp", return_value=str(private)), \

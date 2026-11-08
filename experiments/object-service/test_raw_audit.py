@@ -129,6 +129,44 @@ def process_fixture():
 
 
 class ProcessTimelineControls(unittest.TestCase):
+    def test_consistently_relabelled_duplicate_service_backend_and_client_incarnations_fail(self):
+        def replace(value,old,new):
+            if isinstance(value,list):
+                for item in value:replace(item,old,new)
+            elif isinstance(value,dict):
+                if value.get("pid")==old["pid"] and value.get("spawn_monotonic_ns")==old["spawn_monotonic_ns"]:
+                    value.update(new)
+                for item in value.values():replace(item,old,new)
+        for category in ("service","backend","client","cross_role"):
+            facts,http=process_fixture()
+            if category=="service":
+                values=[row["identity"] for row in facts if row["event"]=="service_started"]
+            elif category=="backend":values=next(row for row in facts if row["event"]=="backend_started")["processes"]
+            elif category=="client":values=[row["identity"] for row in facts if row["event"]=="client_process_started"]
+            else:
+                values=[next(row for row in facts if row["event"]=="backend_started")["processes"][0],
+                        next(row for row in facts if row["event"]=="service_started")["identity"]]
+            old=oracle.identity(copy.deepcopy(values[1]));new=oracle.identity(copy.deepcopy(values[0]))
+            replace(facts,old,new)
+            with self.subTest(category=category),self.assertRaisesRegex(ValueError,"impersonates multiple processes"):
+                oracle.processes(facts,http)
+
+    def test_reusing_pid_requires_a_disjoint_process_lifetime(self):
+        facts,http=process_fixture()
+        for row in facts:
+            for value in [row]+[item for item in row.values() if isinstance(item,dict)]:
+                if value.get("pid")==302:value["pid"]=301
+            for value in row.get("processes",[]):
+                if value.get("pid")==302:value["pid"]=301
+        with self.assertRaisesRegex(ValueError,"overlapping independent lifetimes"):
+            oracle.processes(facts,http)
+        facts,http=process_fixture()
+        for row in facts:
+            for value in [row]+[item for item in row.values() if isinstance(item,dict)]:
+                if value.get("pid")==303:value["pid"]=301
+        # The old PID can be allocated to a new child after the kernel wait4.
+        self.assertEqual(oracle.processes(facts,http)["services"],3)
+
     def test_complete_owned_process_incarnations_cache_loss_and_recovery_are_recomputed(self):
         facts,http=process_fixture()
         self.assertTrue(oracle.processes(facts,http)["kernel_wait4_verified"])

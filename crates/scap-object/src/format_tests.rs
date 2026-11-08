@@ -1,5 +1,7 @@
 use super::*;
 
+type Mutation<T> = Box<dyn Fn(&mut T)>;
+
 fn scope() -> Scope {
     Scope {
         deployment: 1,
@@ -163,7 +165,7 @@ fn physical_head_slots_require_prefix_identity_but_allow_distinct_immutable_orig
 
 #[test]
 fn named_head_and_deletion_proofs_are_strictly_validated() {
-    let mutations: Vec<Box<dyn Fn(&mut Head)>> = vec![
+    let mutations: Vec<Mutation<Head>> = vec![
         Box::new(|h| h.creation.as_mut().unwrap().creator = 0),
         Box::new(|h| h.creation.as_mut().unwrap().operation = 0),
         Box::new(|h| h.creation.as_mut().unwrap().name_hash = "bad".into()),
@@ -179,8 +181,13 @@ fn named_head_and_deletion_proofs_are_strictly_validated() {
         let mut invalid = named_head(Lifecycle::Provisioning);
         mutate(&mut invalid);
         assert!(invalid.validate_named().is_err());
+        assert!(invalid.validate().is_err());
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&invalid).unwrap(), &invalid.scope),
+            Err(FormatError::Corrupt)
+        );
     }
-    let mutations: Vec<Box<dyn Fn(&mut Head)>> = vec![
+    let mutations: Vec<Mutation<Head>> = vec![
         Box::new(|h| h.deletion.as_mut().unwrap().principal = 0),
         Box::new(|h| h.deletion.as_mut().unwrap().operation = 0),
         Box::new(|h| h.deletion.as_mut().unwrap().expected_name_revision = 0),

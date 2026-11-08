@@ -411,6 +411,7 @@ class RunnerTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(contract.tempfile, "mkdtemp", return_value=str(private)))
             builder = types.SimpleNamespace(verify=mock.Mock(return_value={
                 "binary": {"sha256": "fake-worker-hash"}, "input_sha256": "fake-source-hash", "source_commit": "fake-test"}))
+            builder.capture_receipt=lambda record,worker,evidence:builder.verify(record,worker)
             if verify_failure: builder.verify.side_effect = ValueError("mismatched build inputs")
             support = types.SimpleNamespace(Backend=FakeBackend, Proxy=FakeProxy, FaultSuite=FakeSuite)
             stack.enter_context(mock.patch.dict(sys.modules, {"build": builder, "run": support}))

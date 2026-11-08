@@ -271,10 +271,9 @@ def main(argv=None):
             require(path.is_file(), "missing prerequisite: " + str(path))
         import build
         import run as support
-        compiled = build.verify(arguments.build_record, arguments.worker)
+        compiled = build.capture_receipt(arguments.build_record, arguments.worker, evidence)
         summary.update(worker_sha256=compiled["binary"]["sha256"], build_inputs_sha256=compiled["input_sha256"],
                        source_commit=compiled["source_commit"], harness_sha256=sha(Path(__file__).read_bytes()))
-        shutil.copyfile(arguments.build_record, evidence / "build-receipt.json")
         private = Path(tempfile.mkdtemp(prefix="scap-result-integrity-private-"))
         compute = private / "compute"
         compute.mkdir(mode=0o700)

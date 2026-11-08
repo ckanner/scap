@@ -26,6 +26,14 @@ AWS EFS 支持 NFSv4 advisory 字节范围锁，但这种支持不是 SQLite 跨
 
 AWS S3 提供强一致对象访问、单 key 原子更新及条件写，但没有跨 key 原子事务。SCAP 必须自行保证依赖先于 HEAD 发布、身份 fencing、UNKNOWN 查证以及未来 GC 的保护关系。[S6][S7] 本地兼容端点的结果不能代替 AWS Standard 合同验收。
 
+## 固定内核与单库并发边界
+
+截至 2026-11-08，本仓库固定 libSQL revision `d8bc862d20bedc72945a1da27c8b7045414c0261`，其 bundled SQLite 标记为 `3.47.0`。[锁定依赖](../../crates/scap-object-sqlite/Cargo.toml)与[上游固定源码](https://github.com/tursodatabase/libsql/blob/d8bc862d20bedc72945a1da27c8b7045414c0261/libsql-ffi/bundled/src/sqlite3.c)可以直接核对；不能把上游最新发布的修复视为本仓库已经包含。
+
+SQLite 官方在 2026 年公开 WAL-reset 缺陷：同一文件上的多个连接同时写入／checkpoint 时，特定竞态可能破坏页面；官方修复版本包括 3.51.3 及以后，以及 3.44.6、3.50.7 回补版本。[S3] SCAP 当前每份私有镜像只有一个连接，由所属线程串行使用，关闭自动 checkpoint，并在该连接完成权威与 native publication 后显式 TRUNCATE；独立 reader 另建私有文件，不共享 writer 的 WAL。这一拓扑排除了官方描述的触发前提，S3 本身没有修复 SQLite 内核缺陷。
+
+因此，未来增加同一执行文件的读连接池、独立后台 checkpoint 或替换内核前，必须重新审查固定 revision 的修复、原生提交前 gate 与并发故障合同。跨数据库并行可继续使用不同私有镜像；它不要求把多个线程放进同一份 WAL。单库提交仍按 HEAD 串行发布，其吞吐取决于 SQL、变化页、依赖回读和对象往返，不能以数据库数量的横向扩展推导单库写入能力。
+
 ## 新增目录准入
 
 公开函数 `scap_object_sqlite::validate_cache_directory` 用只读目录描述符查询实际文件系统，而不是根据路径名字、前缀或文件扩展名判断。符号链接跟随到实际目标；打开目录或文件系统查询失败均直接返回错误。
@@ -50,7 +58,7 @@ AWS S3 提供强一致对象访问、单 key 原子更新及条件写，但没�
 
 `fstatfs` 只识别当前描述符所属的文件系统类型。它无法完整检查 overlay 的下层挂载、管理员之后的 mount 变更、磁盘固件或所有云块设备故障。允许列表是防误配置措施，不是任意底层存储正确性的证明。执行目录及其挂载命名空间必须由可信运维控制，不能由租户替换。
 
-`PRAGMA temp_store=FILE` 使用的排序等临时文件可能位于 SQLite 选择的另一个 OS 临时目录；`SQLITE_TMPDIR`、`TMPDIR` 等部署设置同样必须指向可信本地存储。本次检查覆盖主数据库及相邻 WAL/SHM，未声称已经约束全部 SQLite 临时路径。
+`PRAGMA temp_store=FILE` 使用的排序、物化和 statement journal 等临时文件可能位于 SQLite 选择的另一个 OS 临时目录；`SQLITE_TMPDIR`、`TMPDIR` 等部署设置同样必须指向可信本地存储。[S10] 本次检查覆盖主数据库及相邻 WAL/SHM，未声称已经约束全部 SQLite 临时路径。不能仅将 `temp_store` 改成 MEMORY 就声称获得硬内存上限；完整临时文件路径约束、并发内存／磁盘预算和压力验证仍应分别验收。
 
 对象数据前缀禁止外部覆盖、删除可达对象及任意 bucket TTL。GC/pin/PITR 尚未完整实现，不能用“缓存可丢弃”替代它们的正确性合同。主文件逻辑配额也不限制对象存储总量。
 
@@ -73,3 +81,4 @@ AWS S3 提供强一致对象访问、单 key 原子更新及条件写，但没�
 - [S7：AWS — Conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
 - [S8：Linux UAPI — magic.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/magic.h)
 - [S9：rustix 0.38.44 — filesystem descriptor operations](https://github.com/bytecodealliance/rustix/blob/v0.38.44/src/fs/fd.rs)
+- [S10：SQLite — Temporary Files Used By SQLite](https://www.sqlite.org/tempfiles.html)

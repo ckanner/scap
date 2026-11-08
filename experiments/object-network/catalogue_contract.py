@@ -87,7 +87,7 @@ class CatalogueSuite(LifecycleSuite):
         self.workers.append(worker); case["workers"].append(worker)
         self.started_worker_count += 1
         self.fact(case, "worker_started", worker=number, principal=principal, provision=provision,
-                  scope=config["scope"], identity=worker.identity)
+                  scope=config["scope"], identity=worker.identity, binary=worker.binary)
         return worker
 
     def begin(self, *args, **kwargs):
@@ -276,6 +276,7 @@ class CatalogueSuite(LifecycleSuite):
             while not next_rule.arrived.is_set() and not select.select([pending["worker"].process.stdout], [], [], 0)[0]:
                 require(time.monotonic() < bound, "no proof of consumed PUT response")
                 time.sleep(0.002)
+            require(rule.finished.wait(5), "delivered PUT observation did not finish before consumption witness")
             if next_rule.arrived.is_set():
                 self.fact(case, "response_consumed", call_id=pending["call"]["call_id"],
                           proof="subsequent_get", request_serial=rule.observation["request_serial"],
@@ -316,6 +317,10 @@ class CatalogueSuite(LifecycleSuite):
         if case.get("corrupt"):
             refused(inspected, "Corrupt"); refused(resolved, "Corrupt")
             refused(self.resume(case, worker, stage + ".resume_corrupt"), "Corrupt")
+            if "corrupt_control" in case:
+                operation = "catalogue_delete" if "expected_head_revision" in case["corrupt_control"] else "catalogue_abort"
+                refused(self.cat(case, worker, stage + ".control_corrupt", operation,
+                                 key="corrupt.control", input=case["corrupt_control"]), "Corrupt")
             self.fact(case, "recovery_observed", stage=stage)
             return
         observed = accepted(inspected)
@@ -392,6 +397,8 @@ class CatalogueSuite(LifecycleSuite):
             for outcome in ("conflict", "unknown"): self.control_admission(operation, outcome)
         for variant in ("incarnation", "generation", "direct"):
             for lifecycle in ("ready", "maintenance", "deleted"): self.foreign_case(variant, lifecycle)
+        for damage in ("missing_descriptor", "descriptor_hash", "descriptor_scope"):
+            self.foreign_provenance(damage)
         for damage in ("missing", "malformed", "format", "physical_key"): self.corruption_case(damage)
         self.abort_boundaries()
         self.authorization_case()
@@ -468,10 +475,10 @@ class CatalogueSuite(LifecycleSuite):
         operation = "catalogue_delete" if "expected_head_revision" in original else "catalogue_abort"
         for field in fields:
             changed = {**original, field: original[field] + 1}
-            refused(self.cat(case, worker, "changed." + field, operation, input=changed), "IdentityConflict")
+            refused(self.cat(case, worker, "changed." + field, operation, input=changed), "Conflict")
         auxiliary = {**case["create_input"], "name": case["create_input"]["name"] + "-other", "operation": case["create_input"]["operation"] + 1000000}
         creation = accepted(self.cat(case, worker, "changed.target.prepare", "catalogue_prepare", input=auxiliary))["creation"]
-        refused(self.cat(case, worker, "changed.creation", operation, input={**original, "creation": creation}), "IdentityConflict")
+        refused(self.cat(case, worker, "changed.creation", operation, input={**original, "creation": creation}), "Conflict")
 
     def control_admission(self, operation, outcome):
         profile = "abort_provisioning" if operation == "abort" else "delete"
@@ -531,11 +538,53 @@ class CatalogueSuite(LifecycleSuite):
         self.reuse(case)
         before = accepted(self.call(case, case["owner"], "successor.before_old", "store_get", key=head_key(case["successor"]["scope"])))
         require(accepted(self.target(case, "foreign.old_abort"))["phase"] == "aborted", "old foreign abort lost its permanent proof")
-        changed = {**case["control"], "operation": case["control"]["operation"] + 1, "nonce": case["control"]["nonce"] + 1}
+        # A rejected new control can still durably reserve its operation ID.
+        # Keep this alternate in a disjoint fixture namespace: +1 would alias
+        # the primary control of the next case under the same caller/kind.
+        changed = {**case["control"], "operation": case["control"]["operation"] + 1000000,
+                   "nonce": case["control"]["nonce"] + 1000000}
         refused(self.cat(case, case["owner"], "foreign.other_abort", "catalogue_abort", input=changed), "Conflict")
         after = accepted(self.call(case, case["owner"], "successor.after_old", "store_get", key=head_key(case["successor"]["scope"])))
         require(before == after, "old abort modified successor HEAD")
         self.terminal(case, "aborted")
+
+    def foreign_provenance(self, damage):
+        """Deliberate invalid provenance, never a claimed valid named collision."""
+        case = self.new_case("CAT-05-provenance-" + damage, "abort_missing",
+                             kind="foreign_provenance", damage=damage)
+        self.setup_profile(case)
+        self.foreign(case, "incarnation", "ready")
+        worker = case["owner"]
+        original = case["foreign"]["snapshot"]
+        alternate = {**case["create_input"], "name": case["create_input"]["name"] + "-origin",
+                     "operation": case["create_input"]["operation"] + 1000000}
+        descriptor_key = (f"scap-object/v1/{self.deployment}/1/catalogue/v1/create/17/"
+                          + str(alternate["operation"]))
+        if damage == "missing_descriptor":
+            refused(self.call(case, worker, "provenance.missing_descriptor", "store_get", key=descriptor_key), "Missing")
+            descriptor_hash = "0" * 64
+        else:
+            accepted(self.cat(case, worker, "provenance.real_prepare", "catalogue_prepare", input=alternate))
+            descriptor = accepted(self.call(case, worker, "provenance.real_descriptor", "store_get", key=descriptor_key))
+            descriptor_hash = hashlib.sha256(bytes(descriptor["bytes"])).hexdigest()
+            if damage == "descriptor_hash":
+                descriptor_hash = ("0" if descriptor_hash[0] != "0" else "1") + descriptor_hash[1:]
+        damaged = json.loads(bytes(original["bytes"]))
+        damaged["creation"] = {"creator": 17, "operation": alternate["operation"],
+                               "name_hash": hashlib.sha256(alternate["name"].encode()).hexdigest(),
+                               "descriptor_hash": descriptor_hash}
+        payload = json.dumps(damaged, ensure_ascii=False, separators=(",", ":")).encode()
+        self.fact(case, "damage_invoked", kind=damage, key=case["head_key"], payload=list(payload))
+        accepted(self.call(case, worker, "provenance.damage", "store_put", key=case["head_key"],
+                           bytes=list(payload), etag=original["etag"]))
+        refused(self.inspect(case, worker, "provenance.inspect"), "Corrupt")
+        refused(self.resume(case, worker, "provenance.resume"), "Corrupt")
+        case["corrupt_control"] = case.pop("control")
+        refused(self.cat(case, worker, "provenance.abort", "catalogue_abort",
+                         key="corrupt.control", input=case["corrupt_control"]), "Corrupt")
+        refused(self.cat(case, worker, "provenance.resolve", "catalogue_resolve", name=case["creation"]["name"]), "Corrupt")
+        case["corrupt"] = True
+        self.terminal(case, "corrupt")
 
     def corruption_case(self, damage):
         case = self.new_case("CAT-06-" + damage, "resume", kind="corruption", damage=damage)
@@ -562,6 +611,11 @@ class CatalogueSuite(LifecycleSuite):
         refused(self.inspect(case, worker, "damage.inspect"), "Corrupt")
         refused(self.resume(case, worker, "damage.resume"), "Corrupt")
         refused(self.cat(case, worker, "damage.resolve", "catalogue_resolve", name=case["creation"]["name"]), "Corrupt")
+        case["corrupt_control"] = {"creation": case["creation"], "operation": 200000 + case["ordinal"],
+                                   "expected_name_revision": 2, "expected_head_revision": json.loads(bytes(original["bytes"]))["revision"],
+                                   "nonce": 300000 + case["ordinal"]}
+        refused(self.cat(case, worker, "damage.delete", "catalogue_delete",
+                         key="corrupt.control", input=case["corrupt_control"]), "Corrupt")
         case["corrupt"] = True
         self.terminal(case, "corrupt")
 
@@ -648,7 +702,7 @@ class CatalogueSuite(LifecycleSuite):
         require(before == after, "Ready reentry reset current data/policy/quota")
         for label, changed in (("name", {**case["create_input"], "name": "another-name"}),
                                ("quota", {**case["create_input"], "options": {"quota": {"kind": "unlimited"}}})):
-            refused(self.cat(case, worker, "identity.changed_" + label, "catalogue_prepare", input=changed), "IdentityConflict")
+            refused(self.cat(case, worker, "identity.changed_" + label, "catalogue_prepare", input=changed), "Conflict")
         wrong = copy.deepcopy(case["creation"]); wrong["scope"]["generation"] += 1
         refused(self.cat(case, worker, "identity.changed_scope", "catalogue_resume", creation=wrong), "Invalid")
         other = self.spawn(case, principal=18)
@@ -689,7 +743,7 @@ class CatalogueSuite(LifecycleSuite):
             refused(self.cat(case, case["owner"], "invalid." + label, "catalogue_prepare", input=input), expected)
         input = {**case["create_input"], "name": "deadline", "operation": case["create_input"]["operation"] + 2000000}
         result = self.cat(case, case["owner"], "invalid.deadline", "catalogue_prepare", input=input, budget_ms=0)
-        require(not result["ok"] and result["error"] in ("Unknown", "Limit"), "expired call returned a completed creation")
+        require(not result["ok"] and result["error"] == "Unknown", "expired call returned a completed creation")
         require(accepted(self.resume(case, case["owner"], "valid.resume"))["phase"] == "ready", "valid identity could not proceed after refused inputs")
         self.terminal(case, "ready")
 
@@ -710,8 +764,7 @@ def main(argv=None):
             require("instrument-coverage" not in os.environ.get(name, ""), "integration cannot inherit instrumentation")
         import build
         import run as support
-        compiled = build.verify(arguments.build_record, arguments.worker)
-        shutil.copyfile(arguments.build_record, evidence / "build-receipt.json")
+        compiled = build.capture_receipt(arguments.build_record, arguments.worker, evidence)
         private = Path(tempfile.mkdtemp(prefix="scap-catalogue-private-"))
         compute = private / "compute"; compute.mkdir(mode=0o700)
         backend = support.Backend(arguments.weed.resolve(), private / "backend")

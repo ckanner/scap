@@ -337,16 +337,20 @@ pub(super) fn delete(creation: &Creation) -> DeleteNamed {
     }
 }
 
-pub(super) fn descriptor(catalogue: &Catalogue, creation: &Creation) -> Descriptor {
+pub(super) fn descriptor(catalogue: &Catalogue, creation: &Creation) -> Source {
     catalogue.descriptor(creation, deadline()).unwrap()
 }
 
+#[path = "boundary_tests.rs"]
+mod boundary_tests;
 #[path = "fault_tests.rs"]
 mod fault_tests;
 #[path = "protocol_tests.rs"]
 mod protocol_tests;
 #[path = "records_tests.rs"]
 mod records_tests;
+#[path = "recovery_tests.rs"]
+mod recovery_tests;
 
 #[test]
 fn named_creation_is_resumable_and_resolves_only_ready() {

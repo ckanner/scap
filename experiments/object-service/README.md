@@ -17,7 +17,7 @@ python3 experiments/object-service/run.py \
   --evidence /absolute/new-service-evidence
 ```
 
-build receipt 绑定实际 stable release、所有 Rust/SDK/fixture 输入和工具版本，并记录构建时实际 native libSQL archive 的摘要。最终运行在开始与结束核对源码输入清单、`scapd` 字节以及实际 Node／S3 可执行文件摘要；运行时不重新链接或读取 archive。`--diagnostic` 只用于开发定位，不产生冻结验收结论。缺二进制、缺收据、测试失败或清理错误都非零退出。
+build receipt 绑定实际 stable release、所有 Rust/SDK/fixture 输入和工具版本，并记录构建时实际 native libSQL archive 的摘要。最终运行在开始与结束核对源码输入清单、`scapd` 字节以及实际 Node／S3 可执行文件摘要；运行时不重新链接或读取 archive。`--diagnostic` 只用于开发定位，完成时标记 `completed_diagnostic` 和 `formal_gate_status: NOT_RUN`，不产生冻结验收结论。缺二进制、缺收据、测试失败或清理错误都非零退出。
 
 ## 实际判据
 

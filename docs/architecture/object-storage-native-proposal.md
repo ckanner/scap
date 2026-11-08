@@ -1,8 +1,8 @@
 # SCAP 全新架构方案：S3 权威持久化与可丢弃计算
 
-- 提案日期：2026-11-05；实施映射更新：2026-11-07。
+- 提案日期：2026-11-05；实施映射更新：2026-11-08。
 - 状态：**目标架构已接受，S3 单库运行时、认证 HTTP 和 Node SDK 已实现；N1–N4 整体验收仍未完成**。关联 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)、[ADR-0021](../adr/0021-object-native-runtime.md)和[ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
-- 历史提案基线：`f14b03d03d9216ea56b78aef9d71c5d78fd83645`；本次已合并实现审查基线：`e2c44b099132700e1305c275c6551c8e156fe510`。
+- 历史提案基线：`f14b03d03d9216ea56b78aef9d71c5d78fd83645`；最近已合并实现审查基线：`d63f41ee274f84cc98b0480f5e348a53f4527f4b`（#28–#30）。
 - 目标场景：大量独立用户／工作区数据库、低活跃比例、短事务、可接受有界冷启动的 SaaS 与 Personal Agent。
 - 用户范围确认：现有原型尚未投入使用，按 greenfield 重设计；**无需迁移、回退、旧格式、旧 SDK 或双后端兼容，可完全替换 Raft/RocksDB 架构**。
 - PR #16 的提交范围：完整方案与 ADR；该文档 PR 没有修改运行时代码或创建云资源。
@@ -21,6 +21,24 @@
 | 可丢弃计算与容量 | 完整冷恢复、Session、增量数据树、默认 10 GiB 可配置配额，已有冻结候选的本地 1/10 GiB 证据；执行存储防护已通过 PR #28 的本地验收 | 冷恢复仍物化全库；新候选重新执行受影响门禁，不继承旧源码结果 |
 | 应用接入和多库服务 | 认证 HTTP、Node SDK、有界准入和独立控制执行已合入；名称协议/模型已合入，正式目录/HTTP/SDK 候选正在验收 | 精确目录的真实切点验收、全目录发现、自动 owner 路由、完整冷热隔离及预定义负载活性 |
 | 长期运行 | 已有请求窗口关闭和逻辑退休 | 分段索引、pin、generation、安全 GC、PITR、总存储与请求成本收敛 |
+
+2026-11-08 已从 #31 的独立恢复分支取回并逐一核对 224 个文件的 Git blob，固定工具链和真实本地 S3 环境已恢复。核心 Canonical 重构及目录/服务合同继续按新候选验收；不能沿用上次未编译检查点或只以“可合并”判定通过。
+
+### NFS、单进程和吞吐的具体结论
+
+| 问题 | 本方案的解决层 | 当前边界与后续门禁 |
+| --- | --- | --- |
+| 多主机共享 `.db/WAL`，锁与同步语义不可靠 | 禁止网络文件挂载；每个执行镜像独占本地目录；多机协调走对象 API 和 HEAD CAS | #28 已有目录防护；真实挂载、overlay 下层和临时目录按执行存储合同单验 |
+| 旧容器与新容器同时存活 | 单库 HEAD 上的 owner epoch、原 ETag 和单调 revision fencing | 心跳/超时只触发接管判断，不授予提交权；迟到候选和丢响应必须保留原身份 |
+| 一个数据库只有一个有效写序列 | 将写入排队；以多个独立租户数据库并行扩展平台 | 扩容计算节点不会自动增加同一 HEAD 的发布速度；不把不同 SQLite 镜像的修改页面直接合并 |
+| 一个慢库拖住同进程其他库 | 有界准入、独立控制通道，并将活跃数据库执行隔离 | 当前固定 hash lane 的公平排队不能抢占正在进行的冷恢复；按每活跃库受限 actor 独立实施，不宣称已完成完整冷热隔离 |
+| 每次写的对象请求成本 | 已有 128 KiB 增量数据块与 COW 数据树；SQL 一次调用可包含多个语句 | 请求索引当前仍整窗重写；分段结果索引、组提交及跨库打包是独立改造，不能按尚未实现的合批推算收益 |
+| 大库冷启动 | 可丢弃缓存，校验对象闭包后重建 | 当前必须物化全库并做原生结构检查；尚无页懒加载，不能引用 Turso 的冷启动表现作为自身指标 |
+| 长期存储不断增长 | 关闭请求身份空间、保留旧请求退休语义 | 逻辑退休不删除 S3 对象；pin/generation、安全 GC、PITR 和多轮总成本收敛仍是上线门禁 |
+
+不合批的单库提交率受 `执行 + 依赖持久化/回读 + HEAD CAS + 原生发布` 的串行关键路径限制。实际请求可以在不同库之间并行，但同一热点行的业务顺序、S3 延迟和单库发布顺序仍在。目标是大量低活跃租户的可维护存储，不承诺把 SQLite 变成任意负载的多主分布式 SQL。
+
+新鲜 HEAD 的强读与新提交都在线依赖 S3；S3/IAM/KMS/入口故障时失败关闭。增加服务副本能降低单计算进程故障的影响，不能消除共享区域存储故障。生产吞吐、p99、恢复时间和费用必须在目标 S3 产品与预先固定的负载下测量。
 
 当前机器合同见 [design-contract.json](../../contracts/design-contract.json)，历史证据及各自源码身份见[验证规范](../engineering/validation.md)。本轮遵循以下顺序：先固定本方案、[N1 真实生命周期合同](../engineering/n1-lifecycle-validation-plan.md)和[名称目录协议](name-catalogue-plan.md)，再验证并合入执行存储防护，随后完成 N1 合同、N2 目录与调度、N3 持续存储、N4 生产验收。具体候选和未运行项见[状态记录](../engineering/status-2026-11-07.md)与[路线图](../engineering/roadmap.md)。方案或文档合入不替代运行时验收。
 
@@ -103,13 +121,14 @@
 <a id="comparison"></a>
 ## 3. 外部参照与存储类别选择
 
-2026-11-05 官方资料仅作为能力与边界参照，不是本项目压测或合同背书：
+2026-11-05 建立比较；2026-11-08 重新核对 SQLite、Turso 和 S3 官方资料。外部资料只作为能力与边界参照，不是本项目压测或合同背书：
 
 | 方案 | 可借鉴点 | 不能推导的结论 |
 | --- | --- | --- |
 | D1 | 多个小库水平扩展；付费单库 10 GB 硬上限；付费账户最多 1,000,000 库、前 100,000 包含；Time Travel 和读副本独立提供 [S8] | 外部 REST 可达不等于可自建，也不等于所有 binding 能力／限流相同；不套用 Workers SLA |
 | Turso Cloud | 对象持久化后 ACK；公开 AWS 路径为近期 WAL 先到 S3 Express One Zone，随后合并到 S3；跨库及时间合批摊薄请求 [S6] | 未公开其完整提交/选主协议，不能声称它使用本文 HEAD/CAS；单 AZ WAL 不等于多 AZ 提交保障 |
-| libSQL / Rust Turso | 引擎与客户端可复用 | 开源引擎／旧 server 不是完整 Cloud；新 Cloud server 闭源，新 Rust 引擎的 Cloud offering 为 early preview [S7] |
+| libSQL / bottomless | 开源 SQLite fork、旧 server、虚拟 WAL 和恢复代码可作参考 | bottomless 描述的是异步备份；开源 libSQL server 不等于新的闭源多租户 Cloud，更不能直接代替本方案的 ACK 前权威提交 [S7][S11] |
+| Rust Turso 引擎 | 0.8 已有 `BEGIN CONCURRENT` 与组提交，改善引擎内部并发 | 引擎 MVCC 不提供多主机 S3 提交、owner fencing 或目录协议；不能笼统说“所有 Turso 都只支持单写者”，也不把历史 Cloud preview 状态当作当前发布承诺 [S11] |
 | SQLite + 异步备份 | 适合接受相应 RPO 的场景 | 本地 COMMIT 后上传不能满足本提案的确认边界 |
 | 当前 SCAP | 已有 gate、fencing、UNKNOWN 和真实故障测试基础 | 不自动继承为新后端的可靠性证明 |
 
@@ -637,6 +656,8 @@ N0–N4 是新系统从零实施的阶段，不沿用旧原型完成度。[N0 �
 | S7 | [Turso 开源边界](<https://turso.tech/blog/upcoming-changes-to-the-turso-platform-and-roadmap>)、[Cloud 引擎](<https://docs.turso.tech/turso-cloud>) | 新 Cloud server 闭源，libSQL 与新 Rust 引擎区分 |
 | S8 | [D1 limits](<https://developers.cloudflare.com/d1/platform/limits/>)、[pricing](<https://developers.cloudflare.com/d1/platform/pricing/>)、[外部访问](<https://developers.cloudflare.com/d1/tutorials/build-an-api-to-access-d1/>) | 小库限制、包含库数/额外收费、访问边界 |
 | S9 | [SQLite WAL](<https://sqlite.org/wal.html>)、[WAL hook](<https://sqlite.org/c3ref/wal_hook.html>) | 原生并发、文件与提交后 hook 边界 |
+| S10 | [Turso S3 架构](https://turso.tech/blog/turso-cloud-goes-diskless)、[持久化与分段恢复](https://turso.tech/blog/how-does-the-turso-cloud-keep-your-data-durable-and-safe) | 2026-11-08 复核：近期日志远端持久后 ACK、跨库合批、分段与按需读取；未公开 SCAP 所用的 HEAD/目录/GC 具体协议 |
+| S11 | [Turso 0.8](https://turso.tech/blog/turso-0.8.0)、[bottomless README](https://github.com/tursodatabase/libsql/blob/main/bottomless/README.md) | 2026-11-08 复核：新 Rust 引擎并发写与旧 libSQL 异步备份分别讨论，不等同于闭源云服务器 |
 
 **证据边界：**最初 PR #16 只交付设计。此后已有对象运行时、模型和本地 S3 兼容端点的真实提交/恢复证据，准确范围见[验证规范](../engineering/validation.md)。真实 AWS Standard、完整故障集合、安全 GC、生产负载及长期成本收益仍未验收；旧 Raft 证据及其他候选的绿色结果均不能填补这些空项。
 

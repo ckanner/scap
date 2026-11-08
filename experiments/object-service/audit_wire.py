@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import base64
+from collections import Counter, defaultdict
 import hashlib
+import heapq
 import json
 import math
 import re
@@ -29,6 +31,9 @@ def parse(raw):
 
 
 def equal(left, right, message):
+    if isinstance(left, bytes) or isinstance(right, bytes):
+        require(type(left) is bytes and type(right) is bytes and left == right, message)
+        return
     require(json.dumps(left, sort_keys=True, ensure_ascii=False, allow_nan=False) ==
             json.dumps(right, sort_keys=True, ensure_ascii=False, allow_nan=False), message)
 
@@ -168,3 +173,236 @@ def committed(value):
     statements = result(raw)
     require(receipt_hash(value["receipt"], raw) == value["receipt"]["result_hash"], "result object digest differs")
     return raw, statements
+
+
+def sha256_text(value):
+    require(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None,
+            "invalid SHA-256 digest")
+    return value
+
+
+def moment(row):
+    value = row["monotonic_ns"]
+    require(type(value) is int and value > 0, "invalid object monotonic timestamp")
+    return value
+
+
+def capture(row, *, response=False):
+    prefix = "head" if row["path"].endswith("/head") else (
+        "catalogue" if "/catalogue/v1/" in row["path"] else None)
+    suffix = "response" if response else "request"
+    length = row[suffix + "_bytes"]
+    require(type(length) is int and 0 <= length <= 64 * 1024 * 1024, "invalid object byte length")
+    sha256_text(row[suffix + "_sha256"])
+    if prefix is None:
+        return None
+    value = row[prefix + "_" + suffix + "_bytes"]
+    require(isinstance(value, list) and all(type(n) is int and 0 <= n < 256 for n in value),
+            "authority capture is not complete bytes")
+    raw = bytes(value)
+    require(len(raw) == length and hashlib.sha256(raw).hexdigest() == row[suffix + "_sha256"],
+            "authority captured body differs from byte length/digest")
+    if prefix == "catalogue":
+        require(length <= 65536, "catalogue authority capture exceeds bound")
+    if prefix == "head" and ((response and row["method"] == "GET" and row["status"] == 200)
+                              or (not response and row["method"] == "PUT")):
+        head = parse(raw)
+        require(type(head.get("format")) is int and head["format"] == 3, "HEAD is not format 3")
+    return raw
+
+
+def object_exchanges(history, *, phases, blackhole_phases=()):
+    """Verify complete original wire pairs; no summary or controller imports."""
+    serials = defaultdict(list)
+    require(not any(row["event"] in ("transport_fixture_failed", "caller_disconnected") for row in history),
+            "unexplained object transport failure")
+    for row in history:
+        if row["event"].startswith("object_") or row["event"] == "transport_fault_observed":
+            require("request_serial" in row, "object wire event has no request serial")
+        if "request_serial" in row:
+            serials[row["request_serial"]].append(row)
+    require(serials and all(type(serial) is int and serial > 0 for serial in serials), "invalid object serial")
+    require(sorted(serials) == list(range(1, len(serials) + 1)), "object request serial gap")
+    requests, responses = {}, {}
+    common = ("phase", "method", "path", "request_bytes", "request_sha256", "if_match", "if_none_match",
+              "head_request_bytes", "catalogue_request_bytes")
+    response_fields = ("status", "response_bytes", "response_sha256", "etag", "head_response_bytes", "catalogue_response_bytes")
+    allowed = {"object_request", "object_forwarded", "object_response", "object_response_delivered", "transport_fault_observed"}
+    for serial, events in serials.items():
+        by_event = defaultdict(list)
+        for row in events:
+            require(row["event"] in allowed, "unplanned/injected object event")
+            by_event[row["event"]].append(row)
+        require(len(by_event["object_request"]) == 1, "missing/duplicate object request")
+        request = by_event["object_request"][0]
+        require(request["phase"] in phases and request["method"] in ("GET", "PUT"), "unplanned object method/phase")
+        require(isinstance(request["path"], str) and request["path"].startswith("/scap-test/scap-object/v1/")
+                and "?" not in request["path"] and "#" not in request["path"], "object path escaped exact authority")
+        capture(request)
+        if request["method"] == "GET":
+            require(request["request_bytes"] == 0 and request["request_sha256"] == hashlib.sha256(b"").hexdigest()
+                    and request["if_match"] is None and request["if_none_match"] is None, "GET changed its body/conditions")
+        else:
+            require((request["if_none_match"] == "*" and request["if_match"] is None)
+                    or (request["if_none_match"] is None and isinstance(request["if_match"], str) and request["if_match"]),
+                    "unconditional or ambiguous object PUT")
+        require(len(by_event["transport_fault_observed"]) <= 1, "duplicate object fault witness")
+        fault = by_event["transport_fault_observed"][0] if by_event["transport_fault_observed"] else None
+        if fault:
+            require(fault["mode"] in ("hold", "drop", "blackhole") and fault["stage"] == "before_forward",
+                    "unplanned service object fault")
+            require(moment(request) < moment(fault), "object fault preceded invocation")
+        require(len(by_event["object_response"]) <= 1 and len(by_event["object_forwarded"]) <= 1
+                and len(by_event["object_response_delivered"]) <= 1, "duplicate object response/forward/delivery")
+        response = by_event["object_response"][0] if by_event["object_response"] else None
+        forwarded = by_event["object_forwarded"][0] if by_event["object_forwarded"] else None
+        delivered = by_event["object_response_delivered"][0] if by_event["object_response_delivered"] else None
+        for row in events:
+            for key in common:
+                equal(row.get(key), request.get(key), "S3 event binds another original request: " + key)
+        requests[serial] = request
+        if response is None:
+            require(request["phase"] in blackhole_phases and request["method"] == "GET" and fault is not None
+                    and fault["mode"] == "blackhole" and forwarded is None and delivered is None,
+                    "missing backend response without explicit pre-forward blackhole")
+            continue
+        require(forwarded is not None and moment(request) < moment(forwarded) < moment(response)
+                and response["response_origin"] == "backend", "invalid original backend exchange")
+        require(type(response["status"]) is int and response["status"] in ((200, 404) if request["method"] == "GET" else (200, 412)),
+                "unplanned actual backend status")
+        require(type(response["suppressed"]) is bool, "missing delivery disposition")
+        capture(response, response=True)
+        if response["status"] == 200:
+            require(isinstance(response["etag"], str) and response["etag"], "successful exact object response lacks ETag")
+        if response["suppressed"]:
+            require(fault is not None and fault["mode"] == "drop" and response["status"] == 200 and delivered is None,
+                    "suppressed response lacks observed accepted-response loss")
+        else:
+            require(delivered is not None and moment(response) < moment(delivered), "missing/early original response delivery")
+            require(fault is None or fault["mode"] == "hold", "delivered response contradicts observed fault")
+            for key in response_fields:
+                equal(delivered.get(key), response.get(key), "delivery changed original backend body/ETag/status")
+        responses[serial] = response
+    return requests, responses
+
+
+def object_versions(requests, responses, *, calls=None, bindings=None):
+    """Check per-key CAS version chains with legal overlapping read intervals.
+
+    A response-receipt timestamp is not a linearization point. We reconstruct
+    the unique accepted If-Match chain, then solve precedence constraints within
+    every original invocation/response interval. Hashes bind complete bodies to
+    opaque ETags; neither wall-clock leases nor final-state summaries are used.
+    """
+    candidates = {}
+    if calls is not None:
+        for serial, request in requests.items():
+            matching = {number for number, call in calls.items()
+                        if int(call["request"]["monotonic_ns"]) < moment(request)
+                        < int(call["response"]["monotonic_ns"])}
+            if bindings is not None:
+                matching &= bindings[serial]
+            require(matching, "object request has no invoking HTTP call interval")
+            if serial in responses:
+                matching = {number for number in matching
+                            if moment(responses[serial]) < int(calls[number]["response"]["monotonic_ns"])}
+                require(matching, "backend response has no original invoking HTTP call interval")
+            candidates[serial] = matching
+    accepted = defaultdict(dict)
+    by_path = defaultdict(list)
+    for serial, response in responses.items():
+        request = requests[serial]
+        by_path[request["path"]].append(serial)
+        if request["method"] == "PUT" and response["status"] == 200:
+            versions = accepted[request["path"]]
+            require(response["etag"] not in versions, "accepted object ETag reused")
+            versions[response["etag"]] = serial
+            if "/objects/" in request["path"]:
+                require(request["if_none_match"] == "*" and request["path"].rsplit("/", 1)[1] == request["request_sha256"],
+                        "immutable object key/condition differs from actual bytes")
+    total_edges = 0
+    for path, serials in by_path.items():
+        versions = accepted[path]
+        successors, roots, edges = {}, [], set()
+        for etag, serial in versions.items():
+            request = requests[serial]
+            if request["if_none_match"] == "*":
+                roots.append(serial)
+            else:
+                previous = versions.get(request["if_match"])
+                require(previous is not None and previous != serial, "accepted CAS has no original predecessor version")
+                require(previous not in successors, "two successful CAS writes consumed the same ETag")
+                successors[previous] = serial
+                edges.add((previous, serial))
+        require(not versions or len(roots) == 1, "object history has missing/duplicate conditional root")
+        if versions:
+            visited, current = set(), roots[0]
+            while current is not None and current not in visited:
+                visited.add(current)
+                current = successors.get(current)
+            require(current is None and len(visited) == len(versions), "disconnected/cyclic object version chain")
+        for serial in serials:
+            request, response = requests[serial], responses[serial]
+            if request["method"] == "GET":
+                if response["status"] == 404:
+                    if roots:
+                        edges.add((serial, roots[0]))
+                    continue
+                previous = versions.get(response["etag"])
+                require(previous is not None, "GET exposed a version omitted from accepted history")
+                original = requests[previous]
+                equal([response["response_bytes"], response["response_sha256"]],
+                      [original["request_bytes"], original["request_sha256"]], "same exact GET ETag identifies different complete bytes")
+                raw = capture(response, response=True)
+                if raw is not None:
+                    equal(raw, capture(original), "same exact GET body differs from original version")
+                edges.add((previous, serial))
+                if previous in successors:
+                    edges.add((serial, successors[previous]))
+            else:
+                if request["if_match"] is not None:
+                    previous = versions.get(request["if_match"])
+                    require(previous is not None, "CAS condition has no observed original version")
+                    witnesses = [other for other in serials if requests[other]["method"] == "GET"
+                                 and responses[other]["status"] == 200 and responses[other]["etag"] == request["if_match"]
+                                 and moment(responses[other]) < moment(request)
+                                 and (calls is None or candidates[other] & candidates[serial])]
+                    require(witnesses, "CAS did not use a preceding same-call exact GET body/ETag")
+                    if response["status"] == 412:
+                        require(previous in successors, "backend 412 rejected the current original ETag")
+                        edges.add((successors[previous], serial))
+                elif response["status"] == 412:
+                    require(roots, "conditional create 412 lacks permanent key occupancy")
+                    edges.add((roots[0], serial))
+        # Scale the recorded nanoseconds to allow strict logical order even
+        # when several effects fall between two adjacent observation clocks.
+        scale = len(serials) + 1
+        earliest = {serial: moment(requests[serial]) * scale for serial in serials}
+        following, indegree = defaultdict(set), Counter({serial: 0 for serial in serials})
+        for before, after in edges:
+            require(before != after, "self-referential object effect")
+            following[before].add(after)
+            indegree[after] += 1
+        ready = [(earliest[serial], serial) for serial in serials if indegree[serial] == 0]
+        heapq.heapify(ready)
+        visited = 0
+        while ready:
+            _, serial = heapq.heappop(ready)
+            require(earliest[serial] <= moment(responses[serial]) * scale,
+                    "object versions violate original real-time invocation/response intervals")
+            visited += 1
+            for later in following[serial]:
+                earliest[later] = max(earliest[later], earliest[serial] + 1)
+                indegree[later] -= 1
+                if indegree[later] == 0:
+                    heapq.heappush(ready, (earliest[later], later))
+        require(visited == len(serials), "object read/CAS history has no consistent linearization")
+        total_edges += len(edges)
+    return {"accepted_versions": sum(len(versions) for versions in accepted.values()),
+            "exact_get_body_etag_pairs": sum(requests[serial]["method"] == "GET" and response["status"] == 200
+                                              for serial, response in responses.items()),
+            "conditional_put_responses": sum(requests[serial]["method"] == "PUT" for serial in responses),
+            "causal_constraints": total_edges,
+            "blackholed_before_forward": len(requests) - len(responses),
+            "ambiguous_http_intervals": sum(len(value) > 1 for value in candidates.values()),
+            "http_interval_binding": "checked" if calls is not None else "NOT_REQUESTED"}

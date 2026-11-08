@@ -1,11 +1,13 @@
 use super::*;
+
+type Mutation<T> = Box<dyn Fn(&mut T)>;
 use records::{BindingState, Record};
 
-fn control(descriptor: &Descriptor, kind: NamedDeletionKind) -> Control {
+fn control(descriptor: &Source, kind: NamedDeletionKind) -> Control {
     Control {
         format: 1,
         creation: descriptor.creation.clone(),
-        origin: descriptor.origin().unwrap(),
+        origin: descriptor.origin(),
         principal: descriptor.creation.creator,
         operation: 20,
         expected_name_revision: 1,
@@ -19,11 +21,13 @@ fn control(descriptor: &Descriptor, kind: NamedDeletionKind) -> Control {
     }
 }
 
-fn roundtrip<R: Record + PartialEq + std::fmt::Debug>(value: &R) {
-    assert_eq!(
-        records::decode::<R>(&records::encode(value).unwrap()).unwrap(),
-        *value
-    );
+fn roundtrip<R: Record>(value: &R) {
+    let bytes = records::encode(value).unwrap();
+    let decoded = records::decode::<R>(&bytes).unwrap();
+    assert_eq!(decoded.raw(), value);
+    assert_eq!(decoded.bytes(), bytes);
+    assert_eq!(decoded.hash(), format::digest(&bytes));
+    assert_eq!(decoded.shape(), &value.validate().unwrap());
 }
 
 #[test]
@@ -102,8 +106,8 @@ fn fixed_identity_vectors_and_internal_key_namespaces_do_not_depend_on_name() {
 fn descriptor_validation_freezes_options_and_bounded_canonical_wire() {
     let (_, catalogue, creation) = prepared();
     let descriptor = descriptor(&catalogue, &creation);
-    roundtrip(&descriptor);
-    let mutations: Vec<Box<dyn Fn(&mut Descriptor)>> = vec![
+    roundtrip(descriptor.raw());
+    let mutations: Vec<Mutation<Descriptor>> = vec![
         Box::new(|d| d.format = 2),
         Box::new(|d| d.creation.name.clear()),
         Box::new(|d| d.creation.name = "\n".into()),
@@ -119,7 +123,7 @@ fn descriptor_validation_freezes_options_and_bounded_canonical_wire() {
         Box::new(|d| d.options.quota = QuotaChoice::Limited { max_bytes: 4096 }),
     ];
     for mutate in mutations {
-        let mut bad = descriptor.clone();
+        let mut bad = descriptor.raw().clone();
         mutate(&mut bad);
         assert!(bad.validate().is_err());
         assert_eq!(
@@ -131,12 +135,12 @@ fn descriptor_validation_freezes_options_and_bounded_canonical_wire() {
         QuotaChoice::Unlimited,
         QuotaChoice::Limited { max_bytes: 4096 },
     ] {
-        let mut valid = descriptor.clone();
+        let mut valid = descriptor.raw().clone();
         valid.options.quota = quota;
         valid.initial_quota = valid.options.effective_quota(&descriptor.initial_quota);
         roundtrip(&valid);
     }
-    let bytes = records::encode(&descriptor).unwrap();
+    let bytes = records::encode(descriptor.raw()).unwrap();
     let mut whitespace = bytes.clone();
     whitespace.push(b' ');
     assert_eq!(
@@ -173,8 +177,9 @@ fn control_and_binding_records_reject_wrong_source_conditions_and_illegal_transi
     let abort = control(&descriptor, NamedDeletionKind::Abort);
     roundtrip(&abort);
     roundtrip(&control(&descriptor, NamedDeletionKind::Delete));
-    let mutations: Vec<Box<dyn Fn(&mut Control)>> = vec![
+    let mutations: Vec<Mutation<Control>> = vec![
         Box::new(|c| c.format = 0),
+        Box::new(|c| c.creation.scope.database += 1),
         Box::new(|c| c.origin.creator += 1),
         Box::new(|c| c.origin.operation += 1),
         Box::new(|c| c.origin.name_hash = format::digest(b"other")),
@@ -199,7 +204,7 @@ fn control_and_binding_records_reject_wrong_source_conditions_and_illegal_transi
     let reserved = Binding {
         format: 1,
         creation,
-        origin: descriptor.origin().unwrap(),
+        origin: descriptor.origin(),
         revision: 1,
         state: BindingState::Reserved,
         control: None,
@@ -210,6 +215,12 @@ fn control_and_binding_records_reject_wrong_source_conditions_and_illegal_transi
     bound.state = BindingState::Bound;
     bound.revision = 2;
     roundtrip(&bound);
+    let mut invalid_bound = bound.clone();
+    invalid_bound.control = Some(abort.clone());
+    assert!(invalid_bound.validate().is_err());
+    invalid_bound = bound;
+    invalid_bound.proof = Some(format::digest(b"invalid bound proof"));
+    assert!(invalid_bound.validate().is_err());
     let mut aborting = reserved.clone();
     aborting.state = BindingState::Aborting;
     aborting.revision = 2;
@@ -220,12 +231,17 @@ fn control_and_binding_records_reject_wrong_source_conditions_and_illegal_transi
     tombstone.revision = 3;
     tombstone.proof = Some(format::digest(b"proof"));
     roundtrip(&tombstone);
-    let mutations: Vec<Box<dyn Fn(&mut Binding)>> = vec![
+    let mutations: Vec<Mutation<Binding>> = vec![
         Box::new(|b| b.format = 0),
         Box::new(|b| b.revision = 4),
         Box::new(|b| b.origin.operation += 1),
         Box::new(|b| b.control = None),
         Box::new(|b| b.control.as_mut().unwrap().creation.name = "different".into()),
+        Box::new(|b| {
+            let control = b.control.as_mut().unwrap();
+            control.creation.name = "different".into();
+            control.origin.name_hash = format::digest(b"different");
+        }),
         Box::new(|b| {
             b.control.as_mut().unwrap().origin.descriptor_hash = format::digest(b"different")
         }),
@@ -302,6 +318,9 @@ fn abort_proofs_bind_permanent_identity_and_original_control_without_mutable_eta
     bad = own.clone();
     bad.format = 2;
     assert!(bad.validate().is_err());
+    bad = own.clone();
+    bad.control.operation = 0;
+    assert!(bad.validate().is_err());
     bad = own;
     bad.control.kind = NamedDeletionKind::Delete;
     assert!(bad.validate().is_err());
@@ -319,7 +338,7 @@ fn abort_proofs_bind_permanent_identity_and_original_control_without_mutable_eta
     let mut named_foreign = foreign.clone();
     named_foreign.barrier = Barrier::ForeignOccupied {
         scope: scope.clone(),
-        creation: Some(descriptor.origin().unwrap()),
+        creation: Some(descriptor.origin()),
     };
     roundtrip(&named_foreign);
     for mutate in [0, 1, 2, 3, 4] {
@@ -338,7 +357,7 @@ fn abort_proofs_bind_permanent_identity_and_original_control_without_mutable_eta
             3 => scope.database += 1,
             _ => {
                 *scope = creation.scope.clone();
-                *origin = Some(descriptor.origin().unwrap());
+                *origin = Some(descriptor.origin());
             }
         }
         assert!(bad.validate().is_err());
@@ -355,41 +374,80 @@ fn abort_proofs_bind_permanent_identity_and_original_control_without_mutable_eta
     assert!(bad.validate().is_err());
 }
 
-#[derive(serde::Deserialize)]
-struct FailedSerialize;
-impl serde::Serialize for FailedSerialize {
-    fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
-        Err(serde::ser::Error::custom("serialization failed"))
-    }
-}
-impl Record for FailedSerialize {
-    fn validate(&self) -> Result<(), CatalogueError> {
-        Ok(())
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct LargeRecord {
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+struct CodecRecord {
     value: String,
+    valid: bool,
+    serializable: bool,
 }
-impl Record for LargeRecord {
+impl serde::Serialize for CodecRecord {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        if !self.serializable {
+            return Err(serde::ser::Error::custom("serialization failed"));
+        }
+        let mut fields = serializer.serialize_struct("CodecRecord", 3)?;
+        fields.serialize_field("value", &self.value)?;
+        fields.serialize_field("valid", &self.valid)?;
+        fields.serialize_field("serializable", &self.serializable)?;
+        fields.end()
+    }
+}
+impl Record for CodecRecord {
+    type Shape = ();
     fn validate(&self) -> Result<(), CatalogueError> {
-        Ok(())
+        records::valid(self.valid)
     }
 }
 
 #[test]
 fn codec_and_boundary_error_mapping_are_fail_closed() {
+    let empty = CodecRecord {
+        value: String::new(),
+        valid: true,
+        serializable: true,
+    };
+    roundtrip(&empty);
+    let maximum = CodecRecord {
+        value: "x".repeat(records::MAX_RECORD_BYTES - records::encode(&empty).unwrap().len()),
+        ..empty.clone()
+    };
     assert_eq!(
-        records::encode(&FailedSerialize),
-        Err(CatalogueError::Invalid)
+        records::encode(&maximum).unwrap().len(),
+        records::MAX_RECORD_BYTES
     );
+    roundtrip(&maximum);
+    for invalid in [
+        CodecRecord {
+            valid: false,
+            ..empty.clone()
+        },
+        CodecRecord {
+            serializable: false,
+            ..empty.clone()
+        },
+    ] {
+        assert_eq!(records::encode(&invalid), Err(CatalogueError::Invalid));
+    }
     assert_eq!(
-        records::encode(&LargeRecord {
-            value: "x".repeat(records::MAX_RECORD_BYTES)
+        records::encode(&CodecRecord {
+            value: "x".repeat(records::MAX_RECORD_BYTES),
+            ..empty
         }),
         Err(CatalogueError::Limit)
     );
+    for bytes in [
+        b"{}".to_vec(),
+        br#"{"value":"","valid":false,"serializable":true}"#.to_vec(),
+        br#"{"value":"","valid":true,"serializable":false}"#.to_vec(),
+        br#"{"value":"","valid":true,"serializable":true} "#.to_vec(),
+        vec![b' '; records::MAX_RECORD_BYTES + 1],
+    ] {
+        assert_eq!(
+            records::decode::<CodecRecord>(&bytes),
+            Err(CatalogueError::Corrupt)
+        );
+    }
     for (error, expected) in [
         (StoreError::Missing, CatalogueError::NotFound),
         (StoreError::Conflict, CatalogueError::Conflict),

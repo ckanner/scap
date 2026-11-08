@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import signal
+import sys
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, decimal, equal, fingerprint, parse, require, result
+from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges, object_versions, parse, require, result
 
 PHASES = ("initialize", "concurrent_create", "unknown_write", "resolve_unknown", "blackhole", "takeover", "recover")
 FILES = ("http-client-ledger.jsonl", "process-ledger.jsonl", "inputs.jsonl", "data-inputs.jsonl",
@@ -58,6 +60,19 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
     by_event = defaultdict(list)
     for row in facts:
         by_event[row["event"]].append(row)
+    # Owner names and backend role labels do not prove independent processes.
+    # Count unique kernel child incarnations across every service, backend and
+    # client process, including the replacement set after complete compute loss.
+    incarnations, pid_lifetimes = set(), defaultdict(list)
+    def register(value, end):
+        observed = identity(value)
+        key = (observed["pid"], observed["spawn_monotonic_ns"])
+        require(key not in incarnations, "one child incarnation impersonates multiple processes")
+        start=observed["spawn_monotonic_ns"]
+        require(start<end and all(end<=lower or upper<=start for lower,upper in pid_lifetimes[observed["pid"]]),
+                "one child PID claims overlapping independent lifetimes")
+        incarnations.add(key)
+        pid_lifetimes[observed["pid"]].append((start,end))
     starts = by_event["service_started"]
     require({row["owner_instance"] for row in starts} == {5001, 5002, 5003} and len(starts) == 3, "unexpected compute inventory")
     live = {}
@@ -69,6 +84,7 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
         ready = only([item for item in by_event["service_ready"] if item["owner_instance"] == owner], "service ready inventory")
         requested = only([item for item in by_event["service_stop_requested"] if item["owner_instance"] == owner], "service stop request inventory")
         stopped = only([item for item in by_event["service_stopped"] if item["owner_instance"] == owner], "service stop inventory")
+        register(ident,stamp(stopped))
         for item in (ready, requested):
             equal(identity(item["identity"]), ident, "wrong service incarnation")
         equal(identity(stopped), ident, "wait4 belongs to another service")
@@ -100,6 +116,9 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
     require(old["directory_identity"] == requested["directory_identity"] == stopped["directory_identity"] == restarted["directory_identity"], "backend durable directory changed")
     for inventory in (old, requested, stopped, restarted, cleaned):
         require(Counter(item["role"] for item in inventory["processes"]) == Counter({"master":1,"volume":1,"filer":1,"s3":1}), "backend role inventory")
+    for inventory,end in ((old,stamp(stopped)), (restarted,stamp(cleaned))):
+        for process in inventory["processes"]:
+            register(process,end)
     for role in ("master", "volume", "filer", "s3"):
         def member(row):
             return only([item for item in row["processes"] if item["role"] == role], "backend role")
@@ -119,6 +138,7 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
         begun = only([row for row in by_event["client_phase_started"] if row["phase"] == phase], "phase start")
         child = only([row for row in by_event["client_process_started"] if row["phase"] == phase], "client process start")
         finished = only([row for row in by_event["client_phase_finished"] if row["phase"] == phase], "phase finish")
+        register(child["identity"],stamp(finished))
         equal(identity(child["identity"]), identity(finished["identity"]), "client wait4 belongs to another process")
         exited(finished, 0)
         require(stamp(begun) <= child["identity"]["spawn_monotonic_ns"] <= stamp(child) < stamp(finished), "client lifetime order")
@@ -142,6 +162,7 @@ def processes(facts, http, *, phases=PHASES, ordered=True):
     require(cleanup["errors"] == [] and stamp(cleanup) > stamp(cleaned), "process cleanup incomplete")
     require(all(stamp(cleanup) > stamp(stopped) for _, stopped in live.values()), "service remains alive after cleanup")
     return {"services": len(starts), "original_backend_processes": 4, "replacement_backend_processes": 4,
+            "unique_child_incarnations": len(incarnations),
             "complete_cache_loss": True, "kernel_wait4_verified": True}
 
 
@@ -297,26 +318,25 @@ def results(directory, calls):
 
 
 def network(history,calls):
-    by_serial=defaultdict(list)
-    for row in history:
-        if "request_serial" in row:by_serial[row["request_serial"]].append(row)
+    requests,responses=object_exchanges(history,phases=PHASES,blackhole_phases=("blackhole",))
+    bindings={}
+    for serial,request in requests.items():
+        matching=set()
+        for call_id,call in calls.items():
+            if not stamp(call["request"])<stamp(request)<stamp(call["response"]):continue
+            scope=call["body"]["scope"]
+            prefix=f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/"
+            if request["path"]==prefix+"head" or request["path"].startswith(
+                    prefix+f"inc/{scope['incarnation']}/gen/{scope['generation']}/objects/"):
+                matching.add(call_id)
+        require(matching,"S3 request has no matching authenticated HTTP Scope/call interval")
+        bindings[serial]=matching
+    versions=object_versions(requests,responses,calls=calls,bindings=bindings)
     accepted=[]
-    for serial,events in by_serial.items():
-        request=only([row for row in events if row["event"]=="object_request"],"missing/duplicate S3 request")
-        require(request["phase"] in PHASES,"S3 request without known client phase")
-        if request["path"].endswith("/head"):
-            raw=bytes(request["head_request_bytes"])
-            require(hashlib.sha256(raw).hexdigest()==request["request_sha256"],"HEAD request digest differs")
-        for response in [row for row in events if row["event"]=="object_response"]:
-            require(response["response_origin"]=="backend","injected response cannot prove backend")
-            for key in ("method","path","phase","request_sha256","if_match","if_none_match"):
-                equal(response[key],request[key],"S3 response targets another request")
-            if response["path"].endswith("/head") and response["method"]=="GET" and response["status"]==200:
-                raw=bytes(response["head_response_bytes"])
-                require(hashlib.sha256(raw).hexdigest()==response["response_sha256"],"exact HEAD GET digest differs")
-                require(parse(raw)["format"]==3,"catalogue build must use HEAD v3")
-            if response["path"].endswith("/head") and response["method"]=="PUT" and response["status"]==200:
-                accepted.append((request,response,parse(bytes(request["head_request_bytes"]))))
+    for serial,response in responses.items():
+        request=requests[serial]
+        if request["path"].endswith("/head") and request["method"]=="PUT" and response["status"]==200:
+            accepted.append((request,response,parse(bytes(request["head_request_bytes"]))))
     for call in calls.values():
         if call["body"]["operation"]!="execute" or call.get("value",{}).get("ok") is not True:continue
         receipt=value_of(call)["receipt"]
@@ -332,28 +352,37 @@ def network(history,calls):
         require(len(witnesses)==1,"successful execute missing unique original durable HEAD")
     uncertain=[(request,response,head) for request,response,head in accepted if request["phase"]=="unknown_write"]
     require(len(uncertain)==1 and uncertain[0][1]["suppressed"] is True,"UNKNOWN lacks real accepted HEAD/response loss")
-    return {"s3_requests":len(by_serial),"accepted_head_publications":len(accepted),"head_format":3,"result_format":2}
+    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":3,"result_format":2,
+            "object_version_audit":versions}
 
 
-def build_receipt(directory, required):
-    path=directory/"build-receipt.json"
-    if not path.exists():
-        require(not required,"missing frozen release build receipt")
-        return {"status":"NOT_PROVIDED","diagnostic":True}
-    value=parse(path.read_bytes())
-    require(value.get("status")=="passed" and value.get("profile")=="release" and value.get("node")=="v22.16.0",
-            "invalid frozen release build receipt")
-    require(value.get("inputs") and value.get("native_archives") and len(value["binary"]["sha256"])==64,
-            "incomplete source/executable/native provenance")
-    return {"status":"present","sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+def build_receipt(directory, required, *, require_artifacts=True, source_root=None):
+    # Load by exact source path: the sibling network controller also has modules
+    # named build/run, so module search order must not select another verifier.
+    specification=importlib.util.spec_from_file_location("scap_independent_build_audit",
+        Path(__file__).resolve().parent.parent/"object-network"/"audit_build.py")
+    module=importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module.receipt(directory,required,profile="service",require_artifacts=require_artifacts,source_root=source_root)
 
 
-def audit(directory, *, require_build=True):
+def process_build_binding(facts, build):
+    if build["status"]=="NOT_PROVIDED":return {"status":"NOT_PROVIDED","diagnostic":True}
+    starts=[row for row in facts if row["event"]=="service_started"]
+    require(len(starts)==3,"build binding lacks all three service children")
+    for row in starts:equal(row["binary"],build["binary"],"owned service child executed another release binary")
+    return {"services_bound_to_original_executable":len(starts),"binary_sha256":build["binary"]["sha256"]}
+
+
+def audit(directory, *, require_build=True, require_artifacts=True):
     directory=Path(directory)
     http=rows(directory,"http-client-ledger.jsonl")
     calls=exchanges(http)
-    output={"schema":1,"status":"passed","http_calls":len(calls),"build":build_receipt(directory,require_build),
-            "processes":processes(rows(directory,"process-ledger.jsonl"),http),
+    facts=rows(directory,"process-ledger.jsonl")
+    build=build_receipt(directory,require_build,require_artifacts=require_artifacts)
+    output={"schema":1,"status":"partial" if build.get("verification_scope")=="archived_source_and_cargo_only" else "passed",
+            "http_calls":len(calls),"build":build,"process_build_binding":process_build_binding(facts,build),
+            "processes":processes(facts,http),
             "results":results(directory,calls),"network":network(rows(directory,"history.jsonl"),calls)}
     output["source_sha256"]={name:hashlib.sha256((directory/name).read_bytes()).hexdigest() for name in FILES}
     return output
@@ -362,5 +391,8 @@ def audit(directory, *, require_build=True):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("evidence",type=Path)
+    parser.add_argument("--allow-unavailable-artifacts",action="store_true",help="explicit partial offline audit; never a full release gate")
     args=parser.parse_args()
-    print(json.dumps(audit(args.evidence),indent=2,sort_keys=True))
+    outcome=audit(args.evidence,require_artifacts=not args.allow_unavailable_artifacts)
+    print(json.dumps(outcome,indent=2,sort_keys=True))
+    sys.exit(0 if outcome["status"]=="passed" else 1)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -98,11 +99,27 @@ def input_digest(manifest):
 def verify(record_path, worker):
     value = json.loads(record_path.read_text())
     assert value["status"] == "passed" and value["profile"] == "release"
+    assert type(value.get("exit_code")) is int and value["exit_code"] == 0, "Cargo did not exit successfully"
+    assert set(value.get("binary", {})) == {"path", "sha256"}, "missing binary provenance"
+    assert Path(value["binary"]["path"]).resolve() == worker.resolve(), "wrong worker executable path"
     assert value["binary"]["sha256"] == digest(worker.resolve()), "worker is not the recorded build"
     assert value["inputs"] == inputs(), "build inputs changed after compilation"
     assert value["input_sha256"] == input_digest(value["inputs"])
     assert value["native_archives"], "missing native compilation evidence"
+    for name, field in (("cargo.stdout.jsonl", "build_stdout_sha256"), ("cargo.stderr.log", "build_stderr_sha256")):
+        assert value[field] == digest(record_path.parent / name), "original Cargo log changed"
+    binary, native = release_artifacts(cargo_events(record_path.parent / "cargo.stdout.jsonl"), worker.resolve().parents[1])
+    assert binary == worker.resolve(), "Cargo executable differs from supplied worker"
+    assert native == value["native_archives"], "native SQLite archives changed after build"
     return value
+
+
+def capture_receipt(record, worker, evidence):
+    specification=importlib.util.spec_from_file_location("scap_build_evidence_capture",Path(__file__).with_name("build_evidence.py"))
+    module=importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module.capture(record,evidence,value=verify(record,worker),root=ROOT,inputs=inputs,
+                          save_receipt=save_receipt,sync=sync,log_keys=("build_stdout_sha256","build_stderr_sha256"))
 
 
 def run(arguments):
@@ -130,6 +147,7 @@ def run(arguments):
                 version_command, cwd=ROOT, env=environment, text=True).strip()
         receipt["source_commit"] = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        receipt["source_root"] = str(ROOT.resolve())
         with output.open("wb") as stdout, errors.open("wb") as stderr:
             try:
                 process = subprocess.run(command, cwd=ROOT, env=environment, stdout=stdout, stderr=stderr)

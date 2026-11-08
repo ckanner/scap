@@ -88,14 +88,16 @@ class Service:
         self.configuration.chmod(0o600)
         environment = dict(os.environ, SCAP_TEST_ACCESS=backend.access, SCAP_TEST_SECRET=backend.secret)
         self.log = private / f"service-{owner}.private.log"
+        executable = {"path": str(binary.resolve()), "sha256": build.digest(binary)}
         with self.log.open("wb") as stream:
             self.process = subprocess.Popen([str(binary), str(self.configuration)], env=environment,
                                             stdout=stream, stderr=stream)
         self.identity = process_identity(self.process)
         self.endpoint = f"http://127.0.0.1:{self.port}"
         self.facts.emit("service_started", owner_instance=self.owner, identity=self.identity,
-                        endpoint=self.endpoint, cache_directory=str(self.cache))
+                        endpoint=self.endpoint, cache_directory=str(self.cache), binary=executable)
         try:
+            assert build.digest(binary) == executable["sha256"], "service binary changed across Popen"
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 assert self.process.poll() is None, "daemon exited before liveness probe"
@@ -192,9 +194,8 @@ def main(args):
         summary["tools"] = tools_before
         if not args.diagnostic:
             assert args.build_record, "a final run requires the service build receipt"
-            receipt = build.verify(args.build_record, args.server)
+            receipt = build.capture_receipt(args.build_record, args.server, evidence)
             assert receipt["node"] == tools_before["node"]["version"], "Node differs from build receipt"
-            (evidence / "build-receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
         summary.update(status="running", binary_sha256=build.digest(args.server), inputs=before)
         backend = Backend(args.weed.resolve(), private / "backend")
         backend.start()
@@ -312,9 +313,14 @@ def main(args):
         if summary["status"] == "passed":
             shutil.rmtree(private)
             summary["private_fixture_removed"] = True
+        if args.diagnostic:
+            summary["formal_gate_status"] = "NOT_RUN"
+            if summary["status"] == "passed":
+                summary["status"] = "completed_diagnostic"
+                summary["raw_audit"]["status"] = "diagnostic_checks_completed"
         (evidence / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     print(json.dumps({key: summary.get(key) for key in ("status", "diagnostic", "error", "audit", "cleanup_errors")}))
-    return 0 if summary["status"] == "passed" else 1
+    return 0 if summary["status"] in ("passed", "completed_diagnostic") else 1
 
 
 if __name__ == "__main__":

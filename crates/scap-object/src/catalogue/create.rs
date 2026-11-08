@@ -1,3 +1,4 @@
+use super::inspect::CreateStep;
 use super::*;
 use records::BindingState;
 
@@ -24,19 +25,19 @@ impl Catalogue {
             )?,
             expected_name_revision: input.expected_name_revision,
         };
-        self.creation(&creation)?;
-        let initial_quota = input.options.effective_quota(&self.options.quota);
-        let candidate = Descriptor {
+        let candidate = Canonical::new(Descriptor {
             format: 1,
             creation,
             options: input.options.clone(),
-            initial_quota,
+            initial_quota: input.options.effective_quota(&self.options.quota),
             retention: self.options.retention.clone(),
-        };
-        let bytes = records::encode(&candidate)?;
+        })?;
         let deadline = self.options.deadline(deadline, false);
         let key = self.descriptor_key(caller.principal, input.operation);
-        match self.objects.put(&key, &bytes, Condition::Absent, deadline) {
+        match self
+            .objects
+            .put(&key, candidate.bytes(), Condition::Absent, deadline)
+        {
             Ok(_) | Err(StoreError::Conflict) => {}
             Err(error) => return Err(store_error(error)),
         }
@@ -57,69 +58,65 @@ impl Catalogue {
     ) -> Result<CreationProgress, CatalogueError> {
         Self::creator(caller, creation.creator)?;
         let deadline = self.options.deadline(deadline, false);
-        let descriptor = self.descriptor(creation, deadline)?;
-        let mut view = self.view(&descriptor, deadline)?;
-        if self.phase(&descriptor, &view, deadline)? == CreationPhase::NotReserved {
-            self.reserve(&descriptor, &view, deadline)?;
-            view = self.view(&descriptor, deadline)?;
+        let source = self.descriptor(creation, deadline)?;
+        for _ in 0..4 {
+            let view = self.view(&source, deadline)?;
+            let plan = self.creation_plan(&source, &view, deadline)?;
+            match plan.step {
+                CreateStep::None => return Ok(Self::progress(&source, &view, plan.phase)),
+                CreateStep::Reserve(previous) => {
+                    let binding = Binding {
+                        format: 1,
+                        creation: source.creation.clone(),
+                        origin: source.origin(),
+                        revision: source.creation.expected_name_revision.unwrap_or(0) + 1,
+                        state: BindingState::Reserved,
+                        control: None,
+                        proof: None,
+                    };
+                    // The plan verified the previous tombstone and permanent
+                    // barrier. Use that original ETag once, without rebasing.
+                    self.write_binding(
+                        &binding,
+                        previous.map(|name| name.etag.as_str()),
+                        deadline,
+                    )?;
+                }
+                CreateStep::Provision => {
+                    let database = self.database(&source);
+                    let mut head = database
+                        .initial_head(creation.creator, creation.operation, deadline)
+                        .map_err(core_error)?;
+                    head.lifecycle = Lifecycle::Provisioning;
+                    head.creation = Some(source.origin());
+                    database.create_head(&head, deadline).map_err(core_error)?;
+                }
+                CreateStep::Bind(binding) => {
+                    let mut next = binding.body.raw().clone();
+                    next.state = BindingState::Bound;
+                    next.revision += 1;
+                    self.write_binding(&next, Some(&binding.etag), deadline)?;
+                }
+                CreateStep::Complete(binding, base) => {
+                    self.complete(&source, binding, base, deadline)?
+                }
+            }
         }
-        if self.phase(&descriptor, &view, deadline)? == CreationPhase::Reserved {
-            let database = self.database(&descriptor)?;
-            let mut head = database
-                .initial_head(creation.creator, creation.operation, deadline)
-                .map_err(core_error)?;
-            head.lifecycle = Lifecycle::Provisioning;
-            head.creation = Some(descriptor.origin()?);
-            database.create_head(&head, deadline).map_err(core_error)?;
-            view = self.view(&descriptor, deadline)?;
-        }
-        if self.phase(&descriptor, &view, deadline)? == CreationPhase::Provisioning {
-            let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
-            let mut bound = binding.body.clone();
-            bound.state = BindingState::Bound;
-            bound.revision += 1;
-            self.write_binding(&bound, Some(&binding.etag), deadline)?;
-            view = self.view(&descriptor, deadline)?;
-        }
-        if self.phase(&descriptor, &view, deadline)? == CreationPhase::Bound {
-            self.complete(&descriptor, &view, deadline)?;
-            view = self.view(&descriptor, deadline)?;
-        }
-        self.progress(&descriptor, &view, deadline)
-    }
-
-    fn reserve(
-        &self,
-        descriptor: &Descriptor,
-        view: &View,
-        deadline: Instant,
-    ) -> Result<(), CatalogueError> {
-        let original = view.binding.as_ref().map(|binding| binding.etag.as_str());
-        let binding = Binding {
-            format: 1,
-            creation: descriptor.creation.clone(),
-            origin: descriptor.origin()?,
-            revision: descriptor.creation.expected_name_revision.unwrap_or(0) + 1,
-            state: BindingState::Reserved,
-            control: None,
-            proof: None,
-        };
-        // `phase` already verified any preceding tombstone and its permanent
-        // barrier. This is its original ETag, never a refreshed failed candidate.
-        self.write_binding(&binding, original, deadline)
+        let view = self.view(&source, deadline)?;
+        let plan = self.creation_plan(&source, &view, deadline)?;
+        Ok(Self::progress(&source, &view, plan.phase))
     }
 
     fn complete(
         &self,
-        descriptor: &Descriptor,
-        view: &View,
+        source: &Source,
+        binding: &Name,
+        base: &Snapshot,
         deadline: Instant,
     ) -> Result<(), CatalogueError> {
-        let binding = &view.binding.as_ref().ok_or(CatalogueError::Corrupt)?.body;
-        require(binding.creation == descriptor.creation && binding.state == BindingState::Bound)?;
-        let base = view.head.as_ref().ok_or(CatalogueError::Corrupt)?;
-        Self::provisioning(descriptor, &base.head)?;
-        let database = self.database(descriptor)?;
+        require(binding.body.creation == source.creation && binding.stage == NameStage::Bound)?;
+        Self::provisioning(source, &base.head)?;
+        let database = self.database(source);
         database
             .verify_closure(&base.head, deadline)
             .map_err(core_error)?;
@@ -127,9 +124,19 @@ impl Catalogue {
         if current.etag != base.etag || current.head != base.head {
             return Err(CatalogueError::Conflict);
         }
-        let mut head =
-            Database::next(&base.head, descriptor.creation.operation).map_err(core_error)?;
+        // A verified Provisioning HEAD is always its first revision. Completing
+        // it preserves the initial owner, policy and inactive state.
+        let mut head = base.head.clone();
+        head.revision = 2;
+        head.transition = format::Transition {
+            revision: 2,
+            nonce: source.creation.operation,
+        };
         head.lifecycle = Lifecycle::Ready;
         database.publish(base, &head, deadline).map_err(core_error)
     }
 }
+
+#[cfg(test)]
+#[path = "create_boundary_tests.rs"]
+mod tests;

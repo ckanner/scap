@@ -19,6 +19,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import service_oracle
+
 
 HERE = Path(__file__).resolve().parent
 
@@ -135,7 +137,7 @@ class BuildReceiptControls(unittest.TestCase):
         self.source = self.directory / "source"
         self.source.mkdir()
         self.paths = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-                      "crates/scap-service/src/main.rs", "crates/scap-sqlite/src/lib.rs",
+                      "crates/scap-service/Cargo.toml", "crates/scap-service/src/main.rs", "crates/scap-sqlite/src/lib.rs",
                       "sdk/node/src/client.js", "sdk/node/src/client.d.ts", "sdk/node/package.json",
                       "sdk/node-codec/src/codec.js", "experiments/object-service/probe.mjs",
                       "experiments/object-service/run.py", "experiments/object-network/run.py")
@@ -143,17 +145,36 @@ class BuildReceiptControls(unittest.TestCase):
             path = self.source / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("original source bytes\n")
-        self.binary = self.directory / "scapd"
+        self.target = self.directory / "target"
+        self.binary = self.target / "release" / "scapd"
+        self.binary.parent.mkdir(parents=True)
         self.binary.write_bytes(b"original executable bytes")
-        archive = self.directory / "libsql.a"
-        archive.write_bytes(b"native archive fixture")
+        self.native = self.target / "release" / "build" / "libsql-ffi-fixture" / "out"
+        self.native.mkdir(parents=True)
+        self.archive = self.native / "liblibsql.a"
+        self.archive.write_bytes(b"native archive fixture")
         self.root_patch = mock.patch.object(BUILD, "ROOT", self.source)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
         self.value = {"schema": 1, "status": "passed", "profile": "release",
                       "inputs": BUILD.inputs(), "node": "v22.16.0",
+                      "command":["cargo","+1.90.0","build","--release","--locked","-p","scap-service",
+                                 "--bin","scapd","--message-format=json-render-diagnostics"],
+                      "source_commit":"f"*40,"exit_code":0,
+                      "source_root":str(self.source),
+                      "rustc":"rustc 1.90.0 (1159e78c4 2025-09-14)\nrelease: 1.90.0\n",
                       "binary": {"path": str(self.binary), "sha256": BUILD.digest(self.binary)},
-                      "native_archives": {str(archive): BUILD.digest(archive)}}
+                      "native_archives": {str(self.archive): BUILD.digest(self.archive)}}
+        self.events=[{"reason":"build-script-executed","package_id":"registry+fixture#libsql-ffi@0.10.0","out_dir":str(self.native),
+                      "linked_libs":["static=libsql"],"linked_paths":["native="+str(self.native)]},
+                     {"reason":"compiler-artifact","target":{"name":"scapd","kind":["bin"],"src_path":str(self.source/"crates/scap-service/src/main.rs")},
+                      "manifest_path":str(self.source/"crates/scap-service/Cargo.toml"),"executable":str(self.binary),"filenames":[str(self.binary)],
+                      "profile":{"opt_level":"3","debuginfo":0,"debug_assertions":False,"overflow_checks":False,"test":False}},
+                     {"reason":"build-finished","success":True}]
+        (self.directory/"cargo.stdout.jsonl").write_text("".join(json.dumps(event)+"\n" for event in self.events))
+        (self.directory/"cargo.stderr.log").write_text("synthetic original compiler stderr\n")
+        for name in ("cargo.stdout.jsonl","cargo.stderr.log"):
+            self.value[name+"_sha256"]=BUILD.digest(self.directory/name)
         self.record = self.directory / "build.json"
         self.record.write_text(json.dumps(self.value))
 
@@ -195,6 +216,83 @@ class BuildReceiptControls(unittest.TestCase):
         self.binary.unlink()
         with self.assertRaises(FileNotFoundError):
             BUILD.verify(self.record, self.binary)
+
+    def capture(self):
+        directory=Path(tempfile.mkdtemp(prefix="run-",dir=self.directory))
+        BUILD.capture_receipt(self.record,self.binary,directory)
+        return directory
+
+    def check(self,directory,**options):
+        return service_oracle.build_receipt(directory,True,source_root=self.source,**options)
+
+    def test_archived_original_source_and_raw_cargo_are_independently_recomputed(self):
+        directory=self.capture()
+        result=self.check(directory)
+        self.assertEqual(result["verification_scope"],"full")
+        self.assertEqual(result["source_files_verified"],len(self.paths))
+        self.assertEqual(result["retrieved_artifacts"],[str(self.binary),str(self.archive)])
+        facts=[{"event":"service_started","binary":copy.deepcopy(self.value["binary"])} for _ in range(3)]
+        self.assertEqual(service_oracle.process_build_binding(facts,result)["services_bound_to_original_executable"],3)
+        facts[-1]["binary"]["sha256"]="a"*64
+        with self.assertRaisesRegex(ValueError,"another release binary"):
+            service_oracle.process_build_binding(facts,result)
+
+    def test_status_passed_cannot_replace_original_successful_cargo_and_artifact_evidence(self):
+        for fault in ("exit101","exit_bool","node","rustc","command","hash","missing_archive",
+                      "stdout","stderr","failed_event","missing_event","after_finished","wrong_binary","wrong_native",
+                      "source_manifest","source_archive","source_omission"):
+            directory=self.capture();path=directory/"build-receipt.json";value=json.loads(path.read_text())
+            if fault=="exit101":value["exit_code"]=101
+            elif fault=="exit_bool":value["exit_code"]=False
+            elif fault=="node":value["node"]="v24.22.1"
+            elif fault=="rustc":value["rustc"]="fixture status passed"
+            elif fault=="command":value["command"].remove("--release")
+            elif fault=="hash":value["binary"]["sha256"]="not-hex-"*8
+            elif fault=="missing_archive":del value["archived_evidence"]
+            elif fault in ("stdout","stderr"):(directory/("build-cargo.stdout.jsonl" if fault=="stdout" else "build-cargo.stderr.log")).write_bytes(b"changed\n")
+            elif fault in ("failed_event","missing_event","after_finished","wrong_binary","wrong_native"):
+                events=copy.deepcopy(self.events)
+                if fault=="failed_event":events[-1]["success"]=False
+                elif fault=="missing_event":events.pop()
+                elif fault=="after_finished":events.append({"reason":"compiler-artifact","executable":None})
+                elif fault=="wrong_binary":events[1]["executable"]=str(self.binary)+"-other"
+                else:events[0]["out_dir"]=str(self.directory/"unrelated"/"out")
+                output=directory/"build-cargo.stdout.jsonl";output.write_text("".join(json.dumps(event)+"\n" for event in events))
+                value["cargo.stdout.jsonl_sha256"]=BUILD.digest(output)
+            elif fault=="source_manifest":(directory/"build-source-manifest.json").write_text("{}\n")
+            elif fault=="source_archive":
+                archive=directory/"build-source.tar";raw=bytearray(archive.read_bytes());raw[512]^=1;archive.write_bytes(raw)
+                value["archived_evidence"]["source_archive_sha256"]=BUILD.digest(archive)
+            else:
+                del value["inputs"]["sdk/node/src/client.js"]
+                manifest=directory/"build-source-manifest.json"
+                manifest.write_text(json.dumps({"schema":1,"source_commit":value["source_commit"],"inputs":value["inputs"]}))
+                value["archived_evidence"]["source_manifest_sha256"]=BUILD.digest(manifest)
+            path.write_text(json.dumps(value))
+            with self.subTest(fault=fault),self.assertRaises((ValueError,KeyError)):
+                self.check(directory)
+
+    def test_native_and_binary_changes_fail_even_with_unchanged_passed_receipt(self):
+        directory=self.capture()
+        for artifact in (self.binary,self.archive):
+            original=artifact.read_bytes();artifact.write_bytes(original+b"changed")
+            with self.subTest(path=artifact),self.assertRaisesRegex(ValueError,"bytes differ"):
+                self.check(directory)
+            artifact.write_bytes(original)
+        extra=self.native/"unrecorded.a";extra.write_bytes(b"unrecorded native archive")
+        with self.assertRaisesRegex(ValueError,"inventory differs"):self.check(directory)
+
+    def test_offline_missing_artifacts_are_explicit_partial_and_never_full_acceptance(self):
+        directory=self.capture()
+        self.target.rename(self.directory/"relocated-target")
+        with self.assertRaisesRegex(ValueError,"unavailable"):self.check(directory)
+        result=self.check(directory,require_artifacts=False)
+        self.assertEqual(result["verification_scope"],"archived_source_and_cargo_only")
+        self.assertEqual(result["executable_native_bytes"],"NOT_AVAILABLE")
+        self.assertEqual(set(result["unavailable_artifacts"]),{str(self.binary),str(self.archive)})
+        (self.source/"Cargo.lock").write_text("a later checkout\n")
+        result=self.check(directory,require_artifacts=False)
+        self.assertFalse(result["local_source_manifest_matches"])
 
 
 def ledger():

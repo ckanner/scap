@@ -6,12 +6,13 @@ import argparse
 from collections import Counter, defaultdict
 import hashlib
 import json
+import sys
 from pathlib import Path
 import unicodedata
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, decimal, equal, fingerprint, parse, require, result
-from service_oracle import build_receipt, exchanges, only, processes, rows, stamp, value_of
+from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges as wire_exchanges, object_versions, parse, require, result
+from service_oracle import build_receipt, exchanges, only, process_build_binding, processes, rows, stamp, value_of
 
 PHASES=("initial","saturation_held","saturation_probe","abort_prepare","abort_resume_held","abort_win","abort_finish",
         "descriptor_unknown","descriptor_recover","ready_unknown","ready_recover","delete_unknown","delete_recover","reuse","recover")
@@ -91,6 +92,8 @@ def catalogue_calls(directory,calls):
         if "value" in row:
             equal(value_of(call),row["value"],"SDK result differs from complete raw HTTP")
             progress(row["value"],intent["action"]["operation"])
+            for field in ("deployment","tenant"):
+                equal(row["value"]["creation"]["scope"][field],intent[field],"response escaped authenticated authority")
             if "creation" in intent["action"]:
                 equal(row["value"]["creation"],intent["action"]["creation"],"response retargeted frozen Creation")
         else:
@@ -208,19 +211,22 @@ def bind_requests(requests,calls,observed,creations):
     def database_path(scope,target):
         return target==scope["database"]+"/head" or target.startswith(
             f"{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/")
-    for request in requests.values():
+    bindings={}
+    for serial,request in requests.items():
         require(request["path"].startswith(prefix),"object request escaped authority prefix")
         path=request["path"][len(prefix):]
-        matched=False
+        matching=set()
         for call_id,call in calls.items():
             if not stamp(call["request"])<stamp(request)<stamp(call["response"]):continue
+            matched=False
             action=call["body"]
             if "scope" in action:
                 scope=action["scope"]
                 expected=f"{scope['deployment']}/{scope['tenant']}/"
-                if path.startswith(expected) and database_path(scope,path[len(expected):]):matched=True;break
+                if path.startswith(expected) and database_path(scope,path[len(expected):]):matching.add(call_id)
                 continue
             if call_id not in directory_context:continue
+            if action["operation"] in ("resolve_name","inspect_create_operation") and request["method"]!="GET":continue
             context=directory_context[call_id]
             authority=f"{context['deployment']}/{context['tenant']}/"
             if not path.startswith(authority):continue
@@ -250,35 +256,30 @@ def bind_requests(requests,calls,observed,creations):
                                 matched=True;break
                 elif key.startswith("abort-proof/"):
                     matched=creation is not None and key==f"abort-proof/{creation['creator']}/{creation['operation']}"
+                    if not matched and request["method"]=="GET" and creation is None:
+                        matched=any(value["name"]==name and key==f"abort-proof/{value['creator']}/{value['operation']}" for value in creations.values())
             else:
                 scopes=[creation["scope"]] if creation else [value["scope"] for value in creations.values() if value["name"]==name]
                 matched=any(database_path(scope,target) for scope in scopes)
-            if matched:break
-        require(matched,"object path/time has no matching authenticated HTTP intent")
+                if not matched and request["method"]=="GET":
+                    # Reusing a tombstone proves its former physical identity
+                    # remains Deleted. This is an exact HEAD read, never an
+                    # authorization to write the prior HEAD or load its data.
+                    matched=any(value["name"]==name and target==value["scope"]["database"]+"/head" for value in creations.values())
+            if matched:matching.add(call_id)
+        require(matching,"object path/time has no matching authenticated HTTP intent")
+        bindings[serial]=matching
+    return bindings
+
+
+def object_exchanges(history):
+    return wire_exchanges(history,phases=PHASES)
 
 
 def network(directory,history,facts,calls,observed,creations,acks):
-    serials=defaultdict(list)
-    for row in history:
-        if "request_serial" in row:serials[row["request_serial"]].append(row)
-    requests,responses={},{}
-    for serial,events in serials.items():
-        request=only([row for row in events if row["event"]=="object_request"],"missing/duplicate object request")
-        require(request["phase"] in PHASES,"orphan object request phase")
-        requests[serial]=request
-        received=[row for row in events if row["event"]=="object_response"]
-        require(len(received)==1,"fixture lost backend response witness")
-        response=received[0];responses[serial]=response
-        forwarded=only([row for row in events if row["event"]=="object_forwarded"],"object request was not forwarded")
-        require(stamp(request)<stamp(forwarded)<stamp(response) and response["response_origin"]=="backend","invalid backend response order/origin")
-        for key in ("method","path","phase","request_sha256","if_match","if_none_match"):equal(response[key],request[key],"S3 response binds another request")
-        require(not any(row["event"]=="injected_response" for row in events),"proxy 412 cannot prove conditional authority")
-        if request["path"].endswith("/head"):
-            require(hashlib.sha256(bytes(request["head_request_bytes"])).hexdigest()==request["request_sha256"],"HEAD PUT digest changed")
-            if request["method"]=="GET" and response["status"]==200:
-                require(hashlib.sha256(bytes(response["head_response_bytes"])).hexdigest()==response["response_sha256"],"same-GET HEAD bytes changed")
-                require(parse(bytes(response["head_response_bytes"]))["format"]==3,"HEAD must use v3")
-    bind_requests(requests,calls,observed,creations)
+    requests,responses=object_exchanges(history)
+    bindings=bind_requests(requests,calls,observed,creations)
+    versions=object_versions(requests,responses,calls=calls,bindings=bindings)
     faults={row["label"]:row for row in facts if row["event"]=="catalogue_fault_observed"}
     require(set(faults)=={"saturation","late_provision","descriptor_response_loss","ready_response_loss","delete_response_loss"},"fault plan changed")
     for label,fault in faults.items():
@@ -344,10 +345,11 @@ def network(directory,history,facts,calls,observed,creations,acks):
         require(readbacks,"ACK lacks exact original Result object readback")
         require(stamp(responses[publication["request_serial"]])<stamp(calls[ack["call_id"]]["response"]),"ACK before durable HEAD")
     return {"object_requests":len(requests),"real_late_provision_412":True,"unknown_accepted_responses":3,
-            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":3,"result_format":2}
+            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":3,"result_format":2,
+            "object_version_audit":versions}
 
 
-def audit(directory, *, require_build=True):
+def audit(directory, *, require_build=True, require_artifacts=True):
     directory=Path(directory)
     plan=parse((directory/"catalogue-plan.json").read_bytes())
     equal(plan["phases"],list(PHASES),"frozen phases changed")
@@ -357,6 +359,7 @@ def audit(directory, *, require_build=True):
             plan["retained_sql_responses"]==4 and plan["unknown_directory_responses"]==3 and plan["known_original_intents_only"] is True,"frozen denominators changed")
     http=rows(directory,"http-client-ledger.jsonl");facts=rows(directory,"process-ledger.jsonl")
     calls=exchanges(http,paths=("/v1","/v1/catalogue"))
+    build=build_receipt(directory,require_build,require_artifacts=require_artifacts)
     process_audit=processes(facts,http,phases=PHASES,ordered=False)
     observed,creations=catalogue_calls(directory,calls)
     acks,result_audit=sql_results(directory,calls,creations)
@@ -365,7 +368,8 @@ def audit(directory, *, require_build=True):
     require(Counter(row["phase"] for row in phases)==Counter(PHASES) and all(row["status"]=="completed" for row in phases),"phase completion inventory")
     for row in phases:
         require(row["http_attempts"]==sum(call["request"]["phase"]==row["phase"] for call in calls.values()),"phase attempted-count differs from full ledger")
-    return {"schema":1,"status":"passed","checked_contracts":list(CONTRACTS),"http_calls":len(calls),"build":build_receipt(directory,require_build),
+    return {"schema":1,"status":"partial" if build.get("verification_scope")=="archived_source_and_cargo_only" else "passed",
+            "checked_contracts":list(CONTRACTS),"http_calls":len(calls),"build":build,"process_build_binding":process_build_binding(facts,build),
             "processes":process_audit,"results":result_audit,"network":network_audit,"known_original_intents_only":True,
             "complete_catalogue_enumeration":"NOT_IMPLEMENTED","core_cut_matrix":"SEPARATE_CONTRACT",
             "source_sha256":{name:hashlib.sha256((directory/name).read_bytes()).hexdigest() for name in SOURCE_FILES}}
@@ -373,4 +377,8 @@ def audit(directory, *, require_build=True):
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser();parser.add_argument("evidence",type=Path)
-    print(json.dumps(audit(parser.parse_args().evidence),indent=2,sort_keys=True))
+    parser.add_argument("--allow-unavailable-artifacts",action="store_true",help="explicit partial offline audit; never a full release gate")
+    args=parser.parse_args()
+    outcome=audit(args.evidence,require_artifacts=not args.allow_unavailable_artifacts)
+    print(json.dumps(outcome,indent=2,sort_keys=True))
+    sys.exit(0 if outcome["status"]=="passed" else 1)

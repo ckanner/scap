@@ -311,7 +311,7 @@ fn changed_binding_during_cross_key_reads_is_a_conflict_even_with_reused_etag() 
             .read_binding(&creation.name, deadline())
             .unwrap()
             .unwrap();
-        let mut changed = original.body;
+        let mut changed = original.body.raw().clone();
         changed.state = BindingState::Bound;
         changed.revision = 2;
         let key = catalogue.binding_key(&creation.name);
@@ -369,9 +369,7 @@ fn bound_head_missing_wrong_source_and_revoked_read_fail_abort_closed() {
         );
     }
     let (_, catalogue, creation) = stage(CreationPhase::Ready);
-    let database = catalogue
-        .database(&descriptor(&catalogue, &creation))
-        .unwrap();
+    let database = catalogue.database(&descriptor(&catalogue, &creation));
     let mut head = database.status(CREATOR.principal, deadline()).unwrap();
     head.policy[0].read = false;
     database
@@ -388,6 +386,116 @@ fn bound_head_missing_wrong_source_and_revoked_read_fail_abort_closed() {
         catalogue.abort_create(CREATOR, &abort(&creation), deadline()),
         Err(CatalogueError::Denied)
     );
+}
+
+#[test]
+fn delete_classifies_missing_and_foreign_heads_by_durable_name_phase() {
+    for phase in [CreationPhase::Bound, CreationPhase::Ready] {
+        let (objects, catalogue, creation) = stage(phase);
+        objects.remove(&format::head_key(&creation.scope));
+        assert_eq!(
+            catalogue.delete(CREATOR, &delete(&creation), deadline()),
+            Err(CatalogueError::Corrupt)
+        );
+        let mut foreign = creation.scope.clone();
+        foreign.incarnation += 1;
+        Database::with_options(objects.clone(), foreign, 90, crate::tests::test_options())
+            .unwrap()
+            .create(90, 1, deadline())
+            .unwrap();
+        assert_eq!(
+            catalogue.delete(CREATOR, &delete(&creation), deadline()),
+            Err(CatalogueError::Corrupt)
+        );
+    }
+    let (objects, catalogue, creation) = prepared();
+    assert_eq!(
+        catalogue.delete(CREATOR, &delete(&creation), deadline()),
+        Err(CatalogueError::NotFound)
+    );
+    let mut foreign = creation.scope.clone();
+    foreign.incarnation += 1;
+    Database::with_options(objects.clone(), foreign, 90, crate::tests::test_options())
+        .unwrap()
+        .create(90, 1, deadline())
+        .unwrap();
+    assert_eq!(
+        catalogue.delete(CREATOR, &delete(&creation), deadline()),
+        Err(CatalogueError::IdentityConflict)
+    );
+    let progress = catalogue
+        .resume_create(CREATOR, &creation, deadline())
+        .unwrap();
+    assert_eq!(progress.phase, CreationPhase::IdentityConflict);
+    catalogue
+        .abort_create(CREATOR, &abort(&creation), deadline())
+        .unwrap();
+    assert_eq!(
+        catalogue.delete(CREATOR, &delete(&creation), deadline()),
+        Err(CatalogueError::IdentityConflict)
+    );
+    objects.remove(&format::head_key(&creation.scope));
+    assert_eq!(
+        catalogue.delete(CREATOR, &delete(&creation), deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+}
+
+#[test]
+fn foreign_named_source_requires_exact_descriptor_but_not_business_closure_or_current_name() {
+    for change in [0, 1, 2, 3] {
+        let (objects, catalogue, creation) = stage(CreationPhase::Reserved);
+        let descriptor = descriptor(&catalogue, &creation);
+        let database = catalogue.database(&descriptor);
+        let mut foreign = database.initial_head(90, 1, deadline()).unwrap();
+        foreign.creation = Some(descriptor.origin());
+        match change {
+            0 => foreign.scope.incarnation += 1,
+            1 => foreign.creation.as_mut().unwrap().creator += 1,
+            2 => {
+                foreign.creation.as_mut().unwrap().descriptor_hash =
+                    format::digest(b"unknown descriptor")
+            }
+            _ => foreign.creation.as_mut().unwrap().name_hash = format::digest(b"wrong name"),
+        }
+        objects.set(
+            &format::head_key(&creation.scope),
+            format::encode_head(&foreign).unwrap(),
+        );
+        assert_eq!(
+            catalogue.abort_create(CREATOR, &abort(&creation), deadline()),
+            Err(CatalogueError::Corrupt)
+        );
+        assert_eq!(
+            catalogue.resume_create(CREATOR, &creation, deadline()),
+            Err(CatalogueError::Corrupt)
+        );
+    }
+    let (objects, catalogue, creation) = stage(CreationPhase::Reserved);
+    let mut foreign_scope = creation.scope.clone();
+    foreign_scope.incarnation += 1;
+    let database = Database::with_options(
+        objects.clone(),
+        foreign_scope.clone(),
+        90,
+        crate::tests::test_options(),
+    )
+    .unwrap();
+    let head = database.create(90, 1, deadline()).unwrap();
+    objects.remove(&format::object_key(&foreign_scope, &head.data_root));
+    objects.clear_calls();
+    assert_eq!(
+        catalogue
+            .abort_create(CREATOR, &abort(&creation), deadline())
+            .unwrap()
+            .phase,
+        AbortPhase::Aborted
+    );
+    assert!(objects
+        .calls()
+        .iter()
+        .all(|call| !call.key.contains("/objects/")));
+    assert_eq!(database.status(90, deadline()).unwrap(), head);
 }
 
 #[test]

@@ -141,7 +141,7 @@ fn cancelled_absent_or_provisioned_heads_cannot_reappear_and_name_can_be_reused(
     for phase in [CreationPhase::Reserved, CreationPhase::Provisioning] {
         let (objects, catalogue, creation) = stage(phase.clone());
         let descriptor = descriptor(&catalogue, &creation);
-        let database = catalogue.database(&descriptor).unwrap();
+        let database = catalogue.database(&descriptor);
         let old_name = catalogue
             .read_binding(&creation.name, deadline())
             .unwrap()
@@ -149,7 +149,7 @@ fn cancelled_absent_or_provisioned_heads_cannot_reappear_and_name_can_be_reused(
         let mut late = database
             .initial_head(CREATOR.principal, creation.operation, deadline())
             .unwrap();
-        late.creation = Some(descriptor.origin().unwrap());
+        late.creation = Some(descriptor.origin());
         late.lifecycle = Lifecycle::Provisioning;
         let control = abort(&creation);
         let done = catalogue
@@ -186,7 +186,7 @@ fn cancelled_absent_or_provisioned_heads_cannot_reappear_and_name_can_be_reused(
             database.create_head(&late, deadline()),
             Err(Error::Store(StoreError::Conflict))
         ));
-        let mut old_bound = old_name.body;
+        let mut old_bound = old_name.body.raw().clone();
         old_bound.revision += 1;
         old_bound.state = BindingState::Bound;
         assert_eq!(
@@ -234,11 +234,11 @@ fn cancelled_absent_or_provisioned_heads_cannot_reappear_and_name_can_be_reused(
 fn a_late_provision_can_win_absent_head_but_fixed_abort_then_fences_it() {
     let (objects, catalogue, creation) = stage(CreationPhase::Reserved);
     let descriptor = descriptor(&catalogue, &creation);
-    let database = catalogue.database(&descriptor).unwrap();
+    let database = catalogue.database(&descriptor);
     let mut late = database
         .initial_head(CREATOR.principal, creation.operation, deadline())
         .unwrap();
-    late.creation = Some(descriptor.origin().unwrap());
+    late.creation = Some(descriptor.origin());
     late.lifecycle = Lifecycle::Provisioning;
     objects.cut(
         true,
@@ -396,7 +396,7 @@ fn descriptor_only_is_not_cancellation_and_bound_creation_cannot_be_aborted() {
 fn current_admin_can_delete_without_read_or_provision_and_creation_scope_is_kept() {
     let (_, catalogue, creation) = stage(CreationPhase::Ready);
     let descriptor = descriptor(&catalogue, &creation);
-    let database = catalogue.database(&descriptor).unwrap();
+    let database = catalogue.database(&descriptor);
     let head = database
         .set_policy(
             CREATOR.principal,
@@ -462,9 +462,7 @@ fn current_admin_can_delete_without_read_or_provision_and_creation_scope_is_kept
 fn normal_delete_uses_original_control_and_old_scope_after_reuse() {
     for maintenance in [false, true] {
         let (_, catalogue, creation) = stage(CreationPhase::Ready);
-        let database = catalogue
-            .database(&descriptor(&catalogue, &creation))
-            .unwrap();
+        let database = catalogue.database(&descriptor(&catalogue, &creation));
         let mut control = delete(&creation);
         if maintenance {
             let head = database
@@ -582,7 +580,7 @@ fn control_ids_freeze_every_condition_even_when_first_target_cas_conflicts() {
 fn all_ordinary_entries_reject_provisioning_and_generic_lifecycle_cannot_bypass_named_delete() {
     let (_, catalogue, creation) = stage(CreationPhase::Provisioning);
     let descriptor = descriptor(&catalogue, &creation);
-    let database = catalogue.database(&descriptor).unwrap();
+    let database = catalogue.database(&descriptor);
     let head = database.read_head(deadline()).unwrap().head;
     let directory = tempfile::tempdir().unwrap();
     let sql = crate::tests::sql("SELECT 1");

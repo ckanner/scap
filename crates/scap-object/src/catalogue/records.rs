@@ -11,8 +11,57 @@ use crate::format::{
 
 pub(super) const MAX_RECORD_BYTES: usize = 64 * 1024;
 
-pub(super) trait Record: Serialize + DeserializeOwned {
-    fn validate(&self) -> Result<(), CatalogueError>;
+pub(super) trait Record:
+    Serialize + DeserializeOwned + Clone + std::fmt::Debug + PartialEq + Eq
+{
+    type Shape: Clone + std::fmt::Debug + PartialEq + Eq;
+    fn validate(&self) -> Result<Self::Shape, CatalogueError>;
+}
+
+/// Immutable validated bytes and their shape witness stay together. There is
+/// deliberately no mutable access to the value or cached digest.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Canonical<R: Record> {
+    value: R,
+    bytes: Vec<u8>,
+    hash: String,
+    shape: R::Shape,
+}
+
+impl<R: Record> std::ops::Deref for Canonical<R> {
+    type Target = R;
+    fn deref(&self) -> &R {
+        &self.value
+    }
+}
+
+impl<R: Record> Canonical<R> {
+    pub fn new(value: R) -> Result<Self, CatalogueError> {
+        let shape = value.validate()?;
+        let bytes = serde_json::to_vec(&value).map_err(|_| CatalogueError::Invalid)?;
+        if bytes.len() > MAX_RECORD_BYTES {
+            return Err(CatalogueError::Limit);
+        }
+        let hash = format::digest(&bytes);
+        Ok(Self {
+            value,
+            bytes,
+            hash,
+            shape,
+        })
+    }
+    pub fn raw(&self) -> &R {
+        &self.value
+    }
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    pub fn hash(&self) -> &str {
+        &self.hash
+    }
+    pub fn shape(&self) -> &R::Shape {
+        &self.shape
+    }
 }
 
 pub(super) fn valid(condition: bool) -> Result<(), CatalogueError> {
@@ -83,24 +132,19 @@ pub(super) fn creation_valid(creation: &Creation) -> Result<(), CatalogueError> 
 }
 
 pub(super) fn encode<R: Record>(record: &R) -> Result<Vec<u8>, CatalogueError> {
-    record.validate()?;
-    let bytes = serde_json::to_vec(record).map_err(|_| CatalogueError::Invalid)?;
-    if bytes.len() > MAX_RECORD_BYTES {
-        return Err(CatalogueError::Limit);
-    }
-    Ok(bytes)
+    Ok(Canonical::new(record.clone())?.bytes)
 }
 
-pub(super) fn decode<R: Record>(bytes: &[u8]) -> Result<R, CatalogueError> {
+pub(super) fn decode<R: Record>(bytes: &[u8]) -> Result<Canonical<R>, CatalogueError> {
     if bytes.len() > MAX_RECORD_BYTES {
         return Err(CatalogueError::Corrupt);
     }
     let record: R = serde_json::from_slice(bytes).map_err(|_| CatalogueError::Corrupt)?;
-    let canonical = encode(&record).map_err(|_| CatalogueError::Corrupt)?;
-    if canonical != bytes {
+    let canonical = Canonical::new(record).map_err(|_| CatalogueError::Corrupt)?;
+    if canonical.bytes != bytes {
         return Err(CatalogueError::Corrupt);
     }
-    Ok(record)
+    Ok(canonical)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +158,7 @@ pub(super) struct Descriptor {
 }
 
 impl Record for Descriptor {
+    type Shape = ();
     fn validate(&self) -> Result<(), CatalogueError> {
         valid(self.format == 1)?;
         creation_valid(&self.creation)?;
@@ -133,16 +178,18 @@ impl Record for Descriptor {
     }
 }
 
-impl Descriptor {
-    pub fn origin(&self) -> Result<NamedCreation, CatalogueError> {
-        Ok(NamedCreation {
+impl Canonical<Descriptor> {
+    pub fn origin(&self) -> NamedCreation {
+        NamedCreation {
             creator: self.creation.creator,
             operation: self.creation.operation,
             name_hash: format::digest(self.creation.name.as_bytes()),
-            descriptor_hash: format::digest(&encode(self)?),
-        })
+            descriptor_hash: self.hash.clone(),
+        }
     }
+}
 
+impl Descriptor {
     pub fn prepared(&self) -> PreparedCreate {
         PreparedCreate {
             creation: self.creation.clone(),
@@ -180,6 +227,7 @@ pub(super) fn origin_valid(
 }
 
 impl Record for Control {
+    type Shape = ();
     fn validate(&self) -> Result<(), CatalogueError> {
         valid(self.format == 1)?;
         origin_valid(&self.creation, &self.origin)?;
@@ -198,17 +246,17 @@ impl Record for Control {
     }
 }
 
-impl Control {
-    pub fn mark(&self) -> Result<NamedDeletion, CatalogueError> {
-        Ok(NamedDeletion {
+impl Canonical<Control> {
+    pub fn mark(&self) -> NamedDeletion {
+        NamedDeletion {
             kind: self.kind.clone(),
             principal: self.principal,
             operation: self.operation,
             expected_name_revision: self.expected_name_revision,
             expected_head_revision: self.expected_head_revision,
             nonce: self.nonce,
-            descriptor_hash: format::digest(&encode(self)?),
-        })
+            descriptor_hash: self.hash.clone(),
+        }
     }
 }
 
@@ -219,6 +267,15 @@ pub(super) enum BindingState {
     Bound,
     Aborting,
     Tombstone,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum BindingShape {
+    Reserved,
+    Bound,
+    Aborting(Control),
+    Aborted { control: Control, proof: String },
+    Deleted(Control),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,7 +291,8 @@ pub(super) struct Binding {
 }
 
 impl Record for Binding {
-    fn validate(&self) -> Result<(), CatalogueError> {
+    type Shape = BindingShape;
+    fn validate(&self) -> Result<BindingShape, CatalogueError> {
         valid(self.format == 1)?;
         origin_valid(&self.creation, &self.origin)?;
         let reserved = self.creation.expected_name_revision.unwrap_or(0) + 1;
@@ -245,8 +303,13 @@ impl Record for Binding {
         };
         valid(self.revision == expected)?;
         match self.state {
-            BindingState::Reserved | BindingState::Bound => {
-                valid(self.control.is_none() && self.proof.is_none())
+            BindingState::Reserved => {
+                valid(self.control.is_none() && self.proof.is_none())?;
+                Ok(BindingShape::Reserved)
+            }
+            BindingState::Bound => {
+                valid(self.control.is_none() && self.proof.is_none())?;
+                Ok(BindingShape::Bound)
             }
             BindingState::Aborting | BindingState::Tombstone => {
                 let control = self.control.as_ref().ok_or(CatalogueError::Invalid)?;
@@ -256,20 +319,30 @@ impl Record for Binding {
                     NamedDeletionKind::Abort => {
                         valid(control.expected_name_revision == reserved)?;
                         if self.state == BindingState::Aborting {
-                            valid(self.proof.is_none())
+                            valid(self.proof.is_none())?;
+                            Ok(BindingShape::Aborting(control.clone()))
                         } else {
-                            valid(self.proof.as_ref().is_some_and(|p| {
-                                p.len() == 64
-                                    && p.bytes()
-                                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-                            }))
+                            let proof = self.proof.as_ref().ok_or(CatalogueError::Invalid)?;
+                            valid(
+                                proof.len() == 64
+                                    && proof
+                                        .bytes()
+                                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+                            )?;
+                            Ok(BindingShape::Aborted {
+                                control: control.clone(),
+                                proof: proof.clone(),
+                            })
                         }
                     }
-                    NamedDeletionKind::Delete => valid(
-                        self.state == BindingState::Tombstone
-                            && control.expected_name_revision == reserved + 1
-                            && self.proof.is_none(),
-                    ),
+                    NamedDeletionKind::Delete => {
+                        valid(
+                            self.state == BindingState::Tombstone
+                                && control.expected_name_revision == reserved + 1
+                                && self.proof.is_none(),
+                        )?;
+                        Ok(BindingShape::Deleted(control.clone()))
+                    }
                 }
             }
         }
@@ -297,6 +370,7 @@ pub(super) struct AbortProof {
 }
 
 impl Record for AbortProof {
+    type Shape = ();
     fn validate(&self) -> Result<(), CatalogueError> {
         valid(self.format == 1 && self.control.kind == NamedDeletionKind::Abort)?;
         self.control.validate()?;
