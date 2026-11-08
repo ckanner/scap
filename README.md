@@ -4,9 +4,11 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前单库原生实现已通过本地容量与选定提交／恢复故障验收，生产发布仍有独立门禁。** 新增正式认证 HTTP 服务、Node SDK 和有界多库准入；其单元、真实 HTTP/S3 与恢复证据单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；名称目录、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。
+**当前已合入 S3 权威运行时、认证 HTTP/Node SDK、精确名称目录和有界多数据库 actor；生产发布仍有独立门禁。** 单元、真实 HTTP/S3、native 与恢复证据按冻结候选单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；全目录发现、自动协调、GC/PITR、真实 AWS 和生产 SLO 仍有独立退出门禁。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。最新范围见[实施状态](docs/engineering/status-2026-11-08.md)。
 
-[PR #30 的名称目录协议与有界模型](docs/engineering/named-catalogue-model.md)已通过冻结候选的 885 条正向历史和 25 个拒绝负对照。本轮正式目录候选已接入 Rust、HTTP 与 SDK，正在补齐精确覆盖及真实逐切点验收，见 [ADR-0024](docs/adr/0024-named-catalogue-and-permanent-identities.md)；模型不代替产品门禁。HEAD 采用 format 3，不可变 SCAPOBJ2 帧仍为 format 2，旧 HEAD 不自动迁移。
+[PR #31/#32 的名称目录与执行隔离验收](docs/engineering/catalogue-actors-validation.md)已经完成并合入：名称目录与 actor 组合分别有 stable/nightly 各 300/307 单元、33 个生产 Rust 文件四维逐文件精确覆盖；116 场景/1000 ACK 的目录合同、真实 HTTP/SDK、全计算丢失恢复及冷库阻塞下热库/控制隔离通过。两组原完整 validator 的末项 oracle 失败与磁盘容量导致的服务启动失败保留；精确两文件修正、输入身份复用和独立重跑见[机器记录](docs/evidence/catalogue-actors-local-2026-11-08.json)。HEAD 采用 format 3，不可变 SCAPOBJ2 帧仍为 format 2，旧 HEAD 不自动迁移。
+
+[PR #30 的名称目录协议与有界模型](docs/engineering/named-catalogue-model.md)另有 885 条正向历史和 25 个拒绝负对照。模型、正式实现和真实网络证据互不代替；完整目录发现仍待按[独立方案](docs/architecture/catalogue-discovery-plan.md)实施。
 
 [PR #29 的生命周期真实合同](docs/engineering/n1-lifecycle-validation.md)绑定冻结候选 `fe1909b`：十二场景、两轮恢复及独立原始账本复核通过；78 次成功响应／30 个原身份分别核对保留结果、Deleted 和 Retired，零错配。生产 Rust／SDK 与上一验收候选逐字节相同，历史单元证据与本批真实实验分开记录。
 
@@ -62,7 +64,7 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。精确名称目录候选正在验收，全目录发现与自动协调仍待实施。
+关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。精确名称目录已合入，全目录发现与自动协调继续按独立合同实施。
 
 HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
 
@@ -90,6 +92,7 @@ python3 scripts/check_repo.py
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。
 - [认证 HTTP 与新 SDK](docs/adr/0023-authenticated-http-and-node-sdk.md)、[真实服务恢复合同](experiments/object-service/README.md)。
 - [名称目录与永久身份](docs/adr/0024-named-catalogue-and-permanent-identities.md)、[目录协议与范围](docs/architecture/name-catalogue-plan.md)。
+- [全目录发现与恢复方案](docs/architecture/catalogue-discovery-plan.md)、[分段索引、pin/GC 与 PITR 方案](docs/architecture/storage-reclamation-plan.md)。
 - [路线图](docs/engineering/roadmap.md)、[故障矩阵](docs/operations/failure-matrix.md)、[运行说明](docs/operations/runbooks.md)。
 - [协作要求](AGENTS.md)、[本地验证身份](docs/engineering/local-validation.md)。
 

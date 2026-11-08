@@ -2,9 +2,9 @@
 
 - 日期：2026-11-07。
 - 代码审查基线：`e2c44b099132700e1305c275c6551c8e156fe510`（已合并 PR #27）；PR #28 保存了第一版待实施方案。
-- 状态：**协议与独立有界模型已实现，正式目录正在实现，真实 S3 目录验收尚未完成。本文不宣布 N1/N2 退出。** 有界模型必须绑定冻结候选和原始历史验收，不把模型结果当作产品运行通过。
+- 状态：**协议、独立有界模型及正式 Rust/HTTP/SDK 已完成本批必要本地验收，通过 PR #31 合入；全目录发现、真实 AWS 及完整 N1/N2 退出仍未完成。** [正式验收记录](../engineering/catalogue-actors-validation.md)与模型分开绑定源码和原始历史。
 - 范围：落实[完整方案第 10 节](object-storage-native-proposal.md#catalogue)的可恢复名称绑定；S3 继续是唯一持久权威。
-- 前轮执行环境失联后曾恢复工作区与原生环境，并完成模型验收及正式实现的开发回归。本轮核心类型重构期间环境再次中断；后续源码仅作为独立恢复候选保存，标为 **NOT_COMPILED / NOT_RUN**。旧源码测试结果不能移用到新候选；正式 Rust／HTTP／SDK 的完整精确覆盖和真实目录合同仍须另行完成。
+- 前轮执行环境失联及核心重构中断期间保存的恢复候选保持历史 **NOT_COMPILED / NOT_RUN** 状态。后续重新冻结源码、完成精确单元及真实目录/服务合同；旧源码测试结果没有直接认证新生产代码。原失败、审计修正、精确输入身份复用与受影响重跑见正式记录。
 
 ## 1. 当前能力与本工作包
 
@@ -111,7 +111,7 @@ Bound 只表示名称意图已经发布。只有 fresh HEAD 为 Ready 并通过�
 
 每次调用只有有限步骤、单一绝对 deadline。CAS 冲突和 UNKNOWN 后返回给调用者；显式续作读取持久进度，建立下一步合法候选。不能把失败的旧候选换上新 ETag 再发布，不能将控制步骤的同意图恢复推广为 SQL 自动重试。
 
-多对象 GET 不是原子快照。正式协调器按 **Binding → AbortProof → HEAD → 同一 Binding** 的顺序 exact GET；末次名称 body 与 ETag 必须等于首次读取，否则返回 Conflict。名称 revision 不回绕且不物理删除，使这项稳定名称检查可以识别读取期间合法完成的 Reserved → Bound → Ready，而不误报“Reserved 下出现 Ready”的损坏。AbortProof 必须先于 HEAD 读取：其他同意图续作者能在 Aborting 名称不变时先后发布 Deleted HEAD 和 AbortProof；若先读旧 HEAD，再读新 Proof，即使名称双读相同，也会把合法并发误报为损坏。Proof 永久保留且仅在身份屏障后发布，因此先读 Proof，再读它所依赖的 HEAD，可避免新证明搭配旧的 404/Provisioning。此顺序修正目前只有静态交错审查，恢复候选仍须运行定向并发测试。HEAD 可以在名称 Bound 不变时继续正常推进；后续每个 HEAD 写仍用原始 HEAD ETag 排序，不因第二次名称读取而重基旧候选。
+多对象 GET 不是原子快照。正式协调器按 **Binding → AbortProof → HEAD → 同一 Binding** 的顺序 exact GET；末次名称 body 与 ETag 必须等于首次读取，否则返回 Conflict。名称 revision 不回绕且不物理删除，使这项稳定名称检查可以识别读取期间合法完成的 Reserved → Bound → Ready，而不误报“Reserved 下出现 Ready”的损坏。AbortProof 必须先于 HEAD 读取：其他同意图续作者能在 Aborting 名称不变时先后发布 Deleted HEAD 和 AbortProof；若先读旧 HEAD，再读新 Proof，即使名称双读相同，也会把合法并发误报为损坏。Proof 永久保留且仅在身份屏障后发布，因此先读 Proof，再读它所依赖的 HEAD，可避免新证明搭配旧的 404/Provisioning。此读序已经过正式并发单元及冻结候选的真实目录切点验收，准确范围见[本批记录](../engineering/catalogue-actors-validation.md)。HEAD 可以在名称 Bound 不变时继续正常推进；后续每个 HEAD 写仍用原始 HEAD ETag 排序，不因第二次名称读取而重基旧候选。
 
 | 观察状态 | 处理 |
 | --- | --- |
@@ -321,13 +321,13 @@ Bound + Deleted 的 resolve 必须确认对应 ControlDescriptor 与 HEAD 删除
 
 恢复候选使用私有 Canonical 记录封装一次严格校验后的完整值、规范字节、摘要和形状见证。它仅提供不可变访问，不暴露可变 inner 或 DerefMut；decode 会重新编码并逐字核对输入。Source/Admitted 只从完整有效记录产生，不能用公开 JSON 或字符串摘要直接构造。Binding 的状态见证还须通过 exact GET 确认实际 ControlDescriptor，HEAD 的命名来源仍须 exact GET 实际 CreateDescriptor。
 
-这项结构调整用于消除对已经不可变校验过的同一记录反复做 fallible 编码，并不缓存可变 Binding/HEAD 的新鲜度、权限或 CAS 条件。每个发布候选依旧独立校验，原 ETag、名称双读和当前权限检查保留。公开 DTO 不变；对应内部测试适配、重新编译、覆盖和故障验收尚未完成，不能把重构当成已经验证的正确性证明。
+这项结构调整用于消除对已经不可变校验过的同一记录反复做 fallible 编码，并不缓存可变 Binding/HEAD 的新鲜度、权限或 CAS 条件。每个发布候选依旧独立校验，原 ETag、名称双读和当前权限检查保留。公开 DTO 不变；对应内部测试适配、重新编译、精确覆盖和指定故障合同已随 #31 完成本地验收，不能据此推导完整 N2 或真实 AWS 通过。
 
 ## 9. 枚举、预算与仍然阻断 N2 的事项
 
 主线 Objects port 只有 exact GET/条件 PUT，没有 LIST。本工作包即使全部实现，也不能凭 exact-name 或原调用者名单声称完成全目录恢复。
 
-后续 LIST 只发现候选键，逐项 exact GET Binding/HEAD 才作权威和权限判断。分页边界、重复项、错误、403、截断、错误租户和 continuation 均需单独验证。在线分页不是跨 key 一致快照，不承诺某个时刻的完整目录；不能把未知/缺项结果标为“完整空目录”。
+[全目录发现方案](catalogue-discovery-plan.md)规定 LIST 只发现候选键，逐项 exact GET Binding/HEAD 才作权威和权限判断。分页边界、重复项、错误、403、截断、错误租户和 continuation 均需单独验证。在线分页不是跨 key 一致快照，不承诺某个时刻的完整目录；不能把未知/缺项结果标为“完整空目录”。
 
 **N2 完整枚举/冷启动恢复仍是独立阻断：**需要冻结并实现发现范围、并发变更合同、完整性凭据/判定及真实恢复实验。若产品要求在持续并发创建/删除时获得准确瞬时 inventory，则必须增加相应的持久索引/协调协议；当前 GET/PUT 名称方案没有证明这个能力。不能把进程内路由表补成所谓权威目录。
 

@@ -1,6 +1,6 @@
 # 对象原生运行时：HEAD 3 与 v2 不可变对象
 
-本轮名称目录候选将 HEAD 升为 format 3；不可变 `SCAPOBJ2` 帧仍为 format 2。新增正式路径待本轮冻结源码完整验收，历史验证只认证各自记录的候选，见 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)。
+正式名称目录使用 HEAD format 3；不可变 `SCAPOBJ2` 帧仍为 format 2。该增量已通过 [PR #31 的必要本地验收](catalogue-actors-validation.md)并合入，历史验证只认证各自记录的候选，见 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)。后续分段索引的格式升级目前仍是独立开发批次，不是这里已交付格式的一部分。
 
 主入口是 `scap_object::Database`，用 `Arc<dyn scap_object_store::Objects>`、不可变 Scope、非零 worker identity 和 `Options` 装配。`Database::new` 使用默认配置；`with_options` 在构造时校验显式配置。S3 adapter 拥有异步 runtime，给独立阻塞 SQL 线程提供同步对象 port，不应从同一异步 executor 直接阻塞调用。
 
