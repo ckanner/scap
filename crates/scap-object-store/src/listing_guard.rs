@@ -1,4 +1,4 @@
-//! Bound raw LIST bodies before the SDK's unbounded XML collector.
+//! Bound LIST and error bodies before the SDK's unbounded collectors.
 
 use std::time::Duration;
 
@@ -9,6 +9,10 @@ use object_store::client::{
 use object_store::ClientOptions;
 
 use crate::listing::{Context, ListError, MAX_LIST_RESPONSE_BYTES};
+
+// object_store 0.14.2 collects non-2xx bodies before returning its typed error.
+// This bound is independent of the successful object's caller-supplied limit.
+const MAX_ERROR_RESPONSE_BYTES: usize = 64 * 1024;
 
 /// The SDK's default reqwest connector follows redirects and permits protocol
 /// retries independently of RetryConfig. Configure the shared GET/PUT/LIST
@@ -79,8 +83,13 @@ async fn guarded(client: &HttpClient, request: HttpRequest) -> Result<HttpRespon
     let context = request.extensions().get::<Context>().cloned();
     let response = client.execute(request).await?;
     let Some(context) = context else {
-        // Exact GET/PUT retain their existing streaming and error behavior.
-        return Ok(response);
+        return if response.status().is_success() {
+            // GET retains the caller's bounded stream. The SDK reads only PUT
+            // headers and drops its body, so do not materialize success bodies.
+            Ok(response)
+        } else {
+            error_response(response).await
+        };
     };
     let status = response.status().as_u16();
     if status != 200 {
@@ -104,6 +113,26 @@ async fn guarded(client: &HttpClient, request: HttpRequest) -> Result<HttpRespon
     }
     let proof = crate::listing_xml::validate(&bytes, &context).map_err(failure)?;
     parts.extensions.insert(proof);
+    Ok(HttpResponse::from_parts(parts, bytes.into()))
+}
+
+async fn error_response(response: HttpResponse) -> Result<HttpResponse, HttpError> {
+    let (parts, body) = response.into_parts();
+    let mut stream = body.bytes_stream();
+    let mut bytes = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if chunk.len() > MAX_ERROR_RESPONSE_BYTES - bytes.len() {
+            // This is an uncertain transport outcome, including a PUT whose
+            // bytes may already be accepted. Never report a local write Limit
+            // or manufacture a definite conditional conflict from truncation.
+            return Err(HttpError::new(
+                HttpErrorKind::Decode,
+                std::io::Error::other("S3 error response exceeds 64 KiB"),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     Ok(HttpResponse::from_parts(parts, bytes.into()))
 }
 
