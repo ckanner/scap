@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 for relative in ("experiments/object-service", "experiments/object-network"):
     directory = str(ROOT / relative)
     if directory not in sys.path:
-        sys.path.append(directory)
+        sys.path.insert(0, directory)
 
 
 def load(name, relative):

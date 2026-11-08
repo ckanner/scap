@@ -25,15 +25,10 @@ import sys
 import time
 from urllib.parse import urlsplit
 
-from deployment_recovery_imports import local
-
-proxy_source, specification = local("discovery_proxy"), local("discovery_spec")
-Proxy, sha = proxy_source.Proxy, proxy_source.sha
-DATA_CASES, DESCRIPTOR_TENANTS = specification.DATA_CASES, specification.DESCRIPTOR_TENANTS
-HEAD_FORMAT, IMMUTABLE_FORMAT = specification.HEAD_FORMAT, specification.IMMUTABLE_FORMAT
-INTERMEDIATE_CASES, JOB_MS, MAX_STEPS = specification.INTERMEDIATE_CASES, specification.JOB_MS, specification.MAX_STEPS
-QUERY, RECOVERY_PROFILES, STEP_MS = specification.QUERY, specification.RECOVERY_PROFILES, specification.STEP_MS
-discovery_build = local("discovery_build")
+from discovery_proxy import Proxy, sha
+from discovery_spec import (DATA_CASES, DESCRIPTOR_TENANTS, HEAD_FORMAT, IMMUTABLE_FORMAT,
+                            INTERMEDIATE_CASES, JOB_MS, MAX_STEPS, QUERY, RECOVERY_PROFILES, STEP_MS)
+import discovery_build
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -508,7 +503,8 @@ def main():
     suite = None; report = {"status": "failed", "aws_standard_contract": "NOT_RUN"}
     try:
         suite = Suite(args); suite.run()
-        report = local("discovery_oracle").audit(suite.evidence)
+        from discovery_oracle import audit
+        report = audit(suite.evidence)
     except BaseException as error:
         report["error"] = repr(error)
         raise

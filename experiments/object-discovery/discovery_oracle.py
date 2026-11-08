@@ -23,17 +23,12 @@ import sys
 from urllib.parse import parse_qsl, quote, urlsplit
 import xml.etree.ElementTree as ET
 
-from deployment_recovery_imports import local
-
-readers, tree, specification = local("discovery_audit_sources"), local("discovery_tree_audit"), local("discovery_spec")
-seed_build_audit, catalogue_audit, wire_audit = readers.build, readers.catalogue, readers.wire
-Metadata = local("discovery_metadata_audit").Metadata
-Trees, envelope, head, object_prefix = tree.Trees, tree.envelope, tree.head, tree.object_prefix
-DATA_CASES, DESCRIPTOR_TENANTS = specification.DATA_CASES, specification.DESCRIPTOR_TENANTS
-HEAD_FORMAT, IMMUTABLE_FORMAT = specification.HEAD_FORMAT, specification.IMMUTABLE_FORMAT
-INTERMEDIATE_CASES, JOB_MS, MAX_STEPS = specification.INTERMEDIATE_CASES, specification.JOB_MS, specification.MAX_STEPS
-QUERY, RECOVERY_PROFILES, STEP_MS = specification.QUERY, specification.RECOVERY_PROFILES, specification.STEP_MS
-discovery_build_audit = local("discovery_build_audit")
+from discovery_audit_sources import build as seed_build_audit, catalogue as catalogue_audit, wire as wire_audit
+from discovery_metadata_audit import Metadata
+from discovery_tree_audit import Trees, envelope, head, object_prefix
+from discovery_spec import (DATA_CASES, DESCRIPTOR_TENANTS, HEAD_FORMAT, IMMUTABLE_FORMAT,
+                            INTERMEDIATE_CASES, JOB_MS, MAX_STEPS, QUERY, RECOVERY_PROFILES, STEP_MS)
+import discovery_build_audit
 
 equal, fingerprint, parse, require, result = (wire_audit.equal, wire_audit.fingerprint, wire_audit.parse,
                                               wire_audit.require, wire_audit.result)

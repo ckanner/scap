@@ -8,10 +8,7 @@ from __future__ import annotations
 import hashlib
 import struct
 
-from deployment_recovery_imports import local
-
-readers = local("discovery_audit_sources")
-catalogue, segmented, wire = readers.catalogue, readers.segmented, readers.wire
+from discovery_audit_sources import catalogue, segmented, wire
 
 equal, parse, require, result = wire.equal, wire.parse, wire.require, wire.result
 digest, request, transition, uint = segmented.digest, segmented.request, segmented.transition, segmented.uint

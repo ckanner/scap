@@ -13,14 +13,11 @@ import tempfile
 import unittest
 from urllib.parse import quote
 
-from deployment_recovery_imports import local
-
-oracle = local("discovery_oracle")
-catalogue = local("discovery_audit_sources").catalogue
-Metadata = local("discovery_metadata_audit").Metadata
-signature = local("discovery_proxy").signature
-tree = local("discovery_tree_audit")
-Trees, envelope, head, object_prefix = tree.Trees, tree.envelope, tree.head, tree.object_prefix
+import discovery_oracle as oracle
+from discovery_audit_sources import catalogue
+from discovery_metadata_audit import Metadata
+from discovery_proxy import signature
+from discovery_tree_audit import Trees, envelope, head, object_prefix
 
 
 def raw(value):
@@ -261,28 +258,6 @@ class StableMetadataControls(unittest.TestCase):
             elif fault == "etag": changed[-1][1]["etag"] = '"v2"'
             elif fault == "body": changed[-1][1]["response_sha256"] = "f" * 64
             else: changed[2][0]["monotonic_ns"] = 5
-            with self.subTest(fault=fault), self.assertRaises(ValueError): metadata.witnessed(observation, changed)
-
-    def test_absent_binding_allows_distinct_error_ids_but_never_a_presence_change(self):
-        previous, _, reads = self.fixture()
-        c, _ = self.source()
-        objects = dict(previous.objects); del objects[catalogue.name_path(c)]
-        metadata = Metadata(objects, 7)
-        observation = metadata.expected()[catalogue.descriptor_path(c)]
-        for position, request_id in ((0, "first-request"), (-1, "last-request")):
-            envelope = ("<Error><Code>NoSuchKey</Code><Resource>" + catalogue.name_path(c) +
-                        "</Resource><RequestId>" + request_id + "</RequestId></Error>").encode()
-            reads[position][1].update(status=404, etag=None, response_sha256=oracle.sha(envelope))
-        self.assertNotEqual(reads[0][1]["response_sha256"], reads[-1][1]["response_sha256"])
-        metadata.witnessed(observation, reads)
-        for fault in ("absent_to_present", "present_to_absent", "first_etag", "last_etag", "missing_last", "foreign_last"):
-            changed = copy.deepcopy(reads)
-            if fault == "absent_to_present": changed[-1][1].update(status=200, etag='"v1"')
-            elif fault == "present_to_absent": changed[0][1].update(status=200, etag='"v1"')
-            elif fault == "first_etag": changed[0][1]["etag"] = '"unexpected-version"'
-            elif fault == "last_etag": changed[-1][1]["etag"] = '"unexpected-version"'
-            elif fault == "missing_last": changed.pop()
-            else: changed[-1][0]["path"] += "another-name"
             with self.subTest(fault=fault), self.assertRaises(ValueError): metadata.witnessed(observation, changed)
 
     def test_unknown_physical_prefix_is_an_explicit_orphan_not_an_empty_database(self):

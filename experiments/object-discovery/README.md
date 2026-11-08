@@ -24,8 +24,6 @@
 
 目录 Name/Create/Control/AbortProof 输出必须有本次 exact GET 和稳定 `Name → Proof → HEAD → Name` 证据。Control 原条件及 nonce 只能投影已验证的 immutable ControlDescriptor；恢复能力不授权冒用 creator，也不自动执行控制动作。Ready 和 Maintenance 都验证数据；Provisioning/Deleted 等只做准确元数据分类。历史 ACK 若因退休或删除不再属于数据恢复 profile，必须由实际永久屏障单独解释。
 
-两次 Name GET 都存在时，稳定证据要求相同 body/ETag；都返回经原始对象版本历史独立核对的 404 时，比较缺失状态。S3 错误 XML 的 RequestId 可以不同，不能把错误体摘要当作 NameBinding 的版本。404→200、200→404、同 key 已存在却声称 404，以及 200 body/ETag 变化仍必须拒绝。实验同目录模块按绝对文件位置加载到独立名称，服务端实验的同名 Python 模块、路径优先级或测试顺序不能替换恢复合同/代理/oracle。
-
 ## 原生失败、迟到请求与实际进程链
 
 迟到 SQL 候选在 HEAD PUT 发送给后端之前被门控，原进程被 SIGKILL 并由 wait4 回收；新进程用相同原始请求身份发布取消屏障。随后释放旧 PUT，要求原条件实际收到 412，不更换 ETag、不重放 SQL。

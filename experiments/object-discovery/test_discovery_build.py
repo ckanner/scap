@@ -9,9 +9,7 @@ import tarfile
 import tempfile
 import unittest
 
-from deployment_recovery_imports import local
-
-audit = local("discovery_build_audit")
+import discovery_build_audit as audit
 
 
 class BuildIdentityControls(unittest.TestCase):

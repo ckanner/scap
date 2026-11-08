@@ -1,28 +1,14 @@
 """Independent catalogue byte classification and stable-view read witnesses."""
 from __future__ import annotations
 
-from deployment_recovery_imports import local
-
-readers = local("discovery_audit_sources")
-catalogue, wire = readers.catalogue, readers.wire
-head_record = local("discovery_tree_audit").head
+from discovery_audit_sources import catalogue, wire
+from discovery_tree_audit import head as head_record
 
 equal, require = wire.equal, wire.require
 Wire = catalogue.Wire
 creation, descriptor_path, head_path = catalogue.creation, catalogue.descriptor_path, catalogue.head_path
 name_path, origin, proof_path = catalogue.name_path, catalogue.origin, catalogue.proof_path
 control_path, mark, digest = catalogue.control_path, catalogue.mark, catalogue.digest
-
-
-def same_binding(first, last):
-    # network() has independently verified each exact GET against accepted
-    # object versions. A 404 is absence, not a versioned Binding byte string:
-    # S3 error envelopes may carry different per-request diagnostic IDs.
-    if first["status"] == last["status"] == 404:
-        return first["etag"] is None and last["etag"] is None
-    return (first["status"] == last["status"] == 200 and
-            isinstance(first["etag"], str) and bool(first["etag"]) and
-            first["etag"] == last["etag"] and first["response_sha256"] == last["response_sha256"])
 
 
 class Metadata(Wire):
@@ -179,5 +165,6 @@ class Metadata(Wire):
                         if (first_response["monotonic_ns"] < proof["monotonic_ns"] and
                             proof_response["monotonic_ns"] < actual["monotonic_ns"] and
                             actual_response["monotonic_ns"] < last["monotonic_ns"] and
-                            same_binding(first_response, last_response)): stable = True
+                            [first_response[k] for k in ("status", "etag", "response_sha256")] ==
+                            [last_response[k] for k in ("status", "etag", "response_sha256")]): stable = True
         require(stable, "missing stable Binding -> Proof -> HEAD -> Binding witness")

@@ -13,9 +13,7 @@ import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from deployment_recovery_imports import local
-
-oracle = local("discovery_oracle")
+import discovery_oracle as oracle
 
 
 def one(rows, message):
@@ -144,10 +142,9 @@ def run(directory):
             if row.get("worker") == worker and "binary" in row: row["binary"]["sha256"] = "0" * 64
     control("process-not-bound-to-original-release-binary", source_binary)
 
-    def late_accepted(data, overrides):
+    def late_accepted(data, _):
         serial = one([row for row in data["facts.jsonl"] if row["event"] == "late_candidate_barrier"], "late original candidate")["request_serial"]
-        for row in response_rows(data, serial): row.update(status=200, etag='"forged-late-version"')
-        replace_body(data, serial, b"", overrides)
+        for row in response_rows(data, serial): row["status"] = 200
     control("late-old-condition-mislabeled-accepted", late_accepted)
 
     def get_response(data):

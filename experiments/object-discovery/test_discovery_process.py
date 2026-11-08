@@ -7,10 +7,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
-from deployment_recovery_imports import local
-
-controller = local("discovery_contract")
-Ledger, Worker = controller.Ledger, controller.Worker
+from discovery_contract import Ledger, Worker
 
 
 class ShortWorker(Worker):
