@@ -205,12 +205,37 @@ def sql_results(directory,calls,creations):
     return acks,{"unique_sql_requests":3,"successful_sql_responses":6,"retained_original_results":4,"deleted_access_checks":2}
 
 
-def bind_requests(requests,calls,observed,creations):
+def bind_requests(requests,calls,observed,creations,*,responses=None):
     directory_context={item["outcome"]["call_id"]:item["intent"] for item in observed.values()}
     prefix="/scap-test/scap-object/v1/"
     def database_path(scope,target):
         return target==scope["database"]+"/head" or target.startswith(
             f"{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/")
+    def prior_tombstone_proof(call,request,creation,authority,key):
+        # Reusing a name verifies the former permanent identity. Only an
+        # actually read tombstone within this HTTP call can authorize reading
+        # its old proof; a same-name entry elsewhere in the ledger is not one.
+        if responses is None or call["body"]["operation"]!="resume_create" or creation["expected_name_revision"] is None:
+            return False
+        name=creation["name"]
+        name_path=prefix+authority+"catalogue/v1/name/"+hashlib.sha256(name.encode()).hexdigest()
+        for serial,read in requests.items():
+            response=responses.get(serial)
+            if read["method"]!="GET" or read["path"]!=name_path or response is None or response["status"]!=200:
+                continue
+            if not stamp(call["request"])<stamp(read)<stamp(response)<stamp(request):continue
+            binding=parse(bytes(response["catalogue_response_bytes"]))
+            if type(binding.get("format")) is not int or binding["format"]!=1 or binding.get("state")!="tombstone" or \
+                    type(binding.get("revision")) is not int or binding["revision"]!=decimal(creation["expected_name_revision"]):
+                continue
+            for prior in creations.values():
+                if prior["name"]!=name or authority!=f"{prior['scope']['deployment']}/{prior['scope']['tenant']}/":continue
+                original={"creator":decimal(prior["creator"]),"operation":decimal(prior["operation"]),"name":name,
+                          "scope":{field:decimal(value) for field,value in prior["scope"].items()},
+                          "expected_name_revision":None if prior["expected_name_revision"] is None else decimal(prior["expected_name_revision"])}
+                if json.dumps(binding.get("creation"),sort_keys=True)==json.dumps(original,sort_keys=True) and \
+                        key==f"abort-proof/{prior['creator']}/{prior['operation']}":return True
+        return False
     bindings={}
     for serial,request in requests.items():
         require(request["path"].startswith(prefix),"object request escaped authority prefix")
@@ -258,6 +283,8 @@ def bind_requests(requests,calls,observed,creations):
                     matched=creation is not None and key==f"abort-proof/{creation['creator']}/{creation['operation']}"
                     if not matched and request["method"]=="GET" and creation is None:
                         matched=any(value["name"]==name and key==f"abort-proof/{value['creator']}/{value['operation']}" for value in creations.values())
+                    if not matched and request["method"]=="GET" and creation is not None:
+                        matched=prior_tombstone_proof(call,request,creation,authority,key)
             else:
                 scopes=[creation["scope"]] if creation else [value["scope"] for value in creations.values() if value["name"]==name]
                 matched=any(database_path(scope,target) for scope in scopes)
@@ -278,7 +305,7 @@ def object_exchanges(history):
 
 def network(directory,history,facts,calls,observed,creations,acks):
     requests,responses=object_exchanges(history)
-    bindings=bind_requests(requests,calls,observed,creations)
+    bindings=bind_requests(requests,calls,observed,creations,responses=responses)
     versions=object_versions(requests,responses,calls=calls,bindings=bindings)
     faults={row["label"]:row for row in facts if row["event"]=="catalogue_fault_observed"}
     require(set(faults)=={"saturation","late_provision","descriptor_response_loss","ready_response_loss","delete_response_loss"},"fault plan changed")
