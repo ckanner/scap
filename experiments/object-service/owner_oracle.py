@@ -1016,6 +1016,13 @@ def wait4(value, expected):
         require(type(usage[key]) in (float, int) and usage[key] >= 0, 'invalid original kernel CPU usage')
 
 
+def node_shutdown(start, requested, stop, marker):
+    equal(identity(start['identity']), identity(requested['identity']), 'Node stop request targets another original child')
+    equal(identity(start['identity']), identity(stop['identity']), 'Node wait4 belongs to another actual process')
+    require(requested['forced'] is False and stop['forced'] is False and
+            stamp(start) < stamp(requested) < stamp(marker) < stamp(stop), 'Node graceful shutdown order/force changed')
+
+
 def process_proof(directory, events, nodes, operations, saved, calls, net, configuration, build):
     groups = defaultdict(list)
     for row in events: groups[row['event']].append(row)
@@ -1079,11 +1086,16 @@ def process_proof(directory, events, nodes, operations, saved, calls, net, confi
     for request in net['requests'].values():
         require(stamp(backend) < stamp(request) < stamp(stopped), 'S3 request outside owned backend lifetime')
     node_lives = {}
+    equal(Counter(row['node'] for row in groups['node_stop_requested']), Counter((1, 2)), 'Node stop-request denominator changed')
     for node in (1, 2):
         start = only([row for row in groups['node_started'] if row['node'] == node], 'Node process start inventory')
+        requested = only([row for row in groups['node_stop_requested'] if row['node'] == node], 'Node original stop request')
         stop = only([row for row in groups['node_stopped'] if row['node'] == node], 'Node process wait4 inventory')
         register(start['identity'], stop); wait4(stop, 0)
-        equal(identity(start['identity']), identity(stop['identity']), 'Node wait4 belongs to another actual process')
+        node_shutdown(start, requested, stop, nodes[node][-1])
+        shutdown = only([row for row in groups['operator_command'] if row['node'] == node and row['id'] == 'shutdown'], 'Node shutdown operator control')
+        require(max(stamp(value['finish']) for value in operations.values() if value['node'] == node) < stamp(requested) < stamp(shutdown),
+                'Node stop request preceded workload completion or followed shutdown input')
         equal(start['binary'], tools['node'], 'SDK ran under another Node executable')
         hello = nodes[node][0]
         require(type(start['spawn_requested_ns']) is int and start['spawn_requested_ns'] <= start['identity']['spawn_monotonic_ns'] <= stamp(start),
@@ -1312,7 +1324,7 @@ def audit(directory, *, require_artifacts=True):
                'node_started', 'node_event', 'operator_command', 'http_request', 'http_forwarded', 'http_response', 'http_delivered',
                'http_response_suppressed', 'fault_armed', 'fault_entered', 'fault_released', 's3_request_suppressed',
                'fixture_put_started', 'fixture_process_started', 'fixture_process_stopped', 'quarantined_cache_observed',
-               'quarantined_cache_removed', 'cache_observed', 'service_stop_requested', 'service_stopped', 'node_stopped',
+               'quarantined_cache_removed', 'cache_observed', 'service_stop_requested', 'service_stopped', 'node_stop_requested', 'node_stopped',
                'saved_files_observed', 'cache_removed', 'proxy_stopped', 'backend_stopped', 'cleanup_finished',
                'private_remove_started', 'private_removed'}
     require(all(row['event'] in allowed for row in events), 'unplanned/failed/expired/forced owner fixture event')

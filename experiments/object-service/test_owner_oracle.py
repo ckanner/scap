@@ -191,6 +191,17 @@ class DeliberateCorruptionTests(unittest.TestCase):
 
 
 class OwnedProcessTests(unittest.TestCase):
+    def test_node_shutdown_requires_same_owned_child_and_original_graceful_order(self):
+        ident = {'pid': 123, 'spawn_monotonic_ns': 2, 'pid_source': 'owned_Popen_child'}
+        start = {'identity': ident, 'monotonic_ns': 3}
+        requested = {'identity': ident, 'monotonic_ns': 10, 'forced': False}
+        marker = {'monotonic_ns': '15'}
+        stop = {'identity': ident, 'monotonic_ns': 20, 'forced': False}
+        oracle.node_shutdown(start, requested, stop, marker)
+        for change in ({'forced': True}, {'monotonic_ns': 15}, {'identity': {**ident, 'pid': 456}}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                oracle.node_shutdown(start, {**requested, **change}, stop, marker)
+
     def test_wait4_requires_exact_exit_and_kernel_owned_usage(self):
         value = {'wait_status': 0, 'kernel_usage': {'available': True, 'source': 'kernel_wait4_owned_child',
                  'maxrss_bytes': 100, 'user_seconds': .2, 'system_seconds': .1}}
