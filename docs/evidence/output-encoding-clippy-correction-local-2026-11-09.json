@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "status": "CORRECTED_STATIC_NOT_RUN",
+  "scope": "Private trait-object aliases only; no wire/API/allocation/dispatch/coverage-policy change",
+  "base_commit": "c6cb71294278b4d66f81bdc5aec2bf98f8da9d7a",
+  "original_failure": {
+    "status": "FAILED_PRESERVED",
+    "source_commit": "c6cb71294278b4d66f81bdc5aec2bf98f8da9d7a",
+    "completion": {
+      "path": "/tmp/scap-output-unit-c6cb712-01/completion.json",
+      "bytes": 3381,
+      "sha256": "26e00f04e0c75cbb333190adeb7b7f2d7dcebe2027f59e856f49a0bf274baf3e"
+    },
+    "source_manifest": {
+      "path": "/tmp/scap-output-unit-c6cb712-01/source-before.json",
+      "bytes": 116523,
+      "sha256": "aebedbfcc3948eb5930631a2914219d147880a555bc796e526f9ce21a08736bf"
+    },
+    "clippy_log": {
+      "path": "/tmp/scap-output-unit-c6cb712-01/clippy.log",
+      "bytes": 786,
+      "sha256": "d0486d39e139f1e6ac9483ef54fcb11ed983799ecabffdf898af3a57e1d71095"
+    },
+    "tool_versions": {
+      "stable-rustc-version": {
+        "path": "/tmp/scap-output-unit-c6cb712-01/stable-rustc-version.log",
+        "bytes": 196,
+        "sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      "nightly-rustc-version": {
+        "path": "/tmp/scap-output-unit-c6cb712-01/nightly-rustc-version.log",
+        "bytes": 212,
+        "sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      "llvm-cov-version": {
+        "path": "/tmp/scap-output-unit-c6cb712-01/llvm-cov-version.log",
+        "bytes": 22,
+        "sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      }
+    },
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-output-unit-c6cb712-01/source-before.json"
+        ],
+        "started_monotonic_ns": 66751095557129,
+        "pid": 8,
+        "exit_code": 0,
+        "finished_monotonic_ns": 66751583946214,
+        "log_sha256": "1a12161b0df03d97bb6ac0325031ca31f014aca8f7b556553f85c78aa77c58ed"
+      },
+      {
+        "name": "stable-rustc-version",
+        "argv": [
+          "rustc",
+          "+1.90.0",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 66751585233830,
+        "pid": 19,
+        "exit_code": 0,
+        "finished_monotonic_ns": 66752008359789,
+        "log_sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      {
+        "name": "nightly-rustc-version",
+        "argv": [
+          "rustc",
+          "+nightly-2025-09-18",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 66752009272786,
+        "pid": 29,
+        "exit_code": 0,
+        "finished_monotonic_ns": 66752179070333,
+        "log_sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      {
+        "name": "llvm-cov-version",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--version"
+        ],
+        "started_monotonic_ns": 66752179563379,
+        "pid": 39,
+        "exit_code": 0,
+        "finished_monotonic_ns": 66752299222414,
+        "log_sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      },
+      {
+        "name": "format",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "started_monotonic_ns": 66752299699257,
+        "pid": 48,
+        "exit_code": 0,
+        "finished_monotonic_ns": 66754099586603,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "started_monotonic_ns": 66754101155412,
+        "pid": 75,
+        "exit_code": 101,
+        "finished_monotonic_ns": 66756751796450,
+        "log_sha256": "d0486d39e139f1e6ac9483ef54fcb11ed983799ecabffdf898af3a57e1d71095"
+      }
+    ],
+    "failed_stage": "strict Clippy",
+    "diagnostic": "scap-sql/src/lib.rs allocation trait-object parameter triggered clippy::type_complexity under -D warnings",
+    "source_unchanged": true,
+    "stable_units": "NOT_RUN",
+    "coverage_clean": "NOT_RUN",
+    "coverage_units": "NOT_RUN",
+    "exact_counters": "NOT_RUN"
+  },
+  "correction": {
+    "freeze": {
+      "path": "/tmp/scap-output-encoding-type-alias-freeze01/manifest.json",
+      "bytes": 2385,
+      "sha256": "053e919cc194bd947147f57b0020976f25cca4972ec1443587ced5352f671927"
+    },
+    "patch": {
+      "path": "/tmp/scap-output-encoding-type-alias-freeze01/candidate.patch",
+      "bytes": 1952,
+      "sha256": "c43b53d32ddc6969672446c31bc26ebdc65985ea01ce34bba9fc6663b135070d"
+    },
+    "files": [
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "bytes": 15398,
+        "sha256": "b090350ccb5d6020374838574213d76202dc7b8cc2b3f5cb47a88bcec5cea06b"
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "bytes": 10231,
+        "sha256": "ccf265866e1fdf8761ee331c5fe28a7a7c831a9b59aa1072377bea18449dbcbb"
+      }
+    ],
+    "reason": "Use private borrowed-lifetime ResultAllocator and ResultEncoder aliases. SQL diagnostic was observed; corresponding native alias is a static same-shape correction, not an observed native compilation failure. No lint allow or generic seam reinstated.",
+    "static_validation": "Pinned limited-file rustfmt and git diff --check passed; root read the entire narrow patch."
+  },
+  "execution": {
+    "strict_clippy": "NOT_RUN for corrected source",
+    "workspace_units": "NOT_RUN for corrected source",
+    "unit_only_exact_4d_coverage": "NOT_RUN for corrected source",
+    "actual_native_s3_http": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "remote_ci": "NOT_RUN"
+  },
+  "cache_state": "Prior complete unit source is 778a4d2. The c6 attempt changed a partial stable Clippy cache but never reached coverage clean or unit collection. Prior 93 raw profiles and merged profile remain original evidence; no old profile may enter corrected coverage."
+}

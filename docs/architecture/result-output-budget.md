@@ -1,9 +1,9 @@
 # 结果编码与服务输出预算
 
-当前状态：**编码基础已实现并静态冻结，完整执行门禁仍 NOT_RUN；后文的全局/租户输出池仍是设计，尚未实现。**
+当前状态：**编码基础已实现。首个完整门禁在 `c6cb712` 的 Clippy 类型复杂度检查失败，功能/覆盖测试尚未运行；私有类型别名窄修已冻结待新门禁。后文的全局/租户输出池仍是设计，尚未实现。**
 基础实现叠在 guarded-status 的 `5604126f7677188dd1b35dd3d596747d4bf95002` 上；
 原资源推导以运行时 `778a4d2` 的路径为依据。源码、独立审阅和精确边界见
-[基础切片冻结回执](../evidence/output-encoding-foundation-local-2026-11-09.json)。
+[基础切片冻结回执](../evidence/output-encoding-foundation-local-2026-11-09.json)及[首个门禁失败与窄修回执](../evidence/output-encoding-clippy-correction-local-2026-11-09.json)。
 本文接续[HTTP 结果去副本](http-result-copy-reduction.md)和[资源预算](resource-budgets.md)。
 
 ## 0. 已实现的编码基础（先于下述输出池）
@@ -23,7 +23,7 @@ Malformed 行为和验证顺序，新分配失败使用已有 ResourceExhausted�
 不制造真实系统 OOM，也不使用进程级 global allocator 故障开关。实际 encode 的
 原 invalid/limit 仍走原 rollback，资源分类用精确 helper regression 核对。
 基础实现保留七项新增单位定义，已通过静态审阅和限定文件 rustfmt。
-完整 workspace、strict Clippy、逐生产文件四维单位覆盖及实际合同仍待运行；
+修正后的完整 workspace、strict Clippy、逐生产文件四维单位覆盖及实际合同仍待运行；
 两处私有失败注入边界使用借用的 dyn FnMut，不分配回调、不使用进程全局开关。
 它们仍各调用一次。原泛型候选只存在静态覆盖聚合风险，没有实测失败。
 

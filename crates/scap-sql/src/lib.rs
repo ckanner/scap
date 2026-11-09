@@ -246,10 +246,13 @@ pub fn encode_result(result: &TransactionResult, limits: SqlLimits) -> Result<Ve
     encode_result_with(result, limits, &mut Vec::try_reserve_exact)
 }
 
+type ResultAllocator<'a> =
+    dyn FnMut(&mut Vec<u8>, usize) -> Result<(), std::collections::TryReserveError> + 'a;
+
 fn encode_result_with(
     result: &TransactionResult,
     limits: SqlLimits,
-    allocate: &mut dyn FnMut(&mut Vec<u8>, usize) -> Result<(), std::collections::TryReserveError>,
+    allocate: &mut ResultAllocator<'_>,
 ) -> Result<Vec<u8>, SqlError> {
     let plan = plan_result(result, limits)?;
     let mut bytes = Vec::new();

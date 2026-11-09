@@ -106,6 +106,9 @@ pub type ReadInterrupt = Arc<dyn Fn() -> bool + Send + Sync>;
 
 type NativeConnection<G> = libsql_sys::Connection<WrappedWal<GateWal<G>, Sqlite3Wal>>;
 
+type ResultEncoder<'a> =
+    dyn FnMut(&TransactionResult, SqlLimits) -> Result<Vec<u8>, scap_sql::SqlError> + 'a;
+
 /// A thread-confined private cache. No raw connection, in-place reopen or
 /// path-based public access exists. Every failure permanently stops this writer.
 pub struct SqliteWriter<G: CommitGate> {
@@ -191,10 +194,7 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         &mut self,
         statements: &[Statement],
         interrupt: ReadInterrupt,
-        encode: &mut dyn FnMut(
-            &TransactionResult,
-            SqlLimits,
-        ) -> Result<Vec<u8>, scap_sql::SqlError>,
+        encode: &mut ResultEncoder<'_>,
     ) -> Result<TransactionResult, Error> {
         if self.stopped {
             return Err(Error::Stopped);
