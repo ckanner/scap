@@ -2,8 +2,7 @@
 
 本候选基于 `7c1f8e4`，把三个已独立提交的生产切片与受限 HTTP 观测夹具放到
 同一源码树。冻结版本 `778a4d2` 已通过完整 workspace 单位门禁和 23 项辅助检查；
-**这一组合的新实际 native/S3/HTTP 合同仍待验收**。各旧版本的真实故障和容量
-结果保留各自冻结输入身份，不能替代本次实际验收。
+**这一组合的实际合同正在逐项闭合：本源的六个 native/S3 网络子门禁、发现合同，以及独立 metadata-only 夹具已通过；其余实际门禁仍待完成。** 各旧版本的真实故障和容量结果保留各自冻结输入身份，不能替代本次实际验收。
 
 `052fbbd` 的首次全 workspace 门禁在 fmt 发现一处行折叠差异，编译与覆盖采集
 尚未进入；原失败保留在[格式失败回执](../evidence/head5-runtime-format-failure-local-2026-11-09.json)。
@@ -63,8 +62,17 @@ attempt02 使用独立空 target 与未修改的原 builder，六个 release 构
 
 本 `778a4d2` 的 discovery 实际、独立外部 oracle、29 个负控及原样复制正控也已通过：
 418 次 HTTP、25,305 次签名后端请求、全部 33 个 owned child wait4，见[发现验收回执](../evidence/head5-runtime-discovery-local-2026-11-09.json)。
-这是发现合同，不替代数据库完整冷恢复；其余 network/capacity/deployment/service/owner/resource
-门禁仍须分别完成。
+这是发现合同，不替代数据库完整冷恢复。
+
+同一 `778a4d2` release 的六个 canonical 网络子命令现已全部通过，见[实际网络回执](../evidence/head5-runtime-network-local-2026-11-09.json)：
+
+- listing 的174次调用/34次LIST与响应大小边界，分别保留原独立检查及负控。
+- 原15类网络合同、原30项故障场景和schema账本；各自分母独立，不能累加成唯一请求数。
+- 保留结果12场景、72入口检查，30条原ACK与原receipt/result零错配。
+- 生命周期12场景，两轮恢复，78次ACK响应/30原身份零错配。
+- 目录116场景、2,944次产品调用，2,791次完整响应和153次明确失答，1,000次ACK、108个SQL身份及133个descriptor身份零错配；627个子进程incarnation与501次缓存丢失观察由原oracle审计。
+
+这批调用使用真实Rust worker与签名S3，覆盖直接activate/named Complete相关路径；它们不是普通 `/v1` HTTP服务或新输出池验收。capacity/deployment/service/owner/resource及受限GC transport门禁仍须分别完成，AWS与生产SLO仍为NOT_RUN。
 
 [f6 的新部署恢复](../evidence/head5-deployment-local-2026-11-09.json)已通过实际、
 外部 oracle 和 23 负/1 正对照，保留原输入身份；新 core 组合仍需新的验证。
