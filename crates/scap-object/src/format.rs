@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 #[path = "object_frame.rs"]
 mod object_frame;
+pub(crate) use object_frame::ValidatedFrame;
 
 pub const PAGE_SIZE: usize = 4096;
 pub const CHUNK_PAGES: u32 = 32;
@@ -258,7 +259,7 @@ pub struct Head {
 }
 
 impl Head {
-    fn validate(&self) -> Result<(), FormatError> {
+    pub(crate) fn validate(&self) -> Result<(), FormatError> {
         check(self.format == 5)?;
         self.scope.validate()?;
         nonzero(&[

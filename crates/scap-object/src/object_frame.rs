@@ -14,6 +14,14 @@ pub(crate) struct ValidatedFrame<'a> {
     envelope: Envelope,
 }
 
+/// Internal traversal parts, not an owned decoded Envelope. Chunk/Result
+/// metadata has empty embedded bytes; its validated payload is `raw`.
+pub(crate) struct FrameParts<'a> {
+    pub(crate) metadata: Payload,
+    pub(crate) frame: &'a [u8],
+    pub(crate) raw: &'a [u8],
+}
+
 impl<'a> ValidatedFrame<'a> {
     pub(crate) fn parse(
         bytes: &'a [u8],
@@ -63,8 +71,20 @@ impl<'a> ValidatedFrame<'a> {
         self.bytes
     }
 
+    pub(crate) fn raw_payload(&self) -> &'a [u8] {
+        &self.as_bytes()[self.raw_offset..]
+    }
+
+    pub(crate) fn into_parts(self) -> FrameParts<'a> {
+        FrameParts {
+            frame: self.as_bytes(),
+            raw: self.raw_payload(),
+            metadata: self.envelope.payload,
+        }
+    }
+
     pub(crate) fn into_envelope(self) -> Envelope {
-        let raw = &self.as_bytes()[self.raw_offset..];
+        let raw = self.raw_payload();
         let mut envelope = self.envelope;
         match &mut envelope.payload {
             Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {

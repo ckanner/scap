@@ -31,11 +31,19 @@ fn root(
     deadline: Instant,
 ) -> Result<RequestIndex, Error> {
     let index = load(store, &window.root, window.epoch, deadline)?;
+    check_root(&index, window)?;
+    Ok(index)
+}
+
+pub(crate) fn check_root(index: &RequestIndex, window: &Window) -> Result<(), Error> {
     let summary = index.summary();
-    if summary.count != window.count || summary.result_bytes != window.result_bytes {
+    if index.epoch() != window.epoch
+        || summary.count != window.count
+        || summary.result_bytes != window.result_bytes
+    {
         return Err(Error::Corrupt);
     }
-    Ok(index)
+    Ok(())
 }
 
 fn child(
@@ -46,11 +54,25 @@ fn child(
     deadline: Instant,
 ) -> Result<RequestIndex, Error> {
     let index = load(store, &reference.hash, epoch, deadline)?;
+    check_child(&index, reference, epoch, level)?;
+    Ok(index)
+}
+
+pub(crate) fn check_child(
+    index: &RequestIndex,
+    reference: &IndexChild,
+    epoch: u64,
+    level: u8,
+) -> Result<(), Error> {
     let (width, capacity) = index.occupancy();
-    if index.level() != level || width < capacity / 2 || index.summary() != reference.summary {
+    if index.epoch() != epoch
+        || index.level() != level
+        || width < capacity / 2
+        || index.summary() != reference.summary
+    {
         return Err(Error::Corrupt);
     }
-    Ok(index)
+    Ok(())
 }
 
 fn save(

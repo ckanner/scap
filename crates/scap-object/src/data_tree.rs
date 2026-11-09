@@ -38,7 +38,7 @@ pub(crate) fn manifest(
     }
 }
 
-fn level_for(pages: u32) -> u8 {
+pub(crate) fn level_for(pages: u32) -> u8 {
     let chunks = pages.div_ceil(CHUNK_PAGES) as u64;
     let mut level = 0;
     while chunks > span(level) {
@@ -56,14 +56,14 @@ fn child_span(level: u8) -> u64 {
     (TREE_FANOUT as u64).pow(level as u32)
 }
 
-fn child_count(level: u8, first_chunk: u32, pages: u32) -> usize {
+pub(crate) fn child_count(level: u8, first_chunk: u32, pages: u32) -> usize {
     (pages.div_ceil(CHUNK_PAGES) as u64)
         .saturating_sub(first_chunk as u64)
         .min(span(level))
         .div_ceil(child_span(level)) as usize
 }
 
-fn child_first(level: u8, first_chunk: u32, index: usize) -> u32 {
+pub(crate) fn child_first(level: u8, first_chunk: u32, index: usize) -> u32 {
     // Callers enumerate only child_count entries for a <= MAX_PAGES image.
     (first_chunk as u64 + index as u64 * child_span(level)) as u32
 }
@@ -74,11 +74,42 @@ fn extent(level: u8, first_chunk: u32, pages: u32) -> u64 {
         .min(span(level) * CHUNK_PAGES as u64)
 }
 
-fn chunk_len(first_chunk: u32, pages: u32) -> usize {
+pub(crate) fn chunk_len(first_chunk: u32, pages: u32) -> usize {
     (pages as u64)
         .saturating_sub(first_chunk as u64 * CHUNK_PAGES as u64)
         .min(CHUNK_PAGES as u64) as usize
         * PAGE_SIZE
+}
+
+pub(crate) fn check_node(
+    actual_level: u8,
+    actual_first: u32,
+    actual_children: usize,
+    level: u8,
+    first_chunk: u32,
+    pages: u32,
+) -> Result<(), Error> {
+    if actual_level == level
+        && actual_first == first_chunk
+        && actual_children == child_count(level, first_chunk, pages)
+    {
+        Ok(())
+    } else {
+        Err(Error::Corrupt)
+    }
+}
+
+pub(crate) fn check_chunk(
+    first_page: u32,
+    bytes: usize,
+    first_chunk: u32,
+    pages: u32,
+) -> Result<(), Error> {
+    if first_page == first_chunk * CHUNK_PAGES + 1 && bytes == chunk_len(first_chunk, pages) {
+        Ok(())
+    } else {
+        Err(Error::Corrupt)
+    }
 }
 
 fn load_node(
@@ -94,10 +125,15 @@ fn load_node(
             level: actual_level,
             first_chunk: actual_first,
             children,
-        } if actual_level == level
-            && actual_first == first_chunk
-            && children.len() == child_count(level, first_chunk, pages) =>
-        {
+        } => {
+            check_node(
+                actual_level,
+                actual_first,
+                children.len(),
+                level,
+                first_chunk,
+                pages,
+            )?;
             Ok(children)
         }
         _ => Err(Error::Corrupt),
@@ -112,10 +148,8 @@ fn load_chunk(
     deadline: Instant,
 ) -> Result<Vec<u8>, Error> {
     match store.load(hash, deadline)? {
-        Payload::Chunk { first_page, bytes }
-            if first_page == first_chunk * CHUNK_PAGES + 1
-                && bytes.len() == chunk_len(first_chunk, pages) =>
-        {
+        Payload::Chunk { first_page, bytes } => {
+            check_chunk(first_page, bytes.len(), first_chunk, pages)?;
             Ok(bytes)
         }
         _ => Err(Error::Corrupt),

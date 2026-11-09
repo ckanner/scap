@@ -107,6 +107,29 @@ fn validated_frames_keep_raw_payload_borrowed_until_owned_conversion() {
 }
 
 #[test]
+fn traversal_parts_move_only_metadata_and_borrow_both_original_slices() {
+    let original = envelope(result(vec![7; 1024]));
+    let bytes = encode_object(&original).unwrap();
+    let parsed = ValidatedFrame::parse(&bytes, &scope(), &digest(&bytes)).unwrap();
+    let parts = parsed.into_parts();
+    assert_eq!(parts.frame.as_ptr(), bytes.as_ptr());
+    assert_eq!(parts.frame, bytes);
+    assert_eq!(parts.raw.as_ptr(), bytes[bytes.len() - 1024..].as_ptr());
+    assert_eq!(parts.raw, &[7; 1024]);
+    let Payload::Result(stored) = parts.metadata else {
+        panic!()
+    };
+    assert!(stored.bytes.is_empty());
+    assert_eq!(
+        stored.request,
+        match original.payload {
+            Payload::Result(result) => result.request,
+            _ => panic!(),
+        }
+    );
+}
+
+#[test]
 fn noncanonical_json_preserves_the_original_frame_and_content_hash() {
     for (payload, raw, kind, escaped_kind) in [
         (

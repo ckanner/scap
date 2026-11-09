@@ -4,6 +4,7 @@ pub mod catalogue;
 pub mod format;
 pub mod options;
 
+mod closure;
 mod data_tree;
 mod head_publication;
 mod object_context;
@@ -107,6 +108,31 @@ pub fn request(
     };
     request.validate().map_err(Error::Format)?;
     Ok(request)
+}
+
+fn check_cancelled(head: &Head, transition: &Transition) -> Result<(), Error> {
+    if transition.revision > head.revision {
+        Err(Error::Corrupt)
+    } else {
+        Ok(())
+    }
+}
+
+/// Shared owned/borrowed retained-result checks. `raw` is the original result
+/// payload, never a newly decoded row graph or re-encoded replacement.
+fn check_retained_result(
+    head: &Head,
+    request: &Request,
+    stored: &StoredResult,
+    raw: &[u8],
+) -> Result<(), Error> {
+    if stored.request != *request
+        || stored.sequence > head.sequence
+        || stored.transition.revision > head.revision
+    {
+        return Err(Error::Corrupt);
+    }
+    scap_sql::validate_result(raw, durable_sql_limits()).map_err(|_| Error::Corrupt)
 }
 
 impl Database {
@@ -317,17 +343,17 @@ impl Database {
     fn verify_closure(
         &self,
         objects: &ObjectContext,
-        head: &Head,
+        base: &Snapshot,
         deadline: Instant,
     ) -> Result<(), Error> {
-        let manifest = data_tree::manifest(objects, &head.data_root, deadline)
-            .map_err(|error| self.observe(error))?;
-        if manifest.page_count > head.quota.max_pages().map_err(Error::Format)? {
-            return Err(Error::Limit);
+        let stop = || false;
+        let mut cursor = closure::Cursor::new(objects, base, deadline, &stop)?;
+        loop {
+            match cursor.advance(closure::StepBudget::default(), &mut |_| Ok(()))? {
+                closure::Step::Pending(next) => cursor = next,
+                closure::Step::Complete(proof) => return proof.finish(base).map(|_| ()),
+            }
         }
-        data_tree::walk(objects, &manifest, deadline, |_, _| Ok(()))
-            .map_err(|error| self.observe(error))?;
-        self.verify_results(objects, head, deadline)
     }
 
     fn verify_results(
@@ -406,9 +432,7 @@ impl Database {
     ) -> Result<Resolution, Error> {
         match outcome {
             OutcomeRef::Cancelled { transition } => {
-                if transition.revision > head.revision {
-                    return Err(self.observe(Error::Corrupt));
-                }
+                check_cancelled(head, transition).map_err(|error| self.observe(error))?;
                 Ok(Resolution::Cancelled {
                     transition: transition.clone(),
                 })
@@ -418,18 +442,8 @@ impl Database {
                     Payload::Result(stored) => stored,
                     _ => return Err(self.observe(Error::Corrupt)),
                 };
-                if stored.request != *request
-                    || stored.sequence > head.sequence
-                    || stored.transition.revision > head.revision
-                {
-                    return Err(self.observe(Error::Corrupt));
-                }
-                // Object integrity and request binding do not imply that the
-                // retained SQL result can be decoded. All lookup and recovery
-                // paths share this check; do not allocate a decoded row graph
-                // or apply the current (possibly lower) SQL admission limits.
-                scap_sql::validate_result(&stored.bytes, durable_sql_limits())
-                    .map_err(|_| self.observe(Error::Corrupt))?;
+                check_retained_result(head, request, &stored, &stored.bytes)
+                    .map_err(|error| self.observe(error))?;
                 let receipt = Receipt {
                     scope: self.scope.clone(),
                     request: request.clone(),
@@ -505,7 +519,7 @@ impl Database {
             return Err(Error::Fenced);
         }
         let objects = ObjectContext::capture(self, &base.head);
-        self.verify_closure(&objects, &base.head, deadline)?;
+        self.verify_closure(&objects, &base, deadline)?;
         let current = self.read_head(deadline)?;
         if current.etag != base.etag || current.head != base.head {
             return Err(Error::Conflict);
