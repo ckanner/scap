@@ -9,16 +9,35 @@
   "post_production_changes": [
     "crates/scap-service/src/http/catalogue_tests.rs",
     "crates/scap-service/src/http/tests.rs",
+    "docs/architecture/object-storage-native-proposal.md",
+    "docs/architecture/sqlite-s3-turso-review.md",
+    "docs/architecture/sqlite-wal-reset-assessment.md",
+    "docs/engineering/object-runtime.md",
+    "docs/engineering/roadmap.md",
+    "docs/engineering/status-2026-11-09.md",
+    "docs/evidence/captured-context-local-2026-11-09.json",
+    "docs/evidence/resource-composition-local-2026-11-09.json",
+    "experiments/object-service/discovery_contract.md",
+    "experiments/object-service/discovery_oracle.py",
+    "experiments/object-service/discovery_probe.mjs",
     "experiments/object-service/owner_contract.md",
     "experiments/object-service/owner_controls.py",
     "experiments/object-service/owner_oracle.py",
     "experiments/object-service/owner_probe.mjs",
     "experiments/object-service/owner_spec.py",
+    "experiments/object-service/test_discovery_progress.py",
     "experiments/object-service/test_owner_oracle.py"
   ],
   "input_equivalence": {
     "production_3b93_to_586": "byte-identical; only the listed test/acceptance files changed",
-    "rust_units_4456_to_586": "byte-identical; only six owner acceptance files changed"
+    "rust_units_4456_to_586": "byte-identical; only six owner acceptance files changed",
+    "rust_and_cargo_4456_to_bda": {
+      "status": "byte-identical",
+      "files": 134,
+      "canonical_encoding": "sorted-key compact UTF-8 JSON",
+      "sha256": "7566b81991528616af4ea0a92ff83037128b1c123bb68faaded1d13e40e93d00",
+      "scope": "every tracked .rs, Cargo.toml, Cargo.lock and rust-toolchain.toml; Python/JS acceptance fixtures are separately validated"
+    }
   },
   "units": {
     "status": "passed",
@@ -1105,10 +1124,10 @@
     "isolation": "passed",
     "segmented_index": "passed",
     "tcp_8_cases": "passed",
-    "discovery": "FAILED original and quiet retry; independent analysis identified an undeclared complete-page throughput assumption; fixture repair under review, actual retry NOT_RUN",
+    "discovery": "actual03 FAILED; corrected bda5ad4 four-file fixture frozen with 183 units PASS; new actual04 and its 26 negative/1 positive controls NOT_RUN at this checkpoint",
     "capacity_gib1": "passed in separate retry02; original disk-guard failure preserved",
     "deployment_recovery": "passed in independent new-source run; original fail-first driver remains failed",
-    "resource_composition": "NOT_RUN"
+    "resource_composition": "passed at 586e11b; fresh release, required fixture Clippy, actual/external oracle, 14 negative and 1 positive controls; unchanged compiled inputs"
   },
   "auxiliary": {
     "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
@@ -1144,12 +1163,29 @@
       ],
       "status": "FAILED",
       "interpretation": "Concurrent load alone is not established as the cause; unchanged quiet retry also failed. No third blind retry."
+    },
+    {
+      "kind": "discovery_inventory_proof_binding",
+      "source_commit": "09cfc0d05f1900992ed2c369d6853bd38600166a",
+      "status": "FAILED pre-actual verifier review; no actual run",
+      "sha256": "dc2af94db8d17ea3f50e2699b9278f01af3d3c5d259d51ec88e21aca1d8e6c62",
+      "fix": "4834434724104a6352eacf25d1b610ac70a2f865 binds each candidate to its original phase and GET interval"
+    },
+    {
+      "kind": "discovery_final_proxy_observation",
+      "source_commit": "4834434724104a6352eacf25d1b610ac70a2f865",
+      "status": "FAILED",
+      "evidence": "/tmp/scap-discovery-observation-4834434-03",
+      "original_controls": "NOT_RUN",
+      "diagnostic_sha256": "398f18f21918117e526cca57162b4fe00cf32ac447a0edaefd91f02eeca7f06d",
+      "final_list_diagnostic_sha256": "feb1b4fa64c0888498bd4a1901b5046feff01d40d9545dfc633dfe6c4b38e47b",
+      "revised_old_history_audit": "diagnostic only; does not relabel this original failure"
     }
   ],
   "not_completed": [
     "storage_generation",
     "head_serial",
-    "durable_pins",
+    "safe_reclamation_and_retained_snapshot_protection",
     "physical_gc",
     "PITR",
     "global_live_memory_and_disk_budgets",
@@ -1231,5 +1267,171 @@
     "quiet_retry_completed_candidates": 29,
     "production_deadline_changed": false,
     "fixture_repair_status": "under review; no accepted rerun yet"
+  },
+  "current_fixture_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+  "resource_composition": {
+    "status": "passed",
+    "source_commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+    "receipt": "resource-composition-local-2026-11-09.json",
+    "receipt_sha256": "c588e32db565cf2b3c8c10611992b42495b70f581820d83bcbfc0aeac6ba240b",
+    "observations": {
+      "backpressure": 3,
+      "http_calls": 25,
+      "object_versions": {
+        "accepted_versions": 10,
+        "ambiguous_http_intervals": 0,
+        "blackholed_before_forward": 0,
+        "causal_constraints": 56,
+        "conditional_put_responses": 10,
+        "exact_get_body_etag_pairs": 40,
+        "http_interval_binding": "checked"
+      },
+      "original_cancellation_proved": true,
+      "original_execute_attempts": 1,
+      "original_unknown": 1,
+      "processes": {
+        "all_recorded_children_reaped": true,
+        "owned_workload_processes": 6
+      },
+      "s3_requests": 50,
+      "transport_holds": [
+        "incomplete_body",
+        "server_timeout_with_running_worker",
+        "slow_response"
+      ],
+      "worker": {
+        "explicit_pause": 1,
+        "late_worker_outcome": "UNKNOWN",
+        "observed_calls": 22,
+        "server_timeouts_with_live_worker": 1
+      }
+    },
+    "gates": {
+      "actual": "passed",
+      "controls": {
+        "all_negative_rejected": true,
+        "negative": 14,
+        "positive": 1
+      },
+      "external_oracle": "passed",
+      "fixture_clippy_this_commit": {
+        "cache": "intact inactive prior dev cache reused; source-bound gate, not a fresh build claim",
+        "command": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "log": {
+          "bytes": 743,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.log",
+          "sha256": "7c3596b6422e6dcecefc9ad558488afb4b2d89cf89ad14b1f09cc5f8e5e4e48c"
+        },
+        "receipt": {
+          "bytes": 1310,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.json",
+          "sha256": "56db6ad673076e3ab56865beba6a86d518801c6402c6bb77e89f2619d36b959c"
+        },
+        "status": "passed"
+      },
+      "fixture_fmt": {
+        "log": {
+          "bytes": 0,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-fmt.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "status": "passed"
+      },
+      "fixture_unit": {
+        "log": {
+          "bytes": 1688,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-unit.log",
+          "sha256": "240fb8a2a9712f883eebfe0b0cde574e1350ce6c2895982c17962f9935e2beb2"
+        },
+        "status": "passed",
+        "tests": 11
+      },
+      "fresh_release_build": "passed",
+      "source_verify": {
+        "commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+        "files": 395,
+        "status": "passed"
+      }
+    },
+    "limits": {
+      "aws_standard": "NOT_RUN",
+      "backend": "local SeaweedFS with signed S3 requests and unsigned authority-access rejection",
+      "final_bytes_clone_proof": "separate production unit test; TCP exercise is supplemental",
+      "fixed_inputs_deadlines_and_oracle": "unchanged",
+      "global_process_rss_cap": "NOT_CLAIMED",
+      "native_sqlite_global_heap_cap": "NOT_IMPLEMENTED",
+      "pause": "explicit production Worker seam used to observe timeout with work still live",
+      "production_slo": "NOT_RUN"
+    }
+  },
+  "discovery_candidate": {
+    "source_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+    "freeze_sha256": "bdf769acf5d965def8bfe3550d5a075af3b4fa755de168b04bb81a0069c9fd4a",
+    "files": [
+      {
+        "bytes": 15305,
+        "path": "experiments/object-service/discovery_contract.md",
+        "sha256": "183e8bf48d8ce0d4733a3ce9eabd3d16cbcb32214b985b432fab0f3c17b5f22c"
+      },
+      {
+        "bytes": 116982,
+        "path": "experiments/object-service/discovery_oracle.py",
+        "sha256": "0913da18c8b0e3d6c780af3dd1a61eeb6daebb7a0f76571a904f0848f1106864"
+      },
+      {
+        "bytes": 18079,
+        "path": "experiments/object-service/discovery_probe.mjs",
+        "sha256": "2e671781a20ad0449d61190842b7555e3135954f25ad4c6ab18b83e27acfef6d"
+      },
+      {
+        "bytes": 51959,
+        "path": "experiments/object-service/test_discovery_progress.py",
+        "sha256": "6ce3fbad3c2aa39691385fc17a92817788fe8e264ab4f3dc8a4a43936e160e0a"
+      }
+    ],
+    "fixture_units": {
+      "count": 183,
+      "log": "/tmp/scap-discovery-causal-tail-all-units-03.log",
+      "sha256": "f52ece8bcf3a172717a4a1b237fb3be0e494730b8f702404792a972328ccd206",
+      "status": "PASS"
+    },
+    "node_syntax": "passed",
+    "production_changed": false,
+    "actual04": "NOT_RUN",
+    "required_negative_controls": 26,
+    "required_positive_controls": 1,
+    "deadline_or_budget_relaxation": false,
+    "internal_dispatch_time": "NOT_OBSERVED"
+  },
+  "follow_on_candidates": {
+    "head5_pr": 42,
+    "head5_source": "b00d67e879c923012e89923829c0e39959b79848",
+    "head5_scope": "serial and storage namespace foundation; only active=allocated=1 accepted",
+    "head5_units": "507 stable/nightly; all54 production files exact unit-only4D PASS; actual HEAD5 NOT_RUN",
+    "conservative_reclamation_model_pr": 41,
+    "ordinary_operation_direction": "separate generation-fenced abortable model; no default permanent per-operation durable pin; finite proof and production implementation pending"
+  },
+  "native_wal_reset_assessment": {
+    "document": "../architecture/sqlite-wal-reset-assessment.md",
+    "source_commit": "b00d67e879c923012e89923829c0e39959b79848",
+    "libsql_pin": "d8bc862d20bedc72945a1da27c8b7045414c0261",
+    "sqlite_version": "3.47.0",
+    "patched": false,
+    "current_service_topology": "single controlled connection per unique private file; source-reviewed architectural trigger exclusion",
+    "native_reproducer": "NOT_RUN",
+    "native_patch_validation": "NOT_RUN",
+    "scope": "does not establish arbitrary embedding/sidecar safety or a patched native engine"
   }
 }

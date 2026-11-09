@@ -80,11 +80,19 @@ SCAP 当前已使用 128 KiB chunk/COW 数据树和分段请求索引，但冷�
 ## 4. 当前选择和后续实现顺序
 
 1. 保留单库串行提交和固定原 ETag；不同数据库通过有界 actor 并行。热点库不能仅靠增加 pod 获得多 writer 吞吐。
-2. 以捕获的 ObjectContext 固定每次操作的后端与地址；在其上建立独立 storage generation、单调 head serial 和完整 pin 身份。
-3. 在 pin/冻结/原始字节复制/永久退休的状态模型及真实迟到请求合同通过后接入物理 GC。暂停 pin 和不能判定的旧请求必须明确阻塞或失败关闭。
+2. 以捕获的 ObjectContext 固定每次操作的后端与地址；在其上建立独立 storage generation、单调 head serial 和原条件 metadata-only CAS。
+3. 独立验证世代 fence、原始字节复制、永久退休及 UNKNOWN 后再接入物理 GC。普通操作候选不写永久 pin，完整验证的旧快照可按原观察返回；不完整读取只有在 fresh 权威证明退休后才能 scoped 过期。保留快照根与当前复制计划分别保护，不能将真实 active 数据损坏当成过期。
 4. 显式快照/PITR 恢复到新的数据库身份，重新建立权限和请求空间；不能复活旧 owner、ACL 或取消屏障。
 5. 总体资源预算、自动协调与真实目标后端的数字 SLO 分别完成；逐阶段报告请求数、字节、延迟分布和完整失败分母。
 
 详细实现标准仍由[主方案](object-storage-native-proposal.md)、[资源预算](resource-budgets.md)
 和[回收方案](storage-reclamation-plan.md)约束。以上借鉴不代表当前已经实现 lazy VFS、
 多 writer、group commit、产品 GC 或生产 SLO。
+
+## 5. 原生引擎补丁不能由存储架构代替
+
+2026-11-09 另行核查了 SQLite 官方 WAL-reset 修复：当前 SCAP 固定 libSQL 与
+核查时官方 main 均尚未包含。当前私有文件/单连接调用图排除了其多连接触发条件，
+但这不等于引擎已修补。精确版本、源文件身份、官方补丁和保留 publication hooks
+的升级门禁见[独立评估](sqlite-wal-reset-assessment.md)。未来引入同文件读池或
+后台 checkpoint 前必须重新证明这条边界。
