@@ -43,7 +43,13 @@ profile，没有混入旧版本或集成 profile。12 个实际单位 ELF、真�
 
 新 release 构建 attempt01 在 Cargo 之前被原资源 builder 的空 target 前置条件拒绝，
 [原失败已保留](../evidence/head5-runtime-build-precondition-local-2026-11-09.json)。
-attempt02 使用独立空 target 与未修改的原 builder；不放宽前置条件。
+attempt02 使用独立空 target 与未修改的原 builder，六个 release 构建全部通过；
+四个 Rust 夹具的 fmt/strict Clippy 也全部通过。首个 resource 构建在空 target
+编译 native C，随后复用完整依赖；GC 使用另一个空 target。见[构建回执](../evidence/head5-runtime-release-local-2026-11-09.json)。
+
+原 23 项辅助检查没有调用 TypeScript 编译器；回执中 `SDK V8/types` 的概括已更正。
+冻结 `778a4d2` 的 SDK 后来独立通过 TypeScript 5.9.3 严格检查，保留实际命令、
+工具摘要和原包含运行的失败状态，见[独立类型检查回执](../evidence/head5-runtime-types-local-2026-11-09.json)。
 
 之后用本树的新 release 输入运行所需 native/S3/HTTP、冷恢复、owner、资源及
 发现合同；直接 activate/named Complete 由相应 network/catalogue 路径覆盖。

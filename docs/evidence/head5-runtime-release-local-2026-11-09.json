@@ -1,0 +1,588 @@
+{
+  "build_commands": [
+    {
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-runtime-build-778a4d2-02/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 60854158508605,
+      "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb",
+      "name": "source",
+      "started_ns": 60853845651170
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/resource-limits/build.py",
+        "--target",
+        "/tmp/scap-runtime-release-778a4d2-02",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/resource-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 61678371128127,
+      "log_sha256": "86ed79779ad53c2e1340461b93c0fdee10a4d4a7fdbd02b6532f1022de507e5b",
+      "name": "resource-build",
+      "started_ns": 60854160255611
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/object-network/build.py",
+        "--target-dir",
+        "/tmp/scap-runtime-release-778a4d2-02",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/network-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62006319379593,
+      "log_sha256": "c49e7abff2a87ad2f75c128eba40cd7bedd18a0d9b77283be75d87da84c8867a",
+      "name": "network-build",
+      "started_ns": 61678379186275
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/object-network/listing_build.py",
+        "--target-dir",
+        "/tmp/scap-runtime-release-778a4d2-02",
+        "--release",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/listing-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62011998273708,
+      "log_sha256": "862f3cd780f9c54b0beccc767e9154c951788b2114cf7358d86db9b4fe6e0fa8",
+      "name": "listing-build",
+      "started_ns": 62006326329161
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/object-discovery/discovery_build.py",
+        "--target-dir",
+        "/tmp/scap-runtime-release-778a4d2-02",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/deployment-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62019064830297,
+      "log_sha256": "c3969067abed7a55dac17f34422ecea64da3f0ff998ad32681b154919b50174a",
+      "name": "deployment-build",
+      "started_ns": 62011999972202
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/object-service/build.py",
+        "--target-dir",
+        "/tmp/scap-runtime-release-778a4d2-02",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/service-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62127805472496,
+      "log_sha256": "dfb08a7f1bab996d74566445c4b39f79712d4e0bede8910e2f8efead28c9587a",
+      "name": "service-build",
+      "started_ns": 62019065926847
+    },
+    {
+      "argv": [
+        "python3",
+        "experiments/object-gc-store/build.py",
+        "--target",
+        "/tmp/scap-runtime-gc-release-778a4d2-02",
+        "--evidence",
+        "/tmp/scap-runtime-build-778a4d2-02/gc-build"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62629357916628,
+      "log_sha256": "704326609375852d2660391d397992f91cca53755cda59c2d803bfa8dd9a7eb9",
+      "name": "gc-build",
+      "started_ns": 62127812790201
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-runtime-build-778a4d2-02/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 62629749379442,
+      "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2",
+      "name": "source-verify",
+      "started_ns": 62629368183734
+    }
+  ],
+  "build_environment": {
+    "aws_standard": "NOT_RUN",
+    "backend": {
+      "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    },
+    "build_evidence": "/tmp/scap-runtime-build-778a4d2-02",
+    "build_jobs": 1,
+    "gc_target": "/tmp/scap-runtime-gc-release-778a4d2-02",
+    "native_first_build": "resource-build",
+    "production_slo": "NOT_RUN",
+    "profile_overrides": {},
+    "release_target_initially_absent": true,
+    "source_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+    "source_root": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+    "source_unchanged": true,
+    "stage": "build",
+    "subsequent_builds_use_intact_dependency_cache": true,
+    "target": "/tmp/scap-runtime-release-778a4d2-02"
+  },
+  "fixture_clippy": {
+    "commands": [
+      {
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-runtime-fixture-clippy-778a4d2-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "finished_ns": 62900191682771,
+        "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb",
+        "name": "source",
+        "started_ns": 62899816586697
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/object-network/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "finished_ns": 62902018499997,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "object-network-format",
+        "started_ns": 62900192379536
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/object-network/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63195204153322,
+        "log_sha256": "7ad99fda3160fd85996e1f6a6b3b21b4fe071535c8086b3b4b7d50201bbd085a",
+        "name": "object-network-clippy",
+        "started_ns": 62902021905387
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/object-discovery/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63196736094929,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "object-discovery-format",
+        "started_ns": 63195222675288
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/object-discovery/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63199692263663,
+        "log_sha256": "a5cd31c49d1c8c3acfbe9a5c32964c961ddf4b83bf0f8697b768aadcd26817fb",
+        "name": "object-discovery-clippy",
+        "started_ns": 63196741914282
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/object-gc-store/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63201104361029,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "object-gc-store-format",
+        "started_ns": 63199693226222
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/object-gc-store/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63225812188363,
+        "log_sha256": "9dadc766e34ee1ea2b33aeada9dc1fed0b7c5e6a83d6ae44edf2e8b6c4703457",
+        "name": "object-gc-store-clippy",
+        "started_ns": 63201107532129
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63228309028451,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "resource-limits-format",
+        "started_ns": 63225820991909
+      },
+      {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63316409602825,
+        "log_sha256": "57f5e0dd97c40adb084dc57dbea2b9c20b91ec2c228a83ce6bf0549fb859a2a0",
+        "name": "resource-limits-clippy",
+        "started_ns": 63228310374787
+      },
+      {
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "verify",
+          "/tmp/scap-runtime-fixture-clippy-778a4d2-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "finished_ns": 63316813663315,
+        "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2",
+        "name": "source-verify",
+        "started_ns": 63316410823410
+      }
+    ],
+    "original_completion": {
+      "bytes": 5171,
+      "path": "/tmp/scap-runtime-fixture-clippy-778a4d2-01/completion.json",
+      "sha256": "18e915a6be374fd01a7869720ea8f692c47d67a773c8e2b8f601ac9f17200791"
+    },
+    "source_unchanged": true
+  },
+  "limits": [
+    "Resource first build compiled native C in the initially absent release target; subsequent profiles reuse that intact target. The independent GC target was also initially absent.",
+    "Actual contracts have separate receipts; no build result substitutes for native/S3/HTTP fault acceptance.",
+    "Local compatible endpoint only; AWS Standard and production SLO remain NOT_RUN.",
+    "Product generation copy/promote, GC/DELETE and PITR remain disabled/unimplemented."
+  ],
+  "original_build_completion": {
+    "bytes": 4462,
+    "path": "/tmp/scap-runtime-build-778a4d2-02/completion.json",
+    "sha256": "f45666a7010168b9f4fc5dcd0ba8a9df5b9fc90e9dc34f90e48cb0de3744e914"
+  },
+  "prior_attempt": {
+    "reason": "Attempt01 offered an existing target to the unchanged resource builder. Attempt02 used a different initially absent target; the precondition was not relaxed.",
+    "receipt": "head5-runtime-build-precondition-local-2026-11-09.json",
+    "status": "failed_before_cargo"
+  },
+  "recorded_utc": "2026-11-09",
+  "release_artifacts": [
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-resource-limits",
+        "sha256": "8bf01a09ed0a9a5f4788148a4bbfeec1a8b07475df2d9e543119a640e819ff30"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/resource-limits/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "details": {
+        "tools": {
+          "cargo": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "sha256": "51de284e8bb0d03dcee595a0fb1cb3a952fe9e7e4b953a8b1467b7f71725b561",
+            "version": "cargo 1.90.0 (840b83a10 2025-07-30)\nrelease: 1.90.0\ncommit-hash: 840b83a10fb0e039a83f4d70ad032892c287570a\ncommit-date: 2025-07-30\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.1 (sys:0.20.2 vendored)\nlibcurl: 8.14.1-DEV (sys:0.4.82+curl-8.14.1 vendored ssl:OpenSSL/3.5.0)\nssl: OpenSSL 3.5.0 8 Apr 2025\nos: Ubuntu 24.4.0 (noble) [64-bit]\n"
+          },
+          "rustc": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc",
+            "sha256": "e6abf55ab1859e7c990be77fd593f51661ea99fb2fde626ae9f4108aaa34e7fa",
+            "version": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n"
+          }
+        }
+      },
+      "input_count": 433,
+      "inputs_sha256": "45eaa0afb9ccb7b7d1bde70a3255e22351a094f81fc0e3928cd52ec0ee825eed",
+      "native_archives": {
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "original_receipt": {
+        "bytes": 52885,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/resource-build/build.json",
+        "sha256": "8d98d6d86e753df90e1674c6a40b2a672043e851fd3f9d37d6b1109fc874e53c"
+      },
+      "profile": "resource"
+    },
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "sha256": "f8fbf2fbcb490064ecf6eb025d5a8627be072787e970c2a52aeb6dec4a8d9f03"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--locked",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "details": {
+        "versions": {
+          "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+          "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+          "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+        }
+      },
+      "input_count": 158,
+      "inputs_sha256": "7c4396bdcdb7ae3ebe9f1cd94c88e57c5cb13724b6e0a3102bed9cd9e2c28fed",
+      "native_archives": {
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "original_receipt": {
+        "bytes": 20214,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/network-build/build.json",
+        "sha256": "889f662e82f1af69a9e4458a7695ca8531e62a321a309c2d86abf5911758a543"
+      },
+      "profile": "network"
+    },
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/examples/scap-object-listing",
+        "sha256": "8074e3ff18496125806155382dccd2db85559a878f8699600613a7fd917cd344"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--example",
+        "scap-object-listing",
+        "--message-format=json-render-diagnostics",
+        "--release"
+      ],
+      "details": {
+        "cargo_artifact_fresh": false,
+        "cargo_version": "cargo 1.90.0 (840b83a10 2025-07-30)\n",
+        "incremental": "0",
+        "rustc_version": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+        "scope": "N2-A-storage-port-only",
+        "tool_identity": {
+          "cargo": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "sha256": "51de284e8bb0d03dcee595a0fb1cb3a952fe9e7e4b953a8b1467b7f71725b561"
+          },
+          "rustc": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc",
+            "sha256": "e6abf55ab1859e7c990be77fd593f51661ea99fb2fde626ae9f4108aaa34e7fa"
+          }
+        }
+      },
+      "input_count": 158,
+      "inputs_sha256": "7c4396bdcdb7ae3ebe9f1cd94c88e57c5cb13724b6e0a3102bed9cd9e2c28fed",
+      "native_archives": [],
+      "original_receipt": {
+        "bytes": 20458,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/listing-build/build.json",
+        "sha256": "6d4372e9f5a65eb5d92f005755ff5ffd3f74cd8aa5da5cc152630f7a2176a76f"
+      },
+      "profile": "listing"
+    },
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-discovery",
+        "sha256": "a53d3e1e5bf47c1434678d7cd6072b24d25d6eaac475e37f163c3333703bdb19"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-discovery/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "details": {
+        "incremental": "0",
+        "tool_identity": {
+          "cargo": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "sha256": "51de284e8bb0d03dcee595a0fb1cb3a952fe9e7e4b953a8b1467b7f71725b561"
+          },
+          "rustc": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc",
+            "sha256": "e6abf55ab1859e7c990be77fd593f51661ea99fb2fde626ae9f4108aaa34e7fa"
+          }
+        },
+        "versions": {
+          "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+          "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+          "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+        }
+      },
+      "input_count": 220,
+      "inputs_sha256": "90cfee7ad81764cd7bcb381ec574af11f2450a34f05a0e3c41338d56c9737114",
+      "native_archives": {
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "original_receipt": {
+        "bytes": 28399,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/deployment-build/build.json",
+        "sha256": "2686e59409f848b2ed61237a8b5508c814c6b5baaaf4f353a79af378111ff31d"
+      },
+      "profile": "deployment"
+    },
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scapd",
+        "sha256": "dd089bb85d63f55f61d5ae64321a1ec75138d9cf74e45c0c3ec3c78061365347"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "scap-service",
+        "--bin",
+        "scapd",
+        "--message-format=json-render-diagnostics"
+      ],
+      "details": {
+        "node": "v22.16.0",
+        "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n"
+      },
+      "input_count": 230,
+      "inputs_sha256": "d4872bec180d7a601340f1ac69145cf500290bb082666733ac84cbce46ada3be",
+      "native_archives": {
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "original_receipt": {
+        "bytes": 28014,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/service-build/build.json",
+        "sha256": "1c99f34e4db0f0f6678607cfd4fd5f9c583807de9e7511f5a0c5ecbbe6b66a5a"
+      },
+      "profile": "service"
+    },
+    {
+      "binary": {
+        "path": "/tmp/scap-runtime-gc-release-778a4d2-02/release/scap-object-gc-store",
+        "sha256": "fec79654d801f0f6109991e9f40ca7cf18a3958c9e0a833995134eedf4b1171a"
+      },
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-gc-store/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "details": {
+        "scope": "GC-transport-only",
+        "tools": {
+          "cargo": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+            "sha256": "51de284e8bb0d03dcee595a0fb1cb3a952fe9e7e4b953a8b1467b7f71725b561"
+          },
+          "rustc": {
+            "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc",
+            "sha256": "e6abf55ab1859e7c990be77fd593f51661ea99fb2fde626ae9f4108aaa34e7fa"
+          }
+        },
+        "versions": {
+          "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)\nrelease: 1.90.0\ncommit-hash: 840b83a10fb0e039a83f4d70ad032892c287570a\ncommit-date: 2025-07-30\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.1 (sys:0.20.2 vendored)\nlibcurl: 8.14.1-DEV (sys:0.4.82+curl-8.14.1 vendored ssl:OpenSSL/3.5.0)\nssl: OpenSSL 3.5.0 8 Apr 2025\nos: Ubuntu 24.4.0 (noble) [64-bit]\n",
+          "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n"
+        }
+      },
+      "input_count": 433,
+      "inputs_sha256": "45eaa0afb9ccb7b7d1bde70a3255e22351a094f81fc0e3928cd52ec0ee825eed",
+      "native_archives": {
+        "/tmp/scap-runtime-gc-release-778a4d2-02/release/build/ring-8764af21ec794629/out/libring_core_0_17_14_.a": "0d7507223e4d4ad5069c842808300f095cbca6ddc6bc5248839fb7829abf4478",
+        "/tmp/scap-runtime-gc-release-778a4d2-02/release/build/ring-8764af21ec794629/out/libring_core_0_17_14__test.a": "cfa1beb2315b146e90934806a869fa87e7812e463ea9f4c14672d069020ab9de",
+        "/tmp/scap-runtime-gc-release-778a4d2-02/release/deps/libcrc_fast-5e2ec298e5a01e55.a": "fa05aa815a6f77eda95edd03814efa6fca2fbe14369de8b086b17d74c280567c"
+      },
+      "original_receipt": {
+        "bytes": 53339,
+        "path": "/tmp/scap-runtime-build-778a4d2-02/gc-build/build.json",
+        "sha256": "5ff7629baab040ae245b00be133ab51fc9c980f9019a8f4a37de3151c96c6e0e"
+      },
+      "profile": "gc"
+    }
+  ],
+  "schema": 1,
+  "scope": "Six exact release builds and four fixture fmt/Clippy pairs; these are build gates, not actual native/S3/HTTP acceptance.",
+  "source_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "source_tree": "6abe36cbfa804e772eaa4b72e3a9cdec8d7707e5",
+  "status": "passed"
+}

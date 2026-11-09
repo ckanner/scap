@@ -1747,7 +1747,7 @@
       }
     ],
     "command_count": 23,
-    "scope": "SDK V8/types, codec, fixture Node/HTTP tests, tooling coverage, repository/workflow checks, existing Python fixture groups/models, environment/source verification; these do not replace actual HTTP/S3 runs."
+    "scope": "SDK V8, codec, fixture Node/HTTP tests, tooling coverage, repository/workflow checks, existing Python fixture groups/models, environment/source verification; these do not replace actual HTTP/S3 runs."
   },
   "independent_raw_review": {
     "receipt": {
