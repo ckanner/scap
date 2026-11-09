@@ -54,7 +54,7 @@ aec4954d1c6d94482bb6a4185734a914b9641bcd64f6b44a37320fe5651604e7。
 
 | 模块 | 已确认的检查点 | 实际验证边界 |
 | --- | --- | --- |
-| Owner 路由/接管 | 旧分支 cb1/a331/b4cf；基于当前 main 的整合提交 0c8d65018b6da4e699c8d465523b0d857d67874b | 旧 HEAD4 分支 457×2 单元、51 文件四维覆盖、SDK 50 单元/11 V8模块/8 Fetch/严格TS；新真实 R4 为113 HTTP、588 S3、29阶段、14故障、18负控、39 owned children。整合 main 后 native 输入改变，完整组合必须重测，不能继承旧 PASS |
+| Owner 路由/接管 | 旧分支 cb1/a331/b4cf；基于当前 main 的整合提交 0c8d65018b6da4e699c8d465523b0d857d67874b | 旧 HEAD4 分支457×2单元、51文件四维覆盖、SDK50单元/11 V8模块/8 Fetch/严格TS；R4 real02为113 HTTP、588 S3、29阶段、14故障、18负控、39 owned children，仅绑定a331夹具和经输入等价核验复用的cb1实际二进制，real01 FAILED保留。0c8仅完成源码与轻量门禁，新Rust/native/R4尚未执行，不能继承旧PASS |
 | Storage generation/pins | 旧6136606开发运行392/408、16失败；修正提交1a0b6d3；当前main整合已提交12065524e83bec204b766f0faaffe757f588a4fa，其上19文件未提交 | 旧失败保留。新 Runtime/D 接线只完成源码、rustfmt、diff检查，未冻结、未编译、未做四维/真实HEAD6验收 |
 | Tenant HTTP intake | bc2ebcf495635d62f4f473b27a5c58b44c97d5f2 | body读取前预留，租约贯穿Job/worker/response/最后Bytes clone。root启动的开发编译会话31939在环境中断后无法查询；最终结果未取得，不得称通过或已回收 |
 | N4完整负载夹具 | dc1c810e0e3b749debfe3e45d08d7157c746b035 | 75 Python及5 Node轻量测试通过；364 offered、最多550实际POST、153原始execute输入、144固定lookup、30 owned children的真实计划尚未执行；23负控/1正控的完整真实历史验收NOT_RUN |
@@ -65,6 +65,10 @@ aec4954d1c6d94482bb6a4185734a914b9641bcd64f6b44a37320fe5651604e7。
 Owner 与 N3 旧分支最初落后于当前 main。已改为从 c5 正常按原提交顺序整合，
 保留 PR #35 的 native/发现/恢复修改；没有整树覆盖、删除主线新增验收或使用 graft/replace。
 Owner 整合已冻结；N3 的 D 接线尚未冻结。
+
+bc2的body预留尚未覆盖新增Owner-control/Owner-recovery入口；需增加独立池，
+并把租约贯穿读取、Job、worker、response及最后Bytes clone。已有owner recovery
+全局2/tenant1运行额度不是慢body准入保护，正常合并分支不会自动补齐此接线。
 
 ## 资源分析：已知事实与待修复事项
 
@@ -87,6 +91,12 @@ SQLite全局heap只能承诺其allocator。安全PRAGMA初始化需要先开一�
 因此正确边界是第一条业务/文件连接之前；读回值不能代替实际OOM验证。
 真实原生验收须在独立进程中证明固定native的heap限制确实触发SQLITE_NOMEM。
 不同配置及外部漂移必须拒绝；native、Rust、response、TCP与整进程RSS须分别描述。
+固定native的实际限制依赖bMemstat/MEMSTATUS，当前构建默认开启；宿主不得修改
+MEMSTATUS、allocator或PCACHE配置。PRAGMA读回不证明运行时计费已启用，仍须
+以同源实际二进制的独立进程SQLITE_NOMEM实验为证。
+
+[分层资源预算设计](../architecture/resource-budgets.md)规定后续预留、释放、响应与
+磁盘边界；这是待实现方案，不把新配置或相应测试算成已有产品能力。
 
 ## Storage pins、GC和PITR仍需完成
 
