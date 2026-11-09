@@ -107,6 +107,44 @@ jobs:
             target/evidence/named-catalogue-model
           if-no-files-found: warn
 
+  abortable-generation-model:
+    name: Abortable generation model and independent oracle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Capture source and test model boundaries
+        run: |
+          mkdir "$RUNNER_TEMP/scap-abortable-model"
+          python3 scripts/source_manifest.py capture "$RUNNER_TEMP/scap-abortable-model/source-before.json"
+          python3 -B -m unittest discover -s experiments/object-reclamation-abortable-model -p 'test_*.py' -v \
+            > "$RUNNER_TEMP/scap-abortable-model/units.log" 2>&1
+          cat "$RUNNER_TEMP/scap-abortable-model/units.log"
+      - name: Enumerate the frozen finite programs
+        run: |
+          python3 -B experiments/object-reclamation-abortable-model/run.py \
+            --out "$RUNNER_TEMP/scap-abortable-model/graph"
+      - name: Independently verify the complete graph and required interleavings
+        run: |
+          python3 -B experiments/object-reclamation-abortable-model/oracle.py \
+            --graph "$RUNNER_TEMP/scap-abortable-model/graph" \
+            --out "$RUNNER_TEMP/scap-abortable-model/audit"
+      - name: Reject semantic and graph mutations and preserve the positive control
+        run: |
+          python3 -B experiments/object-reclamation-abortable-model/controls.py \
+            --graph "$RUNNER_TEMP/scap-abortable-model/graph" \
+            --out "$RUNNER_TEMP/scap-abortable-model/controls"
+          python3 scripts/source_manifest.py verify "$RUNNER_TEMP/scap-abortable-model/source-before.json"
+      - name: Retain raw finite-model evidence without claiming production GC
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: abortable-generation-model
+          path: ${{ runner.temp }}/scap-abortable-model/**
+          if-no-files-found: error
+
   resource-limits:
     name: Actual resource lifetimes and conditional GC transport
     runs-on: ubuntu-24.04
