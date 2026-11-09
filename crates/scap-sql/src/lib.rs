@@ -223,7 +223,8 @@ impl ResultEncoding<'_> {
             let end = offset + bytes.len();
             destination[offset..end].copy_from_slice(bytes);
             offset = end;
-        })?;
+        })
+        .expect("the immutably borrowed result was fully validated by this plan");
         Ok(())
     }
 }
@@ -260,7 +261,8 @@ fn encode_result_with(
     // at least the requested capacity. Initializing/writing cannot grow it.
     allocate(&mut bytes, plan.encoded_len()).map_err(|_| SqlError::ResourceExhausted)?;
     bytes.resize(plan.encoded_len(), 0);
-    plan.write_exact(&mut bytes)?;
+    plan.write_exact(&mut bytes)
+        .expect("the initialized result buffer has the plan's exact length");
     Ok(bytes)
 }
 
