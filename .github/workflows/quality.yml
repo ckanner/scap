@@ -220,6 +220,7 @@ jobs:
         run: |
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
+          node --test experiments/object-service/test_client_ledger.mjs
           python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness

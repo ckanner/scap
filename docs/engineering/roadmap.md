@@ -16,9 +16,10 @@
 
 当前可取得的提交、已通过的精确源码门禁及缺项见[实施状态](status-2026-11-09.md)。
 先完成 HEAD5 的部署、service/TCP、owner、资源、GC transport 与 discovery 组合验收，
-通过后由 PR #42 承接 #36–#40 整个生产栈，不再单独验收被替代的 HEAD4。
+新的[运行时组合](../architecture/head5-runtime-composition.md)将同时验证 #44/#45/#46，
+通过后由该独立草稿承接整个生产栈，不再单独合并被其替代的中间候选。
 `4329f30` discovery actual01 在续页传输边界失败，原始失败保持阻塞；补充诊断不等于通过。
-随后组合有界闭包游标和管理元数据发布，完成按实际 handle 知识域划分的模型细化，
+同步完成按实际 handle 知识域划分的模型细化，
 再实现 copy/promote、retained hold、退休及故障投影。删除传输 capability 与产品 GC 分开，
 没有完成全部世代安全和真实故障门禁之前，产品 DELETE 保持关闭。
 

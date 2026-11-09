@@ -1,0 +1,123 @@
+{
+  "schema": 1,
+  "status": "FIXTURE_UNITS_PASS_REAL_TRANSPORT_NOT_RUN",
+  "source_base_commit": "4329f307752ec40ce43d1fd9f52211cac65c8090",
+  "frozen_manifest_sha256": "028908ddcd851b42e137296c11304334912146a9d81e39d769224b92d770e165",
+  "patch_sha256": "79f2c2c2429ec255a54af1e22748d7db98d793e2bd6e3a3781138523bc46d155",
+  "source_files": [
+    {
+      "path": "experiments/object-service/client_ledger.mjs",
+      "bytes": 3418,
+      "sha256": "98b8cb5616abb0718816aeb7ca936f3ad95983a46d6bc79018b36952c0995224"
+    },
+    {
+      "path": "experiments/object-service/client_transport.mjs",
+      "bytes": 9482,
+      "sha256": "0c3e9c4ecee09bef2223462edf0388bb2e09bfbe2d5aae7f099f91080d296813"
+    },
+    {
+      "path": "experiments/object-service/test_client_ledger.mjs",
+      "bytes": 14883,
+      "sha256": "a966d3eb9384a1657938b7362babf63ece48f694a815d553b59d0af2e9637066"
+    },
+    {
+      "path": "experiments/object-service/client_transport.md",
+      "bytes": 7332,
+      "sha256": "1cb796ef5f6d30ff0409efd211199dcee0560309ec0e4647938669edc129e3a9"
+    }
+  ],
+  "node_unit_receipt_sha256": "6fb86ab57ccae2f7877571bdc5dd1bf33f3f019adfd63fb5a224079bd8087221",
+  "node_unit_receipt": {
+    "schema": 1,
+    "status": "passed",
+    "scope": "fixture-only-controlled-fetch-stream-diagnostics",
+    "source_freeze": "/tmp/scap-client-transport-freeze-03/manifest.json",
+    "source_freeze_sha256": "028908ddcd851b42e137296c11304334912146a9d81e39d769224b92d770e165",
+    "base_commit": "4329f307752ec40ce43d1fd9f52211cac65c8090",
+    "expected_cases": 11,
+    "real_http": "NOT_RUN",
+    "native": "NOT_RUN",
+    "old_failed_actual": "/tmp/scap-head5-discovery-4329f30-01/discovery",
+    "old_failed_actual_status": "FAILED",
+    "retry_timeout_changes": false,
+    "source_before": [
+      {
+        "path": "experiments/object-service/client_ledger.mjs",
+        "bytes": 3418,
+        "sha256": "98b8cb5616abb0718816aeb7ca936f3ad95983a46d6bc79018b36952c0995224"
+      },
+      {
+        "path": "experiments/object-service/client_transport.mjs",
+        "bytes": 9482,
+        "sha256": "0c3e9c4ecee09bef2223462edf0388bb2e09bfbe2d5aae7f099f91080d296813"
+      },
+      {
+        "path": "experiments/object-service/test_client_ledger.mjs",
+        "bytes": 14883,
+        "sha256": "a966d3eb9384a1657938b7362babf63ece48f694a815d553b59d0af2e9637066"
+      },
+      {
+        "path": "experiments/object-service/client_transport.md",
+        "bytes": 7332,
+        "sha256": "1cb796ef5f6d30ff0409efd211199dcee0560309ec0e4647938669edc129e3a9"
+      }
+    ],
+    "versions": {
+      "node": "22.16.0",
+      "undici": "6.21.2"
+    },
+    "node": {
+      "path": "/workspace/scratch/591a71cb3372/environment/node/bin/node",
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+    },
+    "argv": [
+      "/workspace/scratch/591a71cb3372/environment/node/bin/node",
+      "--test",
+      "--test-concurrency=1",
+      "experiments/object-service/test_client_ledger.mjs"
+    ],
+    "started_monotonic_ns": 58376181815999,
+    "finished_monotonic_ns": 58377299464120,
+    "exit_code": 0,
+    "stdout_sha256": "ede852300d533fd2d31e8fb1e48a62dd5547a17138772c922a6a0274877f57be",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_after": [
+      {
+        "path": "experiments/object-service/client_ledger.mjs",
+        "bytes": 3418,
+        "sha256": "98b8cb5616abb0718816aeb7ca936f3ad95983a46d6bc79018b36952c0995224"
+      },
+      {
+        "path": "experiments/object-service/client_transport.mjs",
+        "bytes": 9482,
+        "sha256": "0c3e9c4ecee09bef2223462edf0388bb2e09bfbe2d5aae7f099f91080d296813"
+      },
+      {
+        "path": "experiments/object-service/test_client_ledger.mjs",
+        "bytes": 14883,
+        "sha256": "a966d3eb9384a1657938b7362babf63ece48f694a815d553b59d0af2e9637066"
+      },
+      {
+        "path": "experiments/object-service/client_transport.md",
+        "bytes": 7332,
+        "sha256": "1cb796ef5f6d30ff0409efd211199dcee0560309ec0e4647938669edc129e3a9"
+      }
+    ],
+    "source_unchanged": true
+  },
+  "reviews": [
+    "Root complete observer, ledger, tests and documentation source review",
+    "service_resources independent static correlation/privacy/bounds review"
+  ],
+  "original_actual": "/tmp/scap-head5-discovery-4329f30-01",
+  "original_actual_status": "FAILED_UNCHANGED",
+  "real_undici_socket_timing": "NOT_RUN",
+  "production_source_changes": false,
+  "sdk_retry_timeout_changes": false,
+  "limitations": [
+    "Synthetic channels and fake streams do not prove real Undici scheduling or the root cause of the original failure.",
+    "Missing complete-response ledger is not proof of missing headers.",
+    "Observe global incomplete/overflow/stopped state; an individual RECORDED row is not complete transport evidence.",
+    "Evidence sink failure can replace the original fetch error and fails the fixture."
+  ]
+}

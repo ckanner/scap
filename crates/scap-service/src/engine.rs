@@ -8,7 +8,7 @@ use std::time::Instant;
 use scap_object::format::{head_key, DatabaseQuota};
 use scap_object::{Database, Options, Session};
 use scap_object_store::Objects;
-use serde_json::{json, Value};
+use serde_json::{Map, Value};
 use tokio::sync::Semaphore;
 
 use crate::auth::Principal;
@@ -354,11 +354,18 @@ fn committed(
         code: "COMMITTED_BUT_UNAVAILABLE",
         receipt: Some(Box::new(receipt.clone())),
     })?;
-    Ok(json!({ "state": "committed", "receipt": wire::receipt(&receipt), "result": encoded }))
+    Ok(Value::Object(Map::from_iter([
+        ("state".into(), Value::String("committed".into())),
+        ("receipt".into(), wire::receipt(&receipt)),
+        ("result".into(), Value::String(encoded)),
+    ])))
 }
 
 fn queried(result: scap_sql::TransactionResult) -> Result<Value, Failure> {
-    Ok(json!({ "result": wire::result(&result)? }))
+    Ok(Value::Object(Map::from_iter([(
+        "result".into(),
+        Value::String(wire::result(&result)?),
+    )])))
 }
 
 #[cfg(test)]

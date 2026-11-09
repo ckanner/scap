@@ -483,7 +483,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     assert!(matches!(
         database.verify_closure(
             &ObjectContext::capture(&database, &bad.head),
-            &bad.head,
+            &bad,
             deadline()
         ),
         Err(Error::Format(_))
@@ -523,12 +523,26 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         Err(Error::Limit)
     ));
     assert!(matches!(
-        database.verify_closure(&ObjectContext::capture(&database, &over), &over, deadline()),
+        database.verify_closure(
+            &ObjectContext::capture(&database, &over),
+            &Snapshot {
+                head: over.clone(),
+                etag: base.etag.clone()
+            },
+            deadline()
+        ),
         Err(Error::Limit)
     ));
     over.quota.max_bytes = None;
     assert!(matches!(
-        database.verify_closure(&ObjectContext::capture(&database, &over), &over, deadline()),
+        database.verify_closure(
+            &ObjectContext::capture(&database, &over),
+            &Snapshot {
+                head: over.clone(),
+                etag: base.etag.clone()
+            },
+            deadline()
+        ),
         Err(Error::Store(StoreError::Missing))
     ));
 

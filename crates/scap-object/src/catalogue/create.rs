@@ -120,7 +120,7 @@ impl Catalogue {
         let database = self.database(source);
         let objects = ObjectContext::capture(&database, &base.head);
         database
-            .verify_closure(&objects, &base.head, deadline)
+            .verify_closure(&objects, base, deadline)
             .map_err(core_error)?;
         let current = database.read_head(deadline).map_err(core_error)?;
         if current.etag != base.etag || current.head != base.head {

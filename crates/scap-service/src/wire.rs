@@ -5,9 +5,20 @@ use scap_object::format::{Head, Permission, Request, Scope};
 use scap_object::{Receipt, Resolution};
 use scap_sql::{Statement, TransactionResult, Value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{json, Value as Json};
+use serde_json::{json, Map, Value as Json};
 
 use crate::Failure;
+
+/// Serialize an owned or borrowed value without constructing a second JSON tree.
+#[derive(Serialize)]
+pub(crate) struct Success<T> {
+    ok: bool,
+    value: T,
+}
+
+pub(crate) fn success<T>(value: T) -> Success<T> {
+    Success { ok: true, value }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Decimal(pub u64);
@@ -441,8 +452,11 @@ pub fn resolved(resolution: Resolution) -> Json {
         Resolution::Committed {
             receipt: value,
             bytes,
-        } => json!({
-            "state": "committed", "receipt": receipt(&value), "result": STANDARD.encode(bytes) }),
+        } => Json::Object(Map::from_iter([
+            ("state".into(), Json::String("committed".into())),
+            ("receipt".into(), receipt(&value)),
+            ("result".into(), Json::String(STANDARD.encode(bytes))),
+        ])),
         Resolution::Cancelled { transition } => json!({ "state": "cancelled", "transition": {
             "revision": Decimal(transition.revision), "nonce": Decimal(transition.nonce) } }),
         Resolution::Unknown => json!({ "state": "unknown" }),

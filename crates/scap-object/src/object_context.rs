@@ -13,7 +13,7 @@ use scap_object_store::{Condition, Objects, StoreError};
 
 use crate::data_tree::DataObjects;
 use crate::format::{
-    decode_object, digest, encode_object, object_key, Envelope, Head, Payload, Scope,
+    digest, encode_object, object_key, Envelope, Head, Payload, Scope, ValidatedFrame,
     INITIAL_STORAGE_GENERATION, MAX_OBJECT_BYTES,
 };
 use crate::{Database, Error};
@@ -46,6 +46,33 @@ impl ObjectContext {
             quarantined: database.quarantined.clone(),
         }
     }
+
+    pub(super) fn matches(&self, head: &Head) -> bool {
+        self.scope == head.scope && self.storage_generation == head.storage.active_generation
+    }
+
+    pub(super) fn observe(&self, error: Error) -> Error {
+        observe(&self.quarantined, error)
+    }
+
+    /// The callback borrows the one original GET buffer. Only source GET/frame
+    /// failures are observed here; a callback's later target error must not
+    /// quarantine the source namespace.
+    pub(super) fn with_raw<T>(
+        &self,
+        hash: &str,
+        deadline: Instant,
+        callback: impl FnOnce(&str, ValidatedFrame<'_>) -> Result<T, Error>,
+    ) -> Result<T, Error> {
+        let key = object_key(&self.scope, self.storage_generation, hash);
+        let stored = self
+            .objects
+            .get(&key, MAX_OBJECT_BYTES, deadline)
+            .map_err(|error| self.observe(Error::Store(error)))?;
+        let frame = ValidatedFrame::parse(&stored.bytes, &self.scope, hash)
+            .map_err(|error| self.observe(Error::Format(error)))?;
+        callback(&key, frame)
+    }
 }
 
 pub(super) fn observe(quarantined: &AtomicBool, error: Error) -> Error {
@@ -63,17 +90,7 @@ pub(super) fn observe(quarantined: &AtomicBool, error: Error) -> Error {
 
 impl DataObjects for ObjectContext {
     fn load(&self, root: &str, deadline: Instant) -> Result<Payload, Error> {
-        let stored = self
-            .objects
-            .get(
-                &object_key(&self.scope, self.storage_generation, root),
-                MAX_OBJECT_BYTES,
-                deadline,
-            )
-            .map_err(|error| observe(&self.quarantined, Error::Store(error)))?;
-        Ok(decode_object(&stored.bytes, &self.scope, root)
-            .map_err(|error| observe(&self.quarantined, Error::Format(error)))?
-            .payload)
+        self.with_raw(root, deadline, |_, frame| Ok(frame.into_envelope().payload))
     }
 
     fn save(&self, payload: Payload, deadline: Instant) -> Result<String, Error> {

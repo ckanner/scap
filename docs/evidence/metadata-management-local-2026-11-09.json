@@ -1,0 +1,526 @@
+{
+  "schema": 1,
+  "status": "SCOPED_CORE_GATES_PASS_COMPOSITION_NOT_RUN",
+  "source_base_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+  "published_base_commit": "7c1f8e460843fb57de367859361de7b86b93aed5",
+  "published_base_crates_cargo_toolchain_identical_to_frozen_base": true,
+  "source_freeze_sha256": "b3980af2f5bc80b89268166209bf116388b6fef71e9cb2e77d806ba129d354fc",
+  "handoff_sha256": "a33833f029bdecd2b0a075d5a0f881aa3c37dfd260c9c6302597d3f9d147eb3c",
+  "source_files": [
+    {
+      "bytes": 22538,
+      "path": "crates/scap-object/src/head_publication_tests.rs",
+      "sha256": "3efea11712a8e079c2d0dae2e170834d17e8ba42a0dff4d1264a26b0c754dc51"
+    },
+    {
+      "bytes": 37540,
+      "path": "crates/scap-object/src/lib.rs",
+      "sha256": "40be6c6e3ff753c45956585cf9c1e7e9765e396056bc3756e6a4356247726da9"
+    },
+    {
+      "bytes": 12663,
+      "path": "crates/scap-object/src/quarantine_tests.rs",
+      "sha256": "0ac22e12101eb9e8efa20adbc5c2c8a7407c9bd9d36c6bd90ecb74af8307b4e9"
+    },
+    {
+      "bytes": 5021,
+      "path": "docs/architecture/metadata-management-publication.md",
+      "sha256": "2f538a34493905e4e89c052501188fe240333d8678965d22edddec5ddf7a81f0"
+    }
+  ],
+  "source_review": "Root complete production diff, added regressions and design reviewed; no concrete blocker found. Independent runtime report retained separately.",
+  "scope": "takeover and set_policy only; no manifest GET; unchanged original authorization, counters, deadline, exact HEAD condition, two local healthy checks",
+  "stable_units": 242,
+  "nightly_units": 242,
+  "format": "PASS",
+  "strict_clippy": "PASS",
+  "coverage": {
+    "counter_log": {
+      "bytes": 1810,
+      "path": "/tmp/scap-metadata-control-gates02/core-unit-counters.log",
+      "sha256": "1f9d3bcaa86805e0f50692ed3aa10ba22d4080548c49a41fefd50e9520066198"
+    },
+    "every_file_exact_4d": true,
+    "files": 20,
+    "per_file": [
+      {
+        "branches": {
+          "covered": 74,
+          "total": 74
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "lines": {
+          "covered": 399,
+          "total": 399
+        },
+        "path": "src/catalogue/control.rs",
+        "regions": {
+          "covered": 660,
+          "total": 660
+        }
+      },
+      {
+        "branches": {
+          "covered": 10,
+          "total": 10
+        },
+        "functions": {
+          "covered": 4,
+          "total": 4
+        },
+        "lines": {
+          "covered": 111,
+          "total": 111
+        },
+        "path": "src/catalogue/create.rs",
+        "regions": {
+          "covered": 221,
+          "total": 221
+        }
+      },
+      {
+        "branches": {
+          "covered": 76,
+          "total": 76
+        },
+        "functions": {
+          "covered": 19,
+          "total": 19
+        },
+        "lines": {
+          "covered": 293,
+          "total": 293
+        },
+        "path": "src/catalogue/discovery.rs",
+        "regions": {
+          "covered": 397,
+          "total": 397
+        }
+      },
+      {
+        "branches": {
+          "covered": 24,
+          "total": 24
+        },
+        "functions": {
+          "covered": 10,
+          "total": 10
+        },
+        "lines": {
+          "covered": 96,
+          "total": 96
+        },
+        "path": "src/catalogue/discovery_budget.rs",
+        "regions": {
+          "covered": 125,
+          "total": 125
+        }
+      },
+      {
+        "branches": {
+          "covered": 30,
+          "total": 30
+        },
+        "functions": {
+          "covered": 7,
+          "total": 7
+        },
+        "lines": {
+          "covered": 143,
+          "total": 143
+        },
+        "path": "src/catalogue/discovery_names.rs",
+        "regions": {
+          "covered": 167,
+          "total": 167
+        }
+      },
+      {
+        "branches": {
+          "covered": 48,
+          "total": 48
+        },
+        "functions": {
+          "covered": 16,
+          "total": 16
+        },
+        "lines": {
+          "covered": 279,
+          "total": 279
+        },
+        "path": "src/catalogue/discovery_records.rs",
+        "regions": {
+          "covered": 555,
+          "total": 555
+        }
+      },
+      {
+        "branches": {
+          "covered": 26,
+          "total": 26
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "lines": {
+          "covered": 247,
+          "total": 247
+        },
+        "path": "src/catalogue/inspect.rs",
+        "regions": {
+          "covered": 403,
+          "total": 403
+        }
+      },
+      {
+        "branches": {
+          "covered": 52,
+          "total": 52
+        },
+        "functions": {
+          "covered": 34,
+          "total": 34
+        },
+        "lines": {
+          "covered": 324,
+          "total": 324
+        },
+        "path": "src/catalogue/mod.rs",
+        "regions": {
+          "covered": 522,
+          "total": 522
+        }
+      },
+      {
+        "branches": {
+          "covered": 54,
+          "total": 54
+        },
+        "functions": {
+          "covered": 23,
+          "total": 23
+        },
+        "lines": {
+          "covered": 230,
+          "total": 230
+        },
+        "path": "src/catalogue/records.rs",
+        "regions": {
+          "covered": 350,
+          "total": 350
+        }
+      },
+      {
+        "branches": {
+          "covered": 52,
+          "total": 52
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "lines": {
+          "covered": 161,
+          "total": 161
+        },
+        "path": "src/catalogue/recovery_budget.rs",
+        "regions": {
+          "covered": 205,
+          "total": 205
+        }
+      },
+      {
+        "branches": {
+          "covered": 32,
+          "total": 32
+        },
+        "functions": {
+          "covered": 13,
+          "total": 13
+        },
+        "lines": {
+          "covered": 288,
+          "total": 288
+        },
+        "path": "src/catalogue/recovery_job.rs",
+        "regions": {
+          "covered": 391,
+          "total": 391
+        }
+      },
+      {
+        "branches": {
+          "covered": 0,
+          "total": 0
+        },
+        "functions": {
+          "covered": 1,
+          "total": 1
+        },
+        "lines": {
+          "covered": 8,
+          "total": 8
+        },
+        "path": "src/catalogue/types.rs",
+        "regions": {
+          "covered": 8,
+          "total": 8
+        }
+      },
+      {
+        "branches": {
+          "covered": 60,
+          "total": 60
+        },
+        "functions": {
+          "covered": 21,
+          "total": 21
+        },
+        "lines": {
+          "covered": 263,
+          "total": 263
+        },
+        "path": "src/data_tree.rs",
+        "regions": {
+          "covered": 416,
+          "total": 416
+        }
+      },
+      {
+        "branches": {
+          "covered": 52,
+          "total": 52
+        },
+        "functions": {
+          "covered": 41,
+          "total": 41
+        },
+        "lines": {
+          "covered": 365,
+          "total": 365
+        },
+        "path": "src/format.rs",
+        "regions": {
+          "covered": 663,
+          "total": 663
+        }
+      },
+      {
+        "branches": {
+          "covered": 10,
+          "total": 10
+        },
+        "functions": {
+          "covered": 2,
+          "total": 2
+        },
+        "lines": {
+          "covered": 35,
+          "total": 35
+        },
+        "path": "src/head_publication.rs",
+        "regions": {
+          "covered": 41,
+          "total": 41
+        }
+      },
+      {
+        "branches": {
+          "covered": 114,
+          "total": 114
+        },
+        "functions": {
+          "covered": 74,
+          "total": 74
+        },
+        "lines": {
+          "covered": 867,
+          "total": 867
+        },
+        "path": "src/lib.rs",
+        "regions": {
+          "covered": 1365,
+          "total": 1365
+        }
+      },
+      {
+        "branches": {
+          "covered": 2,
+          "total": 2
+        },
+        "functions": {
+          "covered": 9,
+          "total": 9
+        },
+        "lines": {
+          "covered": 58,
+          "total": 58
+        },
+        "path": "src/object_context.rs",
+        "regions": {
+          "covered": 89,
+          "total": 89
+        }
+      },
+      {
+        "branches": {
+          "covered": 0,
+          "total": 0
+        },
+        "functions": {
+          "covered": 3,
+          "total": 3
+        },
+        "lines": {
+          "covered": 50,
+          "total": 50
+        },
+        "path": "src/object_frame.rs",
+        "regions": {
+          "covered": 93,
+          "total": 93
+        }
+      },
+      {
+        "branches": {
+          "covered": 38,
+          "total": 38
+        },
+        "functions": {
+          "covered": 6,
+          "total": 6
+        },
+        "lines": {
+          "covered": 98,
+          "total": 98
+        },
+        "path": "src/options.rs",
+        "regions": {
+          "covered": 113,
+          "total": 113
+        }
+      },
+      {
+        "branches": {
+          "covered": 24,
+          "total": 24
+        },
+        "functions": {
+          "covered": 15,
+          "total": 15
+        },
+        "lines": {
+          "covered": 203,
+          "total": 203
+        },
+        "path": "src/request_index.rs",
+        "regions": {
+          "covered": 278,
+          "total": 278
+        }
+      }
+    ],
+    "profile_inventory": {
+      "bytes": 6145,
+      "path": "/tmp/scap-metadata-control-gates02/profile-inventory.json",
+      "sha256": "93ebc12ac4514c25d2bedeed0505bd6c74c671f7c59062f1b3d7ed703a81c90c"
+    },
+    "profile_reset": {
+      "bytes": 6686,
+      "path": "/tmp/scap-metadata-control-gates02/profile-reset.json",
+      "sha256": "78666cbf3fe42bdbaed6cf61359367c68feac2822614050e315bfcfbf1b832cf"
+    },
+    "raw_json_path": "/tmp/scap-metadata-control-gates02/unit.json",
+    "raw_profile_bytes": 8925368,
+    "raw_profiles": 24,
+    "totals": {
+      "branches": 778,
+      "functions": 343,
+      "lines": 4518,
+      "regions": 7062
+    }
+  },
+  "configuration": {
+    "cargo_llvm_cov": "0.6.21",
+    "frozen": true,
+    "incremental": false,
+    "jobs": 1,
+    "nightly": "nightly-2025-09-18",
+    "offline": true,
+    "profile_overrides": {},
+    "stable": "1.90.0",
+    "tests": "core lib all-features, test-threads=1"
+  },
+  "source_inventory": {
+    "bytes": 72477,
+    "path": "/tmp/scap-metadata-control-gates02/source.json",
+    "sha256": "1f7cd2c2ed33554e5a5666918048528c805fca9198f3973e1227fb0c0b0bb13e"
+  },
+  "source_unchanged": true,
+  "gate_receipt": {
+    "bytes": 6676,
+    "path": "/tmp/scap-metadata-control-gates02/receipt.json",
+    "sha256": "d875280ada27cd343517106aa2b8e4073ee5cdf95958e7f8aa2daa307ebfd9a3"
+  },
+  "actual_test_executables_and_native": [
+    {
+      "bytes": 93347480,
+      "path": "/tmp/scap-metadata-control-stable-01/debug/deps/scap_object-c095e3a7286f3b6d",
+      "role": "stable-unit-actual-test-executable",
+      "sha256": "ca5c4eb8d8272e486ab89b6935ea84f2ce35a63e6639ba6b6544db4c56691257"
+    },
+    {
+      "bytes": 6148906,
+      "path": "/tmp/scap-metadata-control-stable-01/debug/build/libsql-ffi-43a0f178579eda44/out/liblibsql.a",
+      "role": "stable-unit-native-archive-present",
+      "sha256": "6c0faf134ca725ac2388d9461233cc18025ee8e7408ac20764b3ca545812568b"
+    },
+    {
+      "bytes": 6148906,
+      "path": "/tmp/scap-metadata-control-stable-01/debug/build/libsql-ffi-8eb79fc4115de32d/out/liblibsql.a",
+      "role": "stable-unit-native-archive-present",
+      "sha256": "6c0faf134ca725ac2388d9461233cc18025ee8e7408ac20764b3ca545812568b"
+    },
+    {
+      "bytes": 113439576,
+      "path": "/tmp/scap-metadata-control-coverage01-target/llvm-cov-target/debug/deps/scap_object-0ec4020d471375bc",
+      "role": "unit-coverage-actual-test-executable",
+      "sha256": "2227a23394881a273b727743934087ce860636360e985d6c76a77bfddfa2cf7e"
+    },
+    {
+      "bytes": 6148906,
+      "path": "/tmp/scap-metadata-control-coverage01-target/llvm-cov-target/debug/build/libsql-ffi-41951f46890e3a32/out/liblibsql.a",
+      "role": "unit-coverage-native-archive-present",
+      "sha256": "6c0faf134ca725ac2388d9461233cc18025ee8e7408ac20764b3ca545812568b"
+    }
+  ],
+  "artifact_inventory": {
+    "bytes": 1376,
+    "path": "/tmp/scap-metadata-control-gates02/executable-native-inventory.json",
+    "sha256": "00cf59135fb6d4b418ccbeb0b81f67a06755d23a0619ccd0e4725835b8d7a5a4"
+  },
+  "prior_artifact_preservation": {
+    "bytes": 20208,
+    "path": "/tmp/scap-metadata-control-gates02/prior-artifact-preservation.json",
+    "sha256": "0bc1c11aa5f01fed541d1c86bda4dfdf9880959106c9266dc0bfe33feb1bb531"
+  },
+  "prior_failures": {
+    "coverage01": "241 nightly units PASS; lib.rs regions 1360/1362; exact gate FAILED; original artifacts preserved before target reuse",
+    "dev01": "test compile failed; units NOT_RUN and Clippy NOT_RUN; original receipts/source retained"
+  },
+  "limitations": [
+    "No new generation, pin, freeze, physical DELETE or expiry behavior.",
+    "Management ACK proves management HEAD publication, not immutable closure validity.",
+    "Local quarantine is not a cross-handle or distributed health protocol.",
+    "Later quarantine cannot retract an already enabled/dispatched original PUT."
+  ],
+  "whole_workspace": "NOT_RUN",
+  "combined_closure_and_service": "NOT_RUN",
+  "actual_http_s3": "NOT_RUN",
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN"
+}

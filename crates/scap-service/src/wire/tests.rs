@@ -1,5 +1,25 @@
 use super::*;
 
+#[test]
+fn success_envelopes_keep_exact_wire_bytes_and_owned_backing() {
+    let value: Json = serde_json::from_str(
+        r#"{"empty":[],"escaped":"quote:\" slash:\\ newline:\n 中文","result":"AAH/AA=="}"#,
+    )
+    .unwrap();
+    let result_backing = value["result"].as_str().unwrap().as_ptr();
+    let owned = success(value);
+    assert_eq!(
+        owned.value["result"].as_str().unwrap().as_ptr(),
+        result_backing
+    );
+    let expected = r#"{"ok":true,"value":{"empty":[],"escaped":"quote:\" slash:\\ newline:\n 中文","result":"AAH/AA=="}}"#;
+    assert_eq!(serde_json::to_vec(&owned).unwrap(), expected.as_bytes());
+    assert_eq!(
+        serde_json::to_vec(&success(&owned.value)).unwrap(),
+        expected.as_bytes()
+    );
+}
+
 fn call(extra: &str) -> String {
     format!(
         r#"{{"version":1,"scope":{{"deployment":"1","tenant":"2","database":"3","incarnation":"4","generation":"5"}},{extra}}}"#
