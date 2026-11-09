@@ -5,6 +5,7 @@ pub mod format;
 pub mod options;
 
 mod data_tree;
+mod head_publication;
 mod object_context;
 mod request_index;
 
@@ -17,6 +18,7 @@ use std::time::Instant;
 
 use data_tree::DataObjects;
 use format::*;
+use head_publication::PreparedHead;
 use object_context::ObjectContext;
 use scap_object_sqlite::{CommitGate, GateDecision, ImageBuilder, PageBatch, SqliteWriter};
 use scap_object_store::{Condition, Objects, StoreError};
@@ -220,7 +222,7 @@ impl Database {
     ) -> Result<(), Error> {
         self.healthy()?;
         let maximum = head.quota.max_pages().map_err(Error::Format)?;
-        let bytes = encode_head(head).map_err(Error::Format)?;
+        let publication = PreparedHead::new(self, base, head, deadline)?;
         let manifest = data_tree::manifest(objects, &head.data_root, deadline)
             .map_err(|error| self.observe(error))?;
         if manifest.page_count > maximum {
@@ -231,21 +233,13 @@ impl Database {
         // protocol participants never delete reachable objects (GC is disabled).
         // Cold activation and the first session write verify retained history.
         self.healthy()?;
-        match self.objects.put(
-            &head_key(&self.scope),
-            &bytes,
-            Condition::Match(&base.etag),
-            deadline,
-        ) {
-            Ok(_) => Ok(()),
-            Err(StoreError::Conflict) => Err(Error::Conflict),
-            Err(error) => Err(Error::Store(error)),
-        }
+        publication.publish()
     }
 
     fn next(base: &Head, nonce: u64) -> Result<Head, Error> {
         let mut head = base.clone();
         head.revision = head.revision.checked_add(1).ok_or(Error::Limit)?;
+        head.head_serial = head.head_serial.checked_add(1).ok_or(Error::Limit)?;
         head.transition = Transition {
             revision: head.revision,
             nonce,
@@ -266,8 +260,13 @@ impl Database {
         let data_root = data_tree::empty(&objects, deadline)?;
         let index = request_index::empty(&objects, 1, deadline)?;
         let head = Head {
-            format: 4,
+            format: 5,
             scope: self.scope.clone(),
+            head_serial: 1,
+            storage: Storage {
+                active_generation: INITIAL_STORAGE_GENERATION,
+                allocated_through: INITIAL_STORAGE_GENERATION,
+            },
             revision: 1,
             transition: Transition { revision: 1, nonce },
             sequence: 0,
@@ -299,6 +298,9 @@ impl Database {
     }
 
     fn create_head(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
+        if head.scope != self.scope || head.revision != 1 || head.head_serial != 1 {
+            return Err(Error::Format(FormatError::Invalid));
+        }
         let bytes = encode_head(head).map_err(Error::Format)?;
         self.objects
             .put(&head_key(&self.scope), &bytes, Condition::Absent, deadline)

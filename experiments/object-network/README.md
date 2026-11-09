@@ -6,6 +6,14 @@
 
 基础合同的小型故障库显式使用 256 KiB 数据配额、每世代 16 个结果条目和 128 MiB 结果保留预算。提交／恢复扩展合同使用独立的 2 MiB 库、每世代 2 条及 128 MiB 原结果预算，便于在关闭旧请求世代后逐项注入故障。这些是测试输入；生产 `Options::default()` 的配额为 10 GiB，管理员可以调整或取消业务配额。[容量实验](../object-capacity/README.md)复用同一正式库薄 worker、S3 进程和代理，分别验证真实 1 GiB 数据与默认 10 GiB 边界；两类结果分开报告。
 
+## 当前对象格式
+
+本候选严格读取 HEAD5；原始 JSON 必须显式携带 `head_serial` 和 `storage`，拒绝重复、未知、缺失字段以及非法空值。独立 `head5_audit.py` 只读取证据，不导入控制器或 Rust；它检查 `head_serial >= revision >= 1`、完整嵌套结构和 1,024 主体 ACL 上限。当前切片仅接受 `storage={active_generation:1,allocated_through:1}`，尚未提供 pin、切代或物理删除。
+
+每次接受的 HEAD PUT 必须使用原 ETag 前驱，serial 与业务 revision 均恰增一；第一版本均为 1。worker 的数据闭包遍历只捕获一次 HEAD，并把其 `active_generation` 显式传入不可变对象键 `.../inc/<incarnation>/gen/<generation>/storage/<g>/objects/<hash>`；SCAPOBJ2 字节、哈希、永久 HEAD 键及 receipt 格式不变。旧 HEAD4 证据保留原有源码和二进制身份；本次 HEAD5 真实 native/S3 验收在组合源码冻结并完成新运行前为 `NOT_RUN`。
+
+同一永久 HEAD 槽位的前后完整 Scope 必须相同；只改变 `incarnation` 或逻辑 `generation` 的合法 JSON 仍拒绝。目录原始请求审计也检查 orphan、404 和受控原始对象请求的完整 namespace，拒绝旧路径、非规范数字、其他 storage generation 及非 SHA-256 后缀。实验删除前另按其已捕获 HEAD 的完整 Scope/storage 限定目标。故障注入中显式记录的坏 HEAD 替换及原字节恢复是受信测试动作，不算正式库发布或合法业务 revision/serial 推进。
+
 ## 运行
 
 需要 Linux amd64、Python 3 标准库、curl、loopback TCP、Rust 1.90.0 及正式 libSQL 构建环境。后端版本固定为官方 [SeaweedFS 4.51](https://github.com/seaweedfs/seaweedfs/releases/tag/4.51)，源提交 `153ab668c99731a6d29492bf6c61d0b4fa701101`。官方 `linux_amd64.tar.gz` 的 SHA-256 为 `c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee`；须先校验再解压。运行器再次校验实际版本，并记录后端与 worker 的二进制摘要。

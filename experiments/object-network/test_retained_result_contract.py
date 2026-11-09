@@ -28,7 +28,8 @@ def fixture(epoch=1):
     result = contract.pack(metadata, VALID)
     entries = [{"result_bytes": len(VALID), "request": request, "outcome": {"state": "committed", "result": contract.sha(result)}}]
     index = contract.pack({"format": 2, "scope": dict(SCOPE), "payload": {"kind": "index", "value": {"kind": "leaf", "epoch": epoch, "entries": entries}}}, b"")
-    head = {"format": 4, "creation": None, "deletion": None,
+    head = {"format": 5, "creation": None, "deletion": None, "head_serial": 7,
+            "storage": {"active_generation": 1, "allocated_through": 1},
             "scope": dict(SCOPE), "revision": 7, "sequence": 2, "data_root": "b" * 64,
             "owner_instance": 101, "active": False, "retention": {"max_result_bytes": 128 * 1024 * 1024},
             "windows": [{"epoch": epoch, "root": contract.sha(index), "count": 1, "result_bytes": len(VALID)}]}
@@ -93,9 +94,9 @@ class PureFixtureTests(unittest.TestCase):
 
     def test_content_address_and_scope_cannot_be_inferred_from_untrusted_mismatch(self):
         for root in ("F" * 64, "a" * 63, "x" * 64):
-            with self.assertRaises(ValueError): contract.object_key(SCOPE, root)
-        self.assertEqual(contract.object_key(SCOPE, "a" * 64),
-                         "scap-object/v1/78/88/1001/inc/1/gen/1/objects/" + "a" * 64)
+            with self.assertRaises(ValueError): contract.object_key(SCOPE, 1, root)
+        self.assertEqual(contract.object_key(SCOPE, 1, "a" * 64),
+                         "scap-object/v1/78/88/1001/inc/1/gen/1/storage/1/objects/" + "a" * 64)
         head, index, result = fixture()
         with self.assertRaises(ValueError): contract.rewrite(contract.json_bytes(head), index, result, 9, "bad_magic")
         head["format"] = 1
@@ -185,15 +186,15 @@ class FakeWorker:
         head = json.loads(bytes(case["objects"][case["head_key"]]["bytes"]))
         if operation == "status": return done(head)
         if operation == "takeover":
-            head["revision"] += 1; head["active"] = False
+            head["revision"] += 1; head["head_serial"] += 1; head["active"] = False
             case["objects"][case["head_key"]] = {"bytes": list(contract.json_bytes(head)), "etag": f"takeover-{s.serial}"}
             return done(head)
         if operation in contract.PROBES:
             corrupt = None
             for window in head["windows"]:
-                im, _ = contract.unpack(bytes(case["objects"][contract.object_key(head["scope"], window["root"])]["bytes"]))
+                im, _ = contract.unpack(bytes(case["objects"][contract.object_key(head["scope"], head["storage"]["active_generation"], window["root"])]["bytes"]))
                 for entry in im["payload"]["value"]["entries"]:
-                    key = contract.object_key(head["scope"], entry["outcome"]["result"])
+                    key = contract.object_key(head["scope"], head["storage"]["active_generation"], entry["outcome"]["result"])
                     rm, raw = contract.unpack(bytes(case["objects"][key]["bytes"]))
                     if raw != VALID: corrupt = key
             if corrupt:
@@ -245,8 +246,8 @@ class FakeSuite:
         result = contract.pack(rm, VALID)
         im["payload"]["value"]["entries"][0]["outcome"]["result"] = contract.sha(result)
         index = contract.pack(im, b"")
-        self.store(case, contract.object_key(case["scope"], contract.sha(result)), result)
-        self.store(case, contract.object_key(case["scope"], contract.sha(index)), index)
+        self.store(case, contract.object_key(case["scope"], 1, contract.sha(result)), result)
+        self.store(case, contract.object_key(case["scope"], 1, contract.sha(index)), index)
         head["windows"][0].update(root=contract.sha(index), count=1, result_bytes=len(VALID))
         self.store(case, case["head_key"], contract.json_bytes(head))
 
@@ -266,7 +267,7 @@ class FakeSuite:
         head["windows"].insert(0, {"epoch": 2, "root": contract.sha(empty), "count": 0, "result_bytes": 0})
         case = {"name": name, "scope": scope, "directory": directory, "workers": [], "objects": {}, "invocation": {}}
         case["head_key"] = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/head"
-        for data in (index, result, empty): self.store(case, contract.object_key(scope, contract.sha(data)), data)
+        for data in (index, result, empty): self.store(case, contract.object_key(scope, 1, contract.sha(data)), data)
         self.store(case, case["head_key"], contract.json_bytes(head))
         case["owner"] = self.spawn(case)
         self.ack(case, {}, {}); self.ack(case, {}, {})

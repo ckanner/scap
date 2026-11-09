@@ -2,7 +2,9 @@
 
 本合同装配正式 `scap_object::catalogue::RecoveryJob`，验证全部计算进程及本地缓存丢失后，仅凭部署身份、S3 连接和可信 tenant→READ 主体配置，从部署根发现并恢复数据库。目录协调、预算、权限和 native 恢复逻辑位于 `crates/scap-object/src/catalogue/recovery_{job,budget}.rs`；实验目录只负责真实进程、S3、故障门控、原始证据和独立审计。
 
-**此源码提交仅完成 Python 行为用例和 Rust 格式检查。真实 Rust release 编译、原生 SQLite/S3 合同和完整原迹 controls 在冻结组合候选上运行之前均为 `NOT_RUN`。** Python 用例中的手写收据、对象和小子进程不是数据库真实验收。此合同严格读取 HEAD4 / SCAPOBJ2；HEAD5/storage generation 升级必须显式修改、冻结并重跑，不能混合接受两个权威格式。
+**此源码提交仅完成 Python 行为用例和 Rust 格式检查。真实 Rust release 编译、原生 SQLite/S3 合同和完整原迹 controls 在冻结组合候选上运行之前均为 `NOT_RUN`。** Python 用例中的手写收据、对象和小子进程不是数据库真实验收。此合同严格读取 HEAD5 / SCAPOBJ2：`head_serial >= revision >= 1`，当前只接受 `storage={active_generation:1,allocated_through:1}`，ACL 上限为 1,024。每个实际接受的 HEAD 从原 body/ETag 前驱验证 serial 与业务 revision 各增一；所有闭包对象键由同一次捕获 HEAD 的 storage generation 推导为 `.../storage/1/objects/<hash>`。旧 HEAD4、缺失/未知字段和未实现的 storage 状态均拒绝。此前 HEAD4 的真实证据保留其原源码身份，不冒充本次格式升级的验收。
+
+原始请求层同样验证 orphan、失败 GET 和故障门控尚未转发的对象键，不能只在最终恢复闭包中检查路径。完整 Scope、规范非零 u64、固定 storage generation 1 和 64 位小写十六进制摘要缺一不可；同一永久 HEAD 键的后继也不能更换逻辑身份。
 
 ## 验证范围与分母
 

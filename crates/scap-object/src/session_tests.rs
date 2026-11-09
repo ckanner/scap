@@ -286,7 +286,7 @@ fn hot_writes_inherit_history_but_target_and_cold_checks_still_detect_missing_ob
         .session(7, &temp.path().join("warm"), deadline())
         .unwrap();
     let (old, _) = execute(&mut session, 1, "SELECT random()");
-    let key = object_key(&scope(), &old.result_hash);
+    let key = object_key(&scope(), 1, &old.result_hash);
     let reads = objects.gets_for(&key);
     execute(&mut session, 2, "SELECT random()");
     assert_eq!(
@@ -505,7 +505,9 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         ),
         Err(Error::Format(_))
     ));
-    let mut over = base.head.clone();
+    // Keep a valid serial successor so this fixture reaches the unchanged
+    // manifest/quota boundary instead of failing candidate admission first.
+    let mut over = Database::next(&base.head, 99).unwrap();
     over.quota.max_bytes = Some(PAGE_SIZE as u64);
     over.data_root = ObjectContext::bootstrap(&database)
         .save(
@@ -576,8 +578,10 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     )
     .unwrap();
     let lost = temp.path().join("lost-cache");
-    objects
-        .remove_directory_when_reading(object_key(&scope(), &manifest.root.unwrap()), lost.clone());
+    objects.remove_directory_when_reading(
+        object_key(&scope(), 1, &manifest.root.unwrap()),
+        lost.clone(),
+    );
     assert!(matches!(
         database.restore(
             &ObjectContext::capture(&database, &current.head),

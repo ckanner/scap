@@ -172,7 +172,7 @@ def envelope(raw, path):
     metadata = parse(raw[20:20 + metadata_bytes])
     require(set(metadata) == {"format", "scope", "payload"} and metadata["format"] == 2, "immutable metadata format changed")
     scope = metadata["scope"]
-    expected = f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/"
+    expected = f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/storage/1/objects/"
     require(path.startswith(expected), "immutable frame scope differs from exact key")
     return metadata["payload"], raw[20 + metadata_bytes:]
 
@@ -264,7 +264,7 @@ def network(history, calls, observed, originals, facts, configuration):
     heads, trees = {}, {}
     for name in ("a", "b"):
         scope = SCOPES[name]
-        prefix = f"/scap-test/scap-object/v1/1/7/{scope['database']}/inc/1/gen/1/objects/"
+        prefix = f"/scap-test/scap-object/v1/1/7/{scope['database']}/inc/1/gen/1/storage/1/objects/"
         root = originals[name]["ack"]["receipt"]["data_root"]
         trees[name] = tree(objects, prefix, root)
         commits = [serial for serial in by_call[name + "_execute"] if requests[serial]["method"] == "PUT" and requests[serial]["path"].endswith("/head")]

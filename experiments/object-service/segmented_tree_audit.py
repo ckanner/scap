@@ -1,4 +1,4 @@
-"""Independent HEAD4/tree decoder for the real segmented-index experiment.
+"""Independent HEAD5/tree decoder for the real segmented-index experiment.
 
 This module imports no controller and no Rust codec. Its graph walk checks every
 retained branch and actual result; parent summaries never replace a child read.
@@ -9,10 +9,10 @@ import hashlib
 import re
 import struct
 
-from audit_wire import equal, parse, require, result
+from audit_wire import equal, head5_profile, parse, require, result
 
 SCOPE = {"deployment": 1, "tenant": 7, "database": 991, "incarnation": 1, "generation": 1}
-PREFIX = "/scap-test/scap-object/v1/1/7/991/inc/1/gen/1/objects/"
+PREFIX = "/scap-test/scap-object/v1/1/7/991/inc/1/gen/1/storage/1/objects/"
 HEAD = "/scap-test/scap-object/v1/1/7/991/head"
 MAX_RESULT = 64 * 1024 * 1024
 
@@ -58,11 +58,8 @@ def envelope(raw, key):
 
 
 def head(raw):
-    value = parse(raw)
-    require(set(value) == {"format", "scope", "revision", "transition", "sequence", "owner_epoch", "owner_instance",
-            "active", "auth_epoch", "policy", "lifecycle", "creation", "deletion", "data_root", "quota", "retention",
-            "request_epoch", "windows"}, "HEAD4 fields")
-    require(type(value["format"]) is int and value["format"] == 4, "strict HEAD4 required")
+    require(len(raw.encode() if isinstance(raw, str) else raw) <= 256 * 1024, "HEAD5 byte bound")
+    value = head5_profile(parse(raw))
     equal(value["scope"], SCOPE, "HEAD complete scope")
     for name in ("revision", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch"):
         uint(value[name], minimum=1)
@@ -72,7 +69,7 @@ def head(raw):
             "fixture lifecycle changed")
     digest(value["data_root"])
     policy = value["policy"]
-    require(isinstance(policy, list) and 0 < len(policy) <= 4096 and len({p["principal"] for p in policy}) == len(policy), "HEAD policy extent")
+    require(isinstance(policy, list) and 0 < len(policy) <= 1024 and len({p["principal"] for p in policy}) == len(policy), "HEAD policy extent")
     for permission in policy:
         require(set(permission) == {"principal", "read", "write", "admin"}, "policy fields")
         uint(permission["principal"], minimum=1)

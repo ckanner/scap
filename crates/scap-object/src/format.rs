@@ -1,4 +1,4 @@
-//! Strict v4 HEAD values and unchanged v2 immutable object frames.
+//! Strict v5 HEAD values and unchanged v2 immutable object frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -23,6 +23,9 @@ pub const MAX_RESULT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_HEAD_BYTES: usize = 256 * 1024;
 pub const MAX_OBJECT_BYTES: usize = MAX_RESULT_BYTES + 64 * 1024;
 pub const MAX_PRINCIPALS: usize = 1024;
+/// The foundation admits one physical generation until all pin and freeze
+/// admission paths exist. Logical Scope generations have a separate meaning.
+pub const INITIAL_STORAGE_GENERATION: u64 = 1;
 const MAGIC: &[u8; 8] = b"SCAPOBJ2";
 const FRAME_BYTES: usize = 20;
 const SMALL_METADATA_BYTES: usize = 64 * 1024 - FRAME_BYTES;
@@ -219,9 +222,18 @@ impl Window {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Storage {
+    pub active_generation: u64,
+    pub allocated_through: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Head {
     pub format: u32,
     pub scope: Scope,
+    pub head_serial: u64,
+    pub storage: Storage,
     pub revision: u64,
     pub transition: Transition,
     pub sequence: u64,
@@ -244,15 +256,21 @@ pub struct Head {
 
 impl Head {
     fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 4)?;
+        check(self.format == 5)?;
         self.scope.validate()?;
         nonzero(&[
+            self.head_serial,
             self.revision,
             self.owner_epoch,
             self.owner_instance,
             self.auth_epoch,
             self.request_epoch,
         ])?;
+        check(self.head_serial >= self.revision)?;
+        // Do not decode future storage states before every immutable I/O
+        // admission path implements their protection and retirement rules.
+        check(self.storage.active_generation == INITIAL_STORAGE_GENERATION)?;
+        check(self.storage.allocated_through == INITIAL_STORAGE_GENERATION)?;
         self.transition.validate()?;
         check(self.transition.revision == self.revision)?;
         check(hash_valid(&self.data_root))?;
@@ -581,10 +599,16 @@ pub fn head_key(scope: &Scope) -> String {
     )
 }
 
-pub fn object_key(scope: &Scope, hash: &str) -> String {
+pub fn object_key(scope: &Scope, storage_generation: u64, hash: &str) -> String {
     format!(
-        "scap-object/v1/{}/{}/{}/inc/{}/gen/{}/objects/{}",
-        scope.deployment, scope.tenant, scope.database, scope.incarnation, scope.generation, hash
+        "scap-object/v1/{}/{}/{}/inc/{}/gen/{}/storage/{}/objects/{}",
+        scope.deployment,
+        scope.tenant,
+        scope.database,
+        scope.incarnation,
+        scope.generation,
+        storage_generation,
+        hash
     )
 }
 

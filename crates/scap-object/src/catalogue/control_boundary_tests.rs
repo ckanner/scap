@@ -172,6 +172,7 @@ fn delete_arithmetic_and_original_name_condition_fail_without_publication() {
         match overflow {
             0 => {
                 head.revision = u64::MAX;
+                head.head_serial = u64::MAX;
                 head.transition.revision = u64::MAX;
                 request.expected_head_revision = u64::MAX;
             }
@@ -191,6 +192,92 @@ fn delete_arithmetic_and_original_name_condition_fail_without_publication() {
         );
         assert_eq!(objects.get_value(&key).unwrap().bytes, bytes);
     }
+}
+
+#[test]
+fn abort_fence_and_named_delete_advance_serial_without_rewriting_business_barriers() {
+    for aborting in [false, true] {
+        for serial in [40, u64::MAX] {
+            let (objects, catalog, creation) = stage(if aborting {
+                CreationPhase::Provisioning
+            } else {
+                CreationPhase::Ready
+            });
+            let key = format::head_key(&creation.scope);
+            let mut head = catalog
+                .read_slot(&creation.scope, deadline())
+                .unwrap()
+                .unwrap()
+                .head;
+            let original_revision = head.revision;
+            head.head_serial = serial;
+            let bytes = format::encode_head(&head).unwrap();
+            objects.set(&key, bytes.clone());
+            objects.clear_calls();
+            let result = if aborting {
+                catalog
+                    .abort_create(CREATOR, &abort(&creation), deadline())
+                    .map(|_| ())
+            } else {
+                catalog
+                    .delete(CREATOR, &delete(&creation), deadline())
+                    .map(|_| ())
+            };
+            if serial == u64::MAX {
+                assert_eq!(result, Err(CatalogueError::Limit));
+                assert_eq!(objects.get_value(&key).unwrap().bytes, bytes);
+                assert!(objects
+                    .calls()
+                    .iter()
+                    .all(|call| !call.put || call.key != key));
+            } else {
+                result.unwrap();
+                let next = catalog
+                    .read_slot(&creation.scope, deadline())
+                    .unwrap()
+                    .unwrap()
+                    .head;
+                assert_eq!(next.lifecycle, Lifecycle::Deleted);
+                assert_eq!(
+                    (next.revision, next.head_serial),
+                    (original_revision + 1, 41)
+                );
+                assert_eq!(next.transition.revision, next.revision);
+                if aborting {
+                    assert_eq!(next.deletion.as_ref().unwrap().expected_head_revision, None);
+                    assert_eq!(
+                        catalog
+                            .abort_create(CREATOR, &abort(&creation), deadline())
+                            .unwrap()
+                            .phase,
+                        AbortPhase::Aborted
+                    );
+                } else {
+                    assert_eq!(
+                        next.deletion.as_ref().unwrap().expected_head_revision,
+                        Some(original_revision)
+                    );
+                    assert_eq!(
+                        catalog
+                            .delete(CREATOR, &delete(&creation), deadline())
+                            .unwrap()
+                            .phase,
+                        DeletionPhase::Deleted
+                    );
+                }
+            }
+        }
+    }
+    let (_, catalog, creation) = stage(CreationPhase::Reserved);
+    catalog
+        .abort_create(CREATOR, &abort(&creation), deadline())
+        .unwrap();
+    let fence = catalog
+        .read_slot(&creation.scope, deadline())
+        .unwrap()
+        .unwrap()
+        .head;
+    assert_eq!((fence.revision, fence.head_serial), (1, 1));
 }
 
 #[test]

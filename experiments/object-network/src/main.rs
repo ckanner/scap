@@ -228,7 +228,7 @@ fn authority_inventory(
         if visited.len() > MAX_FIXTURE_OBJECTS {
             return Err("fixture inventory exceeds its small-case object bound".into());
         }
-        let key = object_key(&config.scope, &hash);
+        let key = object_key(&config.scope, head.storage.active_generation, &hash);
         let stored = objects
             .get(&key, MAX_OBJECT_BYTES, deadline)
             .map_err(debug)?;
@@ -321,7 +321,7 @@ fn perform(
             .map_err(debug),
         "status" => database.status(principal, deadline).map(|head| json!(head)).map_err(debug),
         "authority_keys" => database.status(principal, deadline).map(|head| {
-            json!({"head":head_key(&config.scope), "data_root":object_key(&config.scope, &head.data_root)})
+            json!({"head":head_key(&config.scope), "data_root":object_key(&config.scope, head.storage.active_generation, &head.data_root)})
         }).map_err(debug),
         "authority_inventory" => authority_inventory(config, objects, database, deadline),
         "inspect_object" => {
@@ -332,7 +332,7 @@ fn perform(
         }
         "authority_info" => {
             let head = database.status(principal, deadline).map_err(debug)?;
-            let root = objects.get(&object_key(&config.scope, &head.data_root), MAX_OBJECT_BYTES, deadline).map_err(debug)?;
+            let root = objects.get(&object_key(&config.scope, head.storage.active_generation, &head.data_root), MAX_OBJECT_BYTES, deadline).map_err(debug)?;
             let manifest = decode_object(&root.bytes, &config.scope, &head.data_root).map_err(debug)?;
             match manifest.payload {
                 Payload::Manifest(manifest) => Ok(json!({"head":head, "page_count":manifest.page_count,

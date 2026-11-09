@@ -35,6 +35,7 @@ fn install(
     let request = identity(1);
     let mut head = database.read_head(deadline()).unwrap().head;
     head.revision += 1;
+    head.head_serial += 1;
     head.transition = Transition {
         revision: head.revision,
         nonce: 100,
@@ -170,7 +171,7 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
                 .unwrap();
             children.push(IndexChild { hash, summary });
         }
-        let missing = object_key(&scope(), &children[1].hash);
+        let missing = object_key(&scope(), 1, &children[1].hash);
         head.windows[0].count = 128;
         head.windows[0].root = ObjectContext::bootstrap(&database)
             .save(

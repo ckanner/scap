@@ -31,7 +31,7 @@ def frame(kind, value, raw=b'', database=1001):
     scope = {'deployment': 1, 'tenant': 7, 'database': database, 'incarnation': 1, 'generation': 1}
     metadata = encoded({'format': 2, 'scope': scope, 'payload': {'kind': kind, 'value': value}})
     body = b'SCAPOBJ2' + struct.pack('<IQ', len(metadata), len(raw)) + metadata + raw
-    path = f'/scap-test/scap-object/v1/1/7/{database}/inc/1/gen/1/objects/' + oracle.sha(body)
+    path = f'/scap-test/scap-object/v1/1/7/{database}/inc/1/gen/1/storage/1/objects/' + oracle.sha(body)
     return path, body
 
 
@@ -47,7 +47,7 @@ def data_tree():
 
 
 def corruption():
-    path = '/scap-test/scap-object/v1/1/7/1007/inc/1/gen/1/objects/' + 'a' * 64
+    path = '/scap-test/scap-object/v1/1/7/1007/inc/1/gen/1/storage/1/objects/' + 'a' * 64
     original = b'original immutable bytes'
     changed = bytes([original[0] ^ 128]) + original[1:]
     requests, responses = {}, {}

@@ -28,7 +28,7 @@ ROOT = HERE.parents[1]
 spec = importlib.util.spec_from_file_location("scap_segmented_service_fixture", HERE / "run.py")
 fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture)
-PREFIX = "/scap-test/scap-object/v1/1/7/991/inc/1/gen/1/objects/"
+PREFIX = "/scap-test/scap-object/v1/1/7/991/inc/1/gen/1/storage/1/objects/"
 HEAD = "/scap-test/scap-object/v1/1/7/991/head"
 
 
@@ -249,7 +249,7 @@ class Suite:
         self.proxy.set_phase("inspection")
         captured = self.curl("original_head", "GET", HEAD)
         self.head_bytes = captured["body"]; self.head = json.loads(self.head_bytes)
-        assert self.head["format"] == 4 and self.head["windows"][0]["count"] == PLAN["retained_entries"]
+        assert self.head["format"] == 5 and self.head["windows"][0]["count"] == PLAN["retained_entries"]
         right = self.right_path(); self.target, self.original_leaf, _ = right[-1]
         self.auth_control(self.target)
         self.service.stop(); self.start_service(); self.phase("cold"); self.service.stop()

@@ -319,7 +319,7 @@ class Suite:
         self.http_fault('corrupt_claim_received', 'corrupt_reconcile', 'takeover')
         self.begin('corrupt_reconcile'); self.hub.wait('corrupt_claim_received')
         root = seeded['corrupt']['receipt']['data_root']
-        path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/objects/' + root
+        path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/storage/1/objects/' + root
         original = dict(self.hub.reads[path]); assert sha(original['body']) == root
         changed = bytes([original['body'][0] ^ 128]) + original['body'][1:]
         corrupted_etag = self.put_fixture('corrupt_manifest', path, changed, original['etag'], original['request_serial'])
@@ -342,7 +342,7 @@ class Suite:
         self.http_fault('recovery_claim_received', 'recovery_reconcile', 'takeover')
         self.begin('recovery_reconcile'); self.hub.wait('recovery_claim_received')
         root = seeded['recovery']['receipt']['data_root']
-        path = '/scap-test/scap-object/v1/1/7/' + SCOPES['recovery']['database'] + '/inc/1/gen/1/objects/' + root
+        path = '/scap-test/scap-object/v1/1/7/' + SCOPES['recovery']['database'] + '/inc/1/gen/1/storage/1/objects/' + root
         self.hub.arm('recovery_read', channel='s3', worker='b', method='GET', path=path, kind='hold', stage='before_forward')
         self.hub.release('recovery_claim_received'); self.hub.wait('recovery_read')
         self.call('recovery_hot'); self.call('recovery_control'); self.hub.release('recovery_read'); self.node.finish('recovery_reconcile')

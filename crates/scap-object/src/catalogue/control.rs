@@ -139,15 +139,10 @@ impl Catalogue {
                     database.create_head(&head, deadline).map_err(core_error)?;
                 }
                 AbortStep::Fence(base) => {
-                    let mut head = base.head.clone();
+                    let mut head = Database::next(&base.head, control.nonce).map_err(core_error)?;
                     // The plan checked the unique initial Provisioning state.
-                    head.revision = 2;
                     head.owner_epoch = 2;
                     head.active = false;
-                    head.transition = format::Transition {
-                        revision: 2,
-                        nonce: control.nonce,
-                    };
                     head.lifecycle = Lifecycle::Deleted;
                     head.deletion = Some(control.mark());
                     self.database(&source)

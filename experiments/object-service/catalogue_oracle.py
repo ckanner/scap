@@ -210,7 +210,7 @@ def bind_requests(requests,calls,observed,creations,*,responses=None):
     prefix="/scap-test/scap-object/v1/"
     def database_path(scope,target):
         return target==scope["database"]+"/head" or target.startswith(
-            f"{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/")
+            f"{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/storage/1/objects/")
     def prior_tombstone_proof(call,request,creation,authority,key):
         # Reusing a name verifies the former permanent identity. Only an
         # actually read tombstone within this HTTP call can authorize reading
@@ -321,7 +321,7 @@ def network(directory,history,facts,calls,observed,creations,acks):
     provision=faults["late_provision"];serial=provision["observation"]["request_serial"]
     require(responses[serial]["status"]==412 and provision["observation"]["if_none_match"]=="*","late original create did not fail backend conditional create")
     candidate=parse(b64(provision["payload"]))
-    require(candidate["format"]==4 and candidate["lifecycle"]=="provisioning","hold missed original provisioning HEAD")
+    require(candidate["format"]==5 and candidate["lifecycle"]=="provisioning","hold missed original provisioning HEAD")
     equal(candidate["scope"],{key:decimal(value) for key,value in creations["cancelled"]["scope"].items()},"held candidate targets another identity")
     path=provision["observation"]["path"]
     cancelled_heads=[parse(bytes(request["head_request_bytes"])) for key,request in requests.items()
@@ -329,7 +329,7 @@ def network(directory,history,facts,calls,observed,creations,acks):
     require(cancelled_heads and all(head["lifecycle"]=="deleted" for head in cancelled_heads),"cancelled creation became serviceable")
     for label,lifecycle in (("ready_response_loss","ready"),("delete_response_loss","deleted")):
         head=parse(b64(faults[label]["payload"]))
-        require(head["format"]==4 and head["lifecycle"]==lifecycle,"response loss at wrong HEAD stage")
+        require(head["format"]==5 and head["lifecycle"]==lifecycle,"response loss at wrong HEAD stage")
     delete_head=parse(b64(faults["delete_response_loss"]["payload"]))
     require(delete_head["deletion"]["principal"]==12 and delete_head["creation"]["creator"]==11,"delete proof confused creator and ADMIN")
 
@@ -365,14 +365,14 @@ def network(directory,history,facts,calls,observed,creations,acks):
                 require(head["data_root"]==receipt["data_root"] and head["transition"]["nonce"]==decimal(receipt["request"]["id"]),"SQL HEAD result binding differs")
                 matches.append(request)
         publication=only(matches,"missing/duplicate SQL HEAD publication")
-        result_key=f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/{receipt['result_hash']}"
+        result_key=f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/inc/{scope['incarnation']}/gen/{scope['generation']}/storage/1/objects/{receipt['result_hash']}"
         readbacks=[response for serial,response in responses.items() if requests[serial]["method"]=="GET" and
                    requests[serial]["path"]==result_key and response["status"]==200 and
                    response["response_sha256"]==receipt["result_hash"] and stamp(response)<stamp(publication)]
         require(readbacks,"ACK lacks exact original Result object readback")
         require(stamp(responses[publication["request_serial"]])<stamp(calls[ack["call_id"]]["response"]),"ACK before durable HEAD")
     return {"object_requests":len(requests),"real_late_provision_412":True,"unknown_accepted_responses":3,
-            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":4,"result_format":2,
+            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":5,"result_format":2,
             "object_version_audit":versions}
 
 

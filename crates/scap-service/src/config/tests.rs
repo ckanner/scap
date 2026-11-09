@@ -63,12 +63,9 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     assert_eq!(prepared.s3.session_token.as_deref(), Some("unit-secret"));
     assert!(parsed(value).prepare_with(&|_| None).is_err());
     // Public environment resolver is exercised using test-owned keys only.
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
+    let _credentials = crate::tests::test_credentials();
     let result = parsed(sample_config(directory.path())).prepare().unwrap();
     assert_eq!(result.s3.secret_key, "secret");
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
 }
 
 #[test]

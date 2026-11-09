@@ -12,6 +12,8 @@ from pathlib import Path
 import struct
 import sys
 
+import head5_audit
+
 
 CASE_IDS = [f"LC-{number:02d}" for number in range(1, 13)]
 STAGES = ("compute_recovery", "backend_recovery")
@@ -57,13 +59,12 @@ def byte_string(value):
 
 
 def head(value):
-    result = parse(byte_string(value))
-    require(isinstance(result, dict) and result.get("format") == 4, "HEAD body is not format 4")
-    # These twelve cases create direct, unnamed databases. HEAD v4 requires
-    # explicit nullable origins; the separate catalogue oracle audits named
-    # creation/deletion proofs. Immutable SCAPOBJ2 frames remain format 2.
-    require("creation" in result and result["creation"] is None
-            and "deletion" in result and result["deletion"] is None,
+    raw = byte_string(value)
+    require(0 < len(raw) <= head5_audit.MAX_HEAD, "HEAD body missing or over capture bound")
+    result = head5_audit.validate(parse(raw))
+    # These twelve cases create direct unnamed databases. Catalogue evidence
+    # separately proves named creation/deletion origins. SCAPOBJ2 stays v2.
+    require(result["creation"] is None and result["deletion"] is None,
             "lifecycle fixture requires explicit unnamed HEAD origins")
     return result
 
@@ -519,7 +520,7 @@ class Audit:
                     "network request/response outside original call interval")
             scope = call["scope"]
             base = "/scap-test/scap-object/v1/{deployment}/{tenant}/{database}".format(**scope)
-            immutable = base + "/inc/{incarnation}/gen/{generation}/objects/".format(**scope)
+            immutable = head5_audit.object_prefix(scope, 1)
             path = request["path"]
             if path.endswith("/head"):
                 equal(path, base + "/head", "HEAD request mapped to another physical database")
@@ -547,6 +548,7 @@ class Audit:
             require(isinstance(etag, str) and etag, "successful HEAD observation lacks ETag")
             if row["method"] == "PUT":
                 candidate = head(row["head_request_bytes"])
+                head5_audit.advance(latest[path]["head"] if path in latest else None, candidate)
                 if path in latest:
                     previous = latest[path]
                     equal(row["if_match"], previous["etag"], "accepted HEAD chain has a missing/refreshed predecessor")
@@ -577,7 +579,7 @@ class Audit:
                 require(command["revision"] == before["revision"] and after["revision"] == before["revision"] + 1,
                         "control refreshed or ignored expected revision")
                 equal(after["transition"], {"revision": after["revision"], "nonce": command["nonce"]}, "control nonce changed")
-                for field in ("scope", "sequence", "data_root", "quota", "retention"):
+                for field in ("scope", "storage", "sequence", "data_root", "quota", "retention"):
                     equal(before[field], after[field], "control changed " + field)
                 if operation == "set_policy":
                     equal(after["policy"], command["policy"], "policy not published")
@@ -619,7 +621,8 @@ class Audit:
                 for field in ("scope", "sequence", "transition", "data_root"):
                     equal(receipt[field], after[field], "receipt differs from accepted HEAD")
                 result_reads = [row for row in self.network.events(call, "object_response", method="GET")
-                                if row["path"].endswith("/objects/" + receipt["result_hash"])
+                                if row["path"] == head5_audit.object_prefix(
+                                    after["scope"], after["storage"]["active_generation"]) + receipt["result_hash"]
                                 and row.get("status") == 200 and row.get("response_sha256") == receipt["result_hash"]
                                 and row["position"] < request["position"]]
                 require(result_reads, "ACK result object was not durably read back before HEAD publication")

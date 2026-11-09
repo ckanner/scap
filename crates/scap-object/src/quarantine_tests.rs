@@ -62,7 +62,7 @@ fn observed_missing_corrupt_or_oversized_retained_objects_stop_warm_publication(
         assert!(Arc::ptr_eq(&observer.quarantined, &database.quarantined));
         objects.fail(
             false,
-            object_key(&scope(), &receipt.result_hash),
+            object_key(&scope(), 1, &receipt.result_hash),
             fault.clone(),
         );
         assert!(matches!(
@@ -84,7 +84,7 @@ fn malformed_retained_wire_stops_warm_publication_even_after_bytes_are_restored(
     let (objects, database) = fixture();
     let temporary = tempfile::tempdir().unwrap();
     let (mut session, receipt) = warm(&database, &temporary.path().join("warm"));
-    let key = object_key(&scope(), &receipt.result_hash);
+    let key = object_key(&scope(), 1, &receipt.result_hash);
     let original = objects.get(&key, MAX_OBJECT_BYTES, deadline()).unwrap();
     objects.set(key.clone(), b"broken immutable object".to_vec());
     assert!(matches!(
@@ -173,7 +173,7 @@ fn failed_immutable_readback_and_colliding_corrupt_bytes_stop_existing_sessions(
             payload: payload.clone(),
         })
         .unwrap();
-        let key = object_key(&scope(), &digest(&bytes));
+        let key = object_key(&scope(), 1, &digest(&bytes));
         if collision {
             objects.set(key, b"not the immutable bytes".to_vec());
             assert!(matches!(
@@ -200,7 +200,7 @@ fn transient_reads_and_unknown_or_conflicting_cas_do_not_poison_the_handle() {
         let observer = database.clone();
         objects.fail(
             false,
-            object_key(&scope(), &receipt.result_hash),
+            object_key(&scope(), 1, &receipt.result_hash),
             StoreError::Unknown,
         );
         assert!(matches!(
@@ -303,8 +303,8 @@ fn failure_observed_after_initial_publish_check_prevents_the_final_head_put() {
     let before = database.read_head(deadline()).unwrap();
     let puts = objects.head_puts.load(Ordering::Acquire);
     *objects.trip.lock().unwrap() = Some(Trip {
-        trigger_key: object_key(&scope(), &before.head.data_root),
-        retained_key: object_key(&scope(), &receipt.result_hash),
+        trigger_key: object_key(&scope(), 1, &before.head.data_root),
+        retained_key: object_key(&scope(), 1, &receipt.result_hash),
         observer: database.clone(),
         request: receipt.request,
     });

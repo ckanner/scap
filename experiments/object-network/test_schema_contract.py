@@ -215,5 +215,35 @@ class EntrypointTests(unittest.TestCase):
                 self.assertNotIn("test-secret", json.dumps(summary))
 
 
+class FixtureDeletionBoundaryTests(unittest.TestCase):
+    def test_delete_is_bound_to_complete_captured_scope_storage_and_hash(self):
+        import run as support
+        scope = {"deployment": 7, "tenant": 8, "database": 9, "incarnation": 10, "generation": 11}
+        captured = {"format": 5, "scope": scope,
+                    "storage": {"active_generation": 1, "allocated_through": 1}}
+        case = {"scope": scope, "before": {"bytes": list(json.dumps(captured).encode())}}
+        key = "scap-object/v1/7/8/9/inc/10/gen/11/storage/1/objects/" + "a" * 64
+        suite = object.__new__(support.FaultSuite)
+        suite.backend = types.SimpleNamespace(endpoint="http://127.0.0.1:1", access="unit", secret="unit")
+        suite.event = mock.Mock()
+        response = types.SimpleNamespace(returncode=0, stdout="204")
+        with mock.patch.object(support.subprocess, "run", return_value=response) as send:
+            suite.delete_fixture_object(case, key)
+            self.assertEqual(send.call_args.args[0][-1], "http://127.0.0.1:1/scap-test/" + key)
+            suite.event.assert_called_once()
+        for changed in (key.replace("/inc/10/", "/inc/12/"), key.replace("/gen/11/", "/gen/12/"),
+                        key.replace("/storage/1/", "/storage/2/"), key.replace("/storage/1/", "/"),
+                        key + "/extra", key[:-1], key[:-1] + "F"):
+            with self.subTest(key=changed), mock.patch.object(support.subprocess, "run") as send:
+                with self.assertRaises(AssertionError): suite.delete_fixture_object(case, changed)
+                send.assert_not_called()
+        for storage in ({"active_generation": True, "allocated_through": 1},
+                        {"active_generation": 2, "allocated_through": 2}):
+            changed_case = {**case, "before": {"bytes": list(json.dumps({**captured, "storage": storage}).encode())}}
+            with mock.patch.object(support.subprocess, "run") as send:
+                with self.assertRaises(AssertionError): suite.delete_fixture_object(changed_case, key)
+                send.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

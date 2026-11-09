@@ -234,8 +234,13 @@ fn transition() -> Transition {
 
 fn head() -> Head {
     Head {
-        format: 4,
+        format: 5,
         scope: scope(),
+        head_serial: 1,
+        storage: Storage {
+            active_generation: 1,
+            allocated_through: 1,
+        },
         revision: 1,
         transition: transition(),
         sequence: 0,
@@ -286,6 +291,7 @@ fn named_deleted(kind: NamedDeletionKind) -> Head {
     let mut head = named_head(Lifecycle::Deleted);
     let expected_head_revision = if kind == NamedDeletionKind::Delete {
         head.revision = 2;
+        head.head_serial = 2;
         head.transition.revision = 2;
         Some(1)
     } else {
@@ -304,7 +310,7 @@ fn named_deleted(kind: NamedDeletionKind) -> Head {
 }
 
 #[test]
-fn head_v3_mandatory_nullable_origins_do_not_change_immutable_v2_frames() {
+fn head_v5_mandatory_nullable_origins_do_not_change_immutable_v2_frames() {
     for candidate in [
         head(),
         named_head(Lifecycle::Provisioning),
@@ -339,6 +345,194 @@ fn head_v3_mandatory_nullable_origins_do_not_change_immutable_v2_frames() {
             .format,
         2
     );
+}
+
+#[test]
+fn head5_requires_serial_and_exact_foundation_storage_without_future_states() {
+    let original = serde_json::to_value(head()).unwrap();
+    for field in ["head_serial", "storage"] {
+        let mut missing = original.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&missing).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+        let mut null = original.clone();
+        null[field] = serde_json::Value::Null;
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&null).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    for field in ["active_generation", "allocated_through"] {
+        let mut missing = original.clone();
+        missing["storage"].as_object_mut().unwrap().remove(field);
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&missing).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+        for bad in [
+            serde_json::json!(null),
+            serde_json::json!(true),
+            serde_json::json!("1"),
+            serde_json::json!(0),
+            serde_json::json!(2),
+            serde_json::json!(u64::MAX),
+        ] {
+            let mut value = original.clone();
+            value["storage"][field] = bad;
+            assert_eq!(
+                decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+                Err(FormatError::Corrupt)
+            );
+        }
+    }
+    for field in ["pins", "staging", "freeze", "future"] {
+        for nested in [false, true] {
+            let mut value = original.clone();
+            let target = if nested {
+                &mut value["storage"]
+            } else {
+                &mut value
+            };
+            target[field] = serde_json::Value::Null;
+            assert_eq!(
+                decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+                Err(FormatError::Corrupt)
+            );
+        }
+    }
+    for old in [1, 2, 3, 4] {
+        let mut value = original.clone();
+        value["format"] = old.into();
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    for bad in [
+        serde_json::json!(null),
+        serde_json::json!(false),
+        serde_json::json!("1"),
+        serde_json::json!(-1),
+        serde_json::json!(1.0),
+        serde_json::json!(0),
+    ] {
+        let mut value = original.clone();
+        value["head_serial"] = bad;
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&value).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    let wire = serde_json::to_string(&original).unwrap();
+    for changed in [
+        wire.replace("\"head_serial\":1", "\"head_serial\":18446744073709551616"),
+        wire.replace("\"head_serial\":1", "\"head_serial\":1,\"head_serial\":1"),
+        wire.replace(
+            "\"active_generation\":1",
+            "\"active_generation\":1,\"active_generation\":1",
+        ),
+    ] {
+        assert_eq!(
+            decode_head(changed.as_bytes(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    reject_head(|value| value.head_serial = 0, FormatError::Invalid);
+    reject_head(
+        |value| value.storage.active_generation = 2,
+        FormatError::Invalid,
+    );
+    reject_head(
+        |value| value.storage.allocated_through = 2,
+        FormatError::Invalid,
+    );
+    reject_head(
+        |value| {
+            value.revision = 2;
+            value.transition.revision = 2;
+        },
+        FormatError::Invalid,
+    );
+    for mut value in [
+        head(),
+        named_deleted(NamedDeletionKind::Abort),
+        named_deleted(NamedDeletionKind::Delete),
+    ] {
+        value.head_serial = u64::MAX;
+        assert_eq!(
+            decode_head(&encode_head(&value).unwrap(), &scope()).unwrap(),
+            value
+        );
+    }
+}
+
+#[test]
+fn largest_foundation_head_keeps_the_existing_head_and_acl_bounds() {
+    let mut value = named_deleted(NamedDeletionKind::Delete);
+    value.scope = Scope {
+        deployment: u64::MAX,
+        tenant: u64::MAX,
+        database: u64::MAX,
+        incarnation: u64::MAX,
+        generation: u64::MAX,
+    };
+    value.head_serial = u64::MAX;
+    value.revision = u64::MAX;
+    value.transition = Transition {
+        revision: u64::MAX,
+        nonce: u64::MAX,
+    };
+    value.sequence = u64::MAX;
+    value.owner_epoch = u64::MAX;
+    value.owner_instance = u64::MAX;
+    value.auth_epoch = u64::MAX;
+    value.request_epoch = u64::MAX;
+    value.policy = (0..MAX_PRINCIPALS as u64)
+        .map(|offset| Permission {
+            principal: u64::MAX - offset,
+            read: false,
+            write: false,
+            admin: offset == 0,
+        })
+        .collect();
+    value.creation = Some(NamedCreation {
+        creator: u64::MAX,
+        operation: u64::MAX,
+        name_hash: "f".repeat(64),
+        descriptor_hash: "f".repeat(64),
+    });
+    value.deletion = Some(NamedDeletion {
+        kind: NamedDeletionKind::Delete,
+        principal: u64::MAX,
+        operation: u64::MAX,
+        expected_name_revision: u64::MAX,
+        expected_head_revision: Some(u64::MAX - 1),
+        nonce: u64::MAX,
+        descriptor_hash: "f".repeat(64),
+    });
+    value.quota.max_bytes = Some(u64::from(MAX_PAGES) * PAGE_SIZE as u64);
+    value.retention = Retention {
+        max_entries: MAX_REQUESTS,
+        max_result_bytes: u64::MAX,
+    };
+    value.windows = (0..3)
+        .map(|offset| Window {
+            epoch: u64::MAX - offset,
+            root: "f".repeat(64),
+            count: MAX_REQUESTS,
+            result_bytes: u64::from(MAX_REQUESTS) * MAX_RESULT_BYTES as u64,
+        })
+        .collect();
+    let bytes = encode_head(&value).unwrap();
+    // Independently derived canonical serialized size; this is a format-valid
+    // maximum-width witness, not a claimed reachable workload history.
+    assert_eq!(bytes.len(), 79_621);
+    assert_eq!(MAX_HEAD_BYTES - bytes.len(), 182_523);
+    assert_eq!(decode_head(&bytes, &value.scope).unwrap(), value);
+    assert_eq!(head_key(&value.scope).len(), 82);
+    assert_eq!(object_key(&value.scope, 1, &"f".repeat(64)).len(), 210);
 }
 
 #[test]
@@ -579,14 +773,18 @@ fn exact_keys_hashes_and_nonzero_scope_are_stable() {
     assert_eq!(head_key(&value), "scap-object/v1/1/2/3/head");
     let hash = digest(b"object");
     assert_eq!(
-        object_key(&value, &hash),
-        format!("scap-object/v1/1/2/3/inc/4/gen/5/objects/{hash}")
+        object_key(&value, 1, &hash),
+        format!("scap-object/v1/1/2/3/inc/4/gen/5/storage/1/objects/{hash}")
     );
     let mut replacement = value.clone();
     replacement.incarnation += 1;
     replacement.generation += 1;
     assert_eq!(head_key(&value), head_key(&replacement));
-    assert_ne!(object_key(&value, &hash), object_key(&replacement, &hash));
+    assert_ne!(
+        object_key(&value, 1, &hash),
+        object_key(&replacement, 1, &hash)
+    );
+    assert_ne!(object_key(&value, 1, &hash), object_key(&value, 2, &hash));
     for field in [
         "deployment",
         "tenant",
@@ -1173,7 +1371,8 @@ fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
         );
     }
     let wire = String::from_utf8(encode_head(&head()).unwrap()).unwrap();
-    let duplicate = wire.replacen("\"format\":4", "\"format\":4,\"format\":4", 1);
+    let duplicate = wire.replacen("\"format\":5", "\"format\":5,\"format\":5", 1);
+    assert_ne!(duplicate, wire);
     assert_eq!(
         decode_head(duplicate.as_bytes(), &scope()),
         Err(FormatError::Corrupt)

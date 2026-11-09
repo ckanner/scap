@@ -330,13 +330,13 @@ def object_frame(raw, path):
             'immutable frame metadata changed')
     scope = metadata['scope']
     require(all(type(value) is int and value > 0 for value in scope.values()), 'immutable scope numeric type changed')
-    expected = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/objects/'.format(**scope)
+    expected = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/storage/1/objects/'.format(**scope)
     require(path == expected + sha(raw), 'immutable frame scope/key changed')
     return metadata['payload'], raw[20 + metadata_length:]
 
 
 def data_closure(objects, scope, root):
-    prefix = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/objects/'.format(**SCOPES[scope])
+    prefix = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/storage/1/objects/'.format(**SCOPES[scope])
     selected = set()
     def load(digest, kind):
         path = prefix + sha256_text(digest)
@@ -742,7 +742,7 @@ def network(history, events, calls, by_command, configuration):
     requests, responses = object_exchanges(history, phases=phases, blackhole_phases={'rejects'})
     objects, accepted_objects, bindings, by_call = {}, {}, {}, defaultdict(list)
     seed_corrupt = value_of(by_command['seed'][NAMES.index('corrupt') * 4 + 2])['receipt']
-    corrupt_path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/objects/' + seed_corrupt['data_root']
+    corrupt_path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/storage/1/objects/' + seed_corrupt['data_root']
     original, changed, corruption = corruption_versions(corrupt_path, requests, responses)
     fixture_requests = [serial for serial, request in requests.items() if request['worker'] == 'fixture']
     equal(sorted(fixture_requests), sorted(corruption[1:]), 'operator made extra S3 requests outside the two explicit corrupt/repair PUTs')
@@ -802,7 +802,7 @@ def network(history, events, calls, by_command, configuration):
 
 
 def retained_closure(net, scope, head, receipts):
-    prefix = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/objects/'.format(**SCOPES[scope])
+    prefix = '/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/storage/1/objects/'.format(**SCOPES[scope])
     require(head['request_epoch'] == 1 and len(head['windows']) == 1, 'fixture unexpectedly rotated retained request epoch')
     window = head['windows'][0]
     index_path = prefix + window['root']
@@ -898,7 +898,7 @@ def head_history(net, calls, by_command):
             action = call['body']; operation = action['operation']
             require(type(head['revision']) is int and head['revision'] == revision and type(head['active']) is bool,
                     'HEAD revision/activation type changed')
-            require(set(head) == {'format', 'scope', 'revision', 'transition', 'sequence', 'owner_epoch', 'owner_instance',
+            require(set(head) == {'format', 'scope', 'head_serial', 'storage', 'revision', 'transition', 'sequence', 'owner_epoch', 'owner_instance',
                                  'active', 'auth_epoch', 'policy', 'lifecycle', 'creation', 'deletion', 'data_root', 'quota',
                                  'retention', 'request_epoch', 'windows'}, 'HEAD durable fields changed')
             equal(head['scope'], {key: int(value) for key, value in SCOPES[scope].items()}, 'HEAD native scope changed')
@@ -906,14 +906,17 @@ def head_history(net, calls, by_command):
             equal(head['transition'], {'revision': revision, 'nonce': nonce}, 'original transition identity changed')
             if previous is None:
                 initial_limits(head)
-                expected = {**head, 'format': 4, 'revision': 1, 'sequence': 0, 'owner_epoch': 1,
+                expected = {**head, 'format': 5, 'head_serial': 1,
+                            'storage': {'active_generation': 1, 'allocated_through': 1},
+                            'revision': 1, 'sequence': 0, 'owner_epoch': 1,
                             'owner_instance': int(WORKERS['a']), 'active': False, 'auth_epoch': 1,
                             'policy': [{'principal': 11, 'read': True, 'write': True, 'admin': True}],
                             'lifecycle': 'ready', 'creation': None, 'deletion': None,
                             'quota': {'max_bytes': INITIAL_QUOTA_BYTES}, 'retention': INITIAL_RETENTION, 'request_epoch': 1}
                 require(head['windows'][0]['count'] == 0, 'initial HEAD contains business history')
             else:
-                expected = {**previous, 'revision': revision, 'transition': {'revision': revision, 'nonce': nonce}}
+                expected = {**previous, 'head_serial': previous['head_serial'] + 1,
+                            'revision': revision, 'transition': {'revision': revision, 'nonce': nonce}}
                 if operation == 'takeover':
                     expected.update(owner_epoch=previous['owner_epoch'] + 1, owner_instance=int(WORKERS[call['worker']]), active=False)
                 elif operation == 'activate': expected['active'] = True
@@ -1196,7 +1199,7 @@ def fault_proof(events, history, operations, calls, by_command, net, heads, conf
                                      'stage': 'after_response', 'discard_after_release': True},
     }
     recovered = heads['heads'][('recovery', 5)]['head']['data_root']
-    expected['recovery_read']['path'] = '/scap-test/scap-object/v1/1/7/' + SCOPES['recovery']['database'] + '/inc/1/gen/1/objects/' + recovered
+    expected['recovery_read']['path'] = '/scap-test/scap-object/v1/1/7/' + SCOPES['recovery']['database'] + '/inc/1/gen/1/storage/1/objects/' + recovered
     equal(Counter(row['id'] for row in groups['fault_armed']), Counter(expected.keys()), 'original armed fault denominator changed')
     equal(Counter(row['id'] for row in groups['fault_entered']), Counter(expected.keys()), 'original entered fault denominator changed')
     equal(Counter(row['id'] for row in groups['fault_released']), Counter(key for key, value in expected.items() if value['kind'] == 'hold'),

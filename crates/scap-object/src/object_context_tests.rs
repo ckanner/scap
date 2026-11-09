@@ -1,5 +1,5 @@
 //! Addressing and attempt-lifetime regressions through the immutable object port.
-//! No network, storage generations, pins or deletion capability are involved.
+//! Physical generation one is frozen; no network, pins or deletion capability.
 
 use super::tests::{deadline, identity, scope, sql, test_options, Memory};
 use super::*;
@@ -114,6 +114,8 @@ fn captured_namespace_backend_and_quarantine_outlive_the_source_handle() {
     // Mutate the private source only in the fixture. ObjectContext owns copies
     // and Arcs; neither later source reuse nor dropping it can retarget a call.
     head.scope.generation += 1;
+    head.storage.active_generation += 1;
+    head.storage.allocated_through += 1;
     database.scope.generation += 2;
     database.objects = Arc::new(Memory::default());
     drop(database);
@@ -128,7 +130,7 @@ fn captured_namespace_backend_and_quarantine_outlive_the_source_handle() {
         root,
         "18d14e4e54fc17b2e7d8d40a70bbb2d0f198015dd0915619e527a0974f19555e"
     );
-    let key = format!("scap-object/v1/1/2/3/inc/4/gen/5/objects/{root}");
+    let key = format!("scap-object/v1/1/2/3/inc/4/gen/5/storage/1/objects/{root}");
     let calls = objects.calls.lock().unwrap().clone();
     assert_eq!(calls.len(), 3);
     assert_eq!(calls[0].operation, Operation::Create);
@@ -165,6 +167,7 @@ fn paused_bootstrap_does_not_follow_a_replacement_scope_or_publish_over_it() {
     let database = Database::with_options(objects.clone(), scope(), 10, test_options()).unwrap();
     let key = object_key(
         &scope(),
+        1,
         "18d14e4e54fc17b2e7d8d40a70bbb2d0f198015dd0915619e527a0974f19555e",
     );
     let (reached, wait_reached) = mpsc::channel();
@@ -197,7 +200,9 @@ fn paused_bootstrap_does_not_follow_a_replacement_scope_or_publish_over_it() {
     ));
     assert_eq!(replacement.read_head(deadline()).unwrap().head, winner);
     assert_eq!(winner.scope, replacement_scope);
-    assert_eq!(winner.format, 4);
+    assert_eq!(winner.format, 5);
+    assert_eq!(winner.head_serial, 1);
+    assert_eq!(winner.storage.active_generation, 1);
     assert_eq!(winner.revision, 1);
     let old_calls: Vec<_> = objects
         .calls
@@ -210,7 +215,7 @@ fn paused_bootstrap_does_not_follow_a_replacement_scope_or_publish_over_it() {
     assert_eq!(old_calls.len(), 5);
     assert!(old_calls[..4].iter().all(|call| {
         call.key
-            .starts_with("scap-object/v1/1/2/3/inc/4/gen/5/objects/")
+            .starts_with("scap-object/v1/1/2/3/inc/4/gen/5/storage/1/objects/")
     }));
     assert_eq!(old_calls[4].key, "scap-object/v1/1/2/3/head");
     assert_eq!(old_calls[4].operation, Operation::Create);
@@ -288,7 +293,7 @@ fn publish_gate_consumes_the_admitted_context_request_etag_and_deadline() {
     );
     assert!(calls[..calls.len() - 1].iter().all(|call| {
         call.key
-            .starts_with("scap-object/v1/1/2/3/inc/4/gen/5/objects/")
+            .starts_with("scap-object/v1/1/2/3/inc/4/gen/5/storage/1/objects/")
     }));
     let reader = Database::with_options(objects, scope(), 10, test_options()).unwrap();
     assert_eq!(

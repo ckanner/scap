@@ -54,7 +54,7 @@ class CatalogueSuite(LifecycleSuite):
         for path in self.paths.values(): path.touch(mode=0o600, exist_ok=False)
         save_json(evidence / "catalogue-plan.json", {"version": 1, "deployment": self.deployment,
             "pilot_profiles": list(PILOTS), "cut_stages": list(CUTS), "fixture_limits": PROFILE,
-            "head_format": 4, "immutable_format": 2, "catalogue_record_bytes": 65536,
+            "head_format": 5, "immutable_format": 2, "catalogue_record_bytes": 65536,
             "binary_sha256": compiled["binary"]["sha256"], "input_sha256": compiled["input_sha256"],
             "aws_endpoint_gate": "NOT_RUN", "unit_coverage_contribution": False})
         self.fact(None, "build_verified", stage="before", binary_sha256=compiled["binary"]["sha256"],

@@ -69,8 +69,89 @@ fn failure_codes_preserve_authority_semantics() {
 
 use scap_object_store::{Condition, Objects, Stored};
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::ffi::OsString;
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
+
+const CREDENTIAL_NAMES: [&str; 2] = ["SCAP_TEST_ACCESS", "SCAP_TEST_SECRET"];
+static CREDENTIAL_ENVIRONMENT: Mutex<()> = Mutex::new(());
+
+struct RestoreCredentials([Option<OsString>; 2]);
+
+impl RestoreCredentials {
+    /// Every caller holds CREDENTIAL_ENVIRONMENT for this entire lifetime.
+    fn capture() -> Self {
+        Self(CREDENTIAL_NAMES.map(std::env::var_os))
+    }
+}
+
+impl Drop for RestoreCredentials {
+    fn drop(&mut self) {
+        for (name, original) in CREDENTIAL_NAMES.into_iter().zip(&mut self.0) {
+            match original.take() {
+                Some(value) => std::env::set_var(name, value),
+                None => std::env::remove_var(name),
+            }
+        }
+    }
+}
+
+pub(crate) struct TestCredentials {
+    // Fields drop in declaration order, including during unwinding: restore
+    // original values before releasing the process-wide environment lease.
+    restore: RestoreCredentials,
+    _lease: MutexGuard<'static, ()>,
+}
+
+pub(crate) fn test_credentials() -> TestCredentials {
+    // A caught test panic poisons the mutex only after RestoreCredentials has
+    // restored the environment. It is safe for the next fixture to acquire it.
+    let lease = CREDENTIAL_ENVIRONMENT
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let credentials = TestCredentials {
+        restore: RestoreCredentials::capture(),
+        _lease: lease,
+    };
+    std::env::set_var(CREDENTIAL_NAMES[0], "access");
+    std::env::set_var(CREDENTIAL_NAMES[1], "secret");
+    credentials
+}
+
+#[test]
+fn shared_test_credentials_restore_original_values_after_unwinding() {
+    let credentials = test_credentials();
+    let original = credentials.restore.0.clone();
+    let stopped = std::panic::catch_unwind(move || {
+        let _credentials = credentials;
+        panic!("intentional fixture unwind");
+    });
+    assert!(stopped.is_err());
+    let credentials = test_credentials();
+    assert!(credentials.restore.0 == original);
+    assert_eq!(std::env::var_os(CREDENTIAL_NAMES[0]), Some("access".into()));
+    assert_eq!(std::env::var_os(CREDENTIAL_NAMES[1]), Some("secret".into()));
+}
+
+#[test]
+fn shared_test_credentials_preserve_preexisting_and_absent_keys_on_panic() {
+    let _credentials = test_credentials();
+    std::env::set_var(CREDENTIAL_NAMES[0], "prior fixture value");
+    std::env::remove_var(CREDENTIAL_NAMES[1]);
+    let restore = RestoreCredentials::capture();
+    let stopped = std::panic::catch_unwind(move || {
+        let _restore = restore;
+        std::env::remove_var(CREDENTIAL_NAMES[0]);
+        std::env::set_var(CREDENTIAL_NAMES[1], "temporary fixture value");
+        panic!("intentional nested fixture unwind");
+    });
+    assert!(stopped.is_err());
+    assert_eq!(
+        std::env::var_os(CREDENTIAL_NAMES[0]),
+        Some("prior fixture value".into())
+    );
+    assert!(std::env::var_os(CREDENTIAL_NAMES[1]).is_none());
+}
 
 #[derive(Default)]
 pub(crate) struct Memory {

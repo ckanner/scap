@@ -1018,8 +1018,16 @@ for command in sys.stdin:
                     native_failure_mechanism="TRUNCATE checkpoint blocked by an independent real read transaction")
 
     def delete_fixture_object(self, case, key):
-        expected = "/".join(case["head_key"].split("/")[:-1]) + "/inc/"
-        assert key.startswith(expected) and "/objects/" in key
+        captured = json.loads(bytes(case["before"]["bytes"]))
+        assert captured["format"] == 5 and captured["scope"] == case["scope"]
+        storage = captured["storage"]
+        assert storage == {"active_generation": 1, "allocated_through": 1}
+        assert all(type(value) is int for value in storage.values())
+        expected = ("scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}"
+                    "/storage/".format(**captured["scope"]) + str(storage["active_generation"]) + "/objects/")
+        assert isinstance(key, str) and key.startswith(expected)
+        suffix = key[len(expected):]
+        assert len(suffix) == 64 and all(character in "0123456789abcdef" for character in suffix)
         command = ["curl", "--silent", "--show-error", "--max-time", "3", "--noproxy", "*",
                    "--aws-sigv4", "aws:amz:us-east-1:s3", "--config", "-", "-X", "DELETE",
                    "--output", os.devnull, "--write-out", "%{http_code}", self.backend.endpoint + "/scap-test/" + key]

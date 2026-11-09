@@ -91,10 +91,11 @@ def mutate(raw, damage):
     return prefix + variants[damage] + bytes(16)
 
 
-def object_key(scope, root):
+def object_key(scope, storage_generation, root):
+    require(type(storage_generation) is int and storage_generation == 1, "fixture storage generation")
     require(len(root) == 64 and all(c in "0123456789abcdef" for c in root), "fixture root hash")
     return (f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}"
-            f"/inc/{scope['incarnation']}/gen/{scope['generation']}/objects/{root}")
+            f"/inc/{scope['incarnation']}/gen/{scope['generation']}/storage/{storage_generation}/objects/{root}")
 
 
 def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
@@ -102,9 +103,14 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
 
     Without the counter adjustment an old verify_results would reject the
     fixture for a different reason, creating a false positive regression.
+    This explicit trusted damage/restore injection preserves revision/serial;
+    it is not a product publication or an accepted business transition proof.
     """
     head = load_json(head_bytes)
-    require(head["format"] == 4, "fixture HEAD version")
+    require(type(head["format"]) is int and head["format"] == 5, "fixture HEAD version")
+    require(type(head["head_serial"]) is int and head["head_serial"] >= head["revision"] >= 1, "fixture HEAD serial")
+    require(head["storage"] == {"active_generation": 1, "allocated_through": 1}
+            and all(type(value) is int for value in head["storage"].values()), "fixture HEAD storage")
     selected = [window for window in head["windows"] if window["epoch"] == epoch]
     require(len(selected) == 1, "exact retained window required")
     window = selected[0]
@@ -140,8 +146,8 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     require(window["result_bytes"] <= head["retention"]["max_result_bytes"], "fixture retention overflow")
     require(window["result_bytes"] <= window["count"] * 64 * 1024 * 1024, "fixture format counter overflow")
     return {"head": json_bytes(head), "index": changed_index, "result": changed_result,
-            "result_key": object_key(head["scope"], new_result_root),
-            "index_key": object_key(head["scope"], window["root"]),
+            "result_key": object_key(head["scope"], head["storage"]["active_generation"], new_result_root),
+            "index_key": object_key(head["scope"], head["storage"]["active_generation"], window["root"]),
             "request": copy.deepcopy(stored["request"]), "raw": changed_raw,
             "original_result_sha256": sha(result_bytes), "original_raw_sha256": sha(raw),
             "raw_sha256": sha(changed_raw), "counter_before": before_count,
@@ -177,10 +183,10 @@ def run_case(suite, epoch_kind, damage):
     before = suite.snapshot(case, owner, "recovering_before_semantic_damage")
     epoch = 2 if current else 1
     selected = next(window for window in taken["windows"] if window["epoch"] == epoch)
-    index_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], selected["root"])))["bytes"])
+    index_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], taken["storage"]["active_generation"], selected["root"])))["bytes"])
     index, _ = unpack(index_bytes)
     entry = next(entry for entry in reversed(index["payload"]["value"]["entries"]) if entry["outcome"]["state"] == "committed")
-    result_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], entry["outcome"]["result"])))["bytes"])
+    result_bytes = bytes(value(owner.call("store_get", key=object_key(case["scope"], taken["storage"]["active_generation"], entry["outcome"]["result"])))["bytes"])
     original_metadata, original_raw = unpack(result_bytes)
     value(owner.call("decode_result", encoded=list(original_raw)))
     plan = rewrite(bytes(before["bytes"]), index_bytes, result_bytes, epoch, damage)

@@ -278,6 +278,8 @@ def network(directory, history, invoked, ended, facts, overrides, credentials, d
             if row["event"] != "gate_released":
                 equal({key: row.get(key) for key in common}, {key: request.get(key) for key in common}, "wire event belongs to another original request")
         require(request["method"] in ("GET", "PUT", "DELETE"), "unplanned method")
+        if "?" not in request["path"] and not request["path"].endswith("/head") and "/catalogue/v1/" not in request["path"]:
+            catalogue_audit.immutable_address(request["path"])
         payload = body(directory, request, "request", overrides)
         authenticated(request, payload, access, credentials, full=full)
         if request["method"] == "PUT":
@@ -358,8 +360,9 @@ def network(directory, history, invoked, ended, facts, overrides, credentials, d
                 if "/objects/" in path: require(request["if_none_match"] == "*" and path.rsplit("/", 1)[1] == sha(raw), "immutable path/body/condition")
                 if path.endswith("/head"):
                     authority = head(raw, path)
+                    old = head(previous["raw"], path) if previous is not None else None
+                    catalogue_audit.head5_audit.advance(old, authority)
                     if previous is not None:
-                        old = head(previous["raw"], path)
                         equal(authority["scope"], old["scope"], "permanent physical slot was reused")
                         require(authority["revision"] == old["revision"] + 1, "HEAD skipped/reused a revision")
                     accepted_heads.append((request, response, authority))

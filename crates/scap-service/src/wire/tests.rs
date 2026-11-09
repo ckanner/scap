@@ -203,7 +203,12 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         "cancelled"
     );
     let head = Head {
-        format: 4,
+        format: 5,
+        head_serial: 7,
+        storage: scap_object::format::Storage {
+            active_generation: 1,
+            allocated_through: 1,
+        },
         creation: None,
         deletion: None,
         scope,

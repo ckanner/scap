@@ -643,7 +643,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         Err(Error::Corrupt)
     ));
     objects.set(head_key(&scope()), encode_head(&base.head).unwrap());
-    let key = object_key(&scope(), &base.head.data_root);
+    let key = object_key(&scope(), 1, &base.head.data_root);
     objects.fail(false, key.clone(), StoreError::Missing);
     assert!(matches!(
         database.image(&base.head, deadline()),
@@ -950,6 +950,7 @@ fn arithmetic_exhaustion_is_fail_closed() {
     let (objects, database) = fixture();
     replace_head(&objects, &database, |h| {
         h.revision = u64::MAX;
+        h.head_serial = u64::MAX;
         h.transition.revision = u64::MAX;
     });
     assert!(matches!(
@@ -958,6 +959,7 @@ fn arithmetic_exhaustion_is_fail_closed() {
     ));
     replace_head(&objects, &database, |h| {
         h.revision = 2;
+        h.head_serial = 2;
         h.transition.revision = 2;
         h.owner_epoch = u64::MAX;
     });
@@ -1226,6 +1228,7 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
         let (objects, database) = prepare_operation(name);
         replace_head(&objects, &database, |h| {
             h.revision = u64::MAX;
+            h.head_serial = u64::MAX;
             h.transition.revision = u64::MAX;
         });
         let temporary = tempfile::tempdir().unwrap();
@@ -1274,6 +1277,7 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
     let (objects, database) = fixture();
     replace_head(&objects, &database, |h| {
         h.revision = u64::MAX;
+        h.head_serial = u64::MAX;
         h.transition.revision = u64::MAX;
     });
     assert!(matches!(
@@ -1292,6 +1296,43 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
         ),
         Err(Error::Limit)
     ));
+}
+
+#[test]
+fn all_business_updates_keep_expected_revision_separate_from_head_serial() {
+    for name in [
+        "activate",
+        "activate_session",
+        "takeover",
+        "policy",
+        "lifecycle",
+        "quota",
+        "close",
+        "cancel",
+        "execute",
+    ] {
+        for exhausted in [false, true] {
+            let (objects, database) = prepare_operation(name);
+            replace_head(&objects, &database, |head| {
+                head.head_serial = if exhausted { u64::MAX } else { 40 };
+            });
+            let before = database.read_head(deadline()).unwrap();
+            let temporary = tempfile::tempdir().unwrap();
+            let result = run_operation(name, &database, &temporary.path().join("business"));
+            let after = database.read_head(deadline()).unwrap();
+            if exhausted {
+                assert!(matches!(result, Err(Error::Limit)), "{name}: {result:?}");
+                assert_eq!(after.head, before.head, "{name}");
+                assert_eq!(after.etag, before.etag, "{name}");
+            } else {
+                result.unwrap();
+                assert_eq!(after.head.revision, 3, "{name}");
+                assert_eq!(after.head.transition.revision, 3, "{name}");
+                assert_eq!(after.head.head_serial, 41, "{name}");
+                assert_eq!(after.head.storage, before.head.storage, "{name}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -1474,7 +1515,11 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
         .unwrap();
     let mut head = database.status(7, deadline()).unwrap();
     head.data_root = root;
-    objects.fail(false, object_key(&scope(), &page_root), StoreError::Missing);
+    objects.fail(
+        false,
+        object_key(&scope(), 1, &page_root),
+        StoreError::Missing,
+    );
     assert!(matches!(
         database.image(&head, deadline()),
         Err(Error::Store(StoreError::Missing))

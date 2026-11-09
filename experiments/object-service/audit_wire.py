@@ -5,10 +5,19 @@ import base64
 from collections import Counter, defaultdict
 import hashlib
 import heapq
+import importlib.util
 import json
 import math
+from pathlib import Path
 import re
 import struct
+
+
+_HEAD5_SPEC = importlib.util.spec_from_file_location(
+    "scap_independent_service_head5_schema",
+    Path(__file__).resolve().parents[1] / "object-network" / "head5_audit.py")
+_HEAD5 = importlib.util.module_from_spec(_HEAD5_SPEC)
+_HEAD5_SPEC.loader.exec_module(_HEAD5)
 
 
 def require(condition, message):
@@ -187,6 +196,30 @@ def moment(row):
     return value
 
 
+def head5_profile(value):
+    """Validate the complete independent HEAD5 schema from original HEAD bytes.
+
+    The shared reader has no controller or production imports. Per-experiment
+    lifecycle, predecessor and complete dependency-closure proofs remain here.
+    """
+    return _HEAD5.validate(value)
+
+
+def head5_publication(candidate, predecessor=None):
+    """Verify actual business publications in the foundation-only real profile."""
+    head5_profile(candidate)
+    if predecessor is None:
+        require(candidate["head_serial"] == candidate["revision"] == 1,
+                "HEAD5 initial authority must start at serial/revision one")
+    else:
+        head5_profile(predecessor)
+        equal(candidate["scope"], predecessor["scope"], "HEAD5 CAS changed logical Scope")
+        require(candidate["head_serial"] == predecessor["head_serial"] + 1,
+                "HEAD5 CAS did not advance original head serial exactly once")
+        require(candidate["revision"] == predecessor["revision"] + 1,
+                "HEAD5 foundation business publication revision")
+
+
 def capture(row, *, response=False):
     prefix = "head" if row["path"].endswith("/head") else (
         "catalogue" if "/catalogue/v1/" in row["path"] else None)
@@ -206,8 +239,8 @@ def capture(row, *, response=False):
         require(length <= 65536, "catalogue authority capture exceeds bound")
     if prefix == "head" and ((response and row["method"] == "GET" and row["status"] == 200)
                               or (not response and row["method"] == "PUT")):
-        head = parse(raw)
-        require(type(head.get("format")) is int and head["format"] == 4, "HEAD is not format 4")
+        require(length <= 256 * 1024, "HEAD5 exceeds production byte bound")
+        head5_profile(parse(raw))
     return raw
 
 
@@ -238,6 +271,12 @@ def object_exchanges(history, *, phases, blackhole_phases=()):
         require(request["phase"] in phases and request["method"] in ("GET", "PUT"), "unplanned object method/phase")
         require(isinstance(request["path"], str) and request["path"].startswith("/scap-test/scap-object/v1/")
                 and "?" not in request["path"] and "#" not in request["path"], "object path escaped exact authority")
+        if "/objects/" in request["path"]:
+            key = re.fullmatch(r"/scap-test/scap-object/v1/([1-9][0-9]*)/([1-9][0-9]*)/([1-9][0-9]*)"
+                               r"/inc/([1-9][0-9]*)/gen/([1-9][0-9]*)/storage/1/objects/[0-9a-f]{64}",
+                               request["path"])
+            require(key is not None and all(int(value) < 2**64 for value in key.groups()),
+                    "HEAD5 immutable path lacks exact supported physical namespace")
         capture(request)
         if request["method"] == "GET":
             require(request["request_bytes"] == 0 and request["request_sha256"] == hashlib.sha256(b"").hexdigest()
@@ -327,6 +366,8 @@ def object_versions(requests, responses, *, calls=None, bindings=None):
         for etag, serial in versions.items():
             request = requests[serial]
             if request["if_none_match"] == "*":
+                if path.endswith("/head"):
+                    head5_publication(parse(capture(request)))
                 roots.append(serial)
             else:
                 previous = versions.get(request["if_match"])
@@ -360,9 +401,13 @@ def object_versions(requests, responses, *, calls=None, bindings=None):
                 if previous in successors:
                     edges.add((serial, successors[previous]))
             else:
+                if path.endswith("/head") and request["if_none_match"] == "*":
+                    head5_publication(parse(capture(request)))
                 if request["if_match"] is not None:
                     previous = versions.get(request["if_match"])
                     require(previous is not None, "CAS condition has no observed original version")
+                    if path.endswith("/head"):
+                        head5_publication(parse(capture(request)), parse(capture(requests[previous])))
                     witnesses = [other for other in serials if requests[other]["method"] == "GET"
                                  and responses[other]["status"] == 200 and responses[other]["etag"] == request["if_match"]
                                  and moment(responses[other]) < moment(request)

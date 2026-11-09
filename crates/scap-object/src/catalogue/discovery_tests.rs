@@ -174,7 +174,7 @@ fn deployment_discovery_enumerates_all_permanent_classes_without_an_inventory_in
             .create(7, 1, deadline())
             .unwrap();
         objects.set(
-            &format!("scap-object/v1/{tenant}/999/1/inc/1/gen/1/objects/orphan"),
+            &format!("scap-object/v1/{tenant}/999/1/inc/1/gen/1/storage/1/objects/orphan"),
             vec![1],
         );
     }
@@ -733,7 +733,7 @@ fn direct_slots_orphans_and_metadata_corruption_are_distinguished() {
     }
     let orphan = entry("scap-object/v1/1/2/18/".into(), ListKind::Prefix);
     objects.set(
-        "scap-object/v1/1/2/18/inc/9/gen/1/objects/unpublished",
+        "scap-object/v1/1/2/18/inc/9/gen/1/storage/1/objects/unpublished",
         vec![9],
     );
     assert_eq!(

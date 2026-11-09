@@ -128,12 +128,7 @@ impl Catalogue {
         }
         // A verified Provisioning HEAD is always its first revision. Completing
         // it preserves the initial owner, policy and inactive state.
-        let mut head = base.head.clone();
-        head.revision = 2;
-        head.transition = format::Transition {
-            revision: 2,
-            nonce: source.creation.operation,
-        };
+        let mut head = Database::next(&base.head, source.creation.operation).map_err(core_error)?;
         head.lifecycle = Lifecycle::Ready;
         database
             .publish_in(&objects, base, &head, deadline)

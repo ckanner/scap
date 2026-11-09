@@ -33,7 +33,8 @@ def binding(c, state="reserved", control=None, proof=None):
 
 
 def initial_head(c, *, named=True, lifecycle="provisioning", nonce=None, changed_scope=None):
-    return {"format": 4, "scope": changed_scope or c["scope"], "revision": 1,
+    return {"format": 5, "scope": changed_scope or c["scope"], "revision": 1, "head_serial": 1,
+            "storage": {"active_generation": 1, "allocated_through": 1},
             "transition": {"revision": 1, "nonce": nonce or c["operation"]}, "sequence": 0,
             "owner_epoch": 1, "owner_instance": 50001, "active": False, "auth_epoch": 1,
             "policy": [{"principal": 17, "read": True, "write": True, "admin": True}],
@@ -130,7 +131,7 @@ class Trace:
 
     def roots(self, call, s):
         for content in (b"manifest", b"index"):
-            path = oracle.object_prefix(s) + oracle.digest(content)
+            path = oracle.object_prefix(s, 1) + oracle.digest(content)
             if path not in self.stored: self.put(call, path, content)
             self.get(call, path)
 
@@ -146,7 +147,7 @@ class Trace:
         self.view(call, c); self.put(call, oracle.name_path(c), binding(c, "bound"))
         if until == "bound": self.end(call); return
         self.view(call, c); self.roots(call, c["scope"])
-        head.update(revision=2, transition={"revision": 2, "nonce": c["operation"]}, lifecycle="ready")
+        head.update(revision=2, head_serial=2, transition={"revision": 2, "nonce": c["operation"]}, lifecycle="ready")
         self.put(call, oracle.head_path(c["scope"]), head); self.end(call)
 
     def abort(self, c, *, until="tombstone", foreign=False):
@@ -164,7 +165,7 @@ class Trace:
         else:
             old = self.stored.get(oracle.head_path(c["scope"]))
             if old:
-                head = json.loads(old[1]); head["revision"] += 1; head["owner_epoch"] += 1
+                head = json.loads(old[1]); head["revision"] += 1; head["head_serial"] += 1; head["owner_epoch"] += 1
                 head["transition"] = {"revision": head["revision"], "nonce": ctl["nonce"]}
                 head["lifecycle"] = "deleted"
             else:
@@ -200,7 +201,7 @@ def ledger():
                "expected_name_revision": None, "options": {"quota": {"kind": "default"}}}}
     value = {k: descriptor(c)[k] for k in ("creation", "initial_quota", "retention")}
     response = {"ok": True, "value": value}
-    return {"plan": {"version": 1, "head_format": 4, "immutable_format": 2, "catalogue_record_bytes": 65536,
+    return {"plan": {"version": 1, "head_format": 5, "immutable_format": 2, "catalogue_record_bytes": 65536,
                      "fixture_limits": oracle.PROFILE, "pilot_profiles": list(oracle.PILOTS), "cut_stages": list(oracle.CUTS)},
             "history": [], "facts": [{"event": "case_started", "case": "unit", "input": request["input"]},
                                        {"event": "worker_started", "case": "unit", "worker": 50001, "scope": c["scope"], "principal": 17}],
@@ -213,6 +214,32 @@ def ledger():
 
 
 class CatalogueOracleTests(unittest.TestCase):
+    def test_raw_orphan_paths_cannot_bypass_complete_storage_namespace(self):
+        c, payload = intent(), b"independent orphan bytes"
+        valid = oracle.object_prefix(c["scope"], 1) + oracle.digest(payload)
+
+        def trace_for(path, method="PUT"):
+            trace = Trace()
+            call = trace.begin(c, "store_put" if method == "PUT" else "store_get",
+                               key=path.removeprefix("/scap-test/"))
+            trace.exchange(call, method, path, payload if method == "PUT" else b"")
+            trace.end(call)
+            return trace
+
+        self.assertEqual(oracle.immutable_address(valid), (c["scope"], 1, oracle.digest(payload)))
+        for method in ("PUT", "GET"):
+            trace_for(valid, method).wire()
+            for changed in (valid.replace("/storage/1/", "/"),
+                            valid.replace("/storage/1/", "/storage/2/"),
+                            valid.replace("/storage/1/", "/storage/01/"),
+                            valid.replace("/gen/1/", "/gen/0/"),
+                            valid.replace("/gen/1/", "/gen/18446744073709551616/"),
+                            valid + "/extra", valid[:-1], valid[:-1] + "F"):
+                # Both the offered raw key and every transport row change
+                # together: attribution remains coherent, namespace does not.
+                with self.subTest(method=method, path=changed), self.assertRaises(ValueError):
+                    trace_for(changed, method).wire()
+
     def test_missing_name_views_allow_distinct_backend_error_bodies(self):
         trace = Trace(); c = intent(); trace.prepare(c)
         call = trace.begin(c, "catalogue_inspect", create_operation=c["operation"])
@@ -335,7 +362,7 @@ class CatalogueOracleTests(unittest.TestCase):
         trace = Trace(); c = intent(); trace.prepare(c); trace.resume(c, until="provisioning"); trace.abort(c, until="aborting")
         call = trace.begin(c, "catalogue_resume", creation=c)
         trace.get(call, oracle.descriptor_path(c)); trace.view(call, c); trace.roots(call, c["scope"])
-        h = initial_head(c); h.update(revision=2, transition={"revision": 2, "nonce": c["operation"]}, lifecycle="ready")
+        h = initial_head(c); h.update(revision=2, head_serial=2, transition={"revision": 2, "nonce": c["operation"]}, lifecycle="ready")
         trace.put(call, oracle.head_path(c["scope"]), h); trace.end(call)
         with self.assertRaisesRegex(ValueError, "winning Bound"): trace.wire()
 

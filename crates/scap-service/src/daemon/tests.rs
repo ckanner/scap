@@ -3,15 +3,11 @@ use crate::tests::{call, principal, sample_config, until, Memory};
 use crate::wire::{Action, Decimal};
 
 fn prepared(parent: &std::path::Path) -> Prepared {
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
-    let prepared = Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
+    let _credentials = crate::tests::test_credentials();
+    Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
         .unwrap()
         .prepare()
-        .unwrap();
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
-    prepared
+        .unwrap()
 }
 
 #[test]
@@ -512,14 +508,13 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
         Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
     config.version = 2;
     assert_eq!(launch(config).unwrap_err().code, "CONFIG");
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
-    let mut config =
-        Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
-    config.s3.endpoint = "bad".into();
-    assert_eq!(launch(config).unwrap_err().code, "CONFIG");
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
+    {
+        let _credentials = crate::tests::test_credentials();
+        let mut config =
+            Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
+        config.s3.endpoint = "bad".into();
+        assert_eq!(launch(config).unwrap_err().code, "CONFIG");
+    }
     runtime().unwrap().block_on(async {
         assert!(tokio::time::timeout(
             Duration::from_millis(1),
