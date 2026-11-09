@@ -1105,9 +1105,9 @@
     "isolation": "passed",
     "segmented_index": "passed",
     "tcp_8_cases": "passed",
-    "discovery": "FAILED; both original and quiet retry stopped at reader_first; diagnosis open",
-    "capacity_gib1": "FAILED free-disk guard; independent retry NOT_RUN",
-    "deployment_recovery": "NOT_RUN; original fail-first driver stopped at capacity",
+    "discovery": "FAILED original and quiet retry; independent analysis identified an undeclared complete-page throughput assumption; fixture repair under review, actual retry NOT_RUN",
+    "capacity_gib1": "passed in separate retry02; original disk-guard failure preserved",
+    "deployment_recovery": "passed in independent new-source run; original fail-first driver remains failed",
     "resource_composition": "NOT_RUN"
   },
   "auxiliary": {
@@ -1158,5 +1158,78 @@
   ],
   "physical_gc": "OFF",
   "aws_standard": "NOT_RUN",
-  "production_slo": "NOT_RUN"
+  "production_slo": "NOT_RUN",
+  "capacity": {
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "status": "passed",
+    "profile": "gib1",
+    "original_deadlines_and_disk_guard_unchanged": true,
+    "summary_sha256": "504802fcdd3243bc0760f44724b8c61c11695a55b5c91178de89e52dafdd46e3",
+    "completion_sha256": "c876ecba879d403c124fbb0ea0e77ce052641968ecc111335c9dc244d57a77ca",
+    "source_unchanged": true,
+    "ack_audited_count": 39,
+    "ack_mismatch_count": 0,
+    "blob_audited_count": 16384,
+    "blob_audited_bytes": 1073741824,
+    "blob_mismatch_count": 0,
+    "worker_binary_sha256": "c70c74c5871e5fc6f25a906cc959558040f078335794ebfd3c88ec63e0658cae",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "history_sha256": "b11864aa495f3ca70242505270f759f606e1bdae8dfd4b2bf544ad16e29b9053",
+    "completed_checks": [
+      "one_gib_independent_payload_committed",
+      "warm_point_updates_do_not_transfer_whole_gib",
+      "warm_session_rechecks_permission_and_exact_root",
+      "unknown_resolved_without_sql_replay",
+      "all_compute_and_backend_process_loss_recovered_from_s3",
+      "every_client_ack_retains_exact_receipt_and_original_result",
+      "every_blob_matches_independent_preinvocation_hash",
+      "hot_cache_cannot_bypass_unavailable_fresh_head"
+    ],
+    "cold_recovery": {
+      "get_requests": 8338,
+      "get_response_bytes": 1084291337,
+      "head_puts": 2,
+      "http_statuses": {
+        "200": 8340
+      },
+      "put_request_bytes": 1453,
+      "put_requests": 2,
+      "put_success_bytes": 1453,
+      "put_successes": 2,
+      "unique_successful_put_keys": 1
+    },
+    "database_file_bytes": 1082163200,
+    "is_new_10_gib_capacity_test": false,
+    "aws_standard": "NOT_RUN"
+  },
+  "deployment_recovery": {
+    "status": "passed",
+    "original_inputs": 13,
+    "original_ack_count": 11,
+    "signed_s3_requests": 4088,
+    "list_pages": 1480,
+    "full_byte_objects": 154,
+    "processes": 62,
+    "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+    "verification_scope": "full",
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "source_unchanged": true,
+    "oracle_sha256": "822abef18da9a8e41f57515e0b91b5bdafbb3bc7b8c81a18240ab0a85dc322c5",
+    "controls_sha256": "a528b9bed7c5cf60511e0095f40b933eb0721abae60c9c9ac47710fe25e7fb87",
+    "completion_sha256": "71c95b31f91505fc4baa4658763fbc3e050930c19f92075159ef7f3847a0ebd4",
+    "negative_controls": 23,
+    "positive_controls": 1,
+    "originals_unchanged": true,
+    "aws_standard": "NOT_RUN"
+  },
+  "discovery_failure_analysis": {
+    "receipt_sha256": "a60a7650137aff15044ee9e6be19470130c46fa64ffb87b9ade2cd01d1e6b0c7",
+    "actual_ready_candidate_gets": 8,
+    "original_service_ms": 5000,
+    "original_read_ms": 4000,
+    "original_run_completed_candidates": 33,
+    "quiet_retry_completed_candidates": 29,
+    "production_deadline_changed": false,
+    "fixture_repair_status": "under review; no accepted rerun yet"
+  }
 }
