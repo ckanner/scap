@@ -170,7 +170,7 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         self.stopped = true;
         scap_sql::validate_statements(statements, self.limits.sql).map_err(Error::Sql)?;
         let result = query::execute(&self.connection, statements, self.limits, &interrupt)?;
-        scap_sql::encode_result(&result, self.limits.sql).map_err(Error::Sql)?;
+        scap_sql::plan_result(&result, self.limits.sql).map_err(Error::Sql)?;
         query::check(&interrupt)?;
         self.stopped = false;
         Ok(result)
@@ -183,6 +183,18 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         &mut self,
         statements: &[Statement],
         interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, Error> {
+        self.execute_with_encoder(statements, interrupt, &mut scap_sql::encode_result)
+    }
+
+    fn execute_with_encoder(
+        &mut self,
+        statements: &[Statement],
+        interrupt: ReadInterrupt,
+        encode: &mut dyn FnMut(
+            &TransactionResult,
+            SqlLimits,
+        ) -> Result<Vec<u8>, scap_sql::SqlError>,
     ) -> Result<TransactionResult, Error> {
         if self.stopped {
             return Err(Error::Stopped);
@@ -198,11 +210,14 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
                     return Err(self.state.borrow_mut().take_error(error));
                 }
             };
-        let encoded = match scap_sql::encode_result(&result, self.limits.sql) {
+        let encoded = match encode(&result, self.limits.sql) {
             Ok(encoded) => encoded,
             Err(error) => {
                 sql::rollback(&self.connection);
-                return Err(Error::Sql(error));
+                return Err(match error {
+                    scap_sql::SqlError::ResourceExhausted => Error::ResourceExhausted,
+                    other => Error::Sql(other),
+                });
             }
         };
         // finish() materializes the retained result again after acceptance.

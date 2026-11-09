@@ -20,6 +20,28 @@ fn success_envelopes_keep_exact_wire_bytes_and_owned_backing() {
     );
 }
 
+#[test]
+fn result_encoding_resource_failure_is_not_durable_corruption() {
+    for (error, expected) in [
+        (scap_sql::SqlError::ResourceExhausted, "LIMIT"),
+        (scap_sql::SqlError::Invalid, "CORRUPT"),
+        (scap_sql::SqlError::Limit, "CORRUPT"),
+        (scap_sql::SqlError::Malformed, "CORRUPT"),
+    ] {
+        let failure = result_encoding_failure(error);
+        assert_eq!(failure.code, expected);
+        assert!(failure.receipt.is_none());
+        assert_eq!(
+            failed(&failure),
+            json!({"ok":false,"error":{"code":expected,"message":expected}})
+        );
+    }
+    assert_eq!(
+        result(&TransactionResult { statements: vec![] }).unwrap(),
+        "U0NBUFJFUzEAAAAA"
+    );
+}
+
 fn call(extra: &str) -> String {
     format!(
         r#"{{"version":1,"scope":{{"deployment":"1","tenant":"2","database":"3","incarnation":"4","generation":"5"}},{extra}}}"#

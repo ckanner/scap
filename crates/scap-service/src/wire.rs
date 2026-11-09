@@ -449,8 +449,15 @@ pub fn status(head: &Head) -> Json {
 
 pub fn result(result: &TransactionResult) -> Result<String, Failure> {
     let bytes = scap_sql::encode_result(result, scap_object::options::durable_sql_limits())
-        .map_err(|_| Failure::new("CORRUPT"))?;
+        .map_err(result_encoding_failure)?;
     Ok(STANDARD.encode(bytes))
+}
+
+fn result_encoding_failure(error: scap_sql::SqlError) -> Failure {
+    Failure::new(match error {
+        scap_sql::SqlError::ResourceExhausted => "LIMIT",
+        _ => "CORRUPT",
+    })
 }
 
 pub fn resolved(resolution: Resolution) -> Json {

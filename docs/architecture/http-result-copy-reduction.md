@@ -27,7 +27,9 @@ discovery 仍先完整序列化，再执行原长度检查和原 deadline 检查
 新增单元源码与固定 compact JSON 字节比较，覆盖引号、反斜杠、换行、中文、
 空数组及 Base64。owned 与 borrowed 包装分别对照固定字节；owned 包装还
 核对原 String backing 指针。不是用两份同一序列化实现互相充当 oracle。
-这项单元尚未执行；静态审查不能替代正式运行。
+此处记录的首次切片冻结时只完成静态审查；其后在 `778a4d2` 组合中通过完整
+workspace 单位门禁，见[原始完整单位回执](https://github.com/ckanner/scap/blob/39b08c4f6705bde55e379a83250c4c47b598429f/docs/evidence/head5-runtime-workspace-local-2026-11-09.json)。
+更新的编码基础另有源码和门禁，不能继承这份通过结果。
 
 ## 后续输出预算
 
@@ -46,3 +48,6 @@ discovery 仍先完整序列化，再执行原长度检查和原 deadline 检查
 - 本库：`crates/scap-service/src/engine.rs`、`wire.rs`、`http.rs`、`discovery.rs`。
 - 固定 serde_json 1.0.145 的 [`json!` 宏](https://github.com/serde-rs/json/blob/v1.0.145/src/macros.rs)
   与 [`Value` 序列化](https://github.com/serde-rs/json/blob/v1.0.145/src/value/ser.rs)。
+
+编码基础与后续池的具体实现边界、按实际长度计费、已提交结果失败及最后 Bytes
+所有权设计见[结果编码与服务输出预算](result-output-budget.md)。

@@ -173,17 +173,19 @@ fn write_value(value: &Value, mut write: impl FnMut(&[u8])) {
     }
 }
 
-struct Encoder {
-    bytes: Vec<u8>,
+struct Encoder<F> {
+    write: F,
+    written: usize,
     limit: usize,
 }
 
-impl Encoder {
+impl<F: FnMut(&[u8])> Encoder<F> {
     fn put(&mut self, bytes: &[u8]) -> Result<(), SqlError> {
-        if bytes.len() > self.limit - self.bytes.len() {
+        if bytes.len() > self.limit - self.written {
             return Err(SqlError::Limit);
         }
-        self.bytes.extend_from_slice(bytes);
+        (self.write)(bytes);
+        self.written += bytes.len();
         Ok(())
     }
 
@@ -193,16 +195,87 @@ impl Encoder {
     }
 }
 
+/// A validated, allocation-free plan for one canonical SCAPRES1 result.
+///
+/// The immutable borrow keeps the counted graph unchanged until the caller
+/// writes it. This lets an output owner reserve its exact wire-byte credit
+/// before allocating a destination; it is not itself a memory reservation.
+pub struct ResultEncoding<'a> {
+    result: &'a TransactionResult,
+    limits: SqlLimits,
+    encoded_len: usize,
+}
+
+impl ResultEncoding<'_> {
+    pub fn encoded_len(&self) -> usize {
+        self.encoded_len
+    }
+
+    /// Write the original result into a destination of exactly `encoded_len`.
+    /// A wrong-sized destination is INVALID and remains entirely unchanged.
+    /// This never allocates or grows the caller's backing storage.
+    pub fn write_exact(&self, destination: &mut [u8]) -> Result<(), SqlError> {
+        if destination.len() != self.encoded_len {
+            return Err(SqlError::Invalid);
+        }
+        let mut offset = 0;
+        write_result(self.result, self.limits, |bytes| {
+            let end = offset + bytes.len();
+            destination[offset..end].copy_from_slice(bytes);
+            offset = end;
+        })?;
+        Ok(())
+    }
+}
+
+/// Validate and count using the same ordered emitter as `encode_result`.
+/// No result-sized scratch allocation is needed for validation alone.
+pub fn plan_result(
+    result: &TransactionResult,
+    limits: SqlLimits,
+) -> Result<ResultEncoding<'_>, SqlError> {
+    let encoded_len = write_result(result, limits, |_| {})?;
+    Ok(ResultEncoding {
+        result,
+        limits,
+        encoded_len,
+    })
+}
+
 pub fn encode_result(result: &TransactionResult, limits: SqlLimits) -> Result<Vec<u8>, SqlError> {
+    encode_result_with(result, limits, &mut Vec::try_reserve_exact)
+}
+
+fn encode_result_with(
+    result: &TransactionResult,
+    limits: SqlLimits,
+    allocate: &mut dyn FnMut(&mut Vec<u8>, usize) -> Result<(), std::collections::TryReserveError>,
+) -> Result<Vec<u8>, SqlError> {
+    let plan = plan_result(result, limits)?;
+    let mut bytes = Vec::new();
+    // The local seam has Vec::try_reserve_exact's contract: success reserves
+    // at least the requested capacity. Initializing/writing cannot grow it.
+    allocate(&mut bytes, plan.encoded_len()).map_err(|_| SqlError::ResourceExhausted)?;
+    bytes.resize(plan.encoded_len(), 0);
+    plan.write_exact(&mut bytes)?;
+    Ok(bytes)
+}
+
+fn write_result(
+    result: &TransactionResult,
+    limits: SqlLimits,
+    mut write: impl FnMut(&[u8]),
+) -> Result<usize, SqlError> {
     limits.validate()?;
     if result.statements.len() > limits.max_statements as usize {
         return Err(SqlError::Limit);
     }
     // The validated minimum includes this fixed 12-byte header.
-    let mut bytes = RESULT_MAGIC.to_vec();
-    bytes.extend_from_slice(&(result.statements.len() as u32).to_le_bytes());
+    write(RESULT_MAGIC);
+    write(&(result.statements.len() as u32).to_le_bytes());
     let mut encoder = Encoder {
-        bytes,
+        write,
+        written: 12,
         limit: limits.max_result_bytes as usize,
     };
     let mut remaining_rows = limits.max_rows as usize;
@@ -241,7 +314,7 @@ pub fn encode_result(result: &TransactionResult, limits: SqlLimits) -> Result<Ve
         encoder.put(&statement.affected_rows.to_le_bytes())?;
         encoder.put(&statement.last_insert_rowid.to_le_bytes())?;
     }
-    Ok(encoder.bytes)
+    Ok(encoder.written)
 }
 
 struct Decoder<'a> {

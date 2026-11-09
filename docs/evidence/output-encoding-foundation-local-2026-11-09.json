@@ -1,0 +1,157 @@
+{
+  "design_handoff": {
+    "bytes": 20536,
+    "path": "/tmp/scap-output-budget-design-778-01/handoff.md",
+    "sha256": "60d4be4b6fb3bf0425d38ff7bb5d7ba9c25b2670873933a80ef99c0b6c18821f"
+  },
+  "execution": {
+    "actual_native_s3_http": "NOT_RUN",
+    "remote_ci": "NOT_RUN",
+    "strict_clippy": "NOT_RUN",
+    "unit_only_exact_4d_coverage": "NOT_RUN",
+    "workspace_units": "NOT_RUN"
+  },
+  "freeze": {
+    "bytes": 4084,
+    "path": "/tmp/scap-output-encoding-freeze02/manifest.json",
+    "sha256": "dcb9980438802897b2206606c72965105a8e343a060b678bfbb86db68301c762"
+  },
+  "implemented": [
+    "Opaque immutable-borrow ResultEncoding with exact encoded_len and fixed-slice write_exact, driven by the original ordered emitter.",
+    "encode_result preserves its public signature and canonical bytes; complete validation precedes one fallible exact Vec reservation.",
+    "Native query validates/counts without materializing and discarding a complete wire Vec.",
+    "Native prepublication encoding allocation failure rolls back and maps to existing ResourceExhausted; wire maps that local resource error to LIMIT.",
+    "Existing known-commit service conversion failures keep original trusted receipt and COMMITTED_BUT_UNAVAILABLE."
+  ],
+  "independent_static_review": {
+    "bytes": 18849,
+    "path": "/tmp/scap-output-encoding-peer-review01/receipt.json",
+    "sha256": "eff2fa44bfdf6d14722fc2c192a2a8e6c9bfa62c84a17b0a4f37068278b3a562"
+  },
+  "limits": [
+    "Exact visible Vec capacity is conditional on the fixed Rust toolchain; it is not malloc rounding, RSS or global allocator control.",
+    "Base64 and final JSON still use their current allocation paths.",
+    "No global/tenant output ledger, final Bytes charge lifetime or admission reserve is implemented by this slice.",
+    "Default typed-result budget remains separate; core retained Vec, frames, native VM/cache and transport allocations remain outside the proposed service encoding pool.",
+    "No AWS/SLO/throughput result is claimed."
+  ],
+  "new_test_definitions": 7,
+  "original_failure_policy": "Freeze01 to02 is a static monomorphization-risk correction, not an observed failed test. Any execution failure must be recorded separately without editing this frozen candidate.",
+  "patch": {
+    "bytes": 18563,
+    "path": "/tmp/scap-output-encoding-freeze02/candidate.patch",
+    "sha256": "778612894db4a4153158e278caa63263f0b27a742f716093bbd64059163ad11a"
+  },
+  "prior_freeze": {
+    "path": "/tmp/scap-output-encoding-freeze01/manifest.json",
+    "sha256": "1aa4568fbe9d7c5b48df6191157d4747a7dda6946dcf1db3b9d6877c40de7538",
+    "status": "STATIC_NOT_RUN_NOT_AN_OBSERVED_TEST_FAILURE"
+  },
+  "revision_reason": "Two private local seams use allocation-free borrowed dyn FnMut to avoid static per-instantiation coverage risk. Each still has exactly one call site. No global allocator state, encoder rule, wire byte, error priority or public API changes from freeze01.",
+  "runtime_ancestor": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "schema": 1,
+  "scope": "Six-file canonical encoding foundation layered on guarded status; no output pool, new configuration or scheduling capability yet.",
+  "seam_only_diff": {
+    "path": "/tmp/scap-output-encoding-freeze02/seam-only.diff",
+    "sha256": "89cca10b9a10cd4c2fc4c0b0ce6e156eb8963ff3bbd0388dfbdff7e45704d584"
+  },
+  "source_files": [
+    {
+      "candidate": {
+        "bytes": 15340,
+        "sha256": "e7a02265387e7c1dd8a4cfe499d99138fc83efbd0914e38ac70b87e61656eb3f"
+      },
+      "original": {
+        "bytes": 12873,
+        "sha256": "c10fe0a8a62e0fcab2a56d1b06d7cc4c23fabe440336ad7060fff7046b7d4078"
+      },
+      "path": "crates/scap-sql/src/lib.rs"
+    },
+    {
+      "candidate": {
+        "bytes": 16904,
+        "sha256": "e813aecb312da55a8c0d6e9098f6f644e645143013c1afa0d4a05a06f9285ea4"
+      },
+      "original": {
+        "bytes": 12133,
+        "sha256": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e"
+      },
+      "path": "crates/scap-sql/src/tests.rs"
+    },
+    {
+      "candidate": {
+        "bytes": 10212,
+        "sha256": "3e13a54b81fb0be81011ef66030cee25b5e1407cbf07f87597c26b9b9644ffd5"
+      },
+      "original": {
+        "bytes": 9691,
+        "sha256": "f62af946aa34f87e0855e7384e585cc5887acbcec5295ca85075648729488fc2"
+      },
+      "path": "crates/scap-object-sqlite/src/lib.rs"
+    },
+    {
+      "candidate": {
+        "bytes": 35810,
+        "sha256": "615c0ea345a988513e8af78b00bc484baf5f4ff708109189b8bab3df0ad8905c"
+      },
+      "original": {
+        "bytes": 32259,
+        "sha256": "9b38fb6af2121f43f80b106a6dcf3dc2a3e4a74f86f370f837fc814e1c95b9ad"
+      },
+      "path": "crates/scap-object-sqlite/src/tests.rs"
+    },
+    {
+      "candidate": {
+        "bytes": 16587,
+        "sha256": "1f4a9c5e1444570ab5f502c32326a1398a832cc075570d2972c2359708fc2ce4"
+      },
+      "original": {
+        "bytes": 16401,
+        "sha256": "85e705192c91c3e27cb81093df71fe38dbc38c1a1e0690155906ab1b2788ac3d"
+      },
+      "path": "crates/scap-service/src/wire.rs"
+    },
+    {
+      "candidate": {
+        "bytes": 16211,
+        "sha256": "9b7621547ad0725d89b84fea4654f2b6a2b3c2f8245fb77df96f6ec48fa4a76e"
+      },
+      "original": {
+        "bytes": 15483,
+        "sha256": "94f377844545ff6e2d742b3bdfdb89d224705c247a45e2e233ca136dc4b41016"
+      },
+      "path": "crates/scap-service/src/wire/tests.rs"
+    }
+  ],
+  "source_parent": "5604126f7677188dd1b35dd3d596747d4bf95002",
+  "static_checks": [
+    {
+      "argv": [
+        "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/nightly-2025-09-18-x86_64-unknown-linux-gnu/bin/rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "--check",
+        "crates/scap-sql/src/lib.rs",
+        "crates/scap-sql/src/tests.rs",
+        "crates/scap-object-sqlite/src/lib.rs",
+        "crates/scap-object-sqlite/src/tests.rs",
+        "crates/scap-service/src/wire.rs",
+        "crates/scap-service/src/wire/tests.rs"
+      ],
+      "exit_code": 0,
+      "name": "rustfmt"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "name": "diff-check"
+    }
+  ],
+  "status": "static_implementation_tests_not_run"
+}
