@@ -626,6 +626,38 @@ def name_progress(scan, objects, ordered, *, initial=None, start_after="", fault
     return {"pages": len(scan), "natural_unknown_pages": unknown, "classified_candidates": len(covered), "complete": True}
 
 
+def inventory_candidate(objects, call, entry):
+    """Bind a record to the LIST and exact candidate interval that admitted it."""
+    scope = entry["creation"]["scope"]
+    tenant = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+    kind = entry["kind"]
+    require(kind in ("name", "create", "control", "head"), "inventory candidate kind is outside the fixed fixture")
+    prefix = tenant if kind == "head" else tenant + "catalogue/v1/" + kind + "/"
+    physical = entry["key"][:-4] if kind == "head" else entry["key"]
+    lists = within(objects, call, listing=True)
+    admitted = only([obj for obj in lists if obj["request"]["query"]["prefix"] == prefix
+                     and obj["request"]["query"].get("delimiter") == ("/" if kind == "head" else None)
+                     and physical in listed(obj)[0]], "inventory record lacks its unique original admitting LIST")
+    lower = stamp(admitted["delivery"])
+    upper = min((stamp(obj["request"]) for obj in lists if stamp(obj["request"]) > lower),
+                default=stamp(call["response"]))
+    phase = {serial: obj for serial, obj in objects.items() if lower < stamp(obj["request"]) < upper
+             and stamp(obj["delivery"]) < upper and not obj["request"]["query"]}
+    authority = successful_gets(phase, call, entry["key"])
+    require(authority, "admitted inventory candidate lacks its own exact authority GET")
+    lower = min(stamp(obj["request"]) for obj in authority)
+    entries = listed(admitted)[0]
+    following = entries[entries.index(physical) + 1:]
+    # Different immutable control records may name the same creation. A later
+    # record must not borrow the earlier record's Name/Proof/HEAD/Name witness.
+    next_keys = {key + "head" if kind == "head" else key for key in following
+                 if kind != "head" or key != tenant + "catalogue/"}
+    upper = min((stamp(obj["request"]) for obj in phase.values() if obj["request"]["key"] in next_keys
+                 and stamp(obj["request"]) > lower), default=upper)
+    return {serial: obj for serial, obj in phase.items() if lower <= stamp(obj["request"]) < upper
+            and stamp(obj["delivery"]) < upper}
+
+
 def inventory_record(objects, call, entry):
     require(set(entry) == {"key", "kind", "state", "creation", "scope", "binding_revision", "head_revision", "control"},
             "inventory projection fields differ")
@@ -636,13 +668,14 @@ def inventory_record(objects, call, entry):
     key_by_kind = {"name": prefix + "catalogue/v1/name/" + sha(creation["name"].encode()),
                    "create": prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}",
                    "head": prefix + scope["database"] + "/head"}
-    reads = read_map(objects, call)
+    candidate = inventory_candidate(objects, call, entry)
+    reads = read_map(candidate, call)
     if entry["kind"] in key_by_kind:
         require(entry["key"] == key_by_kind[entry["kind"]], "inventory kind/key changed")
     else:
         require(entry["kind"] == "control" and entry["key"].startswith(prefix + "catalogue/v1/control/"),
                 "inventory introduced an unseeded record kind")
-    require(successful_gets(objects, call, entry["key"]), "inventory crossed a record without an exact original GET")
+    require(successful_gets(candidate, call, entry["key"]), "inventory crossed a record without an exact original GET")
     witness = classified_name_evidence(reads, creation)
     if witness is not None:
         require(entry["state"] == "ready" and entry["binding_revision"] == str(witness["binding"]["revision"])

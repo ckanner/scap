@@ -64,6 +64,19 @@ class Evidence:
         self.get(name, binding)
         return {"creation": creation, "binding_revision": "2", "head_revision": "7"}
 
+    def absent(self, creation, authority):
+        scope = creation["scope"]
+        prefix = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+        descriptor = prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}"
+        name = prefix + "catalogue/v1/name/" + audit.sha(creation["name"].encode())
+        self.get(authority, encoded({"creation": creation}))
+        if authority != descriptor:
+            self.get(descriptor, encoded({"creation": creation}))
+        self.get(name, b"missing", 404)
+        self.get(prefix + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}", b"missing", 404)
+        self.get(prefix + scope["database"] + "/head", b"missing", 404)
+        return self.get(name, b"missing", 404)
+
 
 def creations():
     values = [{"name": f"fixture-{index}", "creator": "11", "operation": str(100 + index),
@@ -120,10 +133,13 @@ def inventory_fixture():
                  "completion": {"traversal_exhausted": False}, "stopped": "UNKNOWN", "usage": {"candidates": 3}}, inventory=True)
     evidence.now = 5_010_000_000
     evidence.listing(tenant + "catalogue/v1/create/", [descriptor])
+    evidence.get(descriptor, encoded({"creation": creation}))
     evidence.ready(creation)
     evidence.listing(tenant + "catalogue/v1/control/", [])
     evidence.listing(tenant + "catalogue/v1/abort-proof/", [])
     evidence.listing(tenant, [head[:-4], tenant + "catalogue/"], delimiter="/")
+    evidence.get(head, encoded({"scope": creation["scope"], "revision": 7, "lifecycle": "ready",
+                               "creation": {"descriptor_hash": audit.sha(encoded({"creation": creation}))}, "policy": []}))
     evidence.ready(creation)
     middle = call(5_000_000_000, 5_100_000_000, "inventory-1", {"records": [record("create", descriptor), record("head", head)],
                   "cursor": "inventory-2", "completion": {"traversal_exhausted": False}, "stopped": "LIMIT",
@@ -284,6 +300,40 @@ class NaturalContinuationControls(unittest.TestCase):
             for entry in value["value"]["value"]["records"]:
                 self.assertGreater(audit.inventory_record(evidence.objects, value, entry), 0)
 
+    def test_same_creation_records_have_their_own_admitting_list_and_final_get(self):
+        evidence, _, scan = inventory_fixture()
+        current = scan[1]
+        create, head = current["value"]["value"]["records"]
+        phase = next(obj for obj in audit.page_requests(evidence.objects, current)
+                     if obj["request"]["query"].get("prefix") == "scap-object/v1/1/7/")
+        self.assertLess(audit.inventory_record(evidence.objects, current, create), audit.stamp(phase["request"]))
+        self.assertGreater(audit.inventory_record(evidence.objects, current, head), audit.stamp(phase["delivery"]))
+
+    def test_head_record_cannot_borrow_create_phase_authority(self):
+        evidence, _, scan = inventory_fixture()
+        current = scan[1]
+        phase = next(obj for obj in audit.page_requests(evidence.objects, current)
+                     if obj["request"]["query"].get("prefix") == "scap-object/v1/1/7/")
+        evidence.objects = {serial: obj for serial, obj in evidence.objects.items()
+                            if not (audit.stamp(phase["delivery"]) < audit.stamp(obj["request"]) < audit.stamp(current["response"]))}
+        with self.assertRaisesRegex(ValueError, "own exact authority GET"):
+            audit.inventory_record(evidence.objects, current, current["value"]["value"]["records"][-1])
+
+    def test_returned_head_final_get_has_only_its_exact_refund(self):
+        evidence, _, scan = inventory_fixture()
+        current = scan[1]
+        evidence.objects = {serial: obj for serial, obj in evidence.objects.items() if audit.window(current, audit.stamp(obj["request"]))}
+        final = audit.page_requests(evidence.objects, current)[-1]
+        final["request"]["monotonic_ns"] = audit.stamp(current["request"]) + 3_950_000_000
+        final["delivery"]["monotonic_ns"] = audit.stamp(final["request"]) + 100
+        current["response"]["monotonic_ns"] = audit.stamp(current["request"]) + 4_010_000_000
+        current["value"]["value"]["stopped"] = "UNKNOWN"
+        through = max(audit.inventory_record(evidence.objects, current, entry) for entry in current["value"]["value"]["records"])
+        self.assertEqual(through, audit.stamp(final["delivery"]))
+        budget = audit.page_budget(evidence.objects, current, through)
+        self.assertIsNone(budget["uncertain_final_get"])
+        self.assertEqual(len(budget["metadata_options"]), 1)
+
     def test_inventory_cannot_skip_a_physical_record(self):
         evidence, published, scan = inventory_fixture()
         scan[1]["value"]["value"]["records"].pop(0)
@@ -316,21 +366,32 @@ class NaturalContinuationControls(unittest.TestCase):
         prefix = "scap-object/v1/1/7/"
         descriptor = prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}"
         control = prefix + "catalogue/v1/control/11/30002"
-        name = prefix + "catalogue/v1/name/" + audit.sha(creation["name"].encode())
-        evidence.get(control, encoded({"creation": creation}))
-        evidence.get(descriptor, encoded({"creation": creation}))
-        evidence.get(name, b"missing", 404)
-        evidence.get(prefix + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}", b"missing", 404)
-        evidence.get(prefix + creation["scope"]["database"] + "/head", b"missing", 404)
-        after = evidence.get(name, b"missing", 404)
         invocation = call(1, 100_000_000, None, {}, inventory=True)
         for kind, physical, state in (("create", descriptor, "descriptor_only"), ("control", control, "control_admitted")):
+            evidence.listing(prefix + "catalogue/v1/" + kind + "/", [physical])
+            after = evidence.absent(creation, physical)
             entry = {"key": physical, "kind": kind, "state": state, "creation": creation, "scope": creation["scope"],
                      "binding_revision": None, "head_revision": None, "control": None}
             self.assertEqual(audit.inventory_record(evidence.objects, invocation, entry), audit.stamp(after["delivery"]))
         after["delivery"]["status"] = 403
         with self.assertRaisesRegex(ValueError, "stable absent view"):
             audit.inventory_record(evidence.objects, invocation, entry)
+
+    def test_same_creation_control_cannot_borrow_previous_candidate_in_same_list(self):
+        evidence, creation = Evidence(), creations()[0]
+        creation["name"] = "discovery-descriptor-only"
+        prefix = "scap-object/v1/1/7/catalogue/v1/control/"
+        keys = [prefix + "11/30002", prefix + "11/30004"]
+        evidence.listing(prefix, keys)
+        original = evidence.absent(creation, keys[0])
+        evidence.get(keys[1], encoded({"creation": creation}))
+        current = call(1, 100_000_000, None, {}, inventory=True)
+        entry = {"key": keys[0], "kind": "control", "state": "control_admitted", "creation": creation,
+                 "scope": creation["scope"], "binding_revision": None, "head_revision": None, "control": None}
+        self.assertEqual(audit.inventory_record(evidence.objects, current, entry), audit.stamp(original["delivery"]))
+        entry["key"] = keys[1]
+        with self.assertRaisesRegex(ValueError, "stable absent view"):
+            audit.inventory_record(evidence.objects, current, entry)
 
     def test_frontier_negative_rewrites_a_coherent_full_original_list(self):
         prefix = "scap-object/v1/1/7/catalogue/v1/name/"

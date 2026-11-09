@@ -27,6 +27,10 @@ Node SDK 均从同一冻结源码构建或导入，实验不提供替代目录�
   provision 也不给 inventory 权限。库存记录的 control 投影必须来自实际 GET。
   库存续页还按真实的 tenant、name/create/control/abort-proof/slot 次序核对物理
   下界；空阶段的切换必须有对应耗尽 LIST，已分类的原始记录与累积计数必须一致。
+  每个记录的来源证明绑定到本次实际列出它的 LIST，以及从该候选的 exact GET 到
+  下一候选或下一 LIST 之间的区间。同一 creation 出现在 create/head 阶段，或出现在
+  相邻的两个 control 记录中时，各自必须有完整的新证明，不能借用同页较早记录的
+  Name → Proof → HEAD → Name。已返回记录的最终分类 GET 因而不能被误列为未决退款。
 - 六个有明确原始后端响应的故障：LIST 403、404、缺少 `IsTruncated`、截断零进展，
   以及已分类一个条目之后的 exact HEAD 404 / 损坏。错误必须保留不完整游标与
   停止原因；恢复必须使用它并从最后已分类条目继续，不能跳到网络页末。
