@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "formal-foundation-units-passed-actual-pending",
+  "status": "foundation-and-raw-composition-units-passed-actual-pending",
   "foundation_profile": {
     "head_format": 5,
     "active_generation": 1,
@@ -1619,7 +1619,17 @@
     "merged_service_fixture_units": 189,
     "merged_service_fixture_log_sha256": "c175e1ef1a4cb0a7bd8fc8e861ffd085557e36092967c17465aefdeb6bac1bfd",
     "raw_frame_source_files_exact": true,
-    "complete_workspace_unit_four_dimensions": "NOT_RUN",
+    "complete_workspace_unit_four_dimensions": {
+      "status": "passed",
+      "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+      "record": "docs/evidence/head5-raw-composition-local-2026-11-09.json",
+      "record_sha256": "2c213ee45b25a448e69906d44ad4814926fba4d84a2792a5e1a169f212293d77",
+      "stable_tests": 513,
+      "nightly_tests": 513,
+      "production_files": 55,
+      "profiles_collected_together": true,
+      "old_scoped_profiles_reused": false
+    },
     "actual_head5_service_native_s3": "NOT_RUN",
     "older_scoped_results_not_combined_into_one_profile": true
   }
