@@ -1,7 +1,8 @@
 # 普通 `/v1` 编码缓冲池
 
-状态：**已接入 daemon 的静态候选，尚未运行本片 Cargo、单位、严格 Clippy、
-四维覆盖或实际服务合同，全部记为 NOT_RUN。** 基线为
+状态：**已接入 daemon。冻结运行时 `f074897` 的格式检查和严格 Clippy 通过；
+stable 编译完成，但单位执行控制丢失，完整门禁为 INCOMPLETE_EXECUTION_CONTROL_LOST。
+没有取得完整单位或本片四维结果，实际服务合同仍 NOT_RUN。** 基线为
 `acec129c51c7d51f019fbaf34ff4ea0bd0509cb0`；基础编码器的独立门禁不替代本片验收。
 本片落实[结果输出预算](result-output-budget.md)第1、3–7节；不打开新存储世代或 GC。
 
@@ -151,3 +152,26 @@ worker仍运行时HTTP timeout不退E、排队放弃、发送失败与原deadlin
 并重跑受影响的真实 service/resource/slow-consumer 合同。resource fixture 的适配改变了
 输入身份，旧14负/1正控制结果不能作为本片验收。旧基础、旧资源、旧传输结果各保留
 原 source/binary 身份；本静态候选尚没有 aggregate output 实际验收结论。
+
+## 6. 2026-11-09：执行中断与保全
+
+冻结运行时为 `f074897403e7e85e7612584027bbbfd680353a43`。attempt01 的原记录
+保留：format 和严格 Clippy exit0，stable 编译完成；原日志只证明一个 core unit
+程序开始，未观察到任何 unit 程序完整退出。工具会话随后无法恢复，原 completion
+仍为原样 running；另列 INCOMPLETE_EXECUTION_CONTROL_LOST，不补造退出码，
+不把它写成代码失败或门禁通过。
+
+6 个当前 stable ELF 以“已编译、执行未完成”身份封存。当前 coverage 的 6 个 ELF、
+93 份 raw 和 1 份 merged 逐字节属于上一次已验收的 `acec129`，不能计入 f074。
+保全归档的 214 个成员全部读回，450 个 source members 验证通过；root 随后独立
+重算归档 SHA 一致。187 个待替换 target artifacts 具备交接记录，native OUT_DIR
+引用保留。历史 c6 Clippy 失败、d012 四维失败及 acec 的 546+546 通过各保留原身份。
+
+随后执行环境被标记 unavailable，新的命令不能启动。attempt02、当前模型修正版
+及两组新的实际 fixture 都没有因此开始执行。环境恢复后先验证原保全和目标身份，
+再在独立新 evidence 目录运行同一冻结源码的完整门禁；旧 profiles 不进入新分母。
+本次文档提交不修改 f074 的生产 Rust 或测试输入。
+
+[中断与归档身份记录](../evidence/service-output-pool-incomplete-local-2026-11-09.json)
+列出最后成功验证的产物及当前执行边界。归档内容在环境失去访问前已验证；此时不宣称
+仍可从不可用环境重新读取这些本地文件。
