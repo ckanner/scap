@@ -1,0 +1,147 @@
+# Handle 知识域的独立有界模型
+
+本包检查一个明确的后续设计：普通 read/write 不为每次操作持久写入 PinAdd/Release；
+失败知识属于 `(可信 authority domain, full Scope, handle lineage)`。它不修改生产
+generation、错误码或 quarantine，也不修改已接受的 PR41/PR43 模型。只有绑定本包
+源码和输入的独立完整图 receipt 才能证明本轮验收完成；`ENUMERATED` 只是 producer
+已走完有限输入，不能称为生产正确性或独立验证通过。
+
+## 所选合同
+
+Database clones、同一 Session/ObjectContext 共用 lineage。另一次 Database 构造、
+Catalogue/Recovery 构造的新 handle，即使位于同一 worker，也有独立 lineage。可信
+authority domain 是实际 bucket/prefix/backend 配置的抽象，不是用户提供的字符串或
+Arc 地址。本模型有两个独立后端 map；full Scope 包括 incarnation，永久 HEAD slot
+相同不意味着身份相同。
+
+quarantine/latch 阻止后续相关 publication。它不等于“所有读取都拒绝”：失败的原
+attempt 不能恢复前缀或公开成功；同 lineage 全新 fresh 授权、全自有 GET/验证的
+只读操作可以成功，但不得清除旧知识。独立 H2 必须有完整成功的可达正例，防止把旧
+全局 latch 偷留在模型里，再以全部拒绝冒充安全。
+
+最后一次 healthy 检查、dispatch、backend delivery、观察结果、native 收尾和公开
+ACK 是不同步骤。晚到的同 lineage latch 不能撤回已经通过最后检查的原 permit，
+也不能取消原 token。相反，明确 local stop 仍阻止新的 dispatch/public success。
+已发 token 在 caller/handle 关闭后仍可 apply/discard；原 UNKNOWN 是历史观察，后端
+后来 Applied 不把它改成 ACK。已有公开成功也不会被后来 stop/latch 追溯改写。
+
+`native_publish` 的 commit/fail 只是**抽象的已知 durable 后收尾分支**。模型不证明
+当前 SQLite 在每个停止时点都能 commit，也不证明真实引擎、线程或时钟的取消行为。
+Known durable + native fail 与未提交、UNKNOWN、公开 ACK withheld 分开记录。
+
+## 物理失败与语义失败
+
+原始 Missing/hash 故障保存实际 GET 的 domain/Scope/generation/key/token。最多一个
+专用 exact HEAD probe 可用于调查，不能产出可 rebase Snapshot，不能借另一 handle
+或后端的 HEAD。永久退休要求：
+
+`1 <= g <= allocated_through`，同时 g 不是 active、current target 或 retained hold。
+
+任何合法后继都不能重新 active、重新分配或新 hold 已退休 g。这样，abandoned G2 在
+A1/T3 下也可退休；不能把退休缩成 `g < active`。原 domain/slot 的 probe 若读到
+foreign Scope、malformed 或 unavailable HEAD，必须失败关闭，不能靠看似推进的
+serial/generation 降格为 SnapshotExpired。
+
+Hash-valid Scope/type/typed-edge/content 语义错误单独 latch，不能借物理退休变成
+expiry。K15a 的坏 typed edge 保持 active，不假装它通过了合法 raw-copy Seal。
+K15b 则明确声明：raw 图合法，但后续抽象 content/native 判据失败；相同原字节可以
+被 raw-copy Promote，失败不能因此变成成功。本模型的格式是 MODELKNOWLEDGE1，
+**不是** SCAPOBJ2、真实 data tree、B+ tree、SCAPRES1 或 SQLite 的验证证明。
+
+K16 独立演示新 H2 从自己的 fresh READ HEAD、index 和 Result GET 取得旧 durable
+receipt。Result.data_root 是身份字段，不是自动指向历史 data graph 的遍历边。
+这个新查询不会改写 H1 的 UNKNOWN，也不会重新执行 SQL/native。
+
+## 冻结范围和有限假设
+
+`inputs.json` 固定 **46 profiles、1,899 actor steps、119 mandatory witnesses**。原
+38 个 program 对象保持不变，新增八个 profile 补上原 domain 的坏 probe 和 stop
+在 permit/dispatch 两侧的边界；`program-history.json` 保存逐 profile 的原指纹。
+`PLAN.md` 描述 K01–K17，`build_inputs.py` 只展开程序，不执行状态转移。
+
+每个 mark/await 都是明确的 fixture/program 调度假设。有限程序的全部交错不等于
+任意客户端程序或无限 worker 的全部调度。每一个已发 pending token 的 apply 和
+discard 仍独立 enabled；fixture barrier 不能删掉它。可选 UNKNOWN 可以先于
+delivery 观察，也可以在实际效果之后观察；结果观察只能写一次。
+
+| 维度 | 每 profile 的上界 |
+| --- | ---: |
+| actors / lineages / workers | 4 / 3 / 2 |
+| authority domains / full Scopes | 2 / 2 |
+| physical generations / hold / current plan | 3 / 1 / 1 |
+| 固定 raw frames / network tokens | 8 / 48 |
+| 每 actor 显式步骤 | 96（当前最大 52） |
+| states / edges / exploration time | 50,000 / 150,000 / 120 s |
+
+超限原样标记 INCOMPLETE，并保留原图、日志、源码和停止位置；producer 在第一个失败/
+超限 profile 停下，不继续消耗其他 profile 的 cap。不能删掉 mandatory witness、
+调高 cap 或压掉 delivery 来把既有失败改为通过。
+
+另有这些边界：
+
+- 初态 sealed plan 假设目标 raw closure 已验证；这里不重新证明复制/Seal 协议。
+- `remove_retired` 是受限显式 fixture，要求退休谓词已成立。这里不重新实现 checkpoint
+  UNKNOWN、条件 DELETE、批次清理或跨 key recovery。旧 PR43 的这部分模型保持独立。
+- K06 held G1 先通过真实模型 HEAD CAS 加 hold，再 Promote；故障是受控存储/读取
+  corruption，不是允许 GC 删除被 hold 的对象。
+- 关闭 lineage 的知识保存在有限历史中供审计；这不是生产无限 HashMap，也不证明
+  refcount/缓存重建的内存回收界限。没有跨进程 durable incident 广播假设。
+- deadline 是显式 local-stop 抽象，不能证明真实 `received + duration`、meter 消耗、
+  等待队列或 HTTP/TCP 时序。
+- 普通新 cold closure/read/write、两种窄 management publication 和独立抽象 lookup
+  属于本轮；warm Session SQL、Catalogue Name/Control/Proof、Provisioning bootstrap
+  和真实 RecoveryMeter 的全部生命周期仍需要生产接入时的专项 refinement。
+- 本轮 profiles 的业务生命周期保持 Ready。输入中的 required-rights 表记录必要的
+  授权合同，不代表这里已经穷举 Maintenance/Deleted/Provisioning；例如生产 policy
+  可用于 Maintenance 的路径仍由生产单元/既有状态机验收负责。
+
+`source-inputs.json` 是最初静态设计的历史来源清单（包括 f6 生产和管理片 handoff），
+其中当时的 NOT_EXPANDED 不作为当前运行状态。当前程序状态以 `inputs.json` 和本轮
+receipt 为准。旧十四文件的 SHA 在每次独立审计中重新核对，不挪用旧通过分母。
+
+## 实现与独立检查
+
+`model.py` 是 producer；`run.py` 对冻结的 actor programs 做 BFS，将每个完整 state
+和全部 edge 写入有哈希绑定的压缩原始图。token ID 来自 actor+原 pc，避免让无关
+全局发号顺序制造额外状态；没有 partial-order reduction，也不丢 pending 网络边。
+
+`oracle.py`、`oracle_protocol.py`、`oracle_witnesses.py` 不导入 producer 或 explorer。
+它们从原始图重新检查：准确初态、每个 state 的原字节/知识来源、每条 backend 的
+原 condition/body、每个 actor 的 allowed delta、原公开出口及完整 enabled-choice
+集合。允许修改某字段并不代表可以任意伪造其值；latch/proof/view/token/native 都有
+独立来源约束。每个 state 必须有一条实际存在的父边连接到初态，不能注入不可达正例。
+mandatory witness 输出引用原图 SHA 和实际连通 prefix，不用统计名字代替可达路径。
+
+负控在原完整图中选取可达 edge/prefix，保持原 source state 和 event，修改目标语义，
+要求在声明的边界被同一冻结 oracle 拒绝。包括跨 lineage poison/clear、误留全局读
+禁令、view/label 伪造、UNKNOWN 回写、健康 permit 与 stop 混淆、native/公开出口、
+foreign proof、held/active expiry、raw frame/完整物化、metadata 字段越权和退休
+target 再 hold。合法的另一种管理/技术候选也不能替换原 command 的动词；技术 capture
+必须逐字段绑定它自己刚观察的 HEAD，失败原 attempt 的普通门禁不能删掉专用 probe。
+目前计划 **38 个语义负控、2 个图级负控和 19 个 focused unit tests**；计数不代表
+它们已运行。图级负控删掉关闭 caller 后仍 enabled 的 delivery，或重复一个 choice。
+每个负控的原 edge 先作为正例验证，另保留一个原完整 choice 集合正控。控制只调用
+实际独立规则，不提供绕过 source/identity 检查的“接受覆盖”模式。
+
+## 运行命令与证据
+
+```sh
+python3 -B -m unittest discover -s experiments/object-handle-knowledge-model -p 'test_model.py'
+python3 -B experiments/object-handle-knowledge-model/run.py --output /tmp/scap-handle-model-run01
+python3 -B experiments/object-handle-knowledge-model/oracle.py \
+  --graph /tmp/scap-handle-model-run01 --output /tmp/scap-handle-model-audit01
+python3 -B experiments/object-handle-knowledge-model/controls.py \
+  --graph /tmp/scap-handle-model-run01 \
+  --audit /tmp/scap-handle-model-audit01/receipt.json \
+  --output /tmp/scap-handle-model-controls01
+```
+
+新输出目录必须不存在。源码变更后创建新运行目录，原 FAILED/INCOMPLETE 记录不
+覆盖、不改标签。单个 `--profile` 开发运行必须保持显式 scope，不能当成全部 46 组
+完成。独立审计与 controls 都绑定 source、inputs、图、日志和原始失败；producer 的
+完成状态不能代替这两项验收。
+
+裸 `send_head` 指令未声明 `uncertain` 时，冻结程序的缺省值明确为 false；声明 true
+的原 UNKNOWN 分支保持 enabled。重复或不存在的 `--profile` 在创建运行目录和枚举
+之前拒绝。首轮静态审阅发现的实现缺口保留在 static01 清单中，属于未执行前的静态
+发现，不改写为运行失败或通过；修正版另行冻结并验证，46 份输入原字节保持不变。

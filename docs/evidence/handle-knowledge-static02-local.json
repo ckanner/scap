@@ -1,0 +1,238 @@
+{
+  "bounds": {
+    "actors": 4,
+    "domains": 2,
+    "edges_per_profile": 150000,
+    "frames": 8,
+    "generations": 3,
+    "holds": 1,
+    "lineages": 3,
+    "plans": 1,
+    "scopes": 2,
+    "seconds_per_profile": 120,
+    "states_per_profile": 50000,
+    "steps_per_actor": 96,
+    "tokens": 48,
+    "workers": 2
+  },
+  "focused_units": {
+    "count": 19,
+    "original_log": {
+      "bytes": 3536,
+      "path": "/tmp/scap-handle-knowledge-units01/units.log",
+      "sha256": "245f7a7dc8947ebec1e950617bd8a885c3a91a8e5ba97c947124ed7e342bc285"
+    },
+    "receipt": {
+      "bytes": 1469,
+      "path": "/tmp/scap-handle-knowledge-units01/receipt.json",
+      "sha256": "1d419c91a9339c3770e0ed3ecf40b06274b18cc5c49f6a20c58e9180ffc6d491"
+    },
+    "scope": "Concrete model paths and independent relation mutations, not exhaustive graphs or real native/HTTP/S3 verification.",
+    "source_unchanged": true,
+    "status": "PASS"
+  },
+  "frozen_programs": {
+    "actor_steps": 1899,
+    "barriers_are_declared_fixture_assumptions": true,
+    "explicit_mark_await_barriers": 277,
+    "inputs_sha256": "9cd5c13adda7f74bae847fe3786cabec83b5594086788edb423f0ff3b4f6da4a",
+    "mandatory_witnesses": 119,
+    "maximum_actor_steps": 52,
+    "original_38_program_objects_unchanged": true,
+    "profiles": 46,
+    "program_manifest": {
+      "bytes": 84376,
+      "path": "/tmp/scap-handle-knowledge-programs02/program-manifest.json",
+      "sha256": "dc11c80074b317e8be219d6d90e01564029c4cffc019c016933893b56f199684"
+    }
+  },
+  "limitations": [
+    "Only finite frozen actor programs with explicit barriers; no claim about arbitrary schedules or infinite workers.",
+    "The original PR43 global health and authority knowledge remain its historical abstraction; this draft separately models trusted authority-domain/full-Scope/handle-lineage knowledge.",
+    "No production generation, pin, checkpoint, DELETE, quarantine or error projection changes.",
+    "Native commit/fail and content validation remain explicit abstractions, not SQLite proofs.",
+    "Real Provisioning, warm Session, B+ tree/SCAPRES1, RecoveryMeter, HTTP deadlines and full GC checkpoint protocol remain outside this package.",
+    "Old model/coverage/actual denominators are not enlarged by these 19 units."
+  ],
+  "original_14_model_sources_unchanged": [
+    {
+      "bytes": 11737,
+      "path": "experiments/object-reclamation-abortable-model/README.md",
+      "sha256": "c0ba2e2bf7c090807692492e62523910de1d335d13f63da55c136c7938fa31b0"
+    },
+    {
+      "bytes": 12566,
+      "path": "experiments/object-reclamation-abortable-model/SCENARIOS-v1.md",
+      "sha256": "743551f1ced3fec6837bce815dbd7d6ce4caad6670103088de3d9fb7bb5b2fae"
+    },
+    {
+      "bytes": 19064,
+      "path": "experiments/object-reclamation-abortable-model/SCENARIOS-v2.md",
+      "sha256": "85c7f30bae233917d40c91329cd71dedfa71ef15cb4cfc9254816e65e4ed64c7"
+    },
+    {
+      "bytes": 21327,
+      "path": "experiments/object-reclamation-abortable-model/SCENARIOS-v3.md",
+      "sha256": "0ca6705702009ccc588906d77ee298e49eaabacea117154f4e72868bfbf19364"
+    },
+    {
+      "bytes": 23612,
+      "path": "experiments/object-reclamation-abortable-model/SCENARIOS.md",
+      "sha256": "bc3bd148441e9fabc0232a5a4e3475bec4b198b34506453ee2c54c53556c0b38"
+    },
+    {
+      "bytes": 30773,
+      "path": "experiments/object-reclamation-abortable-model/build_inputs.py",
+      "sha256": "c7f334fafb3de14cef1e371109850f70724cda4da0ec6f6c10a3a4ecf7913260"
+    },
+    {
+      "bytes": 24000,
+      "path": "experiments/object-reclamation-abortable-model/controls.py",
+      "sha256": "c6655495b3314bbd98fab59704f6b93ff21f3cbf59bb8e0d512091b5eda03d17"
+    },
+    {
+      "bytes": 382076,
+      "path": "experiments/object-reclamation-abortable-model/inputs.json",
+      "sha256": "c3dcdc873f3844002ac816df4ab328399837e17d932d23a6245562555e0acc9b"
+    },
+    {
+      "bytes": 40839,
+      "path": "experiments/object-reclamation-abortable-model/model.py",
+      "sha256": "2b6fdb14f724ae7a2f4604af8331ae08b4f2b3ac54a4a15a10f51b2993566af2"
+    },
+    {
+      "bytes": 14045,
+      "path": "experiments/object-reclamation-abortable-model/oracle.py",
+      "sha256": "0c59dc5363217700d25ba40bbe775c3a636838618f75ca59cfd5b45eee0d6177"
+    },
+    {
+      "bytes": 54415,
+      "path": "experiments/object-reclamation-abortable-model/oracle_protocol.py",
+      "sha256": "01f589620ca061e9605efcfa7d898e486989ca7d9a1a5385c0ab32ba8a2feb67"
+    },
+    {
+      "bytes": 16770,
+      "path": "experiments/object-reclamation-abortable-model/oracle_witnesses.py",
+      "sha256": "f1e052165fb02b861052e8b63b0f88d5177b816c0d008bcfe0f7f3f52ad29139"
+    },
+    {
+      "bytes": 6073,
+      "path": "experiments/object-reclamation-abortable-model/run.py",
+      "sha256": "5909d835bd9cd5358f739e86f7096d85c209c13bba663661e416edeeddeb46b6"
+    },
+    {
+      "bytes": 10349,
+      "path": "experiments/object-reclamation-abortable-model/test_model.py",
+      "sha256": "7e582ea4bc43b13c0d40f511ec5ce5b0454692f8c964064a1661d2ab4c8adccc"
+    }
+  ],
+  "original_accepted_model_evidence_unchanged": true,
+  "pending_gates": {
+    "complete_46_profile_BFS": "NOT_RUN",
+    "graph_negative_controls": {
+      "planned": 2,
+      "status": "NOT_RUN"
+    },
+    "independent_complete_graph_oracle": "NOT_RUN",
+    "production_native_and_actual": "NOT_RUN_NOT_IN_THIS_MODEL_SCOPE",
+    "semantic_negative_controls": {
+      "planned": 38,
+      "status": "NOT_RUN"
+    }
+  },
+  "prior_static_review": {
+    "additional_tool_fix": "Repeated --profile rejects before output creation or exploration.",
+    "classification": "Four findings from static source review before any execution; not relabeled as runtime failures or passed tests.",
+    "findings": [
+      "Bare send_head omitted uncertain; two independent consumers now default absence to false.",
+      "Candidate kind must equal the original requested constructor, including otherwise-valid alternative management/technical deltas.",
+      "Technical context must equal its own freshly observed authority including active generation, roots, mode and plan.",
+      "failed_attempt_closed applies only to ordinary live-gated operations, not a legal failure probe or cleanup."
+    ],
+    "peer_receipt": {
+      "bytes": 7746,
+      "path": "/tmp/scap-handle-knowledge-peer-review01/receipt.json",
+      "sha256": "2b6cdee8cbdbc2a9f7cd998a3ec7c33000dff685d2f3f5047d2d3cb4738cfa0a"
+    },
+    "static01_manifest": {
+      "bytes": 5472,
+      "path": "/tmp/scap-handle-knowledge-static01/manifest.json",
+      "sha256": "06ec9ee749ce421c8b661cb2ecd4ba42bad50e2ff98d1dac3b2e49518eff1f37"
+    }
+  },
+  "publication_base": "46dc07230bdc5b8029f736ec2f8db5e582ba9fc0",
+  "schema": 1,
+  "source_files": [
+    {
+      "bytes": 14270,
+      "path": "experiments/object-handle-knowledge-model/PLAN.md",
+      "sha256": "e7476492ddaae0f89907a4b24b94a5fb5e81fe86ad9a87d0512242ce8178cc62"
+    },
+    {
+      "bytes": 10154,
+      "path": "experiments/object-handle-knowledge-model/README.md",
+      "sha256": "df2aedaef820912ad54f33e7f67b6159f3a7b3c070ae89e864caf03e74e40087"
+    },
+    {
+      "bytes": 28217,
+      "path": "experiments/object-handle-knowledge-model/build_inputs.py",
+      "sha256": "5d3647ce9a663d11d3335f4e5da7b3bee808f0b0b93ba5b5f4285763e4d53170"
+    },
+    {
+      "bytes": 24676,
+      "path": "experiments/object-handle-knowledge-model/controls.py",
+      "sha256": "cd15b6aea2a5187cfe71177de75d545ce95c3c3c4e0b2f9f2fcb5ca6a26a909d"
+    },
+    {
+      "bytes": 699518,
+      "path": "experiments/object-handle-knowledge-model/inputs.json",
+      "sha256": "9cd5c13adda7f74bae847fe3786cabec83b5594086788edb423f0ff3b4f6da4a"
+    },
+    {
+      "bytes": 34498,
+      "path": "experiments/object-handle-knowledge-model/model.py",
+      "sha256": "cb324de184e87933215bd640f64deb1d68b1574c08ec07818dcc462c7d09d604"
+    },
+    {
+      "bytes": 9687,
+      "path": "experiments/object-handle-knowledge-model/oracle.py",
+      "sha256": "f3d310c37558e07574da59963225edb0aca0b61d52445f31a0c3b5472215bcf3"
+    },
+    {
+      "bytes": 56080,
+      "path": "experiments/object-handle-knowledge-model/oracle_protocol.py",
+      "sha256": "990ef6eb154578619ed9a8d77d42e308e30005cf78cd37d1acf214cf805c6bca"
+    },
+    {
+      "bytes": 10703,
+      "path": "experiments/object-handle-knowledge-model/oracle_witnesses.py",
+      "sha256": "49d13ea099152ea22abe714d57f10398df73479b0ae8f8377045ab8f43dd0c6c"
+    },
+    {
+      "bytes": 5798,
+      "path": "experiments/object-handle-knowledge-model/program-history.json",
+      "sha256": "bef878fd3f9a3bcc0ef337a841dd0dd0cec1f93336d3a93e89b8cd66d004a9a4"
+    },
+    {
+      "bytes": 7357,
+      "path": "experiments/object-handle-knowledge-model/run.py",
+      "sha256": "caa711391f28158ea00b872357dcdaa293eecb6ac9dac02c520f1de8c662d43a"
+    },
+    {
+      "bytes": 5993,
+      "path": "experiments/object-handle-knowledge-model/source-inputs.json",
+      "sha256": "facd10ba6ca724fdba9dc1b2af7e55ee3b5090f47c86fc8e3356d7a164c3b29b"
+    },
+    {
+      "bytes": 16782,
+      "path": "experiments/object-handle-knowledge-model/test_model.py",
+      "sha256": "ef9a9bf2650435e3b1696f3f0c8cf43846fa4d84323c8112670fd198545162ee"
+    }
+  ],
+  "source_freeze": {
+    "bytes": 6930,
+    "path": "/tmp/scap-handle-knowledge-static02/manifest.json",
+    "sha256": "349e6b62b51e3c43af624a155ec36e125bc028b02e063bf173c67a24aa5a5649"
+  },
+  "status": "DRAFT_FOCUSED_UNITS_PASS_EXHAUSTIVE_VALIDATION_NOT_RUN"
+}

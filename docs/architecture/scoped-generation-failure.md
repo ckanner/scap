@@ -6,6 +6,13 @@
 
 本次来源哈希、精确提交及 NOT_RUN 范围记录在 [静态设计审阅记录](../evidence/scoped-generation-design-review-2026-11-09.json)。原模型源码、原始验证记录与已有结论保持不变。
 
+后续独立草稿入口：[Handle 知识域模型](../../experiments/object-handle-knowledge-model/README.md)
+已冻结 46 组程序，并通过 19 项针对性单位测试；它将旧 PR43 的共享 health / authority
+知识抽象细化为可信 authority domain、full Scope 与 handle lineage。完整 BFS、独立
+完整图审计、38 项语义负控及 2 项图负控仍为 **NOT_RUN**，精确范围见
+[本轮记录](../evidence/handle-knowledge-static02-local.json)。下文保持原静态设计的来源
+与限制；新草稿不修改旧十四文件或旧结果身份，也不启用任何生产 generation/DELETE。
+
 ## 1. 本轮建议与已具备的前置片段
 
 **当前 1/1 不增加失败后的 fresh HEAD GET，也不增加 SnapshotExpired。** 没有可退休世代时，这个请求只会增加故障路径的延迟和预算消耗。不能为未来消费者先放入未使用的 failure、plan 或 health 类型。
