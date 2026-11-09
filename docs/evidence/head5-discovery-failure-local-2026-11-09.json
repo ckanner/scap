@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "status": "FAILED_ORIGINAL_RUN_RETAINED",
+  "source_commit": "4329f307752ec40ce43d1fd9f52211cac65c8090",
+  "source_unchanged": true,
+  "release_binary": {
+    "path": "/tmp/scap-head5-discovery-release-4329f30-01/release/scapd",
+    "sha256": "6133ed898a73f430a02b59075bd3a12bde3883908f31bf5ab29349ab8dfafdc9"
+  },
+  "build_completion_sha256": "fc60854cb64d06de1c42f00fe41f465b4ce6aae8a39f2612d5efdf78fd037ff8",
+  "actual": {
+    "command": [
+      "python3",
+      "experiments/object-service/discovery_contract.py",
+      "--server",
+      "/tmp/scap-head5-discovery-release-4329f30-01/release/scapd",
+      "--weed",
+      "/workspace/scratch/591a71cb3372/environment/bin/weed",
+      "--build-record",
+      "/tmp/scap-head5-discovery-build-4329f30-01/service-build/build.json",
+      "--evidence",
+      "/tmp/scap-head5-discovery-4329f30-01/discovery"
+    ],
+    "exit_code": 1,
+    "original_summary": {
+      "aws_standard": "NOT_RUN",
+      "cleanup_errors": [],
+      "data_recovery_complete": false,
+      "diagnostic": false,
+      "error": "AssertionError('discovery SDK phase failed: after_fault_head_corrupt_head; inspect original stderr')",
+      "production_slo_passed": false,
+      "schema": 1,
+      "status": "failed"
+    },
+    "http_post_attempts": 382,
+    "complete_http_responses": 381,
+    "http_transport_errors": 1,
+    "successful_client_phases": 16,
+    "failed_client_phase": "after_fault_head_corrupt_head",
+    "failed_call_id": "after_fault_head_corrupt_head:17670:7",
+    "recorded_error_name": "TypeError",
+    "request_to_error_record_ms": 39.272404,
+    "sdk_error_code": "TRANSPORT",
+    "fault_itself_returned": "CORRUPT with a cursor",
+    "complete_responses_after_fault_before_error": 6
+  },
+  "cleanup": {
+    "owned_child_count": 23,
+    "exact_spawn_identities_have_wait4": true,
+    "errors": [],
+    "private_run_directory_absent": true
+  },
+  "assessment": {
+    "root_cause": "UNDETERMINED",
+    "original_ledger_boundary": "http_response is appended only after response.clone().arrayBuffer() completes; a missing record does not prove missing headers.",
+    "original_error_detail": "Only TypeError was retained; cause code and connection identity were not observed.",
+    "keepalive_or_header_timeout_cause": "NOT_PROVED",
+    "database_corruption_cause": "NOT_PROVED",
+    "full_discovery_semantics_audit": "NOT_RUN",
+    "external_oracle": "NOT_RUN",
+    "negative_controls_29": "NOT_RUN",
+    "positive_control_1": "NOT_RUN",
+    "data_recovery_complete": false
+  },
+  "unchanged_contract": {
+    "sdk_timeout_ms": 10000,
+    "server_http_timeout_ms": 5000,
+    "s3_read_budget_ms": 4000,
+    "retry_added": false,
+    "accepted_outcomes_relaxed": false
+  },
+  "next_step": "Bounded fixture-only stage, safe error enum and original-request/connection observation before a targeted reproduction; no production conclusion from this incomplete trace.",
+  "artifacts": [
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/completion.json",
+      "bytes": 1823,
+      "sha256": "57698d50ff035be7adf1a37981732b04906b4dc476858c7b5c8b74fadb6acbd5"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/source-before.json",
+      "bytes": 109419,
+      "sha256": "38dabd5607dd6f931f7478aea18087c78654316318b889b8a6d902af01885d5c"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/source-final.log",
+      "bytes": 99,
+      "sha256": "fa107ed5ab8e1feb763888a8a542e59e87a407012ed0640f183826ea52724e2b"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/driver.py",
+      "bytes": 10841,
+      "sha256": "7cd4fa6d44764e19ff5ee669bef54063f34642ce8bf8a660dfa291350f969332"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery.log",
+      "bytes": 2898,
+      "sha256": "f1c5a74aff64e71dfc173516c6f5f1062148199eae452508ba41184b2a7022c6"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/http-client-ledger.jsonl",
+      "bytes": 846468,
+      "sha256": "8b40499541f7158ebc13762f76c6998b07bbe82c4582f1de577a5f81d24ab753"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/process-ledger.jsonl",
+      "bytes": 36105,
+      "sha256": "b6e9a94bbee70765ebeb601de321231f14728cd922b6df875a3768a4c338ccc3"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/discovery-calls.jsonl",
+      "bytes": 507658,
+      "sha256": "451baad8b3a552b2cdb25bc41c0cfdadd884bcb504110808cb3cf8c05253c6ee"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/discovery-phases.jsonl",
+      "bytes": 1789,
+      "sha256": "306435e429760ef2373fc5a56aa98577b76bfca73b1cc62e57a5698725b74c6f"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/after_fault_head_corrupt_head.stderr.log",
+      "bytes": 1605,
+      "sha256": "160246cc00bf2105a89447f85b94b296724efbb19128b656f11be6fd0b53fea1"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/discovery-oracle.json",
+      "bytes": 300,
+      "sha256": "ee9000953a7b6ef1ea252def1cd9c18cd707217dcf2793ac0cd69436ccd98d67"
+    },
+    {
+      "path": "/tmp/scap-head5-discovery-4329f30-01/discovery/discovery-s3.jsonl",
+      "bytes": 57041353,
+      "sha256": "2476a310f983abc6357f9920b94fbcf38b2f4e550de2b68ef65b49094ec35bc3",
+      "digest_provenance": "Root read/hash and event census before the next quiet actual window",
+      "rows": 89282,
+      "request_rows": 17854,
+      "fault_observed_rows": 6
+    }
+  ],
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN"
+}
