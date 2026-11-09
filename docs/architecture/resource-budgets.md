@@ -32,7 +32,7 @@ owner recovery 的全局 2 / tenant 1 运行额度不等于 body 准入或响应
 | --- | --- | --- |
 | 原始 request body | 实际原始字节 extent | bc2 先预留最大 body，完整读取后退还未用部分 |
 | 请求解析图 | JSON、typed SQL、字符串及 Base64 解码副本 | body 字节数不包含这些分配 |
-| typed result graph | Vec<Vec<Value>>、列名、String/Blob capacity | 结果编码字节预算不能替代容器内存预算 |
+| typed result graph | `Vec<Vec<Value>>`、列名、String/Blob capacity | 结果编码字节预算不能替代容器内存预算 |
 | SCAPRES1 / 编码工作区 | 二进制结果与编码期间同时存活的缓冲区 | 需要按实际转换路径预留 |
 | serialized response | 最终 HTTP body 及仍被运输层持有的副本 | 当前没有独立响应字节池 |
 | immutable decode | GET 原始对象、解码 payload、元数据和增长副本 | 当前单对象上限不等于全进程并发预算 |
