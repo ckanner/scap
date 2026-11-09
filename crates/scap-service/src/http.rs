@@ -265,7 +265,7 @@ async fn catalogue_admitted(
         Err(error) => return failure(error),
     };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(Ok(value))) => Json(json!({"ok":true,"value":value})).into_response(),
+        Ok(Ok(Ok(value))) => Json(wire::success(value)).into_response(),
         Ok(Ok(Err(error))) => failure(error),
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
     }
@@ -329,7 +329,7 @@ async fn admitted(
         Err(error) => return failure(error),
     };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(Ok(value))) => Json(json!({ "ok": true, "value": value })).into_response(),
+        Ok(Ok(Ok(value))) => Json(wire::success(value)).into_response(),
         Ok(Ok(Err(error))) => failure(error),
         // A missing response never proves that publication rolled back.
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
