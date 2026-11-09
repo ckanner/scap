@@ -7,6 +7,37 @@ fn call(extra: &str) -> String {
 }
 
 #[test]
+fn optional_worker_guard_is_canonical_nonzero_and_only_for_owner_actions() {
+    for operation in ["activate", "takeover"] {
+        let base = format!(r#""operation":"{operation}","expected_revision":"1","nonce":"2""#);
+        assert_eq!(
+            parse(call(&base).as_bytes())
+                .unwrap()
+                .action
+                .expected_worker(),
+            None
+        );
+        for worker in ["1", "18446744073709551615"] {
+            let text = call(&format!(r#"{base},"expected_worker_instance":"{worker}""#));
+            assert_eq!(
+                parse(text.as_bytes()).unwrap().action.expected_worker(),
+                Some(worker.parse().unwrap())
+            );
+        }
+        for bad in ["null", "1", "\"0\"", "\"01\"", "\"18446744073709551616\""] {
+            assert!(
+                parse(call(&format!(r#"{base},"expected_worker_instance":{bad}"#)).as_bytes())
+                    .is_err()
+            );
+        }
+    }
+    assert!(
+        parse(call(r#""operation":"status","expected_worker_instance":"1""#).as_bytes()).is_err()
+    );
+    assert_eq!(Action::Status {}.expected_worker(), None);
+}
+
+#[test]
 fn canonical_identities_reject_lossy_or_ambiguous_json() {
     for good in ["0", "1", "9007199254740993", "18446744073709551615"] {
         let encoded = format!("\"{good}\"");
@@ -297,6 +328,7 @@ fn envelope_rejects_unknown_or_duplicate_fields_at_every_identity_boundary() {
     );
     assert_eq!(
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: Decimal(1),
             nonce: Decimal(1)
         }
@@ -317,6 +349,7 @@ fn invalid_transitions_quotas_and_policies_are_client_errors_before_object_acces
     );
     assert_eq!(
         Action::Takeover {
+            expected_worker_instance: None,
             expected_revision: Decimal(0),
             nonce: Decimal(1)
         }

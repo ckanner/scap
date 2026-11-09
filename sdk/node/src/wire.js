@@ -97,13 +97,17 @@ function encodedValue(value) {
 }
 
 /** Snapshot before hashing or sending: caller mutations cannot change a prepared request. */
-export function encodeStatements(input) {
+export function copyStatements(input) {
   requireValue(Array.isArray(input), 'Expected a statement array');
-  const statements = input.map((statement) => {
+  return input.map((statement) => {
     record(statement, ['sql', 'parameters']);
     requireValue(Array.isArray(statement.parameters), 'Expected positional parameters');
     return { sql: statement.sql, parameters: statement.parameters.map(copiedValue) };
   });
+}
+
+export function encodeStatements(input) {
+  const statements = copyStatements(input);
   const digest = fingerprint(statements);
   const wire = statements.map((statement) => Object.freeze({ sql: statement.sql,
     params: Object.freeze(statement.parameters.map(encodedValue)) }));
@@ -316,7 +320,7 @@ export function resolved(value, databaseScope, request, limits, allocation) {
 const ERROR_STATUS = Object.freeze({
   UNAUTHENTICATED: 401, DENIED: 403, NOT_FOUND: 404, INVALID: 400, VERSION: 400, CURSOR_INVALID: 400, LIMIT: 413,
   BACKPRESSURE: 429, RECOVERY_BUSY: 429, UNKNOWN: 503, UNAVAILABLE: 503, DEADLINE: 503,
-  COMMITTED_BUT_UNAVAILABLE: 503, LIFECYCLE: 409, FENCED: 409, CONFLICT: 409,
+  COMMITTED_BUT_UNAVAILABLE: 503, LIFECYCLE: 409, FENCED: 409, CONFLICT: 409, TARGET_MISMATCH: 409,
   REQUEST_CONFLICT: 409, WINDOW_FULL: 409, CLOSED: 409, RETIRED: 409, MISSING: 409,
   CORRUPT: 409, IDENTITY_CONFLICT: 409, STALE_SNAPSHOT: 409, ENGINE: 409, CONFIG: 409, CACHE_IO: 409,
 });

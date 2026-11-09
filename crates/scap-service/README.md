@@ -110,6 +110,13 @@ mkdir -p /absolute/private-cache
 
 `create` 还需非零 `nonce`，仅允许 provisioning 凭据；成功后库处于未激活状态。`activate`、`takeover`、`close_full`、`policy`、`quota` 和 `lifecycle` 必须给出 `expected_revision` 与 `nonce`；冲突或 UNKNOWN 不会被服务自动换 revision 重发。
 
+`activate` 和 `takeover` 可额外给出非零规范十进制字符串 `expected_worker_instance`。
+在 bearer 与 scope 准入之后，Engine 将其与实际接收进程的启动身份比较，不匹配返回
+`TARGET_MISMATCH`（409），此时尚未访问 S3、改变 cache 或获取恢复额度。字段省略时保留
+原显式接口行为；显式 `null`、零或非规范值拒绝。该 guard 用于防止静态 route 错绑或实例重启，
+不是 owner 租约，也不替代当前 ADMIN、原 expected revision 与 same-HEAD ETag 条件发布。
+Node `OwnerClient` 的协调步骤总是提供这个 guard，参见[SDK](../../sdk/node/README.md)。
+
 `open` 显式重建独立的本地快照，返回与 `status` 相同的结构，不改变 HEAD、owner 或数据。它可用于预热独立 reader，也用于刷新 stale session；下一次 query 仍会重新读取 HEAD，不能把 open 当作长期授权或最新根保证。`activate` 在验证完整恢复闭包后，按原 revision 发布 owner 激活。
 
 `query` 与 `execute` 使用 `statements: [{sql, params}]`。每个参数为显式对象：`{"type":"null"}`、`{"type":"integer","value":"42"}`、`{"type":"real","bits":"8000000000000000"}`、`{"type":"text","value":"…"}` 或 `{"type":"blob","base64":"…"}`。Real 的 bits 是大端书写的 16 位小写十六进制 IEEE-754 位图，保留负零；不接受非有限实数。整数、Base64 与十六进制都采用规范唯一编码。

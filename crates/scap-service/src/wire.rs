@@ -186,10 +186,14 @@ pub enum Action {
     Activate {
         expected_revision: Decimal,
         nonce: Decimal,
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
     },
     Takeover {
         expected_revision: Decimal,
         nonce: Decimal,
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
     },
     CloseFull {
         expected_revision: Decimal,
@@ -214,9 +218,27 @@ pub enum Action {
 }
 
 impl Action {
+    /// Optional destination identity, checked before any authority effect.
+    pub fn expected_worker(&self) -> Option<u64> {
+        match self {
+            Self::Activate {
+                expected_worker_instance,
+                ..
+            }
+            | Self::Takeover {
+                expected_worker_instance,
+                ..
+            } => expected_worker_instance.map(|value| value.0),
+            _ => None,
+        }
+    }
+
     /// Reject malformed control values before any provisioning objects or HEAD
     /// reads. A client typo is INVALID, not evidence of corrupted durable data.
     pub fn validate(&self) -> Result<(), Failure> {
+        if self.expected_worker() == Some(0) {
+            return Err(Failure::new("INVALID"));
+        }
         if matches!(
             self,
             Self::Lifecycle {
@@ -231,10 +253,12 @@ impl Action {
             Self::Activate {
                 expected_revision,
                 nonce,
+                ..
             }
             | Self::Takeover {
                 expected_revision,
                 nonce,
+                ..
             }
             | Self::CloseFull {
                 expected_revision,
@@ -299,6 +323,10 @@ impl Action {
             _ => "control",
         }
     }
+}
+
+fn present_worker<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Decimal>, D::Error> {
+    Decimal::deserialize(deserializer).map(Some)
 }
 
 #[derive(Clone, Debug)]

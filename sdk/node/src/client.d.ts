@@ -79,6 +79,10 @@ export interface Permission {
   readonly admin: boolean;
 }
 export interface AdministrativeInput { readonly expectedRevision: Decimal; readonly nonce: Decimal }
+export interface OwnerAdministrativeInput extends AdministrativeInput {
+  /** Reject a misbound or restarted destination before authority or recovery effects. */
+  readonly expectedWorkerInstance?: Decimal;
+}
 export interface CallOptions { readonly timeoutMs?: number; readonly signal?: AbortSignal }
 export interface ResultLimits {
   readonly maxStatements?: number;
@@ -117,6 +121,84 @@ export interface OperationReference {
   readonly request?: RequestIdentity;
   readonly nonce?: Decimal;
   readonly expectedRevision?: Decimal;
+  readonly expectedWorkerInstance?: Decimal;
+}
+
+export interface OwnerRoute { readonly workerInstance: Decimal; readonly endpoint: string }
+export interface RoutedClientOptions extends Omit<ClientOptions, 'endpoint'> {
+  readonly bootstrapEndpoint: string;
+  /** Static credential destinations; one endpoint per worker, at most 256 entries. */
+  readonly routes: readonly OwnerRoute[];
+}
+export class RoutedClient {
+  constructor(options: RoutedClientOptions);
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  prepare(statements: readonly Statement[], request: { readonly epoch: Decimal; readonly id: Decimal }): TrackedRequest;
+  save(request: TrackedRequest): string;
+  restore(serialized: string): TrackedRequest;
+  status(options?: CallOptions): Promise<DatabaseStatus>;
+  query(statements: readonly Statement[], options?: CallOptions): Promise<TransactionResult>;
+  execute(request: TrackedRequest, options?: CallOptions): Promise<Committed>;
+  lookup(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
+  cancel(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
+}
+declare const ownerIntent: unique symbol;
+export interface OwnerIntent {
+  readonly [ownerIntent]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  readonly registryDigest: string;
+  readonly mode: 'takeover' | 'activate';
+  readonly baseRevision: Decimal;
+  readonly baseOwnerEpoch: Decimal;
+  readonly baseOwnerInstance: Decimal;
+  readonly baseActive: boolean;
+  readonly targetWorker: Decimal;
+  readonly takeoverNonce: Decimal | null;
+  readonly activateNonce: Decimal;
+}
+export interface OwnerInspection {
+  readonly state: 'activation_accepted' | 'takeover_accepted' | 'base_observed' | 'blocked' |
+    'unresolved' | 'target_active' | 'target_inactive' | 'superseded';
+  readonly intent: OwnerIntent;
+  readonly status: DatabaseStatus;
+}
+export interface ActiveOwner {
+  readonly state: 'active';
+  readonly intent: OwnerIntent;
+  readonly status: DatabaseStatus;
+}
+export class OwnerClient {
+  /** Independent READ+ADMIN credential; this client never detects failure or sends SQL. */
+  constructor(options: RoutedClientOptions);
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  observe(options?: CallOptions): Promise<DatabaseStatus>;
+  prepareTakeover(observed: DatabaseStatus, input: {
+    readonly targetWorker: Decimal; readonly takeoverNonce: Decimal; readonly activateNonce: Decimal;
+  }): OwnerIntent;
+  prepareActivation(observed: DatabaseStatus, input: { readonly activateNonce: Decimal }): OwnerIntent;
+  /** Pure serialization. The application must durably save and sync before reconcile. */
+  saveIntent(intent: OwnerIntent): string;
+  /** Restored intents can be inspected, but never dispatched by reconcile. */
+  restoreIntent(serialized: string): OwnerIntent;
+  /** Consumes a fresh intent once, even if observation fails before a transition. */
+  reconcile(intent: OwnerIntent, options?: CallOptions): Promise<ActiveOwner>;
+  inspect(intent: OwnerIntent, options?: CallOptions): Promise<OwnerInspection>;
+}
+export class RouteError extends ClientError {
+  readonly outcome: 'not_sent';
+  constructor(error: unknown);
+}
+export class OwnerReconcileError extends ClientError {
+  readonly intent: OwnerIntent;
+  readonly phase: 'observe' | 'takeover' | 'activate';
+  readonly lastConfirmed: DatabaseStatus | null;
+  readonly outcome: 'unknown' | 'active' | 'partial' | 'unresolved' | 'not_sent';
+  constructor(intent: OwnerIntent, phase: 'observe' | 'takeover' | 'activate',
+    lastConfirmed: DatabaseStatus | null, dispatched: boolean, uncertain: boolean, error: unknown);
 }
 
 export type QuotaChoice =
@@ -332,8 +414,8 @@ export class Client {
   execute(request: TrackedRequest, options?: CallOptions): Promise<Committed>;
   lookup(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
   cancel(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
-  activate(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
-  takeover(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  activate(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  takeover(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   closeFull(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
   setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;

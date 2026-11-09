@@ -4,9 +4,12 @@ import { Buffer } from 'node:buffer';
 import * as wire from './wire.js';
 import { Transport } from './transport.js';
 
-export { ClientError, RemoteError, UnknownError, CommittedResultError } from './errors.js';
+export { ClientError, RemoteError, UnknownError, CommittedResultError, RouteError } from './errors.js';
 export { CatalogueClient } from './catalogue.js';
 export { DiscoveryClient } from './discovery.js';
+export { RoutedClient } from './routed.js';
+export { OwnerClient } from './owner.js';
+export { OwnerReconcileError } from './errors.js';
 export { decodeResult, validateResult } from '../../node-codec/src/codec.js';
 
 const EMPTY = Buffer.from('534341505245533100000000', 'hex');
@@ -56,6 +59,7 @@ export class Client {
     const reference = Object.freeze({ scope: this.#scope, operation: action.operation,
       ...(action.request === undefined ? {} : { request: action.request }),
       ...(action.nonce === undefined ? {} : { nonce: action.nonce }),
+      ...(action.expected_worker_instance === undefined ? {} : { expectedWorkerInstance: action.expected_worker_instance }),
       ...(action.expected_revision === undefined ? {} : { expectedRevision: action.expected_revision }) });
     return this.#transport.call({ version: 1, scope: this.#scope, ...action }, reference, decode, options);
   }
@@ -111,13 +115,18 @@ export class Client {
   }
 
   activate(input, options) {
-    wire.record(input, ['expectedRevision', 'nonce']);
-    return this.#admin('activate', input, {}, options);
+    return this.#owner('activate', input, options);
   }
 
   takeover(input, options) {
-    wire.record(input, ['expectedRevision', 'nonce']);
-    return this.#admin('takeover', input, {}, options);
+    return this.#owner('takeover', input, options);
+  }
+
+  #owner(operation, input, options) {
+    wire.record(input, ['expectedRevision', 'nonce'], ['expectedWorkerInstance']);
+    const extra = Object.hasOwn(input, 'expectedWorkerInstance') ?
+      { expected_worker_instance: wire.decimal(input.expectedWorkerInstance) } : {};
+    return this.#admin(operation, input, extra, options);
   }
 
   closeFull(input, options) {

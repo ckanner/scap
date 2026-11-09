@@ -55,6 +55,7 @@ fn active(engine: &mut Engine) -> Value {
     invoke(
         engine,
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: revision(&head),
             nonce: Decimal(12),
         },
@@ -63,6 +64,56 @@ fn active(engine: &mut Engine) -> Value {
 fn result(value: &Value) -> scap_sql::TransactionResult {
     let bytes = STANDARD.decode(value["result"].as_str().unwrap()).unwrap();
     scap_sql::decode_result(&bytes, scap_object::options::durable_sql_limits()).unwrap()
+}
+
+#[test]
+fn expected_worker_guard_rejects_before_authority_cache_or_recovery_effects() {
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    for action in [
+        Action::Activate {
+            expected_revision: Decimal(1),
+            nonce: Decimal(1),
+            expected_worker_instance: Some(Decimal(200)),
+        },
+        Action::Takeover {
+            expected_revision: Decimal(1),
+            nonce: Decimal(2),
+            expected_worker_instance: Some(Decimal(200)),
+        },
+    ] {
+        assert_eq!(
+            engine
+                .execute(&principal(), call(action), until())
+                .unwrap_err()
+                .code,
+            "TARGET_MISMATCH"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+        assert!(engine.cache.is_empty());
+        assert_eq!(engine.serial, 0);
+        assert_eq!(engine.recovery.available_permits(), 1);
+    }
+    let head = active(&mut engine);
+    let claimed = invoke(
+        &mut engine,
+        Action::Takeover {
+            expected_revision: revision(&head),
+            nonce: Decimal(50),
+            expected_worker_instance: Some(Decimal(100)),
+        },
+    );
+    assert_eq!(claimed["owner_instance"], "100");
+    assert_eq!(claimed["active"], false);
+    let activated = invoke(
+        &mut engine,
+        Action::Activate {
+            expected_revision: revision(&claimed),
+            nonce: Decimal(51),
+            expected_worker_instance: Some(Decimal(100)),
+        },
+    );
+    assert_eq!(activated["active"], true);
+    assert_eq!(activated["owner_epoch"], claimed["owner_epoch"]);
 }
 
 #[test]
@@ -290,6 +341,7 @@ fn ownership_quota_policy_and_lifecycle_use_the_same_remote_order() {
     let fenced = invoke(
         &mut second,
         Action::Takeover {
+            expected_worker_instance: None,
             expected_revision: revision(&head),
             nonce: Decimal(31),
         },
@@ -298,6 +350,7 @@ fn ownership_quota_policy_and_lifecycle_use_the_same_remote_order() {
     let head = invoke(
         &mut second,
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: revision(&fenced),
             nonce: Decimal(32),
         },
@@ -469,6 +522,7 @@ fn cache_eviction_is_bounded_and_recovery_slots_are_released_after_failure() {
             .execute(
                 &principal(),
                 call(Action::Activate {
+                    expected_worker_instance: None,
                     expected_revision: revision(&head),
                     nonce: Decimal(22)
                 }),
@@ -641,10 +695,12 @@ fn every_failed_admin_or_resolution_call_propagates_without_a_second_attempt() {
     );
     for operation in [
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: Decimal(99),
             nonce: Decimal(1),
         },
         Action::Takeover {
+            expected_worker_instance: None,
             expected_revision: Decimal(99),
             nonce: Decimal(1),
         },

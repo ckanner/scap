@@ -37,6 +37,7 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
         .submit(
             principal(),
             call(Action::Activate {
+                expected_worker_instance: None,
                 expected_revision: Decimal(1),
                 nonce: Decimal(2),
             }),
@@ -68,6 +69,7 @@ fn configured_graph_allowance_reaches_the_actual_native_worker_and_preserves_con
     for action in [
         Action::Create { nonce: Decimal(1) },
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: Decimal(1),
             nonce: Decimal(2),
         },
@@ -256,6 +258,7 @@ fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object
             &state,
             database,
             Action::Activate {
+                expected_worker_instance: None,
                 expected_revision: Decimal(1),
                 nonce: Decimal(2),
             },

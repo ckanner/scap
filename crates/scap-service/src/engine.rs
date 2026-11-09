@@ -131,6 +131,13 @@ impl Engine {
         let scope = call.scope.native()?;
         call.action.validate()?;
         principal.authorize(&scope)?;
+        if call
+            .action
+            .expected_worker()
+            .is_some_and(|worker| worker != self.worker)
+        {
+            return Err(Failure::new("TARGET_MISMATCH"));
+        }
         if matches!(call.action, Action::Create { .. }) && !principal.provision {
             return Err(Failure::new("DENIED"));
         }
@@ -261,6 +268,7 @@ impl Engine {
                 Action::Activate {
                     expected_revision,
                     nonce,
+                    ..
                 } => {
                     let _slot = self
                         .recovery
@@ -280,6 +288,7 @@ impl Engine {
                 Action::Takeover {
                     expected_revision,
                     nonce,
+                    ..
                 } => {
                     entry.session = None;
                     database.takeover(principal, expected_revision.0, nonce.0, deadline)?

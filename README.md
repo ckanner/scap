@@ -41,7 +41,7 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
 | [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
-| [Node SDK](sdk/node/README.md) | 固定并保存原 SQL／目录意图、无损 typed SQL、验证原回执及结果、查证／取消；不自动重放 SQL |
+| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、验证回执及结果、查证／取消；静态 owner 路由与显式协调，不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -69,6 +69,12 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
 
 HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
+
+可选 `RoutedClient` 使用受信静态路由，fresh status 后最多派发一次原业务请求；独立 READ+ADMIN
+`OwnerClient` 保存固定意图，再显式协调 takeover 与 activation。每个管理步骤携带预期目标 worker，
+错绑地址在 S3/cache/恢复效果前拒绝。恢复的意图只供查证，UNKNOWN 不自动重发管理动作或 SQL。
+这一切片没有故障检测、后台自动接管或动态选主；整体 N2 和生产门禁继续独立推进，详见
+[owner 协调设计](docs/architecture/owner-reconciliation.md)与 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。
 

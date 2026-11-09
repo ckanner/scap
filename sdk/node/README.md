@@ -2,7 +2,7 @@
 
 这个无第三方运行时依赖的 ESM 客户端连接新的 `scap-service`。`Client` 使用 `POST /v1`，`CatalogueClient` 使用 `POST /v1/catalogue`。它复用 [node-codec](../node-codec/README.md) 的精确 SQL 指纹及结果编解码，保留 u64 身份、i64 整数、负零、Unicode 和 BLOB；没有引入旧 Raft 协议。包目前标记 `private`，从仓库使用，尚未发布到 npm。
 
-每次方法调用最多发出一个 HTTP 请求。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch、不自动接管 owner，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
+原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求；独立 `OwnerClient` 仅按显式保存的意图协调 takeover 与 activation。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
 
 ## 使用
 
@@ -74,8 +74,8 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | `execute(request, options?)` | 只接受 `prepare`／`restore` 的原请求，成功返回 `Committed` |
 | `lookup(request, options?)` | 返回 committed、cancelled、unknown、closed 或 retired |
 | `cancel(request, options?)` | 在原身份上有序查证或取消；可能返回已经 committed 的原结果 |
-| `activate({ expectedRevision, nonce }, options?)` | 显式完成恢复并激活当前 owner |
-| `takeover({ expectedRevision, nonce }, options?)` | 显式推进 owner fence；随后仍需 activate |
+| `activate({ expectedRevision, nonce, expectedWorkerInstance? }, options?)` | 显式完成恢复并激活当前 owner；可校验接收进程身份 |
+| `takeover({ expectedRevision, nonce, expectedWorkerInstance? }, options?)` | 显式推进 owner fence；随后仍需 activate；可校验接收进程身份 |
 | `closeFull({ expectedRevision, nonce }, options?)` | 显式关闭已满请求世代；不重做旧请求 |
 | `setQuota({ expectedRevision, nonce, maxBytes }, options?)` | 页对齐字节数的十进制字符串；`null` 取消业务配额 |
 | `setPolicy({ expectedRevision, nonce, permissions }, options?)` | 有界且主体不重复的 `{principal,read,write,admin}` 列表，保留管理员 |
@@ -84,6 +84,128 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 `options` 只含 `{ timeoutMs?, signal? }`。`open` 和 `activate` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。管理成功响应会核对 scope、`expectedRevision + 1` 与原 nonce，不接受另一个转换的 status 作为成功。
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
+
+## 受信 owner 路由
+
+`RoutedClient` 使用本地静态 endpoint 白名单，每次 `execute/query` 都先向 bootstrap 读取当前 status。
+它不接受服务端提供的新 URL，不把 token 转发给未知 owner，也不发起接管。bootstrap 和所有 route
+必须绑定同一受信 S3 authority、scope 和 bearer 主体；配置本身不是写权，真正的权限与 owner
+仍由目标服务的 fresh HEAD 准入和条件发布决定。
+
+```javascript
+import { RoutedClient, RouteError, UnknownError } from './sdk/node/src/client.js';
+
+const routes = [
+  { workerInstance: '1001', endpoint: 'https://worker-a.example/v1' },
+  { workerInstance: '1002', endpoint: 'https://worker-b.example/v1' },
+];
+const routed = new RoutedClient({
+  bootstrapEndpoint: 'https://worker-a.example/v1', routes,
+  token: process.env.SCAP_TOKEN, principal: '7', scope,
+});
+const current = await routed.status();
+const request = routed.prepare([
+  { sql: 'INSERT INTO item VALUES (?1, ?2)', parameters: [2n, 'fixed input'] },
+], { epoch: current.request_epoch, id: '301' });
+const saved = routed.save(request);
+// 应用持久化 saved 后，执行这一调用。
+try {
+  await routed.execute(request, { timeoutMs: 10000 });
+} catch (error) {
+  if (error instanceof RouteError) {
+    // outcome=not_sent：本次没有调用底层 Fetch 派发业务 SQL。
+    // 它不能证明同一 request 在其他调用中从未发送或提交。
+    console.log(error.code);
+  } else if (error instanceof UnknownError) {
+    console.log(await routed.lookup(routed.restore(saved)));
+  } else throw error;
+}
+```
+
+`prepare/save/restore/status/lookup/cancel` 与原 `Client` 语义相同；`lookup/cancel` 直接使用 bootstrap，
+不等待 owner 恢复。`query` 在等待路由前复制调用者 SQL 和参数，允许 Maintenance 强读；
+`execute` 要求 Ready、active 的 owner。未知 owner 返回 `UNROUTABLE`，未激活写 owner 返回
+`OWNER_INACTIVE`；它们不会触发 takeover。路由后 owner 变化产生的 FENCED、CONFLICT、
+STALE_SNAPSHOT 或 UNKNOWN 直接返回，不刷新路由后重发业务。
+
+每个 registry 至多 256 项，每项输入 endpoint 至多 2048 字节，总规范地址与 worker 字符串
+至多 64 KiB。重复 worker 或 endpoint 拒绝。构造器复制 scope、route 和结果预算，调用者之后
+修改配置对象不改变已构造客户端；变更路由须构造新客户端。SDK 内部只保存固定地址，不动态
+发现成员或在多个 bootstrap 之间自动重试。
+
+bootstrap 不属于管理目标映射的 digest：原 bootstrap 不可用时，应用可以明确构造使用另一
+受信 metadata endpoint、相同 worker routes/scope/principal 的 `OwnerClient`，恢复并只读查证原意图。
+这不恢复派发资格；任何 worker endpoint 绑定变化仍会使原意图的上下文检查失败。
+
+一次 routed 调用最多包含一个 status POST 和一个 SQL POST。二者共用调用开始时的总 deadline，
+包括同步编码和结果物化；底层 Fetch 前再次检查绝对期限，因此编码耗尽预算后不会继续派发。
+已经派发后的异常仍保留原 UNKNOWN 或已核对的 committed 回执。
+
+## 显式 owner 协调与保存意图
+
+`OwnerClient` 与业务客户端独立配置，凭据必须被数据库当前 ACL 明确授予 **READ+ADMIN**：
+status 使用 READ，takeover/activate 每次重新检查 ADMIN。SDK 不隐式增加权限，也不检测 owner
+是否死亡。接管健康 owner 是一个明确的管理员操作，不能放在普通 execute 的失败重试分支。
+
+```javascript
+import { OwnerClient, OwnerReconcileError } from './sdk/node/src/client.js';
+
+const owner = new OwnerClient({
+  bootstrapEndpoint: 'https://worker-a.example/v1', routes,
+  token: process.env.SCAP_ADMIN_TOKEN, principal: '9', scope,
+});
+const observed = await owner.observe();
+const intent = owner.prepareTakeover(observed, {
+  targetWorker: '1002', takeoverNonce: '401', activateNonce: '402',
+});
+const savedIntent = owner.saveIntent(intent);
+// 应用将 savedIntent 持久化并完成同步后，再调用 reconcile。
+try {
+  const active = await owner.reconcile(intent, { timeoutMs: 120000 });
+  console.log(active.status.owner_instance);
+} catch (error) {
+  if (!(error instanceof OwnerReconcileError)) throw error;
+  const original = owner.restoreIntent(savedIntent);
+  const inspected = await owner.inspect(original);
+  console.log(error.phase, error.outcome, error.lastConfirmed, inspected.state);
+  // inspect 不改变 HEAD；这里不重新 reconcile 原意图。
+}
+```
+
+| API | 合同 |
+| --- | --- |
+| `observe(options?)` | fresh status，只读；不创建服务端观察票据或租约 |
+| `prepareTakeover(status, {targetWorker,takeoverNonce,activateNonce})` | 纯本地固定原 revision、owner tuple、完整 scope、principal、registry digest、目标和两个不同 nonce；目标须不同于原 owner |
+| `prepareActivation(status, {activateNonce})` | 只接受当前未激活 owner，保持 owner epoch；不重新接管 |
+| `saveIntent(intent)` | 纯序列化，不负责持久化；保存内容不含 token，但仍含管理身份与条件 |
+| `restoreIntent(text)` | 严格验证同一上下文，至多 16 KiB，恢复的意图**仅可查证** |
+| `reconcile(intent, options?)` | 消耗新准备意图的一次性派发资格；fresh status 仍须匹配原观察；最多一次 takeover 与一次 activation |
+| `inspect(intent, options?)` | 一个 fresh status POST；报告原转换证据或当前观测状态，不发送 CAS、恢复或 SQL |
+
+`reconcile` 在第一次读取前就消耗派发资格，连读取失败也不会重置。重复使用或使用 restore 的
+意图返回 `INTENT_USED`。这防止进程丢失后把“保存了描述”误解为“从未发送”；它不是持久管理
+操作账本，也不阻止管理员明确创建另一个新意图。所有 u64 增量在发送前校验，绝不回绕。
+
+协调内部总是给 takeover 和 activate 发送 `expected_worker_instance`。服务在已有 bearer 与
+scope 准入后、任何 S3、cache 或恢复动作前检查实际接收进程的 `worker_instance`；不匹配返回
+`TARGET_MISMATCH`（409）。这可拒绝错绑地址或重启后的旧 route，不能证明原 owner 已死亡。
+服务端仍用原 `expected_revision` 与同一次 fresh HEAD 的 ETag 发布；新字段不创建额外 fencing。
+路由地址仍应指向单一启动实例；普通 SQL 路由竞争由原 owner 检查拒绝。
+
+每一阶段只有经过 revision、nonce、owner、epoch、active、lifecycle 的完整核对才推进下一步。
+`OwnerReconcileError` 保留原 intent、`phase` 和 `lastConfirmed`；其 `outcome` 区分本次未派发
+管理动作的 `not_sent`、明确返回错误但未证明原结果的 `unresolved`、已确认 claim 的 `partial`、
+阶段结果不确定的 `unknown`，以及已核对 activation 但总预算超时的 `active`。这些都不授权 SQL 重放。
+
+`inspect.state` 的 `takeover_accepted`、`activation_accepted` 要求原转换所有字段精确匹配。
+`target_active/target_inactive` 只证明此时看到的目标 owner 状态，不能证明已经被后继 HEAD 覆盖的
+原 nonce；`base_observed` 也不证明旧请求永远不会迟到。`superseded`、`blocked` 和 `unresolved`
+分别保留取代、生命周期和无法确认的情况。当前 HEAD 没有完整管理转换历史。
+
+发生 UNKNOWN 或重启后，若显式 `inspect/observe` 确认目标仍是当前未激活 owner，可准备一个新的
+`prepareActivation` 意图，保存后明确执行。这只继续恢复，不增加 owner epoch。总 deadline 默认
+采用恢复预算，status、claim、恢复和 activation 不逐步续期。没有自动 failover、后台重试、
+健康探测或配置滚动选主；这些后续能力见[owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
 
 ## 名称目录与完整原意图
 
@@ -168,6 +290,8 @@ try {
 | `RemoteError` | 经过 HTTP 状态与协议核对的服务器错误；`outcome: 'unresolved'`，例如 FENCED、CONFLICT、WINDOW_FULL |
 | `UnknownError` | 有副作用调用的传输／响应不确定，或原请求查证不可用；SQL 保留身份 `reference`，目录额外保留完整原 `reference.intent` |
 | `CommittedResultError` | 已有核对后的提交回执，结果物化失败、deadline 超过或 native publication 不可用；保留 receipt，完整原 bytes 可用时保留 rawResult |
+| `RouteError` | `outcome: 'not_sent'`；本次 routed 调用尚未派发业务 Fetch，不能推断其他调用的原 request 结果 |
+| `OwnerReconcileError` | 保存固定管理 intent、失败阶段及 lastConfirmed；不授权自动管理重发或业务重放 |
 
 未验证的 HTTP 200、意外 201、重定向、重复 JSON 键、非法 UTF-8、不完整响应、伪造回执、摘要不符都不能产生成功 ACK。异常不保留服务器的任意 message、任意 fetch 错误文本、bearer token 或原 SQL。`save` 的内容包含 SQL 和参数；目录错误引用与 `saveIntent` 含名称、身份、Scope 和控制条件，应用应按业务数据保护它们。
 

@@ -2,10 +2,11 @@
 
 ## 1. 状态、范围与决定
 
-本文是基于现有正式源码制定的后续实现方案，**不是已实现或已验收声明**。
-现有 HTTP、SDK、owner fencing 和数据库 actor 可以复用；本文提出的
-`OwnerRegistry`、`FailureObservation`、`OwnerIntent`、`OwnerClient`、
-`RoutedClient` 与 `/v1/owner` 均尚未实现。
+本文包含当前 SDK 实现切片和后续完整设计，**不是整体能力已验收声明**。
+`RoutedClient`、`OwnerClient`、固定 `OwnerIntent` 及现有 takeover/activate 的可选目标 worker
+guard 已有实现；使用方法与精确范围见[Node SDK](../../sdk/node/README.md)。本文其余的
+服务端 `OwnerRegistry`、`FailureObservation`、`/v1/owner`、服务端去重与自动 controller
+仍是后续方案，不把它们计入 SDK 切片的完成范围。
 不恢复交接文档中未公开的本地提交，也不把旧候选的测试结果用于本方案。
 
 最小完整工作包分成三层，分别实现、分别验收：
@@ -20,9 +21,9 @@
 只实现 `reconcile` 接口不能宣称已经实现无人值守的自动故障检测。
 这份工作包也不替代 N2 的恢复风暴、冷热负载和生产 SLO 验收。
 
-首个可交付实现切片限定为 **Node SDK 的受信静态路由，以及基于现有 `status`、
+当前实现切片限定为 **Node SDK 的受信静态路由，以及基于现有 `status`、
 `takeover`、`activate` 的显式、可保存意图协调**。该切片要求协调凭据明确具备
-READ+ADMIN，不新增服务端接口、自动探测或自动接管。下文的 ADMIN-only 观察、
+READ+ADMIN，增加原管理 Action 的可选 `expected_worker_instance` guard，不新增服务端路径、自动探测或自动接管。下文的 ADMIN-only 观察、
 `/v1/owner`、服务端去重与自动 controller 是之后的扩展设计，不是首个切片的前置条件。
 
 ## 2. 已有源码与可复用合同
@@ -84,7 +85,7 @@ Registry 必须拒绝重复 worker、重复 route、循环或倒退的自动 fai
 
 ## 4. 业务自动路由：只发送一次 SQL
 
-新增可选 `RoutedClient`，保留原 `Client` 的单次直接调用合同。
+当前 SDK 提供可选 `RoutedClient`，保留原 `Client` 的单次直接调用合同。
 它复用原来的 `prepare/save/restore`、request fingerprint、结果 decoder 与错误类型。
 
 一次 routed `execute` 的顺序：
@@ -314,11 +315,15 @@ body、解析、响应、保留 frame/Bytes 和 native/临时盘分别遵守
 lookup/cancel 继续使用原 scope、principal、request 和 fingerprint，不触发 takeover。
 
 独立的 `OwnerClient` 使用 READ+ADMIN 凭据，显式准备、保存并恢复 `OwnerIntent`。
-`reconcile(intent)` 最多执行一次 takeover 和一次 activation；只有上一步返回的
+`reconcile(intent)` 消耗新准备意图的一次性派发资格，最多执行一次 takeover 和一次 activation；只有上一步返回的
 revision、nonce、owner、epoch 及 active 状态全部符合固定意图时，才允许下一步。
 `inspect(intent)` 只读取 fresh status，区分精确转换证据、当前观测状态、取代与未知。
-超时、丢失响应或 restore 后均不能默认为尚未发送，再次发送旧管理动作。
+restore 只恢复描述和查证能力，不恢复派发资格；超时、丢失响应或 restore 后均不能默认为尚未发送，再次发送旧管理动作。
 同一 owner 的未激活恢复可以明确准备一个新的 activation-only 意图，不重新 takeover。
+
+每次 takeover/activate 都提供 `expected_worker_instance`，服务端在已有 bearer 与 scope
+准入之后、任何 S3/cache/恢复效果之前检查实际 worker，不匹配返回 `TARGET_MISMATCH`。
+显式接口可省略 guard 保持兼容，但显式 null/零/非规范值拒绝。
 
 这个切片不承诺 ADMIN-only 账户可使用 status，不增加隐式 READ 权限，也不在
 网络故障、FENCED 或 owner 未激活时自行选择接管目标。它不需要新的服务端缓存、
