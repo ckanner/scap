@@ -68,6 +68,7 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | `prepare(statements, { epoch, id })` | 纯本地生成不可变 `TrackedRequest`，主体使用客户端配置 |
 | `save(request)` / `restore(text)` | 保存／恢复同一请求；不发送 SQL，不分配新身份 |
 | `status(options?)` | 返回当前 scope、revision、owner、生命周期、容量和请求留存边界 |
+| `guardedStatus(workerInstance, options?)` | 一个只读 status POST，同时要求接收服务实例匹配指定 worker；HEAD 的 owner 可以是另一个 worker |
 | `open(options?)` | 显式重建本地只读快照，返回 status；后续查询仍检查新的 HEAD |
 | `create({ nonce }, options?)` | 显式创建，返回尚未 active 的 status；存在的身份不能覆盖 |
 | `query(statements, options?)` | 强读，返回 `TransactionResult`，每个 SQL 值保持原类型 |
@@ -175,6 +176,7 @@ try {
 | API | 合同 |
 | --- | --- |
 | `observe(options?)` | fresh status，只读；不创建服务端观察票据或租约 |
+| `probe(workerInstance, options?)` | 在显式配置的该 worker route 上发一次 guarded status；使用普通总预算，需要 READ，不执行恢复或接管 |
 | `prepareTakeover(status, {targetWorker,takeoverNonce,activateNonce})` | 纯本地固定原 revision、owner tuple、完整 scope、principal、registry digest、目标和两个不同 nonce；目标须不同于原 owner |
 | `prepareActivation(status, {activateNonce})` | 只接受当前未激活 owner，保持 owner epoch；不重新接管 |
 | `saveIntent(intent)` | 纯序列化，不负责持久化；保存内容不含 token，但仍含管理身份与条件 |
@@ -192,6 +194,17 @@ scope 准入后、任何 S3、cache 或恢复动作前检查实际接收进程�
 服务端仍用原 `expected_revision` 与同一次 fresh HEAD 的 ETag 发布；新字段不创建额外 fencing。
 路由地址仍应指向单一启动实例；普通 SQL 路由竞争由原 owner 检查拒绝。
 
+`probe` 可以检查候选接收实例，例如 `await owner.probe('1002')`。它只使用已配置的可信 route，
+不先访问 bootstrap；无对应 route 时在网络派发前返回 `UNROUTABLE`。正确的接收实例仍会读取
+fresh HEAD 并检查 READ，所以返回的 `owner_instance` 可以属于另一台 worker。探测成功只证明
+此次身份核对与元数据读取成功，不证明当前 owner 已失效、SQL/恢复可用或旧 UNKNOWN 已被关闭。
+失败不触发备用地址、takeover、activate 或 SQL。整个 `probe` 共用进入调用时的普通绝对期限，
+包括本地路由、编码、响应读取和校验；不会采用更长的 recovery 默认值。
+
+旧 `status()` 请求保持不带 guard。新 `guardedStatus` / `probe` 不在旧服务拒绝该字段时自动重发
+无 guard 请求。可选字段若显式传入 `null`、`0` 或非规范文本，服务会拒绝为 `INVALID`；SDK 也
+在派发前检查规范非零十进制 worker。详见[guarded status 合同](../../docs/architecture/owner-guarded-status.md)。
+
 每一阶段只有经过 revision、nonce、owner、epoch、active、lifecycle 的完整核对才推进下一步。
 `OwnerReconcileError` 保留原 intent、`phase` 和 `lastConfirmed`；其 `outcome` 区分本次未派发
 管理动作的 `not_sent`、明确返回错误但未证明原结果的 `unresolved`、已确认 claim 的 `partial`、
@@ -205,7 +218,9 @@ scope 准入后、任何 S3、cache 或恢复动作前检查实际接收进程�
 发生 UNKNOWN 或重启后，若显式 `inspect/observe` 确认目标仍是当前未激活 owner，可准备一个新的
 `prepareActivation` 意图，保存后明确执行。这只继续恢复，不增加 owner epoch。总 deadline 默认
 采用恢复预算，status、claim、恢复和 activation 不逐步续期。没有自动 failover、后台重试、
-健康探测或配置滚动选主；这些后续能力见[owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
+自动故障检测或配置滚动选主。后续优先设计 HEAD 绑定的可恢复 owner plan，见
+[controller 与 owner-plan 边界](../../docs/architecture/owner-controller-plan.md)和
+[owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
 
 ## 名称目录与完整原意图
 

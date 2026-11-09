@@ -1,0 +1,251 @@
+{
+  "classification": "STATIC_DESIGN_SOURCE_BINDING_ONLY",
+  "complete_automatic_recovery_goal": "NOT_COMPLETED",
+  "controller_implementation": "NOT_IMPLEMENTED",
+  "date": "2026-11-09",
+  "decision": {
+    "current_slice": "Optional guarded status and SDK trusted-route probe only.",
+    "legacy_restore": "OwnerClient.restoreIntent remains inspect-only and cannot dispatch.",
+    "next_priority": "V2 HEAD-bound accepted owner plan with an independent protocol/model and complete production gates.",
+    "v1_journal_controller": "Comparison retained; not selected for initial production because some UNKNOWN intents may remain InspectOnly forever."
+  },
+  "documents": [
+    {
+      "bytes": 37297,
+      "path": "docs/architecture/owner-controller-plan.md",
+      "sha256": "8bfc55d0f4268cb9869218a08033cd807a0f2a38fe8eb9a3c0ed42eb50ab2796"
+    },
+    {
+      "bytes": 6122,
+      "path": "docs/architecture/owner-guarded-status.md",
+      "sha256": "9e1ded48bf9ec241c478d7e15c3bec3a7323131ac94b69fd54b1e19d2288df25"
+    }
+  ],
+  "guarded_status_slice": {
+    "base_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+    "controller_added": false,
+    "existing_owner_intent_schema_changed": false,
+    "guard_semantics": "Receiving service instance, distinct from the returned database owner; current READ and exact HEAD obligations remain.",
+    "head_format_changed": false,
+    "journal_added": false,
+    "new_endpoint": false,
+    "production_files": [
+      "crates/scap-service/src/wire.rs",
+      "crates/scap-service/src/engine.rs",
+      "sdk/node/src/client.js",
+      "sdk/node/src/owner.js",
+      "sdk/node/src/client.d.ts"
+    ],
+    "wire_version_unchanged": 1
+  },
+  "not_claimed": [
+    "Guarded status proves owner failure or native recovery health.",
+    "Technical head_serial fences an old RPC that has not server-admitted.",
+    "Future effects closed proves past NotApplied or recreates an original ACK.",
+    "V1/V2 controller has been implemented or formally validated."
+  ],
+  "original_static_design": {
+    "baseline_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+    "files": [
+      {
+        "bytes": 3601,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/owner.js",
+        "sha256": "63afa7b33b6dc88bac5baf26d341d6b9f0a936b0650af6c680b891cd30fe2ba1",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/owner.js"
+      },
+      {
+        "bytes": 5449,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/owner_intent.js",
+        "sha256": "d1b361d88a433bf9cadbd0f1e302eb4f764a91c8154b3ab12a6f175ba15ae479",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/owner_intent.js"
+      },
+      {
+        "bytes": 3604,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/route_registry.js",
+        "sha256": "642191c023bd2c8bdc862467194df19ec70fe73e48be1c2b10a104f33911c426",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/route_registry.js"
+      },
+      {
+        "bytes": 2344,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/routed.js",
+        "sha256": "b7e6f428391e449c7b533ef587292c2af3ba8b4b1462807b9f05354b12adcf2f",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/routed.js"
+      },
+      {
+        "bytes": 6362,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/client.js",
+        "sha256": "2f09596883b64e635b4cafd4c3b15614b6e2bda267c0444be8ccf34023186781",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/client.js"
+      },
+      {
+        "bytes": 18421,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/client.d.ts",
+        "sha256": "2206c14ebdf9a8f863b6f0bc92fc6863aed3686747d8a450b77a3192c2da2b01",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/client.d.ts"
+      },
+      {
+        "bytes": 2425,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/operation_budget.js",
+        "sha256": "230ff8e8cf9e7144e0139c92bfe77e3376d3d13d65065216d0d5b4236476a9a6",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/operation_budget.js"
+      },
+      {
+        "bytes": 8092,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/transport.js",
+        "sha256": "334f70044206c76468a12743db3a12bdcc2a476bbb5360f0ee06ac9d29d1610b",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/transport.js"
+      },
+      {
+        "bytes": 2286,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/errors.js",
+        "sha256": "ab3683d69ac853c9f10e3c7f0fea2d1e3a9393b4da5023dedbd4ca0ce99bf3e5",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/errors.js"
+      },
+      {
+        "bytes": 16769,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/src/wire.js",
+        "sha256": "ff93eb2418e52332f1d3e6c4262639e91d354c1bef95bdce2a71937a69c7f587",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/src/wire.js"
+      },
+      {
+        "bytes": 15823,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-service/src/wire.rs",
+        "sha256": "62cc59f56c3ab20a07502eab98b27888c879b672aa366d87432fbb0ac015fa59",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-service/src/wire.rs"
+      },
+      {
+        "bytes": 12340,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-service/src/engine.rs",
+        "sha256": "d0cfadfcda666810e641f84af0d223f8f2c553de4288a4598d95856ad3735152",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-service/src/engine.rs"
+      },
+      {
+        "bytes": 22213,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-service/src/scheduler.rs",
+        "sha256": "956af0d7f228ee5e271422f30c6bd6fe81db017885b9df39a2d9f1865a3064e0",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-service/src/scheduler.rs"
+      },
+      {
+        "bytes": 11311,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-service/src/http.rs",
+        "sha256": "1427161dac1078c02569cce798b6cb81ea2753219b86b5edb55ef289bdddce19",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-service/src/http.rs"
+      },
+      {
+        "bytes": 36479,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/lib.rs",
+        "sha256": "b5bdda652d8e86f19939e9f3898bb11940339b98933030440b9a49729f67e45e",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/lib.rs"
+      },
+      {
+        "bytes": 2229,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/head_publication.rs",
+        "sha256": "397026efdd2769564afe02d575bff9f50910b5f3ea510e42085cd872999cf5fa",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/head_publication.rs"
+      },
+      {
+        "bytes": 25412,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/format.rs",
+        "sha256": "dea026c29d8d690bb262aa35e3e6498320435873f68123136ef42480f1c69f5f",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/format.rs"
+      },
+      {
+        "bytes": 5916,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/catalogue/create.rs",
+        "sha256": "728b55d635bf07f500c63e678dd0ecf11552ae26bffe4869ec06c661c78b739f",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/catalogue/create.rs"
+      },
+      {
+        "bytes": 19837,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/catalogue/control.rs",
+        "sha256": "60e9b9d9e571d3bb42521b368364cc8783284cb73f91ff4b1e238e480d7aee22",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/catalogue/control.rs"
+      },
+      {
+        "bytes": 12662,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/catalogue/records.rs",
+        "sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/catalogue/records.rs"
+      },
+      {
+        "bytes": 16428,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "crates/scap-object/src/catalogue/mod.rs",
+        "sha256": "2e8968c1da7a250d4da3009053d5dd4d250e351a0a687b7a5f649264b79d1b1c",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/crates/scap-object/src/catalogue/mod.rs"
+      },
+      {
+        "bytes": 29715,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "docs/architecture/owner-reconciliation.md",
+        "sha256": "09e28c92b3f7617d1486f6508c086c03f06c033a06db84c1cf1c269bd1d60820",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/docs/architecture/owner-reconciliation.md"
+      },
+      {
+        "bytes": 367,
+        "commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "path": "sdk/node/package.json",
+        "sha256": "eeba9a36f4edbec83d2cd414db98982ede9be8062e63d4ac233f51caf23902f1",
+        "url": "https://github.com/ckanner/scap/blob/f6c9073a924297f5cd1704fa3c677101ad451d3f/sdk/node/package.json"
+      }
+    ],
+    "origin_artifacts": [
+      {
+        "bytes": 35742,
+        "original_name": "handoff.md",
+        "retained_unmodified": true,
+        "sha256": "5b4701d49fe8fdb6cf74a7860b583fdf56106fa8f4341f78e93637b3391c1fc9"
+      },
+      {
+        "bytes": 8281,
+        "original_name": "source-inventory.json",
+        "retained_unmodified": true,
+        "sha256": "e7ac6143c57512bb5e6953dfbcd3885a86f73ba50148bd6f73829c5a68b091c2"
+      },
+      {
+        "bytes": 1779,
+        "original_name": "handoff-receipt.json",
+        "retained_unmodified": true,
+        "sha256": "c85dbed57e5169cb1272b4757bf353ffe19383d33f30411d03bc108b5e8ca774"
+      }
+    ],
+    "source_bytes": 280085,
+    "source_files": 23,
+    "source_identity_claim": "The retained original inventory records byte identity with exact f6 for these selected files only; no new runtime or full-tree proof is inferred."
+  },
+  "schema": 1,
+  "static_checks": {
+    "direct_rustfmt": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "verification": {
+    "actual_http_s3": "NOT_RUN",
+    "controller_model": "NOT_RUN",
+    "node_units_and_v8": "NOT_RUN",
+    "remote_ci": "NOT_RUN",
+    "rust_clippy": "NOT_RUN",
+    "rust_exact_coverage": "NOT_RUN",
+    "rust_units": "NOT_RUN",
+    "typescript": "NOT_RUN"
+  }
+}

@@ -98,7 +98,13 @@ fn configured_graph_allowance_reaches_the_actual_native_worker_and_preserves_con
     assert!(error.receipt.is_none());
     let status = state
         .scheduler
-        .submit(principal(), call(Action::Status {}), until())
+        .submit(
+            principal(),
+            call(Action::Status {
+                expected_worker_instance: None,
+            }),
+            until(),
+        )
         .unwrap()
         .blocking_recv()
         .unwrap()
@@ -310,7 +316,13 @@ fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object
         cold.try_recv(),
         Err(tokio::sync::oneshot::error::TryRecvError::Empty)
     ));
-    receive(submit(&state, 10, Action::Status {}));
+    receive(submit(
+        &state,
+        10,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    ));
     release.send(()).unwrap();
     receive(cold);
     objects.memory.calls.lock().unwrap().clear();

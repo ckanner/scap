@@ -10,6 +10,16 @@ export class OwnerClient {
   get scope() { return this.#registry.direct.scope; }
   get principal() { return this.#registry.direct.principal; }
   observe(options) { return this.#registry.direct.status(options); }
+
+  async probe(workerInstance, options) {
+    const budget = new OperationBudget(this.#registry.timeout, options);
+    try {
+      const status = await this.#registry.client(workerInstance, budget, 'probe')
+        .guardedStatus(workerInstance, budget.options());
+      return budget.finish(status);
+    } finally { budget.close(); }
+  }
+
   prepareTakeover(observed, input) { return owner.prepareIntent(this.#registry, observed, input, 'takeover'); }
   prepareActivation(observed, input) { return owner.prepareIntent(this.#registry, observed, input, 'activate'); }
   saveIntent(intent) { return owner.saveIntent(intent, this.#registry); }

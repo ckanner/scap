@@ -9,6 +9,78 @@ const owner = (io, extra = {}) => new OwnerClient({ ...OPTIONS, fetch: io.fetch,
 const invalid = (fn) => assert.throws(fn, (e) => e instanceof ClientError && e.code === 'INVALID');
 const stop = (code, phase, outcome) => (e) => e instanceof OwnerReconcileError && e.code === code && e.phase === phase && e.outcome === outcome;
 
+test('owner probes use one guarded read on the copied trusted route without requiring that worker to own the database', async () => {
+  const routes = clone(OPTIONS.routes), io = script([head(), head()]), db = owner(io, { routes });
+  routes[1].endpoint = 'https://untrusted.invalid/v1';
+  const observed = await db.probe('200');
+  assert.equal(observed.owner_instance, '100');
+  assert.deepEqual(io.calls[0].body, { version: 1, scope: SCOPE,
+    operation: 'status', expected_worker_instance: '200' });
+  assert.equal(io.calls[0].url, B);
+  assert.equal(io.calls[0].init.headers['x-scap-admission'], 'control');
+  assert.equal(io.calls[0].init.redirect, 'error');
+  assert.equal(io.calls[0].init.signal.aborted, true);
+  await db.observe();
+  assert.equal(io.calls[1].url, A);
+  assert.deepEqual(io.calls[1].body, { version: 1, scope: SCOPE, operation: 'status' });
+  await assert.rejects(db.probe('300'), { code: 'UNROUTABLE' });
+  for (const worker of [undefined, null, '0', 200, '0200']) {
+    await assert.rejects(db.probe(worker), { code: 'INVALID' });
+  }
+  const aborted = new AbortController(); aborted.abort();
+  await assert.rejects(db.probe('200', { signal: aborted.signal }), { code: 'ABORTED' });
+  assert.equal(io.calls.length, 2);
+});
+
+test('probe rejection or lost response never falls back, recovers, mutates ownership or dispatches SQL', async () => {
+  for (const [response, code] of [
+    [() => failure('TARGET_MISMATCH', 409), 'TARGET_MISMATCH'],
+    [() => failure('DENIED', 403), 'DENIED'],
+    [() => failure('UNKNOWN', 503), 'UNKNOWN'],
+    [() => { throw new Error('lost status response'); }, 'TRANSPORT'],
+    [head({ scope: { ...SCOPE, incarnation: '9' } }), 'INVALID'],
+  ]) {
+    const io = script([response]), db = owner(io);
+    await assert.rejects(db.probe('200'), (error) => error instanceof ClientError &&
+      !(error instanceof OwnerReconcileError) && error.code === code);
+    assert.equal(io.calls.length, 1);
+    assert.equal(io.calls[0].url, B);
+    assert.equal(io.calls[0].body.operation, 'status');
+    assert.equal(io.calls[0].body.expected_worker_instance, '200');
+  }
+});
+
+test('probe absolute deadline stops dispatch after synchronous request encoding', async (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const original = JSON.stringify;
+  t.mock.method(JSON, 'stringify', (value, ...rest) => {
+    const result = original(value, ...rest);
+    if (value?.operation === 'status') now = 11;
+    return result;
+  });
+  const io = script([]), db = owner(io);
+  await assert.rejects(db.probe('200', { timeoutMs: 10 }), { code: 'DEADLINE' });
+  assert.equal(io.calls.length, 0);
+});
+
+test('probe uses the ordinary total budget and withholds an over-budget verified response', async (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const original = JSON.stringify;
+  t.mock.method(JSON, 'stringify', (value, ...rest) => {
+    const result = original(value, ...rest);
+    if (value?.operation === 'status') now = 9.5;
+    return result;
+  });
+  const io = script([() => { now = 10.1; return success(head()); }]);
+  const db = owner(io, { timeoutMs: 10, recoveryTimeoutMs: 1000 });
+  await assert.rejects(db.probe('200'), { code: 'DEADLINE' });
+  assert.equal(io.calls.length, 1);
+  assert.equal(io.calls[0].body.operation, 'status');
+  assert.equal(io.calls[0].init.signal.aborted, true);
+});
+
 test('owner intents bind context, persist without effects, and dispatch each original phase only once', async () => {
   const io = script([head(), head(), claim(), activated(), activated()]), db = owner(io);
   assert.deepEqual(db.scope, SCOPE); assert.equal(db.principal, '7');

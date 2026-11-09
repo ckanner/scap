@@ -179,7 +179,10 @@ pub enum Action {
     Create {
         nonce: Decimal,
     },
-    Status {},
+    Status {
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
+    },
     Open {},
     Query {
         statements: Vec<WireStatement>,
@@ -232,7 +235,10 @@ impl Action {
     /// Optional destination identity, checked before any authority effect.
     pub fn expected_worker(&self) -> Option<u64> {
         match self {
-            Self::Activate {
+            Self::Status {
+                expected_worker_instance,
+            }
+            | Self::Activate {
                 expected_worker_instance,
                 ..
             }

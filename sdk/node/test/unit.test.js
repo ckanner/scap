@@ -378,6 +378,35 @@ test('each local identity or administrative preflight failure sends zero request
   assert.equal(calls,0);
 });
 
+test('guarded status sends one read with the exact target and preserves unguarded compatibility', async () => {
+  const requests = [], c = client((url, init) => {
+    requests.push({ url, init, body: JSON.parse(init.body) });
+    return success(statusValue());
+  });
+  await c.status();
+  const observed = await c.guardedStatus(String(U64));
+  assert.equal(observed.owner_instance, '3');
+  assert.deepEqual(requests.map(({ body }) => body), [
+    { version: 1, scope: SCOPE, operation: 'status' },
+    { version: 1, scope: SCOPE, operation: 'status', expected_worker_instance: String(U64) },
+  ]);
+  for (const { url, init } of requests) {
+    assert.equal(url, OPTIONS.endpoint);
+    assert.equal(init.headers['x-scap-admission'], 'control');
+    assert.equal(init.method, 'POST'); assert.equal(init.redirect, 'error');
+  }
+  for (const worker of [undefined, null, '0', 1, 1n, '01', '+1', String(U64 + 1n)]) {
+    invalid(() => c.guardedStatus(worker));
+  }
+  assert.equal(requests.length, 2);
+  let calls = 0;
+  const rejected = client(() => { calls++; return failure('TARGET_MISMATCH', 409); });
+  await assert.rejects(rejected.guardedStatus('100'), (error) => error instanceof RemoteError &&
+    error.code === 'TARGET_MISMATCH' && error.reference.operation === 'status' &&
+    error.reference.expectedWorkerInstance === '100');
+  assert.equal(calls, 1);
+});
+
 test('administrative response must prove the exact requested revision and nonce', async () => {
   for(const change of [x=>x.revision=x.transition.revision='13',x=>x.transition.nonce='99',x=>x.scope.database='99']) {
     const c=client(async()=>{const value=statusValue({expected_revision:'10',nonce:'8'});change(value);return success(value);});

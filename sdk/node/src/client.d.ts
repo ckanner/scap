@@ -171,11 +171,13 @@ export interface ActiveOwner {
   readonly status: DatabaseStatus;
 }
 export class OwnerClient {
-  /** Independent READ+ADMIN credential; this client never detects failure or sends SQL. */
+  /** Reconciliation needs READ+ADMIN; observation/probes need READ. This client never sends SQL. */
   constructor(options: RoutedClientOptions);
   readonly scope: Scope;
   readonly principal: Decimal;
   observe(options?: CallOptions): Promise<DatabaseStatus>;
+  /** One fresh READ on a trusted worker route; the returned owner may be another worker. */
+  probe(workerInstance: Decimal, options?: CallOptions): Promise<DatabaseStatus>;
   prepareTakeover(observed: DatabaseStatus, input: {
     readonly targetWorker: Decimal; readonly takeoverNonce: Decimal; readonly activateNonce: Decimal;
   }): OwnerIntent;
@@ -408,6 +410,8 @@ export class Client {
   save(request: TrackedRequest): string;
   restore(serialized: string): TrackedRequest;
   status(options?: CallOptions): Promise<DatabaseStatus>;
+  /** Guard the receiving service instance without requiring it to own the database. */
+  guardedStatus(workerInstance: Decimal, options?: CallOptions): Promise<DatabaseStatus>;
   open(options?: CallOptions): Promise<DatabaseStatus>;
   create(input: { readonly nonce: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
   query(statements: readonly Statement[], options?: CallOptions): Promise<TransactionResult>;

@@ -70,6 +70,9 @@ fn result(value: &Value) -> scap_sql::TransactionResult {
 fn expected_worker_guard_rejects_before_authority_cache_or_recovery_effects() {
     let (_directory, memory, mut engine) = fixture(4, 10000);
     for action in [
+        Action::Status {
+            expected_worker_instance: Some(Decimal(200)),
+        },
         Action::Activate {
             expected_revision: Decimal(1),
             nonce: Decimal(1),
@@ -93,6 +96,37 @@ fn expected_worker_guard_rejects_before_authority_cache_or_recovery_effects() {
         assert_eq!(engine.serial, 0);
         assert_eq!(engine.recovery.available_permits(), 1);
     }
+    let mut wrong_tenant = principal();
+    wrong_tenant.tenant = 99;
+    assert_eq!(
+        engine
+            .execute(
+                &wrong_tenant,
+                call(Action::Status {
+                    expected_worker_instance: Some(Decimal(200)),
+                }),
+                until(),
+            )
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::Status {
+                    expected_worker_instance: Some(Decimal(0)),
+                }),
+                until(),
+            )
+            .unwrap_err()
+            .code,
+        "INVALID"
+    );
+    assert!(memory.calls.lock().unwrap().is_empty());
+    assert!(engine.cache.is_empty());
+    assert_eq!(engine.serial, 0);
     let head = active(&mut engine);
     let claimed = invoke(
         &mut engine,
@@ -114,6 +148,91 @@ fn expected_worker_guard_rejects_before_authority_cache_or_recovery_effects() {
     );
     assert_eq!(activated["active"], true);
     assert_eq!(activated["owner_epoch"], claimed["owner_epoch"]);
+}
+
+#[test]
+fn guarded_status_reads_fresh_authority_on_a_nonowner_without_native_recovery() {
+    let (directory, memory, mut creator) = fixture(4, 10000);
+    let created = invoke(&mut creator, Action::Create { nonce: Decimal(11) });
+    let administrator = WirePermission {
+        principal: Decimal(3),
+        read: true,
+        write: true,
+        admin: true,
+    };
+    let granted = invoke(
+        &mut creator,
+        Action::Policy {
+            expected_revision: revision(&created),
+            nonce: Decimal(12),
+            permissions: vec![
+                administrator.clone(),
+                WirePermission {
+                    principal: Decimal(4),
+                    read: true,
+                    write: false,
+                    admin: false,
+                },
+            ],
+        },
+    );
+    let mut observer = Engine::new(
+        memory.clone(),
+        200,
+        Options::default(),
+        directory.path(),
+        1,
+        10000,
+        Arc::new(Semaphore::new(1)),
+    )
+    .unwrap();
+    let reader = Principal {
+        principal: 4,
+        provision: false,
+        ..principal()
+    };
+    let status = Action::Status {
+        expected_worker_instance: Some(Decimal(200)),
+    };
+    let only_head = vec![format!("GET {}", head_key(&scope().native().unwrap()))];
+    memory.calls.lock().unwrap().clear();
+    let observed = observer
+        .execute(&reader, call(status.clone()), until())
+        .unwrap();
+    assert_eq!(observed, granted);
+    assert_eq!(observed["owner_instance"], "100");
+    assert_eq!(*memory.calls.lock().unwrap(), only_head);
+    assert!(observer.cache.values().all(|entry| entry.session.is_none()));
+    assert_eq!(observer.recovery.available_permits(), 1);
+
+    invoke(
+        &mut creator,
+        Action::Policy {
+            expected_revision: revision(&granted),
+            nonce: Decimal(13),
+            permissions: vec![administrator],
+        },
+    );
+    memory.calls.lock().unwrap().clear();
+    assert_eq!(
+        observer
+            .execute(&reader, call(status.clone()), until())
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+    assert_eq!(*memory.calls.lock().unwrap(), only_head);
+    memory.calls.lock().unwrap().clear();
+    *memory.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+    assert_eq!(
+        observer
+            .execute(&principal(), call(status), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    assert_eq!(*memory.calls.lock().unwrap(), only_head);
+    assert!(observer.cache.values().all(|entry| entry.session.is_none()));
 }
 
 #[test]
@@ -190,7 +309,12 @@ fn native_sessions_preserve_original_ack_lookup_and_independent_reader() {
             .code,
         "FENCED"
     );
-    let head = invoke(&mut engine, Action::Status {});
+    let head = invoke(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
     let closed = invoke(
         &mut engine,
         Action::CloseFull {
@@ -267,7 +391,9 @@ fn cancellation_ambiguous_publication_and_full_scope_cache_identity() {
     // Both identity components are part of a local cache key, even though the
     // durable HEAD key remains the same to reject reincarnation ABA.
     for generation in [false, true] {
-        let mut stale = call(Action::Status {});
+        let mut stale = call(Action::Status {
+            expected_worker_instance: None,
+        });
         if generation {
             stale.scope.generation.0 += 1;
         } else {
@@ -281,7 +407,12 @@ fn cancellation_ambiguous_publication_and_full_scope_cache_identity() {
             "CORRUPT"
         );
         assert_eq!(
-            invoke(&mut engine, Action::Status {})["scope"]["generation"],
+            invoke(
+                &mut engine,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )["scope"]["generation"],
             "5"
         );
     }
@@ -337,7 +468,12 @@ fn ownership_quota_policy_and_lifecycle_use_the_same_remote_order() {
         Arc::new(Semaphore::new(1)),
     )
     .unwrap();
-    let head = invoke(&mut second, Action::Status {});
+    let head = invoke(
+        &mut second,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
     let fenced = invoke(
         &mut second,
         Action::Takeover {
@@ -516,7 +652,12 @@ fn cache_eviction_is_bounded_and_recovery_slots_are_released_after_failure() {
             .code,
         "RECOVERY_BUSY"
     );
-    let head = invoke(&mut engine, Action::Status {});
+    let head = invoke(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
     assert_eq!(
         engine
             .execute(
@@ -548,7 +689,9 @@ fn cache_eviction_is_bounded_and_recovery_slots_are_released_after_failure() {
 #[test]
 fn invalid_inputs_fail_before_database_io_and_startup_does_not_make_unbounded_resources() {
     let (directory, memory, mut engine) = fixture(1, 10);
-    let mut bad = call(Action::Status {});
+    let mut bad = call(Action::Status {
+        expected_worker_instance: None,
+    });
     bad.version = 2;
     assert_eq!(
         engine.execute(&principal(), bad, until()).unwrap_err().code,
@@ -556,18 +699,28 @@ fn invalid_inputs_fail_before_database_io_and_startup_does_not_make_unbounded_re
     );
     assert_eq!(
         engine
-            .execute(&principal(), call(Action::Status {}), Instant::now())
+            .execute(
+                &principal(),
+                call(Action::Status {
+                    expected_worker_instance: None
+                }),
+                Instant::now()
+            )
             .unwrap_err()
             .code,
         "DEADLINE"
     );
-    let mut bad = call(Action::Status {});
+    let mut bad = call(Action::Status {
+        expected_worker_instance: None,
+    });
     bad.scope.database.0 = 0;
     assert_eq!(
         engine.execute(&principal(), bad, until()).unwrap_err().code,
         "INVALID"
     );
-    let mut bad = call(Action::Status {});
+    let mut bad = call(Action::Status {
+        expected_worker_instance: None,
+    });
     bad.scope.tenant.0 = 99;
     assert_eq!(
         engine.execute(&principal(), bad, until()).unwrap_err().code,
@@ -591,7 +744,13 @@ fn invalid_inputs_fail_before_database_io_and_startup_does_not_make_unbounded_re
     engine.serial = u64::MAX;
     assert_eq!(
         engine
-            .execute(&principal(), call(Action::Status {}), until())
+            .execute(
+                &principal(),
+                call(Action::Status {
+                    expected_worker_instance: None
+                }),
+                until()
+            )
             .unwrap_err()
             .code,
         "LIMIT"
@@ -636,7 +795,13 @@ fn invalid_inputs_fail_before_database_io_and_startup_does_not_make_unbounded_re
     engine.serial = 0;
     engine.worker = 0;
     assert!(engine
-        .execute(&principal(), call(Action::Status {}), until())
+        .execute(
+            &principal(),
+            call(Action::Status {
+                expected_worker_instance: None
+            }),
+            until()
+        )
         .is_err());
 }
 

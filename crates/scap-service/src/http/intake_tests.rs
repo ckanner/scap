@@ -357,7 +357,9 @@ fn scheduler_refuses_reusing_or_reclassifying_a_http_reservation() {
             .scheduler
             .submit_reserved(
                 principal(),
-                native_call(Action::Status {}),
+                native_call(Action::Status {
+                    expected_worker_instance: None
+                }),
                 until(),
                 reservation.clone()
             )

@@ -27,11 +27,14 @@ fn call(extra: &str) -> String {
 }
 
 #[test]
-fn optional_worker_guard_is_canonical_nonzero_and_only_for_owner_actions() {
-    for operation in ["activate", "takeover"] {
-        let base = format!(r#""operation":"{operation}","expected_revision":"1","nonce":"2""#);
+fn optional_worker_guard_is_canonical_nonzero_and_only_for_status_or_owner_actions() {
+    for base in [
+        r#""operation":"status""#,
+        r#""operation":"activate","expected_revision":"1","nonce":"2""#,
+        r#""operation":"takeover","expected_revision":"1","nonce":"2""#,
+    ] {
         assert_eq!(
-            parse(call(&base).as_bytes())
+            parse(call(base).as_bytes())
                 .unwrap()
                 .action
                 .expected_worker(),
@@ -44,7 +47,17 @@ fn optional_worker_guard_is_canonical_nonzero_and_only_for_owner_actions() {
                 Some(worker.parse().unwrap())
             );
         }
-        for bad in ["null", "1", "\"0\"", "\"01\"", "\"18446744073709551616\""] {
+        for bad in [
+            "null",
+            "1",
+            "true",
+            "[]",
+            "{}",
+            "\"0\"",
+            "\"01\"",
+            "\"+1\"",
+            "\"18446744073709551616\"",
+        ] {
             assert!(
                 parse(call(&format!(r#"{base},"expected_worker_instance":{bad}"#)).as_bytes())
                     .is_err()
@@ -52,9 +65,15 @@ fn optional_worker_guard_is_canonical_nonzero_and_only_for_owner_actions() {
         }
     }
     assert!(
-        parse(call(r#""operation":"status","expected_worker_instance":"1""#).as_bytes()).is_err()
+        parse(call(r#""operation":"open","expected_worker_instance":"1""#).as_bytes()).is_err()
     );
-    assert_eq!(Action::Status {}.expected_worker(), None);
+    assert_eq!(
+        Action::Status {
+            expected_worker_instance: None
+        }
+        .expected_worker(),
+        None
+    );
 }
 
 #[test]

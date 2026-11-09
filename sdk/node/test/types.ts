@@ -1,6 +1,6 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
 import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, RouteError, OwnerReconcileError, UnknownError,
-  type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
+  type DatabaseStatus, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
@@ -39,11 +39,19 @@ async function contract() {
   // @ts-expect-error Normal deletion preserves its explicit original HEAD revision.
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
+  const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
   await db.takeover({ expectedRevision: '1', nonce: '2', expectedWorkerInstance: '10' });
   const routing = { bootstrapEndpoint: 'https://example.invalid/v1',
     routes: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1' }],
     token: 'synthetic-typecheck-only-credential', scope, principal: '7' };
   const routed = new RoutedClient(routing), owner = new OwnerClient(routing);
+  const probed: DatabaseStatus = await owner.probe('10');
+  // @ts-expect-error Worker identities are canonical decimal strings, never JavaScript numbers.
+  db.guardedStatus(10);
+  // @ts-expect-error Probes require an explicit trusted worker identity.
+  owner.probe();
+  // @ts-expect-error Probe options retain the ordinary CallOptions shape.
+  owner.probe('10', { retry: true });
   const original = routed.prepare([{ sql: 'SELECT 1', parameters: [] }], { epoch: '1', id: '3' });
   await routed.execute(routed.restore(routed.save(original)));
   await routed.lookup(original); await routed.cancel(original); await routed.query([]); await routed.status();
@@ -77,6 +85,6 @@ async function contract() {
     if (error instanceof UnknownError && 'intent' in error.reference) client.saveIntent(error.reference.intent);
   }
   return { prepared, observed, progress, inspected, named, aborted, deleted, alsoDeleted, forged, incomplete, recovered,
-    inspection, activeOwner };
+    inspection, activeOwner, guarded, probed };
 }
 void contract;

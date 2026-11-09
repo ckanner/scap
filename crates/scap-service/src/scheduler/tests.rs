@@ -368,7 +368,16 @@ fn cold_database_does_not_block_a_warm_database_and_capacity_does_not_block_cont
         "BACKPRESSURE"
     );
     assert_eq!(
-        send(&scheduler, data(30, Action::Status {})).unwrap()["worker"],
+        send(
+            &scheduler,
+            data(
+                30,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )
+        )
+        .unwrap()["worker"],
         2
     );
     release.send(()).unwrap();
@@ -448,7 +457,16 @@ fn concurrent_first_calls_share_one_starting_actor_without_holding_the_registry_
             .code,
         "BACKPRESSURE"
     );
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     release.send(()).unwrap();
     for reply in replies {
         assert_eq!(receive(reply).unwrap()["worker"], 0);
@@ -593,7 +611,16 @@ fn idle_actor_exits_without_new_requests_and_draining_slots_wait_for_native_drop
         "BACKPRESSURE"
     );
     assert_eq!(
-        send(&scheduler, data(10, Action::Status {})).unwrap()["worker"],
+        send(
+            &scheduler,
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )
+        )
+        .unwrap()["worker"],
         1
     );
     release.send(()).unwrap();
@@ -647,8 +674,17 @@ fn first_request_never_joins_thread_local_cleanup_and_old_slots_stay_reserved() 
         let (sent, submitted) = mpsc::sync_channel(1);
         let scheduler = &scheduler;
         scope.spawn(move || {
-            sent.send(scheduler.submit(principal(), data(10, Action::Status {}), until()))
-                .unwrap();
+            sent.send(scheduler.submit(
+                principal(),
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                ),
+                until(),
+            ))
+            .unwrap();
         });
         submitted
             .recv_timeout(Duration::from_secs(1))
@@ -672,7 +708,16 @@ fn first_request_never_joins_thread_local_cleanup_and_old_slots_stay_reserved() 
             .code,
         "BACKPRESSURE"
     );
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     release.send(()).unwrap();
     wait_retired(&scheduler);
     send(&scheduler, query(10)).unwrap();
@@ -691,7 +736,16 @@ fn actor_start_failures_release_reservations_and_do_not_disable_control_workers(
     );
     assert!(lock(&scheduler.shared.state).actors.is_empty());
     assert_eq!(lock(&scheduler.shared.state).usage.all.total, 0);
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     scheduler.spawn = spawn;
     scheduler.factory = Arc::new(|_| Err(Failure::new("FACTORY")));
     assert_eq!(send(&scheduler, query(10)).unwrap_err().code, "UNAVAILABLE");
@@ -737,7 +791,12 @@ fn control_panic_fails_pending_jobs_and_actor_panic_never_replays_them() {
         let mut scheduler = Scheduler::new(limits(), factory).unwrap();
         let make = || {
             if control {
-                data(10, Action::Status {})
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                )
             } else {
                 query(10)
             }
@@ -761,7 +820,16 @@ fn control_panic_fails_pending_jobs_and_actor_panic_never_replays_them() {
             send(&scheduler, query(20)).unwrap();
         } else {
             wait_retired(&scheduler);
-            send(&scheduler, data(10, Action::Status {})).unwrap();
+            send(
+                &scheduler,
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                ),
+            )
+            .unwrap();
         }
     }
 }
@@ -779,11 +847,29 @@ fn shutdown_drains_control_work_and_poisoned_registry_can_close_waiting_threads(
     });
     let scheduler = Scheduler::new(limits(), blocked).unwrap();
     let first = scheduler
-        .submit(principal(), data(10, Action::Status {}), until())
+        .submit(
+            principal(),
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None,
+                },
+            ),
+            until(),
+        )
         .unwrap();
     started.recv_timeout(Duration::from_secs(5)).unwrap();
     let reply = scheduler
-        .submit(principal(), data(10, Action::Status {}), until())
+        .submit(
+            principal(),
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None,
+                },
+            ),
+            until(),
+        )
         .unwrap();
     scheduler.shared.close();
     assert_eq!(receive(reply).unwrap_err().code, "UNAVAILABLE");
@@ -801,5 +887,14 @@ fn shutdown_drains_control_work_and_poisoned_registry_can_close_waiting_threads(
     })
     .join();
     send(&scheduler, query(10)).unwrap();
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
 }

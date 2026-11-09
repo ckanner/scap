@@ -77,6 +77,10 @@ export class Client {
 
   status(options) { return this.#status({ operation: 'status' }, options); }
 
+  guardedStatus(workerInstance, options) {
+    return this.#status({ operation: 'status', expected_worker_instance: wire.decimal(workerInstance) }, options);
+  }
+
   open(options) { return this.#status({ operation: 'open' }, options); }
 
   create(input, options) {
