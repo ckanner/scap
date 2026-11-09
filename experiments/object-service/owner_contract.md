@@ -52,6 +52,8 @@ bearer 摘要和 S3 环境变量名称，Node 的明文凭据配置留在私有�
 各执行 create、activate、一次包含两条 SQL 的 execute、policy，共 52 次 POST；
 其余命令共 92 次。每个原始 Fetch 与代理收到的 POST 必须一一对应，额外 dispatch、
 重试、缺失响应或少执行一个阶段都不能被成功计数隐藏。
+seed 的顺序由显式 `seed_scopes` 数组绑定，序列化对象字段的排序不能改变 scope
+与原 nonce 的对应关系。
 
 第一个实际 Node 进程完成 61 个工作命令和 135 次 POST，正常退出并由父进程
 `wait4` 回收；第二个全新 Node 进程完成剩余 9 个命令和 9 次 POST。两个显式
@@ -77,7 +79,7 @@ SIGINT 退出；不能用 `kill -0`、PID 猜测或 `/proc` 采样代替回收�
 | OR-03 | 将 B 的受信任地址故意绑定到实际 C | `TARGET_MISMATCH`；该调用无 S3 请求，C 的文件和目录清单不变 |
 | OR-03 | 401、403、真实 control intake 429、未知路由、307 | 无业务 execute，无夺主；redirect 接收端无 token 或其他请求 |
 | OR-06 | B、C 的原 HEAD PUT 都进入门控 | 两者使用同一个原 ETag；B 接受后 C 得到真实 412/CONFLICT，C 不刷新候选 |
-| OR-04 | A 的原写停在 HEAD PUT 前，B 已 takeover/activate | 释放 A 后不能 ACK；按原身份 lookup、cancel、再 lookup，最终只有 seed 数据 |
+| OR-04 | A 的原写停在 HEAD PUT 前，经 C 读取 fresh status 后由 B takeover/activate | 释放 A 后不能 ACK；按原身份 lookup、cancel、再 lookup，最终只有 seed 数据 |
 | OR-07 | 后端已接受 takeover，完整服务响应被丢失 | 原调用 UNKNOWN；inspect 证明 exact claim；新 activation-only 意图不增加 epoch |
 | OR-08 | activation 已接受但响应丢失，随后 quota 推进 HEAD | inspect 只报告仍为 target_active，不能把后来的 transition 当作原 nonce 的证据 |
 | OR-09 | takeover 的真实 200 已收到，activation 尚未开始 | 对原 manifest 做真实条件覆盖；activation 拒绝 CORRUPT，不发布 active |
@@ -87,7 +89,7 @@ SIGINT 退出；不能用 `kill -0`、PID 猜测或 `/proc` 采样代替回收�
 | OR-11 | 有暖状态时阻断实际 fresh HEAD GET | 真实失败保持 UNKNOWN；不授予缓存写权，也不发 SQL |
 | OR-12 | B 的冷恢复 manifest GET 被明确阻塞 | 另一已热库 query 和独立 control 在释放门之前完成 |
 | OR-14 | 原 routed status 响应被保留超过 250ms 总预算 | 原调用以 ABORTED/DEADLINE、not_sent 结束；不续期、不发送 execute |
-| OR-05 / OR-15 | Node1 退出；A 被回收且缓存删除；D 以空缓存启动 | Node2 经存活 bootstrap C 检查原 intent；显式 D 接管恢复全部既有 ACK |
+| OR-05 / OR-15 | Node1 退出；A 被回收且缓存删除；D 以空缓存启动 | Node2 经存活 bootstrap C 检查原 intent；显式 D 接管恢复 `cold` 库的两次既有 ACK |
 | OR-15 | Node2 从 Node1 fsync 的同一文件 restore | 只允许 inspect；重复 reconcile、修改目标绑定或完整 scope 均拒绝 |
 
 损坏实验只在 takeover 已完成其 manifest 验证并得到真实 200 后改变对象。否则

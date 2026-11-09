@@ -34,6 +34,8 @@ POLICY = [{'principal': str(principal), 'read': read, 'write': write, 'admin': a
 SEED_SQL = ['CREATE TABLE witness(n INTEGER PRIMARY KEY)', 'INSERT INTO witness(n) VALUES(1) RETURNING n']
 WRITE_SQL = 'INSERT INTO witness(n) VALUES(2) RETURNING n'
 QUERY_SQL = 'SELECT n FROM witness ORDER BY n'
+INITIAL_QUOTA_BYTES = 10737418240
+INITIAL_RETENTION = {'max_entries': 4096, 'max_result_bytes': 268435456}
 DEADLINES = {'ordinary_ms': 15000, 'recovery_ms': 30000, 's3_ms': 10000,
              'client_ms': 20000, 'owner_ms': 35000, 'short_ms': 250,
              'gate_seconds': 10, 'child_seconds': 40, 'ready_seconds': 20, 'actor_idle_ms': 5000}
@@ -57,7 +59,7 @@ race_c race reconcile a:status:200,c:takeover:409
 race_inspect_c race inspect a:status:200
 late_prepare late prepare a:status:200
 late_write late routed_execute a:status:200,a:execute:409
-late_reconcile late reconcile a:status:200,b:takeover:200,b:activate:200
+late_reconcile late reconcile c:status:200,b:takeover:200,b:activate:200
 late_lookup late lookup a:lookup:200
 late_cancel late cancel a:cancel:200
 late_cancelled late lookup a:lookup:200
@@ -199,7 +201,7 @@ def bounded_bytes(row, field, digest_field, maximum=4 * 1024 * 1024):
 def plan(value):
     require(type(value.get('schema')) is int and value['schema'] == 1 and
             value['profile'] == 'explicit-owner-real-transport-v1', 'owner plan identity changed')
-    for key, expected in (('workers', WORKERS), ('scopes', SCOPES), ('principals', PRINCIPALS), ('policy', POLICY),
+    for key, expected in (('workers', WORKERS), ('scopes', SCOPES), ('seed_scopes', list(NAMES)), ('principals', PRINCIPALS), ('policy', POLICY),
                           ('seed_sql', SEED_SQL), ('write_sql', WRITE_SQL), ('query_sql', QUERY_SQL), ('deadlines', DEADLINES),
                           ('seed_nonce_base', 10000)):
         equal(value[key], expected, 'frozen owner plan changed: ' + key)
@@ -232,7 +234,7 @@ def plan(value):
             equal(item['request_id'], REQUEST_IDS[name], 'original request identity changed')
         equal(item.get('node', 1), 2 if name.startswith('bootstrap_') or name.startswith('cold_') and name != 'cold_write' else 1,
               'command assigned to another actual Node incarnation')
-        equal(item.get('bootstrap', 'a'), 'c' if name.startswith('bootstrap_') or name.startswith('cold_') and name != 'cold_write' else 'a',
+        equal(item.get('bootstrap', 'a'), 'c' if name == 'late_reconcile' or name.startswith('bootstrap_') or name.startswith('cold_') and name != 'cold_write' else 'a',
               'explicit bootstrap destination changed')
         equal(item.get('registry'), 'misbound' if name.startswith('guard_') else 'unknown' if name == 'reject_unknown_route' else None,
               'configured trusted mutation registry changed')
@@ -277,12 +279,17 @@ def caller(command, operation):
     if command in ('reject_auth',): return 'invalid'
     if command == 'reject_read': return 'blind_admin'
     if command == 'acl_revoke': return 'rescue'
-    if command == 'seed' or operation in ('execute', 'query', 'lookup', 'cancel') or command in REQUEST_IDS: return 'writer'
+    if command == 'seed' or operation in ('execute', 'query', 'lookup', 'cancel') or CASES[command]['operation'] in ('routed_execute', 'routed_query'): return 'writer'
     return 'manager'
 
 
 def native_policy(value):
     return [{**entry, 'principal': int(entry['principal'])} for entry in value]
+
+
+def initial_limits(head):
+    equal(head['quota'], {'max_bytes': INITIAL_QUOTA_BYTES}, 'initial persisted quota differs from frozen service default')
+    equal(head['retention'], INITIAL_RETENTION, 'initial persisted retention differs from frozen service default')
 
 
 def status_from_head(head):
@@ -898,11 +905,12 @@ def head_history(net, calls, by_command):
             nonce = int(action['request']['id'] if operation in ('execute', 'cancel') else action['nonce'])
             equal(head['transition'], {'revision': revision, 'nonce': nonce}, 'original transition identity changed')
             if previous is None:
+                initial_limits(head)
                 expected = {**head, 'format': 4, 'revision': 1, 'sequence': 0, 'owner_epoch': 1,
                             'owner_instance': int(WORKERS['a']), 'active': False, 'auth_epoch': 1,
                             'policy': [{'principal': 11, 'read': True, 'write': True, 'admin': True}],
                             'lifecycle': 'ready', 'creation': None, 'deletion': None,
-                            'quota': {'max_bytes': None}, 'request_epoch': 1}
+                            'quota': {'max_bytes': INITIAL_QUOTA_BYTES}, 'retention': INITIAL_RETENTION, 'request_epoch': 1}
                 require(head['windows'][0]['count'] == 0, 'initial HEAD contains business history')
             else:
                 expected = {**previous, 'revision': revision, 'transition': {'revision': revision, 'nonce': nonce}}

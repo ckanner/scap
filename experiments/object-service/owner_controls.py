@@ -44,6 +44,12 @@ def select(values, **fields):
                        'control did not select one original witness: ' + str(fields))
 
 
+def actual_request(values, command, operation, worker):
+    return oracle.only([row for row in values if row['event'] == 'http_request' and row['command'] == command and
+                        row['worker'] == worker and oracle.parse(oracle.b64(row['request_body']))['operation'] == operation],
+                       'control did not select one original operation')
+
+
 def edit_node(directory, node, change):
     path = directory / f'node-{node}.jsonl'
     values = oracle.rows(directory, path.name)
@@ -114,7 +120,7 @@ def restored_nonce(directory):
 
 def retry(directory):
     def change(values):
-        source = select(values, event='http_request', command='cold_write', worker='a')
+        source = actual_request(values, 'cold_write', 'execute', 'a')
         # Add a complete deliberate duplicate relay exchange. The actual SDK
         # ledger is unchanged; the fixed POST denominator must reject it.
         selected = [copy.deepcopy(row) for row in values if row.get('http_serial') == source['http_serial']]
@@ -123,6 +129,63 @@ def retry(directory):
         values.extend(selected)
         select(values, event='proxy_stopped')['http_requests'] += 1
     ledger(directory / 'events.jsonl', change, renumber=True)
+
+
+def wrong_status_principal(directory):
+    configuration = oracle.parse((directory / 'owner-configuration.json').read_bytes())
+    digest = configuration['credential_sha256']['manager']
+    target = actual_request(oracle.rows(directory, 'events.jsonl'), 'route_query', 'status', 'a')['http_serial']
+    ledger(directory / 'events.jsonl', lambda values: [row.update(credential_sha256=digest) for row in values if row.get('http_serial') == target])
+    def change(values):
+        request = oracle.only([row for row in values if row['event'] == 'http_request' and row['command'] == 'route_query'
+                               and oracle.parse(oracle.b64(row['body']))['operation'] == 'status'], 'control original routed-query status')
+        request['credential_sha256'] = digest
+    edit_node(directory, 1, change)
+
+
+def wrong_initial_quota(directory):
+    scope = oracle.SCOPES['guard']
+    def rewrite_http(raw):
+        value = oracle.parse(raw)
+        status = value.get('value')
+        if isinstance(status, dict) and status.get('scope') == scope and 'max_bytes' in status:
+            status['max_bytes'] = None
+            return json.dumps(value, separators=(',', ':')).encode()
+        return raw
+    def relay(values):
+        for row in values:
+            if row['event'] in ('http_response', 'http_delivered') and row['origin'] == 'service':
+                raw = rewrite_http(oracle.b64(row['response_body']))
+                row.update(response_body=base64.b64encode(raw).decode(), response_sha256=oracle.sha(raw))
+    ledger(directory / 'events.jsonl', relay)
+    def statuses(value):
+        if isinstance(value, dict):
+            if value.get('scope') == scope and 'max_bytes' in value: value['max_bytes'] = None
+            for child in value.values(): statuses(child)
+        elif isinstance(value, list):
+            for child in value: statuses(child)
+    def node(values):
+        for row in values:
+            if row['event'] == 'http_response':
+                raw = rewrite_http(oracle.b64(row['body']))
+                row.update(body=base64.b64encode(raw).decode(), body_sha256=oracle.sha(raw))
+            if row['event'] == 'command_finished': statuses(row)
+    edit_node(directory, 1, node)
+    def history(values):
+        for row in values:
+            if not row.get('path', '').endswith('/' + scope['database'] + '/head'): continue
+            for suffix in ('request', 'response'):
+                body_key = suffix + '_body'
+                if body_key not in row: continue
+                raw = oracle.b64(row[body_key])
+                if not raw or raw[:1] != b'{': continue
+                value = oracle.parse(raw)
+                if value.get('format') != 4: continue
+                value['quota'] = {'max_bytes': None}; raw = json.dumps(value, separators=(',', ':')).encode()
+                row[body_key] = base64.b64encode(raw).decode(); row[suffix + '_bytes'] = len(raw)
+                row[suffix + '_sha256'] = oracle.sha(raw); row['head_' + suffix + '_bytes'] = list(raw)
+                if suffix == 'request': row['signing']['payload_sha256'] = oracle.sha(raw)
+    ledger(directory / 'history.jsonl', history)
 
 
 def etag_rebound(directory):
@@ -201,6 +264,8 @@ def cases():
         'omitted_offered_failure': (lambda path: ledger(path / 'events.jsonl', lambda values: values.__setitem__(slice(None),
             [row for row in values if not (row['event'] == 'operator_command' and row['id'] == 'lifecycle_write')]), renumber=True), 'offered-operation order'),
         'wrong_actual_worker_guard': (request_guard, 'original phase body/identity/guard changed'),
+        'routed_status_used_another_principal': (wrong_status_principal, 'Fetch used another authenticated principal'),
+        'initial_quota_forged_in_all_mirrors': (wrong_initial_quota, 'initial persisted quota differs'),
         'hidden_original_sql_retry': (retry, 'actual relay POST denominator'),
         'unknown_claim_reported_not_sent': (lambda path: outcome(path, 'claim_lost', lambda value: value['error'].update(outcome='not_sent')), 'SDK outcome/retained original reference changed'),
         'unknown_activation_dropped_last_confirmed': (lambda path: outcome(path, 'activation_lost', lambda value: value['error'].update(lastConfirmed=None)), 'SDK outcome/retained original reference changed'),

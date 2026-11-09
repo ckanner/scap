@@ -60,7 +60,7 @@ command('race_inspect_c', 'inspect', 'race', [('a', 'status', 200)], intent='rac
 
 prepare('late_prepare', 'late', nonces=(401, 402))
 command('late_write', 'routed_execute', 'late', [('a', 'status', 200), ('a', 'execute', 409)], request_id='2')
-reconcile('late_reconcile', 'late', 'late_prepare')
+reconcile('late_reconcile', 'late', 'late_prepare', bootstrap='c')
 command('late_lookup', 'lookup', 'late', [('a', 'lookup', 200)], request='late_write')
 command('late_cancel', 'cancel', 'late', [('a', 'cancel', 200)], request='late_write')
 command('late_cancelled', 'lookup', 'late', [('a', 'lookup', 200)], request='late_write')
@@ -132,7 +132,7 @@ command('cold_lookup_write', 'lookup', 'cold', [('c', 'lookup', 200)], request='
 command('cold_query', 'routed_query', 'cold', [('c', 'status', 200), ('d', 'query', 200)], bootstrap='c', node=2)
 
 PLAN = {'schema': 1, 'profile': 'explicit-owner-real-transport-v1', 'workers': WORKERS,
-        'scopes': SCOPES, 'principals': PRINCIPALS, 'policy': POLICY,
+        'scopes': SCOPES, 'seed_scopes': list(NAMES), 'principals': PRINCIPALS, 'policy': POLICY,
         'seed_sql': list(SEED_SQL), 'write_sql': WRITE_SQL, 'query_sql': QUERY_SQL,
         'deadlines': DEADLINES, 'commands': list(COMMANDS.values()), 'seed_nonce_base': 10000,
         'automatic_failure_detector': 'NOT_IMPLEMENTED', 'automatic_controller': 'NOT_IMPLEMENTED',

@@ -111,7 +111,7 @@ async function execute(command) {
   switch (command.operation) {
     case 'seed': {
       const acknowledgements = {};
-      for (const [index, name] of Object.keys(plan.scopes).entries()) {
+      for (const [index, name] of plan.seed_scopes.entries()) {
         const client = direct({ ...command, scope: name });
         const nonce = plan.seed_nonce_base + index * 10;
         await client.create({ nonce: String(nonce) });

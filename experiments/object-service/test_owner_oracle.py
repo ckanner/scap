@@ -68,6 +68,21 @@ def corruption():
 
 
 class OriginalTraceTests(unittest.TestCase):
+    def test_routed_query_status_preserves_writer_identity_while_owner_uses_manager(self):
+        for command in ('route_query', 'late_query', 'corrupt_query', 'recovery_warm', 'recovery_hot', 'cold_query'):
+            with self.subTest(command=command):
+                self.assertEqual(oracle.caller(command, 'status'), 'writer')
+                self.assertEqual(oracle.caller(command, 'query'), 'writer')
+        self.assertEqual(oracle.caller('route_prepare', 'status'), 'manager')
+        self.assertEqual(oracle.caller('reject_read', 'status'), 'blind_admin')
+        self.assertEqual(oracle.caller('acl_revoke', 'policy'), 'rescue')
+
+    def test_explicit_seed_array_survives_sorted_configuration_serialization(self):
+        value = {'seed_scopes': list(oracle.NAMES), 'scopes': oracle.SCOPES}
+        roundtrip = json.loads(json.dumps(value, sort_keys=True))
+        self.assertEqual(roundtrip['seed_scopes'], list(oracle.NAMES))
+        self.assertNotEqual(list(roundtrip['scopes']), list(oracle.NAMES))
+
     def test_numbered_integer_and_node_decimal_clocks(self):
         oracle.numbered([{'schema': 1, 'sequence': 1, 'monotonic_ns': 10}, {'schema': 1, 'sequence': 2, 'monotonic_ns': 11}])
         oracle.numbered([{'schema': 1, 'sequence': 1, 'monotonic_ns': '10'}, {'schema': 1, 'sequence': 2, 'monotonic_ns': '11'}], node=True)
@@ -123,6 +138,14 @@ class CompleteResultTests(unittest.TestCase):
 
 
 class CompleteDependencyTests(unittest.TestCase):
+    def test_actual_initial_quota_and_retention_are_explicit_and_not_observed_defaults(self):
+        head = {'quota': {'max_bytes': 10737418240}, 'retention': {'max_entries': 4096, 'max_result_bytes': 268435456}}
+        oracle.initial_limits(head)
+        for key, value in (('quota', {'max_bytes': None}), ('quota', {'max_bytes': 4096}),
+                           ('retention', {'max_entries': 4095, 'max_result_bytes': 268435456}),
+                           ('retention', {'max_entries': 4096, 'max_result_bytes': 536870912})):
+            with self.subTest(value=value), self.assertRaises(ValueError): oracle.initial_limits({**head, key: value})
+
     def test_complete_small_image_and_empty_manifest(self):
         objects, root, _ = data_tree()
         self.assertEqual(oracle.data_closure(objects, 'route', root), set(objects))
@@ -249,9 +272,16 @@ class MutationMechanismTests(unittest.TestCase):
 
     def test_mutation_suite_has_exact_named_semantic_rejection_boundaries(self):
         cases = controls.cases()
-        self.assertEqual(len(cases), 22)
+        self.assertEqual(len(cases), 24)
         self.assertTrue(all(callable(change) and isinstance(reason, str) and reason for change, reason in cases.values()))
         self.assertEqual(len(set(cases)), len(cases))
+
+    def test_retry_control_selects_execute_when_status_uses_same_worker(self):
+        values = [{'event': 'http_request', 'command': 'cold_write', 'worker': 'a', 'http_serial': index,
+                   'request_body': base64.b64encode(encoded({'operation': operation})).decode()}
+                  for index, operation in enumerate(('status', 'execute'), 1)]
+        self.assertIs(controls.actual_request(values, 'cold_write', 'execute', 'a'), values[1])
+        with self.assertRaises(ValueError): controls.actual_request(values + [copy.deepcopy(values[1])], 'cold_write', 'execute', 'a')
 
 
 if __name__ == '__main__':
