@@ -6,8 +6,12 @@
 
 实现基线为
 [`778a4d25dc186b3afc7958cbd522e5e0316703c8`](https://github.com/ckanner/scap/commit/778a4d25dc186b3afc7958cbd522e5e0316703c8)。
-本片编写时 Node、类型、Rust 单位/覆盖及实际 HTTP/S3 门禁均为 **NOT_RUN**；
-基线已有结果不能代替新增输入的验证。后续门禁应绑定冻结后的本片源码。
+原 `79b5b4a` 的首次 Node 单位运行是 64/65：同步编码越过期限后没有派发 Fetch，
+但内层 transport 把外层 deadline 的 abort signal 归类为 `ABORTED`，使原预期
+`DEADLINE` 的测试失败。该原失败与单独通过的类型/Node HTTP 检查见
+[首次 SDK 回执](../evidence/guarded-status-sdk-failure-local-2026-11-09.json)。
+本次修正后的 Node 重验、Rust 单位/覆盖及实际 HTTP/S3 门禁仍待独立冻结与运行；
+基线结果不能代替新增输入的验证。
 
 ## 1. Wire 与服务顺序
 
@@ -72,8 +76,11 @@ worker 输入使用现有规范非零十进制校验；原 `status(options?)` �
 `OwnerClient.probe` 从已复制、规范化的静态 `RouteRegistry` 选择指定 worker 的 endpoint。
 没有对应 route 时返回 `UNROUTABLE`，不发网络请求，也不先向 bootstrap 做 status。
 它创建一个普通 `OperationBudget`，在进入调用时固定绝对期限；路由、Client 构造、同步编码、
-Fetch、响应读取和校验消耗同一总预算。底层 Fetch 前再次检查该期限，成功返回前再次检查，
+Fetch、响应读取和校验消耗同一总预算。底层 Fetch 前再次检查该期限，成功或错误出口前再次检查，
 所有退出都关闭 timer/abort 监听。未指定 timeout 时使用普通 `timeoutMs`，不使用 recovery timeout。
+外层 OperationBudget 保留先发生的 deadline／调用者 abort；其停止原因不能被内层对
+该 signal 的通用 `ABORTED` 解释覆盖。若外层预算仍有效，原服务拒绝或传输错误原样保留。
+这项错误优先级只用于本次只读 probe，不改既有管理 intent 的已知／未知结果分类。
 
 服务拒绝、传输丢失、调用者取消或 deadline 只结束该次探测。SDK 不换 endpoint、不去掉 guard，
 不发 takeover、activate、恢复或 SQL。服务返回 UNKNOWN 也没有获得新管理派发资格。

@@ -17,6 +17,11 @@ export class OwnerClient {
       const status = await this.#registry.client(workerInstance, budget, 'probe')
         .guardedStatus(workerInstance, budget.options());
       return budget.finish(status);
+    } catch (error) {
+      // The inner transport sees this budget's signal as an external abort.
+      // Preserve the original operation's first deadline/abort at the exit.
+      budget.check();
+      throw error;
     } finally { budget.close(); }
   }
 

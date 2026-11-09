@@ -81,6 +81,21 @@ test('probe uses the ordinary total budget and withholds an over-budget verified
   assert.equal(io.calls[0].init.signal.aborted, true);
 });
 
+test('probe preserves a caller abort that occurs before its absolute deadline', async (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const controller = new AbortController();
+  const io = script([() => {
+    controller.abort();
+    now = 11;
+    throw new Error('untrusted fetch error after the original abort');
+  }]);
+  const db = owner(io);
+  await assert.rejects(db.probe('200', { timeoutMs: 10, signal: controller.signal }), { code: 'ABORTED' });
+  assert.equal(io.calls.length, 1);
+  assert.equal(io.calls[0].init.signal.aborted, true);
+});
+
 test('owner intents bind context, persist without effects, and dispatch each original phase only once', async () => {
   const io = script([head(), head(), claim(), activated(), activated()]), db = owner(io);
   assert.deepEqual(db.scope, SCOPE); assert.equal(db.principal, '7');
