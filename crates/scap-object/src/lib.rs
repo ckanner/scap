@@ -5,6 +5,7 @@ pub mod format;
 pub mod options;
 
 mod data_tree;
+mod object_context;
 mod request_index;
 
 use std::cell::RefCell;
@@ -14,7 +15,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+use data_tree::DataObjects;
 use format::*;
+use object_context::ObjectContext;
 use scap_object_sqlite::{CommitGate, GateDecision, ImageBuilder, PageBatch, SqliteWriter};
 use scap_object_store::{Condition, Objects, StoreError};
 use scap_sql::{SqlLimits, Statement, TransactionResult};
@@ -130,16 +133,7 @@ impl Database {
     }
 
     fn observe(&self, error: Error) -> Error {
-        if matches!(
-            error,
-            Error::Corrupt
-                | Error::Format(_)
-                | Error::Store(StoreError::Missing | StoreError::Corrupt | StoreError::Limit)
-                | Error::Engine(scap_object_sqlite::Error::InvalidImage)
-        ) {
-            self.quarantined.store(true, Ordering::Release);
-        }
-        error
+        object_context::observe(&self.quarantined, error)
     }
 
     fn healthy(&self) -> Result<(), Error> {
@@ -212,45 +206,22 @@ impl Database {
         Ok(())
     }
 
-    fn load(&self, root: &str, deadline: Instant) -> Result<Payload, Error> {
-        let stored = self
-            .objects
-            .get(&object_key(&self.scope, root), MAX_OBJECT_BYTES, deadline)
-            .map_err(|error| self.observe(Error::Store(error)))?;
-        Ok(decode_object(&stored.bytes, &self.scope, root)
-            .map_err(|error| self.observe(Error::Format(error)))?
-            .payload)
-    }
-
-    fn upload(&self, payload: Payload, deadline: Instant) -> Result<String, Error> {
-        let envelope = Envelope {
-            format: 2,
-            scope: self.scope.clone(),
-            payload,
-        };
-        let bytes = encode_object(&envelope).map_err(Error::Format)?;
-        let root = digest(&bytes);
-        let key = object_key(&self.scope, &root);
-        match self.objects.put(&key, &bytes, Condition::Absent, deadline) {
-            Ok(_) | Err(StoreError::Conflict) => {}
-            Err(error) => return Err(Error::Store(error)),
-        }
-        // Immutable-key collisions are accepted only after exact read-back.
-        let stored = self
-            .objects
-            .get(&key, MAX_OBJECT_BYTES, deadline)
-            .map_err(|error| self.observe(Error::Store(error)))?;
-        if stored.bytes != bytes {
-            return Err(self.observe(Error::Corrupt));
-        }
-        Ok(root)
-    }
-
     fn publish(&self, base: &Snapshot, head: &Head, deadline: Instant) -> Result<(), Error> {
+        let objects = ObjectContext::capture(self, &base.head);
+        self.publish_in(&objects, base, head, deadline)
+    }
+
+    fn publish_in(
+        &self,
+        objects: &ObjectContext,
+        base: &Snapshot,
+        head: &Head,
+        deadline: Instant,
+    ) -> Result<(), Error> {
         self.healthy()?;
         let maximum = head.quota.max_pages().map_err(Error::Format)?;
         let bytes = encode_head(head).map_err(Error::Format)?;
-        let manifest = data_tree::manifest(self, &head.data_root, deadline)
+        let manifest = data_tree::manifest(objects, &head.data_root, deadline)
             .map_err(|error| self.observe(error))?;
         if manifest.page_count > maximum {
             return Err(Error::Limit);
@@ -291,8 +262,9 @@ impl Database {
     }
 
     fn initial_head(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
-        let data_root = data_tree::empty(self, deadline)?;
-        let index = request_index::empty(self, 1, deadline)?;
+        let objects = ObjectContext::bootstrap(self);
+        let data_root = data_tree::empty(&objects, deadline)?;
+        let index = request_index::empty(&objects, 1, deadline)?;
         let head = Head {
             format: 4,
             scope: self.scope.clone(),
@@ -340,21 +312,32 @@ impl Database {
         Ok(snapshot.head)
     }
 
-    fn verify_closure(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
-        let manifest = data_tree::manifest(self, &head.data_root, deadline)
+    fn verify_closure(
+        &self,
+        objects: &ObjectContext,
+        head: &Head,
+        deadline: Instant,
+    ) -> Result<(), Error> {
+        let manifest = data_tree::manifest(objects, &head.data_root, deadline)
             .map_err(|error| self.observe(error))?;
         if manifest.page_count > head.quota.max_pages().map_err(Error::Format)? {
             return Err(Error::Limit);
         }
-        data_tree::walk(self, &manifest, deadline, |_, _| Ok(()))
+        data_tree::walk(objects, &manifest, deadline, |_, _| Ok(()))
             .map_err(|error| self.observe(error))?;
-        self.verify_results(head, deadline)
+        self.verify_results(objects, head, deadline)
     }
 
-    fn verify_results(&self, head: &Head, deadline: Instant) -> Result<(), Error> {
+    fn verify_results(
+        &self,
+        objects: &ObjectContext,
+        head: &Head,
+        deadline: Instant,
+    ) -> Result<(), Error> {
         for window in &head.windows {
-            request_index::walk(self, window, deadline, |entry| {
-                self.resolve_index_entry(head, &entry, deadline).map(|_| ())
+            request_index::walk(objects, window, deadline, |entry| {
+                self.resolve_index_entry(objects, head, &entry, deadline)
+                    .map(|_| ())
             })
             .map_err(|error| self.observe(error))?;
         }
@@ -363,6 +346,7 @@ impl Database {
 
     fn resolve(
         &self,
+        objects: &ObjectContext,
         head: &Head,
         request: &Request,
         deadline: Instant,
@@ -378,7 +362,7 @@ impl Database {
         else {
             return Ok(Resolution::Retired);
         };
-        let Some(entry) = request_index::lookup(self, window, request.id, deadline)
+        let Some(entry) = request_index::lookup(objects, window, request.id, deadline)
             .map_err(|error| self.observe(error))?
         else {
             return Ok(if request.epoch == head.request_epoch {
@@ -390,16 +374,18 @@ impl Database {
         if entry.request != *request {
             return Err(Error::RequestConflict);
         }
-        self.resolve_index_entry(head, &entry, deadline)
+        self.resolve_index_entry(objects, head, &entry, deadline)
     }
 
     fn resolve_index_entry(
         &self,
+        objects: &ObjectContext,
         head: &Head,
         entry: &Entry,
         deadline: Instant,
     ) -> Result<Resolution, Error> {
-        let resolution = self.resolve_entry(head, &entry.request, &entry.outcome, deadline)?;
+        let resolution =
+            self.resolve_entry(objects, head, &entry.request, &entry.outcome, deadline)?;
         if let Resolution::Committed { bytes, .. } = &resolution {
             if bytes.len() as u64 != entry.result_bytes {
                 return Err(self.observe(Error::Corrupt));
@@ -410,6 +396,7 @@ impl Database {
 
     fn resolve_entry(
         &self,
+        objects: &ObjectContext,
         head: &Head,
         request: &Request,
         outcome: &OutcomeRef,
@@ -425,7 +412,7 @@ impl Database {
                 })
             }
             OutcomeRef::Committed { result } => {
-                let stored = match self.load(result, deadline)? {
+                let stored = match objects.load(result, deadline)? {
                     Payload::Result(stored) => stored,
                     _ => return Err(self.observe(Error::Corrupt)),
                 };
@@ -468,7 +455,8 @@ impl Database {
         if request.principal != principal {
             return Err(Error::Denied);
         }
-        self.resolve(&base.head, request, deadline)
+        let objects = ObjectContext::capture(self, &base.head);
+        self.resolve(&objects, &base.head, request, deadline)
     }
 
     fn control(
@@ -514,14 +502,15 @@ impl Database {
         if base.head.owner_instance != self.worker || base.head.active {
             return Err(Error::Fenced);
         }
-        self.verify_closure(&base.head, deadline)?;
+        let objects = ObjectContext::capture(self, &base.head);
+        self.verify_closure(&objects, &base.head, deadline)?;
         let current = self.read_head(deadline)?;
         if current.etag != base.etag || current.head != base.head {
             return Err(Error::Conflict);
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.active = true;
-        self.publish(&base, &head, deadline)?;
+        self.publish_in(&objects, &base, &head, deadline)?;
         Ok(head)
     }
 
@@ -573,14 +562,15 @@ impl Database {
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
         let maximum = quota.max_pages().map_err(Error::Format)?;
-        let manifest = data_tree::manifest(self, &base.head.data_root, deadline)
+        let objects = ObjectContext::capture(self, &base.head);
+        let manifest = data_tree::manifest(&objects, &base.head.data_root, deadline)
             .map_err(|error| self.observe(error))?;
         if manifest.page_count > maximum {
             return Err(Error::Limit);
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.quota = quota;
-        self.publish(&base, &head, deadline)?;
+        self.publish_in(&objects, &base, &head, deadline)?;
         Ok(head)
     }
 
@@ -599,7 +589,8 @@ impl Database {
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.request_epoch = head.request_epoch.checked_add(1).ok_or(Error::Limit)?;
-        let root = request_index::empty(self, head.request_epoch, deadline)?;
+        let objects = ObjectContext::capture(self, &base.head);
+        let root = request_index::empty(&objects, head.request_epoch, deadline)?;
         head.windows.insert(
             0,
             Window {
@@ -610,11 +601,17 @@ impl Database {
             },
         );
         head.windows.truncate(3);
-        self.publish(&base, &head, deadline)?;
+        self.publish_in(&objects, &base, &head, deadline)?;
         Ok(head)
     }
 
-    fn append(&self, head: &mut Head, entry: Entry, deadline: Instant) -> Result<(), Error> {
+    fn append(
+        &self,
+        objects: &ObjectContext,
+        head: &mut Head,
+        entry: Entry,
+        deadline: Instant,
+    ) -> Result<(), Error> {
         if head.windows[0].count == head.retention.max_entries {
             return Err(Error::WindowFull);
         }
@@ -625,7 +622,7 @@ impl Database {
         if bytes > head.retention.max_result_bytes {
             return Err(Error::WindowFull);
         }
-        head.windows[0] = request_index::insert(self, &head.windows[0], entry, deadline)
+        head.windows[0] = request_index::insert(objects, &head.windows[0], entry, deadline)
             .map_err(|error| self.observe(error))?;
         Ok(())
     }
@@ -641,13 +638,15 @@ impl Database {
         if principal != request.principal {
             return Err(Error::Denied);
         }
-        let resolution = self.resolve(&base.head, request, deadline)?;
+        let objects = ObjectContext::capture(self, &base.head);
+        let resolution = self.resolve(&objects, &base.head, request, deadline)?;
         if resolution != Resolution::Unknown {
             return Ok(resolution);
         }
         let mut head = Self::next(&base.head, request.id)?;
         let transition = head.transition.clone();
         self.append(
+            &objects,
             &mut head,
             Entry {
                 request: request.clone(),
@@ -658,18 +657,20 @@ impl Database {
             },
             deadline,
         )?;
-        self.publish(&base, &head, deadline)?;
+        self.publish_in(&objects, &base, &head, deadline)?;
         Ok(Resolution::Cancelled { transition })
     }
 
     fn commit(
         &self,
-        base: &Snapshot,
-        request: &Request,
+        context: &AttemptContext,
         batch: &PageBatch,
         result: &[u8],
-        deadline: Instant,
     ) -> Result<Receipt, Error> {
+        let base = &context.base;
+        let request = &context.request;
+        let objects = &context.objects;
+        let deadline = context.deadline;
         self.writer(&base.head)?;
         if base.head.windows[0].full(&base.head.retention) {
             return Err(Error::WindowFull);
@@ -677,7 +678,7 @@ impl Database {
         let mut head = Self::next(&base.head, request.id)?;
         head.sequence = head.sequence.checked_add(1).ok_or(Error::Limit)?;
         head.data_root = data_tree::update(
-            self,
+            objects,
             &base.head.data_root,
             batch,
             base.head.quota.max_pages().map_err(Error::Format)?,
@@ -690,8 +691,9 @@ impl Database {
             data_root: head.data_root.clone(),
             bytes: result.to_vec(),
         };
-        let result_hash = self.upload(Payload::Result(stored), deadline)?;
+        let result_hash = objects.save(Payload::Result(stored), deadline)?;
         self.append(
+            objects,
             &mut head,
             Entry {
                 request: request.clone(),
@@ -702,7 +704,7 @@ impl Database {
             },
             deadline,
         )?;
-        self.publish(base, &head, deadline)?;
+        self.publish_in(objects, base, &head, deadline)?;
         Ok(Receipt {
             scope: self.scope.clone(),
             request: request.clone(),
@@ -726,9 +728,10 @@ impl Database {
         let deadline = self.options.deadline(deadline, false);
         match self.admit(principal, identity, statements, deadline)? {
             Admission::Existing(receipt, result) => Ok((receipt, result)),
-            Admission::Fresh(base) => {
-                let mut session = self.restore(&base, directory, deadline)?;
-                session.execute_prepared(base, identity, statements, deadline)
+            Admission::Fresh(context) => {
+                let mut session =
+                    self.restore(&context.objects, &context.base, directory, deadline)?;
+                session.execute_prepared(context, statements)
             }
         }
     }
@@ -770,7 +773,8 @@ impl Database {
         }
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, true, true, false)?;
-        match self.resolve(&base.head, identity, deadline)? {
+        let objects = ObjectContext::capture(self, &base.head);
+        match self.resolve(&objects, &base.head, identity, deadline)? {
             Resolution::Committed { receipt, bytes } => {
                 return self.decode_retained_admission(receipt, &bytes);
             }
@@ -785,7 +789,12 @@ impl Database {
         }
         input_budget(statements, self.options.max_input_bytes)?;
         scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
-        Ok(Admission::Fresh(base))
+        Ok(Admission::Fresh(Box::new(AttemptContext {
+            base,
+            objects,
+            request: identity.clone(),
+            deadline,
+        })))
     }
 
     /// Restore one authenticated immutable root into an owned private file.
@@ -799,27 +808,29 @@ impl Database {
         let deadline = self.options.deadline(deadline, true);
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, true, false, false)?;
-        let mut session = self.restore(&base, directory, deadline)?;
+        let objects = ObjectContext::capture(self, &base.head);
+        let mut session = self.restore(&objects, &base, directory, deadline)?;
         // Prepare retained history within the recovery budget, so the first
         // hot SQL operation does not hide a full historical result scan.
-        self.verify_results(&base.head, deadline)?;
+        self.verify_results(&objects, &base.head, deadline)?;
         session.history_verified = true;
         Ok(session)
     }
 
     fn restore(
         &self,
+        objects: &ObjectContext,
         base: &Snapshot,
         directory: &Path,
         deadline: Instant,
     ) -> Result<Session, Error> {
-        let manifest = data_tree::manifest(self, &base.head.data_root, deadline)
+        let manifest = data_tree::manifest(objects, &base.head.data_root, deadline)
             .map_err(|error| self.observe(error))?;
         let limits = self.options.writer(&base.head.quota)?;
         let mut image =
             ImageBuilder::create_new(directory, manifest.page_count, limits.max_database_pages)
                 .map_err(Error::Engine)?;
-        data_tree::walk(self, &manifest, deadline, |page, bytes| {
+        data_tree::walk(objects, &manifest, deadline, |page, bytes| {
             image.append_pages(page, bytes).map_err(Error::Engine)
         })
         .map_err(|error| self.observe(error))?;
@@ -864,8 +875,9 @@ impl Database {
         if base.head.owner_instance != self.worker || base.head.active {
             return Err(Error::Fenced);
         }
-        let mut session = self.restore(&base, directory, deadline)?;
-        self.verify_results(&base.head, deadline)?;
+        let objects = ObjectContext::capture(self, &base.head);
+        let mut session = self.restore(&objects, &base, directory, deadline)?;
+        self.verify_results(&objects, &base.head, deadline)?;
         session.history_verified = true;
         let current = self.read_head(deadline)?;
         if current.etag != base.etag || current.head != base.head {
@@ -873,7 +885,7 @@ impl Database {
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.active = true;
-        self.publish(&base, &head, deadline)?;
+        self.publish_in(&objects, &base, &head, deadline)?;
         Ok((head, session))
     }
 
@@ -906,10 +918,11 @@ impl Database {
         Self::authorize(&snapshot.head, principal, true, false, false)?;
         input_budget(statements, self.options.max_input_bytes)?;
         scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
-        let mut session = self.restore(&snapshot, directory, deadline)?;
+        let objects = ObjectContext::capture(self, &snapshot.head);
+        let mut session = self.restore(&objects, &snapshot, directory, deadline)?;
         // Direct cold queries, like Open, validate the entire retained history.
         // Warm Session::query remains a fresh HEAD plus local SQLite operation.
-        self.verify_results(&snapshot.head, deadline)?;
+        self.verify_results(&objects, &snapshot.head, deadline)?;
         session
             .writer
             .query(statements, Arc::new(move || Instant::now() >= deadline))
@@ -917,30 +930,21 @@ impl Database {
     }
 }
 
-impl data_tree::DataObjects for Database {
-    fn load(&self, hash: &str, deadline: Instant) -> Result<Payload, Error> {
-        Self::load(self, hash, deadline)
-    }
-
-    fn save(&self, payload: Payload, deadline: Instant) -> Result<String, Error> {
-        self.upload(payload, deadline)
-    }
-}
-
 enum Admission {
     Existing(Receipt, TransactionResult),
-    Fresh(Snapshot),
+    Fresh(Box<AttemptContext>),
 }
 
 struct AttemptContext {
     base: Snapshot,
+    objects: ObjectContext,
     request: Request,
     deadline: Instant,
 }
 
 #[derive(Default)]
 struct Publication {
-    context: Option<AttemptContext>,
+    context: Option<Box<AttemptContext>>,
     outcome: Option<Result<Receipt, Error>>,
 }
 
@@ -953,13 +957,7 @@ impl CommitGate for PublishGate {
     fn publish(&mut self, batch: &PageBatch, result: &[u8]) -> GateDecision {
         let context = self.state.borrow_mut().context.take();
         let result = match context {
-            Some(context) => self.database.commit(
-                &context.base,
-                &context.request,
-                batch,
-                result,
-                context.deadline,
-            ),
+            Some(context) => self.database.commit(&context, batch, result),
             None => Err(Error::Corrupt),
         };
         let result = result.map_err(|error| self.database.observe(error));
@@ -1017,28 +1015,24 @@ impl Session {
             .admit(principal, identity, statements, deadline)?
         {
             Admission::Existing(receipt, result) => Ok((receipt, result)),
-            Admission::Fresh(base) => self.execute_prepared(base, identity, statements, deadline),
+            Admission::Fresh(context) => self.execute_prepared(context, statements),
         }
     }
 
     fn execute_prepared(
         &mut self,
-        base: Snapshot,
-        identity: &Request,
+        context: Box<AttemptContext>,
         statements: &[Statement],
-        deadline: Instant,
     ) -> Result<(Receipt, TransactionResult), Error> {
-        self.align(&base.head, true)?;
+        self.align(&context.base.head, true)?;
         if !self.history_verified {
-            self.database.verify_results(&base.head, deadline)?;
+            self.database
+                .verify_results(&context.objects, &context.base.head, context.deadline)?;
             self.history_verified = true;
         }
+        let deadline = context.deadline;
         *self.state.borrow_mut() = Publication {
-            context: Some(AttemptContext {
-                base,
-                request: identity.clone(),
-                deadline,
-            }),
+            context: Some(context),
             outcome: None,
         };
         let executed = self
@@ -1083,3 +1077,6 @@ mod quarantine_tests;
 
 #[cfg(test)]
 mod result_validation_tests;
+
+#[cfg(test)]
+mod object_context_tests;

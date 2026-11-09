@@ -10,6 +10,7 @@ use scap_sql::{Statement, TransactionResult};
 
 use super::recovery_budget::RecoveryMeter;
 use super::*;
+use crate::object_context::ObjectContext;
 use crate::Session;
 
 /// Trusted configuration selects a READ principal for each discovered tenant.
@@ -395,12 +396,13 @@ impl RecoveryJob {
         };
         let deadline = self.options.deadline(deadline, true);
         self.meter.check(deadline)?;
+        let objects = ObjectContext::capture(&database, &snapshot.head);
         let mut session = database
-            .restore(&snapshot, directory, deadline)
+            .restore(&objects, &snapshot, directory, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         database
-            .verify_results(&snapshot.head, deadline)
+            .verify_results(&objects, &snapshot.head, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         session.history_verified = true;

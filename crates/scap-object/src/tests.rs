@@ -18,13 +18,30 @@ pub(super) fn test_options() -> Options {
 // A small test oracle only; the production recovery path streams into a file.
 impl Database {
     fn image(&self, head: &Head, until: Instant) -> Result<Vec<u8>, Error> {
-        let manifest = data_tree::manifest(self, &head.data_root, until)?;
+        let objects = ObjectContext::capture(self, head);
+        let manifest = data_tree::manifest(&objects, &head.data_root, until)?;
         let mut bytes = Vec::new();
-        data_tree::walk(self, &manifest, until, |_, chunk| {
+        data_tree::walk(&objects, &manifest, until, |_, chunk| {
             bytes.extend_from_slice(chunk);
             Ok(())
         })?;
         Ok(bytes)
+    }
+}
+
+// Direct candidate fixtures deliberately bypass SQL admission. Their original
+// Snapshot, request and deadline still share one captured object context.
+pub(super) fn attempt(
+    database: &Database,
+    base: &Snapshot,
+    request: &Request,
+    deadline: Instant,
+) -> AttemptContext {
+    AttemptContext {
+        base: base.clone(),
+        objects: ObjectContext::capture(database, &base.head),
+        request: request.clone(),
+        deadline,
     }
 }
 
@@ -393,14 +410,12 @@ fn cancellation_fences_late_candidate_and_lookup_absence_is_unknown() {
     );
     assert!(matches!(
         database.commit(
-            &base,
-            &identity,
+            &crate::tests::attempt(&database, &base, &identity, deadline()),
             &PageBatch {
                 size_after: 0,
                 pages: vec![]
             },
-            b"result",
-            deadline()
+            b"result"
         ),
         Err(Error::Conflict)
     ));
@@ -639,8 +654,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         database.image(&base.head, deadline()),
         Err(Error::Format(_))
     ));
-    let wrong = database
-        .upload(crate::tests::index_payload(1, vec![]), deadline())
+    let wrong = ObjectContext::bootstrap(&database)
+        .save(crate::tests::index_payload(1, vec![]), deadline())
         .unwrap();
     let mut head = base.head.clone();
     head.data_root = wrong.clone();
@@ -648,8 +663,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         database.image(&head, deadline()),
         Err(Error::Corrupt)
     ));
-    let page = database
-        .upload(
+    let page = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![0; PAGE_SIZE],
@@ -657,8 +672,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
             deadline(),
         )
         .unwrap();
-    head.data_root = database
-        .upload(
+    head.data_root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
                 root: Some(page),
@@ -670,8 +685,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         database.image(&head, deadline()),
         Err(Error::Corrupt)
     ));
-    head.data_root = database
-        .upload(
+    head.data_root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
                 root: Some(wrong),
@@ -697,8 +712,8 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
     ));
     let mut foreign = identity(3);
     foreign.epoch = 2;
-    window.root = database
-        .upload(
+    window.root = ObjectContext::bootstrap(&database)
+        .save(
             crate::tests::index_payload(
                 2,
                 vec![Entry {
@@ -726,7 +741,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     let (objects, database) = fixture();
     objects.fail(true, "*".into(), StoreError::Unknown);
     assert!(matches!(
-        database.upload(
+        ObjectContext::bootstrap(&database).save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![1; PAGE_SIZE]
@@ -737,7 +752,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     ));
     objects.inner.lock().unwrap().corrupt_create = true;
     assert!(matches!(
-        database.upload(
+        ObjectContext::bootstrap(&database).save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![2; PAGE_SIZE]
@@ -749,7 +764,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     objects.inner.lock().unwrap().corrupt_create = false;
     objects.fail(false, "*".into(), StoreError::Missing);
     assert!(matches!(
-        database.upload(
+        ObjectContext::bootstrap(&database).save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![3; PAGE_SIZE]
@@ -759,7 +774,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
         Err(Error::Store(StoreError::Missing))
     ));
     assert!(matches!(
-        database.upload(
+        ObjectContext::bootstrap(&database).save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![0]
@@ -797,7 +812,11 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
         pages: vec![page.clone()],
     };
     let first = database
-        .commit(&base, &identity(1), &batch, b"one", deadline())
+        .commit(
+            &crate::tests::attempt(&database, &base, &identity(1), deadline()),
+            &batch,
+            b"one",
+        )
         .unwrap();
     let base = database.read_head(deadline()).unwrap();
     let unchanged = PageBatch {
@@ -805,7 +824,11 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
         pages: vec![],
     };
     let second = database
-        .commit(&base, &identity(2), &unchanged, b"two", deadline())
+        .commit(
+            &crate::tests::attempt(&database, &base, &identity(2), deadline()),
+            &unchanged,
+            b"two",
+        )
         .unwrap();
     assert_eq!(first.data_root, second.data_root);
     let base = database.read_head(deadline()).unwrap();
@@ -845,13 +868,18 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
         },
     ] {
         assert!(database
-            .commit(&base, &identity(3), &invalid, b"x", deadline())
+            .commit(
+                &crate::tests::attempt(&database, &base, &identity(3), deadline()),
+                &invalid,
+                b"x"
+            )
             .is_err());
     }
     let mut head = base.head.clone();
     let transition = head.transition.clone();
     assert!(matches!(
         database.append(
+            &ObjectContext::capture(&database, &head),
             &mut head,
             Entry {
                 result_bytes: 0,
@@ -864,14 +892,12 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
     ));
     database
         .commit(
-            &base,
-            &identity(3),
+            &crate::tests::attempt(&database, &base, &identity(3), deadline()),
             &PageBatch {
                 size_after: 0,
                 pages: vec![],
             },
             b"truncate",
-            deadline(),
         )
         .unwrap();
     assert_eq!(
@@ -948,14 +974,12 @@ fn arithmetic_exhaustion_is_fail_closed() {
     let base = database.read_head(deadline()).unwrap();
     assert!(matches!(
         database.commit(
-            &base,
-            &identity(1),
+            &crate::tests::attempt(&database, &base, &identity(1), deadline()),
             &PageBatch {
                 size_after: 0,
                 pages: vec![]
             },
-            b"x",
-            deadline()
+            b"x"
         ),
         Err(Error::Limit)
     ));
@@ -1049,8 +1073,8 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         replace_head(&objects, &database, |h| h.active = false);
         // Recovery must include a retained result, not just empty metadata.
         let mut head = database.read_head(deadline()).unwrap().head;
-        let result = database
-            .upload(
+        let result = ObjectContext::bootstrap(&database)
+            .save(
                 Payload::Result(StoredResult {
                     request: identity(1),
                     sequence: 1,
@@ -1067,6 +1091,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         head.sequence = 1;
         database
             .append(
+                &ObjectContext::capture(&database, &head),
                 &mut head,
                 Entry {
                     result_bytes: scap_sql::encode_result(&empty_result(), sql_limits())
@@ -1090,8 +1115,8 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
                 },
             })
             .collect();
-        head.windows[0].root = database
-            .upload(crate::tests::index_payload(1, entries), deadline())
+        head.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         head.windows[0].count = TEST_WINDOW;
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
@@ -1099,14 +1124,12 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         let base = database.read_head(deadline()).unwrap();
         database
             .commit(
-                &base,
-                &identity(1),
+                &crate::tests::attempt(&database, &base, &identity(1), deadline()),
                 &PageBatch {
                     size_after: 0,
                     pages: vec![],
                 },
                 &scap_sql::encode_result(&empty_result(), sql_limits()).unwrap(),
-                deadline(),
             )
             .unwrap();
     }
@@ -1260,14 +1283,12 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
     let base = database.read_head(deadline()).unwrap();
     assert!(matches!(
         database.commit(
-            &base,
-            &identity(1),
+            &crate::tests::attempt(&database, &base, &identity(1), deadline()),
             &PageBatch {
                 size_after: 0,
                 pages: vec![]
             },
-            b"x",
-            deadline()
+            b"x"
         ),
         Err(Error::Limit)
     ));
@@ -1277,11 +1298,12 @@ fn control_methods_propagate_epoch_revision_and_admission_failure() {
 fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     let (objects, database) = fixture();
     let head = database.read_head(deadline()).unwrap().head;
-    let wrong_kind = database
-        .upload(crate::tests::index_payload(1, vec![]), deadline())
+    let wrong_kind = ObjectContext::bootstrap(&database)
+        .save(crate::tests::index_payload(1, vec![]), deadline())
         .unwrap();
     assert!(matches!(
         database.resolve_entry(
+            &ObjectContext::capture(&database, &head),
             &head,
             &identity(1),
             &OutcomeRef::Committed { result: wrong_kind },
@@ -1308,9 +1330,12 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
             1 => bad.sequence = 2,
             _ => bad.transition.revision = 3,
         }
-        let result = database.upload(Payload::Result(bad), deadline()).unwrap();
+        let result = ObjectContext::bootstrap(&database)
+            .save(Payload::Result(bad), deadline())
+            .unwrap();
         assert!(matches!(
             database.resolve_entry(
+                &ObjectContext::capture(&database, &accepted),
                 &accepted,
                 &identity(1),
                 &OutcomeRef::Committed { result },
@@ -1321,6 +1346,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     }
     assert!(matches!(
         database.resolve_entry(
+            &ObjectContext::capture(&database, &accepted),
             &accepted,
             &identity(1),
             &OutcomeRef::Cancelled {
@@ -1334,11 +1360,12 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
         Err(Error::Corrupt)
     ));
     stored.sequence = 1;
-    let result = database
-        .upload(Payload::Result(stored), deadline())
+    let result = ObjectContext::bootstrap(&database)
+        .save(Payload::Result(stored), deadline())
         .unwrap();
     database
         .append(
+            &ObjectContext::capture(&database, &accepted),
             &mut accepted,
             Entry {
                 result_bytes: b"bad codec".len() as u64,
@@ -1398,14 +1425,12 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
     base.head.active = false;
     assert!(matches!(
         database.commit(
-            &base,
-            &identity(1),
+            &crate::tests::attempt(&database, &base, &identity(1), deadline()),
             &PageBatch {
                 size_after: 0,
                 pages: vec![]
             },
-            b"",
-            deadline()
+            b""
         ),
         Err(Error::Fenced)
     ));
@@ -1418,8 +1443,8 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
     ));
     replace_head(&objects, &database, |h| h.lifecycle = Lifecycle::Ready);
     let page = vec![42; PAGE_SIZE];
-    let page_root = database
-        .upload(
+    let page_root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: page.clone(),
@@ -1427,13 +1452,13 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
             deadline(),
         )
         .unwrap();
-    let root = database
-        .upload(
+    let root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
                 root: Some(
-                    database
-                        .upload(
+                    ObjectContext::bootstrap(&database)
+                        .save(
                             Payload::Node {
                                 level: 0,
                                 first_chunk: 0,
@@ -1459,8 +1484,7 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
     objects.fail(true, "*".into(), StoreError::Unknown);
     assert!(matches!(
         database.commit(
-            &base,
-            &identity(1),
+            &crate::tests::attempt(&database, &base, &identity(1), deadline()),
             &PageBatch {
                 size_after: 1,
                 pages: vec![PageChange {
@@ -1468,8 +1492,7 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
                     bytes: page
                 }]
             },
-            b"",
-            deadline()
+            b""
         ),
         Err(Error::Store(StoreError::Unknown))
     ));
@@ -1505,7 +1528,8 @@ pub(crate) fn index_entries(
     end: Instant,
 ) -> Result<Vec<Entry>, Error> {
     let mut entries = Vec::new();
-    request_index::walk(database, window, end, |entry| {
+    let objects = ObjectContext::bootstrap(database);
+    request_index::walk(&objects, window, end, |entry| {
         entries.push(entry);
         Ok(())
     })?;

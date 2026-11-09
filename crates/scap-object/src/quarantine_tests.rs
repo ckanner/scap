@@ -102,7 +102,9 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
         let temporary = tempfile::tempdir().unwrap();
         let (mut session, receipt) = warm(&database, &temporary.path().join("warm"));
         let original = database.read_head(deadline()).unwrap();
-        let Payload::Result(mut stored) = database.load(&receipt.result_hash, deadline()).unwrap()
+        let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+            .load(&receipt.result_hash, deadline())
+            .unwrap()
         else {
             panic!("committed receipt must reference its stored result");
         };
@@ -117,15 +119,17 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
             }
             Payload::Result(stored)
         };
-        let replacement = database.upload(payload, deadline()).unwrap();
+        let replacement = ObjectContext::bootstrap(&database)
+            .save(payload, deadline())
+            .unwrap();
         let mut entries =
             crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
         entries[0].outcome = OutcomeRef::Committed {
             result: replacement,
         };
         let mut damaged = original.head.clone();
-        damaged.windows[0].root = database
-            .upload(crate::tests::index_payload(1, entries), deadline())
+        damaged.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
         if mutation == 4 {
@@ -173,13 +177,13 @@ fn failed_immutable_readback_and_colliding_corrupt_bytes_stop_existing_sessions(
         if collision {
             objects.set(key, b"not the immutable bytes".to_vec());
             assert!(matches!(
-                database.upload(payload, deadline()),
+                ObjectContext::bootstrap(&database).save(payload, deadline()),
                 Err(Error::Corrupt)
             ));
         } else {
             objects.fail(false, key, StoreError::Missing);
             assert!(matches!(
-                database.upload(payload, deadline()),
+                ObjectContext::bootstrap(&database).save(payload, deadline()),
                 Err(Error::Store(StoreError::Missing))
             ));
         }

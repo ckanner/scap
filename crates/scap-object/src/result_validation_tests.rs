@@ -42,8 +42,8 @@ fn install(
     head.sequence = 1;
     head.active = !inactive;
     let length = bytes.len() as u64;
-    let root = database
-        .upload(
+    let root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Result(StoredResult {
                 request: request.clone(),
                 sequence: 1,
@@ -54,8 +54,8 @@ fn install(
             deadline(),
         )
         .unwrap();
-    let root = database
-        .upload(
+    let root = ObjectContext::bootstrap(&database)
+        .save(
             crate::tests::index_payload(
                 1,
                 vec![Entry {
@@ -76,8 +76,8 @@ fn install(
         // HEAD or padding the scenario with unrelated result records.
         head.retention.max_entries = 1;
         head.request_epoch = 2;
-        let empty = database
-            .upload(crate::tests::index_payload(2, vec![]), deadline())
+        let empty = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(2, vec![]), deadline())
             .unwrap();
         head.windows.insert(
             0,
@@ -116,8 +116,8 @@ fn original_result_length_is_verified_against_each_leaf_claim() {
             crate::tests::index_entries(&database, &head.windows[0], deadline()).unwrap();
         entries[0].result_bytes += 1;
         head.windows[0].result_bytes += 1;
-        head.windows[0].root = database
-            .upload(crate::tests::index_payload(1, entries), deadline())
+        head.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
         let before = objects
@@ -165,13 +165,15 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
                     .collect(),
             };
             let summary = index.summary();
-            let hash = database.upload(Payload::Index(index), deadline()).unwrap();
+            let hash = ObjectContext::bootstrap(&database)
+                .save(Payload::Index(index), deadline())
+                .unwrap();
             children.push(IndexChild { hash, summary });
         }
         let missing = object_key(&scope(), &children[1].hash);
         head.windows[0].count = 128;
-        head.windows[0].root = database
-            .upload(
+        head.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(
                 Payload::Index(RequestIndex::Branch {
                     epoch: 1,
                     level: 1,
@@ -280,7 +282,9 @@ fn lookup_rejects_semantically_invalid_results_despite_correct_object_hashes() {
                 panic!("fixture is a committed reference");
             };
             assert!(matches!(
-                database.load(result, deadline()).unwrap(),
+                ObjectContext::bootstrap(&database)
+                    .load(result, deadline())
+                    .unwrap(),
                 Payload::Result(_)
             ));
             assert!(matches!(
@@ -395,13 +399,15 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
         .execute(7, &identity(1), &sql("SELECT 1"), deadline())
         .unwrap();
     let original = database.read_head(deadline()).unwrap();
-    let Payload::Result(mut stored) = database.load(&receipt.result_hash, deadline()).unwrap()
+    let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+        .load(&receipt.result_hash, deadline())
+        .unwrap()
     else {
         panic!("accepted request must have a result object");
     };
     stored.bytes[0] ^= 1;
-    let corrupt_result = database
-        .upload(Payload::Result(stored), deadline())
+    let corrupt_result = ObjectContext::bootstrap(&database)
+        .save(Payload::Result(stored), deadline())
         .unwrap();
     let mut entries =
         crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
@@ -409,8 +415,8 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
         result: corrupt_result,
     };
     let mut damaged = original.head.clone();
-    damaged.windows[0].root = database
-        .upload(crate::tests::index_payload(1, entries), deadline())
+    damaged.windows[0].root = ObjectContext::bootstrap(&database)
+        .save(crate::tests::index_payload(1, entries), deadline())
         .unwrap();
     objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
     assert!(matches!(

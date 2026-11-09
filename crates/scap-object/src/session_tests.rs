@@ -126,14 +126,12 @@ fn quota_is_persisted_cas_ordered_and_never_truncates_existing_data() {
         scap_sql::encode_result(&TransactionResult { statements: vec![] }, sql_limits()).unwrap();
     assert!(matches!(
         database.commit(
-            &base,
-            &identity(2),
+            &crate::tests::attempt(&database, &base, &identity(2), deadline()),
             &PageBatch {
                 size_after: session.page_count(),
                 pages: vec![]
             },
-            &bytes,
-            deadline()
+            &bytes
         ),
         Err(Error::Conflict)
     ));
@@ -331,7 +329,9 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     let (objects, database) = fixture();
     database.cancel(7, &identity(1), deadline()).unwrap();
     let head = database.read_head(deadline()).unwrap().head;
-    database.verify_results(&head, deadline()).unwrap();
+    database
+        .verify_results(&ObjectContext::capture(&database, &head), &head, deadline())
+        .unwrap();
     let temp = tempfile::tempdir().unwrap();
     let mut session = database
         .session(7, &temp.path().join("bytes"), deadline())
@@ -340,7 +340,7 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     let mut head = database.read_head(deadline()).unwrap().head;
     head.windows[0].result_bytes += 1;
     assert!(matches!(
-        database.verify_results(&head, deadline()),
+        database.verify_results(&ObjectContext::capture(&database, &head), &head, deadline()),
         Err(Error::Corrupt)
     ));
     let entry = Entry {
@@ -352,6 +352,7 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     };
     assert!(matches!(
         database.append(
+            &ObjectContext::capture(&database, &head),
             &mut head,
             Entry {
                 result_bytes: u64::MAX,
@@ -364,6 +365,7 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     head.windows[0].result_bytes = 0;
     assert!(matches!(
         database.append(
+            &ObjectContext::capture(&database, &head),
             &mut head,
             Entry {
                 result_bytes: u64::MAX,
@@ -386,7 +388,11 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     let base = bounded.read_head(deadline()).unwrap();
     assert!(base.head.windows[0].full(&base.head.retention));
     assert!(matches!(
-        bounded.commit(&base, &identity(2), &no_pages(), b"x", deadline()),
+        bounded.commit(
+            &crate::tests::attempt(&bounded, &base, &identity(2), deadline()),
+            &no_pages(),
+            b"x"
+        ),
         Err(Error::WindowFull)
     ));
     let next = bounded
@@ -475,21 +481,34 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         Err(Error::Format(_))
     ));
     assert!(matches!(
-        database.verify_closure(&bad.head, deadline()),
+        database.verify_closure(
+            &ObjectContext::capture(&database, &bad.head),
+            &bad.head,
+            deadline()
+        ),
         Err(Error::Format(_))
     ));
     assert!(matches!(
-        database.commit(&bad, &identity(1), &no_pages(), b"x", deadline()),
+        database.commit(
+            &crate::tests::attempt(&database, &bad, &identity(1), deadline()),
+            &no_pages(),
+            b"x"
+        ),
         Err(Error::Format(_))
     ));
     assert!(matches!(
-        database.restore(&bad, &temp.path().join("invalid-quota"), deadline()),
+        database.restore(
+            &ObjectContext::capture(&database, &bad.head),
+            &bad,
+            &temp.path().join("invalid-quota"),
+            deadline()
+        ),
         Err(Error::Format(_))
     ));
     let mut over = base.head.clone();
     over.quota.max_bytes = Some(PAGE_SIZE as u64);
-    over.data_root = database
-        .upload(
+    over.data_root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Manifest(Manifest {
                 page_count: 2,
                 root: Some(digest(b"missing")),
@@ -502,12 +521,12 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         Err(Error::Limit)
     ));
     assert!(matches!(
-        database.verify_closure(&over, deadline()),
+        database.verify_closure(&ObjectContext::capture(&database, &over), &over, deadline()),
         Err(Error::Limit)
     ));
     over.quota.max_bytes = None;
     assert!(matches!(
-        database.verify_closure(&over, deadline()),
+        database.verify_closure(&ObjectContext::capture(&database, &over), &over, deadline()),
         Err(Error::Store(StoreError::Missing))
     ));
 
@@ -518,7 +537,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
             page[16..18].copy_from_slice(&[0x10, 0]);
         }
         let root = data_tree::update(
-            &database,
+            &ObjectContext::capture(&database, &base.head),
             &base.head.data_root,
             &PageBatch {
                 size_after: 1,
@@ -535,6 +554,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         malformed.head.data_root = root;
         assert!(matches!(
             database.restore(
+                &ObjectContext::capture(&database, &malformed.head),
                 &malformed,
                 &temp.path().join(format!("bad-image-{header_valid}")),
                 deadline()
@@ -549,12 +569,22 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         .unwrap();
     execute(&mut session, 1, "CREATE TABLE x(value)");
     let current = database.read_head(deadline()).unwrap();
-    let manifest = data_tree::manifest(&database, &current.head.data_root, deadline()).unwrap();
+    let manifest = data_tree::manifest(
+        &ObjectContext::capture(&database, &current.head),
+        &current.head.data_root,
+        deadline(),
+    )
+    .unwrap();
     let lost = temp.path().join("lost-cache");
     objects
         .remove_directory_when_reading(object_key(&scope(), &manifest.root.unwrap()), lost.clone());
     assert!(matches!(
-        database.restore(&current, &lost, deadline()),
+        database.restore(
+            &ObjectContext::capture(&database, &current.head),
+            &current,
+            &lost,
+            deadline()
+        ),
         Err(Error::Engine(scap_object_sqlite::Error::Io(_)))
     ));
     assert_eq!(database.read_head(deadline()).unwrap().head, current.head);

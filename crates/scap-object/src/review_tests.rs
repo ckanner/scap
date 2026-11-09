@@ -33,7 +33,11 @@ fn publish_no_change(database: &Database, id: u64) -> Receipt {
         ..identity(id)
     };
     database
-        .commit(&base, &request, &no_pages(), &original_result(), deadline())
+        .commit(
+            &crate::tests::attempt(database, &base, &request, deadline()),
+            &no_pages(),
+            &original_result(),
+        )
         .unwrap()
 }
 
@@ -117,13 +121,14 @@ fn missing_retained_result_blocks_target_lookup_and_cold_publication() {
 #[test]
 fn missing_closed_epoch_blocks_cold_activation_and_first_session_write() {
     let (objects, database) = fixture();
-    let closed = database
-        .upload(
+    let closed = ObjectContext::bootstrap(&database)
+        .save(
             crate::tests::index_payload(1, full_cancelled_index(1)),
             deadline(),
         )
         .unwrap();
-    let current = request_index::empty(&database, 2, deadline()).unwrap();
+    let current =
+        request_index::empty(&ObjectContext::bootstrap(&database), 2, deadline()).unwrap();
     replace_head(&objects, &database, |head| {
         head.revision = 3;
         head.transition = Transition {
@@ -195,11 +200,9 @@ fn authorization_and_lifecycle_changes_fence_already_prepared_writes() {
         .unwrap();
     assert!(matches!(
         database.commit(
-            &before,
-            &identity(1),
+            &crate::tests::attempt(&database, &before, &identity(1), deadline()),
             &no_pages(),
-            &original_result(),
-            deadline()
+            &original_result()
         ),
         Err(Error::Conflict)
     ));
@@ -217,11 +220,9 @@ fn authorization_and_lifecycle_changes_fence_already_prepared_writes() {
             .unwrap();
         assert!(matches!(
             database.commit(
-                &before,
-                &identity(2),
+                &crate::tests::attempt(&database, &before, &identity(2), deadline()),
                 &no_pages(),
-                &original_result(),
-                deadline()
+                &original_result()
             ),
             Err(Error::Conflict)
         ));
@@ -241,11 +242,9 @@ fn takeover_and_principal_isolation_preserve_the_original_result() {
         .unwrap();
     assert!(matches!(
         database.commit(
-            &before,
-            &identity(2),
+            &crate::tests::attempt(&database, &before, &identity(2), deadline()),
             &no_pages(),
-            &original_result(),
-            deadline()
+            &original_result()
         ),
         Err(Error::Conflict)
     ));
