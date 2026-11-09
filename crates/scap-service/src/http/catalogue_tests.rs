@@ -86,14 +86,25 @@ fn catalogue_is_explicitly_enabled_authenticated_and_never_borrows_database_capa
             );
         }
         drop(permit);
+        // A reply does not establish that the database Job has dropped its
+        // lease. Join this phase before reserving all database classes anew.
+        drop(app);
+        drop(state);
+        let state = enabled();
+        let app = router(state.clone()).unwrap();
+        let slots = state.catalogue.as_ref().unwrap().intake.clone();
         let data = state.intake.acquire(&principal()).unwrap();
         let control = state.control_intake.acquire(&principal()).unwrap();
         let recovery = state.recovery_intake.acquire(&principal()).unwrap();
         let response = app.clone().oneshot(directory("exact É")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        drop(app);
+        drop(state);
         assert_eq!(slots.available_permits(), 0);
         assert_eq!(decoded(response).await["value"]["name"], "exact É");
         assert_eq!(slots.available_permits(), 1);
         drop((data, control, recovery));
+        let app = router(enabled()).unwrap();
         for mode in 0..4 {
             let mut req = directory("x");
             match mode {
@@ -130,8 +141,12 @@ fn malformed_denied_lost_and_expired_directory_responses_keep_their_exact_semant
             let mut req=directory("x");*req.body_mut()=Body::from(body);
             assert_eq!(decoded(app.clone().oneshot(req).await.unwrap()).await["error"]["code"],code);
         }
-        assert_eq!(decoded(app.clone().oneshot(directory("denied")).await.unwrap()).await["error"]["code"],"DENIED");
-        assert_eq!(decoded(app.clone().oneshot(directory("panic")).await.unwrap()).await["error"]["code"],"UNKNOWN");
+        // Independent worker errors do not depend on a prior Job having
+        // destroyed its lease merely because its reply has been consumed.
+        for (name, code) in [("denied", "DENIED"), ("panic", "UNKNOWN")] {
+            let isolated = router(enabled()).unwrap();
+            assert_eq!(decoded(isolated.oneshot(directory(name)).await.unwrap()).await["error"]["code"],code);
+        }
     });
     let mut state = enabled();
     Arc::get_mut(&mut state)

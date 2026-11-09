@@ -203,25 +203,36 @@ fn authentication_precedes_intake_and_headers_are_unambiguous() {
 
 #[test]
 fn complete_response_body_keeps_its_intake_reservation_until_consumed_or_dropped() {
-    let state = state();
-    let app = router(state.clone()).unwrap();
     runtime().block_on(async {
-        let response = app.clone().oneshot(request("query", 3)).await.unwrap();
-        assert_eq!(state.intake.available_permits(), 0);
-        assert_eq!(
-            app.clone()
-                .oneshot(request("query", 3))
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::TOO_MANY_REQUESTS
-        );
-        assert_eq!(decoded(response).await["ok"], true);
-        assert_eq!(state.intake.available_permits(), 1);
-        let response = app.oneshot(request("query", 3)).await.unwrap();
-        drop(response);
-        assert_eq!(state.intake.available_permits(), 1);
-        let permit = state.intake.acquire(&principal()).unwrap();
+        for consume in [true, false] {
+            let state = state();
+            let slots = state.intake.clone();
+            let app = router(state.clone()).unwrap();
+            let response = app.clone().oneshot(request("query", 3)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(slots.available_permits(), 0);
+            assert_eq!(
+                app.clone()
+                    .oneshot(request("query", 3))
+                    .await
+                    .unwrap()
+                    .status(),
+                StatusCode::TOO_MANY_REQUESTS
+            );
+            // Sending a reply can wake HTTP before the Job drops its lease.
+            // Join actual workers while the complete response is still owned.
+            drop(app);
+            drop(state);
+            assert_eq!(slots.available_permits(), 0);
+            if consume {
+                assert_eq!(decoded(response).await["ok"], true);
+            } else {
+                drop(response);
+            }
+            assert_eq!(slots.available_permits(), 1);
+        }
+        let slots = Arc::new(Intake::new(Class::Data, 1, 4096, None).unwrap());
+        let permit = slots.acquire(&principal()).unwrap();
         let mut body = ReservedBody {
             inner: Body::from("abc"),
             reservation: Arc::new(permit),
@@ -244,15 +255,17 @@ fn complete_response_body_keeps_its_intake_reservation_until_consumed_or_dropped
 
 #[test]
 fn outgoing_response_bytes_keep_each_admission_reserved_after_body_drop() {
-    let state = state();
-    let app = router(state.clone()).unwrap();
     runtime().block_on(async {
-        for (operation, slots) in [
-            ("query", &state.intake),
-            ("status", &state.control_intake),
-            ("open", &state.recovery_intake),
-        ] {
+        for operation in ["query", "status", "open"] {
+            let state = state();
+            let slots = match operation {
+                "query" => state.intake.clone(),
+                "status" => state.control_intake.clone(),
+                _ => state.recovery_intake.clone(),
+            };
+            let app = router(state.clone()).unwrap();
             let response = app.clone().oneshot(request(operation, 3)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
             let mut body = response.into_body();
             let frame = std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx))
                 .await
@@ -275,6 +288,11 @@ fn outgoing_response_bytes_keep_each_admission_reserved_after_body_drop() {
                     .status(),
                 StatusCode::TOO_MANY_REQUESTS
             );
+            // Leave only the response-byte owners before checking the final
+            // refund; a received reply alone does not prove Job destruction.
+            drop(app);
+            drop(state);
+            assert_eq!(slots.available_permits(), 0);
             drop(cloned);
             assert_eq!(slots.available_permits(), 0);
             drop(sliced);
@@ -420,11 +438,28 @@ fn parse_and_worker_failures_preserve_error_codes_without_retry() {
                 ["code"],
             "DENIED"
         );
+        drop(app);
+        drop(state);
+        let state = self::state();
+        let app = router(state.clone()).unwrap();
         assert_eq!(
             decoded(app.clone().oneshot(request("status", 9)).await.unwrap()).await["error"]
                 ["code"],
             "UNKNOWN"
         );
+        // A panicking Job drops its sender before its lease and the control
+        // lane's exit guard. An unreserved queued job observes that guard's
+        // closure without borrowing the still-releasing HTTP intake slot.
+        let barrier = state.scheduler.submit(
+            principal(),
+            wire::parse(body("status", 3).as_bytes()).unwrap(),
+            crate::tests::until(),
+        );
+        let unavailable = match barrier {
+            Ok(receiver) => receiver.await.unwrap().unwrap_err(),
+            Err(error) => error,
+        };
+        assert_eq!(unavailable.code, "UNAVAILABLE");
         assert_eq!(
             decoded(app.clone().oneshot(request("status", 3)).await.unwrap()).await["error"]
                 ["code"],
