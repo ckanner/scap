@@ -1,6 +1,7 @@
 # 结果编码与服务输出预算
 
-当前状态：**编码基础 `acec129` 已通过完整 workspace 门禁：严格 Clippy、stable 与新收集 nightly 各 546 项单位，以及全部 56 个生产 Rust 文件的精确四维计数。后文的全局/租户输出池仍是设计，尚未实现；此编码候选的实际 HTTP/S3 合同尚未运行。**
+当前状态：**编码基础 `acec129` 已通过完整 workspace 门禁：严格 Clippy、stable 与新收集 nightly 各 546 项单位，以及全部 56 个生产 Rust 文件的精确四维计数。普通 `/v1` 全局/租户编码缓冲池现已另行接入为静态候选，但该新候选的 Cargo、单位、覆盖与实际 HTTP/S3 门禁均尚未运行。**
+新候选的真实接线、配置、生命周期和边界见[普通 `/v1` 编码缓冲池](v1-output-pool.md)；下述基础验收不能替代新候选门禁。
 基础实现叠在 guarded-status 的 `5604126f7677188dd1b35dd3d596747d4bf95002` 上；
 原资源推导以运行时 `778a4d2` 的路径为依据。源码、独立审阅和精确边界见
 [基础切片冻结回执](../evidence/output-encoding-foundation-local-2026-11-09.json)、[首个 Clippy 失败与窄修](../evidence/output-encoding-clippy-correction-local-2026-11-09.json)和[精确覆盖失败与不变量修正](../evidence/output-encoding-invariant-correction-local-2026-11-09.json)，以及[修正后完整单位验收](../evidence/output-encoding-workspace-local-2026-11-09.json)。

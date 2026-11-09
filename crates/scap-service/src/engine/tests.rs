@@ -66,6 +66,140 @@ fn result(value: &Value) -> scap_sql::TransactionResult {
     scap_sql::decode_result(&bytes, scap_object::options::durable_sql_limits()).unwrap()
 }
 
+fn budgeted(engine: &mut Engine, action: Action, pool: &Arc<crate::output::Pool>) -> Value {
+    let deadline = until();
+    let mut context = pool
+        .acquire(&principal(), action.admission() != "data")
+        .unwrap();
+    let value = engine.execute_budgeted(&principal(), call(action), deadline, &mut context);
+    let reply = crate::output::OwnedValue::new(value, context)
+        .finish(deadline)
+        .unwrap();
+    serde_json::from_slice(&reply.bytes).unwrap()
+}
+
+#[test]
+fn budgeted_engine_preserves_query_commit_resolution_and_small_head_shapes() {
+    use crate::output::tests::{small_pool, usage};
+    use crate::output::BASE_BYTES;
+    let (_directory, _memory, mut engine) = fixture(4, 10000);
+    let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
+    let created = budgeted(&mut engine, Action::Create { nonce: Decimal(11) }, &pool);
+    assert_eq!(created["value"]["revision"], "1");
+    let activated = budgeted(
+        &mut engine,
+        Action::Activate {
+            expected_worker_instance: None,
+            expected_revision: Decimal(1),
+            nonce: Decimal(12),
+        },
+        &pool,
+    );
+    assert_eq!(activated["value"]["active"], true);
+    let read = budgeted(
+        &mut engine,
+        Action::Query {
+            statements: statements("SELECT 'budgeted'"),
+        },
+        &pool,
+    );
+    assert_eq!(
+        result(&read["value"]).statements[0].rows,
+        vec![vec![scap_sql::Value::Text("budgeted".into())]]
+    );
+
+    let write = action(1, "CREATE TABLE budgeted (x)");
+    let request = match &write {
+        Action::Execute { request, .. } => request.clone(),
+        _ => unreachable!(),
+    };
+    let committed = budgeted(&mut engine, write, &pool);
+    assert_eq!(committed["value"]["state"], "committed");
+    let looked_up = budgeted(
+        &mut engine,
+        Action::Lookup {
+            request: request.clone(),
+        },
+        &pool,
+    );
+    assert_eq!(looked_up, committed);
+    let cancelled_committed = budgeted(&mut engine, Action::Cancel { request }, &pool);
+    assert_eq!(cancelled_committed, committed);
+    let pending = identity(2, &statements("INSERT INTO budgeted VALUES (1)"));
+    assert_eq!(
+        budgeted(
+            &mut engine,
+            Action::Lookup {
+                request: pending.clone()
+            },
+            &pool
+        )["value"]["state"],
+        "unknown"
+    );
+    assert_eq!(
+        budgeted(&mut engine, Action::Cancel { request: pending }, &pool)["value"]["state"],
+        "cancelled"
+    );
+    assert_eq!(usage(&pool), (0, 0, 0));
+}
+
+#[test]
+fn exhausted_output_never_relabels_a_durable_write_or_retained_resolution_as_uncommitted() {
+    use crate::output::tests::{small_pool, usage};
+    use crate::output::BASE_BYTES;
+    let (_directory, _memory, mut engine) = fixture(4, 10000);
+    active(&mut engine);
+    let pool = small_pool(BASE_BYTES, BASE_BYTES);
+    let read = budgeted(
+        &mut engine,
+        Action::Query {
+            statements: statements("SELECT 1"),
+        },
+        &pool,
+    );
+    assert_eq!(read["error"]["code"], "LIMIT");
+    assert!(read["error"].get("receipt").is_none());
+    let write = action(1, "CREATE TABLE output_committed (x)");
+    let request = match &write {
+        Action::Execute { request, .. } => request.clone(),
+        _ => unreachable!(),
+    };
+    let error = budgeted(&mut engine, write, &pool);
+    assert_eq!(error["error"]["code"], "COMMITTED_BUT_UNAVAILABLE");
+    let original = error["error"]["receipt"].clone();
+    let lookup = invoke(
+        &mut engine,
+        Action::Lookup {
+            request: request.clone(),
+        },
+    );
+    assert_eq!(lookup["receipt"], original);
+    assert_eq!(lookup["state"], "committed");
+    // Protected control admission still works when shared dynamic credit is
+    // occupied by another operation. Both retained result verbs preserve CBU.
+    let occupied = pool.acquire(&principal(), false).unwrap();
+    for action in [
+        Action::Lookup {
+            request: request.clone(),
+        },
+        Action::Cancel { request },
+    ] {
+        let error = budgeted(&mut engine, action, &pool);
+        assert_eq!(error["error"]["code"], "COMMITTED_BUT_UNAVAILABLE");
+        assert_eq!(error["error"]["receipt"], original);
+    }
+    let status = budgeted(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+        &pool,
+    );
+    assert_eq!(status["value"]["sequence"], "1");
+    drop(occupied);
+    assert_eq!(usage(&pool), (0, 0, 0));
+}
+
 #[test]
 fn expected_worker_guard_rejects_before_authority_cache_or_recovery_effects() {
     let (_directory, memory, mut engine) = fixture(4, 10000);

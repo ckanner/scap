@@ -10,6 +10,44 @@ fn environment(_: &str) -> Option<OsString> {
 }
 
 #[test]
+fn output_profile_is_explicit_and_checked_before_resolving_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    let defaults = parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .output;
+    assert_eq!(defaults.bytes, 512 * 1024 * 1024);
+    assert_eq!(defaults.bytes_per_tenant, 256 * 1024 * 1024);
+    let profile = json!({"version":1,"bytes":805306368,"bytes_per_tenant":536870912,
+        "control_bytes":16777216,"control_bytes_per_tenant":2097152});
+    value["output"] = profile.clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.output.bytes, 805306368);
+    assert_eq!(prepared.service.output.bytes_per_tenant, 536870912);
+    assert_eq!(prepared.service.output.control_bytes, 16777216);
+    assert_eq!(prepared.service.output.control_bytes_per_tenant, 2097152);
+    value["output"]["version"] = json!(2);
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("output before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for field in profile.as_object().unwrap().keys() {
+        value["output"] = profile.clone();
+        value["output"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    value["output"] = profile;
+    value["output"]["rss_limit"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
 fn transport_defaults_and_explicit_profiles_are_checked_before_credentials() {
     let directory = tempfile::tempdir().unwrap();
     let mut value = sample_config(directory.path());

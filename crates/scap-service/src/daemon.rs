@@ -37,6 +37,7 @@ pub fn assemble_with_listings(
     objects: Arc<dyn Objects>,
     listings: Option<Arc<dyn Listings>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
     let discovery = match prepared.discovery {
@@ -94,6 +95,7 @@ pub fn assemble_with_listings(
         Arc::new(HttpState {
             auth: prepared.auth,
             scheduler,
+            output,
             catalogue,
             discovery,
             max_body_bytes: admission.max_body_bytes,
@@ -125,6 +127,7 @@ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
     // Direct Prepared callers receive the same validation as parsed configs,
     // before S3 clients or any workers are created.
     let transport = prepared.service.transport.checked()?;
+    prepared.service.output.checked()?;
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
     let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);

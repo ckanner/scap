@@ -42,6 +42,91 @@ fn result_encoding_resource_failure_is_not_durable_corruption() {
     );
 }
 
+#[test]
+fn budgeted_result_counts_wire_and_base64_overlap_before_either_allocation() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let empty = TransactionResult { statements: vec![] };
+    let pool = small_pool(BASE_BYTES + 12, BASE_BYTES + 12);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    // The 12-byte SCAPRES1 buffer fits, but its simultaneous 16-byte Base64
+    // backing does not. Returning must refund the already-created wire Vec.
+    assert_eq!(
+        budgeted_result(&empty, &mut output).unwrap_err().code,
+        "LIMIT"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(output);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let pool = small_pool(BASE_BYTES + 28, BASE_BYTES + 28);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    let encoded = budgeted_result(&empty, &mut output).unwrap();
+    assert_eq!(encoded, "U0NBUFJFUzEAAAAA");
+    assert_eq!(encoded.capacity(), 16);
+    assert_eq!(usage(&pool), (BASE_BYTES + 16, 0, 1));
+    let reply = crate::output::OwnedValue::new(Ok(Json::String(encoded)), output)
+        .finish(crate::tests::until())
+        .unwrap();
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    let invalid = TransactionResult {
+        statements: vec![scap_sql::StatementResult {
+            columns: vec![],
+            rows: vec![vec![]],
+            affected_rows: 0,
+            last_insert_rowid: 0,
+        }],
+    };
+    assert_eq!(
+        budgeted_result(&invalid, &mut output).unwrap_err().code,
+        "CORRUPT"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+}
+
+#[test]
+fn budgeted_noncommitted_resolutions_keep_the_existing_small_wire_contract() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(BASE_BYTES, BASE_BYTES);
+    for (resolution, expected) in [
+        (Resolution::Unknown, json!({"state":"unknown"})),
+        (Resolution::Closed, json!({"state":"closed"})),
+        (Resolution::Retired, json!({"state":"retired"})),
+        (
+            Resolution::Cancelled {
+                transition: scap_object::format::Transition {
+                    revision: 7,
+                    nonce: 9,
+                },
+            },
+            json!({"state":"cancelled","transition":{"revision":"7","nonce":"9"}}),
+        ),
+    ] {
+        let mut output = pool.acquire(&crate::tests::principal(), true).unwrap();
+        let value = budgeted_resolved(resolution, &mut output).unwrap();
+        assert_eq!(value, expected);
+        let reply = crate::output::OwnedValue::new(Ok(value), output)
+            .finish(crate::tests::until())
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Json>(&reply.bytes).unwrap(),
+            json!({"ok":true,"value":expected})
+        );
+        assert_eq!(usage(&pool), (0, BASE_BYTES, 1));
+        drop(reply);
+        assert_eq!(usage(&pool), (0, 0, 0));
+    }
+}
+
 fn call(extra: &str) -> String {
     format!(
         r#"{{"version":1,"scope":{{"deployment":"1","tenant":"2","database":"3","incarnation":"4","generation":"5"}},{extra}}}"#

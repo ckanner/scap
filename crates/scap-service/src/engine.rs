@@ -122,6 +122,28 @@ impl Engine {
         call: Call,
         deadline: Instant,
     ) -> Result<Value, Failure> {
+        self.execute_using(principal, call, deadline, None)
+    }
+
+    /// HTTP workers must explicitly forward the original context and deadline.
+    /// This does not cover core/native buffers allocated before service output.
+    pub fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: &mut crate::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        self.execute_using(principal, call, deadline, Some(output))
+    }
+
+    fn execute_using(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: Option<&mut crate::output::OutputContext>,
+    ) -> Result<Value, Failure> {
         if call.version != 1 {
             return Err(Failure::new("VERSION"));
         }
@@ -172,6 +194,7 @@ impl Engine {
             call.action,
             &path,
             deadline,
+            output,
         );
         // A failed native operation may have invalidated the private connection.
         // Quarantined Database handles survive while resident; no failed cache
@@ -213,6 +236,7 @@ impl Engine {
         action: Action,
         path: &Path,
         deadline: Instant,
+        output: Option<&mut crate::output::OutputContext>,
     ) -> Result<Value, Failure> {
         let database = entry.database.clone();
         let head =
@@ -233,7 +257,10 @@ impl Engine {
                         &statements,
                         deadline,
                     )?;
-                    return queried(value);
+                    return match output {
+                        Some(output) => queried_budgeted(value, output),
+                        None => queried(value),
+                    };
                 }
                 Action::Execute {
                     request,
@@ -249,21 +276,20 @@ impl Engine {
                     let (receipt, result) = self
                         .session(principal, entry, path, deadline)?
                         .execute(principal, &identity, &statements, deadline)?;
-                    return committed(receipt, result);
+                    return match output {
+                        Some(output) => committed_budgeted(receipt, result, output),
+                        None => committed(receipt, result),
+                    };
                 }
                 Action::Lookup { request } => {
-                    return Ok(wire::resolved(database.lookup(
-                        principal,
-                        &request.native(principal)?,
-                        deadline,
-                    )?))
+                    let resolution =
+                        database.lookup(principal, &request.native(principal)?, deadline)?;
+                    return resolved(resolution, output);
                 }
                 Action::Cancel { request } => {
-                    return Ok(wire::resolved(database.cancel(
-                        principal,
-                        &request.native(principal)?,
-                        deadline,
-                    )?))
+                    let resolution =
+                        database.cancel(principal, &request.native(principal)?, deadline)?;
+                    return resolved(resolution, output);
                 }
                 Action::Activate {
                     expected_revision,
@@ -342,6 +368,9 @@ impl Engine {
                     )?
                 }
             };
+        if let Some(output) = output {
+            output.head_result();
+        }
         Ok(wire::status(&head))
     }
 }
@@ -350,15 +379,47 @@ fn committed(
     receipt: scap_object::Receipt,
     result: scap_sql::TransactionResult,
 ) -> Result<Value, Failure> {
-    let encoded = wire::result(&result).map_err(|_| Failure {
-        code: "COMMITTED_BUT_UNAVAILABLE",
-        receipt: Some(Box::new(receipt.clone())),
-    })?;
-    Ok(Value::Object(Map::from_iter([
-        ("state".into(), Value::String("committed".into())),
-        ("receipt".into(), wire::receipt(&receipt)),
-        ("result".into(), Value::String(encoded)),
-    ])))
+    let encoded = match wire::result(&result) {
+        Ok(encoded) => encoded,
+        Err(_) => {
+            return Err(Failure {
+                code: "COMMITTED_BUT_UNAVAILABLE",
+                receipt: Some(Box::new(receipt)),
+            })
+        }
+    };
+    Ok(wire::committed(&receipt, encoded))
+}
+
+fn committed_budgeted(
+    receipt: scap_object::Receipt,
+    result: scap_sql::TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<Value, Failure> {
+    output.committed(receipt);
+    let encoded =
+        wire::budgeted_result(&result, output).map_err(|_| output.committed_unavailable())?;
+    Ok(wire::committed(output.receipt(), encoded))
+}
+
+fn resolved(
+    resolution: scap_object::Resolution,
+    output: Option<&mut crate::output::OutputContext>,
+) -> Result<Value, Failure> {
+    match output {
+        Some(output) => wire::budgeted_resolved(resolution, output),
+        None => Ok(wire::resolved(resolution)),
+    }
+}
+
+fn queried_budgeted(
+    result: scap_sql::TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<Value, Failure> {
+    Ok(Value::Object(Map::from_iter([(
+        "result".into(),
+        Value::String(wire::budgeted_result(&result, output)?),
+    )])))
 }
 
 fn queried(result: scap_sql::TransactionResult) -> Result<Value, Failure> {

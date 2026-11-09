@@ -22,6 +22,17 @@ impl Worker for Echo {
             _ => Ok(json!({"served":call.action.admission()})),
         }
     }
+
+    fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        _: &mut crate::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        // This fixture only creates fixed small scalar/status values.
+        self.execute(principal, call, deadline)
+    }
 }
 pub(super) fn state() -> Arc<HttpState> {
     let token = "a".repeat(32);
@@ -54,6 +65,7 @@ pub(super) fn state() -> Arc<HttpState> {
     Arc::new(HttpState {
         auth,
         scheduler,
+        output: Arc::new(crate::output::Pool::new(crate::output::Profile::default()).unwrap()),
         catalogue: None,
         discovery: None,
         max_body_bytes: 4096,

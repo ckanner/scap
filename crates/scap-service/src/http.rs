@@ -23,6 +23,7 @@ use crate::{
 pub struct HttpState {
     pub auth: Authenticator,
     pub scheduler: Arc<Scheduler>,
+    pub output: Arc<crate::output::Pool>,
     pub catalogue: Option<CatalogueState>,
     pub discovery: Option<Arc<crate::discovery::Discovery>>,
     pub max_body_bytes: usize,
@@ -80,8 +81,8 @@ async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "alive", "protocol": 1 }))
 }
 
-fn failure(error: Failure) -> Response {
-    let status = match error.code {
+pub(crate) fn failure_status(error: &Failure) -> StatusCode {
+    match error.code {
         "UNAUTHENTICATED" => StatusCode::UNAUTHORIZED,
         "DENIED" => StatusCode::FORBIDDEN,
         "NOT_FOUND" => StatusCode::NOT_FOUND,
@@ -92,8 +93,11 @@ fn failure(error: Failure) -> Response {
             StatusCode::SERVICE_UNAVAILABLE
         }
         _ => StatusCode::CONFLICT,
-    };
-    (status, Json(wire::failed(&error))).into_response()
+    }
+}
+
+fn failure(error: Failure) -> Response {
+    (failure_status(&error), Json(wire::failed(&error))).into_response()
 }
 
 fn single<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -315,22 +319,36 @@ async fn admitted(
     if call.action.admission() != class {
         return failure(Failure::new("INVALID"));
     }
+    // Preserve scope-denial precedence over the new output-admission limit.
+    // parse_before has already validated this unchanged Scope.
+    if let Err(error) = principal.authorize(&call.scope.native().expect("validated parsed scope")) {
+        return failure(error);
+    }
     let duration = if class == "recovery" {
         state.recovery_timeout
     } else {
         state.timeout
     };
     let deadline = received + duration;
-    let receiver = match state
-        .scheduler
-        .submit_reserved(principal, call, deadline, reservation)
-    {
-        Ok(receiver) => receiver,
+    let output = match state.output.acquire(&principal, class != "data") {
+        Ok(output) => output,
         Err(error) => return failure(error),
     };
+    let receiver =
+        match state
+            .scheduler
+            .submit_encoded(principal, call, deadline, reservation, output)
+        {
+            Ok(receiver) => receiver,
+            Err(error) => return failure(error),
+        };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(Ok(value))) => Json(wire::success(value)).into_response(),
-        Ok(Ok(Err(error))) => failure(error),
+        Ok(Ok(reply)) => (
+            reply.status,
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            reply.bytes,
+        )
+            .into_response(),
         // A missing response never proves that publication rolled back.
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
     }
@@ -354,5 +372,8 @@ mod catalogue_tests;
 
 #[cfg(test)]
 mod intake_tests;
+
+#[cfg(test)]
+mod output_tests;
 
 mod discovery;

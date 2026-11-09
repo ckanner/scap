@@ -453,6 +453,20 @@ pub fn result(result: &TransactionResult) -> Result<String, Failure> {
     Ok(STANDARD.encode(bytes))
 }
 
+pub(crate) fn budgeted_result(
+    result: &TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<String, Failure> {
+    let plan = scap_sql::plan_result(result, scap_object::options::durable_sql_limits())
+        .map_err(result_encoding_failure)?;
+    let mut bytes = output.allocate(plan.encoded_len())?;
+    plan.write_exact(bytes.as_mut())
+        .expect("validated result and exact reserved destination");
+    // The exact wire backing and Base64 backing overlap and retain separate
+    // charges. The raw Buffer drops only after this conversion returns.
+    output.base64(bytes.as_slice())
+}
+
 fn result_encoding_failure(error: scap_sql::SqlError) -> Failure {
     Failure::new(match error {
         scap_sql::SqlError::ResourceExhausted => "LIMIT",
@@ -476,6 +490,38 @@ pub fn resolved(resolution: Resolution) -> Json {
         Resolution::Closed => json!({ "state": "closed" }),
         Resolution::Retired => json!({ "state": "retired" }),
     }
+}
+
+pub(crate) fn budgeted_resolved(
+    resolution: Resolution,
+    output: &mut crate::output::OutputContext,
+) -> Result<Json, Failure> {
+    match resolution {
+        Resolution::Committed {
+            receipt: value,
+            bytes,
+        } => {
+            output.committed(value);
+            let encoded = output
+                .base64(&bytes)
+                .map_err(|_| output.committed_unavailable())?;
+            Ok(committed(output.receipt(), encoded))
+        }
+        other => {
+            // Cancelled may already have changed HEAD. These small fixed
+            // shapes use the preallocated buffer, never a retryable LIMIT.
+            output.head_result();
+            Ok(resolved(other))
+        }
+    }
+}
+
+pub(crate) fn committed(value: &Receipt, encoded: String) -> Json {
+    Json::Object(Map::from_iter([
+        ("state".into(), Json::String("committed".into())),
+        ("receipt".into(), receipt(value)),
+        ("result".into(), Json::String(encoded)),
+    ]))
 }
 
 pub fn failed(error: &Failure) -> Json {

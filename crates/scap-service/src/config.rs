@@ -23,6 +23,9 @@ pub struct Config {
     pub listen: SocketAddr,
     #[serde(default)]
     pub transport: crate::transport::Profile,
+    /// Ordinary /v1 encoding backings only; not other routes or process RSS.
+    #[serde(default)]
+    pub output: crate::output::Profile,
     pub worker_instance: Decimal,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
@@ -161,6 +164,7 @@ pub struct ServiceConfig {
     pub options: scap_object::Options,
     pub listen: SocketAddr,
     pub transport: crate::transport::Profile,
+    pub output: crate::output::Profile,
     pub worker_instance: u64,
     pub cache_directory: PathBuf,
     pub admission: Admission,
@@ -214,6 +218,7 @@ impl Config {
         ) -> Result<crate::discovery_cursor::CursorCodec, Failure>,
     ) -> Result<Prepared, Failure> {
         self.transport.checked()?;
+        self.output.checked()?;
         let mut options = scap_object::Options::default();
         if let Some(execution) = self.execution {
             options.result_memory_bytes = execution.result_memory_bytes;
@@ -296,6 +301,7 @@ impl Config {
                 options,
                 listen: self.listen,
                 transport: self.transport,
+                output: self.output,
                 worker_instance: self.worker_instance.0,
                 cache_directory: self.cache_directory,
                 admission: self.admission,

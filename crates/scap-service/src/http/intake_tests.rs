@@ -180,10 +180,13 @@ fn completed_body_read_refunds_unused_extent_while_responses_remain_owned() {
             .unwrap();
         assert_eq!(second.status(), StatusCode::OK);
         assert_eq!(state.intake.available_permits(), 1);
+        let slots = state.intake.clone();
+        // A response wakeup is not a worker destruction barrier.
+        drop(state);
         drop(first);
-        assert_eq!(state.intake.available_permits(), 2);
+        assert_eq!(slots.available_permits(), 2);
         drop(second);
-        assert_eq!(state.intake.available_permits(), 3);
+        assert_eq!(slots.available_permits(), 3);
     });
 }
 
@@ -227,6 +230,17 @@ impl Worker for GatedWorker {
             }
         }
         Ok(json!({"completed":true}))
+    }
+
+    fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        _: &mut crate::output::OutputContext,
+    ) -> Result<serde_json::Value, Failure> {
+        // The bounded fixture reply is covered by the acquired base credit.
+        self.execute(principal, call, deadline)
     }
 }
 
@@ -300,10 +314,11 @@ fn worker_retains_each_intake_after_http_deadline_and_response_bytes_are_dropped
         let app = router(state.clone()).unwrap();
         let _release = ReleaseOnDrop(gate.clone());
         let pool = match operation {
-            "status" => &state.control_intake,
-            "open" => &state.recovery_intake,
-            _ => &state.intake,
+            "status" => state.control_intake.clone(),
+            "open" => state.recovery_intake.clone(),
+            _ => state.intake.clone(),
         };
+        let output = state.output.clone();
         runtime().block_on(async {
             let task = tokio::spawn(app.clone().oneshot(request(operation, 10)));
             tokio::time::timeout(Duration::from_secs(2), entered)
@@ -313,20 +328,32 @@ fn worker_retains_each_intake_after_http_deadline_and_response_bytes_are_dropped
             let response = task.await.unwrap().unwrap();
             assert_eq!(decoded(response).await["error"]["code"], "UNKNOWN");
             assert_eq!(pool.available_permits(), 0);
+            let bytes = crate::output::BASE_BYTES;
+            assert_eq!(
+                crate::output::tests::usage(&output),
+                if operation == "query" {
+                    (bytes, 0, 1)
+                } else {
+                    (0, bytes, 1)
+                }
+            );
             assert_eq!(
                 app.oneshot(request(operation, 3)).await.unwrap().status(),
                 StatusCode::TOO_MANY_REQUESTS
             );
             gate.release();
-            wait_free(pool, 1).await;
+            wait_free(&pool, 1).await;
             assert_eq!(gate.executions.load(Ordering::SeqCst), 1);
         });
+        drop(state);
+        assert_eq!(crate::output::tests::usage(&output), (0, 0, 0));
     }
 }
 
 #[test]
 fn queued_cancellation_keeps_its_lease_until_the_worker_actually_discards_the_job() {
     let (state, gate, entered) = gated(2);
+    let output = state.output.clone();
     let app = router(state.clone()).unwrap();
     let _release = ReleaseOnDrop(gate.clone());
     runtime().block_on(async {
@@ -342,10 +369,16 @@ fn queued_cancellation_keeps_its_lease_until_the_worker_actually_discards_the_jo
             "UNKNOWN"
         );
         assert_eq!(state.intake.available_permits(), 0);
+        assert_eq!(
+            crate::output::tests::usage(&output),
+            (2 * crate::output::BASE_BYTES, 0, 1)
+        );
         gate.release();
         wait_free(&state.intake, 2).await;
         assert_eq!(gate.executions.load(Ordering::SeqCst), 1);
     });
+    drop(state);
+    assert_eq!(crate::output::tests::usage(&output), (0, 0, 0));
 }
 
 #[test]
@@ -355,13 +388,14 @@ fn scheduler_refuses_reusing_or_reclassifying_a_http_reservation() {
     assert_eq!(
         state
             .scheduler
-            .submit_reserved(
+            .submit_encoded(
                 principal(),
                 native_call(Action::Status {
                     expected_worker_instance: None
                 }),
                 until(),
-                reservation.clone()
+                reservation.clone(),
+                state.output.acquire(&principal(), true).unwrap(),
             )
             .err()
             .unwrap()
@@ -370,31 +404,37 @@ fn scheduler_refuses_reusing_or_reclassifying_a_http_reservation() {
     );
     let result = state
         .scheduler
-        .submit_reserved(
+        .submit_encoded(
             principal(),
             native_call(Action::Query { statements: vec![] }),
             until(),
             reservation.clone(),
+            state.output.acquire(&principal(), false).unwrap(),
         )
         .unwrap()
         .blocking_recv()
-        .unwrap()
         .unwrap();
-    assert_eq!(result["served"], "data");
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&result.bytes).unwrap()["value"]["served"],
+        "data"
+    );
     assert_eq!(
         state
             .scheduler
-            .submit_reserved(
+            .submit_encoded(
                 principal(),
                 native_call(Action::Query { statements: vec![] }),
                 until(),
-                reservation.clone()
+                reservation.clone(),
+                state.output.acquire(&principal(), false).unwrap(),
             )
             .err()
             .unwrap()
             .code,
         "INVALID"
     );
+    let slots = state.intake.clone();
+    drop(state);
     drop(reservation);
-    assert_eq!(state.intake.available_permits(), 1);
+    assert_eq!(slots.available_permits(), 1);
 }

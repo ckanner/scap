@@ -111,12 +111,13 @@ struct ObservedWorker {
     calls: Arc<AtomicU64>,
 }
 
-impl Worker for ObservedWorker {
-    fn execute(
+impl ObservedWorker {
+    fn observe(
         &mut self,
         principal: &Principal,
         call: Call,
         deadline: Instant,
+        output: Option<&mut scap_service::output::OutputContext>,
     ) -> Result<Value, Failure> {
         let serial = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
         let operation = match call.action {
@@ -133,7 +134,12 @@ impl Worker for ObservedWorker {
             "tenant": principal.tenant, "principal": principal.principal,
             "database": call.scope.database.0});
         emit("worker_entered", fields.clone());
-        let result = self.engine.execute(principal, call, deadline);
+        let result = match output {
+            Some(output) => self
+                .engine
+                .execute_budgeted(principal, call, deadline, output),
+            None => self.engine.execute(principal, call, deadline),
+        };
         let mut fields = fields;
         fields["outcome"] = json!(match &result {
             Ok(_) => "ok",
@@ -141,6 +147,27 @@ impl Worker for ObservedWorker {
         });
         emit("worker_completed", fields);
         result
+    }
+}
+
+impl Worker for ObservedWorker {
+    fn execute(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+    ) -> Result<Value, Failure> {
+        self.observe(principal, call, deadline, None)
+    }
+
+    fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: &mut scap_service::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        self.observe(principal, call, deadline, Some(output))
     }
 }
 

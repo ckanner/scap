@@ -11,6 +11,68 @@ fn prepared(parent: &std::path::Path) -> Prepared {
 }
 
 #[test]
+fn output_validation_and_budgeted_factory_are_wired_into_actual_assembly() {
+    use crate::output::{tests::usage, BASE_BYTES};
+    let directory = tempfile::tempdir().unwrap();
+    let mut invalid = prepared(directory.path());
+    invalid.service.output.version = 2;
+    assert_eq!(
+        assemble(invalid.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    let mut invalid = prepared(directory.path());
+    invalid.service.output.control_bytes = 0;
+    assert_eq!(
+        serve(invalid, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+
+    let (_, state) = assemble(
+        prepared(directory.path()).service,
+        Arc::new(Memory::default()),
+    )
+    .unwrap();
+    let pool = state.output.clone();
+    let reply = state
+        .scheduler
+        .submit_encoded(
+            principal(),
+            call(Action::Create { nonce: Decimal(1) }),
+            until(),
+            state.intake.acquire(&principal()).unwrap(),
+            pool.acquire(&principal(), false).unwrap(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap();
+    assert_eq!(reply.status, axum::http::StatusCode::OK);
+    let value: serde_json::Value = serde_json::from_slice(&reply.bytes).unwrap();
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["value"]["revision"], "1");
+    // Joining the actual workers removes the send/wakeup race. The final
+    // response still independently owns the base output allowance.
+    drop(state);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
 fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
     let directory = tempfile::tempdir().unwrap();
     let memory = Arc::new(Memory::default());

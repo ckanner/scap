@@ -48,11 +48,13 @@ fn job(
     (
         Job {
             _reservation: None,
+            output: None,
+            _output_hold: None,
             principal,
             call,
             key,
             deadline: until(),
-            reply,
+            reply: Reply::Value(reply),
         },
         receiver,
     )
@@ -88,6 +90,193 @@ fn receive(receiver: oneshot::Receiver<Result<Value, Failure>>) -> Result<Value,
                 .unwrap()
                 .unwrap()
         })
+}
+
+fn encoded_job(
+    pool: &Arc<crate::output::Pool>,
+    deadline: Instant,
+) -> (Job, oneshot::Receiver<crate::output::Reply>) {
+    let (mut job, old) = job(2, 3, 1, false);
+    drop(old);
+    let output = pool.acquire(&job.principal, false).unwrap();
+    let hold = output.work_hold();
+    let (sender, receiver) = oneshot::channel();
+    job.deadline = deadline;
+    job.reply = Reply::Encoded(sender);
+    job.output = Some(output);
+    job._output_hold = Some(hold);
+    (job, receiver)
+}
+
+#[test]
+fn encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker() {
+    use crate::intake::{Class, Intake};
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    struct Unmetered(Arc<AtomicUsize>);
+    impl Worker for Unmetered {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(json!("legacy"))
+        }
+    }
+    let executions = Arc::new(AtomicUsize::new(0));
+    let count = executions.clone();
+    let scheduler = Scheduler::new(
+        limits(),
+        Arc::new(move |_| Ok(Box::new(Unmetered(count.clone())))),
+    )
+    .unwrap();
+    let pool = small_pool(4 * BASE_BYTES, 2 * BASE_BYTES);
+    let intake = Arc::new(Intake::new(Class::Data, 4, 4096, None).unwrap());
+    let output = pool.acquire(&principal(), true).unwrap();
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                output
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    let mut other = principal();
+    other.tenant += 1;
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                pool.acquire(&other, false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    let controls = Arc::new(Intake::new(Class::Control, 1, 4096, None).unwrap());
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                controls.acquire(&principal()).unwrap(),
+                pool.acquire(&principal(), false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let reply = scheduler
+        .submit_encoded(
+            principal(),
+            query(3),
+            until(),
+            intake.acquire(&principal()).unwrap(),
+            pool.acquire(&principal(), false).unwrap(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap();
+    assert_eq!(reply.status, axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&reply.bytes).unwrap()["error"]["code"],
+        "UNAVAILABLE"
+    );
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+    assert_eq!(send(&scheduler, query(3)).unwrap(), "legacy");
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+    scheduler.shared.close();
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                pool.acquire(&principal(), false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "UNAVAILABLE"
+    );
+    drop(scheduler);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    assert_eq!(intake.available_permits(), 4);
+}
+
+#[test]
+fn queued_expiration_and_response_loss_release_only_their_owned_output() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let mut worker = Echo::new(0);
+    let (job, receiver) = encoded_job(&pool, until());
+    drop(receiver);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    execute(&mut worker, job);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let (job, receiver) = encoded_job(&pool, Instant::now());
+    execute(&mut worker, job);
+    assert!(receiver.blocking_recv().is_err());
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let (job, receiver) = encoded_job(&pool, until());
+    job.fail(Failure::new("UNAVAILABLE"));
+    let reply = receiver.blocking_recv().unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&reply.bytes).unwrap()["error"]["code"],
+        "UNAVAILABLE"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+}
+
+#[test]
+fn send_boundary_uses_the_original_deadline_and_drops_failed_channel_backing() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let before = Instant::now();
+    let deadline = before + Duration::from_secs(5);
+    for (closed, now) in [(false, before), (false, deadline), (true, before)] {
+        let output = pool.acquire(&principal(), false).unwrap();
+        let reply = crate::output::OwnedValue::new(Ok(json!(1)), output)
+            .finish(deadline)
+            .unwrap();
+        let (sender, receiver) = oneshot::channel();
+        let receiver = if closed {
+            drop(receiver);
+            None
+        } else {
+            Some(receiver)
+        };
+        send_before(sender, reply, deadline, now);
+        if let Some(receiver) = receiver {
+            let delivered = receiver.blocking_recv();
+            assert_eq!(delivered.is_ok(), now < deadline);
+            drop(delivered);
+        }
+        assert_eq!(usage(&pool), (0, 0, 0));
+    }
 }
 
 fn send(scheduler: &Scheduler, call: Call) -> Result<Value, Failure> {
