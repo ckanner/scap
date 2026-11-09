@@ -64,8 +64,19 @@ def mutation(name, rows):
     elif name == 'unsigned-backend-readable':
         next(r for r in rows if r['event'] == 'unsigned_backend_response')['status'] = 200
     elif name == 'changed-large-result':
+        # Preserve the original rejected-gate witness: the final byte is the
+        # last_insert_rowid footer, not a BLOB payload byte.
         row = selected('http_response', 'response_held')
         body = oracle.parse(oracle.raw(row)); value = bytearray(oracle.b64(body['value']['result'])); value[-1] ^= 1
+        body['value']['result'] = base64.b64encode(value).decode(); replace_body(row, body)
+    elif name == 'changed-large-blob':
+        row = selected('http_response', 'response_held')
+        body = oracle.parse(oracle.raw(row)); value = bytearray(oracle.b64(body['value']['result']))
+        # SCAPRES1 header + statement/column counts + eight known names +
+        # row count + first BLOB's tag/length: change its first actual byte.
+        offset = 8 + 4 + 4 + sum(4 + len(('value' + str(i)).encode()) for i in range(8)) + 4 + 1 + 4
+        assert value[offset - 5] == 4 and int.from_bytes(value[offset - 4:offset], 'little') == 1048576
+        value[offset] ^= 1
         body['value']['result'] = base64.b64encode(value).decode(); replace_body(row, body)
     else:
         raise AssertionError(name)
@@ -76,7 +87,7 @@ def run(path):
     names = ('missing-response', 'duplicate-execute-attempt', 'wrong-backpressure', 'changed-original-id',
              'false-committed-unknown', 'missing-cancellation-proof', 'lost-body-reservation',
              'extended-original-deadline', 'worker-completed-before-release', 'missing-kernel-wait4',
-             'backend-identity-reused', 'unsigned-backend-readable', 'changed-large-result')
+             'backend-identity-reused', 'unsigned-backend-readable', 'changed-large-result', 'changed-large-blob')
     report = {'schema': 1, 'positive_controls': 1, 'negative_controls': []}
     original = oracle.rows(path / 'events.jsonl')
     with tempfile.TemporaryDirectory(prefix='scap-resource-controls-') as directory:

@@ -2,6 +2,7 @@
 import base64
 import copy
 import hashlib
+import struct
 import unittest
 
 import oracle
@@ -76,6 +77,46 @@ class ObservationValidation(unittest.TestCase):
         self.assertEqual(actions.count('execute'), 1)
         self.assertEqual(actions.count('cancel'), 1)
         self.assertEqual(actions.count('lookup'), 2)
+
+    @staticmethod
+    def query_bytes(*, columns=('witness',), values=(b'\x01' + struct.pack('<q', 7),),
+                    affected_rows=0, last_insert_rowid=0):
+        names = b''.join(struct.pack('<I', len(name.encode())) + name.encode() for name in columns)
+        return (b'SCAPRES1' + struct.pack('<II', 1, len(columns)) + names + struct.pack('<I', 1)
+                + b''.join(values) + struct.pack('<Qq', affected_rows, last_insert_rowid))
+
+    @staticmethod
+    def read_calls(raw):
+        cancelled = {'response': {'status': 200}, 'body': {'operation': 'cancel'},
+                     'value': {'value': {'state': 'cancelled', 'transition': {'revision': '3', 'nonce': '1'}}}}
+        return {'a_warm': {'response': {'status': 200}, 'body': {'operation': 'query'},
+                           'value': {'value': {'result': base64.b64encode(raw).decode()}}},
+                'original_cancel': cancelled, 'cancelled_lookup': copy.deepcopy(cancelled)}
+
+    def test_read_result_metadata_and_wire_types_are_complete(self):
+        oracle.values(self.read_calls(self.query_bytes()))
+        for changes in ({'affected_rows': 1}, {'last_insert_rowid': 1}, {'last_insert_rowid': -1},
+                        {'columns': ('effects',)},
+                        {'values': (b'\x02' + struct.pack('<d', 7.0),)},
+                        {'values': (b'\x00',)},
+                        {'columns': ('witness', 'extra'),
+                         'values': (b'\x01' + struct.pack('<q', 7), b'\x01' + struct.pack('<q', 7))}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError):
+                    oracle.values(self.read_calls(self.query_bytes(**changes)))
+
+    def test_read_result_statement_and_row_counts_are_exact(self):
+        valid = self.query_bytes()
+        missing_statement = b'SCAPRES1' + struct.pack('<I', 0)
+        # One statement, one column name, but zero/two rows are both legal
+        # SCAPRES1 encodings and must be refused for this fixed workload.
+        before_rows = 8 + 4 + 4 + 4 + len('witness')
+        zero_rows = valid[:before_rows] + struct.pack('<I', 0) + struct.pack('<Qq', 0, 0)
+        two_rows = (valid[:before_rows] + struct.pack('<I', 2)
+                    + (b'\x01' + struct.pack('<q', 7)) * 2 + struct.pack('<Qq', 0, 0))
+        for raw in (missing_statement, zero_rows, two_rows):
+            with self.assertRaises(ValueError):
+                oracle.values(self.read_calls(raw))
 
 
 if __name__ == '__main__':

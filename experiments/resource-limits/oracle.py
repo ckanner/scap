@@ -140,7 +140,8 @@ def values(calls):
         if operation == 'query':
             require(set(value) == {'result'}, 'query fields changed')
             decoded = result(b64(value['result']))
-            require(len(decoded) == 1 and decoded[0]['affected_rows'] == 0, 'query result shape')
+            require(len(decoded) == 1 and decoded[0]['affected_rows'] == 0
+                    and decoded[0]['last_insert_rowid'] == 0, 'query result shape/metadata')
             if label == 'response_held':
                 equal(decoded[0]['columns'], ['value' + str(i) for i in range(8)], 'large result columns changed')
                 require(len(decoded[0]['rows']) == 1 and len(decoded[0]['rows'][0]) == 8, 'large result row shape')
@@ -149,6 +150,7 @@ def values(calls):
             else:
                 equal(decoded[0]['columns'], ['effects'] if label == 'effect_check' else ['witness'], 'query columns')
                 equal(decoded[0]['rows'], [[0 if label == 'effect_check' else 7]], 'query values changed')
+                require(type(decoded[0]['rows'][0][0]) is int, 'integer query value changed wire type')
         elif operation in ('create', 'activate', 'status'):
             equal(value['scope'], call['body']['scope'], 'returned scope changed')
             require(value['owner_instance'] == PLAN['worker_instance'] and value['sequence'] == '0', 'SQL unexpectedly committed')

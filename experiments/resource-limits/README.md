@@ -88,7 +88,8 @@ wire parser, not the controller or product implementation. It audits the raw
 denominator, original request identity and fingerprint, response values,
 resource lifetimes, exact object version chains, source/native build artifacts
 and cleanup. `controls.py` first accepts the original observation, then verifies
-that thirteen altered copies are rejected. It never edits the original
+that fourteen altered copies are rejected, including separate result metadata
+and BLOB payload mutations. It never edits the original
 evidence. Each failed attempt needs its own preserved evidence directory.
 
 ## Scope of the result

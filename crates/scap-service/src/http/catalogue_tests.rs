@@ -253,8 +253,12 @@ fn catalogue_dispatch_cannot_borrow_another_class_or_reuse_its_reservation() {
             .code,
         "INVALID"
     );
+    let intake = catalogue.intake.clone();
     drop(reservation);
-    assert_eq!(catalogue.intake.available_permits(), 1);
+    // A delivered reply can wake us before the worker drops its Job lease.
+    // Joining the scheduler establishes actual completion without a sleep.
+    drop(state);
+    assert_eq!(intake.available_permits(), 1);
 }
 
 #[test]
