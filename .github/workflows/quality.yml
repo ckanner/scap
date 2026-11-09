@@ -107,6 +107,40 @@ jobs:
             target/evidence/named-catalogue-model
           if-no-files-found: warn
 
+  object-reclamation-model:
+    name: N3 finite reclamation graph and independent closure oracle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check model and evidence boundary regressions
+        run: python3 -m unittest discover -s experiments/object-reclamation-model -p 'test_*.py' -v
+      - name: Enumerate every enabled finite-program successor
+        # Any state/edge/time cap leaves INCOMPLETE evidence and exits nonzero.
+        run: python3 experiments/object-reclamation-model/run.py --output "$RUNNER_TEMP/scap-reclamation-graph"
+      - name: Independently verify states, original requests, reachability, and graph closure
+        run: |
+          python3 experiments/object-reclamation-model/oracle.py \
+            --evidence "$RUNNER_TEMP/scap-reclamation-graph" \
+            --output "$RUNNER_TEMP/scap-reclamation-oracle"
+      - name: Reject protocol and incomplete-proof mutations
+        run: |
+          python3 experiments/object-reclamation-model/controls.py \
+            --evidence "$RUNNER_TEMP/scap-reclamation-graph" \
+            --output "$RUNNER_TEMP/scap-reclamation-controls"
+      - name: Retain finite proof inputs and all raw failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: object-reclamation-model
+          path: |
+            ${{ runner.temp }}/scap-reclamation-graph/**
+            ${{ runner.temp }}/scap-reclamation-oracle/**
+            ${{ runner.temp }}/scap-reclamation-controls/**
+          if-no-files-found: warn
+
   resource-limits:
     name: Actual resource lifetimes and conditional GC transport
     runs-on: ubuntu-24.04

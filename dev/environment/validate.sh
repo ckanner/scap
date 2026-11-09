@@ -67,6 +67,15 @@ python3 scripts/check_repo.py 2>&1 | tee "$SCAP_EVIDENCE/repo.log"
 python3 -m unittest discover -s experiments/object-authority-model -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/model-unit.log"
 python3 experiments/object-authority-model/explore.py --output "$SCAP_EVIDENCE/model"
 python3 experiments/object-authority-model/named_catalogue_model.py --output "$SCAP_EVIDENCE/catalogue-model"
+python3 -m unittest discover -s experiments/object-reclamation-model -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/reclamation-unit.log"
+# Finite independent model only. A truncated graph is a failing gate, and this
+# does not enable production HEAD5, pins, DELETE, or claim actual S3 execution.
+python3 experiments/object-reclamation-model/run.py --output "$SCAP_EVIDENCE/reclamation-graph"
+python3 experiments/object-reclamation-model/oracle.py --evidence "$SCAP_EVIDENCE/reclamation-graph" \
+  --output "$SCAP_EVIDENCE/reclamation-oracle"
+python3 experiments/object-reclamation-model/controls.py --evidence "$SCAP_EVIDENCE/reclamation-graph" \
+  --output "$SCAP_EVIDENCE/reclamation-controls"
 python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v 2>&1 | tee "$SCAP_EVIDENCE/fixture-tests.log"
 python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/service-fixture-tests.log"

@@ -1,0 +1,463 @@
+{
+  "archive": {
+    "all_members_stream_verified": true,
+    "archive": "/workspace/scratch/591a71cb3372/reclamation-formal01-evidence.tar.gz",
+    "bytes": 2804449,
+    "members": 317,
+    "schema": 1,
+    "sha256": "75114053e2e27987f098fc9a81cf1f330e27090f6825ed7a316f65c583631f15",
+    "source_and_original_evidence_retained": true
+  },
+  "author_freeze_base_commit": "0d8135ba8af2a96e2fa4f8fd05e602128b2cf00c",
+  "base_commit": "846f1bb8597c200e363ca861c99787b246adaf34",
+  "ci_composition": {
+    "changes": {
+      "quality_workflow_added_lines": 34,
+      "validate_shell_added_lines": 9
+    },
+    "files": {
+      ".github/workflows/quality.yml": {
+        "bytes": 28987,
+        "sha256": "afa986562f0978e407857dbbf63ee9dff9a9b3b98b44a06d213a7cb4f2fe7901"
+      },
+      "dev/environment/validate.sh": {
+        "bytes": 12974,
+        "sha256": "ee9145c41e605d1bdfabfe29591ff22dd2786bb929ed6e3e9552b3b2fe743a7c"
+      }
+    },
+    "gates": {
+      "actionlint_all_workflows": "PASS",
+      "bash_syntax": "PASS",
+      "git_diff_check": "PASS",
+      "repository_check": "PASS"
+    },
+    "method": "three-way additive patch on current parent; retained owner and TCP gates"
+  },
+  "claims": {
+    "absolute_deadline_timing": "NOT_MODELED",
+    "aws": "NOT_RUN",
+    "checkpoint_transport_unknown": "NOT_MODELED",
+    "native_sqlite_execution": "ABSTRACT_OUTCOME_ONLY",
+    "physical_convergence": "CONDITIONAL_ONLY",
+    "production_delete": "NOT_IMPLEMENTED",
+    "production_head5": "NOT_IMPLEMENTED",
+    "sql_query_semantics": "NOT_MODELED",
+    "unbounded_execution": "NOT_PROVEN"
+  },
+  "date": "2026-11-09",
+  "formal_gates": {
+    "freeze_sha256": "7ca2c989a4d658e65326174078568de2f6f228fac7974e9191402fbe894ebb16",
+    "schema": 1,
+    "source_unchanged": true,
+    "status": "PASS",
+    "steps": [
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-reclamation-model",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "elapsed_seconds": 1.348615315000643,
+        "name": "unit",
+        "returncode": 0,
+        "stderr_sha256": "1de07ecf4bf2a19229e2e75173a3c01b229e089ed30dba1c846cf3b12dcbf471",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "py_compile",
+          "experiments/object-reclamation-model/model.py",
+          "experiments/object-reclamation-model/run.py",
+          "experiments/object-reclamation-model/oracle.py",
+          "experiments/object-reclamation-model/controls.py",
+          "experiments/object-reclamation-model/test_model.py"
+        ],
+        "elapsed_seconds": 0.2556539720026194,
+        "name": "syntax",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "elapsed_seconds": 0.07066485399991507,
+        "name": "diff",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "bash",
+          "-n",
+          "dev/environment/validate.sh"
+        ],
+        "elapsed_seconds": 0.020618193993868772,
+        "name": "shell",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "python3",
+          "scripts/check_repo.py"
+        ],
+        "elapsed_seconds": 0.8221204040019074,
+        "name": "repository",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "949690bcbdddfd4c01f8921f94b16111432ff489c597442a4ca42ac5507c1546"
+      },
+      {
+        "argv": [
+          "python3",
+          "experiments/object-reclamation-model/run.py",
+          "--output",
+          "/tmp/scap-reclamation-formal01"
+        ],
+        "elapsed_seconds": 31.27377923399763,
+        "name": "graph",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "dc1966b487143ba83c09f8fa6db6dbf793e3594d3783a502e398080b2c3bc522"
+      },
+      {
+        "argv": [
+          "python3",
+          "experiments/object-reclamation-model/oracle.py",
+          "--evidence",
+          "/tmp/scap-reclamation-formal01",
+          "--output",
+          "/tmp/scap-reclamation-formal01-audit"
+        ],
+        "elapsed_seconds": 59.126777322002454,
+        "name": "oracle",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "989878a300025fcf34b0e05065f4aa633b7df922d8a3bcf67f9dc2613bab2687"
+      },
+      {
+        "argv": [
+          "python3",
+          "experiments/object-reclamation-model/controls.py",
+          "--evidence",
+          "/tmp/scap-reclamation-formal01",
+          "--output",
+          "/tmp/scap-reclamation-formal01-controls"
+        ],
+        "elapsed_seconds": 122.02809455300303,
+        "name": "controls",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "220b8c78d239373c7a5f41d408f29b16e598becb654fa127c935c331203207e9"
+      },
+      {
+        "argv": [
+          "python3",
+          "-B",
+          "/workspace/scratch/591a71cb3372/reclamation-review/review_graph_v2.py",
+          "--evidence",
+          "/tmp/scap-reclamation-formal01",
+          "--output",
+          "/tmp/scap-reclamation-formal01-independent-review.json"
+        ],
+        "elapsed_seconds": 11.813864306997857,
+        "name": "independent_review",
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "2e336cd718562ea1d57e8afd97533afedf6d3ebc107fe351673aafc8665dfe88"
+      }
+    ]
+  },
+  "inputs": {
+    "actor_instructions": 629,
+    "edges": 28546,
+    "profiles": 26,
+    "required_witnesses": 45,
+    "sha256": "06a5eec502e2ca9f367715d107b4c10407f3b22200065b0ae2d0e6e3e8518a76",
+    "states": 15103,
+    "terminals": 311
+  },
+  "limitations": [
+    "Only the26 listed finite programs and fixed state/input bounds are exhausted. No unbounded execution proof.",
+    "Production HEAD5, pins, admission fencing and DELETE are not implemented by this model.",
+    "Paused or crashed nonrevocable pins can block GC indefinitely; Deleted last-active-generation reclamation is outside this profile.",
+    "Absolute operation-deadline timing is NOT_MODELED; caller_timeout only detaches the caller.",
+    "Native publication is an explicit abstract commit/fail result; no SQLite native engine or actual S3/AWS operation runs here.",
+    "The abstract checkpoint is atomic/versioned; transport UNKNOWN for real durable checkpoint I/O remains to be designed.",
+    "An empty scan is one observation, never permanent emptiness; cost convergence requires fair rescanning and eventual old-I/O quiescence."
+  ],
+  "model_source_files": {
+    "docs/architecture/reclamation-model.md": {
+      "bytes": 16956,
+      "sha256": "de05f331d671f2ad12c6951312d3abb4dcff5f93b33d8aca8a4c4d2c0d79a2f7"
+    },
+    "experiments/object-reclamation-model/README.md": {
+      "bytes": 11086,
+      "sha256": "bdbdbd5f51ba1512f8edde398ca3b0fa2c8d0753efbeab86b8b422f09d23d74f"
+    },
+    "experiments/object-reclamation-model/controls.py": {
+      "bytes": 22211,
+      "sha256": "779de761a3f745993c7123df1b278be29747b3b357698fc3c08faea4aeb1d4a3"
+    },
+    "experiments/object-reclamation-model/inputs.json": {
+      "bytes": 206321,
+      "sha256": "06a5eec502e2ca9f367715d107b4c10407f3b22200065b0ae2d0e6e3e8518a76"
+    },
+    "experiments/object-reclamation-model/model.py": {
+      "bytes": 28592,
+      "sha256": "7c17b91d702a47a1ffa093ea90b8cadfd36ec16ab287d5eb5b61c5a1d9049b18"
+    },
+    "experiments/object-reclamation-model/oracle.py": {
+      "bytes": 59590,
+      "sha256": "08b48832f6f59776ce9ae7828efbfbb28cf05d08991d46ab04739876c51144c0"
+    },
+    "experiments/object-reclamation-model/run.py": {
+      "bytes": 6156,
+      "sha256": "d764522107cea3752f80adeab62f8bd8851807b9662c535c34888b63185434c2"
+    },
+    "experiments/object-reclamation-model/test_model.py": {
+      "bytes": 12484,
+      "sha256": "39a2ef55f2b073f448ac0df7d126611f88e5ba49a23454515d622d8671a8fda6"
+    }
+  },
+  "negative_controls": 41,
+  "positive_controls": 1,
+  "raw_evidence_inventory_sha256": "8b19d8bcd30d30a5f2223abbdcd9ad2cc0d4667fe5e8784260da96512c613f93",
+  "raw_report_files": {
+    "controls": {
+      "bytes": 15492,
+      "path": "/tmp/scap-reclamation-formal01-controls/controls.json",
+      "sha256": "8db0703f4b3cfd85400a00c2c2d9b9ca5c984a451625407be97cc32b9f68f778"
+    },
+    "freeze": {
+      "bytes": 2301,
+      "path": "/tmp/scap-reclamation-freeze01/manifest.json",
+      "sha256": "7ca2c989a4d658e65326174078568de2f6f228fac7974e9191402fbe894ebb16"
+    },
+    "gate": {
+      "bytes": 4498,
+      "path": "/tmp/scap-reclamation-freeze01/gate.json",
+      "sha256": "8433664e5f722e80a9f815c834a381d0f741b64e8674adc49e7d48180995fbd0"
+    },
+    "independent_review": {
+      "bytes": 17585,
+      "path": "/tmp/scap-reclamation-formal01-independent-review.json",
+      "sha256": "2224e93bf88c4be8348d375d987f698e4114ae4d43f703c4424016144c1e9cb0"
+    },
+    "oracle": {
+      "bytes": 28545,
+      "path": "/tmp/scap-reclamation-formal01-audit/oracle.json",
+      "sha256": "7d7727e0780a52539e9d20a94f6c718033604f4af81e62296c316dcb2a7674ee"
+    }
+  },
+  "schema": 1,
+  "second_independent_review": {
+    "full_client_transition_oracle_reimplemented": false,
+    "interpretation": "The separately authored v2 review script was rerun on these exact frozen formal graph bytes. Its narrower historical development labels are retained. The full formal transition oracle and mutation acceptance are separate gates; this review does not replace them.",
+    "original_report_development_only": true,
+    "original_report_final_acceptance": false,
+    "profile_counts": [
+      {
+        "edges": 3412,
+        "name": "01_distinct_brokers_unknown_add",
+        "states": 1560,
+        "terminals": 67
+      },
+      {
+        "edges": 2613,
+        "name": "02_unknown_add_cleanup_fence",
+        "states": 1221,
+        "terminals": 75
+      },
+      {
+        "edges": 200,
+        "name": "03_protected_get_vs_freeze",
+        "states": 126,
+        "terminals": 5
+      },
+      {
+        "edges": 54,
+        "name": "04_paused_guard_deadline_ticks",
+        "states": 27,
+        "terminals": 1
+      },
+      {
+        "edges": 143,
+        "name": "05_atomic_gate_and_two_guards",
+        "states": 78,
+        "terminals": 5
+      },
+      {
+        "edges": 480,
+        "name": "06_late_original_head_cas",
+        "states": 272,
+        "terminals": 15
+      },
+      {
+        "edges": 1088,
+        "name": "07_pin_churn_fences_old_candidate",
+        "states": 652,
+        "terminals": 26
+      },
+      {
+        "edges": 1152,
+        "name": "08_copy_inherits_current_acl",
+        "states": 699,
+        "terminals": 10
+      },
+      {
+        "edges": 1600,
+        "name": "09_delete_abandons_copying",
+        "states": 915,
+        "terminals": 21
+      },
+      {
+        "edges": 244,
+        "name": "10_deleted_quarantine_release",
+        "states": 153,
+        "terminals": 7
+      },
+      {
+        "edges": 250,
+        "name": "11_abandoned_generation_never_reused",
+        "states": 133,
+        "terminals": 5
+      },
+      {
+        "edges": 3778,
+        "name": "12_old_delete_and_new_active",
+        "states": 1870,
+        "terminals": 12
+      },
+      {
+        "edges": 4,
+        "name": "13_stale_cursor_resume",
+        "states": 5,
+        "terminals": 1
+      },
+      {
+        "edges": 288,
+        "name": "14_provisioning_business_revision",
+        "states": 149,
+        "terminals": 7
+      },
+      {
+        "edges": 12,
+        "name": "15_serial_exhaustion",
+        "states": 9,
+        "terminals": 1
+      },
+      {
+        "edges": 2,
+        "name": "16_generation_exhaustion",
+        "states": 3,
+        "terminals": 1
+      },
+      {
+        "edges": 84,
+        "name": "17_pin_capacity",
+        "states": 36,
+        "terminals": 1
+      },
+      {
+        "edges": 2156,
+        "name": "18_late_put_after_empty_round",
+        "states": 1146,
+        "terminals": 11
+      },
+      {
+        "edges": 2507,
+        "name": "19_conditional_drain_convergence",
+        "states": 1380,
+        "terminals": 11
+      },
+      {
+        "edges": 17,
+        "name": "20_incomplete_copy_rejected",
+        "states": 18,
+        "terminals": 1
+      },
+      {
+        "edges": 320,
+        "name": "21_freeze_blocks_quota_and_takeover",
+        "states": 165,
+        "terminals": 7
+      },
+      {
+        "edges": 58,
+        "name": "22_copy_verification_cannot_cross_plan",
+        "states": 59,
+        "terminals": 1
+      },
+      {
+        "edges": 343,
+        "name": "23_late_verification_after_recapture",
+        "states": 185,
+        "terminals": 5
+      },
+      {
+        "edges": 7609,
+        "name": "24_materialized_reader_survives_old_generation_sweep",
+        "states": 4159,
+        "terminals": 12
+      },
+      {
+        "edges": 64,
+        "name": "25_reader_exit_requires_materialization_and_live_caller",
+        "states": 44,
+        "terminals": 1
+      },
+      {
+        "edges": 68,
+        "name": "26_late_read_response_after_guard_end",
+        "states": 39,
+        "terminals": 2
+      }
+    ],
+    "scope": "Independent read-only state hash/uniqueness/reachability, enabled frontier, existing-token request immutability and original backend key/ETag/effect plus explicit reader/native exit review; no model.py or oracle.py import.",
+    "script": {
+      "path": "/workspace/scratch/591a71cb3372/reclamation-review/review_graph_v2.py",
+      "sha256": "ddacc8311f269b38a1efb95e629394eb0cc2713b93c94e52309be45603e0ac44"
+    },
+    "status": "PASS_WITHIN_REVIEW_SCOPE",
+    "strong_interleaving_counts": {
+      "ended_reader_rejects_late_found_bytes": 6,
+      "immutable_delivery_after_actor_stopped_object_get": 15,
+      "immutable_delivery_after_unknown_object_delete": 107,
+      "immutable_delivery_after_unknown_object_put": 451,
+      "late_verification_after_recapture_refused": 3,
+      "materialization_while_actual_guard_live": 105,
+      "native_aborted_without_known_commit": 18,
+      "native_failure_ack_withheld": 24,
+      "native_publish_commit": 24,
+      "native_publish_fail": 24,
+      "new_plan_seal_refused": 1,
+      "promote_delivered_after_delete_CONFLICT": 8,
+      "reader_detached_caller_return_withheld": 2,
+      "reader_early_return_rejected": 22,
+      "reader_return_after_original_generation_empty": 2,
+      "release_in_deleted_and_quarantine": 2,
+      "two_guards_reachable": 25,
+      "write_delivered_after_freeze_CONFLICT": 4,
+      "write_delivered_after_unknown_and_guard_end_APPLIED": 9,
+      "write_delivered_after_unknown_and_guard_end_CONFLICT": 14
+    }
+  },
+  "source_frozen_unchanged": true,
+  "status": "PASS_WITHIN_DECLARED_FINITE_MODEL",
+  "unit_tests": 22
+}
