@@ -91,3 +91,12 @@ cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝
 相关决定及官方产品容量对照见 [ADR-0022](../adr/0022-production-capacity.md)。
 
 本地执行镜像及 WAL/SHM 必须使用可靠的私有本地存储。Linux 目录类型防护已通过 [PR #28 的独立本地验收](local-storage-validation.md)，支持边界见[SQLite 存储安全](../operations/sqlite-storage-safety.md)。目录防护不能证明任意 overlay 底层、设备或真实网络挂载的 I/O 正确性；后续运行时变更仍重新执行受影响门禁。
+
+## 私有连接不变量与 native 版本维护
+
+每个活动 SQLite cache 文件只允许一个 SCAP 控制的 native 连接；运维 sidecar、
+SQLite CLI、备份程序或 embedding host 不得另外打开该文件。查询、写入及
+checkpoint 使用原连接串行执行；其他数据库或 owner 候选使用不同私有文件。
+这一约束也排除了当前固定 native 的 WAL-reset 多连接触发拓扑，但不能宣称引擎
+已经修补。已发现的上游修复、当前 pin 的源码核对及升级所需验证见
+[WAL-reset 评估](../architecture/sqlite-wal-reset-assessment.md)。

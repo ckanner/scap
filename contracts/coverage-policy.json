@@ -40,6 +40,7 @@
     "crates/scap-object/src/format_tests.rs",
     "crates/scap-object/src/head_publication_tests.rs",
     "crates/scap-object/src/object_context_tests.rs",
+    "crates/scap-object/src/object_frame_tests.rs",
     "crates/scap-object/src/options_tests.rs",
     "crates/scap-object/src/quarantine_tests.rs",
     "crates/scap-object/src/request_index_tests.rs",

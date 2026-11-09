@@ -1,0 +1,316 @@
+{
+  "actual_tools": {
+    "node": {
+      "bytes": 121509208,
+      "path": "/workspace/scratch/591a71cb3372/environment/node/bin/node",
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+    },
+    "python": {
+      "bytes": 30894944,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+      "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+      "version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]"
+    },
+    "seaweedfs": {
+      "bytes": 153895072,
+      "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    }
+  },
+  "cleanup": {
+    "all_recorded_children_reaped": true,
+    "errors": [],
+    "kernel_wait4": "observed for SDK preparation, worker and four backend processes",
+    "owned_workload_processes": 6
+  },
+  "confidentiality": "This compact receipt contains no bearer token, signing secret or object body. Raw ledgers remain in the isolated evidence directory; evidence paths and digests are references only.",
+  "contract": "resource_limits_actual_tcp_native_signed_s3",
+  "created_utc": "2026-11-09T12:17:13.226204+00:00",
+  "final_gate_finished_utc": "2026-11-09T12:16:29.922785+00:00",
+  "finished_utc": "2026-11-09T12:07:37.724092+00:00",
+  "gates": {
+    "actual": "passed",
+    "controls": {
+      "all_negative_rejected": true,
+      "negative": 14,
+      "positive": 1
+    },
+    "external_oracle": "passed",
+    "fixture_clippy_this_commit": {
+      "cache": "intact inactive prior dev cache reused; source-bound gate, not a fresh build claim",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/resource-limits/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "bytes": 743,
+        "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.log",
+        "sha256": "7c3596b6422e6dcecefc9ad558488afb4b2d89cf89ad14b1f09cc5f8e5e4e48c"
+      },
+      "receipt": {
+        "bytes": 1310,
+        "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.json",
+        "sha256": "56db6ad673076e3ab56865beba6a86d518801c6402c6bb77e89f2619d36b959c"
+      },
+      "status": "passed"
+    },
+    "fixture_fmt": {
+      "log": {
+        "bytes": 0,
+        "path": "/tmp/scap-resource-586e11b-01/fixture-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "status": "passed"
+    },
+    "fixture_unit": {
+      "log": {
+        "bytes": 1688,
+        "path": "/tmp/scap-resource-586e11b-01/fixture-unit.log",
+        "sha256": "240fb8a2a9712f883eebfe0b0cde574e1350ce6c2895982c17962f9935e2beb2"
+      },
+      "status": "passed",
+      "tests": 11
+    },
+    "fresh_release_build": "passed",
+    "source_verify": {
+      "commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+      "files": 395,
+      "status": "passed"
+    }
+  },
+  "limits": {
+    "aws_standard": "NOT_RUN",
+    "backend": "local SeaweedFS with signed S3 requests and unsigned authority-access rejection",
+    "final_bytes_clone_proof": "separate production unit test; TCP exercise is supplemental",
+    "fixed_inputs_deadlines_and_oracle": "unchanged",
+    "global_process_rss_cap": "NOT_CLAIMED",
+    "native_sqlite_global_heap_cap": "NOT_IMPLEMENTED",
+    "pause": "explicit production Worker seam used to observe timeout with work still live",
+    "production_slo": "NOT_RUN"
+  },
+  "observations": {
+    "backpressure": 3,
+    "http_calls": 25,
+    "object_versions": {
+      "accepted_versions": 10,
+      "ambiguous_http_intervals": 0,
+      "blackholed_before_forward": 0,
+      "causal_constraints": 56,
+      "conditional_put_responses": 10,
+      "exact_get_body_etag_pairs": 40,
+      "http_interval_binding": "checked"
+    },
+    "original_cancellation_proved": true,
+    "original_execute_attempts": 1,
+    "original_unknown": 1,
+    "processes": {
+      "all_recorded_children_reaped": true,
+      "owned_workload_processes": 6
+    },
+    "s3_requests": 50,
+    "transport_holds": [
+      "incomplete_body",
+      "server_timeout_with_running_worker",
+      "slow_response"
+    ],
+    "worker": {
+      "explicit_pause": 1,
+      "late_worker_outcome": "UNKNOWN",
+      "observed_calls": 22,
+      "server_timeouts_with_live_worker": 1
+    }
+  },
+  "raw_evidence": {
+    "actual.log": {
+      "bytes": 2763,
+      "path": "/tmp/scap-resource-586e11b-01/actual.log",
+      "sha256": "a8c656827856cfb08d9bbf2117a63b274c8df19fc6e1bcc11f00adf44aede2ce"
+    },
+    "actual/configuration.json": {
+      "bytes": 2054,
+      "path": "/tmp/scap-resource-586e11b-01/actual/configuration.json",
+      "sha256": "1250fe6cd45cbc6e646a0e2ffdaeee2e1bf5462651ebaf750e0973a06e9fdcb4"
+    },
+    "actual/events.jsonl": {
+      "bytes": 14984544,
+      "path": "/tmp/scap-resource-586e11b-01/actual/events.jsonl",
+      "sha256": "968689179fb5c959a259f3574d6360250bd121f56a874132ae4ac72ba691285b"
+    },
+    "actual/history.jsonl": {
+      "bytes": 472134,
+      "path": "/tmp/scap-resource-586e11b-01/actual/history.jsonl",
+      "sha256": "e7d3ab9b56e28881c7317ab66c4bc9dee1df4c7649a4c12b835332711da99aff"
+    },
+    "actual/oracle.json": {
+      "bytes": 1464,
+      "path": "/tmp/scap-resource-586e11b-01/actual/oracle.json",
+      "sha256": "b6b905b8fce72a8a52164735f5c1c70f2920af7b57fdd7667de4f75031d8bd5d"
+    },
+    "actual/original-intent.json": {
+      "bytes": 413,
+      "path": "/tmp/scap-resource-586e11b-01/actual/original-intent.json",
+      "sha256": "6b52fca88946c74d80c7fe6468c4174c615c84484179feabb36ddcb9cb185c98"
+    },
+    "actual/plan.json": {
+      "bytes": 1638,
+      "path": "/tmp/scap-resource-586e11b-01/actual/plan.json",
+      "sha256": "57ef37fd95aa162fa1c487c1490f42d1bd863cfe5fdd16ef7cf59ede8e68db8b"
+    },
+    "actual/source.tar": {
+      "bytes": 6430720,
+      "path": "/tmp/scap-resource-586e11b-01/actual/source.tar",
+      "sha256": "0a46cd3ae2e0df885213d02e87a9ff5a4bcd066b8b081c4443611f6ff8ef1f9d"
+    },
+    "actual/summary.json": {
+      "bytes": 295,
+      "path": "/tmp/scap-resource-586e11b-01/actual/summary.json",
+      "sha256": "d32059010224a4614a306878180ce37b5db020cb725dddc410598304e361aac3"
+    },
+    "actual_execution.json": {
+      "bytes": 2369,
+      "path": "/tmp/scap-resource-586e11b-01/actual_execution.json",
+      "sha256": "41d86d9cc2aee93703001e051df6455c8af12b038a57e8a1a7cbfa2f16603116"
+    },
+    "build/build.json": {
+      "bytes": 48105,
+      "path": "/tmp/scap-resource-586e11b-01/build/build.json",
+      "sha256": "c7140cbba9dae43151d4f21fd2053ec8c35175722554587c8bf1f44c7df24f83"
+    },
+    "build/cargo.stderr.log": {
+      "bytes": 6796,
+      "path": "/tmp/scap-resource-586e11b-01/build/cargo.stderr.log",
+      "sha256": "affd2de63d3837b30edb3cd4769d483e6c3d3ec28a972934d224746272f05984"
+    },
+    "build/cargo.stdout.jsonl": {
+      "bytes": 204745,
+      "path": "/tmp/scap-resource-586e11b-01/build/cargo.stdout.jsonl",
+      "sha256": "47d819eb603a55dd9c2dad67b618dd7bc703ed1bb1b35b9c87b5bd897dc6093c"
+    },
+    "controls.log": {
+      "bytes": 1857,
+      "path": "/tmp/scap-resource-586e11b-01/controls.log",
+      "sha256": "4d9c03fb4c618eec389273cfe68ece2b0c5baf6cd43ca7fb937d19d9f097634b"
+    },
+    "execution.json": {
+      "bytes": 1346,
+      "path": "/tmp/scap-resource-586e11b-01/execution.json",
+      "sha256": "4606f5933ba219a7b4f1558c58bba6fecb5eea325be073826acc5f469d4b3879"
+    },
+    "external-oracle.log": {
+      "bytes": 1464,
+      "path": "/tmp/scap-resource-586e11b-01/external-oracle.log",
+      "sha256": "b6b905b8fce72a8a52164735f5c1c70f2920af7b57fdd7667de4f75031d8bd5d"
+    },
+    "fixture-clippy-cache-inventory.json": {
+      "bytes": 211178,
+      "path": "/tmp/scap-resource-586e11b-01/fixture-clippy-cache-inventory.json",
+      "sha256": "4afd3c67f03ebce4bf725d51a40afcd330886a982ccb9cea5caaaf348e0581c0"
+    },
+    "fixture-clippy.json": {
+      "bytes": 1310,
+      "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.json",
+      "sha256": "56db6ad673076e3ab56865beba6a86d518801c6402c6bb77e89f2619d36b959c"
+    },
+    "fixture-clippy.log": {
+      "bytes": 743,
+      "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.log",
+      "sha256": "7c3596b6422e6dcecefc9ad558488afb4b2d89cf89ad14b1f09cc5f8e5e4e48c"
+    },
+    "fixture-fmt.log": {
+      "bytes": 0,
+      "path": "/tmp/scap-resource-586e11b-01/fixture-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fixture-unit.log": {
+      "bytes": 1688,
+      "path": "/tmp/scap-resource-586e11b-01/fixture-unit.log",
+      "sha256": "240fb8a2a9712f883eebfe0b0cde574e1350ce6c2895982c17962f9935e2beb2"
+    },
+    "preparation.json": {
+      "bytes": 2737,
+      "path": "/tmp/scap-resource-586e11b-01/preparation.json",
+      "sha256": "457c7e639bdeff697fc0a9ddc56fb16f2d308094ecccea102d31c44cd8e5cb06"
+    }
+  },
+  "release_build": {
+    "binary": {
+      "bytes": 13701880,
+      "path": "/tmp/scap-resource-586e11b-01/target/release/scap-resource-limits",
+      "sha256": "2d78e70fa4ac3afbf0faeef7890357f7beece558e3aac500a1060cc6b1ae8e4a"
+    },
+    "cargo_build_jobs": 1,
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--frozen",
+      "--manifest-path",
+      "experiments/resource-limits/Cargo.toml",
+      "--message-format=json-render-diagnostics"
+    ],
+    "exit_code": 0,
+    "fresh_target": true,
+    "native_archives": [
+      {
+        "bytes": 3368378,
+        "path": "/tmp/scap-resource-586e11b-01/target/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a",
+        "sha256": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      }
+    ],
+    "profile": "release",
+    "receipt": {
+      "bytes": 48105,
+      "path": "/tmp/scap-resource-586e11b-01/build/build.json",
+      "sha256": "c7140cbba9dae43151d4f21fd2053ec8c35175722554587c8bf1f44c7df24f83"
+    },
+    "target": "/tmp/scap-resource-586e11b-01/target",
+    "toolchain": {
+      "cargo": {
+        "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+        "sha256": "51de284e8bb0d03dcee595a0fb1cb3a952fe9e7e4b953a8b1467b7f71725b561",
+        "version": "cargo 1.90.0 (840b83a10 2025-07-30)\nrelease: 1.90.0\ncommit-hash: 840b83a10fb0e039a83f4d70ad032892c287570a\ncommit-date: 2025-07-30\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.1 (sys:0.20.2 vendored)\nlibcurl: 8.14.1-DEV (sys:0.4.82+curl-8.14.1 vendored ssl:OpenSSL/3.5.0)\nssl: OpenSSL 3.5.0 8 Apr 2025\nos: Ubuntu 24.4.0 (noble) [64-bit]\n"
+      },
+      "rustc": {
+        "path": "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc",
+        "sha256": "e6abf55ab1859e7c990be77fd593f51661ea99fb2fde626ae9f4108aaa34e7fa",
+        "version": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n"
+      }
+    }
+  },
+  "schema": 1,
+  "source": {
+    "commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+    "dirty": false,
+    "source_archive": {
+      "bytes": 6430720,
+      "path": "/tmp/scap-resource-586e11b-01/actual/source.tar",
+      "sha256": "0a46cd3ae2e0df885213d02e87a9ff5a4bcd066b8b081c4443611f6ff8ef1f9d"
+    },
+    "source_inputs": {
+      "canonical_encoding": "UTF-8 JSON, sorted object keys, separators comma/colon, no trailing newline",
+      "canonical_json_sha256": "df4e9b0bba298d094eda89a28f45f38b777adc1b338886dfc286f91b722e63da",
+      "json_pointer": "/inputs",
+      "path": "/tmp/scap-resource-586e11b-01/build/build.json"
+    },
+    "tree": "13b4c92d4a53fb058c8166074d76c5d32f53bab5",
+    "verified_files": 395,
+    "worktree": "/workspace/scratch/591a71cb3372/resource-actual-586"
+  },
+  "started_utc": "2026-11-09T12:06:57.091979+00:00",
+  "status": "passed",
+  "supersedes_receipt": {
+    "bytes": 10605,
+    "path": "/workspace/scratch/591a71cb3372/resource-acceptance-586e11b-20261109.json",
+    "sha256": "dff8fe91a866a9043c79e13b5638589da687709cba71f9a4b72a9eaaa435cc8c"
+  }
+}

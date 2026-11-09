@@ -1,0 +1,146 @@
+{
+  "all_owned_cargo_and_archive_processes_completed": true,
+  "archive": {
+    "bytes": 82596998,
+    "mode": 420,
+    "path": "/tmp/scap-raw-frame-gates-01/scoped-artifacts.tar.zst",
+    "sha256": "da06aab8ff4adfa1ef175f2ce6cc6009f64b560adae43226b348bfbdcc1ef26c"
+  },
+  "archive_verified_members": 187,
+  "archive_verified_uncompressed_bytes": 370563780,
+  "base": "b00d67e879c923012e89923829c0e39959b79848",
+  "changed_files": [
+    {
+      "bytes": 4248,
+      "path": "contracts/coverage-policy.json",
+      "sha256": "c0baa9a9a802f587158995b741f626679ea8df1be90a5bc5ecb772766ac61d6b"
+    },
+    {
+      "bytes": 25412,
+      "path": "crates/scap-object/src/format.rs",
+      "sha256": "dea026c29d8d690bb262aa35e3e6498320435873f68123136ef42480f1c69f5f"
+    },
+    {
+      "bytes": 3313,
+      "path": "crates/scap-object/src/object_frame.rs",
+      "sha256": "9de8ae356896ad04b7c5ed35f568c05e0f83eb443702ce158d1352ceb4fe3930"
+    },
+    {
+      "bytes": 9530,
+      "path": "crates/scap-object/src/object_frame_tests.rs",
+      "sha256": "60a346e9f432d8422a8dedec2ed228f1248163094f5e74492402dbd4d5b7ce8f"
+    },
+    {
+      "bytes": 4782,
+      "path": "docs/architecture/raw-object-frame-validation.md",
+      "sha256": "6279969a6cc670165a5c58b98fd91d9a605acaabdf88246c8f16aea3a7b6a805"
+    }
+  ],
+  "checks": {
+    "exact_covered_and_total": {
+      "branches": 778,
+      "functions": 341,
+      "lines": 4504,
+      "regions": 7045
+    },
+    "new_object_frame_counters": {
+      "branches": "0/0 compiler-emitted; no percentage claim",
+      "functions": "3/3",
+      "lines": "50/50",
+      "regions": "93/93"
+    },
+    "nightly_core_units": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "passed": 235
+    },
+    "production_files": 20,
+    "profile_collection": "fresh target, unit-only, no borrowed profiles",
+    "raw_profiles": 146,
+    "rustfmt": "PASS",
+    "source_archive_all_407_members_verified": true,
+    "stable_core_units": {
+      "failed": 0,
+      "filtered": 0,
+      "ignored": 0,
+      "passed": 235
+    },
+    "strict_scoped_clippy": "PASS"
+  },
+  "full_source_input": {
+    "bytes": 79815,
+    "path": "/tmp/scap-raw-frame-gates-01/source-input.json",
+    "sha256": "f3b5be3f108eb2b906a1ebdfb9590c271b90f23222ab5b161b1db58ed157496e"
+  },
+  "llvm_report": {
+    "bytes": 35361008,
+    "path": "/tmp/scap-raw-frame-gates-01/unit.json",
+    "sha256": "b1a3c7780a06e39d08a9aabc0ff1384bbee9143835700169431a20866a5c7341"
+  },
+  "next_owner": "root publishes/imports exact composition; builder owns actual04; later whole-workspace collection must use fresh profiles",
+  "receipts": {
+    "archive-verification.json": {
+      "bytes": 827,
+      "path": "/tmp/scap-raw-frame-gates-01/archive-verification.json",
+      "sha256": "2fcdb1bea0de43c477b163b659901127ac9587704897dc293cc2124d4e902da6"
+    },
+    "artifact-manifest.json": {
+      "bytes": 61527,
+      "path": "/tmp/scap-raw-frame-gates-01/artifact-manifest.json",
+      "sha256": "395ad6256340be8f9d22f7e8e53c4b1ebed6ad4354cfdf47b4f7c92f675b4e9d"
+    },
+    "coverage-artifacts.json": {
+      "bytes": 1351,
+      "path": "/tmp/scap-raw-frame-gates-01/coverage-artifacts.json",
+      "sha256": "0173783098841ed6441c2ff7fb64921993adb3088c6c2907cc1d88e08fa0b513"
+    },
+    "coverage-receipt.json": {
+      "bytes": 2418,
+      "path": "/tmp/scap-raw-frame-gates-01/coverage-receipt.json",
+      "sha256": "018d51ef39e7928e6c2893433e50f6ea3c1fa309c1c76e76417772ff1db51072"
+    },
+    "independent-verification.json": {
+      "bytes": 15330,
+      "path": "/tmp/scap-raw-frame-gates-01/independent-verification.json",
+      "sha256": "1e9b36fa97c2a5db26bb57892eeac9f701cea0b2d4b3e3e06a4a49cee2ac1008"
+    },
+    "profile-inventory.json": {
+      "bytes": 33720,
+      "path": "/tmp/scap-raw-frame-gates-01/profile-inventory.json",
+      "sha256": "9720afbc8312aa220be35b1e1eae0f44b08bc9f3ab82e738dbe4418b6745bbb1"
+    },
+    "stable-artifacts.json": {
+      "bytes": 1520,
+      "path": "/tmp/scap-raw-frame-gates-01/stable-artifacts.json",
+      "sha256": "138412ba190bca778e0ccac08ea6056ce7f34b39bcae1f91b8dcb9e38f0b39d6"
+    },
+    "stable-receipt.json": {
+      "bytes": 2406,
+      "path": "/tmp/scap-raw-frame-gates-01/stable-receipt.json",
+      "sha256": "7f0ef4a2f78dd53f3191a70f24b7a19d499b3ca47362b23918b4de52a679877c"
+    }
+  },
+  "review_freeze": {
+    "bytes": 1646,
+    "path": "/tmp/scap-raw-frame-review01/manifest.json",
+    "sha256": "17a5d2c1965aa2a96ca11848bff3c6d9ecfb89f1df5f9ffa37eadd3e44027b75"
+  },
+  "schema": 1,
+  "scope_limits": [
+    "This is only the scap-object core, not final composed whole-workspace acceptance.",
+    "No actual service/S3 claim follows from unit coverage.",
+    "Frame validation does not prove transitive closure, retained SQL semantics, native SQLite safety, authorization, or promotion.",
+    "No generation/pin/copy/GC maintenance implementation or public API is enabled.",
+    "The independent WAL-reset source assessment does not claim the pinned native engine is patched."
+  ],
+  "source_classification": "frozen-uncommitted-five-file-candidate-not-a-local-commit",
+  "source_files": 407,
+  "source_unchanged": true,
+  "status": "SCOPED_GATES_AND_ARCHIVE_PASS",
+  "targets_retained_intact": [
+    "/tmp/scap-raw-frame-stable-01",
+    "/tmp/scap-raw-frame-coverage-01"
+  ],
+  "worktree": "/workspace/scratch/591a71cb3372/raw-frame-validation"
+}

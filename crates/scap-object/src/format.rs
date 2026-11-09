@@ -5,6 +5,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
+#[path = "object_frame.rs"]
+mod object_frame;
+
 pub const PAGE_SIZE: usize = 4096;
 pub const CHUNK_PAGES: u32 = 32;
 pub const CHUNK_BYTES: usize = PAGE_SIZE * CHUNK_PAGES as usize;
@@ -540,16 +543,27 @@ pub struct Envelope {
 
 impl Envelope {
     fn validate(&self) -> Result<(), FormatError> {
+        let raw_len = match &self.payload {
+            Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
+                bytes.len()
+            }
+            _ => 0,
+        };
+        self.validate_with_raw_len(raw_len)
+    }
+
+    /// Shared semantic checks for owned payloads and frames whose raw bytes
+    /// have not been copied into the metadata yet. Frame parsing separately
+    /// requires empty embedded bytes and no raw bytes for non-raw variants.
+    fn validate_with_raw_len(&self, raw_len: usize) -> Result<(), FormatError> {
         check(self.format == 2)?;
         self.scope.validate()?;
         match &self.payload {
-            Payload::Chunk { first_page, bytes } => {
+            Payload::Chunk { first_page, .. } => {
                 check(*first_page != 0 && (*first_page - 1).is_multiple_of(CHUNK_PAGES))?;
-                check(!bytes.is_empty() && bytes.len().is_multiple_of(PAGE_SIZE))?;
-                budget(bytes.len(), CHUNK_BYTES)?;
-                check(
-                    *first_page as u64 + (bytes.len() / PAGE_SIZE) as u64 - 1 <= MAX_PAGES as u64,
-                )?;
+                check(raw_len != 0 && raw_len.is_multiple_of(PAGE_SIZE))?;
+                budget(raw_len, CHUNK_BYTES)?;
+                check(*first_page as u64 + (raw_len / PAGE_SIZE) as u64 - 1 <= MAX_PAGES as u64)?;
             }
             Payload::Node {
                 level,
@@ -570,7 +584,7 @@ impl Envelope {
                 nonzero(&[result.sequence])?;
                 result.transition.validate()?;
                 check(hash_valid(&result.data_root))?;
-                budget(result.bytes.len(), MAX_RESULT_BYTES)?;
+                budget(raw_len, MAX_RESULT_BYTES)?;
             }
             Payload::Index(index) => index.validate()?,
         }
@@ -713,37 +727,8 @@ pub fn decode_object(
     scope: &Scope,
     expected_hash: &str,
 ) -> Result<Envelope, FormatError> {
-    budget(bytes.len(), MAX_OBJECT_BYTES)?;
-    check(digest(bytes) == expected_hash).map_err(|_| FormatError::Corrupt)?;
-    check(bytes.len() >= FRAME_BYTES).map_err(|_| FormatError::Corrupt)?;
-    check(&bytes[..8] == MAGIC).map_err(|_| FormatError::Corrupt)?;
-    let metadata_len =
-        u32::from_le_bytes(bytes[8..12].try_into().expect("fixed frame field")) as usize;
-    let raw_len = u64::from_le_bytes(bytes[12..20].try_into().expect("fixed frame field"));
-    check(metadata_len <= SMALL_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
-    check(raw_len <= MAX_RESULT_BYTES as u64).map_err(|_| FormatError::Corrupt)?;
-    check(bytes.len() == FRAME_BYTES + metadata_len + raw_len as usize)
-        .map_err(|_| FormatError::Corrupt)?;
-    let metadata: Metadata =
-        serde_json::from_slice(&bytes[FRAME_BYTES..FRAME_BYTES + metadata_len])
-            .map_err(|_| FormatError::Corrupt)?;
-    let raw = &bytes[FRAME_BYTES + metadata_len..];
-    let mut payload = metadata.payload;
-    match &mut payload {
-        Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
-            check(bytes.is_empty()).map_err(|_| FormatError::Corrupt)?;
-            bytes.extend_from_slice(raw);
-        }
-        _ => check(raw.is_empty()).map_err(|_| FormatError::Corrupt)?,
-    }
-    let envelope = Envelope {
-        format: metadata.format,
-        scope: metadata.scope,
-        payload,
-    };
-    envelope.validate().map_err(|_| FormatError::Corrupt)?;
-    check(envelope.scope == *scope).map_err(|_| FormatError::Corrupt)?;
-    Ok(envelope)
+    object_frame::ValidatedFrame::parse(bytes, scope, expected_hash)
+        .map(object_frame::ValidatedFrame::into_envelope)
 }
 
 fn encode(value: &impl Serialize, maximum: usize) -> Result<Vec<u8>, FormatError> {
