@@ -1,12 +1,13 @@
 # HEAD5 运行时组合候选
 
 本候选基于 `7c1f8e4`，把三个已独立提交的生产切片与受限 HTTP 观测夹具放到
-同一源码树。当前为静态组合，**完整 workspace 和全部新实际合同尚未运行**。
-各切片的既有单元、真实故障和容量结果只对各自冻结输入成立。
+同一源码树。冻结版本 `778a4d2` 已通过完整 workspace 单位门禁和 23 项辅助检查；
+**这一组合的新实际 native/S3/HTTP 合同仍待验收**。各旧版本的真实故障和容量
+结果保留各自冻结输入身份，不能替代本次实际验收。
 
 `052fbbd` 的首次全 workspace 门禁在 fmt 发现一处行折叠差异，编译与覆盖采集
 尚未进入；原失败保留在[格式失败回执](../evidence/head5-runtime-format-failure-local-2026-11-09.json)。
-后继候选只按该原输出修正表达式排版，仍需完整重新验收。
+后继 `778a4d2` 只按该原输出修正表达式排版，并已完成下述完整单位验收。
 
 ## 组合内容
 
@@ -29,10 +30,20 @@ HTTP Engine 的 Activate 仍调用 `activate_session`，走原 restore/verify_re
 
 ## 验证与集成
 
-先在本树一次完成 canonical stable/Clippy 和 fresh unit-only 四维 workspace
-覆盖，逐文件保留真实计数和编译器零分母。旧 f6 的实际 ELF/native/140 profiles
-已经逐成员完整封存并读回；其完整依赖缓存可独占复用。采集前清空或隔离所有已
-归档的旧 profiles，不能把多个切片的计数拼成组合覆盖。
+`778a4d2` 的 canonical fmt、strict workspace Clippy、stable 与 fresh nightly
+单位运行均已通过。两次各 538 个单位；56 个生产 Rust 文件共覆盖
+10180/10180 行、899/899 函数、15570/15570 regions、1882/1882 个实际产生的分支。
+五个文件由编译器产生的分支分母是 **0/0**，逐项原样记录，不把它写成百分比。
+23 项 SDK、工具及夹具辅助检查通过，见[完整单位回执](../evidence/head5-runtime-workspace-local-2026-11-09.json)。
+
+采集前确认零 raw/merged profiles；保留 93 个新 raw profiles、原合并列表与单一 merged
+profile，没有混入旧版本或集成 profile。12 个实际单位 ELF、真实 native/ffi 依赖链、
+全部 profiles、原覆盖映射及 433 份源码已完整归档，177 个成员逐字节 SHA-256
+读回通过。原 f6 归档不变；本次单位使用原完整依赖缓存，不宣称重新编译了 native C。
+
+新 release 构建 attempt01 在 Cargo 之前被原资源 builder 的空 target 前置条件拒绝，
+[原失败已保留](../evidence/head5-runtime-build-precondition-local-2026-11-09.json)。
+attempt02 使用独立空 target 与未修改的原 builder；不放宽前置条件。
 
 之后用本树的新 release 输入运行所需 native/S3/HTTP、冷恢复、owner、资源及
 发现合同；直接 activate/named Complete 由相应 network/catalogue 路径覆盖。

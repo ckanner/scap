@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "status": "FAILED_BEFORE_CARGO_BUILD_PRECONDITION",
+  "source_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "completion": {
+    "path": "/tmp/scap-runtime-build-778a4d2-01/completion.json",
+    "bytes": 2169,
+    "sha256": "7bf818edbbce39df048bb5287c2a2872bf8ca974497395a39e96cd0e4ed6e50b"
+  },
+  "log": {
+    "path": "/tmp/scap-runtime-build-778a4d2-01/resource-build.log",
+    "bytes": 439,
+    "sha256": "352760acd4dbf5ca45f750ce6656afaea31acc45350a28bb3707d7e464b35e3f"
+  },
+  "cause": "The external orchestrator offered a previously compiled intact target, but experiments/object-resource/build.py requires both target and evidence paths to be absent. The original assertion rejected the target before Cargo/native compilation.",
+  "source_unchanged": true,
+  "cargo_invoked": false,
+  "native_compilation_invoked": false,
+  "retry_policy": "Original evidence retained. Use a distinct fresh target and original unmodified builder for attempt02; do not relax the precondition.",
+  "cache_transfer_receipt": {
+    "path": "/tmp/scap-runtime-release-transfer-778a4d2-01/completion.json",
+    "bytes": 1017,
+    "sha256": "ff6d32e9c816944471fc97c570a21a674e5df7e0005afa9251f408d5f08b1aa8"
+  },
+  "unconsumed_cache_retirement_receipt": {
+    "path": "/tmp/scap-runtime-unconsumed-cache-retirement01.json",
+    "bytes": 1126,
+    "sha256": "7d799cc8f3e62f9656721e258f03e372d5301005d2ab47f1a4e1212d1c773b91"
+  },
+  "original_4329_artifacts": "Original binary/native bytes preserved at their recorded paths and in a separate verified copy; the old location is an artifact holder, not a reusable Cargo target.",
+  "new_build_attempt02": "IN_PROGRESS at documentation capture; no success claimed."
+}
