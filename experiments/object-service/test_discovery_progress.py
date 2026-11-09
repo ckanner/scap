@@ -16,6 +16,13 @@ def encoded(value):
     return json.dumps(value, separators=(",", ":")).encode()
 
 
+def binding_body(creation):
+    return encoded({"creation": creation, "state": "bound",
+                    "origin": {"creator": creation["creator"], "operation": creation["operation"],
+                               "name_hash": audit.sha(creation["name"].encode()),
+                               "descriptor_hash": audit.sha(encoded({"creation": creation}))}, "revision": 2})
+
+
 class Evidence:
     def __init__(self):
         self.objects = {}
@@ -99,7 +106,7 @@ def names_fixture():
     evidence.listing(prefix, keys, truncated=True)
     visible = evidence.ready(ordered[0], read=True)
     evidence.now = 3_950_000_000
-    evidence.get(keys[1], encoded({"creation": ordered[1], "state": "bound", "origin": {}, "revision": 2}))
+    evidence.get(keys[1], binding_body(ordered[1]))
     first = call(1_000, 4_010_000_000, None,
                  {"names": [visible], "cursor": "original-sealed-token", "traversal_exhausted": False, "stopped": "UNKNOWN"})
     evidence.now = 5_010_000_000
@@ -177,7 +184,7 @@ def zero_progress_fixture(*, operation="LIST"):
     keys = [prefix + audit.sha(value["name"].encode()) for value in ordered]
     final = evidence.listing(prefix, keys)
     if operation == "GET":
-        final = evidence.get(keys[0], encoded({"creation": ordered[0], "state": "bound", "origin": {}, "revision": 2}))
+        final = evidence.get(keys[0], binding_body(ordered[0]))
     final["backend"]["monotonic_ns"] = 4_115_000_000
     final["delivery"]["monotonic_ns"] = 4_120_000_000
     final["terminal"].update(monotonic_ns=4_121_000_000, event="delivery_disconnected")

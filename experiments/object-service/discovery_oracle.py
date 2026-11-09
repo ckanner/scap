@@ -15,7 +15,7 @@ import signal
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
 
-from audit_wire import b64, committed, equal, fingerprint, object_versions, parse, require, result
+from audit_wire import b64, committed, decimal, equal, fingerprint, object_versions, parse, require, result
 from service_oracle import build_receipt, exited, identity, only, rows, stamp, value_of
 
 FILES = ("discovery-tools.json", "discovery-source-before.json", "discovery-source-after.json",
@@ -338,6 +338,125 @@ def successful_gets(objects, call, key):
             and obj["delivery"]["status"] == 200 and obj["upstream"] == obj["outgoing"]]
 
 
+def prepared_profile(call, *, role, name, operation):
+    """Derive this fixture's source from authenticated input and fixed config."""
+    deployment, tenant, creator, provision, _ = ROLE_SCOPE[role]
+    require(call["role"] == role and provision and all(call["identity"][key] == expected for key, expected in
+            (("deployment", deployment), ("tenant", tenant), ("principal", creator))),
+            "fixed metadata profile changed its authenticated creator")
+    expected_input = {"version": 1, "operation": "prepare_create", "name": name,
+                      "create_operation": str(operation), "expected_name_revision": None,
+                      "options": {"quota": {"mode": "default"}}}
+    equal(call["body"], expected_input, "fixed metadata profile changed its original prepare input")
+    numbers = [decimal(item) for item in (deployment, tenant, creator, str(operation))]
+    digest = hashlib.sha256(b"SCAP-NAMED-ID-v1\0" + b"".join(number.to_bytes(8, "big") for number in numbers)).digest()
+    scope = {"deployment": numbers[0], "tenant": numbers[1], "database": int.from_bytes(digest[:8], "big"),
+             "incarnation": int.from_bytes(digest[8:16], "big"), "generation": 1}
+    require(scope["database"] != 0 and scope["incarnation"] != 0, "fixed derived Scope has a zero identity")
+    creation = {"creator": numbers[2], "operation": numbers[3], "name": name, "scope": scope,
+                "expected_name_revision": None}
+    quota, retention = {"max_bytes": 10737418240}, {"max_entries": 4096, "max_result_bytes": 268435456}
+    expected_response = {"creation": numeric_wire(creation), "initial_quota": {"max_bytes": str(quota["max_bytes"])},
+                         "retention": {"max_entries": 4096, "max_result_bytes": "268435456"}}
+    equal(value_of(call), expected_response, "fixed metadata profile changed its derived Scope or configured source")
+    descriptor = {"format": 1, "creation": creation, "options": {"quota": {"kind": "default"}},
+                  "initial_quota": quota, "retention": retention}
+    prefix = f"scap-object/v1/{deployment}/{tenant}/catalogue/v1/"
+    return {"creation": creation, "descriptor": descriptor, "descriptor_key": prefix + f"create/{creator}/{operation}",
+            "name_key": prefix + "name/" + sha(name.encode())}
+
+
+def control_profile(call, source, origin):
+    creation = source["creation"]
+    scope = creation["scope"]
+    require(call["role"] == "admin" and all(call["identity"].get(key) == str(expected) for key, expected in
+            (("deployment", scope["deployment"]), ("tenant", scope["tenant"]), ("principal", creation["creator"]))),
+            "fixed metadata profile changed its authenticated control caller")
+    equal(call["body"], {"version": 1, "operation": "abort_create", "creation": numeric_wire(creation),
+          "control_operation": "30002", "expected_name_revision": "1", "nonce": "30003"},
+          "fixed metadata profile changed its original control input")
+    expected = {"format": 1, "creation": creation, "origin": origin, "kind": "abort", "principal": creation["creator"],
+                "operation": 30002, "expected_name_revision": 1, "expected_head_revision": None, "nonce": 30003}
+    equal(value_of(call), {"creation": numeric_wire(creation), "operation": "30002", "nonce": "30003",
+          "phase": "not_reserved", "binding_revision": None, "head_revision": None},
+          "fixed metadata profile changed its original unreserved control result")
+    key = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/catalogue/v1/control/{creation['creator']}/abort/30002"
+    return key, expected
+
+
+def catalogue_profile_record(key, data, profiles, bindings):
+    require(len(data) <= 65536, "fixed metadata profile record exceeds its original byte cap")
+    value = parse(data)
+    if key in bindings:
+        require(isinstance(value, dict) and value.get("state") in ("reserved", "bound"),
+                "fixed metadata profile introduced an unoffered Name state")
+        expected = bindings[key][value["state"]]
+    else:
+        require(key in profiles, "fixed metadata profile introduced another exact key or successful Proof")
+        expected = profiles[key]
+    equal(value, expected, "fixed metadata profile record differs from original authenticated input")
+    # The fixed records use these declared field orders and only ASCII names.
+    # Product catalogue decoding rejects a semantically equal noncanonical body.
+    canonical = json.dumps(expected, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    equal(data, canonical, "fixed metadata profile record is not in its original canonical byte encoding")
+    return value
+
+
+def catalogue_profile(observed, objects):
+    """Finite input-derived records, not a replacement generic catalogue codec.
+
+    The version audit proves byte identity. This additional profile proves that
+    the fixture actually published the valid versions required by the typed
+    final-reservation model, even if a forged history changes every copy.
+    """
+    plan = [(f"prepare_{index}", "admin", f"discovery-{index:03}", 10000 + index) for index in range(129)]
+    plan += [("prepare_other", "other", "discovery-other", 20001),
+             ("prepare_foreign", "foreign", "discovery-foreign", 20001),
+             ("prepare_dormant", "admin", "discovery-descriptor-only", 30001)]
+    profiles, bindings, origins = {}, {}, {}
+    publications = defaultdict(list)
+    for obj in objects.values():
+        if obj["request"]["method"] == "PUT" and obj["backend"]["status"] == 200:
+            publications[obj["request"]["key"]].append(obj)
+    for label, role, name, operation in plan:
+        require(label in observed, "fixed metadata profile omitted an original prepare invocation")
+        source = prepared_profile(observed[label], role=role, name=name, operation=operation)
+        key = source["descriptor_key"]
+        publication = only(publications[key], "fixed metadata profile lacks its unique original Descriptor publication")
+        body = publication["incoming"]
+        profiles[key] = source["descriptor"]
+        catalogue_profile_record(key, body, profiles, {})
+        creation = source["creation"]
+        origin = {"creator": creation["creator"], "operation": creation["operation"],
+                  "name_hash": sha(creation["name"].encode()), "descriptor_hash": sha(body)}
+        origins[label] = origin
+        if label != "prepare_dormant":
+            bindings[source["name_key"]] = {state: {"format": 1, "creation": creation, "origin": origin,
+                "revision": revision, "state": state, "control": None, "proof": None}
+                for state, revision in (("reserved", 1), ("bound", 2))}
+        else:
+            dormant = source
+    require("control_dormant" in observed, "fixed metadata profile omitted its original control invocation")
+    control_key, control = control_profile(observed["control_dormant"], dormant, origins["prepare_dormant"])
+    profiles[control_key] = control
+    seen, bound, count = set(), set(), 0
+    for obj in objects.values():
+        request = obj["request"]
+        if request["query"] or "/catalogue/v1/" not in request["key"] or obj["backend"]["status"] != 200:
+            continue
+        key = request["key"]
+        data = obj["incoming"] if request["method"] == "PUT" else obj["upstream"]
+        value = catalogue_profile_record(key, data, profiles, bindings)
+        if request["method"] == "PUT":
+            seen.add(key)
+            if key in bindings and value["state"] == "bound": bound.add(key)
+        count += 1
+    equal(sorted(seen), sorted(set(profiles) | set(bindings)), "fixed metadata profile omitted a declared permanent source")
+    equal(sorted(bound), sorted(bindings), "fixed metadata profile omitted an original Bound name")
+    return {"prepared_sources": len(plan), "ready_names": len(bindings), "admitted_controls": 1,
+            "verified_catalogue_bodies": count, "profile": "fixed_authenticated_inputs_and_configured_defaults"}
+
+
 def metadata_reservation_options(gets, uncertain=None, *, declared_corruption=False, unconsumed=None):
     """Independent reconstruction of the port budget, not HTTP body byte totals."""
     used, maximum = 0, 16 * 1024 * 1024
@@ -405,7 +524,195 @@ def list_reservation_options(lists, uncertain=None, unconsumed=None):
     return choices if choices is not None else {used}
 
 
-def page_budget(objects, call, classified_through=0, *, natural=True):
+USAGE_FIELDS = ("list_pages", "candidates", "exact_gets", "list_bytes", "metadata_bytes")
+
+
+def candidate_chain(entry):
+    """The fixed fixture's typed port dependencies, independent of Rust code.
+
+    These sequences are only used to bound a possible final logical port
+    reservation. They do not replace the semantic classification witnesses.
+    """
+    creation = entry["creation"]
+    scope = creation["scope"]
+    tenant = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+    keys = {"N": tenant + "catalogue/v1/name/" + sha(creation["name"].encode()),
+            "D": tenant + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}",
+            "P": tenant + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}",
+            "H": tenant + scope["database"] + "/head", "C": entry["key"]}
+    dormant = creation["name"] == "discovery-descriptor-only"
+    if dormant:
+        require(entry["kind"] in ("create", "control"), "dormant candidate has no such physical record")
+        roles = "DNPHN" if entry["kind"] == "create" else "CDNPHN"
+    else:
+        roles = {"name": "NDNDPHDN", "create": "DNDPHDN",
+                 "control": "CDNDPHDN", "head": "HDNDPHDN"}[entry["kind"]]
+    return [{"role": role, "key": keys[role], "max_bytes": 256 * 1024 if role == "H" else 64 * 1024,
+             "status": 404 if role == "P" or dormant and role in "NH" else 200} for role in roles]
+
+
+def dependency_prefix(reads, entry):
+    """Return the unique next typed GET, never a successor of an unpassed record."""
+    chain = candidate_chain(entry)
+    if len(reads) >= len(chain):
+        # Even a complete physically delivered chain may have failed its last
+        # deadline check. Only the original cursor can classify this candidate;
+        # no next candidate is inferred from these GETs alone.
+        return None
+    creation, origins, descriptors, names = entry["creation"], [], [], []
+    origin_identity = {"creator": creation["creator"], "operation": creation["operation"],
+                       "name_hash": sha(creation["name"].encode())}
+    for obj, expected in zip(reads, chain):
+        require(obj["request"]["method"] == "GET" and not obj["request"]["query"]
+                and obj["request"]["key"] == expected["key"]
+                and obj["delivery"]["status"] == expected["status"],
+                "unobserved reservation borrowed an incomplete or wrong typed dependency prefix")
+        require(obj["upstream"] == obj["outgoing"], "unobserved reservation followed altered metadata")
+        if expected["status"] == 404:
+            continue
+        require(obj["delivery"]["etag"] is not None and len(obj["outgoing"]) <= expected["max_bytes"],
+                "unobserved reservation followed an invalid bounded body")
+        body, role = parse(obj["outgoing"]), expected["role"]
+        if role == "H":
+            require(numeric_wire(body["scope"]) == creation["scope"] and body["lifecycle"] == "ready",
+                    "unobserved reservation changed its HEAD scope or state")
+            origins.append(body["creation"])
+        else:
+            require(numeric_wire(body["creation"]) == creation,
+                    "unobserved reservation changed its original Creation")
+            if role == "N":
+                require(body["state"] == "bound", "unobserved reservation assumed a different name branch")
+                origins.append(body["origin"]); names.append(obj)
+            elif role == "D":
+                descriptors.append(obj)
+            elif role == "C":
+                origins.append(body["origin"])
+        if origins:
+            require(all(isinstance(origin, dict) and set(origin) == set(origin_identity) | {"descriptor_hash"}
+                        and numeric_wire({key: origin[key] for key in origin_identity}) == origin_identity
+                        and isinstance(origin.get("descriptor_hash"), str)
+                        and re.fullmatch(r"[0-9a-f]{64}", origin["descriptor_hash"]) for origin in origins),
+                    "unobserved reservation changed its complete Origin identity")
+    require(all(origin["descriptor_hash"] == sha(source["outgoing"])
+                for origin in origins for source in descriptors),
+            "unobserved reservation detached its immutable descriptor")
+    require(not names or all(obj["outgoing"] == names[0]["outgoing"]
+                            and obj["delivery"]["etag"] == names[0]["delivery"]["etag"] for obj in names),
+            "unobserved reservation crossed a changing name")
+    return chain[len(reads)]
+
+
+def next_list_query(obj):
+    """One next LIST after consuming this original page's complete prefix."""
+    entries, truncated = listed(obj)
+    query = dict(obj["request"]["query"])
+    prefix = query["prefix"]
+    root = "scap-object/v1/1/"
+    if prefix == root:
+        if not entries:
+            return None
+        query.update(prefix=entries[0] + "catalogue/v1/name/")
+        query.pop("delimiter", None); query.pop("start-after", None)
+        return query
+    if truncated:
+        require(entries, "unobserved LIST followed an empty truncated page")
+        query["start-after"] = entries[-1]
+        return query
+    match = re.fullmatch(re.escape(root) + r"([1-9][0-9]*)/(.*)", prefix)
+    require(match is not None, "unobserved LIST changed deployment")
+    tenant = root + match[1] + "/"
+    suffixes = ("catalogue/v1/name/", "catalogue/v1/create/", "catalogue/v1/control/",
+                "catalogue/v1/abort-proof/", "")
+    require(match[2] in suffixes, "unobserved LIST changed its original phase")
+    phase = suffixes.index(match[2])
+    query.pop("start-after", None)
+    if phase < len(suffixes) - 1:
+        query["prefix"] = tenant + suffixes[phase + 1]
+        if phase == len(suffixes) - 2:
+            query["delimiter"] = "/"
+        else:
+            query.pop("delimiter", None)
+    else:
+        query.update(prefix=root, delimiter="/", **{"start-after": tenant})
+    return query
+
+
+def logical_successor(objects, call, following, classified_through, pending, minimum):
+    """Derive one possible unobserved port attempt without consulting usage.
+
+    TCP delivery is not proof of client consumption. This proof describes the
+    single trace branch where every observed body was consumed, all its exact
+    refunds applied, and the unique next port reservation failed unobserved.
+    """
+    real = page_requests(objects, call)
+    lists = [obj for obj in real if obj["request"]["query"]]
+    tail = [obj for obj in real if stamp(obj["request"]) > classified_through and not obj["request"]["query"]]
+    facts = {"minimum": minimum, "started": bool(tail), "available": False, "successor": None}
+    admitted, candidates = None, []
+    if pending is not None:
+        candidates = [obj for obj in lists if obj["request"]["query"]["prefix"] == pending["prefix"]
+                    and obj["request"]["query"].get("delimiter") == pending["delimiter"]
+                    and obj["delivery"]["status"] == 200 and obj["upstream"] == obj["outgoing"]
+                    and pending["physical"] in listed(obj)[0]]
+        if candidates:
+            facts["available"] = any(stamp(obj["delivery"]) < stamp(call["response"]) for obj in candidates)
+    if following is None or value_of(call)["stopped"] != "UNKNOWN":
+        return facts
+    elapsed = stamp(call["response"]) - stamp(call["request"])
+    if not 3_500_000_000 <= elapsed < HTTP_NANOSECONDS or not real:
+        return facts
+    resumed = [obj for obj in page_requests(objects, following) if obj["request"]["query"]]
+    require(resumed and value_of(call)["cursor"] is not None
+            and following["body"]["cursor"] == value_of(call)["cursor"],
+            "unobserved reservation lost its original authenticated frontier")
+    query = resumed[0]["request"]["query"]
+    cutoff = stamp(real[0]["request"]) + READ_NANOSECONDS
+    consumed = all(obj["terminal"]["event"] == "delivery_finished" and obj["request"]["fault"] is None
+                   and stamp(obj["request"]) < cutoff and stamp(obj["delivery"]) < cutoff
+                   and stamp(obj["delivery"]) < stamp(call["response"]) for obj in real)
+    if consumed and candidates:
+        admitted = only(candidates, "unobserved reservation has ambiguous candidate admission")
+        require(admitted is lists[-1] and all(stamp(obj["request"]) > stamp(admitted["delivery"]) for obj in tail),
+                "unobserved reservation borrowed a later LIST or another phase")
+        physical = listed(admitted)[0]
+        index = physical.index(pending["physical"])
+        after = physical[index - 1] if index else admitted["request"]["query"].get("start-after", "")
+        expected_frontier = dict(admitted["request"]["query"])
+        if after:
+            expected_frontier["start-after"] = after
+        else:
+            expected_frontier.pop("start-after", None)
+        equal(expected_frontier, query, "unobserved GET skipped its original unclassified physical frontier")
+    if admitted is not None and consumed and minimum < 128 and pending["entry"] is not None:
+        expected = dependency_prefix(tail, pending["entry"])
+        if expected is not None:
+            facts["successor"] = {"operation": "GET", "key": expected["key"], "max_bytes": expected["max_bytes"],
+                "candidates": minimum + 1, "candidate": pending["physical"],
+                "admitting_list_serial": admitted["request"]["request_serial"],
+                "observed_dependency_serials": [obj["request"]["request_serial"] for obj in tail],
+                "resumed_query": query, "dispatch_time": "NOT_OBSERVED"}
+    if facts["successor"] is None and not tail and consumed and stamp(real[-1]["request"]) <= classified_through:
+        require(lists, "unobserved LIST lacks an original consumed page")
+        # Ordinary names stop after an exhausted name LIST; only inventory
+        # moves between catalogue phases and tenants.
+        expected = next_list_query(lists[-1]) if call["body"]["operation"] == "deployment_inventory" else (
+            {**lists[-1]["request"]["query"], "start-after": listed(lists[-1])[0][-1]}
+            if listed(lists[-1])[1] and listed(lists[-1])[0] else None)
+        if expected is not None:
+            # A final record GET does not prove that later local-only entries
+            # (such as catalogue/) or an exhausted phase were crossed. Their
+            # original cursor may still resume this phase, with no new port
+            # reservation. The complete prefix audit decides valid progress.
+            if expected == query:
+                facts["successor"] = {"operation": "LIST", "query": expected, "max_bytes": 1024 * 1024,
+                    "candidates": minimum, "after_list_serial": lists[-1]["request"]["request_serial"],
+                    "dispatch_time": "NOT_OBSERVED"}
+    if facts["successor"] is not None:
+        no_post_return_work(objects, call, following)
+    return facts
+
+
+def page_budget(objects, call, classified_through=0, *, natural=True, logical=None):
     """Check external timing bounds and every fixed per-invocation cost limit."""
     value = value_of(call)
     real = page_requests(objects, call)
@@ -453,13 +760,16 @@ def page_budget(objects, call, classified_through=0, *, natural=True):
             # accepted the final body before its fixed deadline. Only this last
             # unresolved GET may retain its reservation or earn its exact refund.
             if final["request"]["query"] and stamp(final["request"]) > classified_through:
-                require(final["terminal"]["event"] == "delivery_disconnected",
-                        "unresolved final LIST lacks disconnected delivery without classified progress")
-                unresolved_list = final["request"]["request_serial"]
-                if stamp(final["delivery"]) >= cutoff:
-                    list_unconsumed = unresolved_list
+                if final["terminal"]["event"] == "delivery_disconnected":
+                    unresolved_list = final["request"]["request_serial"]
+                    if stamp(final["delivery"]) >= cutoff:
+                        list_unconsumed = unresolved_list
+                    else:
+                        list_uncertain = unresolved_list
                 else:
-                    list_uncertain = unresolved_list
+                    require(logical is not None and logical["successor"] is not None
+                            and logical["successor"]["operation"] == "GET",
+                            "unresolved final LIST lacks disconnected delivery without classified progress")
             elif not final["request"]["query"] and stamp(final["request"]) > classified_through:
                 if stamp(final["delivery"]) >= cutoff:
                     # The body was not even sent by the external upper bound;
@@ -471,11 +781,39 @@ def page_budget(objects, call, classified_through=0, *, natural=True):
     # port. Meter refunds its exact delivered length before the format error.
     options = metadata_reservation_options(gets, uncertain, declared_corruption=not natural, unconsumed=unconsumed)
     list_options = list_reservation_options(lists, list_uncertain, list_unconsumed)
+    tuples, successor = set(), None
+    if logical is not None:
+        minimum = logical["minimum"]
+        exact_list = only(list(list_reservation_options(lists)), "exact consumed LIST charge")
+        exact_metadata = only(list(metadata_reservation_options(gets, declared_corruption=not natural)), "exact consumed GET charge")
+        for list_bytes in list_options:
+            candidates = {minimum + 1} if logical["started"] else {minimum}
+            if (not logical["started"] and logical["available"] and minimum < 128
+                    and value["stopped"] in ("UNKNOWN", "LIMIT") and list_bytes == exact_list):
+                candidates.add(minimum + 1)
+            for count in candidates:
+                for metadata in options:
+                    tuples.add((len(lists), count, len(gets), list_bytes, metadata))
+        proposed = logical["successor"]
+        if proposed is not None:
+            if proposed["operation"] == "GET" and len(gets) < 512 and exact_metadata < 16 * 1024 * 1024:
+                amount = min(proposed["max_bytes"], 16 * 1024 * 1024 - exact_metadata)
+                successor = {**proposed, "reserved_bytes": amount,
+                             "usage": (len(lists), proposed["candidates"], len(gets) + 1, exact_list, exact_metadata + amount)}
+            elif proposed["operation"] == "LIST" and len(lists) < 4 and exact_list <= 3 * 1024 * 1024:
+                successor = {**proposed, "reserved_bytes": 1024 * 1024,
+                             "usage": (len(lists) + 1, proposed["candidates"], len(gets), exact_list + 1024 * 1024, exact_metadata)}
+            if successor is not None:
+                tuples.add(successor["usage"])
+        require(tuples and all(0 <= row[0] <= 4 and 0 <= row[1] <= 128 and 0 <= row[2] <= 512
+                              and 0 <= row[3] <= 4 * 1024 * 1024 and 0 <= row[4] <= 16 * 1024 * 1024 for row in tuples),
+                "logical reservation renewed an original hard budget cap")
     return {"list_pages": len(lists), "exact_gets": len(gets), "list_byte_options": list_options,
             "metadata_options": options, "uncertain_final_get": uncertain,
             "unconsumed_final_get": unconsumed, "late_final_request": abandoned,
             "unresolved_final_list": unresolved_list, "uncertain_final_list": list_uncertain,
-            "unconsumed_final_list": list_unconsumed}
+            "unconsumed_final_list": list_unconsumed, "usage_options": tuples,
+            "unobserved_final_reservation": successor}
 
 
 def visible_witness(objects, call, value):
@@ -508,6 +846,25 @@ def visible_witness(objects, call, value):
         if source and before and after and barriers:
             witnesses.append(authority)
     require(witnesses, "visible name lacks same-call source + Name/Proof/HEAD/Name and fresh READ permission")
+
+
+def verify_usage(value, budget):
+    """Compare all five fields against the same feasible reservation trace."""
+    usage, allowed = value["usage"], budget["usage_options"]
+    require(set(usage) == set(USAGE_FIELDS) and all(type(usage[field]) is int for field in USAGE_FIELDS),
+            "reported discovery usage fields/types differ")
+    row = tuple(usage[field] for field in USAGE_FIELDS)
+    require(row[0] in {item[0] for item in allowed} and row[2] in {item[2] for item in allowed},
+            "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation")
+    require(row[1] in {item[1] for item in allowed},
+            "reported candidate budget differs from its original physical frontier")
+    require(row[3] in {item[3] for item in allowed},
+            "reported LIST budget differs from exact completed pages and the single original-deadline tail")
+    require(row[4] in {item[4] for item in allowed},
+            "reported metadata budget differs from exact completed GETs and the single original-deadline tail")
+    require(row in allowed, "reported usage mixed mutually exclusive logical reservation traces")
+    proposed = budget["unobserved_final_reservation"]
+    return proposed if proposed is not None and row == proposed["usage"] else None
 
 
 def pages(data, observed, objects, inventory_budgets=None):
@@ -575,18 +932,17 @@ def pages(data, observed, objects, inventory_budgets=None):
         require(value_of(scan[-1])["cursor"] is None and len(collected) == len(set(collected)) and set(collected) == published,
                 "completed deployment inventory omitted/repeated a prior permanent slot")
         inventory_tails.extend(inventory_progress(scan, objects, published, inventory_budgets))
+    logical_branches = []
     for call in observed.values():
         if call["body"]["operation"] != "deployment_inventory" or call.get("value", {}).get("ok") is not True:
             continue
         budget, value = inventory_budgets[call["label"]], value_of(call)
-        require(value["usage"]["list_pages"] == budget["list_pages"]
-                and value["usage"]["exact_gets"] == budget["exact_gets"], "reported HTTP budget differs from actual S3")
-        require(value["usage"]["list_bytes"] in budget["list_byte_options"],
-                "reported LIST budget differs from exact completed pages and the single original-deadline tail")
-        require(value["usage"]["metadata_bytes"] in budget["metadata_options"],
-                "reported metadata budget differs from exact completed GETs and the single original-deadline tail")
+        branch = verify_usage(value, budget)
+        if branch is not None:
+            logical_branches.append({"call": call["label"], "status": "CONSISTENT_NOT_OBSERVED", **branch})
     return {"fresh_read_visible_names": names_seen, "permanent_metadata_keys": len(published),
-            "inventory_scans": 2, "data_recovery": "not_run", "abandoned_final_operations": inventory_tails}
+            "inventory_scans": 2, "data_recovery": "not_run", "abandoned_final_operations": inventory_tails,
+            "unobserved_reservation_branches": logical_branches}
 
 
 def classified_name_evidence(reads, creation, *, admitted_after=None):
@@ -686,12 +1042,17 @@ def unchanged_frontier(objects, call, following, budget):
     require(value_of(call)["stopped"] == "UNKNOWN", "unchanged frontier lacks a natural deadline cutoff")
     final = page_requests(objects, call)[-1]
     serial = final["request"]["request_serial"]
-    require(serial in (budget["uncertain_final_get"], budget["unconsumed_final_get"],
-                       budget["unresolved_final_list"])
-            and final["terminal"]["event"] == "delivery_disconnected",
-            "unchanged frontier lacks one unclassified disconnected tail")
-    require(stamp(final["terminal"]) >= stamp(call["request"]) + 3_500_000_000,
-            "unchanged frontier lacks tail evidence at its original cutoff")
+    logical = budget["unobserved_final_reservation"]
+    if logical is None:
+        require(serial in (budget["uncertain_final_get"], budget["unconsumed_final_get"],
+                           budget["unresolved_final_list"])
+                and final["terminal"]["event"] == "delivery_disconnected",
+                "unchanged frontier lacks one unclassified disconnected tail")
+        require(stamp(final["terminal"]) >= stamp(call["request"]) + 3_500_000_000,
+                "unchanged frontier lacks tail evidence at its original cutoff")
+    else:
+        require(logical["operation"] == "GET", "stationary frontier fabricated an unobserved phase transition")
+        no_post_return_work(objects, call, following)
     original = [obj for obj in page_requests(objects, call) if obj["request"]["query"]]
     resumed = [obj for obj in page_requests(objects, following) if obj["request"]["query"]]
     require(original and resumed, "unchanged frontier omitted its original or resumed LIST")
@@ -699,7 +1060,7 @@ def unchanged_frontier(objects, call, following, budget):
           "unchanged frontier changed the exact original LIST query")
     require(following["body"]["cursor"] == value_of(call)["cursor"],
             "unchanged frontier replaced its original authenticated cursor")
-    return serial
+    return serial if logical is None else None
 
 
 def abandoned_candidate(objects, call, following, serial, creation, *, authority, physical, prefix, delimiter=None):
@@ -796,7 +1157,12 @@ def name_progress(scan, objects, ordered, *, initial=None, start_after="", fault
                                 "head_revision": str(witness["head"]["revision"])})
             covered.append(key)
         equal(value_of(call)["names"], visible, "classified prefix omitted/repeated a visible name or disclosed a READ-denied name")
-        budget = page_budget(objects, call, through, natural=natural)
+        following = scan[index + 1] if index + 1 < len(scan) else None
+        remaining = sorted(key for key in expected if key > upper)
+        pending = None if not remaining else {"prefix": prefix, "delimiter": None, "physical": remaining[0],
+            "entry": {"kind": "name", "key": remaining[0], "creation": expected[remaining[0]]}}
+        logical = logical_successor(objects, call, following, through, pending, len(page_keys)) if natural else None
+        budget = page_budget(objects, call, through, natural=natural, logical=logical)
         tail = budget["late_final_request"]
         if zero:
             tail = unchanged_frontier(objects, call, scan[index + 1], budget)
@@ -968,7 +1334,16 @@ def inventory_progress(scan, objects, published, budgets=None):
         minimum = sum(step["kind"] in ("record", "tenant", "ignored") for step in crossed)
         require(minimum <= value_of(call)["usage"]["candidates"] <= min(128, minimum + 1),
                 "inventory candidate budget differs from its completed prefix and one possible unfinished candidate")
-        budget = page_budget(objects, call, through)
+        following = scan[index + 1] if index + 1 < len(scan) else None
+        pending = None
+        if upper < len(steps) and steps[upper]["kind"] in ("record", "ignored"):
+            step = steps[upper]
+            require(step["record"] is None or step["record"] in all_records,
+                    "inventory continuation skipped an unclassified physical record")
+            pending = {"prefix": step["prefix"], "delimiter": step["delimiter"], "physical": step["key"],
+                       "entry": None if step["record"] is None else all_records[step["record"]]}
+        logical = logical_successor(objects, call, following, through, pending, minimum)
+        budget = page_budget(objects, call, through, logical=logical)
         if budgets is not None:
             budgets[call["label"]] = budget
         tail = budget["late_final_request"]
@@ -1304,7 +1679,9 @@ def audit_data(data, build):
     equal(data["discovery-source-before.json"], data["discovery-source-after.json"], "source changed during real contract")
     calls, observed, _ = http_calls(data)
     objects, network_report = network(data, calls)
-    return {"http_invocations": len(calls), "network": network_report, "pages": pages(data, observed, objects),
+    profile = catalogue_profile(observed, objects)
+    return {"http_invocations": len(calls), "network": network_report, "metadata_profile": profile,
+            "pages": pages(data, observed, objects),
             "cases": cases(observed, objects, data["discovery-s3.jsonl"]), "sql": sql(data, observed, objects),
             "processes": processes(data, calls, build)}
 
@@ -1417,6 +1794,42 @@ def metadata_control_counts(options, early):
     require(len(set(changed)) == 3 and all(value not in options for value in changed),
             "refund negative controls are identical or equal a legal final-tail outcome")
     return changed
+
+
+def coherent_control_version_change(data, key):
+    """Change the same immutable Control version in every raw observation."""
+    trace = data["discovery-s3.jsonl"]
+    serials = {row["request_serial"] for row in trace if row["event"] == "request" and row["key"] == key}
+    publication = only([row for row in trace if row["event"] == "request" and row["key"] == key
+                        and row["method"] == "PUT"], "metadata-version control original PUT")
+    original = raw(publication["request"])
+    changed, count = re.subn(rb'("format"\s*:\s*)1(?=\s*[,}])', lambda match: match[1] + b"2", original, count=1)
+    require(count == 1 and len(changed) == len(original) and parse(original)["format"] == 1,
+            "metadata-version control lacks its one original format field")
+    before, after = sha(original), sha(changed)
+    replacements = 0
+    for row in trace:
+        if row.get("request_serial") not in serials:
+            continue
+        field = "request" if row["event"] == "request" else "body" if row["event"] in ("backend_response", "delivery_started") else None
+        if field is not None and raw(row[field]) == original:
+            row[field] = {"bytes": len(changed), "sha256": after, "base64": base64.b64encode(changed).decode()}
+            replacements += 1
+    for row in data["http-client-ledger.jsonl"]:
+        if row["event"] in ("http_request", "http_response"):
+            body = b64(row["body"])
+            if before.encode() in body:
+                body = body.replace(before.encode(), after.encode())
+                row["body"], row["body_sha256"] = base64.b64encode(body).decode(), sha(body)
+                if "content-length" in row.get("headers", {}): row["headers"]["content-length"] = str(len(body))
+    def references(value):
+        if isinstance(value, dict): return {key: references(item) for key, item in value.items()}
+        if isinstance(value, list): return [references(item) for item in value]
+        return value.replace(before, after) if isinstance(value, str) else value
+    updated = references(data)
+    data.clear(); data.update(updated)
+    require(replacements >= 3, "metadata-version control omitted original GET body/ETag observations")
+    return {"key": key, "original_sha256": before, "changed_sha256": after, "raw_body_instances": replacements}
 
 
 def controls(directory):
@@ -1622,15 +2035,17 @@ def controls(directory):
         if call["body"]["operation"] != "deployment_inventory" or call.get("value", {}).get("ok") is not True:
             continue
         budget = base_inventory_budgets[call["label"]]
+        original = tuple(value_of(call)["usage"][field] for field in USAGE_FIELDS)
+        conditional_options = {row[4] for row in budget["usage_options"] if row[:4] == original[:4]}
+        require(conditional_options, "refund control lost its original complete usage tuple")
         early = [obj for obj in page_requests(base_objects, call)[:-1] if not obj["request"]["query"]
                  and obj["delivery"]["status"] == 200
-                 and min(budget["metadata_options"]) + (256 * 1024 if obj["request"]["key"].endswith("/head") else 64 * 1024)
-                 - len(obj["outgoing"]) not in budget["metadata_options"]]
+                 and min(conditional_options) + (256 * 1024 if obj["request"]["key"].endswith("/head") else 64 * 1024)
+                 - len(obj["outgoing"]) not in conditional_options]
         if len(early) >= 2:
-            inventory_options.append((len(budget["metadata_options"]), call, budget, early))
+            inventory_options.append((len(conditional_options), call, budget, early, conditional_options))
     require(inventory_options, "metadata controls lack two distinct original causally completed GET refunds")
-    _, budget_call, budget, early = max(inventory_options, key=lambda item: item[0])
-    options = budget["metadata_options"]
+    _, budget_call, budget, early, options = max(inventory_options, key=lambda item: item[0])
     early_count, multiple_count, middle = metadata_control_counts(options, early[:2])
 
     def metadata_change(data, count):
@@ -1642,6 +2057,22 @@ def controls(directory):
 
     def fabricated_list_refund(data):
         mutate_response(data, budget_call["label"], lambda value: value["value"]["usage"].update(list_bytes=0))
+
+    completed_inventory = next(call for call in base_observed.values()
+                               if call["body"]["operation"] == "deployment_inventory" and call.get("value", {}).get("ok") is True
+                               and value_of(call)["cursor"] is None and value_of(call)["stopped"] is None)
+
+    def completed_phantom(data, operation):
+        def alter(value):
+            usage = value["value"]["usage"]
+            count, amount, cap = (("exact_gets", "metadata_bytes", 65536) if operation == "GET"
+                                  else ("list_pages", "list_bytes", 1048576))
+            usage[count] += 1; usage[amount] += cap
+        mutate_response(data, completed_inventory["label"], alter)
+
+    original_control = only([obj for obj in base_objects.values() if obj["request"]["method"] == "PUT"
+                             and "/catalogue/v1/control/" in obj["request"]["key"] and obj["backend"]["status"] == 200],
+                            "metadata-version control fixed fixture source")
 
     new_controls = (
         ("natural_partial_false_complete", false_natural_completion,
@@ -1662,6 +2093,12 @@ def controls(directory):
         ("late_response_enabled_another_request", lambda data: causal_tail_change(data, "prior_response"), "causally enabling response exceeded"),
         ("new_work_after_original_http_return", post_return_work, "no authenticated invocation"),
         ("completed_list_fabricated_full_refund", fabricated_list_refund, "reported LIST budget differs"),
+        ("completed_scan_fabricated_unobserved_get", lambda data: completed_phantom(data, "GET"),
+         "reported HTTP budget differs|inventory cost budget differs"),
+        ("completed_scan_fabricated_unobserved_list", lambda data: completed_phantom(data, "LIST"),
+         "reported HTTP budget differs|inventory cost budget differs"),
+        ("coherent_invalid_control_version", lambda data: coherent_control_version_change(data, original_control["request"]["key"]),
+         "fixed metadata profile record differs"),
     )
     reports = []
     original_controls = (("false_complete_empty_404", false_empty), ("tampered_cursor_false_success", cursor_success),
@@ -1690,6 +2127,10 @@ def controls(directory):
                                     "naturally_late_tail_required": False},
             "list_refund_control": {"label": budget_call["label"], "completed_list_serial": completed_list["request"]["request_serial"],
                                     "exact_legal_counts": sorted(budget["list_byte_options"]), "fabricated_count": 0},
+            "unobserved_reservation_control": {"label": completed_inventory["label"], "original_stop": None,
+                                                "naturally_unobserved_attempt_required": False},
+            "metadata_profile_control": {"key": original_control["request"]["key"],
+                                         "original_sha256": sha(original_control["incoming"]), "format": [1, 2]},
             "metadata_tail_control": {"label": budget_call["label"], "exact_legal_counts": sorted(options),
                                       "uncertain_final_get": budget["uncertain_final_get"],
                                       "earlier_gets": [obj["request"]["request_serial"] for obj in early[:2]]}}
