@@ -62,6 +62,7 @@
     "crates/scap-service/src/intake/tests.rs",
     "crates/scap-service/src/scheduler/tests.rs",
     "crates/scap-service/src/tests.rs",
+    "crates/scap-service/src/transport/tests.rs",
     "crates/scap-service/src/wire/tests.rs",
     "crates/scap-sql/src/result_memory_decode_tests.rs",
     "crates/scap-sql/src/result_memory_tests.rs",
@@ -75,7 +76,8 @@
     "experiments/object-service",
     "experiments/object-discovery",
     "experiments/object-gc-store",
-    "experiments/resource-limits"
+    "experiments/resource-limits",
+    "experiments/bounded-transport"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

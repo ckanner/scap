@@ -18,6 +18,14 @@ mkdir -p /absolute/private-cache
 {
   "version": 1,
   "listen": "127.0.0.1:8080",
+  "transport": {
+    "version": 1,
+    "max_connections": 128,
+    "max_headers": 64,
+    "max_header_bytes": 16384,
+    "max_buffer_bytes": 32768,
+    "header_timeout_ms": 5000
+  },
   "worker_instance": "5001",
   "cache_directory": "/absolute/private-cache",
   "s3": {
@@ -70,6 +78,12 @@ mkdir -p /absolute/private-cache
 配置的 Bearer token 应为独立生成的高熵值；服务接受 32–1024 字节的可打印 ASCII token，通过固定长度 SHA-256 摘要比较映射到可信 deployment、tenant、principal 和 provisioning 权限。摘要不是 HEAD 权限替代品：每次正式数据库操作仍由当前 HEAD 授权。请求中的 `principal` 只是原请求身份的一部分，必须等于 token 对应的主体。
 
 监听器只接受 loopback 地址。生产外部入口须由同机 TLS 反向代理终止 TLS，并转发 Authorization 和 `x-scap-admission`，不应改写响应或自动重试 POST。`GET /healthz` 只说明进程活着，不证明 S3、某个库或写入可用。配置更新通过新实例部署，不存在运行时凭据轮换或自动 owner 迁移。
+
+入站只启用 HTTP/1。可选 `transport` 省略时使用示例中的固定 v1 默认值；显式配置需提供全部字段。
+连接名额在 accept/spawn 前限制，header 有独立字节、数量及绝对读取期限；keep-alive 后的下一次
+请求同样受限。配置范围、graceful shutdown、协议层 431/408 与内存声明的边界见
+[TCP 与 HTTP/1 说明](docs/bounded-transport.md)。同一 listener 的连接额度在鉴权前共享，
+不等于为 control 保留独立 TCP 通道，也不等于总体 RSS 或响应字节上限。
 
 ## HTTP 协议
 

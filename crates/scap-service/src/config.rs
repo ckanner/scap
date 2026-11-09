@@ -21,6 +21,8 @@ use crate::{
 pub struct Config {
     pub version: u8,
     pub listen: SocketAddr,
+    #[serde(default)]
+    pub transport: crate::transport::Profile,
     pub worker_instance: Decimal,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
@@ -158,6 +160,7 @@ pub struct Prepared {
 pub struct ServiceConfig {
     pub options: scap_object::Options,
     pub listen: SocketAddr,
+    pub transport: crate::transport::Profile,
     pub worker_instance: u64,
     pub cache_directory: PathBuf,
     pub admission: Admission,
@@ -210,6 +213,7 @@ impl Config {
             u64,
         ) -> Result<crate::discovery_cursor::CursorCodec, Failure>,
     ) -> Result<Prepared, Failure> {
+        self.transport.checked()?;
         let mut options = scap_object::Options::default();
         if let Some(execution) = self.execution {
             options.result_memory_bytes = execution.result_memory_bytes;
@@ -291,6 +295,7 @@ impl Config {
             service: ServiceConfig {
                 options,
                 listen: self.listen,
+                transport: self.transport,
                 worker_instance: self.worker_instance.0,
                 cache_directory: self.cache_directory,
                 admission: self.admission,

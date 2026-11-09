@@ -425,6 +425,7 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         run(
             "127.0.0.1:0".parse().unwrap(),
             state,
+            crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             failed_runtime
         )
@@ -442,6 +443,7 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         run(
             "127.0.0.1:0".parse().unwrap(),
             state,
+            crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             runtime
         )
@@ -449,13 +451,16 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         .code,
         "CONFIG"
     );
+    let mut configuration = prepared(directory.path());
+    configuration.service.transport.max_connections = 0;
     assert_eq!(
-        http_result(Err(std::io::Error::other("unit accept failure")))
-            .unwrap_err()
-            .code,
-        "HTTP"
+        serve(configuration, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
     );
-    assert!(http_result(Ok(())).is_ok());
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
 }
 
 #[test]

@@ -122,12 +122,15 @@ pub fn assemble_with_listings(
 }
 
 pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
+    // Direct Prepared callers receive the same validation as parsed configs,
+    // before S3 clients or any workers are created.
+    let transport = prepared.service.transport.checked()?;
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
     let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
     let (address, state) =
         assemble_with_listings(prepared.service, backend.clone(), Some(backend))?;
-    run(address, state, shutdown, runtime)
+    run(address, state, transport, shutdown, runtime)
 }
 
 fn runtime() -> std::io::Result<tokio::runtime::Runtime> {
@@ -140,6 +143,7 @@ fn runtime() -> std::io::Result<tokio::runtime::Runtime> {
 fn run(
     address: std::net::SocketAddr,
     state: Arc<HttpState>,
+    transport: crate::transport::Limits,
     shutdown: Shutdown,
     create_runtime: fn() -> std::io::Result<tokio::runtime::Runtime>,
 ) -> Result<(), Failure> {
@@ -149,11 +153,8 @@ fn run(
         let listener = tokio::net::TcpListener::bind(address)
             .await
             .map_err(|_| Failure::new("LISTEN"))?;
-        http_result(
-            axum::serve(listener, router)
-                .with_graceful_shutdown(shutdown)
-                .await,
-        )
+        crate::transport::serve(listener, router, transport, shutdown).await;
+        Ok(())
     });
     // Drop the request runtime before joining/dropping S3 workers.
     drop(runtime);
@@ -171,10 +172,6 @@ fn launch(config: Config) -> Result<(), Failure> {
 
 async fn shutdown(signal: std::pin::Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>) {
     let _ = signal.await;
-}
-
-fn http_result(result: std::io::Result<()>) -> Result<(), Failure> {
-    result.map_err(|_| Failure::new("HTTP"))
 }
 
 fn start(args: Vec<OsString>, launch: fn(Config) -> Result<(), Failure>) -> Result<(), Failure> {

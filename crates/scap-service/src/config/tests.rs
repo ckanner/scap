@@ -10,6 +10,43 @@ fn environment(_: &str) -> Option<OsString> {
 }
 
 #[test]
+fn transport_defaults_and_explicit_profiles_are_checked_before_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .transport,
+        crate::transport::Profile::default()
+    );
+    let profile = json!({"version":1,"max_connections":7,"max_headers":32,
+        "max_header_bytes":8192,"max_buffer_bytes":16384,"header_timeout_ms":1000});
+    value["transport"] = profile.clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.transport.max_connections, 7);
+    assert_eq!(prepared.service.transport.header_timeout_ms, 1000);
+    value["transport"]["max_connections"] = json!(0);
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("validate before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for field in profile.as_object().unwrap().keys() {
+        value["transport"] = profile.clone();
+        value["transport"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    value["transport"] = profile;
+    value["transport"]["unknown"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
 fn configuration_resolves_only_named_credentials_and_keeps_production_defaults() {
     let directory = tempfile::tempdir().unwrap();
     let value = sample_config(directory.path());

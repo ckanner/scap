@@ -14,6 +14,7 @@ pub mod engine;
 pub mod http;
 pub mod intake;
 pub mod scheduler;
+pub mod transport;
 pub mod wire;
 
 use scap_object::{Error, Receipt};

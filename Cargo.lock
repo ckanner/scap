@@ -1498,6 +1498,8 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "http-body",
+ "hyper",
+ "hyper-util",
  "ring",
  "scap-object",
  "scap-object-sqlite",
