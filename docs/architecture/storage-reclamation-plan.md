@@ -1,6 +1,10 @@
 # SCAP N3：分段请求索引、存储世代、pin、物理回收与 PITR
 
-**2026-11-09 状态更新：分段请求索引已随 PR #35 合入；独立 storage generation、pin/freeze/drain、产品 GC 和 PITR 仍未交付。** PR #36 只增加受限条件删除传输，尚未接入数据库回收。此前记录的 generation/pin 本地候选当前不能从工作区或远端取得，不能计入当前实现。最新可验证源码与工作顺序见[实施状态](../engineering/status-2026-11-09.md)。本文后续阶段仍为设计，不是 GC、PITR 或长期成本验收报告。
+**2026-11-09 状态更新：分段请求索引已随 PR #35 合入；PR #42 发布了 HEAD5 serial、固定 storage 1/1 与原始 frame 校验，尚未合入。** HEAD5 组合的完整单元已通过，实际新格式验收仍待完成。PR #36 只增加受限条件删除传输，产品 GC 和 PITR 仍未交付。此前记录但当前无法取得的 generation/pin 本地候选不能计入实现。最新源码与工作顺序见[实施状态](../engineering/status-2026-11-09.md)。
+
+**默认操作保护路线已调整，本文第 4–6 节的不可撤销 pin 路线作为历史保守方案保留。** 普通冷读、lookup 与 SQL 尝试改为验证可中止的世代方案，不默认写持久 PinAdd/Release，避免崩溃 pin 长期占满准入。原写入仍受原 ETag fence；已完整校验的原始授权读可返回；未完成旧读的对象失败只有得到新的确切退休证明后才能判为 SnapshotExpired。当前/目标/held 世代损坏不能降级为过期，无法取得权威也不能宣称健康或退休。显式 retained root 与当前复制计划仍需要各自的持久生命周期保护。这一调整正在独立模型中验证，尚未实现产品回收；不能把“无普通操作 pin”解释为无需保护保留根或允许任意 DELETE。后续切片见[HEAD5 基础设计](head5-foundation.md#6-后续生产切片)。
+
+本文后续阶段仍为设计，不是 GC、PITR 或长期成本验收报告。
 
 编写时间：2026-11-08。代码事实固定于 [`5b4e97e276988bd10ecfd25ff7abbf2a547a6459`](https://github.com/ckanner/scap/tree/5b4e97e276988bd10ecfd25ff7abbf2a547a6459)，tree `62aa55862c2798230f43136206c1958c26cf294c`。新分段索引批次计划基于 actor 候选 `32f3369e13cd89e32521d5d371ecbfda6834322c`；不得把候选代码或已有 actor 验收当成 N3 已完成。逐文件 SHA-256、证据定位及外部资料见[设计输入清单](../evidence/storage-reclamation-design-inputs-2026-11-08.json)。
 

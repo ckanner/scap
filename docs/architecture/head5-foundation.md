@@ -93,9 +93,15 @@ ACL、quota、lifecycle 和窗口关闭均遵循同样规则。
 捕获过程本身不做 HEAD GET，不延长 deadline，也不构造新的授权。更改源变量或丢弃源
 Database 后，已捕获的对象操作仍使用原命名空间和原后端。
 
-这只是命名空间固定性，没有提供远端存活保护。后续 pin 必须先通过元数据 CAS 获取，
-随后通过新的 exact HEAD GET 取得同次返回的 body/ETag，再封存业务 AttemptContext。
-不能在已经封存旧 ETag 后偷偷 PinAdd，使候选被自己的技术转换淘汰。
+这只是命名空间固定性，没有提供远端存活保护。后续普通操作选择验证可中止的世代
+方案，不默认执行持久 PinAdd/Release：完整物化的原始授权读可返回；尚未完成的旧读
+遇到对象失败，只有新的同 Scope 权威证明该世代永久退休后才能返回 SnapshotExpired。
+当前、复制目标或 retained hold 保护的世代损坏仍必须拒绝；无法取得权威时不能伪造
+退休结论。原 SQL AttemptContext 始终保留原 ETag，不因技术转换重新封存或重放。
+
+上述方案仍在独立模型中验证，并未由本基础切片实现。显式保留根与当前复制计划各自
+需要持久保护，不能把普通操作的可中止生命周期套到它们上面。不可撤销 pin 的保守
+模型保留为独立替代方案；其崩溃 pin 可永久阻塞准入和回收，不能直接作为默认下一步。
 
 ## 4. 私有元数据条件发布
 
@@ -126,10 +132,10 @@ manifest GET、健康状态判断、重试或重绑定。返回值只表示该�
 不可变候选，再保留原有的 manifest、quota 和两次健康状态检查，最后消费该候选。
 因此抽取 primitive 不会让普通业务绕过损坏隔离。
 
-之所以没有在 primitive 内调用 `healthy()`，是为了后续可审查的窄 Release 路径：已经
-关闭本地 gate、没有实际 guard 的原 holder，应能在 Deleted 或隔离状态移除自己的保护，
-且不能因此得到 READ、重建旧 ACL 或恢复旧生命周期。本批既没有 durable pin，也没有
-提供 Release API；未来实现必须另行完成这些条件。
+primitive 不调用 `healthy()`，但每个未来技术转换仍须在自己的窄权限边界证明用途。
+例如回收 checkpoint 的记录、确认和清理，不能顺带获得 READ、重建旧 ACL 或恢复旧
+生命周期。保守 pin 替代方案中的 Release 还需要本地 gate 关闭和实际 guard 清空证明。
+本批没有提供这些技术操作、durable pin 或 Release API，不能直接暴露该 primitive。
 
 ## 5. 格式边界与验证
 
@@ -160,15 +166,18 @@ publication、进程退出与冷恢复验收。有限模型证明、抽象 nativ
 
 ## 6. 后续生产切片
 
-下一个切片需要完整实现 bounded durable pins、唯一 acquisition identity、共享 gate/
-实际 guard 生命周期、UNKNOWN Add 的保留或更高 serial fence，以及 Deleted/隔离状态下
-只释放原 holder 的窄权限路径。所有远端不可变 I/O admission 均完成后，才能接受新的
-HEAD storage 状态。
+先交付借用原始 frame 的完整闭包游标：校验当前数据树、全部保留请求窗口及原始结果，
+保持固定 Snapshot、物理世代和绝对 deadline；私有续步不能成为新的发布或删除授权。
+随后完成独立可中止世代模型及其反例，再实现普通操作的本地停止边界、精确退休证明、
+按世代隔离的失败语义，以及 Provisioning 和迟到复制响应的处理。所有不可变 I/O
+admission 都满足这些条件后，才能接受更多 HEAD storage 状态。
 
-随后才是不可复用的世代分配、零 live pin Freeze、按原始字节复制完整闭包、带完整 plan
-provenance 的验证、Seal/Promote 与永久退休命名空间中的条件 DELETE。异步旧 PUT、已发出
-的旧 HEAD CAS 与 DELETE 仍可能晚到；原始 key/ETag 不会因本地调用结束而自动撤回。
+回收阶段再落实不可复用的世代分配、原 ETag Freeze、当前计划及 retained root 的持久
+保护、按原始字节复制完整闭包、带完整 plan 身份的验证和 Promote。条件 DELETE 必须
+晚于对原始有界 key/ETag 批次的持久记录及 exact HEAD 观察，只能作用于永久退休世代。
+异步旧 PUT、旧 HEAD CAS 与 DELETE 仍可能晚到；原始 key/ETag 不会因调用结束而撤回。
 
-崩溃或暂停的 pin 不通过 TTL 失效；冻结可能被它阻塞。Deleted 的最后一个 active
-generation 回收、checkpoint transport UNKNOWN、AWS 上的行为与成本收敛仍需独立实现
-和验收，本批没有对此作完成承诺。
+普通操作不写永久 pin 的选择避免了崩溃 pin 耗尽准入这一阻塞来源；它本身不证明 GC
+可用性或成本收敛。Deleted 最后一个 active generation、checkpoint transport UNKNOWN、
+跨 authority 的快照/PITR、真实 AWS 与长期运行仍须分别实现和验收。当前仍只允许
+storage 1/1，产品 GC 关闭。最新状态见[实施记录](../engineering/status-2026-11-09.md)。

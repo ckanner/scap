@@ -1,0 +1,1061 @@
+{
+  "schema_version": 1,
+  "status": "HEAD5_GIB1_ACTUAL_PASS_OTHER_GATES_PENDING",
+  "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+  "completion": {
+    "path": "/tmp/scap-head5-capacity-f6c9073-01/completion.json",
+    "bytes": 2189,
+    "sha256": "f1f64c22ca4df12d7a4aae8565bfa1d7a2cba629f2e9eb2064e010847a26f83f"
+  },
+  "commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-head5-capacity-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 53265469110418,
+      "finished_ns": 53265907116943,
+      "log_sha256": "108286af7e66d41684e5c42f3b2d9d6edf987905f99088920a3018bb3421ba84"
+    },
+    {
+      "name": "gib1",
+      "argv": [
+        "python3",
+        "experiments/object-capacity/run.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "--profile",
+        "gib1",
+        "--evidence",
+        "/tmp/scap-head5-capacity-f6c9073-01/gib1"
+      ],
+      "exit_code": 0,
+      "started_ns": 53265909010925,
+      "finished_ns": 53959204248582,
+      "log_sha256": "1ca4d340b39738c32149ffbe77157b67a540a2624467c5b8aa83e48ff819e922"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-head5-capacity-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 53959317218997,
+      "finished_ns": 53959887152619,
+      "log_sha256": "2cf27d10d140fde56b05fbeef5ebd950c955d5013c9c6d554c5e07cd5fb6da90"
+    }
+  ],
+  "source_manifest": {
+    "path": "/tmp/scap-head5-capacity-f6c9073-01/source-before.json",
+    "bytes": 107754,
+    "sha256": "a342f9d0c13ccc4c7cd237c32430b3f1248ecc64c428d290d856afb30939ae3b"
+  },
+  "source_unchanged": true,
+  "summary": {
+    "ack_audit_complete": true,
+    "ack_audited_count": 39,
+    "ack_ledger_sha256": "2c16f9722b001db88f759c610b95fb2676672113b75d6410bad82458fec6ee09",
+    "ack_mismatch_count": 0,
+    "ack_mismatches": [],
+    "acknowledged_payload_bytes": 1073741824,
+    "aws_endpoint_gate": "NOT_RUN",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "backend_capacity": {
+      "max_volumes": 32,
+      "preallocate": false,
+      "volume_size_mib": 1024
+    },
+    "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "blob_audit_complete": true,
+    "blob_audited_bytes": 1073741824,
+    "blob_audited_count": 16384,
+    "blob_bytes": 65536,
+    "blob_mismatch_count": 0,
+    "blob_mismatches": [],
+    "build_input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+    "build_record_verified": true,
+    "cleanup_errors": [],
+    "completed_checks": [
+      "one_gib_independent_payload_committed",
+      "warm_point_updates_do_not_transfer_whole_gib",
+      "warm_session_rechecks_permission_and_exact_root",
+      "unknown_resolved_without_sql_replay",
+      "all_compute_and_backend_process_loss_recovered_from_s3",
+      "every_client_ack_retains_exact_receipt_and_original_result",
+      "every_blob_matches_independent_preinvocation_hash",
+      "hot_cache_cannot_bypass_unavailable_fresh_head"
+    ],
+    "default_options_unchanged": true,
+    "default_quota_bytes": 10737418240,
+    "diagnostic": false,
+    "disk_observations": [
+      {
+        "backend": {
+          "allocated_bytes": 1109176320,
+          "files": 93,
+          "logical_bytes": 1108872863
+        },
+        "compute": {
+          "allocated_bytes": 1082261504,
+          "files": 3,
+          "logical_bytes": 1082261504
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082163200,
+            "directory": "writer-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "before_compute_loss"
+      },
+      {
+        "backend": {
+          "allocated_bytes": 1107271680,
+          "files": 109,
+          "logical_bytes": 1106920505
+        },
+        "compute": {
+          "allocated_bytes": 1082200064,
+          "files": 3,
+          "logical_bytes": 1082195968
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082167296,
+            "directory": "recovered-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "after_s3_only_recovery"
+      }
+    ],
+    "full_initial_materialization": true,
+    "gc_enabled": false,
+    "history_sha256": "49424f2f6c72c3696bda2aff030e261887bb8aabfb0c8018172f39a9a644ff27",
+    "hot_cache_blackhole_elapsed_seconds": 0.20238955899549183,
+    "input_ledger_sha256": "6092156bf4b934a7aea06b0eb3252c8fbcc06831e5008b478d823170c6e43b1a",
+    "lazy_database_reads": false,
+    "maximum_bulk_payload_bytes": 33554432,
+    "maximum_bulk_rows": 512,
+    "object_metrics": {
+      "ack_audit": {
+        "get_requests": 117,
+        "get_response_bytes": 444566,
+        "head_puts": 0,
+        "http_statuses": {
+          "200": 117
+        },
+        "put_request_bytes": 0,
+        "put_requests": 0,
+        "put_success_bytes": 0,
+        "put_successes": 0,
+        "unique_successful_put_keys": 0
+      },
+      "blob_audit": {
+        "get_requests": 258,
+        "get_response_bytes": 206142,
+        "head_puts": 0,
+        "http_statuses": {
+          "200": 258
+        },
+        "put_request_bytes": 0,
+        "put_requests": 0,
+        "put_success_bytes": 0,
+        "put_successes": 0,
+        "unique_successful_put_keys": 0
+      },
+      "cold_recovery": {
+        "get_requests": 8338,
+        "get_response_bytes": 1084291629,
+        "head_puts": 2,
+        "http_statuses": {
+          "200": 8340
+        },
+        "put_request_bytes": 1599,
+        "put_requests": 2,
+        "put_success_bytes": 1599,
+        "put_successes": 2,
+        "unique_successful_put_keys": 1
+      },
+      "hot_cache_head_blackhole": {
+        "get_requests": 1,
+        "get_response_bytes": 0,
+        "head_puts": 0,
+        "http_statuses": {},
+        "put_request_bytes": 0,
+        "put_requests": 0,
+        "put_success_bytes": 0,
+        "put_successes": 0,
+        "unique_successful_put_keys": 0
+      },
+      "load_0001": {
+        "get_requests": 272,
+        "get_response_bytes": 33902664,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 538
+        },
+        "put_request_bytes": 33892647,
+        "put_requests": 266,
+        "put_success_bytes": 33892647,
+        "put_successes": 266,
+        "unique_successful_put_keys": 266
+      },
+      "load_0002": {
+        "get_requests": 277,
+        "get_response_bytes": 34201535,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34041943,
+        "put_requests": 268,
+        "put_success_bytes": 34041943,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0003": {
+        "get_requests": 277,
+        "get_response_bytes": 34203512,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34042705,
+        "put_requests": 268,
+        "put_success_bytes": 34042705,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0004": {
+        "get_requests": 277,
+        "get_response_bytes": 34204674,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34043160,
+        "put_requests": 268,
+        "put_success_bytes": 34043160,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0005": {
+        "get_requests": 277,
+        "get_response_bytes": 34205837,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34043615,
+        "put_requests": 268,
+        "put_success_bytes": 34043615,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0006": {
+        "get_requests": 277,
+        "get_response_bytes": 34206999,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34044073,
+        "put_requests": 268,
+        "put_success_bytes": 34044073,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0007": {
+        "get_requests": 277,
+        "get_response_bytes": 34208163,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34044527,
+        "put_requests": 268,
+        "put_success_bytes": 34044527,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0008": {
+        "get_requests": 277,
+        "get_response_bytes": 34209328,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34044988,
+        "put_requests": 268,
+        "put_success_bytes": 34044988,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0009": {
+        "get_requests": 277,
+        "get_response_bytes": 34218687,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 545
+        },
+        "put_request_bytes": 34053635,
+        "put_requests": 268,
+        "put_success_bytes": 34053635,
+        "put_successes": 268,
+        "unique_successful_put_keys": 268
+      },
+      "load_0010": {
+        "get_requests": 281,
+        "get_response_bytes": 34525253,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34202696,
+        "put_requests": 270,
+        "put_success_bytes": 34202696,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0011": {
+        "get_requests": 281,
+        "get_response_bytes": 34526418,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34203151,
+        "put_requests": 270,
+        "put_success_bytes": 34203151,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0012": {
+        "get_requests": 281,
+        "get_response_bytes": 34527582,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34203606,
+        "put_requests": 270,
+        "put_success_bytes": 34203606,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0013": {
+        "get_requests": 281,
+        "get_response_bytes": 34528978,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34204292,
+        "put_requests": 270,
+        "put_success_bytes": 34204292,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0014": {
+        "get_requests": 281,
+        "get_response_bytes": 34530173,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34204776,
+        "put_requests": 270,
+        "put_success_bytes": 34204776,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0015": {
+        "get_requests": 281,
+        "get_response_bytes": 34531337,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34205231,
+        "put_requests": 270,
+        "put_success_bytes": 34205231,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0016": {
+        "get_requests": 281,
+        "get_response_bytes": 34532501,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34205686,
+        "put_requests": 270,
+        "put_success_bytes": 34205686,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0017": {
+        "get_requests": 281,
+        "get_response_bytes": 34537761,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34210237,
+        "put_requests": 270,
+        "put_success_bytes": 34210237,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0018": {
+        "get_requests": 281,
+        "get_response_bytes": 34543023,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34210693,
+        "put_requests": 270,
+        "put_success_bytes": 34210693,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0019": {
+        "get_requests": 281,
+        "get_response_bytes": 34544187,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34211148,
+        "put_requests": 270,
+        "put_success_bytes": 34211148,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0020": {
+        "get_requests": 281,
+        "get_response_bytes": 34545351,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34211603,
+        "put_requests": 270,
+        "put_success_bytes": 34211603,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0021": {
+        "get_requests": 285,
+        "get_response_bytes": 34843725,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 557
+        },
+        "put_request_bytes": 34360663,
+        "put_requests": 272,
+        "put_success_bytes": 34360663,
+        "put_successes": 272,
+        "unique_successful_put_keys": 272
+      },
+      "load_0022": {
+        "get_requests": 281,
+        "get_response_bytes": 34547679,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34212513,
+        "put_requests": 270,
+        "put_success_bytes": 34212513,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0023": {
+        "get_requests": 285,
+        "get_response_bytes": 34846053,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 557
+        },
+        "put_request_bytes": 34361573,
+        "put_requests": 272,
+        "put_success_bytes": 34361573,
+        "put_successes": 272,
+        "unique_successful_put_keys": 272
+      },
+      "load_0024": {
+        "get_requests": 285,
+        "get_response_bytes": 34851313,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 557
+        },
+        "put_request_bytes": 34366124,
+        "put_requests": 272,
+        "put_success_bytes": 34366124,
+        "put_successes": 272,
+        "unique_successful_put_keys": 272
+      },
+      "load_0025": {
+        "get_requests": 279,
+        "get_response_bytes": 34524667,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 548
+        },
+        "put_request_bytes": 34200626,
+        "put_requests": 269,
+        "put_success_bytes": 34200626,
+        "put_successes": 269,
+        "unique_successful_put_keys": 269
+      },
+      "load_0026": {
+        "get_requests": 281,
+        "get_response_bytes": 34560527,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34218429,
+        "put_requests": 270,
+        "put_success_bytes": 34218429,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0027": {
+        "get_requests": 281,
+        "get_response_bytes": 34561691,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34218884,
+        "put_requests": 270,
+        "put_success_bytes": 34218884,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0028": {
+        "get_requests": 289,
+        "get_response_bytes": 35157277,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 563
+        },
+        "put_request_bytes": 34516550,
+        "put_requests": 274,
+        "put_success_bytes": 34516550,
+        "put_successes": 274,
+        "unique_successful_put_keys": 274
+      },
+      "load_0029": {
+        "get_requests": 281,
+        "get_response_bytes": 34564019,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 551
+        },
+        "put_request_bytes": 34219794,
+        "put_requests": 270,
+        "put_success_bytes": 34219794,
+        "put_successes": 270,
+        "unique_successful_put_keys": 270
+      },
+      "load_0030": {
+        "get_requests": 289,
+        "get_response_bytes": 35159605,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 563
+        },
+        "put_request_bytes": 34517460,
+        "put_requests": 274,
+        "put_success_bytes": 34517460,
+        "put_successes": 274,
+        "unique_successful_put_keys": 274
+      },
+      "load_0031": {
+        "get_requests": 289,
+        "get_response_bytes": 35164865,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 563
+        },
+        "put_request_bytes": 34522011,
+        "put_requests": 274,
+        "put_success_bytes": 34522011,
+        "put_successes": 274,
+        "unique_successful_put_keys": 274
+      },
+      "load_0032": {
+        "get_requests": 279,
+        "get_response_bytes": 34545103,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 548
+        },
+        "put_request_bytes": 34212003,
+        "put_requests": 269,
+        "put_success_bytes": 34212003,
+        "put_successes": 269,
+        "unique_successful_put_keys": 269
+      },
+      "lost_head_result": {
+        "get_requests": 21,
+        "get_response_bytes": 608794,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 29
+        },
+        "put_request_bytes": 293911,
+        "put_requests": 8,
+        "put_success_bytes": 293911,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_beginning": {
+        "get_requests": 16,
+        "get_response_bytes": 593234,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "put_request_bytes": 292837,
+        "put_requests": 8,
+        "put_success_bytes": 292837,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_end": {
+        "get_requests": 18,
+        "get_response_bytes": 635094,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "put_request_bytes": 313513,
+        "put_requests": 9,
+        "put_success_bytes": 313513,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_1gib_middle": {
+        "get_requests": 18,
+        "get_response_bytes": 856534,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "put_request_bytes": 424360,
+        "put_requests": 9,
+        "put_success_bytes": 424360,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_64mib": {
+        "get_requests": 16,
+        "get_response_bytes": 565595,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "put_request_bytes": 282946,
+        "put_requests": 8,
+        "put_success_bytes": 282946,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "reader_recovery": {
+        "get_requests": 8334,
+        "get_response_bytes": 1084288928,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 8335
+        },
+        "put_request_bytes": 799,
+        "put_requests": 1,
+        "put_success_bytes": 799,
+        "put_successes": 1,
+        "unique_successful_put_keys": 1
+      },
+      "revoked_reader": {
+        "get_requests": 8,
+        "get_response_bytes": 5127,
+        "head_puts": 2,
+        "http_statuses": {
+          "200": 10
+        },
+        "put_request_bytes": 1541,
+        "put_requests": 2,
+        "put_success_bytes": 1541,
+        "put_successes": 2,
+        "unique_successful_put_keys": 1
+      },
+      "root_change": {
+        "get_requests": 19,
+        "get_response_bytes": 858884,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 28
+        },
+        "put_request_bytes": 424910,
+        "put_requests": 9,
+        "put_success_bytes": 424910,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "setup": {
+        "get_requests": 17,
+        "get_response_bytes": 13792,
+        "head_puts": 3,
+        "http_statuses": {
+          "200": 27
+        },
+        "put_request_bytes": 12414,
+        "put_requests": 10,
+        "put_success_bytes": 12414,
+        "put_successes": 10,
+        "unique_successful_put_keys": 8
+      }
+    },
+    "observed_blob_hashes_sha256": "086915b1ea77e56eb1f17acb1d555857a827089c0706d590dab26b4eca0a93d1",
+    "operation_budget_ms": 30000,
+    "payload_generator": "independent os.urandom bytes persisted and hashed before invocation",
+    "point_mutations": {
+      "lost_head_result": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.273406982421875,
+        "get_requests": 19,
+        "get_response_bytes": 607742,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.4847259521484375,
+        "put_request_bytes": 293911,
+        "put_requests": 8,
+        "put_success_bytes": 293911,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_beginning": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.052032470703125,
+        "get_requests": 16,
+        "get_response_bytes": 593234,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.4683380126953125,
+        "put_request_bytes": 292837,
+        "put_requests": 8,
+        "put_success_bytes": 292837,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "point_1gib_end": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 9.690765380859375,
+        "get_requests": 18,
+        "get_response_bytes": 635094,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.7838287353515625,
+        "put_request_bytes": 313513,
+        "put_requests": 9,
+        "put_success_bytes": 313513,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_1gib_middle": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 13.069671630859375,
+        "get_requests": 18,
+        "get_response_bytes": 856534,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 6.4752197265625,
+        "put_request_bytes": 424360,
+        "put_requests": 9,
+        "put_success_bytes": 424360,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      },
+      "point_64mib": {
+        "database_payload_bytes": 67108864,
+        "get_body_amplification": 8.630294799804688,
+        "get_requests": 16,
+        "get_response_bytes": 565595,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 24
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 4.317413330078125,
+        "put_request_bytes": 282946,
+        "put_requests": 8,
+        "put_success_bytes": 282946,
+        "put_successes": 8,
+        "unique_successful_put_keys": 8
+      },
+      "root_change": {
+        "database_payload_bytes": 1073741824,
+        "get_body_amplification": 13.09332275390625,
+        "get_requests": 18,
+        "get_response_bytes": 858084,
+        "head_puts": 1,
+        "http_statuses": {
+          "200": 27
+        },
+        "logical_changed_payload_bytes": 65536,
+        "put_body_amplification": 6.483612060546875,
+        "put_request_bytes": 424910,
+        "put_requests": 9,
+        "put_success_bytes": 424910,
+        "put_successes": 9,
+        "unique_successful_put_keys": 9
+      }
+    },
+    "pre_loss_authority": {
+      "database_bytes": 1082163200,
+      "head": {
+        "active": true,
+        "auth_epoch": 4,
+        "creation": null,
+        "data_root": "03410c49fcd5ededdd27e407ad745e4000e58e0d6dfe528dcf70ff91c6eb3ae3",
+        "deletion": null,
+        "format": 5,
+        "head_serial": 44,
+        "lifecycle": "ready",
+        "owner_epoch": 1,
+        "owner_instance": 1,
+        "policy": [
+          {
+            "admin": true,
+            "principal": 17,
+            "read": true,
+            "write": true
+          },
+          {
+            "admin": false,
+            "principal": 18,
+            "read": true,
+            "write": false
+          }
+        ],
+        "quota": {
+          "max_bytes": 10737418240
+        },
+        "request_epoch": 1,
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": 268435456
+        },
+        "revision": 44,
+        "scope": {
+          "database": 199,
+          "deployment": 177,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 188
+        },
+        "sequence": 39,
+        "storage": {
+          "active_generation": 1,
+          "allocated_through": 1
+        },
+        "transition": {
+          "nonce": 39,
+          "revision": 44
+        },
+        "windows": [
+          {
+            "count": 39,
+            "epoch": 1,
+            "result_bytes": 3393,
+            "root": "ef13bb4780d603a3a8c56c958ed64270f0735337d028ebc93a45e58199225270"
+          }
+        ]
+      },
+      "page_count": 264200
+    },
+    "private_fixture": "/tmp/scap-object-capacity-private-gth4tgjs",
+    "production_slo_passed": false,
+    "profile": "gib1",
+    "proxy_errors": [],
+    "query_batch_rows": 64,
+    "recovery_budget_ms": 1800000,
+    "resources": {
+      "errors": [],
+      "external_procfs_child_rss": "NOT_USED_self_sampling_avoids_namespace_ambiguity",
+      "kernel_child_usage": [
+        {
+          "available": true,
+          "maxrss_bytes": 148738048,
+          "pid": 218,
+          "role": "worker-1",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 31.921517,
+          "user_seconds": 35.259886
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 78843904,
+          "pid": 17978,
+          "role": "worker-2",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 26.941385,
+          "user_seconds": 13.755997
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 163545088,
+          "pid": 33,
+          "role": "backend-master",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 8.473424,
+          "user_seconds": 15.381672
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 177700864,
+          "pid": 34,
+          "role": "backend-volume",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 37.146225,
+          "user_seconds": 48.83599
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 457457664,
+          "pid": 35,
+          "role": "backend-filer",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 35.933382,
+          "user_seconds": 62.014418
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 179376128,
+          "pid": 36,
+          "role": "backend-s3",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 59.180666,
+          "user_seconds": 121.461158
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 86978560,
+          "pid": 26499,
+          "role": "worker-3",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 19.695096,
+          "user_seconds": 12.070825
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 156835840,
+          "pid": 26380,
+          "role": "backend-master",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 8.553529,
+          "user_seconds": 8.861464
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 168390656,
+          "pid": 26381,
+          "role": "backend-volume",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 11.558434,
+          "user_seconds": 12.915036
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 329609216,
+          "pid": 26382,
+          "role": "backend-filer",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 8.221787,
+          "user_seconds": 11.304276
+        },
+        {
+          "available": true,
+          "maxrss_bytes": 176029696,
+          "pid": 26383,
+          "role": "backend-s3",
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 15.781333,
+          "user_seconds": 29.925514
+        }
+      ],
+      "maximum_shared_cgroup_memory_current": 8590188544,
+      "minimum_filesystem_free_bytes": 13346779136,
+      "samples": 6516,
+      "shared_cgroup_includes_other_processes_and_page_cache": true,
+      "worker_self_procfs_hwm_bytes": {
+        "1": 149262336,
+        "2": 79183872,
+        "3": 87498752
+      }
+    },
+    "schema": 1,
+    "status": "passed",
+    "unit_coverage_contribution": false,
+    "worker_binary_sha256": "18aab5ec4339655379cbb6ae009357b15715830837b061d206cf17242667885d"
+  },
+  "summary_file": {
+    "path": "/tmp/scap-head5-capacity-f6c9073-01/gib1/summary.json",
+    "bytes": 26101,
+    "sha256": "7a22a4fbb6d5525f97d9957d3c05c8b305167207ccc3bd49c3a42b392e767631"
+  },
+  "build_record": {
+    "path": "/tmp/scap-head5-capacity-f6c9073-01/gib1/build-receipt.json",
+    "bytes": 20412,
+    "sha256": "ed0777e7bf96a46ccbcc876f1d55fc35dcfbc4d854b1721b8f8fbaab37a24665"
+  },
+  "compiled_source_manifest": {
+    "path": "/tmp/scap-head5-capacity-f6c9073-01/gib1/build-source-manifest.json",
+    "bytes": 18444,
+    "sha256": "90b8b906fd7798bc3d9789fa04dc4c11ccdaa41639fc1c501470c13b1dae56c1"
+  },
+  "initial_free_disk_bytes": 18183397376,
+  "local_backend": {
+    "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+    "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  },
+  "scope": "Private loopback signed S3-compatible endpoint and original real Rust/native worker; all compute and backend processes restarted while S3 object data survives.",
+  "unit_coverage_contribution": false,
+  "capacity_tested_bytes": 1073741824,
+  "default_quota_bytes": 10737418240,
+  "ten_gib_actual": "NOT_RUN_FOR_THIS_SOURCE",
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "gc": "OFF",
+  "merge_ready": false
+}
