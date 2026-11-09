@@ -76,6 +76,8 @@ python3 -m unittest discover -s experiments/object-gc-store -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/gc-fixture-tests.log"
 python3 -m unittest discover -s experiments/resource-limits -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/resource-fixture-tests.log"
+python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/transport-fixture-tests.log"
 unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 export CARGO_TARGET_DIR="$target_root/network-release"
 cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -118,6 +120,16 @@ export CARGO_TARGET_DIR="$target_root/service-release"
 python3 experiments/object-service/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/service-build"
 python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/service"
+python3 experiments/bounded-transport/run.py --binary "$CARGO_TARGET_DIR/release/scapd" \
+  --evidence "$SCAP_EVIDENCE/bounded-transport"
+python3 experiments/bounded-transport/oracle.py "$SCAP_EVIDENCE/bounded-transport/observations.json" \
+  > "$SCAP_EVIDENCE/bounded-transport-oracle.json"
+python3 experiments/object-service/owner_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/owner"
+python3 experiments/object-service/owner_oracle.py --evidence "$SCAP_EVIDENCE/owner" \
+  > "$SCAP_EVIDENCE/owner-oracle.json"
+python3 experiments/object-service/owner_controls.py --evidence "$SCAP_EVIDENCE/owner" \
+  --output "$SCAP_EVIDENCE/owner-controls"
 python3 experiments/object-service/catalogue_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/catalogue-service"
 python3 experiments/object-service/isolation_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \

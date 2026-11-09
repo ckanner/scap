@@ -221,6 +221,7 @@ jobs:
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -315,6 +316,28 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-service"
+      - name: Verify actual connection and HTTP header limits
+        run: |
+          python3 experiments/bounded-transport/run.py \
+            --binary "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --evidence "$RUNNER_TEMP/scap-bounded-transport"
+          python3 experiments/bounded-transport/oracle.py \
+            "$RUNNER_TEMP/scap-bounded-transport/observations.json" \
+            > "$RUNNER_TEMP/scap-bounded-transport-oracle.json"
+      - name: Verify owner routing and fixed takeover intents under real faults
+        # One source-bound daemon binary; private credentials stay outside evidence.
+        run: |
+          python3 experiments/object-service/owner_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner"
+          python3 experiments/object-service/owner_oracle.py \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
+            > "$RUNNER_TEMP/scap-owner-evidence/oracle.json"
+          python3 experiments/object-service/owner_controls.py \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
+            --output "$RUNNER_TEMP/scap-owner-evidence/controls"
       - name: Verify catalogue HTTP intents, independent admission, and recovery
         run: |
           python3 experiments/object-service/catalogue_contract.py \
@@ -358,6 +381,15 @@ jobs:
         with:
           name: object-network-local-s3
           path: |
+            ${{ runner.temp }}/scap-owner-evidence/owner/**
+            ${{ runner.temp }}/scap-owner-evidence/oracle.json
+            ${{ runner.temp }}/scap-owner-evidence/controls/**
+            ${{ runner.temp }}/scap-bounded-transport/observations.json
+            ${{ runner.temp }}/scap-bounded-transport/plan.json
+            ${{ runner.temp }}/scap-bounded-transport/events.jsonl
+            ${{ runner.temp }}/scap-bounded-transport/daemon.stdout.log
+            ${{ runner.temp }}/scap-bounded-transport/daemon.stderr.log
+            ${{ runner.temp }}/scap-bounded-transport-oracle.json
             target/evidence/deployment-recovery/**
             target/evidence/deployment-recovery-build/**
             target/evidence/deployment-recovery-oracle.json
