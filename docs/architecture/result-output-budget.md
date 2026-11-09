@@ -1,9 +1,9 @@
 # 结果编码与服务输出预算
 
-当前状态：**编码基础已实现。`d012dc5` 已通过严格 Clippy 及两轮各 546 项单位，但精确四维检查发现两个不可达错误传播出口，保持 FAILED。两处内部不变量窄修已冻结待新门禁。后文的全局/租户输出池仍是设计，尚未实现。**
+当前状态：**编码基础 `acec129` 已通过完整 workspace 门禁：严格 Clippy、stable 与新收集 nightly 各 546 项单位，以及全部 56 个生产 Rust 文件的精确四维计数。后文的全局/租户输出池仍是设计，尚未实现；此编码候选的实际 HTTP/S3 合同尚未运行。**
 基础实现叠在 guarded-status 的 `5604126f7677188dd1b35dd3d596747d4bf95002` 上；
 原资源推导以运行时 `778a4d2` 的路径为依据。源码、独立审阅和精确边界见
-[基础切片冻结回执](../evidence/output-encoding-foundation-local-2026-11-09.json)、[首个 Clippy 失败与窄修](../evidence/output-encoding-clippy-correction-local-2026-11-09.json)和[精确覆盖失败与不变量修正](../evidence/output-encoding-invariant-correction-local-2026-11-09.json)。
+[基础切片冻结回执](../evidence/output-encoding-foundation-local-2026-11-09.json)、[首个 Clippy 失败与窄修](../evidence/output-encoding-clippy-correction-local-2026-11-09.json)和[精确覆盖失败与不变量修正](../evidence/output-encoding-invariant-correction-local-2026-11-09.json)，以及[修正后完整单位验收](../evidence/output-encoding-workspace-local-2026-11-09.json)。
 本文接续[HTTP 结果去副本](http-result-copy-reduction.md)和[资源预算](resource-budgets.md)。
 
 ## 0. 已实现的编码基础（先于下述输出池）
@@ -23,7 +23,12 @@ Malformed 行为和验证顺序，新分配失败使用已有 ResourceExhausted�
 不制造真实系统 OOM，也不使用进程级 global allocator 故障开关。实际 encode 的
 原 invalid/limit 仍走原 rollback，资源分类用精确 helper regression 核对。
 基础实现保留七项新增单位定义，已通过静态审阅和限定文件 rustfmt。
-修正后的完整 workspace、strict Clippy、逐生产文件四维单位覆盖及实际合同仍待运行；
+修正后完整 workspace、strict Clippy 和逐生产文件四维单位覆盖已通过：
+10,246/10,246 行、907/907 函数、15,648/15,648 regions、1,884/1,884 分支；
+五个文件的真实分支分母仍记为 0/0。清理后零 profile 起跑，93 个新 raw 与一个 merged，
+未使用旧或集成 profile。12 个真实单位 ELF、native/ffi 依赖链、444 份源码和原始 profiles
+已经绑定；177 个归档成员全部回读校验。既有 C 编译缓存被明确记录，未冒称新编译。
+原 c6cb712 Clippy 失败和 d012dc5 精确计数失败保持原身份与原判定；实际合同仍待运行。
 两处私有失败注入边界使用借用的 dyn FnMut，不分配回调、不使用进程全局开关。
 它们仍各调用一次。原泛型候选只存在静态覆盖聚合风险，没有实测失败。
 当前窄修明确声明：不可变 plan 已完整验证，wrapper 的目标长度由该 plan 确定。
