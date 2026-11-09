@@ -29,6 +29,14 @@ fn assert_publication_is_blocked(objects: &Memory, database: &Database, session:
         Err(Error::Corrupt)
     ));
     assert!(matches!(
+        database.takeover(7, head.revision, 88, deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert!(matches!(
+        database.set_policy(7, head.revision, 89, head.policy.clone(), deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert!(matches!(
         database.set_lifecycle(7, head.revision, 90, Lifecycle::Maintenance, deadline()),
         Err(Error::Corrupt)
     ));

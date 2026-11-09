@@ -1,8 +1,12 @@
 //! Metadata publication with content-derived ETags and independent I/O records.
 
 use super::*;
-use crate::format::{decode_head, digest};
+use crate::format::{
+    decode_head, digest, object_key, NamedCreation, Permission, Transition, Window,
+    MAX_RESULT_BYTES, PAGE_SIZE,
+};
 use crate::tests::{deadline, fixture, scope, test_options, Memory};
+use crate::MetadataUpdate;
 use scap_object_store::Stored;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
@@ -226,6 +230,312 @@ fn expired_original_deadline_is_forwarded_without_renewal() {
     assert_eq!(state.puts.len(), 1);
     assert_eq!(state.puts[0].deadline, expired);
     assert_eq!(state.bytes, encode_head(&base.head).unwrap());
+}
+
+fn management_policy() -> Vec<Permission> {
+    vec![
+        Permission {
+            principal: 7,
+            read: true,
+            write: false,
+            admin: true,
+        },
+        Permission {
+            principal: 11,
+            read: true,
+            write: false,
+            admin: false,
+        },
+    ]
+}
+
+fn manage(
+    database: &Database,
+    base: &Snapshot,
+    policy: bool,
+    until: Instant,
+) -> Result<Head, Error> {
+    if policy {
+        database.set_policy(7, base.head.revision, 313, management_policy(), until)
+    } else {
+        database.takeover(7, base.head.revision, 313, until)
+    }
+}
+
+#[test]
+fn management_actions_preserve_all_other_head_fields_without_immutable_reads() {
+    for policy in [false, true] {
+        let (objects, database, mut base) = metadata();
+        // These are valid metadata identities, deliberately unavailable from
+        // this HEAD-only backend. Management success is not a closure proof.
+        base.head.head_serial = 17;
+        base.head.revision = 9;
+        base.head.transition = Transition {
+            revision: 9,
+            nonce: 42,
+        };
+        base.head.sequence = 6;
+        base.head.owner_epoch = 3;
+        base.head.owner_instance = 41;
+        base.head.auth_epoch = 5;
+        base.head.data_root = digest(b"unloaded original manifest");
+        base.head.quota.max_bytes = Some(96 * PAGE_SIZE as u64);
+        base.head.retention.max_result_bytes = 2 * MAX_RESULT_BYTES as u64;
+        base.head.request_epoch = 3;
+        base.head.windows = (1..=3)
+            .rev()
+            .map(|epoch| Window {
+                epoch,
+                root: digest(format!("unloaded window {epoch}").as_bytes()),
+                count: if epoch == 3 { 2 } else { 8 },
+                result_bytes: epoch * 40,
+            })
+            .collect();
+        base.head.creation = Some(NamedCreation {
+            creator: 7,
+            operation: 23,
+            name_hash: digest(b"original name"),
+            descriptor_hash: digest(b"original descriptor"),
+        });
+        let original = encode_head(&base.head).unwrap();
+        base.etag = digest(&original);
+        objects.state.lock().unwrap().bytes = original;
+        let until = deadline();
+        let published = manage(&database, &base, policy, until).unwrap();
+        assert_eq!(published.revision, 10);
+        assert_eq!(published.head_serial, 18);
+        assert_eq!(
+            published.transition,
+            Transition {
+                revision: 10,
+                nonce: 313,
+            }
+        );
+        if policy {
+            assert_eq!(published.auth_epoch, 6);
+            assert_eq!(published.policy, management_policy());
+        } else {
+            assert_eq!(published.owner_epoch, 4);
+            assert_eq!(published.owner_instance, 10);
+            assert!(!published.active);
+        }
+        let before = serde_json::to_value(&base.head).unwrap();
+        let after = serde_json::to_value(&published).unwrap();
+        let changed: std::collections::BTreeSet<_> = before
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter_map(|(key, value)| (after.get(key) != Some(value)).then_some(key.as_str()))
+            .collect();
+        let mut allowed = vec!["revision", "head_serial", "transition"];
+        allowed.extend(if policy {
+            vec!["auth_epoch", "policy"]
+        } else {
+            vec!["owner_epoch", "owner_instance", "active"]
+        });
+        assert_eq!(changed, allowed.into_iter().collect());
+        assert_eq!(
+            before.as_object().unwrap().len(),
+            after.as_object().unwrap().len()
+        );
+        let state = objects.state.lock().unwrap();
+        assert_eq!(state.gets, 1);
+        assert_eq!(state.puts.len(), 1);
+        assert_eq!(state.puts[0].key, head_key(&scope()));
+        assert_eq!(state.puts[0].condition.as_ref(), Some(&base.etag));
+        assert_eq!(state.puts[0].deadline, until);
+        assert_eq!(state.puts[0].bytes, encode_head(&published).unwrap());
+        assert_eq!(state.bytes, state.puts[0].bytes);
+    }
+}
+
+#[test]
+fn management_unknown_retains_both_possible_effects_without_an_extra_head_read() {
+    for policy in [false, true] {
+        for applied in [false, true] {
+            let (objects, database, base) = metadata();
+            let original = encode_head(&base.head).unwrap();
+            objects.state.lock().unwrap().failure = Some(if applied {
+                Failure::AfterApplied
+            } else {
+                Failure::Before(StoreError::Unknown)
+            });
+            let until = deadline();
+            assert!(matches!(
+                manage(&database, &base, policy, until),
+                Err(Error::Store(StoreError::Unknown))
+            ));
+            let state = objects.state.lock().unwrap();
+            assert_eq!(state.gets, 1);
+            assert_eq!(state.puts.len(), 1);
+            assert_eq!(state.puts[0].condition.as_ref(), Some(&base.etag));
+            assert_eq!(state.puts[0].deadline, until);
+            assert_eq!(
+                &state.bytes,
+                if applied {
+                    &state.puts[0].bytes
+                } else {
+                    &original
+                }
+            );
+            assert!(database.healthy().is_ok());
+        }
+    }
+}
+
+#[test]
+fn competing_original_publications_have_one_winner_without_rebasing() {
+    for policy in [false, true] {
+        for management_first in [false, true] {
+            let (objects, database, initial) = metadata();
+            let until = deadline();
+            let original = database.control(7, initial.head.revision, until).unwrap();
+            let mut other = Database::next(&original.head, 400).unwrap();
+            other.auth_epoch += 1;
+            let competing = PreparedHead::new(&database, &original, &other, until).unwrap();
+            let update = if policy {
+                MetadataUpdate::Policy(management_policy())
+            } else {
+                MetadataUpdate::Takeover
+            };
+            let winner = if management_first {
+                let head = database
+                    .publish_metadata(&original, 313, update, until)
+                    .unwrap();
+                assert!(matches!(competing.publish(), Err(Error::Conflict)));
+                head
+            } else {
+                competing.publish().unwrap();
+                assert!(matches!(
+                    database.publish_metadata(&original, 313, update, until),
+                    Err(Error::Conflict)
+                ));
+                other
+            };
+            let state = objects.state.lock().unwrap();
+            assert_eq!(state.gets, 1);
+            assert_eq!(state.puts.len(), 2);
+            assert!(
+                state
+                    .puts
+                    .iter()
+                    .all(|put| put.condition.as_ref() == Some(&original.etag)
+                        && put.deadline == until)
+            );
+            assert_eq!(state.bytes, encode_head(&winner).unwrap());
+        }
+    }
+}
+
+#[test]
+fn management_ack_does_not_bypass_later_activation_or_cold_read_verification() {
+    for policy in [false, true] {
+        let (objects, database) = fixture();
+        let base = database.read_head(deadline()).unwrap();
+        let root = object_key(&scope(), 1, &base.head.data_root);
+        objects.fail(false, root.clone(), StoreError::Missing);
+        let reads = objects.gets_for(&root);
+        let head = manage(&database, &base, policy, deadline()).unwrap();
+        assert_eq!(objects.gets_for(&root), reads);
+        assert!(database.healthy().is_ok());
+        let temporary = tempfile::tempdir().unwrap();
+        let verified = if policy {
+            database
+                .session(7, &temporary.path().join("cold"), deadline())
+                .map(|_| ())
+        } else {
+            database
+                .activate(7, head.revision, 314, deadline())
+                .map(|_| ())
+        };
+        assert!(matches!(verified, Err(Error::Store(StoreError::Missing))));
+        assert_eq!(objects.gets_for(&root), reads + 1);
+        assert!(matches!(database.healthy(), Err(Error::Corrupt)));
+        assert_eq!(database.read_head(deadline()).unwrap().head, head);
+    }
+}
+
+#[test]
+fn management_counter_and_quarantine_errors_keep_the_existing_order() {
+    for field in 0..4 {
+        let (objects, database, mut base) = metadata();
+        match field {
+            0 => {
+                base.head.revision = u64::MAX;
+                base.head.head_serial = u64::MAX;
+                base.head.transition.revision = u64::MAX;
+            }
+            1 => base.head.head_serial = u64::MAX,
+            2 => base.head.owner_epoch = u64::MAX,
+            _ => base.head.auth_epoch = u64::MAX,
+        }
+        objects.state.lock().unwrap().bytes = encode_head(&base.head).unwrap();
+        database.quarantined.store(true, Ordering::Release);
+        assert!(matches!(
+            manage(&database, &base, field == 3, deadline()),
+            Err(Error::Limit)
+        ));
+        let state = objects.state.lock().unwrap();
+        assert_eq!(state.gets, 1);
+        assert!(state.puts.is_empty());
+    }
+    let (objects, database, base) = metadata();
+    database.quarantined.store(true, Ordering::Release);
+    // Both invalid policy and nonce are encoded only after the first healthy
+    // check, just as before this management path stopped reading manifest.
+    assert!(matches!(
+        database.set_policy(7, base.head.revision, 0, vec![], deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert_eq!(objects.state.lock().unwrap().gets, 1);
+    assert!(objects.state.lock().unwrap().puts.is_empty());
+}
+
+#[test]
+fn healthy_management_rejects_invalid_policy_and_nonce_before_publication() {
+    for invalid in 0..4 {
+        let (objects, database, base) = metadata();
+        let until = deadline();
+        let result = match invalid {
+            0 => database.takeover(7, base.head.revision, 0, until),
+            1 => database.set_policy(7, base.head.revision, 0, management_policy(), until),
+            2 => database.set_policy(7, base.head.revision, 313, vec![], until),
+            _ => {
+                let mut policy = management_policy();
+                policy[0].admin = false;
+                database.set_policy(7, base.head.revision, 313, policy, until)
+            }
+        };
+        assert!(matches!(result, Err(Error::Format(FormatError::Invalid))));
+        assert!(database.healthy().is_ok());
+        let state = objects.state.lock().unwrap();
+        assert_eq!(state.gets, 1);
+        assert!(state.puts.is_empty());
+        assert_eq!(state.bytes, encode_head(&base.head).unwrap());
+    }
+}
+
+#[test]
+fn prepared_management_keeps_the_original_deadline_without_a_new_snapshot() {
+    for policy in [false, true] {
+        let (objects, database, base) = metadata();
+        let expired = Instant::now();
+        let update = if policy {
+            MetadataUpdate::Policy(management_policy())
+        } else {
+            MetadataUpdate::Takeover
+        };
+        assert!(matches!(
+            database.publish_metadata(&base, 313, update, expired),
+            Err(Error::Store(StoreError::Unknown))
+        ));
+        let state = objects.state.lock().unwrap();
+        assert_eq!(state.gets, 0);
+        assert_eq!(state.puts.len(), 1);
+        assert_eq!(state.puts[0].deadline, expired);
+        assert_eq!(state.puts[0].condition.as_ref(), Some(&base.etag));
+        assert_eq!(state.bytes, encode_head(&base.head).unwrap());
+    }
 }
 
 #[test]

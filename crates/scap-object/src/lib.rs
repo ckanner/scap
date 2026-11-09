@@ -85,6 +85,13 @@ pub struct Database {
     quarantined: Arc<AtomicBool>,
 }
 
+/// A closed set of management changes which preserves every immutable
+/// reference, lifecycle and identity field from the original authority.
+enum MetadataUpdate {
+    Takeover,
+    Policy(Vec<Permission>),
+}
+
 pub fn sql_limits() -> SqlLimits {
     Options::default().sql
 }
@@ -213,6 +220,39 @@ impl Database {
         self.publish_in(&objects, base, head, deadline)
     }
 
+    /// Acknowledges only the management HEAD. No arbitrary candidate can enter
+    /// this path; activation and all dependency-changing operations retain
+    /// their existing immutable verification.
+    fn publish_metadata(
+        &self,
+        base: &Snapshot,
+        nonce: u64,
+        update: MetadataUpdate,
+        deadline: Instant,
+    ) -> Result<Head, Error> {
+        let mut head = Self::next(&base.head, nonce)?;
+        match update {
+            MetadataUpdate::Takeover => {
+                head.owner_epoch = head.owner_epoch.checked_add(1).ok_or(Error::Limit)?;
+                head.owner_instance = self.worker;
+                head.active = false;
+            }
+            MetadataUpdate::Policy(policy) => {
+                head.auth_epoch = head.auth_epoch.checked_add(1).ok_or(Error::Limit)?;
+                head.policy = policy;
+            }
+        }
+        self.healthy()?;
+        let publication = PreparedHead::new(self, base, &head, deadline)?;
+        self.publish_healthy(publication)?;
+        Ok(head)
+    }
+
+    fn publish_healthy(&self, publication: PreparedHead) -> Result<(), Error> {
+        self.healthy()?;
+        publication.publish()
+    }
+
     fn publish_in(
         &self,
         objects: &ObjectContext,
@@ -232,8 +272,7 @@ impl Database {
         // Unchanged references inherit the prior HEAD's immutable closure;
         // protocol participants never delete reachable objects (GC is disabled).
         // Cold activation and the first session write verify retained history.
-        self.healthy()?;
-        publication.publish()
+        self.publish_healthy(publication)
     }
 
     fn next(base: &Head, nonce: u64) -> Result<Head, Error> {
@@ -484,12 +523,7 @@ impl Database {
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
         Self::ready(&base.head)?;
-        let mut head = Self::next(&base.head, nonce)?;
-        head.owner_epoch = head.owner_epoch.checked_add(1).ok_or(Error::Limit)?;
-        head.owner_instance = self.worker;
-        head.active = false;
-        self.publish(&base, &head, deadline)?;
-        Ok(head)
+        self.publish_metadata(&base, nonce, MetadataUpdate::Takeover, deadline)
     }
 
     pub fn activate(
@@ -525,11 +559,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
-        let mut head = Self::next(&base.head, nonce)?;
-        head.auth_epoch = head.auth_epoch.checked_add(1).ok_or(Error::Limit)?;
-        head.policy = policy;
-        self.publish(&base, &head, deadline)?;
-        Ok(head)
+        self.publish_metadata(&base, nonce, MetadataUpdate::Policy(policy), deadline)
     }
 
     pub fn set_lifecycle(
