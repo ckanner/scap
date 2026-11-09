@@ -10,7 +10,10 @@
 但内层 transport 把外层 deadline 的 abort signal 归类为 `ABORTED`，使原预期
 `DEADLINE` 的测试失败。该原失败与单独通过的类型/Node HTTP 检查见
 [首次 SDK 回执](../evidence/guarded-status-sdk-failure-local-2026-11-09.json)。
-本次修正后的 Node 重验、Rust 单位/覆盖及实际 HTTP/S3 门禁仍待独立冻结与运行；
+`65d48cb` 的 66 个 Node 单位全部通过，但 V8 分支门禁仍拒绝 try/catch/finally
+之间一个计数为零的空白区间，见[原覆盖失败](../evidence/guarded-status-sdk-coverage-local-2026-11-09.json)。
+后继改用 finally 之后的统一正常返回点，没有加入排除或过滤计数。
+本次后继的 Node 重验、Rust 单位/覆盖及实际 HTTP/S3 门禁仍待独立冻结与运行；
 基线结果不能代替新增输入的验证。
 
 ## 1. Wire 与服务顺序

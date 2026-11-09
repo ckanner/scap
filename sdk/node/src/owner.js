@@ -13,16 +13,18 @@ export class OwnerClient {
 
   async probe(workerInstance, options) {
     const budget = new OperationBudget(this.#registry.timeout, options);
+    let result;
     try {
       const status = await this.#registry.client(workerInstance, budget, 'probe')
         .guardedStatus(workerInstance, budget.options());
-      return budget.finish(status);
+      result = budget.finish(status);
     } catch (error) {
       // The inner transport sees this budget's signal as an external abort.
       // Preserve the original operation's first deadline/abort at the exit.
       budget.check();
       throw error;
     } finally { budget.close(); }
+    return result;
   }
 
   prepareTakeover(observed, input) { return owner.prepareIntent(this.#registry, observed, input, 'takeover'); }
