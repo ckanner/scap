@@ -1,6 +1,9 @@
 # GC 存储接口的真实后端合同
 
-状态：夹具开发中，真实运行及正式覆盖率 NOT_RUN。该 worker 只装配
+状态：`985c518` 的本 crate 40/40 stable、40/40 nightly、6 个生产文件逐文件四维
+精确覆盖，以及修正观察后的 42 场景真实兼容后端合同已通过；来源和范围见
+[本地验收记录](../../docs/engineering/gc-store-validation.md)。完整 workspace/产品组合、
+AWS Standard 及生产 SLO 仍为 NOT_RUN。该 worker 只装配
 `scap-object-store::GcS3`，不实现 HEAD/退休/pin/删除算法，不运行 SQLite。
 产品物理 GC 仍关闭。
 

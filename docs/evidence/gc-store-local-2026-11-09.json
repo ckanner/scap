@@ -1,0 +1,165 @@
+{
+  "coverage": {
+    "crates/scap-object-store/src/gc.rs": {
+      "branches": {
+        "count": 92,
+        "covered": 92
+      },
+      "functions": {
+        "count": 20,
+        "covered": 20
+      },
+      "lines": {
+        "count": 235,
+        "covered": 235
+      },
+      "regions": {
+        "count": 340,
+        "covered": 340
+      }
+    },
+    "crates/scap-object-store/src/gc_xml.rs": {
+      "branches": {
+        "count": 44,
+        "covered": 44
+      },
+      "functions": {
+        "count": 9,
+        "covered": 9
+      },
+      "lines": {
+        "count": 118,
+        "covered": 118
+      },
+      "regions": {
+        "count": 188,
+        "covered": 188
+      }
+    },
+    "crates/scap-object-store/src/lib.rs": {
+      "branches": {
+        "count": 68,
+        "covered": 68
+      },
+      "functions": {
+        "count": 19,
+        "covered": 19
+      },
+      "lines": {
+        "count": 207,
+        "covered": 207
+      },
+      "regions": {
+        "count": 289,
+        "covered": 289
+      }
+    },
+    "crates/scap-object-store/src/listing.rs": {
+      "branches": {
+        "count": 46,
+        "covered": 46
+      },
+      "functions": {
+        "count": 12,
+        "covered": 12
+      },
+      "lines": {
+        "count": 121,
+        "covered": 121
+      },
+      "regions": {
+        "count": 186,
+        "covered": 186
+      }
+    },
+    "crates/scap-object-store/src/listing_guard.rs": {
+      "branches": {
+        "count": 16,
+        "covered": 16
+      },
+      "functions": {
+        "count": 11,
+        "covered": 11
+      },
+      "lines": {
+        "count": 79,
+        "covered": 79
+      },
+      "regions": {
+        "count": 143,
+        "covered": 143
+      }
+    },
+    "crates/scap-object-store/src/listing_xml.rs": {
+      "branches": {
+        "count": 66,
+        "covered": 66
+      },
+      "functions": {
+        "count": 14,
+        "covered": 14
+      },
+      "lines": {
+        "count": 216,
+        "covered": 216
+      },
+      "regions": {
+        "count": 379,
+        "covered": 379
+      }
+    }
+  },
+  "not_run": [
+    "full workspace and owner/pins/intake integration",
+    "AWS Standard",
+    "production performance or latency SLO",
+    "generation retirement / pin drain / persistent GC plan / PITR acceptance"
+  ],
+  "product_gc": "OFF",
+  "real": {
+    "cases": 42,
+    "independent_object_gets": 136,
+    "negative_controls": [
+      "omit_invocation",
+      "omit_delete",
+      "change_original_etag",
+      "change_signature",
+      "unknown_as_applied",
+      "late_as_early",
+      "unreaped_worker",
+      "missing_raw_input",
+      "duplicate_worker",
+      "duplicate_backend",
+      "config_after_delivery",
+      "result_before_delivery",
+      "declared_fault_not_delivered"
+    ],
+    "original_history_sha256": "aec4954d1c6d94482bb6a4185734a914b9641bcd64f6b44a37320fe5651604e7",
+    "owned_children_reaped": 8,
+    "positive_controls": 1,
+    "signed_product_requests": 115,
+    "status": "passed"
+  },
+  "real_report_sha256": "63f66ff8b1ab27cd1073f5e70d19d4be2cdf50cc93a96d3be202617f2beb1c41",
+  "release_actual_archive_sha256": "f206d1c74713e3a44566b2f9006578b77a098c8fbd73533ebbd075c1125c2bb9",
+  "release_binary_sha256": "4b2fc4a8df43ba739d651171d5e53487ebffe4add5b260ead746d22fad5ae006",
+  "schema": 1,
+  "source_commit_local": "985c5180ec6bb29acd12f2769de52d659f557acc",
+  "source_files": 341,
+  "source_tools_actual_unchanged": true,
+  "source_tree": "8d590967bc301ece8df0bbce7b2ff4a87c5f7915",
+  "status": "local_transport_passed",
+  "unit_actual_archive_sha256": "98db8f6817ccd434afeb42fbb701123f88105974eef6e50b4b0465efaf6b2df8",
+  "unit_actuals": {
+    "nightly-unit": {
+      "sha256": "0c4891a1715a2183ab5e502f952ae9fe6faf01918b39d29727e64d0b810174fb",
+      "tests": 40
+    },
+    "stable-unit": {
+      "sha256": "ee241a9b2f11819e09c575ae26340d99758e3edc87d2bd58892eacdf3f98af37",
+      "tests": 40
+    }
+  },
+  "unit_report_sha256": "38909f71a869ae86009d0ff7b9c88bb61ba404dfaae893fba3a00910f0546332",
+  "unit_scope": "scap-object-store only; not full workspace"
+}
