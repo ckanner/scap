@@ -1,6 +1,6 @@
 # SCAP N3：分段请求索引、存储世代、pin、物理回收与 PITR
 
-**状态：设计草案，尚未实现。** 本文不是 GC、PITR 或长期成本验收报告。第一批只实现分段请求索引，物理 DELETE 继续关闭；后续各批须独立完成模型、代码与真实协议验收。
+**2026-11-09 状态更新：分段请求索引已随 PR #35 合入；独立 storage generation、pin/freeze/drain、产品 GC 和 PITR 仍未交付。** PR #36 只增加受限条件删除传输，尚未接入数据库回收。此前记录的 generation/pin 本地候选当前不能从工作区或远端取得，不能计入当前实现。最新可验证源码与工作顺序见[实施状态](../engineering/status-2026-11-09.md)。本文后续阶段仍为设计，不是 GC、PITR 或长期成本验收报告。
 
 编写时间：2026-11-08。代码事实固定于 [`5b4e97e276988bd10ecfd25ff7abbf2a547a6459`](https://github.com/ckanner/scap/tree/5b4e97e276988bd10ecfd25ff7abbf2a547a6459)，tree `62aa55862c2798230f43136206c1958c26cf294c`。新分段索引批次计划基于 actor 候选 `32f3369e13cd89e32521d5d371ecbfda6834322c`；不得把候选代码或已有 actor 验收当成 N3 已完成。逐文件 SHA-256、证据定位及外部资料见[设计输入清单](../evidence/storage-reclamation-design-inputs-2026-11-08.json)。
 
@@ -183,4 +183,4 @@ PITR 创建新的 Catalogue 创建操作，从而得到新的 database/incarnati
 | N3.4 快照与 PITR | 显式保留目标、新数据库恢复、完整权限边界 | 跨身份恢复与跨 authority 崩溃模型、原结果与历史根验证 |
 | N3.5 长期运行 | 给定负载和配额下观测到成本/延迟稳定 | 长跑输入账本、垃圾速率/GC 速率、恢复预算、资源与成本曲线 |
 
-本文只有代码阅读、官方接口资料和设计推导证据。没有运行 N3 状态机模型、segmented-index 实现、DELETE、AWS 云端故障实验、PITR 或长期成本测试。所列不变量是必须实现和验证的要求，不是完成声明。原始结果、固定输入与失败日志均应保留；开发检查不能替代冻结源码和实际 release binary 的正式验收。
+本稿初版只有代码阅读、官方接口资料和设计推导证据；分段索引后续实现及验收见[分段索引说明](segmented-request-index.md)和[发现/恢复记录](../engineering/discovery-recovery-validation.md)。删除传输合同不代表数据库 pin/退休/回收已经成立。N3 状态机、产品 DELETE、AWS 云端故障、PITR 和长期成本仍分别验证。所列不变量是必须实现和验证的要求，不是完成声明。原始结果、固定输入与失败日志均应保留；开发检查不能替代冻结源码和实际 release binary 的正式验收。

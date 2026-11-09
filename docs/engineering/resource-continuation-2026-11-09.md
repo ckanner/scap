@@ -79,7 +79,12 @@ lazy VFS、group commit、多 writer 或 Turso 的吞吐指标。S3 Express One 
 - [Turso 0.8 并发写](https://turso.tech/blog/turso-0.8.0)
 - [AWS 与 Turso 的批量 WAL 设计](https://aws.amazon.com/blogs/storage/how-turso-built-a-transactional-database-using-amazon-s3-express-one-zone/)
 
-## 验证计划与状态
+## 初版验证计划与后续状态
+
+下段保留初版设计提交时的 NOT_RUN 状态。后续资源 release `4506ef2` 的真实合同已通过：
+25 次 HTTP、50 次 signed S3、14 个负对照及一个正对照；TCP release `c0a6aab`
+的 8 个真实连接/header 合同也已通过。组合单元和 owner 故障合同按各自冻结输入
+记录，见[最新实施状态](status-2026-11-09.md)，不覆盖原始失败。
 
 本文件首先提交设计和真实远端基线；此时新实现的 stable/nightly、四维覆盖和真实
 HTTP/native/S3 回归均为 **NOT_RUN**。环境已重新准备固定 Rust 1.90.0、nightly

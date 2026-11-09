@@ -8,14 +8,17 @@
 或当前工作区取得，不能继承其代码或验证结论。
 
 本轮 [PR #37](https://github.com/ckanner/scap/pull/37) 在真实远端基线上重新实现
-intake 生命周期及单次 typed-result graph 预算，已发布代码提交
-`2256bca21be0bfc34c1339212d76725687854840`。该代码的完整 stable/nightly
-分别通过 471 项单元；第一轮逐文件四维覆盖仍有缺口，正在补齐。
-最新冻结候选、失败和验收结果见[本轮实施记录](../engineering/resource-continuation-2026-11-09.md)。
+intake 生命周期及单次 typed-result graph 预算；修正版为
+`4506ef24d0e7e6b375751eebf2ec9f12c504f065`。真实资源合同和独立负对照已通过，
+完整组合门禁仍按最终源码继续验证；初始覆盖缺口和测试夹具竞态的失败记录保留。
+[PR #38](https://github.com/ckanner/scap/pull/38) 加入连接及 header 边界，
+[PR #39](https://github.com/ckanner/scap/pull/39) 的 owner SDK 复用现有服务入口。
+最新源码、范围和未完成项见[实施状态](../engineering/status-2026-11-09.md)。
 
-响应字节池、对象解码的全局存活字节池、TCP/协议缓冲、native heap 和全局临时盘
-预留仍未形成完整保护。本轮的 typed graph 是一次物化的预算，不是跨 actor 共享
-的存活字节租约；下文关于总体资源向量的要求继续适用。
+响应字节池、对象解码的全局存活字节池、native heap 和全局临时盘预留仍未形成
+完整保护。PR #38 限制了连接任务及 HTTP/1 header/解析缓冲，不是整个运输层或
+进程 RSS 上限。本轮 typed graph 仍是一次物化的预算，不是跨 actor 共享的
+存活字节租约；下文关于总体资源向量的要求继续适用。
 
 ## 2. 入口必须分别接入
 
@@ -24,7 +27,7 @@ intake 生命周期及单次 typed-result graph 预算，已发布代码提交
 | 普通 /v1 data/control/recovery | PR #37 使用三个独立请求池，鉴权后、读 body 前预留 | 分别增加响应及工作区预算，保留各类独立额度 |
 | /v1/catalogue | PR #37 使用独立 catalogue 池，复用同一租约实现 | 单独证明其解析、响应及实际 worker 生命周期 |
 | /v1/discovery | 已有独立工作租约和有界请求/响应设计 | 单独核对预算归属，不能自动计入普通三类池 |
-| owner-control / owner-recovery | 尚无已验收的独立 owner 控制器入口 | 新入口必须显式接入 body、解析和响应池 |
+| owner SDK 的 status/takeover/activate | PR #39 复用普通 /v1 control/recovery 和原始 deadline，没有新增独立 controller 入口 | 现有 body/Job 预算随真实 class 生效；未来 controller 仍须独立定义资源与公平性 |
 | 直接库 API、部署恢复作业 | 可能不经过 HTTP | 必须显式接入被声明为全局的同一计费域 |
 
 旧本地 owner 候选设计中的全局 2 / tenant 1 运行额度不等于 body 准入或响应字节额度，

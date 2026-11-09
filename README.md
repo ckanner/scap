@@ -4,7 +4,7 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复和分段请求索引；生产发布仍有独立门禁。** 单元、真实 HTTP/S3、native 与恢复证据按冻结候选单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；自动 owner 协调、读保护与物理 GC、PITR、真实 AWS 和生产 SLO 继续推进。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。最新范围见[实施状态](docs/engineering/status-2026-11-08.md)。
+**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复和分段请求索引；本轮候选继续补齐租户 intake 生命周期、typed result 内存边界、入站 HTTP 限制及 owner 路由/显式协调。** 单元、真实 HTTP/S3、native 与恢复证据按冻结候选单独记录，生产发布仍有独立门禁。自动故障探测与后台 owner controller、读保护与物理 GC、PITR、完整资源预算、真实 AWS 和生产 SLO 继续推进。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。最新 PR、可取得源码和未完成项见[实施状态](docs/engineering/status-2026-11-09.md)。
 
 [PR #35 的发现与恢复组合](docs/engineering/discovery-recovery-validation.md)包含 #34 的有界 LIST/单次 HTTP 传输，采用 HEAD format 4。冻结候选有 stable/nightly 各 416 项单元、47 个生产 Rust 文件四维逐文件精确覆盖、九个 HTTP/S3 组合阶段，以及无需预知名称或 Scope 的新部署恢复合同。完整恢复检查九个永久 HEAD 槽位和全部五个需要数据的数据库，独立 oracle 与 23 个拒绝负对照/一个正对照通过；目录原生和 1 GiB 全量恢复也通过，全部 16,384 行另从真实关闭镜像逐行二次哈希。原失败与输入等价复用另列；SQLite 所有已存在临时目录候选和 host-global override 的准入检查也已补齐。
 

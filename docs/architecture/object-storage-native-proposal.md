@@ -1,6 +1,6 @@
 # SCAP 全新架构方案：S3 权威持久化与可丢弃计算
 
-- 提案日期：2026-11-05；实施映射更新：2026-11-08。
+- 提案日期：2026-11-05；实施映射更新：2026-11-09。
 - 状态：**目标架构已接受，S3 单库运行时、认证 HTTP 和 Node SDK 已实现；N1–N4 整体验收仍未完成**。关联 [ADR-0020](<../adr/0020-object-storage-native-authority.md>)、[ADR-0021](../adr/0021-object-native-runtime.md)和[ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
 - 历史提案基线：`f14b03d03d9216ea56b78aef9d71c5d78fd83645`；#31/#32 已合入。本批 #35 实现审查基线为 `5a04716a3f68ab51776c1ea8706097efe001fa2a`，合并状态及精确门禁见[当前验收](../engineering/discovery-recovery-validation.md)。
 - 目标场景：大量独立用户／工作区数据库、低活跃比例、短事务、可接受有界冷启动的 SaaS 与 Personal Agent。
@@ -19,8 +19,8 @@
 | --- | --- | --- |
 | S3 唯一数据库持久权威 | 正式 object authority、条件对象访问、原生提交 gate、请求结果与 owner fencing 已合入 | 完整 OT-01–OT-08、真实 AWS Standard 合同与独立并发历史审计 |
 | 可丢弃计算与容量 | 完整冷恢复、Session、增量数据树、默认 10 GiB 可配置配额，已有冻结候选的本地 1/10 GiB 证据；执行存储防护已通过 PR #28 的本地验收 | 冷恢复仍物化全库；新候选重新执行受影响门禁，不继承旧源码结果 |
-| 应用接入和多库服务 | 认证 HTTP、Node SDK、正式名称目录与有界数据库 actor 已合入；本批全目录发现及无需预知名单的部署恢复通过指定本地合同 | 自动 owner 路由、更多负载下的冷热隔离、恢复风暴与活性 |
-| 长期运行 | 已有请求窗口关闭、逻辑退休和本批不可变分段请求索引；generation 复制切换有独立候选 | pin/freeze/drain、安全 GC、PITR、总存储与请求成本收敛 |
+| 应用接入和多库服务 | 认证 HTTP、Node SDK、正式名称目录、有界数据库 actor、全目录发现及部署恢复已合入；本轮 PR #37–#39 增加资源边界和 owner 路由/显式协调 | 本轮完整组合验收、自动故障探测与 controller、更多负载下的冷热隔离、恢复风暴与活性 |
+| 长期运行 | 请求窗口、逻辑退休和分段索引已实现；PR #36 增加独立条件删除传输，产品 GC 仍关闭。旧 generation/pin 本地候选当前无法取得 | 从可验证源码继续建设 storage generation/head serial/pin/freeze/drain、安全 GC、PITR、总存储与请求成本收敛 |
 
 2026-11-08 的 #31/#32 已完成必要本地门禁并合入，历史记录见[目录/actor 验收](../engineering/catalogue-actors-validation.md)。本批 #35 的 416 项单元、47 个生产文件四维覆盖、九个服务组合阶段及新部署恢复见[发现/恢复验收](../engineering/discovery-recovery-validation.md)。原失败与旧检查点保持其当时的状态，不从新运行结果倒推历史通过。
 
@@ -40,7 +40,7 @@
 
 新鲜 HEAD 的强读与新提交都在线依赖 S3；S3/IAM/KMS/入口故障时失败关闭。增加服务副本能降低单计算进程故障的影响，不能消除共享区域存储故障。生产吞吐、p99、恢复时间和费用必须在目标 S3 产品与预先固定的负载下测量。
 
-当前机器合同见 [design-contract.json](../../contracts/design-contract.json)，历史证据及各自源码身份见[验证规范](../engineering/validation.md)。本轮遵循以下顺序：先固定本方案、[N1 真实生命周期合同](../engineering/n1-lifecycle-validation-plan.md)和[名称目录协议](name-catalogue-plan.md)，再验证并合入执行存储防护，随后完成 N1 合同、N2 目录与调度、N3 持续存储、N4 生产验收。具体候选和未运行项见[状态记录](../engineering/status-2026-11-08.md)与[路线图](../engineering/roadmap.md)。方案或文档合入不替代运行时验收。
+当前机器合同见 [design-contract.json](../../contracts/design-contract.json)，历史证据及各自源码身份见[验证规范](../engineering/validation.md)。本轮遵循以下顺序：先固定本方案、[N1 真实生命周期合同](../engineering/n1-lifecycle-validation-plan.md)和[名称目录协议](name-catalogue-plan.md)，再验证并合入执行存储防护，随后完成 N1 合同、N2 目录与调度、N3 持续存储、N4 生产验收。具体候选和未运行项见[状态记录](../engineering/status-2026-11-09.md)与[路线图](../engineering/roadmap.md)。方案或文档合入不替代运行时验收。
 
 后续详细实现合同见[全目录发现与恢复](catalogue-discovery-plan.md)、[分段索引、独立 storage generation、pin/GC 与 PITR](storage-reclamation-plan.md)。两份方案明确区分设计、开发、真实本地验收与 AWS 门禁。
 
