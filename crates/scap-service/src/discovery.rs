@@ -291,7 +291,8 @@ fn read_deadline(started: Instant, deadline: Instant) -> Instant {
 }
 
 fn bounded(value: Value, deadline: Instant) -> Result<Vec<u8>, Failure> {
-    let bytes = serde_json::to_vec(&crate::wire::success(&value)).expect("JSON value serialization");
+    let bytes =
+        serde_json::to_vec(&crate::wire::success(&value)).expect("JSON value serialization");
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err(Failure::new("LIMIT"));
     }
