@@ -59,6 +59,61 @@ impl HttpBody for CountedPending {
     }
 }
 
+struct PoisonedUpload {
+    pool: Arc<Intake>,
+    bytes: Option<Bytes>,
+}
+
+impl HttpBody for PoisonedUpload {
+    type Data = Bytes;
+    type Error = std::io::Error;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Bytes>, Self::Error>>> {
+        Poll::Ready(self.bytes.take().map(|bytes| {
+            crate::intake::tests::poison_accounting(&self.pool);
+            Ok(http_body::Frame::data(bytes))
+        }))
+    }
+}
+
+pub(super) fn poisoned_upload(pool: Arc<Intake>) -> Body {
+    Body::new(PoisonedUpload {
+        pool,
+        // Accounting failure must be reported before even trying to parse
+        // this body, and must never fall through to worker dispatch.
+        bytes: Some(Bytes::from_static(b"not JSON")),
+    })
+}
+
+#[test]
+fn accounting_owner_panic_during_body_read_fails_before_parse_and_releases_the_last_response() {
+    for operation in ["query", "status", "open"] {
+        let state = state();
+        let app = router(state.clone()).unwrap();
+        let pool = match operation {
+            "status" => state.control_intake.clone(),
+            "open" => state.recovery_intake.clone(),
+            _ => state.intake.clone(),
+        };
+        runtime().block_on(async {
+            let mut input = request(operation, 3);
+            *input.body_mut() = poisoned_upload(pool.clone());
+            let response = app.oneshot(input).await.unwrap();
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            assert_eq!(pool.available_permits(), 0);
+            assert_eq!(decoded(response).await["error"]["code"], "UNAVAILABLE");
+            assert_eq!(pool.available_permits(), 1);
+            assert_eq!(
+                pool.acquire(&principal()).err().unwrap().code,
+                "UNAVAILABLE"
+            );
+        });
+    }
+}
+
 #[test]
 fn authenticated_tenant_quota_is_reserved_before_polling_any_request_body() {
     let state = authenticated_state(3, None);

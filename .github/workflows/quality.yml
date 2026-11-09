@@ -107,6 +107,83 @@ jobs:
             target/evidence/named-catalogue-model
           if-no-files-found: warn
 
+  resource-limits:
+    name: Actual resource lifetimes and conditional GC transport
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/resource-check
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned private local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-resource-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-resource-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-resource-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-resource-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-resource-tools" weed
+          "$RUNNER_TEMP/scap-resource-tools/weed" version
+      - name: Check experiment code and audit controls
+        run: |
+          python3 -m unittest discover -s experiments/object-gc-store -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/resource-limits -p 'test_*.py' -v
+          cargo +1.90.0 fmt --manifest-path experiments/object-gc-store/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/object-gc-store/Cargo.toml --all-targets --locked -- -D warnings
+          cargo +1.90.0 fmt --manifest-path experiments/resource-limits/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/resource-limits/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Freeze and verify actual HTTP TCP S3 resource lifetimes
+        # A paused object read is an explicit fixture seam, not production logic.
+        run: |
+          mkdir "$RUNNER_TEMP/scap-resource-evidence"
+          python3 experiments/resource-limits/build.py --target "$RUNNER_TEMP/scap-resource-release" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/resource-build"
+          python3 experiments/resource-limits/run.py \
+            --worker "$RUNNER_TEMP/scap-resource-release/release/scap-resource-limits" \
+            --build "$RUNNER_TEMP/scap-resource-evidence/resource-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-resource-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/resource-limits"
+          python3 experiments/resource-limits/oracle.py "$RUNNER_TEMP/scap-resource-evidence/resource-limits" \
+            > "$RUNNER_TEMP/scap-resource-evidence/resource-oracle.json"
+          python3 experiments/resource-limits/controls.py "$RUNNER_TEMP/scap-resource-evidence/resource-limits" \
+            > "$RUNNER_TEMP/scap-resource-evidence/resource-controls.json"
+      - name: Verify conditional deletion on the composed source
+        # Product GC remains disabled; this checks only the restricted transport.
+        run: |
+          python3 experiments/object-gc-store/build.py --target "$RUNNER_TEMP/scap-gc-release" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/gc-build"
+          python3 experiments/object-gc-store/run.py \
+            --worker "$RUNNER_TEMP/scap-gc-release/release/scap-object-gc-store" \
+            --build-receipt "$RUNNER_TEMP/scap-resource-evidence/gc-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-resource-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/gc-store"
+      - name: Retain resource evidence without claiming AWS acceptance
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: resource-limits-local-s3
+          path: |
+            ${{ runner.temp }}/scap-resource-evidence/resource-build/**
+            ${{ runner.temp }}/scap-resource-evidence/resource-limits/**
+            ${{ runner.temp }}/scap-resource-evidence/resource-oracle.json
+            ${{ runner.temp }}/scap-resource-evidence/resource-controls.json
+            ${{ runner.temp }}/scap-resource-evidence/gc-build/**
+            ${{ runner.temp }}/scap-resource-evidence/gc-store/**
+          if-no-files-found: warn
+
   object-network:
     name: Real local S3 HTTP and process recovery
     runs-on: ubuntu-24.04

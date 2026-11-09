@@ -74,7 +74,8 @@
     "experiments/object-capacity",
     "experiments/object-service",
     "experiments/object-discovery",
-    "experiments/object-gc-store"
+    "experiments/object-gc-store",
+    "experiments/resource-limits"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

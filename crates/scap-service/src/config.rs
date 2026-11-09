@@ -109,18 +109,22 @@ impl CatalogueAdmission {
 
     pub fn validate(&self) -> Result<(), Failure> {
         self.limits().validate()?;
-        self.validate_transport()
+        self.build_intake().map(|_| ())
     }
 
-    pub(crate) fn validate_transport(&self) -> Result<(), Failure> {
-        if !(1..=4096).contains(&self.intake)
-            || !(1..=65536).contains(&self.max_body_bytes)
-            || !(1..=86400000).contains(&self.timeout_ms)
+    /// The same checked construction is used by parsed configuration and the
+    /// direct ServiceConfig entry point, before starting catalogue workers.
+    pub(crate) fn build_intake(&self) -> Result<crate::intake::Intake, Failure> {
+        if !(1..=65536).contains(&self.max_body_bytes) || !(1..=86400000).contains(&self.timeout_ms)
         {
             return Err(Failure::new("CONFIG"));
         }
-        crate::intake::Profile::resolve(self.intake, self.max_body_bytes, self.intake_profile)?;
-        Ok(())
+        crate::intake::Intake::new(
+            crate::intake::Class::Catalogue,
+            self.intake,
+            self.max_body_bytes,
+            self.intake_profile,
+        )
     }
 }
 

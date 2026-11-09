@@ -5,6 +5,10 @@ fn root_bytes() -> u64 {
     size_of::<TransactionResult>() as u64
 }
 
+fn allocation_error() -> TryReserveError {
+    Vec::<u8>::new().try_reserve_exact(usize::MAX).unwrap_err()
+}
+
 #[test]
 fn root_empty_values_and_zsts_are_bounded_without_allocating() {
     for limit in [0, root_bytes() - 1] {
@@ -104,7 +108,7 @@ fn refusal_precedes_allocation_and_fallible_allocation_preserves_the_old_graph()
     );
     memory.maximum += 1;
     assert_eq!(
-        memory.reserve_with(&mut values, 1, |_, _| Err(SqlError::ResourceExhausted)),
+        memory.reserve_with(&mut values, 1, |_, _| Err(allocation_error())),
         Err(SqlError::ResourceExhausted)
     );
     assert_eq!(memory.used, root_bytes());
@@ -113,7 +117,7 @@ fn refusal_precedes_allocation_and_fallible_allocation_preserves_the_old_graph()
     values.push(5);
     memory.maximum += 2;
     assert_eq!(
-        memory.reserve_with(&mut values, 1, |_, _| Err(SqlError::ResourceExhausted)),
+        memory.reserve_with(&mut values, 1, |_, _| Err(allocation_error())),
         Err(SqlError::ResourceExhausted)
     );
     assert_eq!(values, [5]);
@@ -171,6 +175,59 @@ fn arithmetic_and_invalid_untracked_capacity_fail_closed() {
     assert_eq!(untracked, vec![0_u8; 128]);
     assert_eq!(memory.used, root_bytes());
     assert_eq!(allocation_bytes::<()>(usize::MAX), Ok(0));
+}
+
+#[test]
+fn nonzero_sized_slots_keep_the_original_graph_across_all_reservation_failures() {
+    let slot = size_of::<u64>() as u64;
+    let mut memory = ResultMemoryBudget::new(root_bytes() + 3 * slot).unwrap();
+    let mut values = Vec::<u64>::new();
+    memory.reserve(&mut values, 1).unwrap();
+    values.push(7);
+    assert_eq!(
+        memory.reserve(&mut values, usize::MAX),
+        Err(SqlError::ResourceExhausted),
+        "a non-ZST length addition must fail before any allocation"
+    );
+    assert_eq!(
+        memory.reserve_with(&mut values, 1, |_, _| Err(allocation_error())),
+        Err(SqlError::ResourceExhausted)
+    );
+    assert_eq!(
+        memory.reserve_with(&mut values, 1, |replacement, requested| {
+            replacement.try_reserve_exact(requested + 1)
+        }),
+        Err(SqlError::ResourceExhausted),
+        "reported capacity must still fit alongside the old allocation"
+    );
+    assert_eq!(values, [7]);
+    assert_eq!(values.capacity(), 1);
+    assert_eq!(memory.used, root_bytes() + slot);
+    memory.maximum += slot;
+    memory
+        .reserve_with(&mut values, 1, |replacement, requested| {
+            replacement.try_reserve_exact(requested + 1)
+        })
+        .unwrap();
+    assert_eq!(values, [7]);
+    assert_eq!(values.capacity(), 3);
+    assert_eq!(memory.used, root_bytes() + 3 * slot);
+
+    let mut memory = ResultMemoryBudget::new(u64::MAX).unwrap();
+    let mut untracked = vec![0_u64; 128];
+    assert_eq!(
+        memory.reserve(&mut untracked, 1),
+        Err(SqlError::ResourceExhausted)
+    );
+    assert_eq!(
+        memory.reserve(
+            &mut Vec::<u64>::new(),
+            isize::MAX as usize / size_of::<u64>() + 1
+        ),
+        Err(SqlError::ResourceExhausted),
+        "a byte count above isize::MAX fails in Vec without requesting OS memory"
+    );
+    assert_eq!(memory.used, root_bytes());
 }
 
 #[cfg(target_pointer_width = "64")]

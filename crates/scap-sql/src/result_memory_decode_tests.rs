@@ -48,6 +48,40 @@ fn one_null_charges_owned_containers_not_just_its_wire_tag() {
 }
 
 #[test]
+fn every_graph_allocation_boundary_preserves_valid_wire_classification() {
+    for (value, payload_bytes) in [
+        (Value::Null, 0),
+        (Value::Text("英x".into()), 4),
+        (Value::Blob(vec![0, 255, 42]), 3),
+    ] {
+        let original = result(vec![vec![value]], vec!["column".into()]);
+        let bytes = encode_result(&original, limits()).unwrap();
+        let exact = (size_of::<TransactionResult>()
+            + size_of::<StatementResult>()
+            + size_of::<String>()
+            + "column".len()
+            + size_of::<Vec<Value>>()
+            + size_of::<Value>()
+            + payload_bytes) as u64;
+        // Sweep all smaller budgets, including statement/column/row/value
+        // containers and both payload kinds. A valid retained result remains
+        // valid at every refused local materialization boundary.
+        for budget in 0..exact {
+            assert_eq!(
+                decode_result_with_memory_limit(&bytes, limits(), budget),
+                Err(SqlError::ResourceExhausted),
+                "budget {budget} must refuse a graph requiring {exact} bytes"
+            );
+            validate_result(&bytes, limits()).unwrap();
+        }
+        assert_eq!(
+            decode_result_with_memory_limit(&bytes, limits(), exact).unwrap(),
+            original
+        );
+    }
+}
+
+#[test]
 fn short_row_amplification_is_bounded_without_reclassifying_the_format() {
     let original = result(vec![vec![Value::Null]; 1024], vec![String::new()]);
     let bytes = encode_result(&original, limits()).unwrap();

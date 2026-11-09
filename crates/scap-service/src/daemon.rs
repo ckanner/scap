@@ -52,7 +52,7 @@ pub fn assemble_with_listings(
         Some(admission) => {
             // The scheduler validates queue/worker limits at construction;
             // transport budgets must also hold for this direct entry point.
-            admission.validate_transport()?;
+            let intake = Arc::new(admission.build_intake()?);
             let objects = objects.clone();
             let options = options.clone();
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
@@ -69,12 +69,7 @@ pub fn assemble_with_listings(
                 )?),
                 max_body_bytes: admission.max_body_bytes,
                 timeout: Duration::from_millis(admission.timeout_ms),
-                intake: Arc::new(Intake::new(
-                    Class::Catalogue,
-                    admission.intake,
-                    admission.max_body_bytes,
-                    admission.intake_profile,
-                )?),
+                intake,
             })
         }
         None => None,

@@ -223,4 +223,4 @@ impl Drop for Lease {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

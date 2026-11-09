@@ -119,6 +119,58 @@ fn configured_graph_allowance_reaches_the_actual_native_worker_and_preserves_con
 }
 
 #[test]
+fn direct_assembly_rejects_each_invalid_intake_profile_without_leaking_private_workers() {
+    let directory = tempfile::tempdir().unwrap();
+    let invalid = Some(crate::intake::Profile {
+        version: 1,
+        requests_per_tenant: 1,
+        body_bytes: 0,
+        body_bytes_per_tenant: 0,
+    });
+    for set in [
+        |admission: &mut crate::config::Admission, profile| admission.data_profile = profile,
+        |admission: &mut crate::config::Admission, profile| admission.control_profile = profile,
+        |admission: &mut crate::config::Admission, profile| admission.recovery_profile = profile,
+    ] {
+        let mut configuration = prepared(directory.path());
+        set(&mut configuration.service.admission, invalid);
+        assert_eq!(
+            assemble(configuration.service, Arc::new(Memory::default()))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+    let mut configuration = prepared(directory.path());
+    configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+        intake_profile: invalid,
+    });
+    assert_eq!(
+        assemble(configuration.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
 fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object_io() {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use scap_object_store::{Condition, StoreError, Stored};

@@ -3,36 +3,41 @@
 ## 1. 状态与适用范围
 
 本文记录已核实的资源边界，并规定后续实现和验收要求。
-源码依据为主线 `c5ed0c2ff1b3dfa1fd200edcf3a055d64e711e16`，
-以及独立 intake 候选 `bc2ebcf495635d62f4f473b27a5c58b44c97d5f2`。
-bc2 是尚未发布合并的本地检查点，不保证能从 GitHub 按该 SHA 取得。
-其源级设计不因本文进入 PR36 而被视为已经合入或通过验收。
-响应字节池与对象解码的全局存活字节池尚未实现；typed graph 与全局临时盘预留也未形成已验证保护。
-TCP 候选尚未冻结；native heap 与 typed-result 候选也不能继承既有通过记录。
-本次仅追加设计文档，代码不变；环境不可用，本地 docs gate 为 **NOT_RUN**。
-精确实现状态与未知补丁见[实施检查点](../engineering/continuation-2026-11-09.md)。
+主线基线为 `c5ed0c2ff1b3dfa1fd200edcf3a055d64e711e16`。最初设计引用的
+本地 intake 检查点 `bc2ebcf495635d62f4f473b27a5c58b44c97d5f2` 已无法从远端
+或当前工作区取得，不能继承其代码或验证结论。
+
+本轮 [PR #37](https://github.com/ckanner/scap/pull/37) 在真实远端基线上重新实现
+intake 生命周期及单次 typed-result graph 预算，已发布代码提交
+`2256bca21be0bfc34c1339212d76725687854840`。该代码的完整 stable/nightly
+分别通过 471 项单元；第一轮逐文件四维覆盖仍有缺口，正在补齐。
+最新冻结候选、失败和验收结果见[本轮实施记录](../engineering/resource-continuation-2026-11-09.md)。
+
+响应字节池、对象解码的全局存活字节池、TCP/协议缓冲、native heap 和全局临时盘
+预留仍未形成完整保护。本轮的 typed graph 是一次物化的预算，不是跨 actor 共享
+的存活字节租约；下文关于总体资源向量的要求继续适用。
 
 ## 2. 入口必须分别接入
 
 | 入口 | 已确认的边界 | 后续接线要求 |
 | --- | --- | --- |
-| 普通 /v1 data/control/recovery | bc2 使用三个独立请求池，鉴权后、读 body 前预留 | 分别增加响应及工作区预算，保留各类独立额度 |
-| /v1/catalogue | bc2 使用独立 catalogue 池，复用同一租约实现 | 单独证明其解析、响应及实际 worker 生命周期 |
+| 普通 /v1 data/control/recovery | PR #37 使用三个独立请求池，鉴权后、读 body 前预留 | 分别增加响应及工作区预算，保留各类独立额度 |
+| /v1/catalogue | PR #37 使用独立 catalogue 池，复用同一租约实现 | 单独证明其解析、响应及实际 worker 生命周期 |
 | /v1/discovery | 已有独立工作租约和有界请求/响应设计 | 单独核对预算归属，不能自动计入普通三类池 |
-| owner-control / owner-recovery | 尚未接入 bc2 intake | 独立 body、解析和响应池仍待实现 |
+| owner-control / owner-recovery | 尚无已验收的独立 owner 控制器入口 | 新入口必须显式接入 body、解析和响应池 |
 | 直接库 API、部署恢复作业 | 可能不经过 HTTP | 必须显式接入被声明为全局的同一计费域 |
 
-owner recovery 的全局 2 / tenant 1 运行额度不等于 body 准入或响应字节额度。
-普通服务合并不能证明 owner 入口自动获得相同保护。
+旧本地 owner 候选设计中的全局 2 / tenant 1 运行额度不等于 body 准入或响应字节额度，
+也不代表这些入口已经存在于远端代码。普通服务合并不能证明未来 owner 入口自动获得相同保护。
 未鉴权连接尚无可信 tenant；连接保护与鉴权后的租户公平分别验收。
 
 ## 3. 不同资源使用不同计量单位
 
 | 资源 | 计量对象 | 当前事实与限制 |
 | --- | --- | --- |
-| 原始 request body | 实际原始字节 extent | bc2 先预留最大 body，完整读取后退还未用部分 |
+| 原始 request body | 实际原始字节 extent | PR #37 先预留最大 body，完整读取后退还未用部分 |
 | 请求解析图 | JSON、typed SQL、字符串及 Base64 解码副本 | body 字节数不包含这些分配 |
-| typed result graph | `Vec<Vec<Value>>`、列名、String/Blob capacity | 结果编码字节预算不能替代容器内存预算 |
+| typed result graph | `Vec<Vec<Value>>`、列名、String/Blob capacity | PR #37 单次预算默认 128 MiB；并非全局存活字节租约 |
 | SCAPRES1 / 编码工作区 | 二进制结果与编码期间同时存活的缓冲区 | 需要按实际转换路径预留 |
 | serialized response | 最终 HTTP body 及仍被运输层持有的副本 | 当前没有独立响应字节池 |
 | immutable decode | GET 原始对象、解码 payload、元数据和增长副本 | 当前单对象上限不等于全进程并发预算 |
@@ -104,12 +109,16 @@ metadata、status 和错误响应保留小而有界的独立额度。
 
 ## 7. Typed result 与 object decode
 
-当前结果收集会将 NULL 按一个结果字节收费，却把它保存为 Value 容器元素。
-大量小值、NULL 和短行可能造成远大于结果编码字节数的 typed graph。
-后续计费须包含外层 rows、每行 values、列名及 String/Blob 的实际 capacity。
-所有尺寸使用 checked arithmetic；在复制与扩容前预留，再以 try_reserve 等可失败接口分配。
-扩容前计入旧缓冲区与新缓冲区的重叠，分配失败保持明确资源错误。
-返回 TransactionResult 后，图仍需计费至编码完成或其所有权实际转移。
+旧实现将 NULL 按一个结果字节收费，却把它保存为完整 Value 容器元素。
+PR #37 已将 wire 限制与 typed graph 预算分开：外层 rows、每行 values、列名及
+String/Blob 的实际 capacity 均计费；在复制与扩容前预留，用可失败分配接口，
+扩容期间计入旧、新缓冲区重叠。格式校验先于物化，合法历史结果的预算不足返回
+原提交 receipt 的 `CommittedButUnavailable`，不标记 Corrupt 或重放 SQL。
+
+该预算在一次 native collection 或 retained decode 内累计，并在 native 提交后的
+再次 decode 前明确销毁原图。直接 API 调用者可以保留多个返回值；服务的多个 actor
+也可以同时产生结果。因此，跨请求共享的 graph lease 与最终编码/响应字节池仍需接入，
+不能把单次上限乘以某个局部并发值就当成整个进程的内存上限。
 
 对象预算须覆盖原始 GET body、decoded payload、元数据解析和运输层的可归属副本。
 可从已验证的 Manifest、索引 Entry 和预期对象类型收紧读取上限。

@@ -25,6 +25,15 @@ fn other(tenant: u64) -> Principal {
     }
 }
 
+/// Simulate a real owner panic without modifying any counter. HTTP tests
+/// invoke this only after their body is polled, so admission already exists.
+pub(crate) fn poison_accounting(pool: &Arc<Intake>) {
+    let _ = std::panic::catch_unwind(|| {
+        let _guard = pool.usage.lock().unwrap();
+        panic!("injected accounting owner panic during upload");
+    });
+}
+
 #[test]
 fn version_one_defaults_preserve_single_body_capacity_and_bound_aggregate_extent() {
     let profile = Profile::resolve(1, 1, None).unwrap();

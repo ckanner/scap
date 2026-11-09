@@ -185,6 +185,79 @@ fn invalid_direct_directory_state_cannot_open_an_unbounded_route() {
 }
 
 #[test]
+fn catalogue_upload_accounting_panic_stops_before_parsing_and_retains_response_ownership() {
+    let state = enabled();
+    let app = router(state.clone()).unwrap();
+    let pool = state.catalogue.as_ref().unwrap().intake.clone();
+    runtime().block_on(async {
+        let mut input = directory("must-not-dispatch");
+        *input.body_mut() = super::intake_tests::poisoned_upload(pool.clone());
+        let response = app.oneshot(input).await.unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(pool.available_permits(), 0);
+        assert_eq!(decoded(response).await["error"]["code"], "UNAVAILABLE");
+        assert_eq!(pool.available_permits(), 1);
+        assert_eq!(
+            pool.acquire(&principal()).err().unwrap().code,
+            "UNAVAILABLE"
+        );
+    });
+}
+
+#[test]
+fn catalogue_dispatch_cannot_borrow_another_class_or_reuse_its_reservation() {
+    let state = enabled();
+    let catalogue = state.catalogue.as_ref().unwrap();
+    let call = || crate::catalogue_wire::Call {
+        version: 1,
+        action: crate::catalogue_wire::Action::ResolveName {
+            name: "once".into(),
+        },
+    };
+    let data = state.intake.acquire(&principal()).unwrap();
+    assert_eq!(
+        catalogue
+            .scheduler
+            .submit_reserved(principal(), call(), crate::tests::until(), data)
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    assert_eq!(state.intake.available_permits(), 1);
+    let reservation = catalogue.intake.acquire(&principal()).unwrap();
+    let result = catalogue
+        .scheduler
+        .submit_reserved(
+            principal(),
+            call(),
+            crate::tests::until(),
+            reservation.clone(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["name"], "once");
+    assert_eq!(
+        catalogue
+            .scheduler
+            .submit_reserved(
+                principal(),
+                call(),
+                crate::tests::until(),
+                reservation.clone()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "INVALID"
+    );
+    drop(reservation);
+    assert_eq!(catalogue.intake.available_permits(), 1);
+}
+
+#[test]
 fn catalogue_job_retains_intake_after_http_timeout_until_actual_worker_completion() {
     use std::sync::{Condvar, Mutex};
     struct Gate {

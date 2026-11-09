@@ -3,6 +3,7 @@
 //! Encoding limits count wire bytes, while a NULL still occupies a full Value
 //! slot and each short row owns a vector allocation. Keep these bounds separate.
 
+use std::collections::TryReserveError;
 use std::mem::size_of;
 
 use crate::{SqlError, TransactionResult};
@@ -41,11 +42,7 @@ impl ResultMemoryBudget {
     /// reconciled before accepting the replacement. Hidden allocator overhead
     /// is outside this typed-graph budget.
     pub fn reserve<T>(&mut self, values: &mut Vec<T>, additional: usize) -> Result<(), SqlError> {
-        self.reserve_with(values, additional, |replacement, capacity| {
-            replacement
-                .try_reserve_exact(capacity)
-                .map_err(|_| SqlError::ResourceExhausted)
-        })
+        self.reserve_with(values, additional, Vec::try_reserve_exact)
     }
 
     pub fn text(&mut self, value: &str) -> Result<String, SqlError> {
@@ -76,7 +73,7 @@ impl ResultMemoryBudget {
         &mut self,
         values: &mut Vec<T>,
         additional: usize,
-        allocate: impl FnOnce(&mut Vec<T>, usize) -> Result<(), SqlError>,
+        allocate: fn(&mut Vec<T>, usize) -> Result<(), TryReserveError>,
     ) -> Result<(), SqlError> {
         let required = values
             .len()
@@ -87,16 +84,23 @@ impl ResultMemoryBudget {
         if required <= values.capacity() {
             return Ok(());
         }
-        let capacity = growth_capacity(values.capacity(), required)?;
-        let old_bytes = allocation_bytes::<T>(values.capacity())?;
+        // Safe Vec allocations occupy at most isize::MAX bytes. For the
+        // non-ZST path above, doubling their element capacity fits usize;
+        // their already allocated byte counts also fit u64. These are Vec
+        // invariants, unlike the caller-supplied additional count below.
+        let capacity = growth_capacity(values.capacity(), required)
+            .expect("non-ZST Vec capacity is at most isize::MAX");
+        let old_bytes = allocation_bytes::<T>(values.capacity())
+            .expect("allocated Vec byte count fits the address space");
         let retained = self
             .used
             .checked_sub(old_bytes)
             .ok_or(SqlError::ResourceExhausted)?;
         self.check_additional(allocation_bytes::<T>(capacity)?)?;
         let mut replacement = Vec::new();
-        allocate(&mut replacement, capacity)?;
-        let actual = allocation_bytes::<T>(replacement.capacity())?;
+        allocate(&mut replacement, capacity).map_err(allocation_failure)?;
+        let actual = allocation_bytes::<T>(replacement.capacity())
+            .expect("allocated Vec byte count fits the address space");
         self.check_additional(actual)?;
         // try_reserve_exact guarantees at least the requested capacity. Moving
         // elements therefore cannot allocate. Keep the old allocation alive
@@ -106,6 +110,10 @@ impl ResultMemoryBudget {
         self.used = retained + actual; // bounded by the checked overlap above
         Ok(())
     }
+}
+
+fn allocation_failure(_: TryReserveError) -> SqlError {
+    SqlError::ResourceExhausted
 }
 
 fn growth_capacity(current: usize, required: usize) -> Result<usize, SqlError> {

@@ -74,6 +74,22 @@ fn zero_rows_still_charge_column_names_and_statement_containers() {
 }
 
 #[test]
+fn column_length_prefixes_exhaust_wire_budget_even_without_rows() {
+    let (_root, mut writer, plan) = setup();
+    writer.limits.sql.max_result_bytes = 13;
+    assert!(matches!(
+        writer.query(
+            &[statement("SELECT 1 AS a,2 AS b,3 AS c WHERE 0")],
+            uninterrupted()
+        ),
+        Err(Error::ResultLimit)
+    ));
+    assert!(writer.is_stopped());
+    assert!(writer.connection.is_autocommit());
+    assert!(plan.borrow().writes.is_empty());
+}
+
+#[test]
 fn cumulative_statements_cannot_reuse_the_same_result_budget() {
     let root = size_of::<TransactionResult>() as u64;
     let exact = root + 2 * (one_null_graph_bytes() - root);
