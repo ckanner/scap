@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
 import copy
 import hashlib
@@ -54,6 +55,25 @@ def numbered(ledger):
 
 def window(call, time):
     return stamp(call["request"]) < time < stamp(call["response"])
+
+
+class ObjectHistory(dict):
+    """Index an already verified immutable history without changing witnesses."""
+    def __init__(self, objects):
+        super().__init__(objects)
+        self.observed = sorted(objects.values(), key=lambda obj: stamp(obj["request"]))
+        self.times = [stamp(obj["request"]) for obj in self.observed]
+
+    def invocation(self, call):
+        lower = bisect_right(self.times, stamp(call["request"]))
+        upper = bisect_left(self.times, stamp(call["response"]))
+        return self.observed[lower:upper]
+
+
+def observed_requests(objects, call):
+    if isinstance(objects, ObjectHistory):
+        return objects.invocation(call)
+    return [obj for obj in objects.values() if window(call, stamp(obj["request"]))]
 
 
 def numeric_wire(value):
@@ -151,6 +171,9 @@ def http_calls(data):
     require(Counter(row["phase"] for row in data["discovery-phases.jsonl"]) == Counter(PHASES), "phase completion inventory changed")
     for phase in data["discovery-phases.jsonl"]:
         require(phase["attempts"] == counts[phase["phase"]], "phase omitted an HTTP attempt")
+    starts = sorted(stamp(call["request"]) for call in calls.values())
+    for call in calls.values():
+        call["next_invocation_ns"] = next((time for time in starts if time > stamp(call["response"])), None)
     return calls, observed, roles
 
 
@@ -298,14 +321,14 @@ def network(data, calls):
         equal(entries, expected[:32], "actual backend LIST omitted/added a candidate from prior accepted writes")
         require(field("KeyCount") == str(len(entries)) and field("IsTruncated") == str(len(expected) > 32).lower(),
                 "LIST completeness/count differs from observed permanent inventory")
-    return objects, {"signed_backend_requests": len(objects), "list_requests": listing_count, "versions": versions,
+    return ObjectHistory(objects), {"signed_backend_requests": len(objects), "list_requests": listing_count, "versions": versions,
                      "exact_gets_with_observed_30ms_latency": delayed,
                      "original_backend_response_body_bytes": sum(len(obj["upstream"]) for obj in objects.values()),
                      "delivered_response_body_bytes": sum(len(obj["outgoing"]) for obj in objects.values())}
 
 
 def within(objects, call, *, key=None, listing=None):
-    return [obj for obj in objects.values() if window(call, stamp(obj["request"])) and stamp(obj["delivery"]) < stamp(call["response"])
+    return [obj for obj in observed_requests(objects, call) if stamp(obj["delivery"]) < stamp(call["response"])
             and (key is None or obj["request"]["key"] == key)
             and (listing is None or bool(obj["request"]["query"]) == listing)]
 
@@ -315,12 +338,15 @@ def successful_gets(objects, call, key):
             and obj["delivery"]["status"] == 200 and obj["upstream"] == obj["outgoing"]]
 
 
-def metadata_reservation_options(gets, uncertain=None, *, declared_corruption=False):
+def metadata_reservation_options(gets, uncertain=None, *, declared_corruption=False, unconsumed=None):
     """Independent reconstruction of the port budget, not HTTP body byte totals."""
     used, maximum = 0, 16 * 1024 * 1024
     ordered = sorted(gets, key=lambda value: stamp(value["request"]))
     require(uncertain is None or ordered and uncertain == ordered[-1]["request"]["request_serial"],
             "metadata refund ambiguity escaped the single final GET")
+    require(unconsumed is None or (uncertain is None and ordered and
+            unconsumed == ordered[-1]["request"]["request_serial"]),
+            "unconsumed reservation escaped the single final GET")
     choices = None
     for obj in ordered:
         key = obj["request"]["key"]
@@ -329,6 +355,8 @@ def metadata_reservation_options(gets, uncertain=None, *, declared_corruption=Fa
         allowance = min(bound, maximum - used)
         require(allowance > 0, "GET dispatched after metadata budget exhausted")
         used += allowance
+        if obj["request"]["request_serial"] == unconsumed:
+            continue
         if obj["delivery"]["status"] == 200 and len(obj["outgoing"]) <= allowance:
             # This fixture's successful exact GETs have complete declared
             # lengths, full ranges and valid ETags. Only these earn a refund.
@@ -350,9 +378,31 @@ def page_requests(objects, call):
     prefix = f"scap-object/v1/{identity_value['deployment']}/"
     if call["body"]["operation"] == "list_names":
         prefix += identity_value["tenant"] + "/"
-    return sorted((obj for obj in objects.values() if window(call, stamp(obj["request"]))
-                   and obj["request"]["query"].get("prefix", obj["request"]["key"]).startswith(prefix)),
+    return sorted((obj for obj in observed_requests(objects, call)
+                   if obj["request"]["query"].get("prefix", obj["request"]["key"]).startswith(prefix)),
                   key=lambda obj: stamp(obj["request"]))
+
+
+def list_reservation_options(lists, uncertain=None, unconsumed=None):
+    """Each LIST reserves 1 MiB; only a complete successful return refunds it."""
+    ordered = sorted(lists, key=lambda value: stamp(value["request"]))
+    tail = uncertain if uncertain is not None else unconsumed
+    require(tail is None or ordered and tail == ordered[-1]["request"]["request_serial"],
+            "LIST accounting ambiguity escaped the single final operation")
+    require(uncertain is None or unconsumed is None, "LIST tail has conflicting consumption proofs")
+    used, choices = 0, None
+    for obj in ordered:
+        require(used <= 3 * 1024 * 1024, "LIST dispatched after its original byte budget exhausted")
+        used += 1024 * 1024
+        if obj["request"]["request_serial"] == unconsumed:
+            continue
+        if obj["delivery"]["status"] == 200 and obj["outgoing"] == obj["upstream"]:
+            require(len(obj["outgoing"]) <= 1024 * 1024, "successful LIST exceeds its original reservation")
+            refunded = used - 1024 * 1024 + len(obj["outgoing"])
+            if obj["request"]["request_serial"] == uncertain:
+                choices = {used, refunded}
+            used = refunded
+    return choices if choices is not None else {used}
 
 
 def page_budget(objects, call, classified_through=0, *, natural=True):
@@ -365,14 +415,31 @@ def page_budget(objects, call, classified_through=0, *, natural=True):
             "discovery page lacks actual read-only metadata work")
     require(len(lists) <= 4 and len(gets) <= 512,
             "discovery renewed its original LIST/exact-GET budget")
-    # The proxy does not observe the daemon's receive instant. First-S3 +4s is
-    # a necessary external upper bound; the exact receive+5s-1s origin remains
-    # source-bound production evidence, not a measured wire timestamp.
-    require(all(stamp(obj["request"]) < stamp(real[0]["request"]) + READ_NANOSECONDS for obj in real),
-            "discovery issued work beyond the external four-second read bound")
-    list_bytes = sum(len(obj["outgoing"]) for obj in lists)
-    require(list_bytes <= 4 * 1024 * 1024, "discovery renewed its original LIST-byte budget")
-    uncertain = None
+    # These are observation clocks, not dispatch clocks. A final abandoned
+    # request may have been sent before its deadline and logged after it.
+    cutoff = stamp(real[0]["request"]) + READ_NANOSECONDS
+    require(all(stamp(obj["request"]) < cutoff for obj in real[:-1]),
+            "discovery issued non-final work beyond the external four-second read bound")
+    require(all(stamp(obj["delivery"]) < cutoff for obj in real[:-1]),
+            "causally enabling response exceeded the external four-second read bound")
+    require(all(stamp(left["delivery"]) < stamp(right["request"])
+                for left, right in zip(real, real[1:])),
+            "discovery metadata requests lack their synchronous response dependency")
+    late = stamp(real[-1]["request"]) >= cutoff
+    abandoned = None
+    if late:
+        final = real[-1]
+        require(natural and value["stopped"] == "UNKNOWN" and value["cursor"] is not None,
+                "final work exceeded the external four-second read bound without an UNKNOWN tail")
+        require(final["terminal"]["event"] == "delivery_disconnected",
+                "late final operation lacks explicit disconnected delivery")
+        require(stamp(final["request"]) > classified_through,
+                "late final operation already contributed to classified progress")
+        abandoned = final["request"]["request_serial"]
+    elif stamp(real[-1]["request"]) <= classified_through or not natural or value["stopped"] != "UNKNOWN":
+        require(stamp(real[-1]["delivery"]) < cutoff,
+                "classified response exceeded the external four-second read bound")
+    uncertain, unconsumed, list_uncertain, list_unconsumed, unresolved_list = None, None, None, None, None
     if natural:
         elapsed = stamp(call["response"]) - stamp(call["request"])
         require(elapsed < HTTP_NANOSECONDS, "natural discovery page renewed its original five-second deadline")
@@ -382,19 +449,33 @@ def page_budget(objects, call, classified_through=0, *, natural=True):
             require(3_500_000_000 <= elapsed and value["cursor"] is not None,
                     "natural UNKNOWN lacks its original deadline and continuation")
             final = real[-1]
-            require(stamp(final["request"]) >= stamp(call["request"]) + 3_500_000_000,
-                    "natural UNKNOWN lacks work at its original read cutoff")
             # External TCP completion cannot reveal whether the store client
             # accepted the final body before its fixed deadline. Only this last
             # unresolved GET may retain its reservation or earn its exact refund.
-            require(not final["request"]["query"], "natural cutoff ended in an unresolved LIST, outside this GET-tail contract")
-            if stamp(final["request"]) > classified_through:
-                uncertain = final["request"]["request_serial"]
+            if final["request"]["query"] and stamp(final["request"]) > classified_through:
+                require(final["terminal"]["event"] == "delivery_disconnected",
+                        "unresolved final LIST lacks disconnected delivery without classified progress")
+                unresolved_list = final["request"]["request_serial"]
+                if stamp(final["delivery"]) >= cutoff:
+                    list_unconsumed = unresolved_list
+                else:
+                    list_uncertain = unresolved_list
+            elif not final["request"]["query"] and stamp(final["request"]) > classified_through:
+                if stamp(final["delivery"]) >= cutoff:
+                    # The body was not even sent by the external upper bound;
+                    # the store's original-deadline postcheck cannot refund it.
+                    unconsumed = final["request"]["request_serial"]
+                else:
+                    uncertain = final["request"]["request_serial"]
     # The declared successful HEAD-body corruption is decoded above the store
     # port. Meter refunds its exact delivered length before the format error.
-    options = metadata_reservation_options(gets, uncertain, declared_corruption=not natural)
-    return {"list_pages": len(lists), "exact_gets": len(gets), "list_bytes": list_bytes,
-            "metadata_options": options, "uncertain_final_get": uncertain}
+    options = metadata_reservation_options(gets, uncertain, declared_corruption=not natural, unconsumed=unconsumed)
+    list_options = list_reservation_options(lists, list_uncertain, list_unconsumed)
+    return {"list_pages": len(lists), "exact_gets": len(gets), "list_byte_options": list_options,
+            "metadata_options": options, "uncertain_final_get": uncertain,
+            "unconsumed_final_get": unconsumed, "late_final_request": abandoned,
+            "unresolved_final_list": unresolved_list, "uncertain_final_list": list_uncertain,
+            "unconsumed_final_list": list_unconsumed}
 
 
 def visible_witness(objects, call, value):
@@ -429,8 +510,9 @@ def visible_witness(objects, call, value):
     require(witnesses, "visible name lacks same-call source + Name/Proof/HEAD/Name and fresh READ permission")
 
 
-def pages(data, observed, objects):
-    names_seen, inventory_groups = 0, defaultdict(list)
+def pages(data, observed, objects, inventory_budgets=None):
+    names_seen, inventory_groups, inventory_tails = 0, defaultdict(list), []
+    inventory_budgets = {} if inventory_budgets is None else inventory_budgets
     for label, call in observed.items():
         if call["route"] != "/v1/discovery" or call.get("value", {}).get("ok") is not True:
             continue
@@ -453,14 +535,6 @@ def pages(data, observed, objects):
                     and completion["recovery_complete"] is False, "metadata traversal falsely claimed data recovery/snapshot")
             limits = {"list_pages": 4, "candidates": 128, "exact_gets": 512, "list_bytes": 4 * 1024 * 1024, "metadata_bytes": 16 * 1024 * 1024}
             require(set(value["usage"]) == set(limits) and all(type(value["usage"][key]) is int and 0 <= value["usage"][key] <= limit for key, limit in limits.items()), "inventory cost budget differs")
-            classified_through = max((inventory_record(objects, call, entry) for entry in entries), default=0)
-            budget = page_budget(objects, call, classified_through)
-            require(value["usage"]["list_pages"] == budget["list_pages"]
-                    and value["usage"]["exact_gets"] == budget["exact_gets"], "reported HTTP budget differs from actual S3")
-            require(value["usage"]["list_bytes"] == budget["list_bytes"],
-                    "reported LIST bytes differ from actual complete pages")
-            require(value["usage"]["metadata_bytes"] in budget["metadata_options"],
-                    "reported metadata budget differs from exact completed GETs and the single original-deadline tail")
             for entry in entries:
                 require(entry["key"].startswith("scap-object/v1/1/"), "operator escaped trusted deployment")
                 authority = successful_gets(objects, call, entry["key"])
@@ -500,24 +574,36 @@ def pages(data, observed, objects):
             require(value["completion"]["metadata_classified"] == str(len(collected)), "cumulative classification count differs")
         require(value_of(scan[-1])["cursor"] is None and len(collected) == len(set(collected)) and set(collected) == published,
                 "completed deployment inventory omitted/repeated a prior permanent slot")
-        inventory_progress(scan, objects, published)
+        inventory_tails.extend(inventory_progress(scan, objects, published, inventory_budgets))
+    for call in observed.values():
+        if call["body"]["operation"] != "deployment_inventory" or call.get("value", {}).get("ok") is not True:
+            continue
+        budget, value = inventory_budgets[call["label"]], value_of(call)
+        require(value["usage"]["list_pages"] == budget["list_pages"]
+                and value["usage"]["exact_gets"] == budget["exact_gets"], "reported HTTP budget differs from actual S3")
+        require(value["usage"]["list_bytes"] in budget["list_byte_options"],
+                "reported LIST budget differs from exact completed pages and the single original-deadline tail")
+        require(value["usage"]["metadata_bytes"] in budget["metadata_options"],
+                "reported metadata budget differs from exact completed GETs and the single original-deadline tail")
     return {"fresh_read_visible_names": names_seen, "permanent_metadata_keys": len(published),
-            "inventory_scans": 2, "data_recovery": "not_run"}
+            "inventory_scans": 2, "data_recovery": "not_run", "abandoned_final_operations": inventory_tails}
 
 
-def classified_name_evidence(reads, creation):
+def classified_name_evidence(reads, creation, *, admitted_after=None):
     """Prove a stable Ready metadata view, including READ-denied candidates."""
     scope = creation["scope"]
     prefix = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+    def candidates(key):
+        return reads[key] if admitted_after is None else [obj for obj in reads[key] if stamp(obj["request"]) > admitted_after]
     key = prefix + "catalogue/v1/name/" + sha(creation["name"].encode())
-    names = [obj for obj in reads[key] if obj["delivery"]["status"] == 200
+    names = [obj for obj in candidates(key) if obj["delivery"]["status"] == 200
              and numeric_wire(parse(obj["outgoing"])["creation"]) == creation
              and parse(obj["outgoing"])["state"] == "bound"]
-    descriptors = [obj for obj in reads[prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}"]
+    descriptors = [obj for obj in candidates(prefix + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}")
                    if obj["delivery"]["status"] == 200 and numeric_wire(parse(obj["outgoing"])["creation"]) == creation]
-    proofs = [obj for obj in reads[prefix + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}"]
+    proofs = [obj for obj in candidates(prefix + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}")
               if obj["delivery"]["status"] == 404]
-    for head in reads[prefix + scope["database"] + "/head"]:
+    for head in candidates(prefix + scope["database"] + "/head"):
         if head["delivery"]["status"] != 200:
             continue
         body = parse(head["outgoing"])
@@ -564,6 +650,94 @@ def listed(obj):
     return sorted(entries), flag == "true"
 
 
+def no_post_return_work(objects, call, following):
+    # Intervening explicit HTTP operations (e.g. READ revocation) have their
+    # own authorization and are not attributed to the earlier finished scan.
+    next_invocation = call.get("next_invocation_ns") or stamp(following["request"])
+    target = f"scap-object/v1/{call['identity']['deployment']}/"
+    if call["body"]["operation"] == "list_names":
+        target += call["identity"]["tenant"] + "/"
+    require(not any(stamp(call["response"]) <= stamp(obj["request"]) < next_invocation
+                    and obj["request"]["query"].get("prefix", obj["request"]["key"]).startswith(target)
+                    for obj in objects.values()),
+            "abandoned tail was followed by work after its original HTTP response")
+
+
+def abandoned_list(objects, call, following, serial):
+    final = objects[serial]
+    require(final is page_requests(objects, call)[-1] and final["request"]["query"]
+            and final["terminal"]["event"] == "delivery_disconnected",
+            "abandoned LIST was not the one disconnected final operation")
+    resumed = [obj for obj in page_requests(objects, following) if obj["request"]["query"]]
+    require(resumed, "abandoned LIST has no explicit following LIST")
+    equal(final["request"]["query"], resumed[0]["request"]["query"],
+          "unconsumed LIST changed its original scope/phase/physical frontier")
+    require(value_of(call)["cursor"] is not None and following["body"]["cursor"] == value_of(call)["cursor"],
+            "unconsumed LIST did not retain its original authenticated cursor")
+    no_post_return_work(objects, call, following)
+    return {"call": call["label"], "operation": "LIST", "request_serial": serial,
+            "resumed_request_serial": resumed[0]["request"]["request_serial"],
+            "original_query": final["request"]["query"], "dispatch_time": "NOT_OBSERVED",
+            "classification_from_tail": False}
+
+
+def unchanged_frontier(objects, call, following, budget):
+    """A finite retry may repeat a physical frontier only at a proved cutoff."""
+    require(value_of(call)["stopped"] == "UNKNOWN", "unchanged frontier lacks a natural deadline cutoff")
+    final = page_requests(objects, call)[-1]
+    serial = final["request"]["request_serial"]
+    require(serial in (budget["uncertain_final_get"], budget["unconsumed_final_get"],
+                       budget["unresolved_final_list"])
+            and final["terminal"]["event"] == "delivery_disconnected",
+            "unchanged frontier lacks one unclassified disconnected tail")
+    require(stamp(final["terminal"]) >= stamp(call["request"]) + 3_500_000_000,
+            "unchanged frontier lacks tail evidence at its original cutoff")
+    original = [obj for obj in page_requests(objects, call) if obj["request"]["query"]]
+    resumed = [obj for obj in page_requests(objects, following) if obj["request"]["query"]]
+    require(original and resumed, "unchanged frontier omitted its original or resumed LIST")
+    equal(original[0]["request"]["query"], resumed[0]["request"]["query"],
+          "unchanged frontier changed the exact original LIST query")
+    require(following["body"]["cursor"] == value_of(call)["cursor"],
+            "unchanged frontier replaced its original authenticated cursor")
+    return serial
+
+
+def abandoned_candidate(objects, call, following, serial, creation, *, authority, physical, prefix, delimiter=None):
+    """A late observation may only belong to the exact unclassified frontier.
+
+    This does not recover the product's dispatch timestamp. It proves a single
+    admitted candidate, a disconnected final GET, and no causally later work.
+    """
+    final = objects[serial]
+    require(final is page_requests(objects, call)[-1] and final["terminal"]["event"] == "delivery_disconnected",
+            "abandoned candidate was not the one disconnected final GET")
+    admitting = only([obj for obj in within(objects, call, listing=True)
+                      if obj["request"]["query"]["prefix"] == prefix
+                      and obj["request"]["query"].get("delimiter") == delimiter
+                      and physical in listed(obj)[0]],
+                     "late tail lacks its original unclassified-candidate LIST")
+    scope = creation["scope"]
+    tenant = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
+    keys = {authority, tenant + "catalogue/v1/name/" + sha(creation["name"].encode()),
+            tenant + f"catalogue/v1/create/{creation['creator']}/{creation['operation']}",
+            tenant + f"catalogue/v1/abort-proof/{creation['creator']}/{creation['operation']}",
+            tenant + scope["database"] + "/head"}
+    require(final["request"]["key"] in keys,
+            "late final GET belongs to an already classified or unrelated candidate")
+    reads = [obj for obj in page_requests(objects, call) if not obj["request"]["query"]
+             and stamp(admitting["delivery"]) < stamp(obj["request"]) <= stamp(final["request"])]
+    first = next((obj for obj in reads if obj["request"]["key"] == authority), None)
+    require(first is not None, "late tail lacks the unclassified candidate's original authority GET")
+    require(all(obj["request"]["key"] in keys for obj in reads
+                if stamp(obj["request"]) >= stamp(first["request"])),
+            "late tail crossed another candidate after its unclassified authority")
+    no_post_return_work(objects, call, following)
+    return {"call": call["label"], "operation": "GET", "request_serial": serial, "candidate": authority,
+            "admitting_list_serial": admitting["request"]["request_serial"],
+            "candidate_authority_serial": first["request"]["request_serial"],
+            "dispatch_time": "NOT_OBSERVED", "classification_from_tail": False}
+
+
 def scan_sequence(scan, *, initial=None, bound=MAX_SCAN_PAGES):
     require(1 <= len(scan) <= bound, "explicit discovery continuation exceeded its fixed total page bound")
     for index, call in enumerate(scan):
@@ -584,23 +758,23 @@ def name_progress(scan, objects, ordered, *, initial=None, start_after="", fault
     queries, frontiers = [], []
     for call in scan:
         require(call["identity"] == who, "one continuation changed its authenticated scope/principal")
-        lists = within(objects, call, listing=True)
+        lists = [obj for obj in page_requests(objects, call) if obj["request"]["query"]]
         require(lists and all(obj["request"]["query"]["prefix"] == prefix for obj in lists),
                 "name continuation lacks its actual tenant LIST")
-        queries.append(lists)
+        queries.append(within(objects, call, listing=True))
         frontiers.append(lists[0]["request"]["query"].get("start-after", ""))
     require(frontiers[0] == start_after and (not start_after or start_after in expected),
             "name continuation changed its original physical lower bound")
-    covered, unknown = [], 0
+    covered, unknown, tails, stationary = [], 0, [], 0
     for index, call in enumerate(scan):
         lower = frontiers[index]
         upper = frontiers[index + 1] if index + 1 < len(scan) else max(expected, default="")
         natural = not (index == 0 and fault_first)
         require((upper in expected or upper == "") and lower <= upper,
                 "name continuation lower bound escaped or reset its fixed candidate set")
-        if index + 1 < len(scan):
-            require(lower < upper or not natural, "natural continuation changed its token without classified progress")
-        else:
+        zero = natural and index + 1 < len(scan) and lower == upper
+        if index + 1 == len(scan):
+            require(queries[index], "complete names lack an actual consumed final LIST")
             entries, truncated = listed(queries[index][-1])
             require(not truncated and (not entries or entries[-1] == max(expected, default="")),
                     "complete names lack an actual exhausted final LIST")
@@ -609,10 +783,12 @@ def name_progress(scan, objects, ordered, *, initial=None, start_after="", fault
         page_keys = [key for key in expected if lower < key <= upper]
         require(len(page_keys) <= 128, "name continuation renewed its candidate budget")
         for key in page_keys:
-            require(any(key in listed(obj)[0] for obj in queries[index] if obj["request"]["fault"] is None),
+            admitted = [obj for obj in queries[index] if obj["request"]["fault"] is None and key in listed(obj)[0]]
+            require(admitted,
                     "name classification was not in an original successful LIST")
-            witness = classified_name_evidence(reads, expected[key])
-            require(witness is not None, "natural continuation advanced past an unclassified name")
+            witnesses = [classified_name_evidence(reads, expected[key], admitted_after=stamp(obj["delivery"])) for obj in admitted]
+            witness = next((value for value in witnesses if value is not None), None)
+            require(witness is not None, "natural continuation advanced past an unclassified name after its original LIST admission")
             through = max(through, witness["through"])
             if any(str(permission["principal"]) == who["principal"] and permission["read"] is True
                    for permission in witness["head"]["policy"]):
@@ -620,10 +796,25 @@ def name_progress(scan, objects, ordered, *, initial=None, start_after="", fault
                                 "head_revision": str(witness["head"]["revision"])})
             covered.append(key)
         equal(value_of(call)["names"], visible, "classified prefix omitted/repeated a visible name or disclosed a READ-denied name")
-        page_budget(objects, call, through, natural=natural)
+        budget = page_budget(objects, call, through, natural=natural)
+        tail = budget["late_final_request"]
+        if zero:
+            tail = unchanged_frontier(objects, call, scan[index + 1], budget)
+            stationary += 1
+        if budget["unresolved_final_list"] is not None:
+            require(index + 1 < len(scan), "unconsumed LIST falsely completed the name traversal")
+            tails.append(abandoned_list(objects, call, scan[index + 1], budget["unresolved_final_list"]))
+        elif tail is not None:
+            pending = sorted(key for key in expected if key > upper)
+            require(index + 1 < len(scan) and pending,
+                    "late tail has no original cursor before an unclassified name")
+            key = pending[0]
+            tails.append(abandoned_candidate(objects, call, scan[index + 1], tail,
+                                             expected[key], authority=key, physical=key, prefix=prefix))
         unknown += int(natural and value_of(call)["stopped"] == "UNKNOWN")
     equal(covered, [key for key in expected if key > start_after], "completed names omitted/repeated a classified candidate")
-    return {"pages": len(scan), "natural_unknown_pages": unknown, "classified_candidates": len(covered), "complete": True}
+    return {"pages": len(scan), "natural_unknown_pages": unknown, "classified_candidates": len(covered),
+            "complete": True, "abandoned_final_operations": tails, "unchanged_frontier_pages": stationary}
 
 
 def inventory_candidate(objects, call, entry):
@@ -735,42 +926,69 @@ def inventory_layout(published):
     return steps, positions
 
 
-def inventory_progress(scan, objects, published):
+def inventory_progress(scan, objects, published, budgets=None):
     scan_sequence(scan)
     steps, positions = inventory_layout(published)
     queries, lower = [], []
     for call in scan:
-        lists = within(objects, call, listing=True)
+        lists = [obj for obj in page_requests(objects, call) if obj["request"]["query"]]
         require(lists, "inventory continuation lacks its actual LIST")
         query = lists[0]["request"]["query"]
         checkpoint = (query["prefix"], query.get("delimiter"), query.get("start-after", ""))
         require(checkpoint in positions, "inventory continuation escaped its original physical candidates")
-        lower.append(positions[checkpoint]); queries.append(lists)
+        lower.append(positions[checkpoint]); queries.append(within(objects, call, listing=True))
     require(lower[0] == 0, "inventory did not start at its original deployment prefix")
-    classified = []
+    classified, tails = [], []
+    all_records = {entry["key"]: entry for call in scan for entry in value_of(call)["records"]}
     for index, call in enumerate(scan):
         upper = lower[index + 1] if index + 1 < len(scan) else len(steps)
-        require(lower[index] < upper, "inventory token changed without physical classification or phase progress")
+        require(lower[index] <= upper, "inventory physical frontier moved backwards")
+        zero = lower[index] == upper
         crossed = steps[lower[index]:upper]
         expected_records = [step["record"] for step in crossed if step["record"] is not None]
         equal([entry["key"] for entry in value_of(call)["records"]], expected_records,
               "inventory continuation skipped/repeated an unclassified physical record")
         classified.extend(expected_records)
+        through = max((inventory_record(objects, call, entry) for entry in value_of(call)["records"]), default=0)
         for step in crossed:
             candidates = [obj for obj in queries[index] if obj["request"]["query"]["prefix"] == step["prefix"]
                           and obj["request"]["query"].get("delimiter") == step["delimiter"]]
             require(candidates, "inventory advanced past an unobserved traversal phase")
             if step["kind"] in ("phase_end", "deployment_end"):
-                require(any(not listed(obj)[1] and (step["kind"] != "deployment_end" or not listed(obj)[0]) for obj in candidates),
+                witnesses = [obj for obj in candidates if not listed(obj)[1] and (step["kind"] != "deployment_end" or not listed(obj)[0])]
+                require(witnesses,
                         "inventory advanced without an actual exhausted LIST")
             else:
-                require(any(step["key"] in listed(obj)[0] and (step["kind"] != "tenant" or listed(obj)[0][0] == step["key"])
-                            for obj in candidates), "inventory classified a candidate absent from its actual LIST")
+                witnesses = [obj for obj in candidates if step["key"] in listed(obj)[0]
+                             and (step["kind"] != "tenant" or listed(obj)[0][0] == step["key"])]
+                require(witnesses, "inventory classified a candidate absent from its actual LIST")
+            if step["kind"] != "record":
+                consumed = only(witnesses, "inventory progress lacks its one original phase LIST")
+                through = max(through, stamp(consumed["delivery"]))
         minimum = sum(step["kind"] in ("record", "tenant", "ignored") for step in crossed)
         require(minimum <= value_of(call)["usage"]["candidates"] <= min(128, minimum + 1),
                 "inventory candidate budget differs from its completed prefix and one possible unfinished candidate")
+        budget = page_budget(objects, call, through)
+        if budgets is not None:
+            budgets[call["label"]] = budget
+        tail = budget["late_final_request"]
+        if zero:
+            require(index + 1 < len(scan), "stationary inventory falsely completed the traversal")
+            tail = unchanged_frontier(objects, call, scan[index + 1], budget)
+        if budget["unresolved_final_list"] is not None:
+            require(index + 1 < len(scan), "unconsumed LIST falsely completed the inventory traversal")
+            tails.append(abandoned_list(objects, call, scan[index + 1], budget["unresolved_final_list"]))
+        elif tail is not None:
+            require(index + 1 < len(scan) and upper < len(steps) and steps[upper]["kind"] == "record",
+                    "late inventory tail has no cursor before its unclassified record")
+            pending = steps[upper]
+            entry = all_records[pending["record"]]
+            tails.append(abandoned_candidate(objects, call, scan[index + 1], tail, entry["creation"],
+                                             authority=pending["record"], physical=pending["key"],
+                                             prefix=pending["prefix"], delimiter=pending["delimiter"]))
     require(len(classified) == len(set(classified)) and set(classified) == published,
             "complete inventory did not classify its exact permanent set")
+    return tails
 
 
 def numbered_pages(observed, prefix):
@@ -787,7 +1005,7 @@ def natural_progress(observed, objects, ordered):
         return numbered_pages(observed, prefix)
     resumed = suffix("reader_resume_")
     require(resumed, "reader continuation was omitted")
-    original_lower = within(objects, resumed[0], listing=True)[0]["request"]["query"].get("start-after", "")
+    original_lower = next(obj for obj in page_requests(objects, resumed[0]) if obj["request"]["query"])["request"]["query"].get("start-after", "")
     release = [call for label, call in observed.items() if re.fullmatch(r"after_release_[0-9]+", label)
                and call.get("value", {}).get("ok") is True]
     require(len(release) == 1, "admission recovery omitted or duplicated its one successful starting page")
@@ -814,7 +1032,7 @@ def natural_progress(observed, objects, ordered):
     covered.add(spare["label"])
     expected = {label for label, call in observed.items() if call["body"]["operation"] == "list_names"
                 and call.get("value", {}).get("ok") is True}
-    equal(covered, expected, "successful name pages escaped independent continuation auditing")
+    equal(sorted(covered), sorted(expected), "successful name pages escaped independent continuation auditing")
     return reports
 
 
@@ -834,7 +1052,7 @@ def slow_progress(observed, objects, history, ordered):
         values.append(value)
         require(call["body"]["cursor"] == (None if index == 0 else values[index - 1]["cursor"]),
                 "steady-latency continuation reset or replaced its original cursor")
-        lists = within(objects, call, listing=True)
+        lists = [obj for obj in page_requests(objects, call) if obj["request"]["query"]]
         require(lists and all(obj["request"]["query"]["prefix"] == prefix for obj in lists),
                 "steady-latency scan lacks the actual tenant LIST")
         frontiers.append(lists[0]["request"]["query"].get("start-after", ""))
@@ -846,8 +1064,8 @@ def slow_progress(observed, objects, history, ordered):
         else:
             require(value["cursor"] is None and value["traversal_exhausted"] is True and value["stopped"] is None,
                     "steady-latency explicit continuation never finished")
-    require(frontiers[0] == "" and all(left < right for left, right in zip(frontiers, frontiers[1:]))
-            and all(key in expected for key in frontiers[1:]), "steady-latency lower bound reset/stalled/escaped its candidates")
+    require(frontiers[0] == "" and all(left <= right for left, right in zip(frontiers, frontiers[1:]))
+            and all(not key or key in expected for key in frontiers[1:]), "steady-latency lower bound reset/escaped its candidates")
     covered = []
     for index, call in enumerate(scan):
         upper = frontiers[index + 1] if index + 1 < len(scan) else max(expected)
@@ -875,9 +1093,8 @@ def cases(observed, objects, history):
         require(call["body"]["name"] == f"discovery-{index:03}" and call["body"]["create_operation"] == str(10000 + index), "seed names/identities changed")
         require(value_of(observed[f"ready_{index}"])["phase"] == "ready", "seed did not durably reach Ready")
     first = value_of(observed["reader_first"])
-    require(isinstance(first["cursor"], str) and len(first["names"]) == 1, "reader did not receive a genuine partial first page")
+    require(isinstance(first["cursor"], str), "reader did not receive a genuine partial first page")
     ordered = sorted((value_of(observed[f"prepare_{index}"])["creation"] for index in range(129)), key=lambda row: sha(row["name"].encode()))
-    require(first["names"][0]["creation"] == ordered[0], "first visible item differs from actual byte-ordered candidate")
     revoked = ordered[-1]
     revocation = observed["revoke_last"]
     require(any(row["principal"] == "12" and row["read"] is False and row["admin"] is True for row in revocation["body"]["permissions"]), "revocation did not remove READ while preserving ADMIN")
@@ -886,7 +1103,9 @@ def cases(observed, objects, history):
             "reader continuation reset or never completed")
     for call in resumed:
         require(stamp(revocation["response"]) < stamp(call["request"]), "resume preceded actual permission revocation")
-        require(not value_of(call)["names"], "revoked or already-consumed name leaked into continuation")
+    visible = first["names"] + [item for call in resumed for item in value_of(call)["names"]]
+    equal([item["creation"] for item in visible], [ordered[0]],
+          "reader continuation lost/repeated its authorized name or disclosed the revoked name")
     head = f"scap-object/v1/1/7/{revoked['scope']['database']}/head"
     require(any(successful_gets(objects, call, head) for call in resumed), "continuation omitted fresh authority for revoked candidate")
     denied = {"revoked_resolve", "provision_is_not_inventory", "inventory_is_not_sql", "operator_cannot_cross_tenant_sql"}
@@ -922,7 +1141,7 @@ def cases(observed, objects, history):
         require([item["creation"] for item in all_names] == [ordered[0]], "fault continuation skipped/repeated an authorized name")
         if label.startswith("head_"):
             require([item["creation"] for item in page["names"]] == [ordered[0]], "HEAD fault did not occur after a classified candidate")
-            lists = within(objects, recovery[0], listing=True)
+            lists = [obj for obj in page_requests(objects, recovery[0]) if obj["request"]["query"]]
             require(lists and lists[0]["request"]["query"].get("start-after") == "scap-object/v1/1/7/catalogue/v1/name/" + sha(ordered[0]["name"].encode()),
                     "continuation advanced to unclassified LIST page tail")
     progress = slow_progress(observed, objects, history, ordered)
@@ -971,9 +1190,11 @@ def cases(observed, objects, history):
             "held_running_workers": 2, "hot_and_control_successes_while_blocked": 3,
             "resident_hot_query_head_only": True, "steady_latency_progress": progress,
             "bounded_natural_continuations": natural,
-            "deadline_evidence": {"external_read_bound": "first_observed_S3_request_plus_4_seconds",
+            "deadline_evidence": {"external_read_bound": "causally_enabling_requests_and_delivery_starts_before_first_S3_plus_4_seconds",
                                   "exact_internal_origin": "frozen_production_received_HTTP_plus_5_seconds_minus_1_second",
-                                  "internal_receive_timestamp_observed": False, "observed_HTTP_roundtrip_under_seconds": 5}}
+                                  "internal_receive_timestamp_observed": False, "internal_dispatch_timestamp_observed": False,
+                                  "late_request_exception": "one_disconnected_unclassified_final_GET_or_LIST_before_HTTP_reply",
+                                  "observed_HTTP_roundtrip_under_seconds": 5}}
 
 
 def sql(data, observed, objects):
@@ -1163,6 +1384,29 @@ def control_renumber(trace):
             row["request_serial"] = ids[old]
 
 
+def control_tail_history(data, call, originals, replacements, removed=()):
+    """Build an explicitly false deadline history from complete original rows.
+
+    A valid run need not contain a naturally late request. Counterfactual time
+    compression of this one unfaulted page leaves deterministic space below
+    its unchanged five-second outer bound; body/ETag/input bytes stay original.
+    """
+    start = stamp(call["request"])
+    replacement_rows = [copy.deepcopy(row) for group in replacements.values() for row in group]
+    final_time = max((stamp(row) for row in replacement_rows), default=start)
+    finished = max(stamp(call["response"]), final_time + 20_000_000)
+    require(finished - start < HTTP_NANOSECONDS, "negative construction escaped its original outer deadline")
+    control_shift_after(data, stamp(call["response"]), finished - stamp(call["response"]))
+    excluded = set(removed) | set(replacements)
+    kept = sorted((copy.deepcopy(row) for serial, group in originals.items() if serial not in excluded for row in group), key=stamp)
+    for index, row in enumerate(kept):
+        row["monotonic_ns"] = start + 10_000_000 + index * 1000
+    trace = data["discovery-s3.jsonl"]
+    trace[:] = [row for row in trace if row.get("request_serial") not in set(originals) | set(replacements)]
+    trace.extend(kept); trace.extend(replacement_rows)
+    control_renumber(trace)
+
+
 def metadata_control_counts(options, early):
     require(len(early) == 2 and len({obj["request"]["request_serial"] for obj in early}) == 2,
             "refund controls reused one earlier GET as two observations")
@@ -1185,6 +1429,11 @@ def controls(directory):
     positive = audit_data(copy.deepcopy(baseline), {"status": "NOT_PROVIDED"})
     base_calls, base_observed, _ = http_calls(baseline)
     base_objects, _ = network(baseline, base_calls)
+    base_inventory_budgets = {}
+    pages(baseline, base_observed, base_objects, base_inventory_budgets)
+    inventory_record_call = next(call for call in base_observed.values()
+                                 if call["body"]["operation"] == "deployment_inventory"
+                                 and call.get("value", {}).get("ok") is True and value_of(call)["records"])
     def mutate_response(data, label, change):
         terminal = only([row for row in data["discovery-calls.jsonl"] if row["event"] == "call_finished" and row["label"] == label], "control label")
         response = only([row for row in data["http-client-ledger.jsonl"] if row.get("call_id") == terminal["call_id"] and row["event"] == "http_response"], "control raw response")
@@ -1192,6 +1441,8 @@ def controls(directory):
         change(parsed)
         encoded = json.dumps(parsed, separators=(",", ":")).encode()
         response["body"], response["body_sha256"] = base64.b64encode(encoded).decode(), sha(encoded)
+        if "content-length" in response.get("headers", {}):
+            response["headers"]["content-length"] = str(len(encoded))
         response["status"] = 200 if parsed["ok"] else 403
         terminal.pop("error", None)
         terminal["value"] = parsed.get("value")
@@ -1202,7 +1453,7 @@ def controls(directory):
             value.clear(); value.update(ok=True, value={"names": [], "cursor": None, "traversal_exhausted": True, "stopped": None})
         mutate_response(data, "tampered_cursor", replace)
     def omitted_inventory(data):
-        mutate_response(data, "operator_inventory_first", lambda value: value["value"]["records"].pop())
+        mutate_response(data, inventory_record_call["label"], lambda value: value["value"]["records"].pop())
     def early_release(data):
         trace = data["discovery-s3.jsonl"]
         release = only([row for row in trace if row["event"] == "hold_released" and row["label"] == "slot_timeout"], "control release")
@@ -1255,13 +1506,22 @@ def controls(directory):
         for index, row in enumerate(trace, 1):
             row["sequence"] = index
     resumed = [call for label, call in base_observed.items() if label.startswith("reader_resume_")]
-    first = base_observed["reader_first"]
-    partial = next((call for call in resumed if value_of(call)["cursor"] is not None), first)
-    following_list = within(base_objects, resumed[0], listing=True)[0]
-    lower = following_list["request"]["query"].get("start-after", "")
     ordered = sorted((value_of(base_observed[f"prepare_{index}"])["creation"] for index in range(129)),
                      key=lambda creation: sha(creation["name"].encode()))
     prefix = "scap-object/v1/1/7/catalogue/v1/name/"
+    keys = [prefix + sha(creation["name"].encode()) for creation in ordered]
+    reader_scan = [base_observed["reader_first"], *resumed]
+    advancing = []
+    for current, following in zip(reader_scan, reader_scan[1:]):
+        first_list = next(obj for obj in page_requests(base_objects, current) if obj["request"]["query"])
+        next_list = next(obj for obj in page_requests(base_objects, following) if obj["request"]["query"])
+        lower = first_list["request"]["query"].get("start-after", "")
+        upper = next_list["request"]["query"].get("start-after", "")
+        if lower < upper < max(keys):
+            advancing.append((current, following, first_list, next_list, lower, upper))
+    require(advancing, "natural controls lack an original advancing partial page before the finite suffix")
+    first, following, first_list, following_list, original_lower, lower = advancing[0]
+    partial = first
     first_reads = read_map(base_objects, first)
     skipped = next(prefix + sha(creation["name"].encode()) for creation in ordered
                    if prefix + sha(creation["name"].encode()) > lower and not classified_name(first_reads, creation))
@@ -1273,29 +1533,78 @@ def controls(directory):
         control_list_frontier(data, following_list["request"]["request_serial"], skipped)
 
     def no_natural_progress(data):
-        control_list_frontier(data, following_list["request"]["request_serial"], "")
+        control_list_frontier(data, following_list["request"]["request_serial"], original_lower)
 
     def renewed_http_deadline(data):
         control_shift_after(data, stamp(first["response"]),
                             stamp(first["request"]) + 5_100_000_000 - stamp(first["response"]))
 
     def renewed_read_deadline(data):
-        trace = data["discovery-s3.jsonl"]
-        original = page_requests(base_objects, first)
-        final = original[-1]
-        started = stamp(original[0]["request"])
-        control_shift_after(data, stamp(first["response"]),
-                            started + 4_200_000_000 - stamp(first["response"]))
-        events = [row for row in trace if row.get("request_serial") == final["request"]["request_serial"]]
+        causal_tail_change(data, "non_final")
+
+    original_objects = page_requests(base_objects, first)
+    through = max(classified_name_evidence(first_reads, creation)["through"] for key, creation in zip(keys, ordered)
+                  if original_lower < key <= lower)
+    completed = only([obj for obj in original_objects if stamp(obj["delivery"]) == through], "control completed classification GET")
+    completed_id = completed["request"]["request_serial"]
+    original_ids = {obj["request"]["request_serial"] for obj in original_objects}
+    original_rows = {serial: [row for row in baseline["discovery-s3.jsonl"] if row.get("request_serial") == serial]
+                     for serial in original_ids}
+    removed_ids = {obj["request"]["request_serial"] for obj in original_objects
+                   if stamp(obj["request"]) > stamp(completed["request"])}
+    extra_id = max(base_objects) + 1
+
+    def copied_group(serial, started, *, disconnected=True, delivered=None):
+        group = copy.deepcopy(original_rows[completed_id])
+        require([row["event"] for row in group[:-1]] == ["request", "forwarded", "backend_response", "delivery_started"]
+                and group[-1]["event"] in ("delivery_finished", "delivery_disconnected"),
+                "causal negative lacks an original complete unfaulted GET")
+        for index, row in enumerate(group):
+            row["request_serial"], row["monotonic_ns"] = serial, started + index * 1000
+        if delivered is not None:
+            for row, offset in zip(group[2:], (-1000, 0, 1000)):
+                row["monotonic_ns"] = delivered + offset
+        group[-1]["event"] = "delivery_disconnected" if disconnected else "delivery_finished"
+        return group
+
+    def causal_tail_change(data, kind):
+        # Every valid completed scan provides this earlier classification GET;
+        # none of these mutations depends on naturally observing a late tail.
+        start = stamp(first["request"])
+        if kind in ("classified", "missing_disconnect"):
+            replacements = {completed_id: copied_group(completed_id, start + 4_110_000_000,
+                                                       disconnected=kind != "missing_disconnect")}
+        elif kind == "non_final":
+            replacements = {completed_id: copied_group(completed_id, start + 4_110_000_000),
+                            extra_id: copied_group(extra_id, start + 4_120_000_000)}
+        elif kind == "multiple":
+            replacements = {extra_id: copied_group(extra_id, start + 4_110_000_000),
+                            extra_id + 1: copied_group(extra_id + 1, start + 4_120_000_000)}
+        else:
+            require(kind == "prior_response", "unknown causal negative construction")
+            replacements = {completed_id: copied_group(completed_id, start + 100_000_000,
+                                                       delivered=start + 4_110_000_000),
+                            extra_id: copied_group(extra_id, start + 4_120_000_000)}
+        mutate_response(data, first["label"], lambda value: value["value"].update(stopped="UNKNOWN"))
+        control_tail_history(data, first, original_rows, replacements, removed_ids)
+
+    def post_return_work(data):
+        source_id = first_list["request"]["request_serial"]
+        events = copy.deepcopy(original_rows[source_id])
+        started = stamp(first["response"]) + 1
+        occupied = {stamp(row) for row in data["discovery-s3.jsonl"]}
+        while any(started + index in occupied for index in range(len(events))):
+            started += len(events)
+        require(started + len(events) < first["next_invocation_ns"], "post-return negative lacks the actual inter-invocation interval")
         for index, row in enumerate(events):
-            row["monotonic_ns"] = started + 4_100_000_000 + index
-        control_renumber(trace)
+            row["request_serial"], row["monotonic_ns"] = extra_id, started + index
+        data["discovery-s3.jsonl"].extend(events)
+        control_renumber(data["discovery-s3.jsonl"])
 
     def renewed_get_budget(data):
         trace = data["discovery-s3.jsonl"]
         source = next(obj for obj in page_requests(base_objects, first)
-                      if not obj["request"]["query"] and obj["delivery"]["status"] == 200
-                      and obj["terminal"]["event"] == "delivery_finished")
+                      if not obj["request"]["query"] and obj["delivery"]["status"] == 200)
         events = [row for row in trace if row.get("request_serial") == source["request"]["request_serial"]]
         base = max(row.get("request_serial", 0) for row in trace)
         # Add actual-shaped successful GET histories inside the original call;
@@ -1312,9 +1621,7 @@ def controls(directory):
     for call in base_observed.values():
         if call["body"]["operation"] != "deployment_inventory" or call.get("value", {}).get("ok") is not True:
             continue
-        records = value_of(call)["records"]
-        through = max((inventory_record(base_objects, call, record) for record in records), default=0)
-        budget = page_budget(base_objects, call, through)
+        budget = base_inventory_budgets[call["label"]]
         early = [obj for obj in page_requests(base_objects, call)[:-1] if not obj["request"]["query"]
                  and obj["delivery"]["status"] == 200
                  and min(budget["metadata_options"]) + (256 * 1024 if obj["request"]["key"].endswith("/head") else 64 * 1024)
@@ -1329,17 +1636,32 @@ def controls(directory):
     def metadata_change(data, count):
         mutate_response(data, budget_call["label"], lambda value: value["value"]["usage"].update(metadata_bytes=count))
 
+    completed_list = next(obj for obj in page_requests(base_objects, budget_call)[:-1]
+                          if obj["request"]["query"] and obj["delivery"]["status"] == 200 and obj["upstream"] == obj["outgoing"])
+    require(0 not in budget["list_byte_options"], "LIST refund control lacks positive original reservation accounting")
+
+    def fabricated_list_refund(data):
+        mutate_response(data, budget_call["label"], lambda value: value["value"]["usage"].update(list_bytes=0))
+
     new_controls = (
         ("natural_partial_false_complete", false_natural_completion,
          "original authenticated cursor|continuation dispatched|genuine partial first page"),
-        ("natural_frontier_skipped_unclassified_key", skipped_natural_candidate, "advanced past an unclassified name"),
-        ("natural_opaque_token_without_progress", no_natural_progress, "without classified progress"),
+        ("natural_frontier_skipped_unclassified_key", skipped_natural_candidate,
+         "advanced past an unclassified name|name classification was not in an original successful LIST"),
+        ("natural_opaque_token_without_progress", no_natural_progress,
+         "classified prefix omitted/repeated|unclassified disconnected tail|already classified or unrelated candidate|natural deadline cutoff|scope/phase/physical frontier"),
         ("natural_http_deadline_renewed", renewed_http_deadline, "five-second deadline"),
         ("natural_read_cutoff_renewed", renewed_read_deadline, "external four-second read bound"),
         ("natural_exact_get_budget_renewed", renewed_get_budget, "LIST/exact-GET budget"),
         ("metadata_early_get_not_refunded", lambda data: metadata_change(data, early_count), "metadata budget differs"),
         ("metadata_multiple_ambiguous_refunds", lambda data: metadata_change(data, multiple_count), "metadata budget differs"),
         ("metadata_arbitrary_intermediate_count", lambda data: metadata_change(data, middle), "metadata budget differs"),
+        ("late_final_already_classified_get", lambda data: causal_tail_change(data, "classified"), "already contributed to classified progress"),
+        ("late_final_missing_disconnect", lambda data: causal_tail_change(data, "missing_disconnect"), "lacks explicit disconnected delivery"),
+        ("multiple_late_unconsumed_tails", lambda data: causal_tail_change(data, "multiple"), "non-final work beyond"),
+        ("late_response_enabled_another_request", lambda data: causal_tail_change(data, "prior_response"), "causally enabling response exceeded"),
+        ("new_work_after_original_http_return", post_return_work, "no authenticated invocation"),
+        ("completed_list_fabricated_full_refund", fabricated_list_refund, "reported LIST budget differs"),
     )
     reports = []
     original_controls = (("false_complete_empty_404", false_empty), ("tampered_cursor_false_success", cursor_success),
@@ -1363,6 +1685,11 @@ def controls(directory):
     return {"status": "passed", "actual_history_mutations_rejected": reports, "original_source_sha256": before,
             "positive_original_copy": {"passed": True, "http_invocations": positive["http_invocations"]},
             "natural_partial_control": {"label": partial["label"], "original_stop": value_of(partial)["stopped"]},
+            "causal_tail_control": {"label": first["label"], "classified_get_serial": completed_id,
+                                    "original_following_list_serial": following_list["request"]["request_serial"],
+                                    "naturally_late_tail_required": False},
+            "list_refund_control": {"label": budget_call["label"], "completed_list_serial": completed_list["request"]["request_serial"],
+                                    "exact_legal_counts": sorted(budget["list_byte_options"]), "fabricated_count": 0},
             "metadata_tail_control": {"label": budget_call["label"], "exact_legal_counts": sorted(options),
                                       "uncertain_final_get": budget["uncertain_final_get"],
                                       "earlier_gets": [obj["request"]["request_serial"] for obj in early[:2]]}}

@@ -151,11 +151,386 @@ def inventory_fixture():
     return evidence, published, [first, middle, final]
 
 
+def late_tail_fixture():
+    evidence, ordered, scan, following = names_fixture()
+    final = audit.page_requests(evidence.objects, scan[0])[-1]
+    final["request"]["monotonic_ns"] = 4_020_000_000
+    final["backend"]["monotonic_ns"] = 4_025_000_000
+    final["delivery"]["monotonic_ns"] = 4_030_000_000
+    final["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
+    scan[0]["response"]["monotonic_ns"] = 4_100_000_000
+    return evidence, ordered, scan, following, final
+
+
+def list_tail_fixture():
+    evidence, ordered, scan, following, final = late_tail_fixture()
+    final["request"].update(key="/scap-test", query=copy.deepcopy(following["request"]["query"]))
+    final["outgoing"] = final["upstream"] = following["outgoing"]
+    final["delivery"]["monotonic_ns"] = 4_120_000_000
+    final["terminal"]["monotonic_ns"] = 4_121_000_000
+    return evidence, ordered, scan, following, final
+
+
+def zero_progress_fixture(*, operation="LIST"):
+    evidence, ordered = Evidence(), creations()
+    prefix = "scap-object/v1/1/7/catalogue/v1/name/"
+    keys = [prefix + audit.sha(value["name"].encode()) for value in ordered]
+    final = evidence.listing(prefix, keys)
+    if operation == "GET":
+        final = evidence.get(keys[0], encoded({"creation": ordered[0], "state": "bound", "origin": {}, "revision": 2}))
+    final["backend"]["monotonic_ns"] = 4_115_000_000
+    final["delivery"]["monotonic_ns"] = 4_120_000_000
+    final["terminal"].update(monotonic_ns=4_121_000_000, event="delivery_disconnected")
+    first = call(1_000, 4_100_000_000, None,
+                 {"names": [], "cursor": "original-sealed-token", "traversal_exhausted": False, "stopped": "UNKNOWN"})
+    evidence.now = 5_010_000_000
+    following = evidence.listing(prefix, keys)
+    visible = []
+    for index, creation in enumerate(ordered):
+        item = evidence.ready(creation, read=index == 0)
+        if index == 0: visible.append(item)
+    last = call(5_000_000_000, 5_100_000_000, "original-sealed-token",
+                {"names": visible, "cursor": None, "traversal_exhausted": True, "stopped": None})
+    return evidence, ordered, [first, last], following, final
+
+
+def consumed_phase_fixture():
+    evidence, published, scan = inventory_fixture()
+    middle = scan[1]
+    phase = next(obj for obj in audit.page_requests(evidence.objects, middle)
+                 if obj["request"]["query"].get("prefix", "").endswith("/control/"))
+    original_time = audit.stamp(phase["request"])
+    for obj in evidence.objects.values():
+        if audit.stamp(obj["request"]) > original_time:
+            for event in ("request", "backend", "delivery", "terminal"):
+                obj[event]["monotonic_ns"] += 5_000_000_000
+    for index, event in enumerate(("request", "backend", "delivery", "terminal")):
+        phase[event]["monotonic_ns"] = 8_950_000_000 + index * 1000
+    create, head = middle["value"]["value"]["records"]
+    middle["label"] = "consumed_phase"
+    middle["response"]["monotonic_ns"] = 9_100_000_000
+    middle["value"]["value"].update(records=[create], cursor="after-control", stopped="UNKNOWN", usage={"candidates": 1})
+    following = call(10_000_000_000, 10_100_000_000, "after-control", {"records": [head], "cursor": "inventory-2",
+                     "completion": {"traversal_exhausted": False}, "stopped": "LIMIT", "usage": {"candidates": 2}},
+                     inventory=True, label="after_phase")
+    scan[0]["label"], scan[2]["label"] = "initial", "complete"
+    for event in ("request", "response"):
+        scan[2][event]["monotonic_ns"] += 5_000_000_000
+    return evidence, published, [scan[0], middle, following, scan[2]], phase
+
+
+class ZeroProgressControls(unittest.TestCase):
+    def test_request_index_preserves_strict_windows_and_late_body_identity(self):
+        evidence, _, scan, _, final = zero_progress_fixture()
+        indexed = audit.ObjectHistory(evidence.objects)
+        for invocation in scan:
+            self.assertEqual(audit.observed_requests(evidence.objects, invocation), audit.observed_requests(indexed, invocation))
+            self.assertEqual(audit.within(evidence.objects, invocation), audit.within(indexed, invocation))
+        self.assertIn(final, audit.observed_requests(indexed, scan[0]))
+        self.assertNotIn(final, audit.within(indexed, scan[0]))
+        boundary = call(audit.stamp(final["request"]), audit.stamp(scan[1]["request"]), None, {})
+        self.assertNotIn(final, audit.observed_requests(indexed, boundary))
+
+    def test_two_consecutive_first_list_cutoffs_can_repeat_the_same_token(self):
+        evidence, ordered, scan, _, final = zero_progress_fixture()
+        for obj in list(evidence.objects.values()):
+            if audit.stamp(obj["request"]) > audit.stamp(scan[0]["response"]):
+                for event in ("request", "backend", "delivery", "terminal"):
+                    obj[event]["monotonic_ns"] += 5_000_000_000
+        scan[1]["request"]["monotonic_ns"] += 5_000_000_000
+        scan[1]["response"]["monotonic_ns"] += 5_000_000_000
+        second = copy.deepcopy(final)
+        second["request"]["request_serial"] = max(evidence.objects) + 1
+        for event in ("request", "backend", "delivery", "terminal"):
+            second[event]["monotonic_ns"] += 5_000_000_000
+        evidence.objects[second["request"]["request_serial"]] = second
+        invocation = call(5_000_000_000, 9_100_000_000, "original-sealed-token", copy.deepcopy(scan[0]["value"]["value"]))
+        report = audit.name_progress([scan[0], invocation, scan[1]], evidence.objects, ordered)
+        self.assertEqual(report["pages"], 3)
+        self.assertEqual(report["unchanged_frontier_pages"], 2)
+        self.assertEqual(len(report["abandoned_final_operations"]), 2)
+
+    def test_early_first_list_or_get_can_remain_in_flight_until_cutoff(self):
+        for operation in ("LIST", "GET"):
+            evidence, ordered, scan, _, final = zero_progress_fixture(operation=operation)
+            with self.subTest(operation=operation):
+                report = audit.name_progress(scan, evidence.objects, ordered)
+                self.assertEqual(report["unchanged_frontier_pages"], 1)
+                self.assertEqual(report["classified_candidates"], len(ordered))
+                self.assertEqual(report["abandoned_final_operations"][0]["operation"], operation)
+                self.assertLess(audit.stamp(final["request"]), 100_000_000)
+
+    def test_zero_progress_cannot_invent_classification_from_unconsumed_list(self):
+        evidence, ordered, scan, following, _ = zero_progress_fixture()
+        following["request"]["query"]["start-after"] = "scap-object/v1/1/7/catalogue/v1/name/" + audit.sha(ordered[0]["name"].encode())
+        with self.assertRaisesRegex(ValueError, "classification was not in an original successful LIST|unclassified name"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_zero_progress_get_requires_explicit_disconnect_at_the_cutoff(self):
+        for change, message in (("finished", "unclassified disconnected tail"), ("early", "tail evidence at its original cutoff")):
+            evidence, ordered, scan, _, final = zero_progress_fixture(operation="GET")
+            if change == "finished": final["terminal"]["event"] = "delivery_finished"
+            else: final["terminal"]["monotonic_ns"] = 30_000_000
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, message):
+                audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_zero_progress_does_not_treat_limit_or_fast_unknown_as_cutoff(self):
+        for change, message in (("limit", "classified response exceeded|natural deadline cutoff"), ("fast", "original deadline")):
+            evidence, ordered, scan, _, final = zero_progress_fixture(operation="GET")
+            if change == "limit": scan[0]["value"]["value"]["stopped"] = "LIMIT"
+            else:
+                scan[0]["response"]["monotonic_ns"] = 200_000_000
+                final["delivery"]["monotonic_ns"] = 100_000_000
+                final["terminal"]["monotonic_ns"] = 110_000_000
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, message):
+                audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_zero_progress_must_repeat_exact_original_query_and_pending_candidate(self):
+        for change, message in (("query", "exact original LIST query"), ("candidate", "already classified or unrelated candidate")):
+            evidence, ordered, scan, following, final = zero_progress_fixture(operation="GET")
+            if change == "query": following["request"]["query"]["max-keys"] = "31"
+            else: final["request"]["key"] = "scap-object/v1/1/7/catalogue/v1/name/" + audit.sha(ordered[1]["name"].encode())
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, message):
+                audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_inventory_first_list_zero_progress_keeps_deployment_checkpoint(self):
+        evidence, published, scan = inventory_fixture()
+        original = copy.deepcopy(audit.page_requests(evidence.objects, scan[0])[0])
+        for obj in evidence.objects.values():
+            for event in ("request", "backend", "delivery", "terminal"):
+                obj[event]["monotonic_ns"] += 5_000_000_000
+        for invocation in scan:
+            invocation["request"]["monotonic_ns"] += 5_000_000_000
+            invocation["response"]["monotonic_ns"] += 5_000_000_000
+        original["request"]["request_serial"] = max(evidence.objects) + 1
+        original["delivery"]["monotonic_ns"] = 4_120_000_000
+        original["terminal"].update(monotonic_ns=4_121_000_000, event="delivery_disconnected")
+        evidence.objects[original["request"]["request_serial"]] = original
+        first = call(1_000, 4_100_000_000, None, {"records": [], "cursor": "zero-inventory",
+                     "completion": {"traversal_exhausted": False}, "stopped": "UNKNOWN", "usage": {"candidates": 0}}, inventory=True)
+        scan[0]["body"]["cursor"] = "zero-inventory"
+        tails = audit.inventory_progress([first, *scan], evidence.objects, published)
+        self.assertEqual(tails[0]["original_query"]["prefix"], "scap-object/v1/1/")
+
+    def test_inventory_first_candidate_get_repeats_the_same_phase_frontier(self):
+        evidence, published, scan = inventory_fixture()
+        original = audit.page_requests(evidence.objects, scan[1])[:2]
+        pending = [copy.deepcopy(obj) for obj in original]
+        for obj in evidence.objects.values():
+            if audit.stamp(obj["request"]) > audit.stamp(scan[0]["response"]):
+                for event in ("request", "backend", "delivery", "terminal"):
+                    obj[event]["monotonic_ns"] += 5_000_000_000
+        for invocation in scan[1:]:
+            invocation["request"]["monotonic_ns"] += 5_000_000_000
+            invocation["response"]["monotonic_ns"] += 5_000_000_000
+        for obj in pending:
+            serial = max(evidence.objects) + 1
+            obj["request"]["request_serial"] = serial
+            evidence.objects[serial] = obj
+        pending[-1]["delivery"]["monotonic_ns"] = 9_120_000_000
+        pending[-1]["terminal"].update(monotonic_ns=9_121_000_000, event="delivery_disconnected")
+        stationary = call(5_000_000_000, 9_100_000_000, "inventory-1", {"records": [], "cursor": "inventory-1",
+                          "completion": {"traversal_exhausted": False}, "stopped": "UNKNOWN", "usage": {"candidates": 1}}, inventory=True)
+        tails = audit.inventory_progress([scan[0], stationary, *scan[1:]], evidence.objects, published)
+        self.assertEqual(tails[0]["candidate"], pending[-1]["request"]["key"])
+        self.assertEqual(tails[0]["operation"], "GET")
+
+    def test_zero_progress_pages_cannot_escape_fixed_total_bound(self):
+        evidence, ordered, scan, _, _ = zero_progress_fixture()
+        with self.assertRaisesRegex(ValueError, "fixed total page bound"):
+            audit.name_progress([scan[0]] * 128 + [scan[1]], evidence.objects, ordered)
+
+
+class ListTailControls(unittest.TestCase):
+    def test_disconnected_list_is_repeated_at_exact_original_frontier(self):
+        evidence, ordered, scan, following, final = list_tail_fixture()
+        report = audit.name_progress(scan, evidence.objects, ordered)
+        tail = report["abandoned_final_operations"][0]
+        self.assertEqual(tail["operation"], "LIST")
+        self.assertEqual(tail["original_query"], following["request"]["query"])
+        self.assertFalse(tail["classification_from_tail"])
+        self.assertEqual(tail["request_serial"], final["request"]["request_serial"])
+
+    def test_list_body_sent_after_bound_retains_full_one_mib(self):
+        evidence, _, scan, _, final = list_tail_fixture()
+        budget = audit.page_budget(evidence.objects, scan[0])
+        self.assertEqual(budget["unconsumed_final_list"], final["request"]["request_serial"])
+        self.assertIsNone(budget["uncertain_final_list"])
+        self.assertIsNone(budget["uncertain_final_get"])
+        first = audit.page_requests(evidence.objects, scan[0])[0]
+        self.assertEqual(budget["list_byte_options"], {len(first["outgoing"]) + 1024 * 1024})
+        self.assertNotIn(len(first["outgoing"]) + len(final["outgoing"]), budget["list_byte_options"])
+        self.assertEqual(len(budget["metadata_options"]), 1)
+
+    def test_earlier_final_list_delivery_has_only_two_exact_consumption_outcomes(self):
+        evidence, _, scan, _, final = list_tail_fixture()
+        final["request"]["monotonic_ns"] = 3_950_000_000
+        final["delivery"]["monotonic_ns"] = 3_960_000_000
+        final["terminal"]["monotonic_ns"] = 3_970_000_000
+        budget = audit.page_budget(evidence.objects, scan[0])
+        self.assertEqual(budget["uncertain_final_list"], final["request"]["request_serial"])
+        self.assertEqual(len(budget["list_byte_options"]), 2)
+        values = sorted(budget["list_byte_options"])
+        self.assertEqual(values[1] - values[0], 1024 * 1024 - len(final["outgoing"]))
+        self.assertNotIn((values[0] + values[1]) // 2, values)
+        self.assertEqual(len(budget["metadata_options"]), 1)
+        lists = [obj for obj in audit.page_requests(evidence.objects, scan[0]) if obj["request"]["query"]]
+        with self.assertRaisesRegex(ValueError, "single final operation"):
+            audit.list_reservation_options(lists, uncertain=lists[0]["request"]["request_serial"])
+
+    def test_unconsumed_list_cannot_skip_a_listed_candidate(self):
+        evidence, ordered, scan, following, _ = list_tail_fixture()
+        following["request"]["query"]["start-after"] = "scap-object/v1/1/7/catalogue/v1/name/" + audit.sha(ordered[1]["name"].encode())
+        with self.assertRaisesRegex(ValueError, "unclassified name"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_list_resume_cannot_change_scope_phase_bound_or_token(self):
+        for fault in ("scope", "phase", "after", "delimiter", "max_keys", "token"):
+            evidence, _, scan, following, final = list_tail_fixture()
+            query = following["request"]["query"]
+            if fault == "scope": query["prefix"] = query["prefix"].replace("/1/7/", "/1/8/")
+            elif fault == "phase": query["prefix"] = query["prefix"].replace("/name/", "/create/")
+            elif fault == "after": query["start-after"] += "skip"
+            elif fault == "delimiter": query["delimiter"] = "/"
+            elif fault == "max_keys": query["max-keys"] = "64"
+            else: scan[1]["body"]["cursor"] = "new-token"
+            with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "scope/phase/physical frontier|authenticated cursor|no explicit following LIST"):
+                audit.abandoned_list(evidence.objects, scan[0], scan[1], final["request"]["request_serial"])
+
+    def test_list_tail_cannot_be_assumed_without_disconnect(self):
+        evidence, ordered, scan, _, final = list_tail_fixture()
+        final["request"]["monotonic_ns"] = 3_950_000_000
+        final["terminal"]["event"] = "delivery_finished"
+        with self.assertRaisesRegex(ValueError, "unresolved final LIST lacks disconnected delivery"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_second_tail_cannot_hide_behind_a_final_list(self):
+        evidence, ordered, scan, _, final = list_tail_fixture()
+        earlier = audit.page_requests(evidence.objects, scan[0])[-2]
+        earlier["request"]["monotonic_ns"] = 4_015_000_000
+        earlier["delivery"]["monotonic_ns"] = 4_016_000_000
+        earlier["terminal"].update(monotonic_ns=4_017_000_000, event="delivery_disconnected")
+        with self.assertRaisesRegex(ValueError, "non-final work"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_inventory_unknown_list_preserves_its_next_phase_checkpoint(self):
+        evidence, published, scan = inventory_fixture()
+        partial = audit.page_requests(evidence.objects, scan[0])[-1]
+        del evidence.objects[partial["request"]["request_serial"]]
+        final = audit.page_requests(evidence.objects, scan[0])[-1]
+        final["delivery"]["monotonic_ns"] = 4_120_000_000
+        final["terminal"].update(monotonic_ns=4_121_000_000, event="delivery_disconnected")
+        scan[0]["response"]["monotonic_ns"] = 4_100_000_000
+        scan[0]["value"]["value"]["usage"]["candidates"] = 2
+        tails = audit.inventory_progress(scan, evidence.objects, published)
+        self.assertEqual(tails[0]["operation"], "LIST")
+        self.assertEqual(tails[0]["original_query"]["prefix"], "scap-object/v1/1/7/catalogue/v1/create/")
+
+
+class CausalTailControls(unittest.TestCase):
+    def test_late_logged_abandoned_candidate_preserves_original_frontier(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        report = audit.name_progress(scan, evidence.objects, ordered)
+        tails = report["abandoned_final_operations"]
+        self.assertEqual(len(tails), 1)
+        self.assertEqual(tails[0]["request_serial"], final["request"]["request_serial"])
+        self.assertEqual(tails[0]["candidate"], final["request"]["key"])
+        self.assertEqual(tails[0]["dispatch_time"], "NOT_OBSERVED")
+        self.assertFalse(tails[0]["classification_from_tail"])
+
+    def test_abandoned_body_after_read_bound_keeps_exact_full_reservation(self):
+        evidence, _, scan, _, final = late_tail_fixture()
+        budget = audit.page_budget(evidence.objects, scan[0])
+        self.assertEqual(budget["late_final_request"], final["request"]["request_serial"])
+        self.assertEqual(budget["unconsumed_final_get"], final["request"]["request_serial"])
+        self.assertIsNone(budget["uncertain_final_get"])
+        gets = [obj for obj in audit.page_requests(evidence.objects, scan[0]) if not obj["request"]["query"]]
+        ordinary_refund = next(iter(audit.metadata_reservation_options(gets)))
+        self.assertEqual(budget["metadata_options"], {ordinary_refund + 65536 - len(final["outgoing"])})
+        with self.assertRaisesRegex(ValueError, "single final GET"):
+            audit.metadata_reservation_options(gets, unconsumed=gets[0]["request"]["request_serial"])
+
+    def test_late_delivery_does_not_invent_a_possible_refund(self):
+        evidence, _, scan, _, final = late_tail_fixture()
+        final["request"]["monotonic_ns"] = 3_950_000_000
+        final["terminal"]["event"] = "delivery_finished"
+        budget = audit.page_budget(evidence.objects, scan[0])
+        self.assertIsNone(budget["late_final_request"])
+        self.assertIsNone(budget["uncertain_final_get"])
+        self.assertEqual(budget["unconsumed_final_get"], final["request"]["request_serial"])
+        self.assertEqual(len(budget["metadata_options"]), 1)
+
+    def test_late_nonfinal_work_or_two_abandoned_tails_is_rejected(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        evidence.now = 4_050_000_000
+        extra = evidence.get(final["request"]["key"], final["outgoing"])
+        for terminal in ("delivery_finished", "delivery_disconnected"):
+            extra["terminal"]["event"] = terminal
+            with self.subTest(terminal=terminal), self.assertRaisesRegex(ValueError, "non-final work"):
+                audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_late_prior_response_cannot_enable_the_tail(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        previous = audit.page_requests(evidence.objects, scan[0])[-2]
+        previous["delivery"]["monotonic_ns"] = 4_015_000_000
+        with self.assertRaisesRegex(ValueError, "causally enabling response"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_late_observation_of_an_already_classified_get_is_rejected(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        previous = audit.page_requests(evidence.objects, scan[0])[-2]
+        del evidence.objects[final["request"]["request_serial"]]
+        previous["request"]["monotonic_ns"] = 4_020_000_000
+        previous["delivery"]["monotonic_ns"] = 4_030_000_000
+        previous["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
+        with self.assertRaisesRegex(ValueError, "already contributed to classified progress"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_late_extra_get_cannot_borrow_a_previously_classified_identity(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        final["request"]["key"] = "scap-object/v1/1/7/catalogue/v1/name/" + audit.sha(ordered[0]["name"].encode())
+        with self.assertRaisesRegex(ValueError, "already classified or unrelated candidate"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_missing_disconnect_cannot_be_assumed_from_unknown(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        final["terminal"]["event"] = "delivery_finished"
+        with self.assertRaisesRegex(ValueError, "disconnected delivery"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_work_after_http_return_needs_a_new_explicit_invocation(self):
+        evidence, ordered, scan, _, final = late_tail_fixture()
+        evidence.now = 4_200_000_000
+        evidence.get(final["request"]["key"], final["outgoing"])
+        with self.assertRaisesRegex(ValueError, "after its original HTTP response"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_non_unknown_stop_does_not_gain_tail_exception(self):
+        for stop in ("LIMIT", "CORRUPT"):
+            evidence, _, scan, _, _ = late_tail_fixture()
+            scan[0]["value"]["value"]["stopped"] = stop
+            with self.subTest(stop=stop), self.assertRaisesRegex(ValueError, "without an UNKNOWN tail"):
+                audit.page_budget(evidence.objects, scan[0])
+
+    def test_inventory_tail_stays_before_its_exact_unclassified_phase_candidate(self):
+        evidence, published, scan = inventory_fixture()
+        final = audit.page_requests(evidence.objects, scan[0])[-1]
+        final["request"]["monotonic_ns"] = 4_020_000_000
+        final["delivery"]["monotonic_ns"] = 4_030_000_000
+        final["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
+        scan[0]["response"]["monotonic_ns"] = 4_100_000_000
+        tails = audit.inventory_progress(scan, evidence.objects, published)
+        self.assertEqual(len(tails), 1)
+        self.assertEqual(tails[0]["candidate"], final["request"]["key"])
+        self.assertEqual(tails[0]["candidate_authority_serial"], final["request"]["request_serial"])
+
+
 class NaturalContinuationControls(unittest.TestCase):
     def test_original_unknown_prefix_continues_after_revocation(self):
         evidence, ordered, scan, _ = names_fixture()
         report = audit.name_progress(scan, evidence.objects, ordered)
-        self.assertEqual(report, {"pages": 2, "natural_unknown_pages": 1, "classified_candidates": 3, "complete": True})
+        self.assertEqual(report, {"pages": 2, "natural_unknown_pages": 1, "classified_candidates": 3, "complete": True,
+                                  "abandoned_final_operations": [], "unchanged_frontier_pages": 0})
 
     def test_false_complete_unknown_cannot_hide_unclassified_suffix(self):
         evidence, ordered, scan, _ = names_fixture()
@@ -169,10 +544,26 @@ class NaturalContinuationControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unclassified name"):
             audit.name_progress(scan, evidence.objects, ordered)
 
+    def test_name_cannot_borrow_a_list_observed_after_its_authority_chain(self):
+        evidence, ordered, scan, _ = names_fixture()
+        admitting = audit.page_requests(evidence.objects, scan[0])[0]
+        for index, event in enumerate(("request", "backend", "delivery", "terminal")):
+            admitting[event]["monotonic_ns"] = 20_000_000 + index * 1000
+        with self.assertRaisesRegex(ValueError, "unclassified name after its original LIST admission"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
+    def test_name_descriptor_cannot_precede_the_original_list_admission(self):
+        evidence, ordered, scan, _ = names_fixture()
+        descriptor = next(obj for obj in evidence.objects.values() if "/create/" in obj["request"]["key"])
+        for index, event in enumerate(("request", "backend", "delivery", "terminal")):
+            descriptor[event]["monotonic_ns"] = 5_000_000 + index * 1000
+        with self.assertRaisesRegex(ValueError, "unclassified name after its original LIST admission"):
+            audit.name_progress(scan, evidence.objects, ordered)
+
     def test_changed_opaque_token_cannot_prove_progress(self):
         evidence, ordered, scan, following = names_fixture()
         following["request"]["query"].pop("start-after")
-        with self.assertRaisesRegex(ValueError, "without classified progress"):
+        with self.assertRaisesRegex(ValueError, "classified prefix omitted/repeated"):
             audit.name_progress(scan, evidence.objects, ordered)
 
     def test_resume_must_use_original_authenticated_token(self):
@@ -214,13 +605,13 @@ class NaturalContinuationControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "five-second deadline"):
             audit.page_budget(original, scan[0])
 
-    def test_read_work_cannot_renew_four_second_cutoff(self):
+    def test_late_final_work_requires_disconnected_delivery(self):
         evidence, _, scan, _ = names_fixture()
         last = list(evidence.objects.values())[6]
         last["request"]["monotonic_ns"] = 4_500_000_000
         last["delivery"]["monotonic_ns"] = 4_500_000_100
         scan[0]["response"]["monotonic_ns"] = 4_900_000_000
-        with self.assertRaisesRegex(ValueError, "external four-second read bound"):
+        with self.assertRaisesRegex(ValueError, "disconnected delivery"):
             audit.page_budget(evidence.objects, scan[0])
 
     def test_read_count_cannot_renew_exact_get_budget(self):
@@ -299,6 +690,25 @@ class NaturalContinuationControls(unittest.TestCase):
         for value in scan:
             for entry in value["value"]["value"]["records"]:
                 self.assertGreater(audit.inventory_record(evidence.objects, value, entry), 0)
+
+    def test_consumed_empty_phase_list_at_cutoff_has_only_its_exact_refund(self):
+        evidence, published, scan, phase = consumed_phase_fixture()
+        budgets = {}
+        tails = audit.inventory_progress(scan, evidence.objects, published, budgets)
+        self.assertEqual(tails, [])
+        budget = budgets["consumed_phase"]
+        self.assertIsNone(budget["unresolved_final_list"])
+        self.assertEqual(len(budget["list_byte_options"]), 1)
+        expected = sum(len(obj["outgoing"]) for obj in audit.page_requests(evidence.objects, scan[1]) if obj["request"]["query"])
+        self.assertEqual(budget["list_byte_options"], {expected})
+        self.assertLess(audit.stamp(phase["delivery"]), audit.stamp(scan[1]["response"]))
+
+    def test_consumed_phase_cannot_hide_a_late_classified_list_delivery(self):
+        evidence, published, scan, phase = consumed_phase_fixture()
+        phase["delivery"]["monotonic_ns"] = 9_020_000_000
+        phase["terminal"]["monotonic_ns"] = 9_021_000_000
+        with self.assertRaisesRegex(ValueError, "classified response exceeded"):
+            audit.inventory_progress(scan, evidence.objects, published)
 
     def test_same_creation_records_have_their_own_admitting_list_and_final_get(self):
         evidence, _, scan = inventory_fixture()

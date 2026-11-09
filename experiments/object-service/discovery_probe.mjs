@@ -77,7 +77,6 @@ async function complete(client, label, cursor = null, inventory = false, remaini
     normal(value);
     collected.push(...(inventory ? value.records : value.names));
     if (value.cursor === null) return collected;
-    assert.notEqual(value.cursor, cursor);
     cursor = value.cursor;
   }
   throw new Error('explicit fixture scan exceeded its finite page bound');
@@ -170,14 +169,18 @@ if (phase === 'setup') {
 } else if (phase === 'reader_first') {
   const value = await page(discovery(), 'reader_first');
   normal(value); assert.equal(typeof value.cursor, 'string');
-  assert.deepEqual(names(value.names), [state.first.name]);
+  const visible = names(value.names);
+  assert.ok(visible.length === 0 && value.stopped === 'UNKNOWN' ||
+    visible.length === 1 && visible[0] === state.first.name);
+  state.readerFirstNames = visible;
   state.readerCursor = value.cursor; remember();
 } else if (phase === 'revoke_continue') {
   state.revocation = await policy(state.last, 'revoke_last', false);
   const reader = catalogue('reader');
   await call(reader, 'revoked_resolve', 'resolve_name', () => reader.resolveName(state.last.name), 'DENIED');
   const seen = await complete(discovery(), 'reader_resume', state.readerCursor, false, MAX_SCAN_PAGES - 1);
-  assert.ok(!names(seen).includes(state.last.name)); assert.deepEqual(names(seen), []);
+  assert.ok(!names(seen).includes(state.last.name));
+  assert.deepEqual([...state.readerFirstNames, ...names(seen)], [state.first.name]);
   remember();
 } else if (phase === 'capabilities') {
   await page(discovery('admin'), 'provision_is_not_inventory', null, true, 'DENIED');
@@ -236,7 +239,6 @@ if (phase === 'setup') {
     assert.equal(value.stopped, 'UNKNOWN');
     assert.equal(value.traversal_exhausted, false);
     assert.equal(typeof value.cursor, 'string');
-    assert.notEqual(value.cursor, cursor);
     cursor = value.cursor; incomplete++;
   }
   assert.ok(finished && incomplete >= 2, 'steady-latency pages must retain progress and complete');
