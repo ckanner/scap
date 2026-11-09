@@ -47,6 +47,8 @@ pub struct GcS3 {
     endpoint: reqwest::Url,
     region: String,
     deployment: u64,
+    authorization:
+        fn(&mut HttpRequest, &object_store::aws::AwsCredential, &str) -> object_store::Result<()>,
 }
 
 /// One checked physical prefix, original deadline and at most 32 DELETE calls.
@@ -101,6 +103,7 @@ impl GcS3 {
             endpoint,
             region,
             deployment,
+            authorization: authorize,
         })
     }
 
@@ -185,7 +188,8 @@ impl GcS3 {
             .get_credential()
             .await
             .map_err(|_| GcError::Unknown)?;
-        authorize(&mut request, &credential, &self.region)?;
+        (self.authorization)(&mut request, &credential, &self.region)
+            .map_err(|_| GcError::Unknown)?;
         let response = self
             .client
             .execute(request)
@@ -258,10 +262,8 @@ fn authorize(
     request: &mut HttpRequest,
     credential: &object_store::aws::AwsCredential,
     region: &str,
-) -> Result<(), GcError> {
-    AwsAuthorizer::new(credential, "s3", region)
-        .try_authorize(request, None)
-        .map_err(|_| GcError::Unknown)
+) -> object_store::Result<()> {
+    AwsAuthorizer::new(credential, "s3", region).try_authorize(request, None)
 }
 
 fn remaining(deadline: Instant) -> Result<(), GcError> {

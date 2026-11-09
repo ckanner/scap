@@ -1,5 +1,7 @@
 use super::*;
 use crate::tests::{config, deadline, reply, transport};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 const PREFIX: &str = "scap-object/v1/1/2/3/inc/4/gen/5/storage/6/objects/";
@@ -300,4 +302,137 @@ fn unexpected_version_metadata_and_malformed_delete_results_are_uncertain() {
         }),
         Ok(DeleteOutcome::Applied)
     );
+}
+
+#[test]
+fn preflight_timeout_does_not_create_a_batch_after_the_original_deadline() {
+    let mut delayed = reply(200, EMPTY);
+    delayed.delay = Duration::from_millis(600);
+    let (endpoint, server, capture) = transport(vec![delayed]);
+    let store = GcS3::new(config(endpoint), 1).unwrap();
+    assert!(matches!(
+        store.begin_batch(PREFIX, Instant::now() + Duration::from_millis(250)),
+        Err(GcError::Unknown)
+    ));
+    server.join().unwrap();
+    assert_eq!(capture.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn lock_and_delete_transport_errors_cannot_become_complete_backend_results() {
+    let mut lock = reply(404, NO_LOCK);
+    lock.declared_size += 1;
+    let (endpoint, server, capture) = transport(vec![reply(200, EMPTY), lock]);
+    let store = GcS3::new(config(endpoint), 1).unwrap();
+    assert!(matches!(
+        store.begin_batch(PREFIX, deadline()),
+        Err(GcError::Unknown)
+    ));
+    server.join().unwrap();
+    assert_eq!(capture.lock().unwrap().len(), 2);
+
+    let mut deletion = reply(500, b"incomplete error response");
+    deletion.declared_size += 1;
+    let mut replies = ready_replies();
+    replies.push(deletion);
+    let (endpoint, server, capture) = transport(replies);
+    let store = GcS3::new(config(endpoint), 1).unwrap();
+    let mut batch = store.begin_batch(PREFIX, deadline()).unwrap();
+    assert_eq!(batch.delete(HASH, "\"x\""), Err(GcError::Unknown));
+    assert_eq!(batch.delete(HASH, "\"x\""), Err(GcError::Limit));
+    server.join().unwrap();
+    assert_eq!(capture.lock().unwrap().len(), 3);
+}
+
+#[derive(Debug)]
+struct UnavailableCredentials(Arc<AtomicUsize>);
+
+#[async_trait::async_trait]
+impl object_store::client::CredentialProvider for UnavailableCredentials {
+    type Credential = object_store::aws::AwsCredential;
+
+    async fn get_credential(&self) -> object_store::Result<Arc<Self::Credential>> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(object_store::Error::Generic {
+            store: "unit credentials",
+            source: "credential provider unavailable".into(),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct UnexpectedTransport(Arc<AtomicUsize>);
+
+#[async_trait::async_trait]
+impl object_store::client::HttpService for UnexpectedTransport {
+    async fn call(
+        &self,
+        _request: HttpRequest,
+    ) -> Result<object_store::client::HttpResponse, object_store::client::HttpError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(object_store::client::HttpError::new(
+            object_store::client::HttpErrorKind::Connect,
+            std::io::Error::other("transport must not be reached"),
+        ))
+    }
+}
+
+#[test]
+fn request_validation_and_credential_failure_precede_transport() {
+    let credentials = Arc::new(AtomicUsize::new(0));
+    let requests = Arc::new(AtomicUsize::new(0));
+    let mut store = GcS3::new(config("http://127.0.0.1:1"), 1).unwrap();
+    store.inner.store = object_store::aws::AmazonS3Builder::new()
+        .with_bucket_name("scap-unit")
+        .with_region("us-east-1")
+        .with_endpoint("http://127.0.0.1:1")
+        .with_allow_http(true)
+        .with_credentials(Arc::new(UnavailableCredentials(Arc::clone(&credentials))))
+        .build()
+        .unwrap()
+        .into();
+    store.client = HttpClient::new(UnexpectedTransport(Arc::clone(&requests)));
+    assert!(matches!(
+        store.inner.runtime.block_on(store.request(
+            Method::GET,
+            "",
+            Some("versioning"),
+            Some("\n")
+        )),
+        Err(GcError::Invalid)
+    ));
+    assert_eq!(credentials.load(Ordering::SeqCst), 0);
+    assert_eq!(requests.load(Ordering::SeqCst), 0);
+    assert!(matches!(
+        store.begin_batch(PREFIX, deadline()),
+        Err(GcError::Unknown)
+    ));
+    assert_eq!(credentials.load(Ordering::SeqCst), 1);
+    assert_eq!(requests.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn signing_failure_is_unknown_before_any_delete_is_sent() {
+    fn signer(
+        request: &mut HttpRequest,
+        credential: &object_store::aws::AwsCredential,
+        region: &str,
+    ) -> object_store::Result<()> {
+        if request.method() == Method::DELETE {
+            return Err(object_store::Error::Generic {
+                store: "unit signing",
+                source: "signer unavailable".into(),
+            });
+        }
+        authorize(request, credential, region)
+    }
+
+    let (endpoint, server, capture) = transport(ready_replies());
+    let mut store = GcS3::new(config(endpoint), 1).unwrap();
+    store.authorization = signer;
+    let mut batch = store.begin_batch(PREFIX, deadline()).unwrap();
+    assert_eq!(batch.delete(HASH, "\"original\""), Err(GcError::Unknown));
+    assert_eq!(batch.delete(HASH, "\"original\""), Err(GcError::Limit));
+    server.join().unwrap();
+    assert_eq!(capture.lock().unwrap().len(), 2);
 }

@@ -51,10 +51,17 @@ fn flat(
     if bytes.len() > MAX_GC_RESPONSE_BYTES {
         return Err(GcError::Limit);
     }
-    let raw = std::str::from_utf8(bytes).map_err(|_| GcError::Corrupt)?;
-    valid_chars(raw)?;
+    // Only UTF-8 is accepted, even if a future dependency feature enables
+    // automatic transcoding. A single initial UTF-8 BOM remains supported.
+    if bytes.starts_with(b"\xff\xfe")
+        || bytes.starts_with(b"\xfe\xff")
+        || bytes.starts_with(b"\0\0\xfe\xff")
+    {
+        return Err(GcError::Corrupt);
+    }
     let mut reader = Reader::from_reader(bytes);
     reader.config_mut().expand_empty_elements = true;
+    reader.config_mut().check_end_names = true;
     let mut declaration = false;
     loop {
         match reader.read_event().map_err(|_| GcError::Corrupt)? {
@@ -94,7 +101,7 @@ fn flat(
                     .read_text(start.name())
                     .map_err(|_| GcError::Corrupt)?;
                 let text = text.xml10_content().map_err(|_| GcError::Corrupt)?;
-                if text.contains('<') {
+                if text.contains('<') || text.contains("]]>") {
                     return Err(GcError::Corrupt);
                 }
                 let decoded = quick_xml::escape::unescape(&text).map_err(|_| GcError::Corrupt)?;
@@ -102,7 +109,9 @@ fn flat(
                 fields.insert(name, decoded.into_owned());
             }
             Event::Text(text) if whitespace(&text) => {}
-            Event::End(end) if end.name().as_ref() == root => break,
+            // read_text consumed every child end. The reader's explicitly
+            // enabled end-name check rejects a mismatched root above.
+            Event::End(_) => break,
             _ => return Err(GcError::Corrupt),
         }
     }

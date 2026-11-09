@@ -102,3 +102,43 @@ fn error_codes_are_exact_and_bucket_absence_is_distinct() {
         }
     }
 }
+
+#[test]
+fn every_accepted_envelope_component_has_its_own_byte_validation() {
+    let valid = versioning("");
+    let mut bom = b"\xef\xbb\xbf".to_vec();
+    bom.extend_from_slice(valid.as_bytes());
+    assert_eq!(unversioned(&bom), Ok(()));
+    for prefix in [
+        b"\xff\xfe".as_slice(),
+        b"\xfe\xff",
+        b"\xff\xfe\0\0",
+        b"\0\0\xfe\xff",
+        b"\xef\xbb\xbf\xef\xbb\xbf",
+        b" \xef\xbb\xbf",
+    ] {
+        let mut bytes = prefix.to_vec();
+        bytes.extend_from_slice(valid.as_bytes());
+        assert_eq!(unversioned(&bytes), Err(GcError::Corrupt), "{prefix:?}");
+    }
+    for bytes in [
+        b"\xff<Error><Code>NoSuchKey</Code></Error>".as_slice(),
+        b"<Error xmlns=\"\xff\"><Code>NoSuchKey</Code></Error>",
+        b"<Error><Co\xffde>NoSuchKey</Co\xffde></Error>",
+        b"<Error><Code>NoSuch\xffKey</Code></Error>",
+        b"<Error><Code>NoSuchKey</Code></Error>\xff",
+        b"<Error><Code>NoSuchKey</Code></Error>\xef\xbb\xbf",
+        b"<Error><",
+        b"<Error></Other>",
+        b"<Error><Code>NoSuchKey</Code></Error><",
+        b"<Error><Code>NoSuchKey</Code><Message>]]></Message></Error>",
+        b"<Error><Code>NoSuchKey</Code><Message>\0</Message></Error>",
+        b"<Error><Code>NoSuchKey</Code><Message>&#xFFFE;</Message></Error>",
+    ] {
+        assert_eq!(error_code(bytes), Err(GcError::Corrupt), "{bytes:?}");
+    }
+    assert_eq!(
+        error_code(b"<Error><Code>NoSuchKey</Code><Message>]]&gt;</Message></Error>"),
+        Ok("NoSuchKey".into())
+    );
+}
