@@ -422,6 +422,35 @@ def allowed_changes(before, after, profile, event):
         must(before['world'] == after['world'], 'nonfixture client changed backend/fault injection')
 
 
+def unchanged_guard_rejection(before, after, who):
+    actor = before['actors'][who]
+    must(actor['handle_open'] and actor['failure'] is None and not actor['local_stop']
+         and not actor['detached'], 'guard rejection lacks live original attempt')
+    must(before['world'] == after['world'], 'guard rejection changed backend state')
+    must(before['tokens'] == after['tokens'], 'guard rejection changed original tokens')
+    must(before['lineages'] == after['lineages'], 'guard rejection changed knowledge')
+    same_except(actor, after['actors'][who], {'pc', 'stopped', 'outcome'},
+                'guard rejection changed original attempt')
+
+
+def rejection_authority(state, spec, profile, who, view, token_id):
+    """Bind a guard to its own earlier GET, never the current backend HEAD."""
+    must(view is not None, 'guard rejection lacks original view')
+    token, head = observed_authority(state, who, token_id)
+    known = knowledge(state, profile, who)
+    request, response = token['request'], token['observation']
+    must(token['lineage'] == profile['actors'][who]['lineage']
+         and request['domain'] == known['domain'] and request['scope'] == known['scope']
+         and request['key'] == authority_slot(known['scope']),
+         'guard rejection borrowed another authority')
+    must(valid_authority(head, known['scope'], spec['bounds']['generations'])
+         and response['etag'] == version(head), 'guard rejection lacks valid original authority')
+    must(view == {'domain': request['domain'], 'key': request['key'],
+                  'head': head, 'etag': response['etag']},
+         'guard rejection changed original observed view')
+    return head
+
+
 def justified_rejection(before, after, spec, profile, event):
     who, op = event['actor'], event['op']
     actor = before['actors'][who]
@@ -461,6 +490,65 @@ def justified_rejection(before, after, spec, profile, event):
     elif reason == 'content_invalid':
         must(op == 'validate_content' and not command.get('allow_failure')
              and actor['context']['roots']['data'] in before['world']['semantic_bad_roots'], 'invented content rejection')
+    elif reason == 'freeze_not_available':
+        must(profile['actors'][who]['role'] == 'fixture'
+             and op == command['op'] == 'prepare_tech' and command['kind'] == 'freeze',
+             'freeze rejection changed original technical command')
+        unchanged_guard_rejection(before, after, who)
+        head = rejection_authority(before, spec, profile, who, actor['view'], actor['view_token'])
+        must(head['life'] != 'deleted' and permitted(head, profile['actors'][who]['principal'], ('admin',))
+             and local_healthy(knowledge(before, profile, who), head['A']),
+             'freeze rejection bypassed an earlier admission guard')
+        # These frozen programs reach this reason only after a non-applied
+        # abort leaves the original observed plan present. Generation-cap
+        # exhaustion is not silently added as another accepted explanation.
+        must(head['plan'] is not None, 'freeze rejection lacks original occupied plan')
+    elif reason == 'no_retained_hold':
+        must(profile['actors'][who]['role'] == 'client'
+             and op == command['op'] == 'admit' and command['mode'] == 'read'
+             and command.get('retained') is True and command.get('copy_role') is None
+             and actor['context'] is None, 'retained rejection changed original admission')
+        unchanged_guard_rejection(before, after, who)
+        head = rejection_authority(before, spec, profile, who, actor['view'], actor['view_token'])
+        must(head['life'] == 'ready' and permitted(head, profile['actors'][who]['principal'], ('read',)),
+             'retained rejection bypassed original read permission')
+        must(head['hold'] is None, 'retained rejection ignored original observed hold')
+    elif reason == 'get_not_in_original_closure':
+        must(profile['actors'][who]['role'] == 'client'
+             and op == command['op'] == 'get' and command.get('purpose', 'read') == 'read'
+             and command['name'] in spec['frames'], 'closure rejection changed original read command')
+        unchanged_guard_rejection(before, after, who)
+        context = actor['context']
+        must(context is not None and context['mode'] == 'read' and context['plan'] is None
+             and context['lineage'] == profile['actors'][who]['lineage'],
+             'closure rejection lacks original read context')
+        view = {field: context[field] for field in ('domain', 'key', 'head', 'etag')}
+        head = rejection_authority(before, spec, profile, who, view, context['view_token'])
+        must(context['scope'] == head['scope'] and context['generation'] == head['A']
+             and context['roots'] == {'data': head['data'], 'index': head['index']}
+             and head['life'] == 'ready' and permitted(head, profile['actors'][who]['principal'], ('read',)),
+             'closure rejection changed original authorized roots')
+        for frame_hash, frame in actor['frames'].items():
+            frame_provenance(before, profile, who, frame_hash, frame, 'read')
+        must(spec['frames'][command['name']]['hash'] not in closure(actor),
+             'closure rejection names an authorized original dependency')
+    elif reason == 'fixture_remove_live_generation':
+        must(profile['actors'][who]['role'] == 'fixture' and op == 'remove_retired'
+             and command['op'] == 'remove_retired', 'fixture rejection lacks original fixture command')
+        generation = command['generation']
+        must(type(generation) is int and 1 <= generation <= spec['bounds']['generations']
+             and command['name'] in spec['frames'], 'fixture rejection lacks original generation/frame')
+        scope = spec['scope']
+        head = before['world']['heads'].get('D0', {}).get(authority_slot(scope))
+        must(valid_authority(head, scope, spec['bounds']['generations']),
+             'fixture rejection lacks valid original authority')
+        must(not permanent(head, generation), 'fixture rejected already retired generation')
+        # A rejected fixture instruction is not a GC operation. In particular,
+        # a non-applied promotion must not remove its still-active source, alter
+        # another authority, or manufacture observation/knowledge as it exits.
+        must(before['world'] == after['world'], 'fixture rejection changed backend state')
+        must(before['tokens'] == after['tokens'], 'fixture rejection changed original tokens')
+        must(before['lineages'] == after['lineages'], 'fixture rejection changed knowledge')
     else:
         # No generic "safe error" acceptance. A new guard outcome in a program
         # requires an explicit independently reviewed obligation here.

@@ -7,9 +7,14 @@ from pathlib import Path
 import unittest
 
 import model
-from controls import (rebind_technical_generation, reject_failure_probe,
-                      replace_management_verb, replace_technical_verb)
-from oracle_protocol import Violation, edge_checks, state_checks
+from controls import (falsely_reject_closure_get, falsely_reject_freeze, falsely_reject_held_read,
+                      falsely_reject_retired_removal, rebind_technical_generation,
+                      reject_failure_probe, rejected_freeze_recaptures_context,
+                      rejected_hold_grants_current_context, rejected_nonmember_dispatches_get,
+                      rejected_removal_changes_foreign_authority,
+                      rejected_removal_deletes_live_object, replace_management_verb,
+                      replace_technical_verb)
+from oracle_protocol import Violation, authority_slot, edge_checks, justified_rejection, state_checks
 from run import select_profiles
 
 
@@ -319,6 +324,354 @@ class KnowledgeTests(unittest.TestCase):
             select_profiles(SPEC, ['NOT_A_PROFILE'])
         self.assertEqual(select_profiles(SPEC, [identifier]), [SPEC['profiles'][0]])
         self.assertEqual(select_profiles(SPEC, []), SPEC['profiles'])
+
+    @staticmethod
+    def materialized_remove_trace(delivery):
+        trace = Trace('K05_materialized_return')
+        trace.until_mark('a', 'materialized')
+        trace.until_op('m', 'send_head')
+        trace.step('m')
+        original = trace.state['actors']['m']['cas']
+        trace.delivery(original, delivery)
+        trace.step('m', choice='known', auto_delivery=False)
+        trace.step('m')
+        return trace
+
+    def test_nonapplied_promotion_rejects_live_removal_without_any_fixture_effect(self):
+        trace = self.materialized_remove_trace('discard')
+        before, event, after = trace.steps[-1]
+        self.assertEqual(event['op'], 'remove_retired')
+        self.assertEqual(before['world']['heads']['D0'][authority_slot(SPEC['scope'])]['A'], 1)
+        self.assertEqual(after['actors']['m']['stopped'], 'fixture_remove_live_generation')
+        self.assertEqual(before['tokens'][before['actors']['m']['cas']]['effect'],
+                         {'kind': 'Unavailable', 'delivered': False})
+        self.assertEqual(before['world'], after['world'])
+        self.assertEqual(before['tokens'], after['tokens'])
+        self.assertEqual(before['lineages'], after['lineages'])
+        self.assertNotIn('retired', after['actors']['m']['marks'])
+
+    def test_applied_promotion_keeps_retired_remove_and_original_materialized_return(self):
+        trace = self.materialized_remove_trace('apply')
+        before, event, after = trace.steps[-1]
+        self.assertIsNone(after['actors']['m']['stopped'])
+        self.assertEqual(before['world']['heads']['D0'][authority_slot(SPEC['scope'])]['A'], 2)
+        self.assertEqual(len(set(before['world']['objects']['D0']) - set(after['world']['objects']['D0'])), 1)
+        original = copy.deepcopy(after['actors']['a']['materialized'])
+        trace.finish('m')
+        trace.finish('a')
+        self.assertEqual(trace.state['actors']['a']['outcome']['kind'], 'Read')
+        self.assertEqual(trace.state['actors']['a']['materialized'], original)
+
+    def test_oracle_cannot_use_foreign_live_authority_to_reject_retired_original_generation(self):
+        trace = self.materialized_remove_trace('apply')
+        before, event, honest = trace.steps[-1]
+        key = authority_slot(SPEC['scope'])
+        self.assertEqual(before['world']['heads']['D0'][key]['A'], 2)
+        self.assertEqual(before['world']['heads']['D1'][key]['A'], 1)
+        changed = copy.deepcopy(honest)
+        falsely_reject_retired_removal(before, event, changed, SPEC, trace.profile)
+        with self.assertRaisesRegex(Violation, 'fixture rejected already retired generation'):
+            edge_checks(before, changed, SPEC, trace.profile, event)
+
+    def test_rejected_fixture_cannot_remove_live_bytes_or_change_another_authority(self):
+        trace = self.materialized_remove_trace('discard')
+        before, event, honest = trace.steps[-1]
+        for mutation in (rejected_removal_deletes_live_object, rejected_removal_changes_foreign_authority):
+            with self.subTest(mutation=mutation.__name__):
+                changed = copy.deepcopy(honest)
+                mutation(before, event, changed, SPEC, trace.profile)
+                with self.assertRaisesRegex(Violation, 'fixture rejection changed backend state'):
+                    edge_checks(before, changed, SPEC, trace.profile, event)
+
+    def test_rejected_fixture_requires_declared_role_and_valid_original_scope_authority(self):
+        trace = self.materialized_remove_trace('discard')
+        before, event, honest = trace.steps[-1]
+        wrong_role = copy.deepcopy(trace.profile)
+        wrong_role['actors']['m']['role'] = 'client'
+        with self.assertRaisesRegex(Violation, 'fixture rejection lacks original fixture command'):
+            justified_rejection(before, honest, SPEC, wrong_role, event)
+        key = authority_slot(SPEC['scope'])
+        for mutation in ('missing_authority', 'wrong_scope'):
+            with self.subTest(mutation=mutation):
+                bad_before, bad_after = copy.deepcopy(before), copy.deepcopy(honest)
+                for state in (bad_before, bad_after):
+                    if mutation == 'missing_authority':
+                        del state['world']['heads']['D0'][key]
+                    else:
+                        state['world']['heads']['D0'][key]['scope'] = copy.deepcopy(SPEC['foreign_scope'])
+                with self.assertRaisesRegex(Violation, 'fixture rejection lacks valid original authority'):
+                    justified_rejection(bad_before, bad_after, SPEC, trace.profile, event)
+
+    def test_fixture_rejection_rule_itself_preserves_original_tokens_and_lineage_knowledge(self):
+        trace = self.materialized_remove_trace('discard')
+        before, event, honest = trace.steps[-1]
+        changed = copy.deepcopy(honest)
+        changed['tokens'][before['actors']['m']['cas']]['observation'] = {'kind': 'Unknown'}
+        with self.assertRaisesRegex(Violation, 'fixture rejection changed original tokens'):
+            justified_rejection(before, changed, SPEC, trace.profile, event)
+        changed = copy.deepcopy(honest)
+        changed['lineages']['H2']['authority'] = True
+        with self.assertRaisesRegex(Violation, 'fixture rejection changed knowledge'):
+            justified_rejection(before, changed, SPEC, trace.profile, event)
+
+
+    @staticmethod
+    def freeze_after_abort_trace(identifier, delivery):
+        trace = Trace(identifier)
+        trace.until_mark('a', 'captured')
+        trace.until_op('m', 'send_head')
+        trace.step('m')
+        trace.delivery(trace.state['actors']['m']['cas'], delivery)
+        trace.step('m', choice='known', auto_delivery=False)
+        trace.until_op('m', 'prepare_tech')
+        trace.step('m')
+        return trace
+
+    @staticmethod
+    def retained_admission_trace(identifier, hold_delivery, promote_delivery):
+        trace = Trace(identifier)
+        trace.until_op('m', 'send_head')
+        trace.step('m')
+        trace.delivery(trace.state['actors']['m']['cas'], hold_delivery)
+        trace.step('m', choice='known', auto_delivery=False)
+        trace.until_op('m', 'send_head')
+        trace.step('m')
+        trace.delivery(trace.state['actors']['m']['cas'], promote_delivery)
+        trace.step('m', choice='known', auto_delivery=False)
+        trace.until_mark('m', 'held')
+        trace.until_op('a', 'admit')
+        trace.step('a')
+        return trace
+
+    @staticmethod
+    def writer_then_explicit_get_trace(delivery):
+        trace = Trace('K14_writer')
+        trace.until_op('a', 'send_head')
+        trace.step('a')
+        trace.delivery(trace.state['actors']['a']['cas'], delivery)
+        trace.step('a', choice='known', auto_delivery=False)
+        trace.step('a', choice='commit' if delivery == 'apply' else 'abort')
+        trace.step('a')
+        trace.until_mark('a', 'answered')
+        trace.until_mark('b', 'admitted')
+        trace.until_mark('f', 'faulted')
+        trace.until_op('b', 'get')
+        trace.step('b')
+        return trace
+
+
+    def test_nonapplied_abort_rejects_freeze_against_its_new_original_view(self):
+        for identifier in ('K06_aborted_target', 'K07_active_source'):
+            with self.subTest(profile=identifier):
+                trace = self.freeze_after_abort_trace(identifier, 'discard')
+                before, event, after = trace.steps[-1]
+                actor = before['actors']['m']
+                self.assertEqual((event['op'], event['pc']), ('prepare_tech', 10))
+                self.assertEqual(actor['view_token'], 'm:8')
+                self.assertEqual(actor['context']['view_token'], 'm:2')
+                self.assertEqual(actor['view']['head']['plan']['id'], 'P0')
+                self.assertEqual(before['tokens']['m:6']['observation'],
+                                 {'kind': 'Unavailable', 'delivered': False})
+                self.assertEqual(after['actors']['m']['stopped'], 'freeze_not_available')
+                for field in ('world', 'tokens', 'lineages'):
+                    self.assertEqual(before[field], after[field])
+                self.assertEqual(actor['context'], after['actors']['m']['context'])
+
+    def test_applied_abort_keeps_freeze_enabled_despite_older_context_plan(self):
+        trace = self.freeze_after_abort_trace('K06_aborted_target', 'apply')
+        before, event, honest = trace.steps[-1]
+        self.assertIsNotNone(before['actors']['m']['context']['head']['plan'])
+        self.assertIsNone(before['actors']['m']['view']['head']['plan'])
+        self.assertEqual(honest['actors']['m']['candidate']['kind'], 'freeze')
+        self.assertEqual(honest['actors']['m']['context']['view_token'], 'm:8')
+        changed = copy.deepcopy(honest)
+        falsely_reject_freeze(before, event, changed, SPEC, trace.profile)
+        with self.assertRaisesRegex(Violation, 'freeze rejection lacks original occupied plan'):
+            edge_checks(before, changed, SPEC, trace.profile, event)
+
+    def test_nonapplied_hold_is_absent_from_original_retained_admission_in_both_promotion_outcomes(self):
+        for identifier in ('K06_held_missing', 'K06_held_hash'):
+            for delivery in ('apply', 'discard'):
+                with self.subTest(profile=identifier, promotion=delivery):
+                    trace = self.retained_admission_trace(identifier, 'discard', delivery)
+                    before, event, after = trace.steps[-1]
+                    original = before['actors']['a']
+                    self.assertEqual(original['view_token'], 'a:2')
+                    self.assertIsNone(original['view']['head']['hold'])
+                    self.assertEqual(original['view']['head']['A'], 2 if delivery == 'apply' else 1)
+                    self.assertEqual(before['tokens']['m:5']['observation'],
+                                     {'kind': 'Unavailable', 'delivered': False})
+                    self.assertEqual(after['actors']['a']['stopped'], 'no_retained_hold')
+                    self.assertIsNone(after['actors']['a']['context'])
+                    for field in ('world', 'tokens', 'lineages'):
+                        self.assertEqual(before[field], after[field])
+
+    def test_observed_hold_keeps_retained_read_and_later_source_failure_valid(self):
+        trace = self.retained_admission_trace('K06_held_missing', 'apply', 'apply')
+        before, event, honest = trace.steps[-1]
+        self.assertEqual(before['actors']['a']['view']['head']['hold']['generation'], 1)
+        self.assertIsNone(before['world']['heads']['D1'][authority_slot(SPEC['scope'])]['hold'])
+        self.assertEqual(honest['actors']['a']['context']['generation'], 1)
+        changed = copy.deepcopy(honest)
+        falsely_reject_held_read(before, event, changed, SPEC, trace.profile)
+        with self.assertRaisesRegex(Violation, 'retained rejection ignored original observed hold'):
+            edge_checks(before, changed, SPEC, trace.profile, event)
+        trace.until_mark('a', 'admitted')
+        trace.until_mark('m', 'faulted')
+        trace.finish('a')
+        self.assertEqual(trace.state['actors']['a']['outcome']['kind'], 'Corrupt')
+        self.assertEqual(trace.state['actors']['a']['failure']['kind'], 'physical')
+
+
+    def test_unapplied_writer_rejects_only_nonmember_before_any_get_or_failure(self):
+        trace = self.writer_then_explicit_get_trace('discard')
+        before, event, after = trace.steps[-1]
+        original = before['actors']['b']
+        self.assertEqual(original['context']['view_token'], 'b:2')
+        self.assertEqual(original['context']['roots'],
+                         {'data': SPEC['frames']['M0']['hash'], 'index': SPEC['frames']['I0']['hash']})
+        self.assertEqual(original['frames'], {})
+        self.assertEqual(after['actors']['b']['stopped'], 'get_not_in_original_closure')
+        self.assertEqual(after['actors']['a']['outcome']['kind'], 'Unknown')
+        self.assertIsNone(after['actors']['b']['failure'])
+        for field in ('world', 'tokens', 'lineages'):
+            self.assertEqual(before[field], after[field])
+        self.assertNotIn('b:7', after['tokens'])
+
+    def test_applied_writer_keeps_authorized_get_missing_and_historical_ack(self):
+        trace = self.writer_then_explicit_get_trace('apply')
+        before, event, honest = trace.steps[-1]
+        self.assertEqual(before['actors']['b']['context']['roots']['data'], SPEC['frames']['M1']['hash'])
+        self.assertEqual(honest['tokens']['b:7']['request']['hash'], SPEC['frames']['M1']['hash'])
+        changed = copy.deepcopy(honest)
+        falsely_reject_closure_get(before, event, changed, SPEC, trace.profile)
+        with self.assertRaisesRegex(Violation, 'closure rejection names an authorized original dependency'):
+            edge_checks(before, changed, SPEC, trace.profile, event)
+        trace.finish('b')
+        self.assertEqual(trace.state['tokens']['b:7']['observation']['kind'], 'NoSuchKey')
+        self.assertEqual(trace.state['actors']['b']['failure']['kind'], 'physical')
+        self.assertEqual(trace.state['actors']['b']['failure']['token'], 'b:7')
+        self.assertIn('1', trace.state['lineages']['H1']['physical'])
+        self.assertEqual(trace.state['actors']['a']['outcome']['kind'], 'Ack')
+        trace.finish('a')
+        self.assertEqual(trace.state['actors']['a']['outcome']['kind'], 'Ack')
+
+    def test_rejected_guards_cannot_recapture_grant_or_dispatch(self):
+        cases = (
+            (self.freeze_after_abort_trace('K06_aborted_target', 'discard'),
+             rejected_freeze_recaptures_context, 'guard rejection changed original attempt'),
+            (self.retained_admission_trace('K06_held_missing', 'discard', 'apply'),
+             rejected_hold_grants_current_context, 'guard rejection changed original attempt'),
+            (self.writer_then_explicit_get_trace('discard'),
+             rejected_nonmember_dispatches_get, 'guard rejection changed original tokens'),
+        )
+        for trace, mutation, boundary in cases:
+            with self.subTest(mutation=mutation.__name__):
+                before, event, honest = trace.steps[-1]
+                changed = copy.deepcopy(honest)
+                mutation(before, event, changed, SPEC, trace.profile)
+                with self.assertRaisesRegex(Violation, boundary):
+                    edge_checks(before, changed, SPEC, trace.profile, event)
+
+
+    def test_new_guard_rules_bind_own_authority_scope_command_role_and_permission(self):
+        traces = (
+            self.freeze_after_abort_trace('K06_aborted_target', 'discard'),
+            self.retained_admission_trace('K06_held_missing', 'discard', 'apply'),
+            self.writer_then_explicit_get_trace('discard'),
+        )
+        for trace in traces:
+            before, event, honest = trace.steps[-1]
+            who = event['actor']
+            original = before['actors'][who]
+            token_id = (original['context']['view_token'] if event['op'] == 'get'
+                        else original['view_token'])
+            for changed_field, changed_value in (('domain', 'D1'), ('scope', SPEC['foreign_scope'])):
+                with self.subTest(reason=honest['actors'][who]['stopped'], identity=changed_field):
+                    bad_before, bad_after = copy.deepcopy(before), copy.deepcopy(honest)
+                    for state in (bad_before, bad_after):
+                        state['tokens'][token_id]['request'][changed_field] = copy.deepcopy(changed_value)
+                    with self.assertRaisesRegex(Violation, 'guard rejection borrowed another authority'):
+                        justified_rejection(bad_before, bad_after, SPEC, trace.profile, event)
+            other_token = next(identifier for identifier, token in before['tokens'].items()
+                               if token['actor'] != who and token['request']['method'] == 'HEAD_GET'
+                               and token['request']['purpose'] == 'admit'
+                               and token['observation'] and token['observation']['kind'] == 'Found')
+            bad_before, bad_after = copy.deepcopy(before), copy.deepcopy(honest)
+            for state in (bad_before, bad_after):
+                holder = state['actors'][who]['context'] if event['op'] == 'get' else state['actors'][who]
+                holder['view_token'] = other_token
+            with self.assertRaisesRegex(Violation, 'authority token not original actor'):
+                justified_rejection(bad_before, bad_after, SPEC, trace.profile, event)
+            denied = copy.deepcopy(trace.profile)
+            denied['actors'][who]['principal'] = 999
+            with self.assertRaisesRegex(Violation, 'admission guard|read permission|authorized roots'):
+                justified_rejection(before, honest, SPEC, denied, event)
+            wrong_role = copy.deepcopy(trace.profile)
+            wrong_role['actors'][who]['role'] = ('client' if wrong_role['actors'][who]['role'] == 'fixture'
+                                                else 'fixture')
+            with self.assertRaisesRegex(Violation, 'changed original'):
+                justified_rejection(before, honest, SPEC, wrong_role, event)
+            different = copy.deepcopy(trace.profile)
+            command = different['actors'][who]['program'][event['pc']]
+            if event['op'] == 'prepare_tech':
+                command['kind'] = 'abort_plan'
+            elif event['op'] == 'admit':
+                command['retained'] = False
+            else:
+                command['purpose'] = 'readback'
+            with self.assertRaisesRegex(Violation, 'changed original'):
+                justified_rejection(before, honest, SPEC, different, event)
+
+    def test_new_guard_rules_preserve_all_backend_tokens_and_knowledge(self):
+        traces = (
+            self.freeze_after_abort_trace('K06_aborted_target', 'discard'),
+            self.retained_admission_trace('K06_held_missing', 'discard', 'apply'),
+            self.writer_then_explicit_get_trace('discard'),
+        )
+        for trace in traces:
+            before, event, honest = trace.steps[-1]
+            who = event['actor']
+            for changed_field in ('world', 'tokens', 'lineages'):
+                with self.subTest(reason=honest['actors'][who]['stopped'], changed=changed_field):
+                    changed = copy.deepcopy(honest)
+                    if changed_field == 'world':
+                        changed['world']['heads']['D1'][authority_slot(SPEC['scope'])]['serial'] += 1
+                        boundary = 'guard rejection changed backend state'
+                    elif changed_field == 'tokens':
+                        changed['tokens'][next(iter(changed['tokens']))]['observation'] = {'kind': 'Unknown'}
+                        boundary = 'guard rejection changed original tokens'
+                    else:
+                        changed['lineages'][trace.profile['actors'][who]['lineage']]['authority'] = True
+                        boundary = 'guard rejection changed knowledge'
+                    with self.assertRaisesRegex(Violation, boundary):
+                        justified_rejection(before, changed, SPEC, trace.profile, event)
+
+    def test_guard_evidence_does_not_read_a_later_global_head(self):
+        # Isolated oracle-source tests, not added reachable-profile claims:
+        # a later backend HEAD cannot rewrite an already observed guard basis.
+        traces = (
+            self.freeze_after_abort_trace('K06_aborted_target', 'discard'),
+            self.retained_admission_trace('K06_held_missing', 'discard', 'apply'),
+            self.writer_then_explicit_get_trace('discard'),
+        )
+        for trace in traces:
+            before, event, honest = trace.steps[-1]
+            changed_before, changed_after = copy.deepcopy(before), copy.deepcopy(honest)
+            for state in (changed_before, changed_after):
+                head = state['world']['heads']['D0'][authority_slot(SPEC['scope'])]
+                head['serial'] += 1
+                if event['op'] == 'prepare_tech':
+                    head['plan'] = None
+                elif event['op'] == 'admit':
+                    head['hold'] = {'id': 'HOLD-LATER', 'scope': copy.deepcopy(SPEC['scope']),
+                                    'generation': head['A'],
+                                    'roots': {'data': head['data'], 'index': head['index']}}
+                else:
+                    head['data'], head['index'] = SPEC['frames']['M1']['hash'], SPEC['frames']['I1']['hash']
+                    head['revision'] += 1
+                    head['sequence'] += 1
+            justified_rejection(changed_before, changed_after, SPEC, trace.profile, event)
 
 
 if __name__ == '__main__':

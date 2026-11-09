@@ -1,0 +1,805 @@
+{
+  "schema": 1,
+  "status": "STATIC_FROZEN_NOT_RUN",
+  "base_commit": "e396d48011a69628fe47186549a390aad1f145b6",
+  "original_gate": {
+    "status": "FAILED",
+    "enumeration": "ENUMERATED",
+    "profiles": 46,
+    "states": 57420,
+    "edges": 136266,
+    "completion": {
+      "aws_standard": "NOT_RUN",
+      "bounds": {
+        "actors": 4,
+        "domains": 2,
+        "edges_per_profile": 150000,
+        "frames": 8,
+        "generations": 3,
+        "holds": 1,
+        "lineages": 3,
+        "plans": 1,
+        "scopes": 2,
+        "seconds_per_profile": 120,
+        "states_per_profile": 50000,
+        "steps_per_actor": 96,
+        "tokens": 48,
+        "workers": 2
+      },
+      "commands": [
+        {
+          "argv": [
+            "python3",
+            "scripts/source_manifest.py",
+            "capture",
+            "/tmp/scap-handle-knowledge-e396d48-01/source-before.json"
+          ],
+          "exit_code": 0,
+          "finished_ns": 69156820143032,
+          "log_sha256": "e9a13bbac8ee125946f66fc2cfd3bb81974a7618d0af724ad45d5d98dac51fa4",
+          "name": "source",
+          "started_ns": 69156142425133
+        },
+        {
+          "argv": [
+            "python3",
+            "-B",
+            "experiments/object-handle-knowledge-model/run.py",
+            "--output",
+            "/tmp/scap-handle-knowledge-e396d48-01/graph"
+          ],
+          "exit_code": 0,
+          "finished_ns": 69317375903966,
+          "log_sha256": "a2700073e2e2da7e856a336013782ce0ee21f8d7d1fbc4f69a36c0e324623911",
+          "name": "enumerate",
+          "started_ns": 69156823443760
+        },
+        {
+          "argv": [
+            "python3",
+            "-B",
+            "experiments/object-handle-knowledge-model/oracle.py",
+            "--graph",
+            "/tmp/scap-handle-knowledge-e396d48-01/graph",
+            "--output",
+            "/tmp/scap-handle-knowledge-e396d48-01/audit"
+          ],
+          "exit_code": 1,
+          "finished_ns": 69392141128067,
+          "log_sha256": "9f0e5b6eb7dd1e33c83d3c9d76b09afe75539ab774e8dfc4728a9781aa4ef52d",
+          "name": "independent-oracle",
+          "started_ns": 69317380172626
+        },
+        {
+          "argv": [
+            "python3",
+            "scripts/source_manifest.py",
+            "verify",
+            "/tmp/scap-handle-knowledge-e396d48-01/source-before.json"
+          ],
+          "exit_code": 0,
+          "finished_ns": 69392383473245,
+          "log_sha256": "c63728988f31a9656344ab67576944939451f51996aee4719b9f1e80ee1a0e19",
+          "name": "source-verify",
+          "started_ns": 69392144243507
+        }
+      ],
+      "driver_sha256": "4f42212f941363cde8621e8b19f0d17fd0077b8a831c37189906f33cde92be5d",
+      "error": "independent-oracle exited 1",
+      "error_type": "RuntimeError",
+      "execution_context": {
+        "cpu_max": "800000 100000",
+        "scope": "No actual backend/daemon, native compilation or Rust unit collection concurrently. A closed unit-artifact archive/readback may run independently; no model performance qualification."
+      },
+      "failed_command": "independent-oracle",
+      "frozen_input_sha256": "9cd5c13adda7f74bae847fe3786cabec83b5594086788edb423f0ff3b4f6da4a",
+      "production": "NOT_RUN",
+      "production_slo": "NOT_RUN",
+      "schema": 1,
+      "scope": "Complete fixed 46-profile finite model, independent graph oracle and declared semantic/graph controls; no production correctness or native timing claim",
+      "source_commit": "e396d48011a69628fe47186549a390aad1f145b6",
+      "source_root": "/workspace/scratch/591a71cb3372/delivery-handle-knowledge",
+      "source_unchanged": true,
+      "status": "failed",
+      "unit_prerequisite": {
+        "count": 19,
+        "receipt": "/tmp/scap-handle-knowledge-units01/receipt.json",
+        "sha256": "1d419c91a9339c3770e0ed3ecf40b06274b18cc5c49f6a20c58e9180ffc6d491"
+      }
+    },
+    "failure": {
+      "error": "unaccounted rejection boundary: fixture_remove_live_generation",
+      "error_type": "Violation",
+      "schema": 1,
+      "status": "FAILED"
+    },
+    "controls": "NOT_RUN",
+    "reinterpreted": false
+  },
+  "correction": {
+    "assembly_attempt01_preserved": "assembly-attempt01.json",
+    "base": "e396d48011a69628fe47186549a390aad1f145b6",
+    "created_utc": "2026-11-09T20:56:57.446768+00:00",
+    "definitions": {
+      "graph_controls": 2,
+      "new_semantic_controls_since_static01": 6,
+      "new_tests_since_static01": 10,
+      "semantic_controls": 47,
+      "unit_tests": 35
+    },
+    "executions": {
+      "actual": "NOT_RUN",
+      "bfs": "NOT_RUN",
+      "diff_check": "PASS",
+      "graph_controls": "NOT_RUN",
+      "independent_oracle": "NOT_RUN",
+      "semantic_controls": "NOT_RUN",
+      "syntax": "NOT_RUN",
+      "unit_tests": "NOT_RUN"
+    },
+    "files": [
+      {
+        "bytes": 62273,
+        "path": "experiments/object-handle-knowledge-model/oracle_protocol.py",
+        "sha256": "4da7ec5e0e3dbe6bc11958cd70b56b70ad04f11e7e563baf055ca675e6bfc42a"
+      },
+      {
+        "bytes": 30925,
+        "path": "experiments/object-handle-knowledge-model/controls.py",
+        "sha256": "5f017a13786f020c1a66dd79ac1870dab9c0326b27b14426e91d0d506ea74ea9"
+      },
+      {
+        "bytes": 37876,
+        "path": "experiments/object-handle-knowledge-model/test_model.py",
+        "sha256": "c0a31478c9d6a41897176f4fd0d68bd807bf93d395051e09d850f9de79ad99ca"
+      }
+    ],
+    "narrow_rules": {
+      "freeze_not_available": {
+        "basis": "own original admission view; occupied plan; no generation-cap explanation",
+        "original_edges": 2
+      },
+      "get_not_in_original_closure": {
+        "basis": "own original read context, typed roots and observed frame prefix; no GET issued",
+        "original_edges": 1
+      },
+      "no_retained_hold": {
+        "basis": "own original retained-read admission view; hold is None",
+        "original_edges": 4
+      }
+    },
+    "original_failure": {
+      "evidence": "/tmp/scap-handle-knowledge-e396d48-01",
+      "reinterpretation": false,
+      "status": "FAILED"
+    },
+    "parent_static01": {
+      "author_tree_files_unchanged": true,
+      "path": "/tmp/scap-handle-rejection-fix-static01/manifest.json",
+      "sha256": "bc56223bdaac0dfa2f5d3c86358694d33b0ac465b9809b6df8ea62f7a7e141d9"
+    },
+    "patches": [
+      {
+        "bytes": 27895,
+        "path": "/tmp/scap-handle-rejection-fix-static02/changes-from-static01.patch",
+        "sha256": "0d260b0c0402f13b2917c7613c3015f1b0a2bd4677d8ac944f528b685a6742fc"
+      },
+      {
+        "bytes": 37537,
+        "path": "/tmp/scap-handle-rejection-fix-static02/changes-from-e396.patch",
+        "sha256": "dac8027fdbeecae289189025e680e1534326560862e19bab5a66dd9711080563"
+      }
+    ],
+    "readonly_rejection_inventory": {
+      "edges": 136266,
+      "not_a_full_oracle_acceptance": true,
+      "path": "/tmp/scap-handle-all-rejections-readonly01/receipt.json",
+      "profiles": 46,
+      "sha256": "b5c369c621077cd86739eaf1a65b794e13b52a57a7145e447a36439367cf7e7b",
+      "states": 57420
+    },
+    "schema": 1,
+    "seven_original_edges": {
+      "bytes": 7794,
+      "path": "/tmp/scap-handle-all-rejections-readonly01/seven-original-edges.json",
+      "sha256": "cecfcabfebc10abd30b6a5db1d0c1468fb4e0701a0aa85935f8b0cefa506f941"
+    },
+    "status": "STATIC_FROZEN_NOT_RUN",
+    "unchanged_inputs_and_producer": [
+      {
+        "base_git_blob_sha1": "274fad4f91b751e46d1b3bc38b4ddf92b446788e",
+        "path": "experiments/object-handle-knowledge-model/PLAN.md",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "ba3d0c9554888ef6ede0cc84d7fe65031f71b08d",
+        "path": "experiments/object-handle-knowledge-model/README.md",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "d095407e6bb54e4e7c2cd32c9ad093a778885453",
+        "path": "experiments/object-handle-knowledge-model/build_inputs.py",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "5b53fe6e5fccd75d6ee35f1ec172e852d5c5eb70",
+        "path": "experiments/object-handle-knowledge-model/inputs.json",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "d3c8664c0c913e67f8b2947fb8b5a99edd665eee",
+        "path": "experiments/object-handle-knowledge-model/model.py",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "2ccc313e95d4de73e62883b66b8db11c6b42da5c",
+        "path": "experiments/object-handle-knowledge-model/oracle.py",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "2990b4b982659563493ac3f9357c4891ecf7df72",
+        "path": "experiments/object-handle-knowledge-model/oracle_witnesses.py",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "ac9a705fbf1a78a1842d876c95a5dacd2557fd40",
+        "path": "experiments/object-handle-knowledge-model/program-history.json",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "74cc0108197c7bc56a510ad1e8edc98f904149b7",
+        "path": "experiments/object-handle-knowledge-model/run.py",
+        "unchanged_from_base": true
+      },
+      {
+        "base_git_blob_sha1": "55db19c412fa4bd7aa245ab8d04c2a0f7331d906",
+        "path": "experiments/object-handle-knowledge-model/source-inputs.json",
+        "unchanged_from_base": true
+      }
+    ],
+    "worktree": "/workspace/scratch/591a71cb3372/handle-knowledge-rejection-fix02"
+  },
+  "peer_reviews": [
+    {
+      "schema": 1,
+      "status": "STATIC_NO_BLOCKING_FINDINGS_WITHIN_REVIEW_SCOPE",
+      "reviewer": "/root/service_resources",
+      "base_commit": "e396d48011a69628fe47186549a390aad1f145b6",
+      "source_manifest": {
+        "path": "/tmp/scap-handle-rejection-fix-static01/manifest.json",
+        "sha256": "bc56223bdaac0dfa2f5d3c86358694d33b0ac465b9809b6df8ea62f7a7e141d9"
+      },
+      "patch": {
+        "path": "/tmp/scap-handle-rejection-fix-static01/changes-from-e396.patch",
+        "sha256": "542ca1129a4811666b768d43d585f4636d02d77cfeddbd3549644853d96eece8"
+      },
+      "reviewed_files_verified_against_freeze": [
+        {
+          "bytes": 57420,
+          "path": "experiments/object-handle-knowledge-model/oracle_protocol.py",
+          "sha256": "c343c8697b397d7e1c2893983cc06c30d7adadcc2c399c74f49f0345b77b7a57"
+        },
+        {
+          "bytes": 26664,
+          "path": "experiments/object-handle-knowledge-model/controls.py",
+          "sha256": "fc127aa88a30252fbd4075d9e7d39c9cc9adabaaf583723207532f47bf2ea8e2"
+        },
+        {
+          "bytes": 22312,
+          "path": "experiments/object-handle-knowledge-model/test_model.py",
+          "sha256": "38bed0e508fa49e137944b6bfb8fc963b8a35fbbb2c28dc40d94d40f04b1b1f1"
+        }
+      ],
+      "conclusions": [
+        "The new rejection accepts only the original fixture remove_retired command, bounded original generation/frame, and valid original D0 full-Scope authority proving the generation is not permanently retired.",
+        "The rejection requires unchanged backend world, every original token, and all lineage knowledge. Existing allowed-delta checks also preserve every other actor and all unrelated fields of the rejecting actor.",
+        "The three semantic negative definitions retain their original reachable source/event and target the specific retired-generation false rejection, active-byte deletion, and foreign-authority mutation boundaries.",
+        "The six focused unit definitions distinguish applied and discarded promotion, retain the complete-materialization-after-retirement positive, and test original role/scope/token/knowledge binding."
+      ],
+      "execution": {
+        "project_import": "NOT_RUN",
+        "syntax": "NOT_RUN",
+        "unit": "NOT_RUN",
+        "oracle": "NOT_RUN",
+        "controls": "NOT_RUN",
+        "BFS": "NOT_RUN",
+        "actual": "NOT_RUN"
+      },
+      "limitations": [
+        "This is a source review, not validation of all recorded graph edges or runtime test acceptance.",
+        "The original e396 formal failure remains FAILED and unchanged.",
+        "The separately reported freeze_not_available, no_retained_hold, and get_not_in_original_closure cases are outside this frozen fix01 and require their own reviewed successor."
+      ],
+      "source_mutations": []
+    },
+    {
+      "schema": 1,
+      "status": "STATIC_NO_BLOCKING_FINDINGS_WITHIN_REVIEW_SCOPE",
+      "reviewer": "/root/service_resources",
+      "base_commit": "e396d48011a69628fe47186549a390aad1f145b6",
+      "source_manifest": {
+        "path": "/tmp/scap-handle-rejection-fix-static02/manifest.json",
+        "sha256": "6a449cdf540919540a4c4818b3bb9a811abcce70f40d4315d6f3964d4dff0a7d"
+      },
+      "incremental_patch": {
+        "bytes": 27895,
+        "path": "/tmp/scap-handle-rejection-fix-static02/changes-from-static01.patch",
+        "sha256": "0d260b0c0402f13b2917c7613c3015f1b0a2bd4677d8ac944f528b685a6742fc"
+      },
+      "source_files_verified_against_freeze": [
+        {
+          "bytes": 62273,
+          "path": "experiments/object-handle-knowledge-model/oracle_protocol.py",
+          "sha256": "4da7ec5e0e3dbe6bc11958cd70b56b70ad04f11e7e563baf055ca675e6bfc42a"
+        },
+        {
+          "bytes": 30925,
+          "path": "experiments/object-handle-knowledge-model/controls.py",
+          "sha256": "5f017a13786f020c1a66dd79ac1870dab9c0326b27b14426e91d0d506ea74ea9"
+        },
+        {
+          "bytes": 37876,
+          "path": "experiments/object-handle-knowledge-model/test_model.py",
+          "sha256": "c0a31478c9d6a41897176f4fd0d68bd807bf93d395051e09d850f9de79ad99ca"
+        }
+      ],
+      "prior_review": "/tmp/scap-handle-rejection-fix-peer-review01/receipt.json",
+      "conclusions": [
+        "freeze_not_available is limited to the original fixture freeze verb, own observed admission HEAD with occupied plan, required current rights and healthy source; it cannot borrow an older context or invent generation-cap exhaustion.",
+        "no_retained_hold is limited to the original retained read admission with no preexisting context and its own valid authorized observed HEAD lacking a hold; an independent domain or later HEAD cannot replace that evidence.",
+        "get_not_in_original_closure is limited to the original ordinary read context, exact original authority, and owned hash/type-validated observed prefix; rejection issues no GET and creates no physical failure.",
+        "The common rejection helper preserves world, tokens, every lineage and every unrelated actor field while requiring a live original attempt. Existing allowed-delta additionally fixes other actors.",
+        "The six new reachable-prefix negative definitions distinguish false suppression of enabled operations from rejected operations that nevertheless recapture context, grant a current-generation read or dispatch a GET.",
+        "The ten new focused test definitions retain Applied abort/freeze, held read and applied writer positives, legitimate GET followed by Missing, and historical ACK preservation. Direct rule-isolation mutations are explicitly not described as newly reachable model histories."
+      ],
+      "execution": {
+        "project_import": "NOT_RUN",
+        "syntax": "NOT_RUN",
+        "unit": "NOT_RUN",
+        "BFS": "NOT_RUN",
+        "oracle": "NOT_RUN",
+        "semantic_controls": "NOT_RUN",
+        "graph_controls": "NOT_RUN",
+        "actual": "NOT_RUN"
+      },
+      "limitations": [
+        "This is a static incremental review of the three declared rejection reasons, not a rerun of all 46 graphs.",
+        "The original e396 formal failure remains FAILED; fix01 and its source manifest remain historical and unchanged."
+      ],
+      "source_edits": []
+    }
+  ],
+  "original_seven_edge_projection": [
+    {
+      "actor": "m",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 49,
+      "head_view": {
+        "A": 1,
+        "M": 2,
+        "hold": null,
+        "plan": {
+          "id": "P0",
+          "phase": "sealed",
+          "source": 1,
+          "target": 2
+        },
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 2
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "m:8",
+      "profile": "K06_aborted_target",
+      "reason": "freeze_not_available",
+      "source": 39,
+      "target": 42,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:dcc5eb7923c8c92a3a2743fdcf316a444e57e19a78df905628a0da86e5812543\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "m",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 49,
+      "head_view": {
+        "A": 1,
+        "M": 2,
+        "hold": null,
+        "plan": {
+          "id": "P0",
+          "phase": "sealed",
+          "source": 1,
+          "target": 2
+        },
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 2
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "m:8",
+      "profile": "K07_active_source",
+      "reason": "freeze_not_available",
+      "source": 39,
+      "target": 42,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:dcc5eb7923c8c92a3a2743fdcf316a444e57e19a78df905628a0da86e5812543\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "b",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 138,
+      "head_view": {
+        "A": 1,
+        "M": 1,
+        "hold": null,
+        "plan": null,
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 1
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "b:2",
+      "profile": "K14_writer",
+      "reason": "get_not_in_original_closure",
+      "source": 136,
+      "target": 139,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:752be522ab618233ab833e7e89e7cf8403a88abc7ac6cb8831f1b865db57ff8e\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "a",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 71,
+      "head_view": {
+        "A": 2,
+        "M": 2,
+        "hold": null,
+        "plan": null,
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 3
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "a:2",
+      "profile": "K06_held_hash",
+      "reason": "no_retained_hold",
+      "source": 66,
+      "target": 72,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:72fd11d014c93fd78cef6efd5b9f7d18694df4a74e9603a7b06163e7cf85b325\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "a",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 72,
+      "head_view": {
+        "A": 1,
+        "M": 2,
+        "hold": null,
+        "plan": {
+          "id": "P0",
+          "phase": "sealed",
+          "source": 1,
+          "target": 2
+        },
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 2
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "a:2",
+      "profile": "K06_held_hash",
+      "reason": "no_retained_hold",
+      "source": 68,
+      "target": 73,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:dcc5eb7923c8c92a3a2743fdcf316a444e57e19a78df905628a0da86e5812543\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "a",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 71,
+      "head_view": {
+        "A": 2,
+        "M": 2,
+        "hold": null,
+        "plan": null,
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 3
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "a:2",
+      "profile": "K06_held_missing",
+      "reason": "no_retained_hold",
+      "source": 66,
+      "target": 72,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:72fd11d014c93fd78cef6efd5b9f7d18694df4a74e9603a7b06163e7cf85b325\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    },
+    {
+      "actor": "a",
+      "actor_fields_changed": [
+        "outcome",
+        "pc",
+        "stopped"
+      ],
+      "edge_id": 72,
+      "head_view": {
+        "A": 1,
+        "M": 2,
+        "hold": null,
+        "plan": {
+          "id": "P0",
+          "phase": "sealed",
+          "source": 1,
+          "target": 2
+        },
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "serial": 2
+      },
+      "lineages_unchanged": true,
+      "original_view_token": "a:2",
+      "profile": "K06_held_missing",
+      "reason": "no_retained_hold",
+      "source": 68,
+      "target": 73,
+      "tokens_unchanged": true,
+      "view_etag": "\"head:dcc5eb7923c8c92a3a2743fdcf316a444e57e19a78df905628a0da86e5812543\"",
+      "view_request": {
+        "domain": "D0",
+        "key": "scap-object/v1/1/2/3/head",
+        "method": "HEAD_GET",
+        "purpose": "admit",
+        "scope": {
+          "database": 3,
+          "deployment": 1,
+          "generation": 5,
+          "incarnation": 4,
+          "tenant": 2
+        },
+        "uncertain": false
+      },
+      "view_result_kind": "Found",
+      "world_unchanged": true
+    }
+  ],
+  "root_static_review": {
+    "complete_incremental_patch_read": true,
+    "new_rule_and_control_definitions_read": true,
+    "positive_and_negative_unit_definitions_read": true,
+    "findings": "No blocking finding; new source still requires focused units, full BFS, independent oracle and controls.",
+    "original_inputs_producer_and_caps_unchanged": true
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/scap-handle-rejection-fix-static02/manifest.json",
+      "bytes": 5062,
+      "sha256": "6a449cdf540919540a4c4818b3bb9a811abcce70f40d4315d6f3964d4dff0a7d"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-static02/changes-from-e396.patch",
+      "bytes": 37537,
+      "sha256": "dac8027fdbeecae289189025e680e1534326560862e19bab5a66dd9711080563"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-static02/changes-from-static01.patch",
+      "bytes": 27895,
+      "sha256": "0d260b0c0402f13b2917c7613c3015f1b0a2bd4677d8ac944f528b685a6742fc"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-static02/assembly-attempt01.json",
+      "bytes": 393,
+      "sha256": "905a656964c7e71d7be2cb415c3bfa3447040e1ff6fdee7558b8dc4cf9adaab5"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-static01/manifest.json",
+      "bytes": 2482,
+      "sha256": "bc56223bdaac0dfa2f5d3c86358694d33b0ac465b9809b6df8ea62f7a7e141d9"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-peer-review01/receipt.json",
+      "bytes": 2638,
+      "sha256": "2e93a190dad15875503f5cb98a5090a07f9e1272aaa860095225597e2964532d"
+    },
+    {
+      "path": "/tmp/scap-handle-rejection-fix-peer-review02/receipt.json",
+      "bytes": 3208,
+      "sha256": "dae899736a58829ce6695afbaa88037c6730f9dc0c1a81c1dea992df1f81da19"
+    },
+    {
+      "path": "/tmp/scap-handle-knowledge-e396d48-01/completion.json",
+      "bytes": 3246,
+      "sha256": "9ed21524121ddc9f04011c63732d55a031a7985236683d9097e43a2f25b14f3e"
+    },
+    {
+      "path": "/tmp/scap-handle-knowledge-e396d48-01/audit/failure.json",
+      "bytes": 146,
+      "sha256": "51ad4894d1453304bb882603265ffe7bcde51f0e801fbc4cb5a2c1e8d2e5810d"
+    },
+    {
+      "path": "/tmp/scap-handle-all-rejections-readonly01/receipt.json",
+      "bytes": 10658469,
+      "sha256": "b5c369c621077cd86739eaf1a65b794e13b52a57a7145e447a36439367cf7e7b"
+    },
+    {
+      "path": "/tmp/scap-handle-all-rejections-readonly01/seven-original-edges.json",
+      "bytes": 7794,
+      "sha256": "cecfcabfebc10abd30b6a5db1d0c1468fb4e0701a0aa85935f8b0cefa506f941"
+    },
+    {
+      "path": "/tmp/scap-handle-k05-independent-rejection-review01/receipt.json",
+      "bytes": 2763,
+      "sha256": "d34724113e8f876de390fe45feb13cc6b33463f33ccad1c969ef907a22b7195d"
+    },
+    {
+      "path": "/tmp/scap-handle-k05-independent-rejection-review01/original-path.json",
+      "bytes": 13868,
+      "sha256": "985ac423ced13a1eacef4a3bc02f409b215d45a68d626d387dd9a5ce54db6231"
+    },
+    {
+      "path": "/tmp/scap-handle-knowledge-units01/receipt.json",
+      "bytes": 1469,
+      "sha256": "1d419c91a9339c3770e0ed3ecf40b06274b18cc5c49f6a20c58e9180ffc6d491"
+    }
+  ],
+  "production_runtime_changed": false,
+  "aws_standard": "NOT_RUN",
+  "native_or_service_acceptance": "NOT_RUN"
+}

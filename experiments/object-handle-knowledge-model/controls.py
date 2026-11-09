@@ -13,7 +13,7 @@ from pathlib import Path
 
 from oracle import States, bound_file, identity, records, witness_path, write_json
 from oracle_protocol import (Violation, choice_closure, edge_checks, fingerprint,
-                             must, state_checks, wire)
+                             must, physical_key, state_checks, wire)
 
 
 def actor(after, event):
@@ -63,6 +63,86 @@ def reject_failure_probe(before, event, after, spec, profile):
     after['actors'][who] = copy.deepcopy(before['actors'][who])
     after['actors'][who].update(pc=len(profile['actors'][who]['program']), stopped='failed_attempt_closed',
                                outcome={'kind': 'Rejected', 'reason': 'failed_attempt_closed'})
+
+
+def falsely_reject_retired_removal(before, event, after, spec, profile):
+    who = event['actor']
+    after['world'] = copy.deepcopy(before['world'])
+    after['actors'][who] = copy.deepcopy(before['actors'][who])
+    after['actors'][who].update(
+        pc=len(profile['actors'][who]['program']), stopped='fixture_remove_live_generation',
+        outcome={'kind': 'Rejected', 'reason': 'fixture_remove_live_generation'})
+
+
+def rejected_removal_deletes_live_object(before, event, after, spec, profile):
+    command = profile['actors'][event['actor']]['program'][event['pc']]
+    scope = spec['scope']
+    key = ('scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}'
+           .format(**scope) + '/storage/' + str(command['generation']) + '/objects/'
+           + spec['frames'][command['name']]['hash'])
+    del after['world']['objects']['D0'][key]
+
+
+def rejected_removal_changes_foreign_authority(before, event, after, spec, profile):
+    scope = spec['scope']
+    key = 'scap-object/v1/{deployment}/{tenant}/{database}/head'.format(**scope)
+    after['world']['heads']['D1'][key]['serial'] += 1
+
+
+def replace_with_guard_rejection(before, event, after, profile, reason):
+    who = event['actor']
+    after['tokens'] = copy.deepcopy(before['tokens'])
+    after['actors'][who] = copy.deepcopy(before['actors'][who])
+    after['actors'][who].update(pc=len(profile['actors'][who]['program']), stopped=reason,
+                               outcome={'kind': 'Rejected', 'reason': reason})
+
+
+def falsely_reject_freeze(before, event, after, spec, profile):
+    replace_with_guard_rejection(before, event, after, profile, 'freeze_not_available')
+
+
+def falsely_reject_held_read(before, event, after, spec, profile):
+    replace_with_guard_rejection(before, event, after, profile, 'no_retained_hold')
+
+
+def falsely_reject_closure_get(before, event, after, spec, profile):
+    replace_with_guard_rejection(before, event, after, profile, 'get_not_in_original_closure')
+
+
+def rejected_freeze_recaptures_context(before, event, after, spec, profile):
+    changed = actor(after, event)
+    changed['context']['view_token'] = before['actors'][event['actor']]['view_token']
+
+
+def rejected_hold_grants_current_context(before, event, after, spec, profile):
+    who = event['actor']
+    original = before['actors'][who]
+    view, head = original['view'], original['view']['head']
+    actor(after, event)['context'] = {
+        'domain': view['domain'], 'scope': copy.deepcopy(head['scope']),
+        'lineage': profile['actors'][who]['lineage'], 'generation': head['A'],
+        'roots': {'data': head['data'], 'index': head['index']}, 'mode': 'read', 'plan': None,
+        'head': copy.deepcopy(head), 'etag': view['etag'], 'key': view['key'],
+        'view_token': original['view_token'],
+    }
+
+
+def rejected_nonmember_dispatches_get(before, event, after, spec, profile):
+    who = event['actor']
+    original = before['actors'][who]
+    context = original['context']
+    command = profile['actors'][who]['program'][event['pc']]
+    frame = spec['frames'][command['name']]
+    identifier = f'{who}:{original["pc"]}'
+    actor(after, event).update(last=identifier, last_result=None, no_work=False)
+    after['tokens'][identifier] = {
+        'actor': who, 'lineage': profile['actors'][who]['lineage'], 'effect': None, 'observation': None,
+        'request': {'method': 'GET', 'domain': context['domain'], 'scope': copy.deepcopy(context['scope']),
+                    'generation': context['generation'],
+                    'key': physical_key(context['scope'], context['generation'], frame['hash']),
+                    'hash': frame['hash'], 'purpose': 'read', 'expected_kind': frame['kind'],
+                    'context_token': context['view_token'], 'uncertain': False},
+    }
 
 
 def false_block(before, event, after, spec, profile):
@@ -271,6 +351,36 @@ def candidates():
         lambda b, e, a: outcome(b['actors']['a']) == 'Ack',
         lambda b, e, a, s, p: a['actors']['a'].__setitem__('outcome', {'kind': 'Withheld', 'token': a['actors']['a']['cas']}),
         'historical public outcome rewritten')
+    add('retired_generation_cannot_be_falsely_rejected_as_live', 'K05_materialized_return',
+        'remove_retired', 'm', lambda b, e, a: a['actors']['m']['stopped'] is None,
+        falsely_reject_retired_removal, 'fixture rejected already retired generation')
+    add('rejected_fixture_cannot_remove_active_source', 'K05_materialized_return',
+        'remove_retired', 'm',
+        lambda b, e, a: a['actors']['m']['stopped'] == 'fixture_remove_live_generation',
+        rejected_removal_deletes_live_object, 'fixture rejection changed backend state')
+    add('rejected_fixture_cannot_change_foreign_authority', 'K05_materialized_return',
+        'remove_retired', 'm',
+        lambda b, e, a: a['actors']['m']['stopped'] == 'fixture_remove_live_generation',
+        rejected_removal_changes_foreign_authority, 'fixture rejection changed backend state')
+    add('available_freeze_cannot_borrow_old_occupied_plan', 'K06_aborted_target', 'prepare_tech', 'm',
+        lambda b, e, a: a['actors']['m']['stopped'] is None
+        and (a['actors']['m']['candidate'] or {}).get('kind') == 'freeze',
+        falsely_reject_freeze, 'freeze rejection lacks original occupied plan')
+    add('rejected_freeze_cannot_capture_another_context', 'K06_aborted_target', 'prepare_tech', 'm',
+        lambda b, e, a: a['actors']['m']['stopped'] == 'freeze_not_available',
+        rejected_freeze_recaptures_context, 'guard rejection changed original attempt')
+    add('retained_read_cannot_borrow_foreign_absent_hold', 'K06_held_missing', 'admit', 'a',
+        lambda b, e, a: a['actors']['a']['stopped'] is None,
+        falsely_reject_held_read, 'retained rejection ignored original observed hold')
+    add('rejected_hold_cannot_grant_current_generation_read', 'K06_held_missing', 'admit', 'a',
+        lambda b, e, a: a['actors']['a']['stopped'] == 'no_retained_hold',
+        rejected_hold_grants_current_context, 'guard rejection changed original attempt')
+    add('original_closure_get_cannot_be_suppressed', 'K14_writer', 'get', 'b',
+        lambda b, e, a: a['actors']['b']['stopped'] is None,
+        falsely_reject_closure_get, 'closure rejection names an authorized original dependency')
+    add('rejected_nonmember_cannot_issue_an_object_get', 'K14_writer', 'get', 'b',
+        lambda b, e, a: a['actors']['b']['stopped'] == 'get_not_in_original_closure',
+        rejected_nonmember_dispatches_get, 'guard rejection changed original tokens')
     return cases
 
 

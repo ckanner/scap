@@ -118,10 +118,39 @@ mandatory witness 输出引用原图 SHA 和实际连通 prefix，不用统计�
 foreign proof、held/active expiry、raw frame/完整物化、metadata 字段越权和退休
 target 再 hold。合法的另一种管理/技术候选也不能替换原 command 的动词；技术 capture
 必须逐字段绑定它自己刚观察的 HEAD，失败原 attempt 的普通门禁不能删掉专用 probe。
-目前计划 **38 个语义负控、2 个图级负控和 19 个 focused unit tests**；计数不代表
-它们已运行。图级负控删掉关闭 caller 后仍 enabled 的 delivery，或重复一个 choice。
+当前修正版定义 **47 个语义负控、2 个图级负控和 35 个 focused unit tests**；
+新增定义尚未执行，不能继承原 `e396d48` 的 19 项单位通过结果。图级负控删掉关闭 caller 后仍 enabled 的 delivery，或重复一个 choice。
 每个负控的原 edge 先作为正例验证，另保留一个原完整 choice 集合正控。控制只调用
 实际独立规则，不提供绕过 source/identity 检查的“接受覆盖”模式。
+
+## 原始失败与拒绝规则修正
+
+原冻结源码 `e396d48011a69628fe47186549a390aad1f145b6` 的全部 46 份输入完成
+BFS：57,420 states / 136,266 edges。其独立审计在 K05 的
+`fixture_remove_live_generation` 拒绝边停止，**整个模型门禁 FAILED**；原始
+图、completion、错误日志及源码身份保留，controls 当时 NOT_RUN。
+producer 的 ENUMERATED 不能覆盖这个失败。
+
+该边来自原 Promote CAS 被后端 discard 后的原始 fixture 删除指令。generation
+仍 active，删除应被拒绝；缺失的是独立 oracle 对这条拒绝的明确义务。
+随后只读检查原全部 46 图的 stopped 原因，又找到 7 条具有原始连通路径的拒绝：
+2 条 `freeze_not_available`、4 条 `no_retained_hold`、1 条
+`get_not_in_original_closure`。输入、调度 barrier、producer 和枚举 cap 均未改。
+
+修正逐条核对角色、原命令、domain/full Scope、同一次原 GET 的 body/ETag
+和实际 token。Freeze 绑定当前 attempt 自己已观察到的 occupied plan；retained
+read 绑定原 HEAD 的 hold=None；closure GET 绑定原 read context 的 typed roots
+及其自己的已验证 frame prefix。不得借后来的全局 HEAD、foreign domain、另一
+actor 的 token 或更早的旧 context 来制造拒绝。拒绝边不能修改 world、tokens、
+lineage 知识或本 actor 除 pc/stopped/outcome 外的字段。
+
+新增正反例保留 Applied abort 后的 Freeze、Applied hold 后的 retained read、
+Applied writer 后的合法 GET/Missing 及既有 ACK；负控分别伪造拒绝、删除 active
+对象、修改 foreign authority，或在拒绝时偷换 context、授予读取权、发出 GET。
+这不是把所有安全失败加入白名单。两轮静态审阅无阻塞；本修正的单位、完整 BFS、
+独立 oracle 和 controls **NOT_RUN**，须绑定新冻结源码重新执行。
+
+原失败、静态源、精确增量和原图边身份见[修正证据](../../docs/evidence/handle-knowledge-rejections-static-local-2026-11-09.json)。
 
 ## 运行命令与证据
 
