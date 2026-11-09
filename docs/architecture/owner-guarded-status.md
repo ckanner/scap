@@ -13,8 +13,10 @@
 `65d48cb` 的 66 个 Node 单位全部通过，但 V8 分支门禁仍拒绝 try/catch/finally
 之间一个计数为零的空白区间，见[原覆盖失败](../evidence/guarded-status-sdk-coverage-local-2026-11-09.json)。
 后继改用 finally 之后的统一正常返回点，没有加入排除或过滤计数。
-本次后继的 Node 重验、Rust 单位/覆盖及实际 HTTP/S3 门禁仍待独立冻结与运行；
-基线结果不能代替新增输入的验证。
+后继 `9c04c02` 已通过 66 个 Node 单位、13 个生产模块的精确 V8 计数门禁、
+TypeScript 5.9.3 strict/noEmit 与 5 个 Node HTTP 测试，见
+[本次 SDK 通过回执](../evidence/guarded-status-sdk-pass-local-2026-11-09.json)。
+Rust 单位/覆盖及实际 Rust HTTP/S3 门禁仍为 **NOT_RUN**，不由 Node HTTP 替身替代。
 
 ## 1. Wire 与服务顺序
 
