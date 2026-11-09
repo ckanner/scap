@@ -1,6 +1,6 @@
 # Metadata-only HEAD 实际合同
 
-本目录只装配正式 `scapd`、Node SDK 与真实 S3 兼容后端，验证 `takeover` 和 `policy` 的 metadata-only 网络合同。**当前状态：IMPLEMENTED_UNIT_PASS；oracle static02 的 28 个 synthetic 单位和 producer cleanup03 的 10 个单位已在同一次新运行通过。actual、独立实际 oracle、九负控及原样复制正控仍全部 NOT_RUN。** 原 static01 的 27-unit 证据、后续静态发现和修复分别保留，见[冻结与单位回执](../../docs/evidence/metadata-head-acceptance-static-local-2026-11-09.json)。单位与静态审查不能替代实际 native/S3/HTTP 验收。
+本目录只装配正式 `scapd`、Node SDK 与真实 S3 兼容后端，验证 `takeover` 和 `policy` 的 metadata-only 网络合同。**当前状态：OBSERVER_CORRECTION_UNIT_PASS；原 `3ca5acd` actual01 完成固定 41 个请求后，被 observer 规则拒绝，保持 FAILED。本次窄修的 51 个单位（41 oracle、10 cleanup）已全部通过；新源码实际、独立实际 oracle、九负控及原样复制正控均 NOT_RUN。** 见[原始失败、窄修与新单位回执](../../docs/evidence/metadata-head-observer-correction-local-2026-11-09.json)；初始静态与 38-unit 记录见[原冻结回执](../../docs/evidence/metadata-head-acceptance-static-local-2026-11-09.json)。旧证据保持原状态，静态解释与单位不替代新源码实际验收。
 
 产品起点是 [`778a4d25dc186b3afc7958cbd522e5e0316703c8`](https://github.com/ckanner/scap/commit/778a4d25dc186b3afc7958cbd522e5e0316703c8)。此实验不改既有 owner 合同的 70 个命令 / 144 个 POST，不增加公共产品接口。后续执行时，以 `daemon-build-evidence/` 中实际 source-bound release 和独立 fixture source archive 为准。
 
@@ -102,6 +102,19 @@ F 的最后一次恢复可能让内容派生的 ETag 重复。oracle 只对这�
 完整尾部不能以最后一个 HTTP response 代替。每个实际 handler 必须恰好对应一个 original request，且各自有正常 start/end；请求总数与 handler 总数相等不足以证明这一双射。新增反例让两个完整请求共用一个 handler，再保留另一个没有请求的 failed handler 抵消总数，要求精确拒绝。成功顺序必须是：Node 原 finished/wait4；S/M 正常 SIGINT/wait4；五个 proxy 停止 serve、全部已接受 handler 结束并 join；四个 backend 进程按实验计划 SIGKILL/wait4；无 cleanup error；最后删除 private runtime 并立即记录 absence。
 
 共 10 个长期/维护 owned child：4 backend、2 daemon、1 Node、3 curl。版本探测与有限 backend readiness provisioning 单列为启动设施，不虚报为 10 个对象或 F 请求。后端计划 SIGKILL 与 daemon/Node 失败后的 forced cleanup 区分，任何后者都不能通过。归档复制不要求原路径再次存在；历史 absence 必须来自原始记录，不用现在的 `stat()` 改写过去事实。
+
+### 固定 Node 的完成后 informational disposal
+
+原 relay 明确发送 `Connection: close`。固定 Node22.16.0 的内置 `internal/deps/undici/undici` 源码为 601703 bytes、SHA256 `b6ba65bd17b764b8eaae71a81e358f82b3efcd5954f2bd0da6f6b6206f0250e7`。其 `onMessageComplete` 先校验响应长度并调用 `request.onComplete`，后者发布 trailers diagnostic，再在不保持连接的路径以 InformationalError 销毁 socket；该 error 的 code 是 `UND_ERR_INFO`。这是固定二进制内置源码的静态分析；[相同版本的官方源码位置](https://github.com/nodejs/node/blob/v22.16.0/deps/undici/undici.js)用于定位，不把未单独核对的远端文件冒充本次提取字节。
+
+冻结 observer 将 trailers 记为 `request_body_complete`，保留 safe error code，而不记录任意 error message。因此只能把符合下列条件的原事件称为“与固定源码相容的完成后 informational disposal”，不能说日志实际记录了字面原因 `reset`：
+
+- 每个 connection 恰绑定一个 original request/call；原 request body completion 已发生，之后该 connection 才出现唯一 `socket_error`，safe 字段精确为 `UND_ERR_INFO` / name `UNKNOWN` / cause `UNKNOWN`。
+- 原 Fetch 完整 body、原 ledger 与 relay 的全部 bytes/status、同 call 的 `RECORDED` terminal 仍独立成立；request_error、Fetch failure、INCOMPLETE 或其他 socket error 仍拒绝。
+- 可见的 end/error/close 各至多一次，且 sequence 必须严格晚于原 sendHeaders、monotonic_ns 不早于它；observer 的 socket identity 注册与 sendHeaders 记录在同一个同步调用栈中，不能在两者之间插入 socket 事件。close 后没有该连接的新事件。若 close 已观察到，必须晚于此 INFO，且 `had_error=true`。没有 INFO 的正常 close 仍要求 `had_error=false`。
+- 允许 close 先于 Fetch 的 Promise continuation，也允许 recorder 停止时尚未观察 close。后一种只保留“未观察关闭”的事实；global RECORDED 与 `remaining_connections` 必须精确对应 observed-but-not-closed 的身份集合，不声称完整 socket 生命周期。
+
+这个窄规则不更改 observer、Fetch、deadline、relay 或原日志，也不凭 code 白名单接受失败响应。新增单位包括两种 close/Fetch 调度、先 headers 后 body、部分 socket 生命周期，以及 pre-body INFO、跨连接借用、连接复用、重复错误/close、错误 code/cause、had_error 不匹配、缺失完整结果和 remaining 数量不符的定向拒绝。
 
 ## 5. 九个语义投影负控
 

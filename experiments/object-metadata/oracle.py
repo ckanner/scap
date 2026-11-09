@@ -626,7 +626,7 @@ def observer_proof(directory, calls):
     require(all(row.get("phase") == "metadata" for row in trace), "transport sidecar changed phase")
     allowed = {"observer_started", "observer_stopped", "fetch_started", "request_created", "socket_observed",
                "request_send_headers", "request_response_headers", "request_body_complete", "fetch_response_headers",
-               "fetch_body_started", "fetch_body_complete", "call_observation_finished", "socket_end", "socket_close"}
+               "fetch_body_started", "fetch_body_complete", "call_observation_finished", "socket_end", "socket_close", "socket_error"}
     require(all(row["event"] in allowed for row in trace), "transport sidecar incomplete/failed/unplanned")
     require(trace[0]["event"] == "observer_started" and trace[-1]["event"] == "observer_stopped" and
             sum(row["event"] == "observer_started" for row in trace) == sum(row["event"] == "observer_stopped" for row in trace) == 1,
@@ -637,12 +637,16 @@ def observer_proof(directory, calls):
             0 <= trace[-1]["remaining_connections"] <= 128, "observer final completeness missing")
     by_call, connections = defaultdict(list), defaultdict(list)
     for row in trace:
-        if "call_id" in row:
-            by_call[row["call_id"]].append(row)
-        elif "connection_id" in row:
+        if row["event"] in {"observer_started", "observer_stopped"}:
+            require("call_id" not in row and "connection_id" not in row, "observer boundary borrowed an operation identity")
+        elif row["event"].startswith("socket_"):
+            require("connection_id" in row and "call_id" not in row, "socket observation lacks its own connection identity")
             connections[row["connection_id"]].append(row)
+        else:
+            require("call_id" in row, "transport request observation lacks its original call identity")
+            by_call[row["call_id"]].append(row)
     equal(set(by_call), {call["request"]["call_id"] for call in calls.values()}, "observer call inventory differs from actual Fetch")
-    used = set()
+    bound = {}
     for call in calls.values():
         call_id = call["request"]["call_id"]
         selected = by_call[call_id]
@@ -655,20 +659,61 @@ def observer_proof(directory, calls):
         require(all(row["request_id"] == request_id for row in (created, sent, response, body)), "transport request identity rebound")
         require(response["status"] == fetch_headers["status"] == call["response"]["status"], "observer response status differs")
         require(stamp(first) <= stamp(created) <= stamp(sent) <= stamp(response) <= stamp(body) and
-                stamp(response) <= stamp(fetch_headers) <= stamp(body_start) <= stamp(body_end) <= stamp(last), "observer request/body order changed")
+                stamp(response) <= stamp(fetch_headers) <= stamp(body_start) <= stamp(body_end) <= stamp(last) and
+                body["sequence"] < body_end["sequence"] and stamp(body) <= stamp(body_end), "observer request/body order changed")
+        # http_proof already binds the complete original bytes/status to the
+        # relay. An informational socket event cannot supply a missing reply.
+        require(stamp(call["request"]) <= stamp(first) and
+                stamp(body_end) <= stamp(call["response"]) <= stamp(last), "observer differs from complete original Fetch ledger")
         equal({key: last[key] for key in ("outcome", "stage", "observation_status", "request_identity", "connection_identity", "request_ids", "connection_ids")},
               {"outcome": "response", "stage": "evidence", "observation_status": "RECORDED", "request_identity": "OBSERVED",
                "connection_identity": "OBSERVED", "request_ids": [request_id], "connection_ids": [sent["connection_id"]]}, "observer terminal lost original identities/completeness")
-        used.add(sent["connection_id"])
-    require(set(connections) == used, "unbound transport connection observation")
+        connection = sent["connection_id"]
+        require(connection not in bound, "transport connection shared by multiple original requests")
+        bound[connection] = {"sent": sent, "body": body}
+    require(set(connections) == set(bound), "unbound transport connection observation")
+    closed = informational = 0
     for connection, records in connections.items():
         observed = only([row for row in records if row["event"] == "socket_observed"], "transport socket identity count")
-        require(records[0] is observed and len(records) <= 3, "transport socket lifecycle changed")
+        kinds = Counter(row["event"] for row in records)
+        require(records[0] is observed and set(kinds) <= {"socket_observed", "socket_end", "socket_error", "socket_close"} and
+                all(count == 1 for count in kinds.values()), "repeated socket lifecycle event")
+        sent, body = bound[connection]["sent"], bound[connection]["body"]
+        require(observed["sequence"] < sent["sequence"] and stamp(observed) <= stamp(sent), "socket observed after original request binding")
+        for row in records:
+            extra = {"had_error"} if row["event"] == "socket_close" else (
+                {"error_name", "error_code", "cause_code"} if row["event"] == "socket_error" else set())
+            equal(set(row), {"schema", "phase", "sequence", "monotonic_ns", "event", "connection_id"} | extra,
+                  "socket observation fields changed")
+        error = next((row for row in records if row["event"] == "socket_error"), None)
+        close = next((row for row in records if row["event"] == "socket_close"), None)
+        if error is not None:
+            # Pinned Node22.16.0 emits UND_ERR_INFO when disposing an H1 socket
+            # after onComplete. The observer records only safe codes, not the
+            # literal reason. Require the same connection's unique completed
+            # original response; a code whitelist by itself is insufficient.
+            equal({key: error[key] for key in ("error_name", "error_code", "cause_code")},
+                  {"error_name": "UNKNOWN", "error_code": "UND_ERR_INFO", "cause_code": "UNKNOWN"},
+                  "socket error is not the pinned informational disposal")
+            require(body["sequence"] < error["sequence"] and stamp(body) <= stamp(error),
+                    "informational disposal preceded its original request body completion")
+            informational += 1
         for row in records[1:]:
-            require(row["event"] in {"socket_end", "socket_close"} and stamp(row) >= stamp(observed), "unplanned socket observation")
-            if row["event"] == "socket_close":
-                require(row["had_error"] is False, "successful fixture socket closed with error")
-    return {"calls": len(calls), "original_request_identities": len(calls), "connections": len(connections), "observation_status": "RECORDED"}
+            require(sent["sequence"] < row["sequence"] and stamp(sent) <= stamp(row),
+                    "socket event preceded original request binding")
+        if close is not None:
+            require(records[-1] is close and sent["sequence"] < close["sequence"], "socket event after close or close before original binding")
+            require(close["had_error"] is (error is not None), "socket close error flag lacks its exact informational observation")
+            if error is not None:
+                require(error["sequence"] < close["sequence"] and stamp(error) <= stamp(close), "socket closed before informational disposal")
+            closed += 1
+    # This recorder deliberately stops before claiming every socket's full
+    # lifetime. Unobserved close is allowed, including after complete INFO, but
+    # the remaining identities must exactly match its recorded open set.
+    equal(trace[-1]["remaining_connections"], len(connections) - closed, "observer remaining connection inventory differs")
+    return {"calls": len(calls), "original_request_identities": len(calls), "connections": len(connections),
+            "informational_disposals": informational, "observed_closed_connections": closed,
+            "remaining_connections": len(connections) - closed, "observation_status": "RECORDED"}
 
 
 def normalized(item, field):

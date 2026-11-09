@@ -56,8 +56,9 @@ attempt02 使用独立空 target 与未修改的原 builder，六个 release 构
 需要专门证明管理操作没有 immutable 读取时，必须使用原 trace 可证明的请求归属，
 不能从并发请求的重叠时间窗猜测哪一次 GET 属于管理调用。
 新增[metadata-only 实际合同](../../experiments/object-metadata/README.md)以专用 M listener
-的完整生命周期证明这一点；当前 28+10 夹具单位通过，实际 41 POST/17 HEAD
-请求及独立审计/负控仍未运行，见[独立回执](../evidence/metadata-head-acceptance-static-local-2026-11-09.json)。
+的完整生命周期证明这一点。原 `3ca5acd` actual01 在固定 41 POST 后因 observer
+事件规则失败并保留；完成后 informational disposal 的窄修已通过 41+10 单位，
+新源码实际、独立审计及负控仍未运行，见[失败与修正回执](../evidence/metadata-head-observer-correction-local-2026-11-09.json)。
 
 [f6 的新部署恢复](../evidence/head5-deployment-local-2026-11-09.json)已通过实际、
 外部 oracle 和 23 负/1 正对照，保留原输入身份；新 core 组合仍需新的验证。

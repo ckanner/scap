@@ -99,6 +99,227 @@ def projection_fixture():
                                   exchange(41, "success", "PUT", request_raw=raw, worker="S", path=path)]}
 
 
+def number_observer(trace, calls):
+    """Keep mutations causal-looking; the oracle must reject the actual rule."""
+    for number, row in enumerate(trace, 1):
+        row["sequence"], row["monotonic_ns"] = number, str(number * 100)
+    for call in calls.values():
+        selected = [row for row in trace if row.get("call_id") == call["request"]["call_id"]]
+        first = next(row for row in selected if row["event"] == "fetch_started")
+        call["request"]["monotonic_ns"] = str(int(first["monotonic_ns"]) - 10)
+        body = next((row for row in selected if row["event"] == "fetch_body_complete"), None)
+        if body is not None:
+            call["response"]["monotonic_ns"] = str(int(body["monotonic_ns"]) + 10)
+
+
+def observer_fixture(*schedules):
+    """A complete original Fetch plus only the recorder's visible socket prefix."""
+    trace = [{"schema": 1, "phase": "metadata", "event": "observer_started",
+              "limits": {"callEvents": 64, "callRequests": 8, "callConnections": 8, "connectionEvents": 16,
+                         "activeConnections": 128, "pendingEvents": 1024}}]
+    calls, remaining = {}, 0
+    for index, schedule in enumerate(schedules, 1):
+        call_id, connection = "metadata:42:" + str(index), "42:connection:" + str(index)
+        request_id = call_id + ":request:1"
+        info = not schedule.startswith("clean")
+        closed = not schedule.endswith("open")
+        remaining += not closed
+        def emit(event):
+            row = {"schema": 1, "phase": "metadata", "event": event}
+            row["connection_id" if event.startswith("socket_") else "call_id"] = connection if event.startswith("socket_") else call_id
+            if event in ("request_created", "request_send_headers", "request_response_headers", "request_body_complete"):
+                row["request_id"] = request_id
+            if event == "request_send_headers":
+                row["connection_id"] = connection
+            if event in ("request_response_headers", "fetch_response_headers"):
+                row["status"] = 200
+            if event == "socket_error":
+                row.update(error_name="UNKNOWN", error_code="UND_ERR_INFO", cause_code="UNKNOWN")
+            if event == "socket_close":
+                row["had_error"] = info
+            if event == "call_observation_finished":
+                row.update(outcome="response", stage="evidence", observation_status="RECORDED",
+                           request_identity="OBSERVED", connection_identity="OBSERVED",
+                           request_ids=[request_id], connection_ids=[connection])
+            trace.append(row)
+        for event in ("fetch_started", "request_created", "socket_observed", "request_send_headers", "request_response_headers"):
+            emit(event)
+        if schedule == "streaming":
+            emit("fetch_response_headers"); emit("fetch_body_started")
+        emit("request_body_complete")
+        if info:
+            emit("socket_error")
+        if schedule == "close_before_fetch":
+            emit("socket_close")
+        if schedule != "streaming":
+            emit("fetch_response_headers"); emit("fetch_body_started")
+        emit("fetch_body_complete"); emit("call_observation_finished")
+        if closed and schedule != "close_before_fetch":
+            emit("socket_close")
+        raw = b'{"ok":true}'
+        calls[str(index)] = {"request": {"call_id": call_id},
+                            "response": {"call_id": call_id, "status": 200, "body": base64.b64encode(raw).decode(), "body_sha256": oracle.sha(raw)},
+                            "response_body": raw}
+    trace.append({"schema": 1, "phase": "metadata", "event": "observer_stopped", "observation_status": "RECORDED",
+                  "remaining_connections": remaining})
+    number_observer(trace, calls)
+    return trace, calls
+
+
+class ObserverTests(unittest.TestCase):
+    def audit(self, trace, calls):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "http-client-transport.jsonl").write_text("".join(json.dumps(row) + "\n" for row in trace))
+            return oracle.observer_proof(directory, calls)
+
+    def test_complete_info_and_graceful_prefixes_allow_both_fetch_schedules(self):
+        for schedule in ("after_fetch", "close_before_fetch", "streaming", "info_open", "clean_closed", "clean_open"):
+            with self.subTest(schedule=schedule):
+                trace, calls = observer_fixture(schedule)
+                result = self.audit(trace, calls)
+                self.assertEqual(result["informational_disposals"], int(not schedule.startswith("clean")))
+                self.assertEqual(result["remaining_connections"], int(schedule.endswith("open")))
+                self.assertEqual(result["observed_closed_connections"], int(not schedule.endswith("open")))
+                self.assertEqual(result["observation_status"], "RECORDED")
+
+    def test_info_before_its_request_body_completion_is_rejected(self):
+        trace, calls = observer_fixture("after_fetch")
+        error = next(row for row in trace if row["event"] == "socket_error")
+        trace.remove(error)
+        trace.insert(next(index for index, row in enumerate(trace) if row["event"] == "request_body_complete"), error)
+        number_observer(trace, calls)
+        with self.assertRaisesRegex(ValueError, "preceded its original request body completion"):
+            self.audit(trace, calls)
+
+    def test_socket_end_must_follow_send_and_can_precede_close(self):
+        trace, calls = observer_fixture("after_fetch")
+        end = {"schema": 1, "phase": "metadata", "event": "socket_end", "connection_id": "42:connection:1"}
+        trace.insert(next(index for index, row in enumerate(trace) if row["event"] == "socket_close"), end)
+        number_observer(trace, calls)
+        self.assertEqual(self.audit(trace, calls)["observed_closed_connections"], 1)
+
+        trace.remove(end)
+        trace.insert(next(index for index, row in enumerate(trace) if row["event"] == "request_send_headers"), end)
+        number_observer(trace, calls)
+        with self.assertRaisesRegex(ValueError, "socket event preceded original request binding"):
+            self.audit(trace, calls)
+
+    def test_info_cannot_borrow_another_connections_completed_body(self):
+        trace, calls = observer_fixture("after_fetch", "after_fetch")
+        errors = [row for row in trace if row["event"] == "socket_error"]
+        second_observed = next(row for row in trace if row["event"] == "socket_observed" and row["connection_id"] == "42:connection:2")
+        trace.remove(second_observed)
+        trace.insert(trace.index(errors[0]), second_observed)
+        errors[0]["connection_id"] = "42:connection:2"
+        trace.remove(errors[1])
+        next(row for row in trace if row["event"] == "socket_close" and row["connection_id"] == "42:connection:1")["had_error"] = False
+        number_observer(trace, calls)
+        with self.assertRaisesRegex(ValueError, "preceded its original request body completion"):
+            self.audit(trace, calls)
+
+    def test_connection_cannot_cover_two_complete_original_calls(self):
+        trace, calls = observer_fixture("after_fetch", "after_fetch")
+        for row in trace:
+            if row.get("call_id") == "metadata:42:2":
+                if row["event"] == "request_send_headers":
+                    row["connection_id"] = "42:connection:1"
+                if row["event"] == "call_observation_finished":
+                    row["connection_ids"] = ["42:connection:1"]
+        with self.assertRaisesRegex(ValueError, "shared by multiple original requests"):
+            self.audit(trace, calls)
+
+    def test_only_the_pinned_informational_safe_fields_are_accepted(self):
+        for key, value in (("error_code", "ECONNRESET"), ("error_code", "UNKNOWN"),
+                           ("error_name", "Error"), ("cause_code", "ETIMEDOUT")):
+            with self.subTest(key=key, value=value):
+                trace, calls = observer_fixture("after_fetch")
+                next(row for row in trace if row["event"] == "socket_error")[key] = value
+                with self.assertRaisesRegex(ValueError, "not the pinned informational disposal"):
+                    self.audit(trace, calls)
+
+    def test_visible_error_end_and_close_each_have_one_occurrence(self):
+        for event in ("socket_error", "socket_end", "socket_close"):
+            with self.subTest(event=event):
+                trace, calls = observer_fixture("after_fetch")
+                if event == "socket_end":
+                    row = {"schema": 1, "phase": "metadata", "event": event, "connection_id": "42:connection:1"}
+                    trace.insert(-2, row)
+                else:
+                    row = next(item for item in trace if item["event"] == event)
+                trace.insert(trace.index(row) + 1, deepcopy(row))
+                number_observer(trace, calls)
+                with self.assertRaisesRegex(ValueError, "repeated socket lifecycle event"):
+                    self.audit(trace, calls)
+
+    def test_close_error_flag_requires_the_exact_visible_info(self):
+        for schedule, flag in (("after_fetch", False), ("after_fetch", "UNKNOWN"), ("clean_closed", True)):
+            with self.subTest(schedule=schedule, flag=flag):
+                trace, calls = observer_fixture(schedule)
+                next(row for row in trace if row["event"] == "socket_close")["had_error"] = flag
+                with self.assertRaisesRegex(ValueError, "error flag lacks its exact informational observation"):
+                    self.audit(trace, calls)
+
+    def test_no_connection_event_can_follow_close(self):
+        for event in ("socket_error", "socket_end"):
+            with self.subTest(event=event):
+                trace, calls = observer_fixture("after_fetch")
+                if event == "socket_error":
+                    row = next(item for item in trace if item["event"] == event)
+                    trace.remove(row)
+                else:
+                    row = {"schema": 1, "phase": "metadata", "event": event, "connection_id": "42:connection:1"}
+                trace.insert(-1, row)
+                number_observer(trace, calls)
+                with self.assertRaisesRegex(ValueError, "socket event after close"):
+                    self.audit(trace, calls)
+
+    def test_info_does_not_replace_full_fetch_or_its_original_ledger(self):
+        trace, calls = observer_fixture("after_fetch")
+        trace.remove(next(row for row in trace if row["event"] == "fetch_body_complete"))
+        number_observer(trace, calls)
+        with self.assertRaisesRegex(ValueError, "original event count: fetch_body_complete"):
+            self.audit(trace, calls)
+        trace, calls = observer_fixture("after_fetch")
+        next(row for row in trace if row["event"] == "call_observation_finished")["outcome"] = "failed"
+        with self.assertRaisesRegex(ValueError, "terminal lost original identities/completeness"):
+            self.audit(trace, calls)
+        trace, calls = observer_fixture("after_fetch")
+        calls["1"]["response"]["monotonic_ns"] = "1"
+        with self.assertRaisesRegex(ValueError, "differs from complete original Fetch ledger"):
+            self.audit(trace, calls)
+
+    def test_request_error_failure_and_incomplete_markers_are_still_forbidden(self):
+        for event in ("request_error", "fetch_failure", "observation_incomplete"):
+            with self.subTest(event=event):
+                trace, calls = observer_fixture("after_fetch")
+                trace.insert(-1, {"schema": 1, "phase": "metadata", "event": event, "call_id": "metadata:42:1", "error_code": "UND_ERR_INFO"})
+                number_observer(trace, calls)
+                with self.assertRaisesRegex(ValueError, "sidecar incomplete/failed/unplanned"):
+                    self.audit(trace, calls)
+        trace, calls = observer_fixture("info_open")
+        trace[-1]["observation_status"] = "INCOMPLETE"
+        with self.assertRaisesRegex(ValueError, "final completeness missing"):
+            self.audit(trace, calls)
+
+    def test_remaining_connections_equals_the_visible_unclosed_identities(self):
+        for schedule, remaining in (("after_fetch", 1), ("info_open", 0), ("clean_open", 0)):
+            with self.subTest(schedule=schedule):
+                trace, calls = observer_fixture(schedule)
+                trace[-1]["remaining_connections"] = remaining
+                with self.assertRaisesRegex(ValueError, "remaining connection inventory differs"):
+                    self.audit(trace, calls)
+
+    def test_socket_error_must_own_its_identity_without_hidden_request_aliases(self):
+        trace, calls = observer_fixture("after_fetch")
+        del next(row for row in trace if row["event"] == "socket_error")["connection_id"]
+        with self.assertRaisesRegex(ValueError, "lacks its own connection identity"):
+            self.audit(trace, calls)
+        trace, calls = observer_fixture("after_fetch")
+        next(row for row in trace if row["event"] == "socket_error")["request_id"] = "metadata:42:9:request:1"
+        with self.assertRaisesRegex(ValueError, "socket observation fields changed"):
+            self.audit(trace, calls)
+
+
 class RawTests(unittest.TestCase):
     def test_complete_raw_roundtrip(self):
         original = b"\0\xff{}\n"
