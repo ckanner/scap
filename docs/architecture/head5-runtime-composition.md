@@ -56,9 +56,15 @@ attempt02 使用独立空 target 与未修改的原 builder，六个 release 构
 需要专门证明管理操作没有 immutable 读取时，必须使用原 trace 可证明的请求归属，
 不能从并发请求的重叠时间窗猜测哪一次 GET 属于管理调用。
 新增[metadata-only 实际合同](../../experiments/object-metadata/README.md)以专用 M listener
-的完整生命周期证明这一点。原 `3ca5acd` actual01 在固定 41 POST 后因 observer
-事件规则失败并保留；完成后 informational disposal 的窄修已通过 41+10 单位，
-新源码实际、独立审计及负控仍未运行，见[失败与修正回执](../evidence/metadata-head-observer-correction-local-2026-11-09.json)。
+的完整生命周期证明这一点。冻结夹具 `8fda16b` 与本运行时 release 已通过固定
+41 POST、独立实际 oracle、九个语义投影负控及完整复制正控：M 的 13 次 HEAD GET、
+4 次原条件 PUT、零 immutable I/O 均由其完整 listener 生命周期证明。见[实际回执](../evidence/metadata-head-actual-local-2026-11-09.json)。
+原 `3ca5acd` 的 observer 失败与 41+10 单位修正继续分别保留；管理 ACK 不证明 payload/native 健康。
+
+本 `778a4d2` 的 discovery 实际、独立外部 oracle、29 个负控及原样复制正控也已通过：
+418 次 HTTP、25,305 次签名后端请求、全部 33 个 owned child wait4，见[发现验收回执](../evidence/head5-runtime-discovery-local-2026-11-09.json)。
+这是发现合同，不替代数据库完整冷恢复；其余 network/capacity/deployment/service/owner/resource
+门禁仍须分别完成。
 
 [f6 的新部署恢复](../evidence/head5-deployment-local-2026-11-09.json)已通过实际、
 外部 oracle 和 23 负/1 正对照，保留原输入身份；新 core 组合仍需新的验证。

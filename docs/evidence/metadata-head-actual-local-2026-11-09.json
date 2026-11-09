@@ -1,0 +1,689 @@
+{
+  "schema": 1,
+  "status": "LOCAL_ACTUAL_AND_INDEPENDENT_AUDIT_CONTROLS_PASS",
+  "scope": "Dedicated metadata HEAD-only transport contract; not full runtime acceptance, payload recovery, AWS or SLO",
+  "fixture_source": {
+    "archive_sha256": "4424274648ab1e57572233e11745d33d6f8cb843bcf959999c6602dc2a7f84c8",
+    "bytes": 7253151,
+    "commit": "8fda16b035421b0c29fb81423d61cb886c05a5f7",
+    "daemon_build_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+    "daemon_inputs_equal": true,
+    "files": 448,
+    "manifest_sha256": "f2175b9a2d47282c35174c3a6383247e296bb32e0e3737b670aa7323522faec0",
+    "source_sha256": "b79ddf7518c807c35901f81ba988935aca74363169905912f59f971e0a824efc",
+    "tree": "438f935ce5399bc6bd44acc4062591a77a3593f4"
+  },
+  "runtime_source": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "completion": {
+    "path": "/tmp/scap-metadata-8fda16b-02/completion.json",
+    "bytes": 3263,
+    "sha256": "07b3407546936a08f5f6cbf39011739c25bc21400ee19d59f21ef40a566c4c8e"
+  },
+  "driver": {
+    "path": "/tmp/scap-metadata-actual-driver02.py",
+    "bytes": 3831,
+    "sha256": "1c69203b10c3b05ed0a30c9f957ba91f547a5b1ebbff72b34128cdc5e55cc311"
+  },
+  "commands": [
+    {
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-metadata-8fda16b-02/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 67832810518267,
+      "log_sha256": "8680d277736b9f4ec997c14614a6de7aa588cfca57f79c6e76a6c6292b687f5e",
+      "name": "source",
+      "started_ns": 67832518053202
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-metadata/run.py",
+        "--server",
+        "/tmp/scap-runtime-release-778a4d2-02/release/scapd",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-runtime-build-778a4d2-02/service-build/build.json",
+        "--evidence",
+        "/tmp/scap-metadata-8fda16b-02/run"
+      ],
+      "exit_code": 0,
+      "finished_ns": 67861624143131,
+      "log_sha256": "3a6191d79c88b76f057b2e60b6843c8bf49705d48074f699542cdf63ba37a48b",
+      "name": "metadata",
+      "started_ns": 67832810988870
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-metadata/oracle.py",
+        "--evidence",
+        "/tmp/scap-metadata-8fda16b-02/run",
+        "--output",
+        "/tmp/scap-metadata-8fda16b-02/oracle.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 67862288879819,
+      "log_sha256": "7129ff2cf89dc6d3eece938addcd8e29698480581c2d19414c4e161fd2a5c1d4",
+      "name": "metadata-external-oracle",
+      "started_ns": 67861625008831
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-metadata/controls.py",
+        "--evidence",
+        "/tmp/scap-metadata-8fda16b-02/run",
+        "--output",
+        "/tmp/scap-metadata-8fda16b-02/controls.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 67864122594480,
+      "log_sha256": "21bb27a1171246994edb659f0383d09a9a50703f5b1be0260b26cd4af762f544",
+      "name": "metadata-controls",
+      "started_ns": 67862289256720
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-metadata-8fda16b-02/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_ns": 67864409376306,
+      "log_sha256": "84e5bc949f73e7ca200d28562877b974cf9e46f9a3dcac9cf081536b7ed74534",
+      "name": "source-verify",
+      "started_ns": 67864123066177
+    }
+  ],
+  "execution_context": {
+    "cpu_max": "800000 100000",
+    "discovery_source_after_preexists": true,
+    "other_work": "Read-only discovery audit/control computation may remain active; its 26 Node, 3 daemon and 4 backend children have already been reaped.",
+    "scope": "Small correctness contract only, not an idle-host latency/RSS/throughput qualification. No Cargo/native/model BFS/bulk archive work runs concurrently."
+  },
+  "source_unchanged": true,
+  "raw_external_oracle": {
+    "path": "/tmp/scap-metadata-8fda16b-02/oracle.json",
+    "bytes": 17462,
+    "sha256": "7129ff2cf89dc6d3eece938addcd8e29698480581c2d19414c4e161fd2a5c1d4"
+  },
+  "external_oracle": {
+    "daemon_build": {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scapd",
+        "sha256": "dd089bb85d63f55f61d5ae64321a1ec75138d9cf74e45c0c3ec3c78061365347"
+      },
+      "cargo_process_exit_code": 0,
+      "executable_native_bytes": "verified",
+      "local_source_manifest_matches": true,
+      "original_cargo_build_finished": true,
+      "profile": "service",
+      "retrieved_artifacts": [
+        "/tmp/scap-runtime-release-778a4d2-02/release/scapd",
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+      ],
+      "sha256": "b8cb9455c6844daa47813e09a65229185a561adbac411fd8d3413837d6f571c9",
+      "source_bytes_verified": 3594967,
+      "source_files_verified": 230,
+      "status": "verified",
+      "unavailable_artifacts": [],
+      "verification_scope": "full"
+    },
+    "declared_fault_head_writes": 2,
+    "evidence_inventory": [
+      {
+        "bytes": 12397,
+        "path": "backend-filer.log",
+        "sha256": "5ce75d309fe720fd1360079e432d8ab6250505659b54632defbcada4e83f6ad6"
+      },
+      {
+        "bytes": 4895,
+        "path": "backend-master.log",
+        "sha256": "b006c86c6bd9ba484469914e39a5611ef9c5ecb962e5ada9867a7546ef73224e"
+      },
+      {
+        "bytes": 2968,
+        "path": "backend-s3.log",
+        "sha256": "09561733e9cbffedf264e032eea563fa0f8ebfd9f0afcf4ae4e39e8d2279eaca"
+      },
+      {
+        "bytes": 2265,
+        "path": "backend-volume.log",
+        "sha256": "48cd9542ce2e194da2480892d4102bf47a28d7725d351504b0431d1edc0a26e9"
+      },
+      {
+        "bytes": 630,
+        "path": "daemon-build-evidence/build-cargo.stderr.log",
+        "sha256": "deab2adb28b72aea755bca80dec819896cce9813b4987ec93660c0fa2b34f685"
+      },
+      {
+        "bytes": 204508,
+        "path": "daemon-build-evidence/build-cargo.stdout.jsonl",
+        "sha256": "684b7d31a3f781a9fb9acf56db3d9a3a1c85fde2334ba84b424db7b18efd8315"
+      },
+      {
+        "bytes": 28444,
+        "path": "daemon-build-evidence/build-receipt.json",
+        "sha256": "b8cb9455c6844daa47813e09a65229185a561adbac411fd8d3413837d6f571c9"
+      },
+      {
+        "bytes": 26878,
+        "path": "daemon-build-evidence/build-source-manifest.json",
+        "sha256": "c5954e24c01a9c383eafef645a7de3fa5f7d1b1d284b2d37935e53e99feb58d5"
+      },
+      {
+        "bytes": 3778560,
+        "path": "daemon-build-evidence/build-source.tar",
+        "sha256": "8a28bf5d23af83512915d0442761ad9088bd0e3f13f3bfa8c0262cc6d4d4690b"
+      },
+      {
+        "bytes": 116866,
+        "path": "events.jsonl",
+        "sha256": "b9edcae0c10921a8782651907f7f8884a5b8998cb6d9f7a0279dd0ab272b0f1e"
+      },
+      {
+        "bytes": 0,
+        "path": "f_quarantine_corrupt.body",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 245,
+        "path": "f_quarantine_corrupt.headers",
+        "sha256": "067627f6f9dc39c16278a82d889a952043080987040cbb9819905092f05d1789"
+      },
+      {
+        "bytes": 0,
+        "path": "f_quarantine_corrupt.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 3,
+        "path": "f_quarantine_corrupt.stdout",
+        "sha256": "27badc983df1780b60c2b3fa9d3a19a00e46aac798451f0febdca52920faaddf"
+      },
+      {
+        "bytes": 853,
+        "path": "f_quarantine_get.body",
+        "sha256": "b20b130d15b39306300cb7ea7a25549f51f33f853cd082936dd4b9f816ff74a1"
+      },
+      {
+        "bytes": 334,
+        "path": "f_quarantine_get.headers",
+        "sha256": "d86b0f92d2decda71e017b071b4192cf59e8fbe6ea025c6d812a3227dd500142"
+      },
+      {
+        "bytes": 0,
+        "path": "f_quarantine_get.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 3,
+        "path": "f_quarantine_get.stdout",
+        "sha256": "27badc983df1780b60c2b3fa9d3a19a00e46aac798451f0febdca52920faaddf"
+      },
+      {
+        "bytes": 0,
+        "path": "f_quarantine_restore.body",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 245,
+        "path": "f_quarantine_restore.headers",
+        "sha256": "81b1c0eb676ceecded7fc2a9e078b00c3dbf8e81ed1d7230ce4b4a9cb9bce37d"
+      },
+      {
+        "bytes": 0,
+        "path": "f_quarantine_restore.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 3,
+        "path": "f_quarantine_restore.stdout",
+        "sha256": "27badc983df1780b60c2b3fa9d3a19a00e46aac798451f0febdca52920faaddf"
+      },
+      {
+        "bytes": 61477,
+        "path": "http-client-ledger.jsonl",
+        "sha256": "024ae0ef421b0bbcda291b7a0c07292645053310a4ead95b02e368a0c1c3b7b1"
+      },
+      {
+        "bytes": 89953,
+        "path": "http-client-transport.jsonl",
+        "sha256": "634bd8ae51f4792d738205cbe09019a7e606c32a20f00738465563df8e71d701"
+      },
+      {
+        "bytes": 218081,
+        "path": "http-proxy.jsonl",
+        "sha256": "95f075443b200edfe3c034c22033cd3f7f4095e8a754a0f5734379dc64cb308b"
+      },
+      {
+        "bytes": 2287,
+        "path": "metadata-configuration.json",
+        "sha256": "d43ff763f2eaf49c57d2c4e3a208ee6bef2d8d4dd8d233885a388b4686ee0900"
+      },
+      {
+        "bytes": 43412,
+        "path": "metadata-node.jsonl",
+        "sha256": "489146b7561fe88cf8e3393659f34ec176df398872e4fef514926f08a09b032b"
+      },
+      {
+        "bytes": 16528,
+        "path": "metadata-plan.json",
+        "sha256": "14fa5821758464af225ac45f75cc7eb274d682d735ecde1942b41dc3b0bacea5"
+      },
+      {
+        "bytes": 99,
+        "path": "metadata-source-after.log",
+        "sha256": "84e5bc949f73e7ca200d28562877b974cf9e46f9a3dcac9cf081536b7ed74534"
+      },
+      {
+        "bytes": 228,
+        "path": "metadata-source-archive.json",
+        "sha256": "b99a7e547f518c92d6ef5374fda73b75101ee5402bef0b8c96de935bba5a5a8a"
+      },
+      {
+        "bytes": 0,
+        "path": "metadata-source-archive.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 118099,
+        "path": "metadata-source-before.json",
+        "sha256": "f2175b9a2d47282c35174c3a6383247e296bb32e0e3737b670aa7323522faec0"
+      },
+      {
+        "bytes": 108,
+        "path": "metadata-source-before.log",
+        "sha256": "8680d277736b9f4ec997c14614a6de7aa588cfca57f79c6e76a6c6292b687f5e"
+      },
+      {
+        "bytes": 7639040,
+        "path": "metadata-source.tar",
+        "sha256": "4424274648ab1e57572233e11745d33d6f8cb843bcf959999c6602dc2a7f84c8"
+      },
+      {
+        "bytes": 1176,
+        "path": "metadata-tools.json",
+        "sha256": "55abf2c9b067bd3d3c5118c04d7feb68623c3ef543d4742f46cc2499263ccf09"
+      },
+      {
+        "bytes": 0,
+        "path": "node.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 373,
+        "path": "request-get_unknown.json",
+        "sha256": "d093f7058a008109651443f0e90761725b137f12e33c047da292059f0a46fa0a"
+      },
+      {
+        "bytes": 373,
+        "path": "request-known_quarantine.json",
+        "sha256": "0ef2ba8f61dc4f88888914cb124a73b425d151896eab47d8ea13f138b3a686d0"
+      },
+      {
+        "bytes": 373,
+        "path": "request-permission.json",
+        "sha256": "60b46c79cde87fc01e220b37573f8218fd50d1653ca8ccc9b5e4fc834085d1c1"
+      },
+      {
+        "bytes": 373,
+        "path": "request-put_unknown.json",
+        "sha256": "4ae2bdaf34281ce4286048bf24af7945b35f9b60281c176569f3fcf1824a4db4"
+      },
+      {
+        "bytes": 373,
+        "path": "request-stale_412.json",
+        "sha256": "c1c981b1140842406236ac9d2175f4e8171834903134ae06583f1dce2e3f6b21"
+      },
+      {
+        "bytes": 373,
+        "path": "request-success.json",
+        "sha256": "334878a6d34b0a995002f4db52d51298fe6c56ad21891a2554b387b0391ea6a0"
+      },
+      {
+        "bytes": 1675951,
+        "path": "s3.jsonl",
+        "sha256": "9e29b0489bba57e01d8b5ae36ebe852e791c91387bdc3192b793e41934988ae9"
+      },
+      {
+        "bytes": 2062,
+        "path": "service-M.json",
+        "sha256": "386c02852e1f9a7bdbaf81c21527503330221864a50dd21b5bc98f93f2db7234"
+      },
+      {
+        "bytes": 0,
+        "path": "service-M.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2062,
+        "path": "service-S.json",
+        "sha256": "ab9f32ca08b4be2c988a26a387823c9ab486375f2d90772617d5c4ec9cea628f"
+      },
+      {
+        "bytes": 0,
+        "path": "service-S.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "evidence_sha256": "47477f938a98aed6583afba0f575f587da836c4c7528a26cad3cede01f375314",
+    "faults": {
+      "actual_response_losses": 2,
+      "declared_faults": 3,
+      "quarantine_sequence": "same resident control Engine",
+      "restored_bytes": "exact original GET bytes",
+      "same_original_etag_conflict": 1,
+      "signed_maintenance_requests": 3
+    },
+    "http_by_worker": {
+      "M": 13,
+      "S": 28
+    },
+    "limits": [
+      "Local compatible endpoint only; AWS Standard NOT_RUN",
+      "No throughput/SLO conclusion",
+      "Zero M immutable I/O is not payload/native health proof",
+      "No per-HTTP S3 interval attribution",
+      "Metadata ACK proves the original HEAD CAS only",
+      "Resident latch proof relies on frozen single-control-worker lifecycle",
+      "No generation promotion/GC/DELETE/controller activation"
+    ],
+    "metadata": {
+      "attribution": "entire dedicated M listener lifecycle",
+      "head_gets": 13,
+      "head_put_accepted": 3,
+      "head_put_attempts": 4,
+      "head_put_conflicts": 1,
+      "http_requests": 13,
+      "immutable_io": 0
+    },
+    "normal_head_publications": 28,
+    "object_versions": {
+      "accepted_versions": 70,
+      "ambiguous_http_intervals": 0,
+      "blackholed_before_forward": 0,
+      "causal_constraints": 174,
+      "conditional_put_responses": 71,
+      "exact_get_body_etag_pairs": 121,
+      "http_interval_binding": "NOT_REQUESTED"
+    },
+    "offered_commands": 41,
+    "original_sql_acks": 6,
+    "plan_sha256": "14fa5821758464af225ac45f75cc7eb274d682d735ecde1942b41dc3b0bacea5",
+    "process": {
+      "M_lifetime": {
+        "event_sequences": [
+          115,
+          208,
+          212
+        ],
+        "proxy_join_ns": 67858973485458,
+        "service_start_ns": 67857342764223,
+        "service_wait4_ns": 67858537516377
+      },
+      "joined_proxy_listeners": 5,
+      "owned_wait4_children": 10,
+      "private_cleanup": "historical original observation verified",
+      "resident_quarantine_basis": "one source-bound control worker; last four M calls same Scope; no restart/intervening call"
+    },
+    "profile": "independent-metadata-head-only-real-transport-v1",
+    "projection_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+    "s3_by_worker": {
+      "F": 3,
+      "M": 17,
+      "S": 179
+    },
+    "schema": 1,
+    "seed_closures": {
+      "get_unknown": [
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/420e895380d6255a4e78dd7c37141031b03add08f54c9826522b1286f8efe476",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/74feb0792f842d254ce5208d254442a0c0babe3762cdf95fda8be19dd8ea7679",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/81e4daab99bf87db18c9d57b0f2f84a10f70bf62c4be2f91fbcd1db806cf798e",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/924fa237f3da7b21137b8e704e4d017ea691ffc8f1d47f0e63aacf3db040be26",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/d1ae1cbdd74114289238c6c47b57f148432d864ca3be6f9c63819914412cf281",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/e67c75a03f5619e527705b693a6efca0759dbf72375d09432ad58b08ddce4500",
+        "/scap-test/scap-object/v1/1/7/2102/inc/1/gen/1/storage/1/objects/f76c7ca8986c5a97d124fb1e3085c1a6743dedbfef7aa3cd954cb3e4fc280611"
+      ],
+      "known_quarantine": [
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/2bd5facde0721737f0390170440e9a5c388d4f9ad79974acafc85cf2bd35281c",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/300bcf586821a56c8a75bbd816c025d7ab135cb590e3225aab37249e736ca533",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/505be1c5f83f65cbeaa275c0ae5c195dbe8ce7e928f478cc912aa96bdb8c9c5f",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/605d75bf2c0eb20441fd5f423d68822b55adb1712a6139fe503494c37f9172af",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/60a304dce572fb31452eb278be9efbf5a763f80d7382b2413cc9dd8e6a473656",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/a7cba856c0d86866c47573f820e74b7959d61c3213a308ebad2d5dc3fc06a757",
+        "/scap-test/scap-object/v1/1/7/2106/inc/1/gen/1/storage/1/objects/adba445a6dbdc834bc8a5f653f542673fe2e957798410a9351ef60d6d172aa2b"
+      ],
+      "permission": [
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/13ff498dfd2ff05c0b9377b40f1e2a9470df7054879c25803807c0c23035f33b",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/1cc2287d258c43c6a982c2a6c0f4daad81971ee45ababd3a3aa7593e361ab31d",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/289c6357c279be5d9dcb90be5601c66b0a0ba1f145ea90d09552b8f1f305332d",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/2fdf1da1119f83e3282745f4d0366c25b2574dc8671095fede7394ef58254e7a",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/700bab1e6bcaf7b294edb828c4e938d566b39752fd0550b1ffd72d7e315c0348",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/b6e8fdd8435b979b1abddcef1ff787816e0eeedf0e98b7eac3b1384ac80a76fe",
+        "/scap-test/scap-object/v1/1/7/2105/inc/1/gen/1/storage/1/objects/cfd28dcfca6731132c0a2c209fbe8df60f3b46edd56b8a8732905a7a53cd712c"
+      ],
+      "put_unknown": [
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/37aae80814f4acda126c9e9ba9aea411e1d4cbbf94b670c41b60ab5b7c3531fc",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/8a5ea669288467067a1e17e721d63517be3e24a7470fcb2ee74e8a0a6f667dac",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/90a2a1884332d3b36c4f4afbf0cf0561f6a873673954fa34af52487b04f59419",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/a6d4949a03dc33462dc63760324af5d00f53f96d3fe51e7d8cabb837fbd36fd6",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/bef7bf0092c9b8c0044b6288a490ff9c51c5ea99fb8c163fa1fd0ba903001668",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/cb2b69c1c6385b23863ebe68603396e92061fa7befe3e4e39000a56c1797232f",
+        "/scap-test/scap-object/v1/1/7/2103/inc/1/gen/1/storage/1/objects/f87278f56e003ed43e73e49326a50ebf7fb36b53a9a6bbee4826af8de76a59f7"
+      ],
+      "stale_412": [
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/0451560f0ab1229c19a8058905fdf3f99aa419d41e2740181b748e787a3b0410",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/1bc97616cc55749e11a4cfd4cdc90d6e9519468c274ad31aacd9778069dde534",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/365402f2307c45f73211344d11760b555a5456e18362e40e6263de89d945b761",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/3d3a5414176ab2996efccecb9459431cd30e6c6f4d0d9f9ef1d31c0fbfbb32d2",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/3f869b1fd74683d53f208580b636a4ed9cc750bbad3caddec2a673b542671dad",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/43465591d55ca644c40f387e88ed3d88698394b47132305fe370496c4a9c2aff",
+        "/scap-test/scap-object/v1/1/7/2104/inc/1/gen/1/storage/1/objects/8dd11a5883e554c37032ceec975dd5d962a0e74e62d9ce853f0898d95dfdcee3"
+      ],
+      "success": [
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/09902211907380c9bbc668b00efd985dcf14dbca9765ba7786b2418e3cc75bfb",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/0c30e66642656a94bb30693beba9bfd7de14d3a120457918d43e9f7d8cffb981",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/3066420cd78a00c486dc324b3b9af9ea8064c4221bd25bbb0ccb0120c8e1119b",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/6422831d0759778bbe68196dfadffbf351ca0f977a20c7468b1dc99106be2ca9",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/64309d8b8cfcece5ee0370c3b4478bf30fb98e40650f0546377aeae46e45d25f",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/a0a344ff8af6509c0572b96d165349b4000fdfb32c050f83c922b0895c0f6e69",
+        "/scap-test/scap-object/v1/1/7/2101/inc/1/gen/1/storage/1/objects/c218429b3b6d0c874d2fc6af0f5e326461d95e74045f8f077024cec8931f4714"
+      ]
+    },
+    "source": {
+      "archive_sha256": "4424274648ab1e57572233e11745d33d6f8cb843bcf959999c6602dc2a7f84c8",
+      "bytes": 7253151,
+      "commit": "8fda16b035421b0c29fb81423d61cb886c05a5f7",
+      "daemon_build_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+      "daemon_inputs_equal": true,
+      "files": 448,
+      "manifest_sha256": "f2175b9a2d47282c35174c3a6383247e296bb32e0e3737b670aa7323522faec0",
+      "source_sha256": "b79ddf7518c807c35901f81ba988935aca74363169905912f59f971e0a824efc",
+      "tree": "438f935ce5399bc6bd44acc4062591a77a3593f4"
+    },
+    "status": "passed",
+    "transport_observation": {
+      "calls": 41,
+      "connections": 41,
+      "informational_disposals": 41,
+      "observation_status": "RECORDED",
+      "observed_closed_connections": 41,
+      "original_request_identities": 41,
+      "remaining_connections": 0
+    },
+    "verification_scope": "full"
+  },
+  "raw_controls": {
+    "path": "/tmp/scap-metadata-8fda16b-02/controls.json",
+    "bytes": 14402360,
+    "sha256": "eb3b8ac1d56e34468d235406d726c95b79b109201b57912da5bccde73a8322bd"
+  },
+  "controls_scope": "Nine semantic projection mutations, NOT nine complete raw-ledger tampering audits; all original reference witnesses are retained",
+  "negative_controls": [
+    {
+      "name": "immutable_get",
+      "status": "passed",
+      "expected_rule": "M_OBJECT_GET",
+      "observed_failure": {
+        "message": "M_OBJECT_GET: metadata stream touched a valid immutable frame",
+        "rule": "M_OBJECT_GET",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "508ec79bc171daca30dea1b22ab7db8697967e73f60cefecf203a93d8959ac49",
+      "original_reference_count": 1
+    },
+    {
+      "name": "immutable_put",
+      "status": "passed",
+      "expected_rule": "M_OBJECT_PUT",
+      "observed_failure": {
+        "message": "M_OBJECT_PUT: metadata stream touched a valid immutable frame",
+        "rule": "M_OBJECT_PUT",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "61407c70419de198e8766f60115698a00a846a43e47e35bad55551df5c38d120",
+      "original_reference_count": 1
+    },
+    {
+      "name": "late_immutable_get",
+      "status": "passed",
+      "expected_rule": "M_TAIL_OBJECT_IO",
+      "observed_failure": {
+        "message": "M_TAIL_OBJECT_IO: payload I/O appeared in the joined listener tail",
+        "rule": "M_TAIL_OBJECT_IO",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "c91ae05f201fc7f59501b89e0d0f5eec8b741ca666283d1920ce4ce3e6bc7997",
+      "original_reference_count": 1
+    },
+    {
+      "name": "non_metadata_input",
+      "status": "passed",
+      "expected_rule": "M_NON_METADATA",
+      "observed_failure": {
+        "message": "M_NON_METADATA: M received a non-metadata operation",
+        "rule": "M_NON_METADATA",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "fe9a3812b53a3e539f8fda98471f202dd3215f64277556d6e7ea4d981e40a80e",
+      "original_reference_count": 1
+    },
+    {
+      "name": "accepted_unknown_as_ack",
+      "status": "passed",
+      "expected_rule": "M_UNKNOWN_OUTCOME",
+      "observed_failure": {
+        "message": "M_UNKNOWN_OUTCOME: backend effect was substituted for the original caller UNKNOWN",
+        "rule": "M_UNKNOWN_OUTCOME",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "43f6100f952c34a226c470d62dce98736cefe04140def8b93b30ca3a41753573",
+      "original_reference_count": 1
+    },
+    {
+      "name": "unknown_second_head_attempt",
+      "status": "passed",
+      "expected_rule": "M_PUBLICATION_ATTEMPT_COUNT",
+      "observed_failure": {
+        "message": "M_PUBLICATION_ATTEMPT_COUNT: metadata publication was retried/rebuilt or omitted",
+        "rule": "M_PUBLICATION_ATTEMPT_COUNT",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "2b32a8c8697f1170ed168df92b397e8bb13cdc505ecceb8d34a6bce5a88926e7",
+      "original_reference_count": 1
+    },
+    {
+      "name": "conflict_rebound_etag",
+      "status": "passed",
+      "expected_rule": "M_ORIGINAL_ETAG",
+      "observed_failure": {
+        "message": "M_ORIGINAL_ETAG: candidate rebound its original exact HEAD condition",
+        "rule": "M_ORIGINAL_ETAG",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "c271d17c2e31d0a34c6092ba75edbf4d9fe87020a7d88fa0cf49bf7fc36a9e93",
+      "original_reference_count": 3
+    },
+    {
+      "name": "repaired_handle_publication",
+      "status": "passed",
+      "expected_rule": "M_KNOWN_QUARANTINE",
+      "observed_failure": {
+        "message": "M_KNOWN_QUARANTINE: repair silently cleared the resident handle's known failure",
+        "rule": "M_KNOWN_QUARANTINE",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "cc0c328241ccbbf64785f8cd901fa9a164bd1e7eee10483ecf389e12c39469ca",
+      "original_reference_count": 1
+    },
+    {
+      "name": "denied_changed_principal",
+      "status": "passed",
+      "expected_rule": "M_PERMISSION",
+      "observed_failure": {
+        "message": "M_PERMISSION: DENIED input/outcome changed",
+        "rule": "M_PERMISSION",
+        "type": "SemanticFailure"
+      },
+      "before_sha256": "af29e5a6d495fa5ac255ed4b124ada529b8534743caefbcd323d539974ff3aca",
+      "after_sha256": "8aaab0cd32818addda00396585a960869d617ae890000eb4665a473766efb761",
+      "original_reference_count": 1
+    }
+  ],
+  "positive_copy": {
+    "evidence_sha256": "47477f938a98aed6583afba0f575f587da836c4c7528a26cad3cede01f375314",
+    "files": 49,
+    "inventory_sha256": "a4697d7f52f207da720e05ce6b76d0eeb93f814044330798a3de2e20225c10c8",
+    "scope": "entire copied raw evidence audited again",
+    "status": "passed"
+  },
+  "summary": {
+    "path": "/tmp/scap-metadata-8fda16b-02/run/summary.json",
+    "bytes": 295,
+    "sha256": "8934c7c107ca3c26f4587c231a36679698add06ea59b6ed39cc1fd736d19c21f"
+  },
+  "cleanup": {
+    "contract_finished": true,
+    "cleanup_errors": [],
+    "private_deleted": true,
+    "source_unchanged": true
+  },
+  "unit_prerequisite": {
+    "path": "/tmp/scap-metadata-fixture-units03/receipt.json",
+    "bytes": 3105,
+    "sha256": "20cb0821f09898c3ab7da510aa62a866f162d70be9cea1f423dd402ac54146d0"
+  },
+  "original_failed_actual": {
+    "fixture_commit": "3ca5acd948303c86f902c1dd03e6a3c9da78b768",
+    "completion_sha256": "851c7811b238596537f1d70b4dc188eca4def63c60a19abfd21e4f8fba16abeb",
+    "status": "FAILED_UNCHANGED",
+    "evidence_reference": "metadata-head-observer-correction-local-2026-11-09.json"
+  },
+  "publication": "Documentation-only wrapper after the frozen 8fda16b actual. No fixture or production code changes in this publication.",
+  "limits": [
+    "Management ACK proves original HEAD publication; metadata-only does not certify native image or immutable payload health.",
+    "Nine negative controls mutate a declared semantic projection, not nine complete raw-ledger forgeries.",
+    "Fixed loopback real S3-compatible backend does not establish AWS Standard durability, production throughput or an idle-host SLO."
+  ],
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "remote_ci": "NOT_RUN"
+}

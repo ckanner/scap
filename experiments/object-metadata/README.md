@@ -1,6 +1,6 @@
 # Metadata-only HEAD 实际合同
 
-本目录只装配正式 `scapd`、Node SDK 与真实 S3 兼容后端，验证 `takeover` 和 `policy` 的 metadata-only 网络合同。**当前状态：OBSERVER_CORRECTION_UNIT_PASS；原 `3ca5acd` actual01 完成固定 41 个请求后，被 observer 规则拒绝，保持 FAILED。本次窄修的 51 个单位（41 oracle、10 cleanup）已全部通过；新源码实际、独立实际 oracle、九负控及原样复制正控均 NOT_RUN。** 见[原始失败、窄修与新单位回执](../../docs/evidence/metadata-head-observer-correction-local-2026-11-09.json)；初始静态与 38-unit 记录见[原冻结回执](../../docs/evidence/metadata-head-acceptance-static-local-2026-11-09.json)。旧证据保持原状态，静态解释与单位不替代新源码实际验收。
+本目录只装配正式 `scapd`、Node SDK 与真实 S3 兼容后端，验证 `takeover` 和 `policy` 的 metadata-only 网络合同。**当前状态：LOCAL_ACTUAL_PASS；冻结 `8fda16b` 的固定 41 POST、独立实际 oracle、九个语义投影负控及完整原样复制正控均已通过，先决 51 个单位（41 oracle、10 cleanup）也已通过。** 见[实际验收回执](../../docs/evidence/metadata-head-actual-local-2026-11-09.json)。原 `3ca5acd` actual01 保持 FAILED；[原始失败与窄修回执](../../docs/evidence/metadata-head-observer-correction-local-2026-11-09.json)及[初始冻结回执](../../docs/evidence/metadata-head-acceptance-static-local-2026-11-09.json)分别保留。此发布只更新文档，不改已验收的夹具源码；metadata-only ACK 不等于 payload/native 健康证明，AWS 与生产 SLO 未验证。
 
 产品起点是 [`778a4d25dc186b3afc7958cbd522e5e0316703c8`](https://github.com/ckanner/scap/commit/778a4d25dc186b3afc7958cbd522e5e0316703c8)。此实验不改既有 owner 合同的 70 个命令 / 144 个 POST，不增加公共产品接口。后续执行时，以 `daemon-build-evidence/` 中实际 source-bound release 和独立 fixture source archive 为准。
 
