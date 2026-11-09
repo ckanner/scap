@@ -22,6 +22,9 @@ pub struct Options {
     pub max_input_bytes: usize,
     pub max_changed_pages: u32,
     pub cache_bytes: u64,
+    /// Per-operation typed Rust result graph, separate from wire bytes and
+    /// SQLite's page cache. Includes container capacities and growth overlap.
+    pub result_memory_bytes: u64,
     pub max_vm_steps: u32,
     pub operation_timeout: Duration,
     pub recovery_timeout: Duration,
@@ -49,6 +52,7 @@ impl Default for Options {
             max_input_bytes: MAX_REQUEST_BYTES,
             max_changed_pages: 64 * 1024 * 1024 / PAGE_SIZE as u32,
             cache_bytes: 64 * 1024 * 1024,
+            result_memory_bytes: scap_sql::DEFAULT_RESULT_MEMORY_BYTES,
             max_vm_steps: 100_000_000,
             operation_timeout: Duration::from_secs(30),
             recovery_timeout: Duration::from_secs(1800),
@@ -74,6 +78,7 @@ impl Options {
             || self.max_changed_pages > MAX_PAGES
             || self.cache_bytes < PAGE_SIZE as u64
             || self.cache_bytes > i32::MAX as u64 * 1024
+            || self.result_memory_bytes < std::mem::size_of::<scap_sql::TransactionResult>() as u64
             || self.max_vm_steps == 0
             || self.operation_timeout.is_zero()
             || self.operation_timeout > Duration::from_secs(86400)
@@ -93,6 +98,7 @@ impl Options {
             max_database_pages: pages,
             max_changed_pages: self.max_changed_pages,
             cache_bytes: self.cache_bytes,
+            result_memory_bytes: self.result_memory_bytes,
         })
     }
 

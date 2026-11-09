@@ -741,8 +741,20 @@ impl Database {
         receipt: Receipt,
         bytes: &[u8],
     ) -> Result<Admission, Error> {
-        let result = scap_sql::decode_result(bytes, durable_sql_limits())
-            .map_err(|_| self.observe(Error::Corrupt))?;
+        // Validate independently before applying local materialization limits.
+        // Lower memory budgets cannot turn a valid, already committed result
+        // into corruption, invalidate its receipt, or cause SQL re-execution.
+        let result = scap_sql::decode_result_with_memory_limit(
+            bytes,
+            durable_sql_limits(),
+            self.options.result_memory_bytes,
+        )
+        .map_err(|error| match error {
+            scap_sql::SqlError::ResourceExhausted => {
+                Error::CommittedButUnavailable(Box::new(receipt.clone()))
+            }
+            _ => self.observe(Error::Corrupt),
+        })?;
         Ok(Admission::Existing(receipt, result))
     }
 

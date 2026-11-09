@@ -251,3 +251,89 @@ fn cursor_key_construction_failure_blocks_startup() {
         "CONFIG"
     );
 }
+
+#[test]
+fn optional_versioned_intake_profiles_preserve_existing_configuration_and_reject_unsafe_overrides()
+{
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let prepared = parsed(base.clone()).prepare_with(&environment).unwrap();
+    assert!(prepared.service.admission.data_profile.is_none());
+    assert!(prepared.service.admission.control_profile.is_none());
+    assert!(prepared.service.admission.recovery_profile.is_none());
+    let body = base["admission"]["max_body_bytes"].as_u64().unwrap();
+    let profile = json!({"version":1,"requests_per_tenant":1,"body_bytes":body*2,"body_bytes_per_tenant":body});
+    for name in ["data_profile", "control_profile", "recovery_profile"] {
+        let mut value = base.clone();
+        value["admission"][name] = profile.clone();
+        assert!(parsed(value.clone()).prepare_with(&environment).is_ok());
+        for (field, replacement) in [
+            ("version", json!(2)),
+            ("requests_per_tenant", json!(0)),
+            ("requests_per_tenant", json!(4097)),
+            ("body_bytes", json!(body - 1)),
+            ("body_bytes_per_tenant", json!(body - 1)),
+            ("body_bytes_per_tenant", json!(body * 2 + 1)),
+        ] {
+            let mut invalid = value.clone();
+            invalid["admission"][name][field] = replacement;
+            assert!(parsed(invalid)
+                .prepare_with(&|_| panic!("intake validation precedes secrets"))
+                .is_err());
+        }
+        value["admission"][name]["unexpected"] = json!(1);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    let mut value = base;
+    value["catalogue"] = json!({"workers":1,"queued_total":4,"queued_per_tenant":3,"queued_per_name":2,"intake":2,"max_body_bytes":65536,"timeout_ms":1000,"intake_profile":{"version":1,"requests_per_tenant":1,"body_bytes":131072,"body_bytes_per_tenant":65536}});
+    assert!(parsed(value.clone()).prepare_with(&environment).is_ok());
+    value["catalogue"]["intake_profile"]["body_bytes"] = json!(65535);
+    assert!(parsed(value)
+        .prepare_with(&|_| panic!("catalogue intake validation precedes secrets"))
+        .is_err());
+}
+
+#[test]
+fn execution_graph_budget_is_explicit_and_does_not_reinterpret_wire_or_database_limits() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let baseline = parsed(base.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .options;
+    assert_eq!(baseline.result_memory_bytes, 128 * 1024 * 1024);
+    let minimum = std::mem::size_of::<scap_sql::TransactionResult>() as u64;
+    for bytes in [minimum, 1024, 256 * 1024 * 1024, u64::MAX] {
+        let mut value = base.clone();
+        value["execution"] = json!({"result_memory_bytes": bytes});
+        let options = parsed(value)
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .options;
+        assert_eq!(options.result_memory_bytes, bytes);
+        assert_eq!(options.sql, baseline.sql);
+        assert_eq!(options.quota, baseline.quota);
+        assert_eq!(options.retention, baseline.retention);
+    }
+    for value in [
+        json!({"result_memory_bytes": 0}),
+        json!({"result_memory_bytes": minimum-1}),
+    ] {
+        let mut input = base.clone();
+        input["execution"] = value;
+        assert!(parsed(input)
+            .prepare_with(&|_| panic!("execution budget precedes secrets"))
+            .is_err());
+    }
+    for value in [
+        json!({}),
+        json!({"result_memory_bytes": -1}),
+        json!({"result_memory_bytes": 1024,"max_result_bytes":1}),
+    ] {
+        let mut input = base.clone();
+        input["execution"] = value;
+        assert!(Config::parse(input.to_string().as_bytes()).is_err());
+    }
+}

@@ -58,6 +58,7 @@ struct Job {
     call: Call,
     deadline: Instant,
     reply: oneshot::Sender<Result<Value, Failure>>,
+    _reservation: Option<Arc<crate::intake::Lease>>,
 }
 
 struct NameQueue {
@@ -278,6 +279,27 @@ impl Scheduler {
         call: Call,
         deadline: Instant,
     ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
+        self.submit_with(principal, call, deadline, None)
+    }
+
+    pub(crate) fn submit_reserved(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Arc<crate::intake::Lease>,
+    ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
+        reservation.claim(&principal, "catalogue")?;
+        self.submit_with(principal, call, deadline, Some(reservation))
+    }
+
+    fn submit_with(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Option<Arc<crate::intake::Lease>>,
+    ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
         call.action.validate()?;
         call.action.authorize(&principal)?;
         let (reply, receiver) = oneshot::channel();
@@ -291,6 +313,7 @@ impl Scheduler {
                     call,
                     deadline,
                     reply,
+                    _reservation: reservation,
                 },
                 self.limits,
             )?;

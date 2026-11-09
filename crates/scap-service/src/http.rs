@@ -12,10 +12,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
-use tokio::sync::Semaphore;
 
 use crate::{
     auth::{Authenticator, Principal},
+    intake::{Class, Intake, Lease},
     scheduler::Scheduler,
     wire, Failure,
 };
@@ -28,16 +28,16 @@ pub struct HttpState {
     pub max_body_bytes: usize,
     pub timeout: Duration,
     pub recovery_timeout: Duration,
-    pub intake: Arc<Semaphore>,
-    pub control_intake: Arc<Semaphore>,
-    pub recovery_intake: Arc<Semaphore>,
+    pub intake: Arc<Intake>,
+    pub control_intake: Arc<Intake>,
+    pub recovery_intake: Arc<Intake>,
 }
 
 pub struct CatalogueState {
     pub scheduler: Arc<crate::catalogue_scheduler::Scheduler>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
-    pub intake: Arc<Semaphore>,
+    pub intake: Arc<Intake>,
 }
 
 pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
@@ -46,20 +46,26 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
         || state.timeout > Duration::from_secs(86400)
         || state.recovery_timeout.is_zero()
         || state.recovery_timeout > Duration::from_secs(7 * 86400)
-        || state.intake.available_permits() == 0
-        || state.control_intake.available_permits() == 0
-        || state.recovery_intake.available_permits() == 0
     {
         return Err(Failure::new("CONFIG"));
     }
+    state.intake.validate(Class::Data, state.max_body_bytes)?;
+    state
+        .control_intake
+        .validate(Class::Control, state.max_body_bytes)?;
+    state
+        .recovery_intake
+        .validate(Class::Recovery, state.max_body_bytes)?;
     if let Some(catalogue) = &state.catalogue {
         if !(1..=65536).contains(&catalogue.max_body_bytes)
             || catalogue.timeout.is_zero()
             || catalogue.timeout > Duration::from_secs(86400)
-            || !(1..=4096).contains(&catalogue.intake.available_permits())
         {
             return Err(Failure::new("CONFIG"));
         }
+        catalogue
+            .intake
+            .validate(Class::Catalogue, catalogue.max_body_bytes)?;
     }
     Ok(Router::new()
         .route("/healthz", get(health))
@@ -171,11 +177,19 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
         "recovery" => &state.recovery_intake,
         _ => &state.intake,
     };
-    let reservation = match slots.clone().try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => return failure(Failure::new("BACKPRESSURE")),
+    let reservation = match slots.acquire(&principal) {
+        Ok(reservation) => reservation,
+        Err(error) => return failure(error),
     };
-    let response = admitted(&state, principal, class, received, request).await;
+    let response = admitted(
+        &state,
+        principal,
+        class,
+        reservation.clone(),
+        received,
+        request,
+    )
+    .await;
     reserved(response, reservation)
 }
 
@@ -206,17 +220,19 @@ async fn catalogue_call(State(state): State<Arc<HttpState>>, request: Request) -
         Some(catalogue) => catalogue,
         None => return failure(Failure::new("UNAVAILABLE")),
     };
-    let reservation = match catalogue.intake.clone().try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => return failure(Failure::new("BACKPRESSURE")),
+    let reservation = match catalogue.intake.acquire(&principal) {
+        Ok(reservation) => reservation,
+        Err(error) => return failure(error),
     };
-    let response = catalogue_admitted(catalogue, principal, received, request).await;
+    let response =
+        catalogue_admitted(catalogue, principal, reservation.clone(), received, request).await;
     reserved(response, reservation)
 }
 
 async fn catalogue_admitted(
     state: &CatalogueState,
     principal: Principal,
+    reservation: Arc<Lease>,
     received: Instant,
     request: Request,
 ) -> Response {
@@ -234,11 +250,17 @@ async fn catalogue_admitted(
         Ok(Err(_)) => return failure(Failure::new("LIMIT")),
         Err(_) => return failure(Failure::new("DEADLINE")),
     };
+    if let Err(error) = reservation.shrink_body(bytes.len()) {
+        return failure(error);
+    }
     let call = match parse_catalogue_before(&bytes, deadline) {
         Ok(call) => call,
         Err(error) => return failure(error),
     };
-    let receiver = match state.scheduler.submit(principal, call, deadline) {
+    let receiver = match state
+        .scheduler
+        .submit_reserved(principal, call, deadline, reservation)
+    {
         Ok(receiver) => receiver,
         Err(error) => return failure(error),
     };
@@ -264,6 +286,7 @@ async fn admitted(
     state: &HttpState,
     principal: Principal,
     class: &str,
+    reservation: Arc<Lease>,
     received: Instant,
     request: Request,
 ) -> Response {
@@ -282,6 +305,9 @@ async fn admitted(
         Ok(Err(_)) => return failure(Failure::new("LIMIT")),
         Err(_) => return failure(Failure::new("DEADLINE")),
     };
+    if let Err(error) = reservation.shrink_body(bytes.len()) {
+        return failure(error);
+    }
     let call = match parse_before(&bytes, received + state.timeout) {
         Ok(call) => call,
         Err(error) => return failure(error),
@@ -295,7 +321,10 @@ async fn admitted(
         state.timeout
     };
     let deadline = received + duration;
-    let receiver = match state.scheduler.submit(principal, call, deadline) {
+    let receiver = match state
+        .scheduler
+        .submit_reserved(principal, call, deadline, reservation)
+    {
         Ok(receiver) => receiver,
         Err(error) => return failure(error),
     };
@@ -322,5 +351,8 @@ mod tests;
 
 #[cfg(test)]
 mod catalogue_tests;
+
+#[cfg(test)]
+mod intake_tests;
 
 mod discovery;

@@ -7,7 +7,6 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
-use scap_object::Options;
 use scap_object_store::{Listings, Objects, S3};
 use tokio::sync::Semaphore;
 
@@ -15,6 +14,7 @@ use crate::{
     config::{Config, Prepared, ServiceConfig},
     engine::Engine,
     http::{self, CatalogueState, HttpState},
+    intake::{Class, Intake},
     scheduler::{Factory, Scheduler},
     Failure,
 };
@@ -37,6 +37,8 @@ pub fn assemble_with_listings(
     objects: Arc<dyn Objects>,
     listings: Option<Arc<dyn Listings>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    let options = prepared.options;
+    options.validate().map_err(|_| Failure::new("CONFIG"))?;
     let discovery = match prepared.discovery {
         Some(codec) => Some(Arc::new(crate::discovery::Discovery::new(
             objects.clone(),
@@ -52,11 +54,12 @@ pub fn assemble_with_listings(
             // transport budgets must also hold for this direct entry point.
             admission.validate_transport()?;
             let objects = objects.clone();
+            let options = options.clone();
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
                 Ok(Box::new(crate::catalogue::Worker::new(
                     objects.clone(),
                     prepared.worker_instance,
-                    Options::default(),
+                    options.clone(),
                 )))
             });
             Some(CatalogueState {
@@ -66,7 +69,12 @@ pub fn assemble_with_listings(
                 )?),
                 max_body_bytes: admission.max_body_bytes,
                 timeout: Duration::from_millis(admission.timeout_ms),
-                intake: Arc::new(Semaphore::new(admission.intake)),
+                intake: Arc::new(Intake::new(
+                    Class::Catalogue,
+                    admission.intake,
+                    admission.max_body_bytes,
+                    admission.intake_profile,
+                )?),
             })
         }
         None => None,
@@ -77,7 +85,7 @@ pub fn assemble_with_listings(
         Ok(Box::new(Engine::new(
             objects.clone(),
             prepared.worker_instance,
-            Options::default(),
+            options.clone(),
             &prepared.cache_directory,
             1,
             prepared.cache.pages_per_actor,
@@ -96,9 +104,24 @@ pub fn assemble_with_listings(
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),
             recovery_timeout: Duration::from_millis(admission.recovery_timeout_ms),
-            intake: Arc::new(Semaphore::new(admission.data_intake)),
-            control_intake: Arc::new(Semaphore::new(admission.control_intake)),
-            recovery_intake: Arc::new(Semaphore::new(admission.recovery_intake)),
+            intake: Arc::new(Intake::new(
+                Class::Data,
+                admission.data_intake,
+                admission.max_body_bytes,
+                admission.data_profile,
+            )?),
+            control_intake: Arc::new(Intake::new(
+                Class::Control,
+                admission.control_intake,
+                admission.max_body_bytes,
+                admission.control_profile,
+            )?),
+            recovery_intake: Arc::new(Intake::new(
+                Class::Recovery,
+                admission.recovery_intake,
+                admission.max_body_bytes,
+                admission.recovery_profile,
+            )?),
         }),
     ))
 }

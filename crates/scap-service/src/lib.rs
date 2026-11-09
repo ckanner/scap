@@ -12,6 +12,7 @@ pub mod discovery_cursor;
 pub mod discovery_wire;
 pub mod engine;
 pub mod http;
+pub mod intake;
 pub mod scheduler;
 pub mod wire;
 
@@ -46,7 +47,9 @@ impl From<Error> for Failure {
             Error::Retired => "RETIRED",
             Error::Unknown | Error::Store(StoreError::Unknown) => "UNKNOWN",
             Error::Store(StoreError::Missing) => "MISSING",
-            Error::Limit | Error::Store(StoreError::Limit) => "LIMIT",
+            Error::Limit
+            | Error::Store(StoreError::Limit)
+            | Error::Sql(scap_sql::SqlError::ResourceExhausted) => "LIMIT",
             Error::Corrupt | Error::Format(_) | Error::Store(StoreError::Corrupt) => "CORRUPT",
             Error::StaleSnapshot => "STALE_SNAPSHOT",
             Error::CommittedButUnavailable(receipt) => {
@@ -57,7 +60,8 @@ impl From<Error> for Failure {
             }
             Error::Sql(_) | Error::Store(StoreError::Invalid) => "INVALID",
             Error::Engine(error) => match error {
-                scap_object_sqlite::Error::ResultLimit => "LIMIT",
+                scap_object_sqlite::Error::ResultLimit
+                | scap_object_sqlite::Error::ResourceExhausted => "LIMIT",
                 scap_object_sqlite::Error::Interrupted => "DEADLINE",
                 scap_object_sqlite::Error::OutcomeUnknown => "UNKNOWN",
                 scap_object_sqlite::Error::CommittedButUnavailable => "COMMITTED_BUT_UNAVAILABLE",

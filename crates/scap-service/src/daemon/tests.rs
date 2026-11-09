@@ -59,6 +59,66 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
 }
 
 #[test]
+fn configured_graph_allowance_reaches_the_actual_native_worker_and_preserves_control_access() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut configuration = prepared(directory.path());
+    configuration.service.options.result_memory_bytes =
+        std::mem::size_of::<scap_sql::TransactionResult>() as u64;
+    let (_, state) = assemble(configuration.service, Arc::new(Memory::default())).unwrap();
+    for action in [
+        Action::Create { nonce: Decimal(1) },
+        Action::Activate {
+            expected_revision: Decimal(1),
+            nonce: Decimal(2),
+        },
+    ] {
+        state
+            .scheduler
+            .submit(principal(), call(action), until())
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap();
+    }
+    let error = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Query {
+                statements: vec![crate::wire::WireStatement {
+                    sql: "SELECT 1".into(),
+                    params: vec![],
+                }],
+            }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.code, "LIMIT");
+    assert!(error.receipt.is_none());
+    let status = state
+        .scheduler
+        .submit(principal(), call(Action::Status {}), until())
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(status["active"], true);
+    drop(state);
+    let mut invalid = prepared(directory.path());
+    invalid.service.options.result_memory_bytes = 0;
+    assert_eq!(
+        assemble(invalid.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}
+
+#[test]
 fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object_io() {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use scap_object_store::{Condition, StoreError, Stored};
@@ -220,6 +280,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
     let directory = tempfile::tempdir().unwrap();
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 1,
         queued_total: 4,
         queued_per_tenant: 3,
@@ -248,6 +309,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
         .is_none());
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 0,
         queued_total: 4,
         queued_per_tenant: 3,
@@ -259,6 +321,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
     assert!(assemble(configuration.service, Arc::new(Memory::default())).is_err());
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 1,
         queued_total: 4,
         queued_per_tenant: 3,

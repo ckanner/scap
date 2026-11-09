@@ -67,6 +67,9 @@ pub enum GateDecision {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WriterLimits {
     pub sql: SqlLimits,
+    /// Per-operation typed Rust result capacity, including growth overlap.
+    /// Independent of retained encoded bytes, SQLite heap and process RSS.
+    pub result_memory_bytes: u64,
     pub max_vm_steps: u32,
     pub max_database_pages: u32,
     pub max_changed_pages: u32,
@@ -85,6 +88,9 @@ pub enum Error {
     InvalidSql,
     InvalidImage,
     ResultLimit,
+    /// The typed result cannot be materialized within its separate memory
+    /// budget, or its fallible allocation failed. This is not corruption.
+    ResourceExhausted,
     Interrupted,
     Stopped,
     Rejected,
@@ -199,6 +205,10 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
                 return Err(Error::Sql(error));
             }
         };
+        // finish() materializes the retained result again after acceptance.
+        // Release the first graph before entering that phase, rather than
+        // retaining two typed graphs across native and remote publication.
+        drop(result);
         self.state.borrow_mut().attempt = Some(Attempt {
             base_pages: self.pages,
             result: encoded,
@@ -235,8 +245,12 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
                 // Only decide(), with an installed attempt, can accept.
                 let encoded = self.state.borrow_mut().attempt.take().unwrap().result;
-                let result = scap_sql::decode_result(&encoded, self.limits.sql)
-                    .map_err(|_| Error::CommittedButUnavailable)?;
+                let result = scap_sql::decode_result_with_memory_limit(
+                    &encoded,
+                    self.limits.sql,
+                    self.limits.result_memory_bytes,
+                )
+                .map_err(|_| Error::CommittedButUnavailable)?;
                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
                 self.pages = pages;
                 self.stopped = false;

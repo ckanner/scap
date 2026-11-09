@@ -81,6 +81,7 @@ struct Job {
     key: String,
     deadline: Instant,
     reply: oneshot::Sender<Result<Value, Failure>>,
+    _reservation: Option<Arc<crate::intake::Lease>>,
 }
 
 impl Job {
@@ -578,6 +579,27 @@ impl Scheduler {
         call: Call,
         deadline: Instant,
     ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
+        self.submit_with(principal, call, deadline, None)
+    }
+
+    pub(crate) fn submit_reserved(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Arc<crate::intake::Lease>,
+    ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
+        reservation.claim(&principal, call.action.admission())?;
+        self.submit_with(principal, call, deadline, Some(reservation))
+    }
+
+    fn submit_with(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Option<Arc<crate::intake::Lease>>,
+    ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
         let scope = call.scope.native()?;
         principal.authorize(&scope)?;
         let key = scap_object::format::head_key(&scope);
@@ -588,6 +610,7 @@ impl Scheduler {
             key: key.clone(),
             deadline,
             reply,
+            _reservation: reservation,
         };
         let mut state = lock(&self.shared.state);
         if state.closed {

@@ -48,6 +48,8 @@ fn failure_codes_preserve_authority_semantics() {
         (Error::Sql(scap_sql::SqlError::Invalid), "INVALID"),
         (Error::Store(StoreError::Invalid), "INVALID"),
         (Error::Engine(Native::ResultLimit), "LIMIT"),
+        (Error::Engine(Native::ResourceExhausted), "LIMIT"),
+        (Error::Sql(scap_sql::SqlError::ResourceExhausted), "LIMIT"),
         (Error::Engine(Native::Interrupted), "DEADLINE"),
         (Error::Engine(Native::OutcomeUnknown), "UNKNOWN"),
         (

@@ -50,6 +50,9 @@ mkdir -p /absolute/private-cache
     "pages_per_actor": 5242880,
     "parallel_recoveries": 2
   },
+  "execution": {
+    "result_memory_bytes": 134217728
+  },
   "credentials": [
     {
       "sha256": "REPLACE_WITH_64_LOWERCASE_HEX_SHA256_OF_A_RANDOM_BEARER_TOKEN",
@@ -62,7 +65,7 @@ mkdir -p /absolute/private-cache
 }
 ```
 
-示例中的占位值必须替换。没有临时 session token 时明确写 `null`。程序只读取配置中指定的环境变量，不搜索本机 AWS 配置或实例元数据。S3 单对象预算取当前持久格式上限；数据库仍使用正式 `Options::default()`：默认 10 GiB，管理员可经 `quota` 修改或取消业务配额。
+示例中的占位值必须替换。没有临时 session token 时明确写 `null`。程序只读取配置中指定的环境变量，不搜索本机 AWS 配置或实例元数据。S3 单对象预算取当前持久格式上限；数据库默认 10 GiB，管理员可经 `quota` 修改或取消业务配额。可选 `execution.result_memory_bytes` 单独配置每次操作的 Rust typed 结果图预算，省略时为 128 MiB；它不改变 SQL 结果 wire 上限、持久结果格式或已有库配额。其实际 Engine 接线和失败语义见[资源边界](docs/intake-reservations.md)。
 
 配置的 Bearer token 应为独立生成的高熵值；服务接受 32–1024 字节的可打印 ASCII token，通过固定长度 SHA-256 摘要比较映射到可信 deployment、tenant、principal 和 provisioning 权限。摘要不是 HEAD 权限替代品：每次正式数据库操作仍由当前 HEAD 授权。请求中的 `principal` 只是原请求身份的一部分，必须等于 token 对应的主体。
 
@@ -109,11 +112,11 @@ SQL / 恢复请求按固定 HEAD key 定位专属 actor；同一库的 SQLite �
 
 全局、每租户、每 HEAD 的排队预算跨所有 actor 与 control lane 统一计算，`queued_total` 不随线程数倍增。`reserved_controls` 预留只允许真正 control 请求使用，`open` / `activate` 不得挤占。actor 内的 priority burst 最多三次后让排队 SQL 前进；独立 control worker pool 在租户及数据库间轮转。`lookup`、`cancel` 及元数据转换不占 SQL / 恢复执行线程。严格 JSON 拒绝原 `workers` / `queued_per_worker` / `sessions_per_worker` / `pages_per_worker`，应显式迁移配置。
 
-HTTP 的 data、control、recovery 各有独立 intake 配额，保留到响应 body 及其发出的字节均被释放。底层 HTTP 在发出最后一帧后可先销毁 body，传输缓冲中的字节及其 clone／slice 仍持有配额，慢客户端不能靠这个生命周期差异提前释放名额。绑定不会复制响应 payload。执行开始后，即使客户端断开，worker 也只完成该次原请求；它不会回滚一个已发布 HEAD，也不会重做 SQL。尚未开始且接收端已消失的排队请求会被丢弃，超出原 deadline 的排队请求不会执行。
+HTTP 的 data、control、recovery 与 catalogue 各有独立 intake 池；鉴权后、读取 body 前，原子预留全局与租户的请求数及 body 字节。相同租户换凭据不能增加配额；完整读取后退还未用 body extent。租约贯穿实际排队、worker、响应 body 及其发出的最后字节，HTTP 超时也不提前释放仍在执行的任务。配置兼容值、显式 version 1 profile 和精确资源边界见[准入说明](docs/intake-reservations.md)。底层 HTTP 在发出最后一帧后可先销毁 body，传输缓冲中的字节及其 clone／slice 仍持有配额，慢客户端不能靠这个生命周期差异提前释放名额。绑定不会复制响应 payload。执行开始后，即使客户端断开，worker 也只完成该次原请求；它不会回滚一个已发布 HEAD，也不会重做 SQL。尚未开始且接收端已消失的排队请求会被丢弃，超出原 deadline 的排队请求不会执行。
 
 每个 actor 最多保留一个完整 scope 的 Session，`pages_per_actor` 按操作完成后的实际页面数决定缓存保留；失败 session 不复用。此阈值不预留恢复期间所需磁盘，单库超过阈值时会在操作后丢弃 Session。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务未实现完整目录枚举及冷启动 inventory、动态 owner 路由、自动接管、物理对象 GC、PITR 或跨区域灾备。
+一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、物理对象 GC、PITR 和跨区域灾备仍有后续实现与验收门禁。
 
 ## 验证
 

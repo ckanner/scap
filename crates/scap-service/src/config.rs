@@ -28,6 +28,7 @@ pub struct Config {
     pub catalogue: Option<CatalogueAdmission>,
     pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
+    pub execution: Option<ExecutionConfig>,
     pub credentials: Vec<Credential>,
 }
 
@@ -47,6 +48,9 @@ pub struct ObjectConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Admission {
+    pub data_profile: Option<crate::intake::Profile>,
+    pub control_profile: Option<crate::intake::Profile>,
+    pub recovery_profile: Option<crate::intake::Profile>,
     pub active_database_actors: usize,
     pub active_database_actors_per_tenant: usize,
     pub actor_idle_timeout_ms: u64,
@@ -83,6 +87,7 @@ impl Admission {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogueAdmission {
+    pub intake_profile: Option<crate::intake::Profile>,
     pub workers: usize,
     pub queued_total: usize,
     pub queued_per_tenant: usize,
@@ -114,8 +119,16 @@ impl CatalogueAdmission {
         {
             return Err(Failure::new("CONFIG"));
         }
+        crate::intake::Profile::resolve(self.intake, self.max_body_bytes, self.intake_profile)?;
         Ok(())
     }
+}
+
+/// Local execution limits do not change persisted result bytes or database quota.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionConfig {
+    pub result_memory_bytes: u64,
 }
 
 #[derive(Deserialize)]
@@ -139,6 +152,7 @@ pub struct Prepared {
 }
 
 pub struct ServiceConfig {
+    pub options: scap_object::Options,
     pub listen: SocketAddr,
     pub worker_instance: u64,
     pub cache_directory: PathBuf,
@@ -192,6 +206,11 @@ impl Config {
             u64,
         ) -> Result<crate::discovery_cursor::CursorCodec, Failure>,
     ) -> Result<Prepared, Failure> {
+        let mut options = scap_object::Options::default();
+        if let Some(execution) = self.execution {
+            options.result_memory_bytes = execution.result_memory_bytes;
+        }
+        options.validate().map_err(|_| Failure::new("CONFIG"))?;
         let admission = &self.admission;
         admission.limits().validate()?;
         // This listener has no TLS termination. It can only be exposed through
@@ -214,6 +233,13 @@ impl Config {
             || !(1..=86400000).contains(&self.s3.timeout_ms)
         {
             return Err(Failure::new("CONFIG"));
+        }
+        for (total, profile) in [
+            (admission.data_intake, admission.data_profile),
+            (admission.control_intake, admission.control_profile),
+            (admission.recovery_intake, admission.recovery_profile),
+        ] {
+            crate::intake::Profile::resolve(total, admission.max_body_bytes, profile)?;
         }
         if let Some(catalogue) = &self.catalogue {
             catalogue.validate()?;
@@ -259,6 +285,7 @@ impl Config {
                 allow_http: self.s3.allow_http,
             },
             service: ServiceConfig {
+                options,
                 listen: self.listen,
                 worker_instance: self.worker_instance.0,
                 cache_directory: self.cache_directory,

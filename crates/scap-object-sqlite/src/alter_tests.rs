@@ -71,6 +71,7 @@ fn limits() -> WriterLimits {
             max_result_bytes: 1_048_576,
             max_value_bytes: 65_536,
         },
+        result_memory_bytes: 4 * 1024 * 1024,
         max_vm_steps: 1_000_000,
         max_database_pages: 4096,
         max_changed_pages: 1024,

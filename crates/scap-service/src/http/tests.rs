@@ -1,10 +1,12 @@
 use super::*;
 use crate::auth::Credential;
 use crate::scheduler::{Factory, Limits, Worker};
+use crate::tests::principal;
 use crate::wire::{Call, Decimal};
 use axum::http::{HeaderValue, Method};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use tokio::sync::Semaphore;
 use tower::ServiceExt;
 
 struct Echo;
@@ -14,7 +16,7 @@ impl Worker for Echo {
             8 => Err(Failure::new("DENIED")),
             9 => panic!("unit worker response loss"),
             10 => {
-                std::thread::sleep(Duration::from_millis(20));
+                std::thread::sleep(Duration::from_millis(50));
                 Ok(json!("late"))
             }
             _ => Ok(json!({"served":call.action.admission()})),
@@ -57,9 +59,9 @@ pub(super) fn state() -> Arc<HttpState> {
         max_body_bytes: 4096,
         timeout: Duration::from_millis(500),
         recovery_timeout: Duration::from_secs(2),
-        intake: Arc::new(Semaphore::new(1)),
-        control_intake: Arc::new(Semaphore::new(1)),
-        recovery_intake: Arc::new(Semaphore::new(1)),
+        intake: Arc::new(Intake::new(Class::Data, 1, 4096, None).unwrap()),
+        control_intake: Arc::new(Intake::new(Class::Control, 1, 4096, None).unwrap()),
+        recovery_intake: Arc::new(Intake::new(Class::Recovery, 1, 4096, None).unwrap()),
     })
 }
 pub(super) fn runtime() -> tokio::runtime::Runtime {
@@ -110,7 +112,7 @@ fn authentication_precedes_intake_and_headers_are_unambiguous() {
             .await
             .unwrap();
         assert_eq!(decoded(health).await["status"], "alive");
-        let permit = state.intake.clone().try_acquire_owned().unwrap();
+        let permit = state.intake.acquire(&principal()).unwrap();
         for mode in 0..3 {
             let mut req = request("query", 3);
             match mode {
@@ -181,7 +183,7 @@ fn authentication_precedes_intake_and_headers_are_unambiguous() {
             decoded(app.clone().oneshot(req).await.unwrap()).await["value"]["served"],
             "data"
         );
-        let permit = state.recovery_intake.clone().try_acquire_owned().unwrap();
+        let permit = state.recovery_intake.acquire(&principal()).unwrap();
         assert_eq!(
             app.clone()
                 .oneshot(request("open", 3))
@@ -219,7 +221,7 @@ fn complete_response_body_keeps_its_intake_reservation_until_consumed_or_dropped
         let response = app.oneshot(request("query", 3)).await.unwrap();
         drop(response);
         assert_eq!(state.intake.available_permits(), 1);
-        let permit = state.intake.clone().try_acquire_owned().unwrap();
+        let permit = state.intake.acquire(&principal()).unwrap();
         let mut body = ReservedBody {
             inner: Body::from("abc"),
             reservation: Arc::new(permit),
@@ -446,7 +448,7 @@ impl HttpBody for PendingBody {
 #[test]
 fn body_and_response_timeouts_use_one_original_deadline_and_never_claim_rollback() {
     let mut state = state();
-    Arc::get_mut(&mut state).unwrap().timeout = Duration::from_millis(1);
+    Arc::get_mut(&mut state).unwrap().timeout = Duration::from_millis(20);
     let app = router(state.clone()).unwrap();
     runtime().block_on(async {
         let mut req = request("query", 3);
@@ -455,11 +457,8 @@ fn body_and_response_timeouts_use_one_original_deadline_and_never_claim_rollback
             decoded(app.clone().oneshot(req).await.unwrap()).await["error"]["code"],
             "DEADLINE"
         );
-        assert_eq!(
-            decoded(app.clone().oneshot(request("query", 10)).await.unwrap()).await["error"]
-                ["code"],
-            "UNKNOWN"
-        );
+        // A separate entered/release handshake proves UNKNOWN only after
+        // the worker has actually started; upload expiry is DEADLINE.
         // An explicit recovery may outlive the ordinary deadline; it must use
         // the separate configured budget from the same receive instant.
         assert_eq!(
@@ -477,9 +476,15 @@ fn invalid_state_is_rejected_and_all_failure_classes_have_stable_statuses() {
         |s: &mut HttpState| s.timeout = Duration::from_secs(86401),
         |s: &mut HttpState| s.recovery_timeout = Duration::ZERO,
         |s: &mut HttpState| s.recovery_timeout = Duration::from_secs(604801),
-        |s: &mut HttpState| s.intake = Arc::new(Semaphore::new(0)),
-        |s: &mut HttpState| s.control_intake = Arc::new(Semaphore::new(0)),
-        |s: &mut HttpState| s.recovery_intake = Arc::new(Semaphore::new(0)),
+        |s: &mut HttpState| {
+            s.intake = Arc::new(Intake::new(Class::Catalogue, 1, 4096, None).unwrap())
+        },
+        |s: &mut HttpState| {
+            s.control_intake = Arc::new(Intake::new(Class::Catalogue, 1, 4096, None).unwrap())
+        },
+        |s: &mut HttpState| {
+            s.recovery_intake = Arc::new(Intake::new(Class::Catalogue, 1, 4096, None).unwrap())
+        },
     ] {
         let mut value = state();
         set(Arc::get_mut(&mut value).unwrap());

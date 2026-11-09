@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use libsql_sys::ffi;
 use libsql_sys::rusqlite::hooks::{AuthAction, AuthContext, Authorization, TransactionOperation};
 use libsql_sys::rusqlite::types::ValueRef;
-use scap_sql::{SqlError, Value};
+use scap_sql::{ResultMemoryBudget, SqlError, Value};
 
 #[path = "capacity_tests.rs"]
 mod capacity_tests;
@@ -12,6 +12,8 @@ mod capacity_tests;
 mod image_tests;
 #[path = "query_tests.rs"]
 mod query_tests;
+#[path = "result_memory_tests.rs"]
+mod result_memory_tests;
 
 #[derive(Default)]
 struct Plan {
@@ -42,6 +44,7 @@ fn limits() -> WriterLimits {
             max_result_bytes: 1_048_576,
             max_value_bytes: 65_536,
         },
+        result_memory_bytes: 4 * 1024 * 1024,
         max_vm_steps: 1_000_000,
         max_changed_pages: 1024,
         max_database_pages: 4096,
@@ -887,6 +890,7 @@ fn authorizer_rejects_side_effect_surfaces_and_non_main_schemas() {
 
 #[test]
 fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
+    let memory = &mut ResultMemoryBudget::new(4096).unwrap();
     let cases = [
         (ValueRef::Null, Value::Null),
         (ValueRef::Integer(-1), Value::Integer(-1)),
@@ -896,23 +900,23 @@ fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
     ];
     for (input, expected) in cases {
         assert_eq!(
-            sql::copy_value(input, &mut 100, limits()).unwrap(),
+            sql::copy_value(input, &mut 100, limits(), memory).unwrap(),
             expected
         );
         assert!(matches!(
-            sql::copy_value(input, &mut 0, limits()),
+            sql::copy_value(input, &mut 0, limits(), memory),
             Err(Error::ResultLimit)
         ));
     }
     assert!(matches!(
-        sql::copy_value(ValueRef::Text(&[255]), &mut 100, limits()),
+        sql::copy_value(ValueRef::Text(&[255]), &mut 100, limits(), memory),
         Err(Error::InvalidSql)
     ));
     let mut small = limits();
     small.sql.max_value_bytes = 1;
     for value in [ValueRef::Text(b"xx"), ValueRef::Blob(b"yy")] {
         assert!(matches!(
-            sql::copy_value(value, &mut 100, small),
+            sql::copy_value(value, &mut 100, small, memory),
             Err(Error::ResultLimit)
         ));
     }
@@ -930,7 +934,7 @@ fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
         ValueRef::Blob(b"x"),
     ] {
         assert!(matches!(
-            sql::copy_value(value, &mut 1, limits()),
+            sql::copy_value(value, &mut 1, limits(), memory),
             Err(Error::ResultLimit)
         ));
     }

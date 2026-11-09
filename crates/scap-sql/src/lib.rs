@@ -9,6 +9,12 @@ use sha2::{Digest, Sha256};
 
 mod result_validation;
 pub use result_validation::validate_result;
+mod result_memory;
+pub use result_memory::ResultMemoryBudget;
+
+/// Local typed-result allocation budget. It is independent of the durable
+/// SCAPRES1 byte limit and is not a process-wide allocator/RSS limit.
+pub const DEFAULT_RESULT_MEMORY_BYTES: u64 = 128 * 1024 * 1024;
 
 const REQUEST_MAGIC: &[u8; 8] = b"SCAPSQL1";
 const RESULT_MAGIC: &[u8; 8] = b"SCAPRES1";
@@ -61,6 +67,9 @@ pub enum SqlError {
     Invalid,
     Limit,
     Malformed,
+    /// A valid result cannot be materialized within the local allocation
+    /// budget, or a fallible allocation was refused. This is not corruption.
+    ResourceExhausted,
 }
 
 impl SqlLimits {
@@ -267,20 +276,35 @@ impl<'a> Decoder<'a> {
         self.take(count)
     }
 
-    fn text(&mut self, limits: SqlLimits) -> Result<String, SqlError> {
-        String::from_utf8(self.bytes(limits)?.to_vec()).map_err(|_| SqlError::Malformed)
+    fn text(
+        &mut self,
+        limits: SqlLimits,
+        memory: &mut ResultMemoryBudget,
+    ) -> Result<String, SqlError> {
+        // Materialization only runs after the allocation-free wire validator.
+        // The input slice is immutable during both passes.
+        let text = std::str::from_utf8(self.bytes(limits).expect("validated text extent"))
+            .expect("validated UTF-8");
+        memory.text(text)
     }
 
-    fn value(&mut self, limits: SqlLimits) -> Result<Value, SqlError> {
-        let value = match self.take(1)?[0] {
+    fn value(
+        &mut self,
+        limits: SqlLimits,
+        memory: &mut ResultMemoryBudget,
+    ) -> Result<Value, SqlError> {
+        let value = match self.take(1).expect("validated value tag")[0] {
             0 => Value::Null,
-            1 => Value::Integer(i64::from_le_bytes(self.number()?)),
-            2 => Value::Real(f64::from_bits(u64::from_le_bytes(self.number()?))),
-            3 => Value::Text(self.text(limits)?),
-            4 => Value::Blob(self.bytes(limits)?.to_vec()),
-            _ => return Err(SqlError::Malformed),
+            1 => Value::Integer(i64::from_le_bytes(
+                self.number().expect("validated integer"),
+            )),
+            2 => Value::Real(f64::from_bits(u64::from_le_bytes(
+                self.number().expect("validated finite real"),
+            ))),
+            3 => Value::Text(self.text(limits, memory)?),
+            // The validator rejects every other tag, leaving only Blob (4).
+            _ => Value::Blob(memory.blob(self.bytes(limits).expect("validated blob extent"))?),
         };
-        validate_value(&value, limits)?;
         Ok(value)
     }
 }
@@ -288,45 +312,60 @@ impl<'a> Decoder<'a> {
 /// Decode a retained result only after the caller has rechecked current
 /// authorization and semantic request identity in the current authoritative object snapshot.
 pub fn decode_result(bytes: &[u8], limits: SqlLimits) -> Result<TransactionResult, SqlError> {
-    limits.validate()?;
-    if bytes.len() > limits.max_result_bytes as usize {
-        return Err(SqlError::Limit);
-    }
+    decode_result_with_memory_limit(bytes, limits, DEFAULT_RESULT_MEMORY_BYTES)
+}
+
+/// Decode with a separate local typed-graph budget. Counts from the input do
+/// not trigger bulk row allocation: each value is parsed and each container
+/// growth is charged before its allocation. A resource error must never be
+/// interpreted as an invalid durable result or authorization to repeat SQL.
+pub fn decode_result_with_memory_limit(
+    bytes: &[u8],
+    limits: SqlLimits,
+    maximum_memory_bytes: u64,
+) -> Result<TransactionResult, SqlError> {
+    // Preserve format error precedence and reject forged counts before any
+    // result allocation. A valid graph may still need more memory than its
+    // compact encoding; only that second pass can return ResourceExhausted.
+    validate_result(bytes, limits)?;
     let mut decoder = Decoder { bytes };
-    if decoder.take(8)? != RESULT_MAGIC {
-        return Err(SqlError::Malformed);
-    }
-    let count = decoder.count(limits.max_statements)?;
+    decoder.take(8).expect("validated result magic");
+    let count = decoder
+        .count(limits.max_statements)
+        .expect("validated statement count");
+    let mut memory = ResultMemoryBudget::new(maximum_memory_bytes)?;
     let mut statements = Vec::new();
+    memory.reserve(&mut statements, count)?;
     let mut remaining_rows = limits.max_rows;
     for _ in 0..count {
-        let columns_count = decoder.count(limits.max_columns)?;
+        let columns_count = decoder
+            .count(limits.max_columns)
+            .expect("validated column count");
         let mut columns = Vec::new();
+        memory.reserve(&mut columns, columns_count)?;
         for _ in 0..columns_count {
-            columns.push(decoder.text(limits)?);
+            columns.push(decoder.text(limits, &mut memory)?);
         }
-        let rows_count = decoder.count(remaining_rows)?;
-        if columns_count == 0 && rows_count != 0 {
-            return Err(SqlError::Malformed);
-        }
+        let rows_count = decoder.count(remaining_rows).expect("validated row count");
         remaining_rows -= rows_count as u32;
         let mut rows = Vec::new();
         for _ in 0..rows_count {
+            memory.reserve(&mut rows, 1)?;
             let mut row = Vec::new();
+            memory.reserve(&mut row, columns_count)?;
             for _ in 0..columns_count {
-                row.push(decoder.value(limits)?);
+                row.push(decoder.value(limits, &mut memory)?);
             }
             rows.push(row);
         }
         statements.push(StatementResult {
             columns,
             rows,
-            affected_rows: u64::from_le_bytes(decoder.number()?),
-            last_insert_rowid: i64::from_le_bytes(decoder.number()?),
+            affected_rows: u64::from_le_bytes(decoder.number().expect("validated affected rows")),
+            last_insert_rowid: i64::from_le_bytes(
+                decoder.number().expect("validated insert rowid"),
+            ),
         });
-    }
-    if !decoder.bytes.is_empty() {
-        return Err(SqlError::Malformed);
     }
     Ok(TransactionResult { statements })
 }
@@ -336,3 +375,6 @@ mod tests;
 
 #[cfg(test)]
 mod result_validation_tests;
+
+#[cfg(test)]
+mod result_memory_decode_tests;

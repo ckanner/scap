@@ -9,6 +9,7 @@ fn production_defaults_and_unlimited_business_quota_are_real_engine_limits() {
     assert_eq!(writer.max_database_pages, 2_621_440);
     assert_eq!(writer.max_changed_pages, 16_384);
     assert_eq!(writer.cache_bytes, 64 * 1024 * 1024);
+    assert_eq!(writer.result_memory_bytes, 128 * 1024 * 1024);
     assert_eq!(writer.sql.max_result_bytes, 50 * 1024 * 1024);
     assert_eq!(defaults.retention.max_entries, 4096);
     assert_eq!(defaults.retention.max_result_bytes, 256 * 1024 * 1024);
@@ -59,6 +60,7 @@ fn invalid_options_are_rejected_at_configuration_not_during_publication() {
         |o| o.max_changed_pages = u32::MAX,
         |o| o.cache_bytes = PAGE_SIZE as u64 - 1,
         |o| o.cache_bytes = i32::MAX as u64 * 1024 + 1,
+        |o| o.result_memory_bytes = 0,
         |o| o.max_vm_steps = 0,
         |o| o.operation_timeout = Duration::ZERO,
         |o| o.operation_timeout = Duration::from_secs(86401),

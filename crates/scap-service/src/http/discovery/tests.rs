@@ -55,9 +55,9 @@ fn enabled_discovery_is_authenticated_and_has_independent_bounded_response_lifet
             "BACKPRESSURE"
         );
         drop(held);
-        let data = state.intake.clone().try_acquire_owned().unwrap();
-        let control = state.control_intake.clone().try_acquire_owned().unwrap();
-        let recovery = state.recovery_intake.clone().try_acquire_owned().unwrap();
+        let data = state.intake.acquire(&principal()).unwrap();
+        let control = state.control_intake.acquire(&principal()).unwrap();
+        let recovery = state.recovery_intake.acquire(&principal()).unwrap();
         let response = app.clone().oneshot(request("list_names")).await.unwrap();
         assert!(scan.admission.acquire(&principal()).is_err());
         assert_eq!(

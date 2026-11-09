@@ -47,6 +47,7 @@ fn job(
     let (reply, receiver) = oneshot::channel();
     (
         Job {
+            _reservation: None,
             principal,
             call,
             key,

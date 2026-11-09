@@ -475,3 +475,42 @@ fn materializing_historical_results_remains_a_defensive_decoder_boundary() {
     ));
     assert!(matches!(database.healthy(), Err(Error::Corrupt)));
 }
+
+#[test]
+fn historical_result_memory_pressure_preserves_receipt_lookup_and_health() {
+    let bytes = valid_result();
+    let (objects, database, request, before) = install(bytes.clone(), false, false);
+    let original = database.lookup(7, &request, deadline()).unwrap();
+    let Resolution::Committed { receipt, .. } = &original else {
+        panic!("valid retained outcome must be committed");
+    };
+    let mut options = test_options();
+    options.result_memory_bytes = std::mem::size_of::<TransactionResult>() as u64;
+    let restricted = Database::with_options(objects.clone(), scope(), 10, options).unwrap();
+    let error = match restricted.decode_retained_admission(receipt.clone(), &bytes) {
+        Err(error) => error,
+        Ok(_) => panic!("typed graph exceeded its independent budget"),
+    };
+    assert!(matches!(error, Error::CommittedButUnavailable(kept) if *kept == *receipt));
+    assert!(restricted.healthy().is_ok());
+    assert_eq!(
+        restricted.lookup(7, &request, deadline()).unwrap(),
+        original
+    );
+    assert_eq!(
+        restricted.cancel(7, &request, deadline()).unwrap(),
+        original
+    );
+    assert_eq!(
+        objects
+            .get(&head_key(&scope()), MAX_HEAD_BYTES, deadline())
+            .unwrap(),
+        before
+    );
+    // Raising only the local materialization allowance recovers the original
+    // result; it neither mutates authority nor authorizes a fresh SQL attempt.
+    assert!(matches!(
+        database.decode_retained_admission(receipt.clone(), &bytes).unwrap(),
+        Admission::Existing(kept, _) if kept == *receipt
+    ));
+}

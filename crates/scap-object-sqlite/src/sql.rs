@@ -5,7 +5,7 @@ use libsql_sys::rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 use libsql_sys::rusqlite::types::{Value as NativeValue, ValueRef};
 use libsql_sys::rusqlite::{self, Batch, OpenFlags};
 use libsql_sys::wal::{Sqlite3WalManager, WalManager};
-use scap_sql::{Statement, StatementResult, TransactionResult, Value};
+use scap_sql::{ResultMemoryBudget, Statement, StatementResult, TransactionResult, Value};
 
 pub(crate) use crate::config::configure;
 use crate::gate::GateWal;
@@ -15,7 +15,8 @@ use crate::{
 
 pub(crate) fn validate_limits(limits: WriterLimits) -> Result<(), Error> {
     limits.sql.validate().map_err(Error::Sql)?;
-    if limits.max_vm_steps == 0
+    if limits.result_memory_bytes == 0
+        || limits.max_vm_steps == 0
         || limits.max_changed_pages == 0
         || limits.max_changed_pages > MAX_DATABASE_PAGES
         || limits.max_database_pages == 0
@@ -315,9 +316,14 @@ pub(crate) fn collect_results(
     read_only: bool,
     interrupt: &ReadInterrupt,
 ) -> Result<TransactionResult, Error> {
+    let mut memory =
+        ResultMemoryBudget::new(limits.result_memory_bytes).map_err(resource_exhausted)?;
     let mut result = TransactionResult {
         statements: Vec::new(),
     };
+    memory
+        .reserve(&mut result.statements, statements.len())
+        .map_err(resource_exhausted)?;
     let mut remaining_bytes = limits.sql.max_result_bytes as usize;
     let mut remaining_rows = limits.sql.max_rows as usize;
     for statement in statements {
@@ -348,10 +354,19 @@ pub(crate) fn collect_results(
             return Err(Error::ResultLimit);
         }
         let mut columns = Vec::new();
-        for name in prepared.column_names() {
+        memory
+            .reserve(&mut columns, count)
+            .map_err(resource_exhausted)?;
+        for index in 0..count {
+            // The pinned API fails only for an out-of-range index. Avoid
+            // column_names(), which first allocates an unaccounted Vec<&str>.
+            let name = prepared
+                .column_name(index)
+                .expect("column_count-bounded column name index");
             check_value_length(name.len(), limits)?;
-            spend(&mut remaining_bytes, name.len() + 4)?;
-            columns.push(name.to_owned());
+            spend(&mut remaining_bytes, 4)?;
+            spend(&mut remaining_bytes, name.len())?;
+            columns.push(memory.text(name).map_err(resource_exhausted)?);
         }
         let before: u64 = if !read_only {
             connection
@@ -367,7 +382,11 @@ pub(crate) fn collect_results(
         let mut rows = Vec::new();
         while let Some(row) = native_rows.next().map_err(Error::Sqlite)? {
             spend(&mut remaining_rows, 1)?;
+            memory.reserve(&mut rows, 1).map_err(resource_exhausted)?;
             let mut values = Vec::new();
+            memory
+                .reserve(&mut values, count)
+                .map_err(resource_exhausted)?;
             for index in 0..count {
                 values.push(copy_value(
                     // This private connection holds a transaction and every
@@ -377,6 +396,7 @@ pub(crate) fn collect_results(
                     row.get_ref_unwrap(index),
                     &mut remaining_bytes,
                     limits,
+                    &mut memory,
                 )?);
             }
             rows.push(values);
@@ -412,6 +432,12 @@ pub(crate) fn collect_results(
     Ok(result)
 }
 
+fn resource_exhausted(_: scap_sql::SqlError) -> Error {
+    // ResultMemoryBudget has only resource failures; preserve the public
+    // native distinction from wire/row limits and malformed SQL.
+    Error::ResourceExhausted
+}
+
 pub(crate) fn native_value(value: &Value) -> NativeValue {
     match value {
         Value::Null => NativeValue::Null,
@@ -441,6 +467,7 @@ pub(crate) fn copy_value(
     value: ValueRef<'_>,
     remaining: &mut usize,
     limits: WriterLimits,
+    memory: &mut ResultMemoryBudget,
 ) -> Result<Value, Error> {
     spend(remaining, 1)?;
     match value {
@@ -455,14 +482,16 @@ pub(crate) fn copy_value(
         }
         ValueRef::Text(value) => {
             check_value_length(value.len(), limits)?;
-            spend(remaining, value.len() + 4)?;
+            spend(remaining, 4)?;
+            spend(remaining, value.len())?;
             let value = std::str::from_utf8(value).map_err(|_| Error::InvalidSql)?;
-            Ok(Value::Text(value.to_owned()))
+            Ok(Value::Text(memory.text(value).map_err(resource_exhausted)?))
         }
         ValueRef::Blob(value) => {
             check_value_length(value.len(), limits)?;
-            spend(remaining, value.len() + 4)?;
-            Ok(Value::Blob(value.to_owned()))
+            spend(remaining, 4)?;
+            spend(remaining, value.len())?;
+            Ok(Value::Blob(memory.blob(value).map_err(resource_exhausted)?))
         }
     }
 }
