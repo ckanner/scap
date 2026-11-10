@@ -97,6 +97,10 @@ jobs:
         run: python3 experiments/object-authority-model/explore.py --output target/evidence/object-authority-model
       - name: Explore named catalogue publication races and negative controls
         run: python3 experiments/object-authority-model/named_catalogue_model.py --output "$GITHUB_WORKSPACE/target/evidence/named-catalogue-model"
+      - name: Check the terminal retirement model and independent observer
+        run: python3 -m unittest discover -s experiments/object-terminal-retirement-model -p 'test_*.py' -v
+      - name: Explore terminal retirement schedules without claiming product acceptance
+        run: python3 experiments/object-terminal-retirement-model/explore.py --out "$GITHUB_WORKSPACE/target/evidence/terminal-retirement-model"
       - name: Retain model evidence without claiming real S3 execution
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -105,6 +109,7 @@ jobs:
           path: |
             target/evidence/object-authority-model
             target/evidence/named-catalogue-model
+            target/evidence/terminal-retirement-model
           if-no-files-found: warn
 
   resource-limits:
