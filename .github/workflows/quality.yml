@@ -529,3 +529,74 @@ jobs:
             target/evidence/segmented-controls/**
             target/evidence/discovery-service/**
           if-no-files-found: error
+
+  head6-reclamation:
+    name: HEAD6 compaction and durable GC faults
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-reclamation-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-reclamation-tools" weed
+      - name: Verify independent model and observer boundaries
+        run: |
+          python3 -B -m unittest discover -s experiments/object-reclamation-runtime -p 'test_*.py' -v
+          node --check experiments/object-reclamation-runtime/client.mjs
+      - name: Build and bind both actual executables
+        run: |
+          mkdir "$RUNNER_TEMP/scap-reclamation-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-reclamation-release" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/service-build"
+          python3 -B experiments/object-network/build.py \
+            --target-dir "$RUNNER_TEMP/scap-reclamation-release" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/native-build"
+      - name: Observe original requests across copy promotion and retirement
+        run: |
+          python3 -B experiments/object-reclamation-runtime/run.py \
+            --server "$RUNNER_TEMP/scap-reclamation-release/release/scapd" \
+            --build-record "$RUNNER_TEMP/scap-reclamation-evidence/service-build/build.json" \
+            --worker "$RUNNER_TEMP/scap-reclamation-release/release/scap-object-network" \
+            --seed-build-record "$RUNNER_TEMP/scap-reclamation-evidence/native-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-reclamation-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/run"
+      - name: Independently verify raw history and semantic controls
+        run: |
+          python3 -B experiments/object-reclamation-runtime/oracle.py \
+            "$RUNNER_TEMP/scap-reclamation-evidence/run" \
+            > "$RUNNER_TEMP/scap-reclamation-evidence/oracle.json"
+          python3 -B experiments/object-reclamation-runtime/controls.py \
+            "$RUNNER_TEMP/scap-reclamation-evidence/run" \
+            "$RUNNER_TEMP/scap-reclamation-evidence/controls"
+      - name: Retain original public evidence and failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: head6-reclamation-local-s3
+          path: |
+            ${{ runner.temp }}/scap-reclamation-evidence/service-build/**
+            ${{ runner.temp }}/scap-reclamation-evidence/native-build/**
+            ${{ runner.temp }}/scap-reclamation-evidence/run/**
+            ${{ runner.temp }}/scap-reclamation-evidence/oracle.json
+            ${{ runner.temp }}/scap-reclamation-evidence/controls/**
+          if-no-files-found: warn
