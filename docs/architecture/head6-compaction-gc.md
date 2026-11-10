@@ -1,6 +1,6 @@
 # HEAD6：明确管理员压缩与退休世代清扫
 
-状态：开发候选。核心 299 个单位测试、`scap-object` 全部 23 个生产文件的行/函数/region/分支精确 100% 和严格 Clippy 已通过；完整 workspace 组合门禁和本批真实网络验收尚未完成，不能据此开启生产 GC。
+状态：生产候选 `66f452ec73111f8c9dc7509883717828ba883e8a` 已冻结。workspace stable/nightly 各 632 个单位测试、全部 59 个生产文件的行/函数/region/分支精确 100% 和严格 Clippy 已通过；真实 native、HTTP/S3、回收与负载分别验收。完整进度见[HEAD6 验收记录](../engineering/head6-runtime-validation.md)，未完成的门禁不能据单位覆盖推定通过。GC 仍需专门显式配置的删除凭据。
 
 本片实现 PR43 可中止普通操作与 PR49 handle 知识域在 live database compaction 上的生产闭环。普通读、lookup、SQL attempt 没有 durable operation pin。本片没有显式 retained snapshot roots，因此 holds 集合固定为空，格式不接受 holds。PITR/跨 Scope archive 和自动 owner 后续独立交付，不是本片已完成事项。
 

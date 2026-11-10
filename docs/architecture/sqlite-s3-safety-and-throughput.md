@@ -1,8 +1,8 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
 复核日期：2026-11-10。源码审查基线为
-[`69001121f400fde8b896b1057377151ff4a2b3fc`](https://github.com/ckanner/scap/commit/69001121f400fde8b896b1057377151ff4a2b3fc)
-（PR #53 候选树）。本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，
+[`66f452ec73111f8c9dc7509883717828ba883e8a`](https://github.com/ckanner/scap/commit/66f452ec73111f8c9dc7509883717828ba883e8a)
+（PR #54 的 HEAD6 冻结生产候选）。本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，
 不修改 HEAD、请求身份、所有权或 GC 协议。下文的“已实现”只表示该树存在对应代码；
 历史验收只认证其原冻结输入，新候选是否通过仍以[验证规范](../engineering/validation.md)
 和本候选证据为准。
@@ -14,8 +14,9 @@ SCAP 的目标是：大量独立租户／Agent 数据库共享计算资源，以
 同一数据库保持一个有效写入序列，不要求每个闲置数据库常驻进程。
 
 **当前架构避开了跨主机共享 SQLite 活动文件的锁风险；它没有消除单库串行提交、
-对象往返、整库冷恢复和共享资源的成本。自动 owner 恢复、安全物理 GC、PITR 与生产
-性能验收仍未完成，不能宣布整个目标已经交付。**
+对象往返、整库冷恢复和共享资源的成本。HEAD6 已实现完整复制与有界物理 GC，正在
+完成其独立真实验收；自动 owner 恢复、Deleted 最后一代退休、PITR 与生产性能验收
+仍未完成，不能宣布整个目标已经交付。** 新源码与实际完成状态见[HEAD6 验收](../engineering/head6-runtime-validation.md)。
 
 | 用户关心的问题 | 当前代码的处理 | 仍有的边界 |
 | --- | --- | --- |
@@ -25,7 +26,7 @@ SCAP 的目标是：大量独立租户／Agent 数据库共享计算资源，以
 | 一个冷库阻塞其他热库 | 不同库有界 actor，控制池和恢复准入分别设置 | CPU、网络、S3、磁盘、进程资源仍共享；不是硬租户隔离 |
 | 小改动上传整库 | 128 KiB chunk、COW 数据树和分段请求索引 | 仍有多个顺序 GET/PUT、read-back 与 HEAD CAS |
 | 节点丢失后重新上线 | 从 S3 完整恢复、校验，再激活；Session 保留已恢复镜像 | 当前冷恢复必须读取完整数据及保留结果闭包，没有 lazy VFS |
-| 长期成本 | 已有逻辑请求世代与留存边界 | 物理 GC 关闭；旧块、孤儿和历史对象持续增长，单库配额不限制 bucket 总量 |
+| 长期成本 | 逻辑请求留存边界、完整闭包复制、单调物理世代与持久 GC checkpoint | GC 默认无删除凭据；需公平重复 sweep，Deleted 最后一代尚保护，单库配额不限制 bucket 总量 |
 
 实现映射见 [README](../../README.md)、[路线图](../engineering/roadmap.md)、
 [HEAD5 基础](head5-foundation.md)和[资源预算](resource-budgets.md)。
@@ -66,9 +67,12 @@ CAS 不能辨认其业务内容错误。固定 libSQL/native 的 WAL-reset 补�
 原结果及请求索引，单库 HEAD 引用它们。S3 从未被挂载后交给 SQLite 直接当文件使用。
 
 当前 [`ObjectContext::capture`](../../crates/scap-object/src/object_context.rs) 绑定原后端、
-完整逻辑 Scope 和原 HEAD 的物理 storage generation。它防止一次操作中途换地址，
-但不提供 pin、租约或远端引用存活保护。HEAD5 当前只接受 `storage=1/1`；多世代复制、
-保留根保护和退休判定尚未接入，产品删除仍关闭。
+完整逻辑 Scope、原 HEAD body/ETag、物理 storage generation 与原绝对 deadline，
+不允许一次操作中途换地址。HEAD6 支持多世代复制与永久退休；ordinary 操作可中止，
+不建立崩溃后无法解除的永久读 pin。物理读取失败后，只有一次原预算/期限内 exact
+HEAD 调查严格证明原世代已退休，才可返回 `SnapshotExpired`；语义损坏仍失败关闭。
+已知提交保留原 receipt，不能因为读取过期抹掉提交事实。显式快照/PITR 的 retained
+roots 尚未实现，不能把保留 SQL 原结果等同于历史数据库快照。
 
 ## 3. S3 提交、fencing 与丢响应的精确边界
 
@@ -105,7 +109,7 @@ SCAP 的原子性来自先持久依赖、再发布一个根；安全性仍依赖
 匹配。若旧写先被接受、接管后客户端才收到旧响应，那是先前提交的迟到响应，并不
 构成“接管后又新增提交”。测试必须记录真实 HEAD 顺序，不能只比较响应到达时间。
 
-HEAD5 的 `head_serial` 每次替换严格递增，防止内容恢复原样造成 ABA；业务 revision、
+HEAD5 引入、HEAD6 沿用的 `head_serial` 每次替换严格递增，防止内容恢复原样造成 ABA；业务 revision、
 owner epoch 和物理 storage generation 各有用途，不能互换。特别是，尚未到服务端
 准入的旧管理 HTTP 只带 `expected_revision`，单独前进技术 serial 不足以封闭它的
 所有未来阶段，详见[owner controller 设计](owner-controller-plan.md)。
@@ -241,17 +245,17 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 | 工作包 | 当前起点 | 下一交付与退出标准 |
 | --- | --- | --- |
-| 当前候选组合 | HEAD5、raw closure、封闭管理更新、输出池与 guarded status 已有代码；若干文档／证据保留失败或 NOT_RUN | 固定源码与构建输入，修复已定位缺口；完整 unit/覆盖及受影响真实 HTTP/S3/native、owner/resource/discovery 合同通过；旧失败不改写 |
+| 当前候选组合 | HEAD6 已冻结；632+632 单位、59 文件精确覆盖、新 native/1 GiB 已完成 | 补齐本批真实 HTTP/S3、回收、负载与独立原始历史门禁；旧失败、后续修复与新成功分别保留 |
 | N1 权威合同 | 已有提交 gate、结果查证、取消、接管及多轮本地恢复证据 | 完整 OT-01–08、真实 AWS Standard 合同和独立并发历史审计；同 ETag 双发布、所有切点崩溃、迟到旧 owner、依赖损坏与全计算丢失分别验收 |
 | N2 自动恢复 | 静态路由、显式 owner 意图、guarded probe | 按[owner-controller 既定决定](owner-controller-plan.md)优先完成 accepted owner-plan 独立模型、权威 phase 与新 API，再接探测/controller；跨重启同计划推进、abort 与迟到 HTTP 竞争可证明；业务 SQL 不重放 |
-| N2 资源与活性 | actor、intake、typed 单次预算、HTTP 边界，以及候选普通 `/v1` output Pool | 完成输出池实证，并补跨入口对象 decode/native heap/磁盘预算；冷恢复风暴、热库、慢消费、tenant 额度和控制预留按完整分母验收 |
-| N3 可持续存储 | HEAD5 serial/固定 storage、闭包游标、分段索引和独立模型／删除传输能力 | 按[回收方案](storage-reclamation-plan.md)完成 handle 知识域细化、可中止操作、copy/promote、retained hold、永久退休、持久 sweep 及迟到 PUT/DELETE；多轮安全恢复与成本收敛后才启用产品 GC |
+| N2 资源与活性 | actor、intake、typed 单次预算、HTTP 期限与普通 `/v1` output Pool；输出/慢消费实证已完成 | 运行冻结单库/多库基线，补跨入口对象 decode/native heap/磁盘总账；持续过载、冷恢复风暴、tenant 公平性与硬容量另验 |
+| N3 可持续存储 | HEAD6 完整 copy/promote、共享知识域、可中止旧操作、单调退休与持久 sweep 已接通产品 | 完成[本批故障验收](../engineering/head6-runtime-validation.md)，再实现 Deleted 永久终态退休、retained hold/PITR 与长期成本收敛；不把一轮清空当作永久无孤儿 |
 | N3 快照与 PITR | 方案与基础原语存在，产品未完成 | 从受保护根恢复到新数据库身份，重新建立权限和请求空间；源/目标崩溃、旧 owner/ACL/取消屏障不复活、保留根安全释放逐项验收 |
 | N4 发布出口 | 既有本地容量与部分故障证据 | 冻结负载及数字 SLO，测目标存储、真实部署故障域、长运行、保留/GC 成本、运维恢复；按既有流程另行启用非关键试运行 |
 
-HEAD5 基础不是多世代 GC；独立条件 DELETE capability 不是产品回收；guarded probe
-不是自动 HA；普通 `/v1` output Pool 不是全进程 RSS 上限。该池已接入候选，不能继续
-笼统描述为“完全没有输出池”，但它的真实合并门禁和适用入口仍见
+HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability
+本身不足以授权删除。guarded probe 不是自动 HA；普通 `/v1` output Pool 不是全进程
+RSS 上限。该池已接入并完成本批实际合同，适用入口与边界仍见
 [输出池设计与证据](v1-output-pool.md)。
 
 普通操作的回收路线继续采用既定的可中止世代方案，不默认加入不可撤销永久 pin。

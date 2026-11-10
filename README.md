@@ -4,7 +4,7 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的统一候选已完成 stable/nightly 各 580 项单元、57 个生产文件的四维逐文件精确覆盖，以及新的原生、HTTP/SDK、资源、输出池、慢客户端和 1 GiB 恢复合同。discovery 的 29 负/1 正对照也已通过；独立审查新发现核心 retained-result/cancelled 的请求 nonce 绑定缺口，修复随 HEAD6 重新验收，PR 继续保持草稿。HEAD6 的 core/store/service/SDK 压实与 GC 已形成开发候选，进入新的整栈验收。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成。最新源码、实际进度和剩余目标见[实施状态](docs/engineering/status-2026-11-10.md)及[组合验收](docs/engineering/runtime-completion-validation.md)。
+**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**，原生故障、保留结果、生命周期、目录和新的 1 GiB 全量恢复均通过；整栈 HTTP/资源/回收/负载验收仍在完成，PR 保持草稿。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
 
 对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
 

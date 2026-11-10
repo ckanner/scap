@@ -4,6 +4,11 @@
 
 ## PR #54 的运行时组合（2026-11-10）
 
+[HEAD6 新候选记录](head6-runtime-validation.md)绑定生产 `66f452e`：stable/nightly 各
+632 单位、59 个生产文件四维精确计数，以及新构建和新实际合同。retained nonce 语义
+缺口已进入本批共享 verifier；其真实回收、负载与整体完成情况按新记录逐项报告。
+HEAD5 的原始运行、失败及后续发现继续保留，不把新候选的结果回填成旧候选成功。
+
 [组合验收记录](runtime-completion-validation.md)绑定 d60 冻结生产候选与 6e 离线控制
 修正：stable/nightly 各 580 单位、57 个生产文件四维精确计数，新的 native/HTTP/S3
 合同和 1 GiB 恢复均按原始回执归属。最后的 discovery 29 负/1 正对照已通过。
