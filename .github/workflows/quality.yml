@@ -220,6 +220,7 @@ jobs:
         run: |
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/object-metadata -p 'test_*.py' -v
           node --test experiments/object-service/test_client_ledger.mjs
           python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v
@@ -339,6 +340,20 @@ jobs:
           python3 experiments/object-service/owner_controls.py \
             --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
             --output "$RUNNER_TEMP/scap-owner-evidence/controls"
+      - name: Verify management HEAD-only I/O and exact original publication outcomes
+        # Separate dedicated M listener; no timestamp-based shared S3 attribution.
+        run: |
+          python3 -B experiments/object-metadata/run.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run"
+          python3 -B experiments/object-metadata/oracle.py \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run" \
+            --output "$RUNNER_TEMP/scap-metadata-evidence/oracle.json"
+          python3 -B experiments/object-metadata/controls.py \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run" \
+            --output "$RUNNER_TEMP/scap-metadata-evidence/controls.json"
       - name: Verify catalogue HTTP intents, independent admission, and recovery
         run: |
           python3 experiments/object-service/catalogue_contract.py \
@@ -382,6 +397,9 @@ jobs:
         with:
           name: object-network-local-s3
           path: |
+            ${{ runner.temp }}/scap-metadata-evidence/run/**
+            ${{ runner.temp }}/scap-metadata-evidence/oracle.json
+            ${{ runner.temp }}/scap-metadata-evidence/controls.json
             ${{ runner.temp }}/scap-owner-evidence/owner/**
             ${{ runner.temp }}/scap-owner-evidence/oracle.json
             ${{ runner.temp }}/scap-owner-evidence/controls/**

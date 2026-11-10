@@ -6,6 +6,8 @@
 
 **当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复和分段请求索引；本轮候选继续补齐租户 intake 生命周期、typed result 内存边界、入站 HTTP 限制及 owner 路由/显式协调。** 单元、真实 HTTP/S3、native 与恢复证据按冻结候选单独记录，生产发布仍有独立门禁。自动故障探测与后台 owner controller、读保护与物理 GC、PITR、完整资源预算、真实 AWS 和生产 SLO 继续推进。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。最新 PR、可取得源码和未完成项见[实施状态](docs/engineering/status-2026-11-09.md)。
 
+[HEAD5组合候选](docs/architecture/head5-runtime-composition.md)的冻结运行时 `778a4d2` 已通过完整538+538单位、发现/metadata专项以及[六个实际native/S3网络子门禁](docs/evidence/head5-runtime-network-local-2026-11-09.json)。本轮目录为116场景、1,000次ACK零错配，保留结果为12场景/72入口；这些使用Rust worker与真实签名S3，不替代仍待完成的HTTP服务、容量/部署恢复、owner和资源门禁，也不接受后续编码器/输出池源码。组合仍为草稿。
+
 [PR #35 的发现与恢复组合](docs/engineering/discovery-recovery-validation.md)包含 #34 的有界 LIST/单次 HTTP 传输，采用 HEAD format 4。冻结候选有 stable/nightly 各 416 项单元、47 个生产 Rust 文件四维逐文件精确覆盖、九个 HTTP/S3 组合阶段，以及无需预知名称或 Scope 的新部署恢复合同。完整恢复检查九个永久 HEAD 槽位和全部五个需要数据的数据库，独立 oracle 与 23 个拒绝负对照/一个正对照通过；目录原生和 1 GiB 全量恢复也通过，全部 16,384 行另从真实关闭镜像逐行二次哈希。原失败与输入等价复用另列；SQLite 所有已存在临时目录候选和 host-global override 的准入检查也已补齐。
 
 [PR #31/#32 的名称目录与执行隔离验收](docs/engineering/catalogue-actors-validation.md)已经完成并合入：名称目录与 actor 组合分别有 stable/nightly 各 300/307 单元、33 个生产 Rust 文件四维逐文件精确覆盖；116 场景/1000 ACK 的目录合同、真实 HTTP/SDK、全计算丢失恢复及冷库阻塞下热库/控制隔离通过。两组原完整 validator 的末项 oracle 失败与磁盘容量导致的服务启动失败保留；精确两文件修正、输入身份复用和独立重跑见[机器记录](docs/evidence/catalogue-actors-local-2026-11-08.json)。HEAD 采用 format 3，不可变 SCAPOBJ2 帧仍为 format 2，旧 HEAD 不自动迁移。

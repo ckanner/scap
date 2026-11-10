@@ -75,6 +75,10 @@ def wrong_credential(data):
             row['credential_sha256'] = digest
 
 
+def wrong_creation_admission(data):
+    matching(data['node'], 'http_request', 'seed_create')['admission'] = 'control'
+
+
 def untrusted_destination(data):
     matching(data['node'], 'http_request', 'copied_route')['url'] = data['configuration']['sink']
 
@@ -251,6 +255,12 @@ def unaccounted_listener_handler(data):
     row['accepted_handlers'] += 1
 
 
+def duplicate_listener_identity(data):
+    row = oracle.only([r for r in data['events'] if r['event'] == 'listener_started'
+        and r['name'] == 's3-q'], 'control needs original Q listener')
+    row['name'] = 's3-p'
+
+
 # Each counterexample must reach its specified semantic boundary. A missing
 # field, unrelated digest/clock failure or any other ValueError is not a pass.
 CASES = (
@@ -259,6 +269,7 @@ CASES = (
     (wrong_guard, 'original wire action changed: guarded_nonowner'),
     (guard_removed, 'original wire action changed: replaced_old_route'),
     (wrong_credential, 'credential identity changed'),
+    (wrong_creation_admission, 'admission class changed'),
     (untrusted_destination, 'credential destination changed'),
     (followed_redirect, 'SDK method/redirect changed'),
     (guarded_request_issued_s3, 'guard/auth/fresh HEAD order changed: wrong_worker'),
@@ -283,6 +294,7 @@ CASES = (
     (fault_entered_on_another_request, 'fault witness binds another original request'),
     (deadline_hold_entered_after_sdk_outcome, 'HTTP fault entered after original SDK outcome'),
     (unaccounted_listener_handler, 'listener accepted an unaccounted connection/request'),
+    (duplicate_listener_identity, 'listener denominator'),
 )
 
 

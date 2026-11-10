@@ -236,7 +236,7 @@ def http_audit(data):
             equal(fetch['url'], config['endpoints'][case['worker']], 'credential destination changed')
             require(fetch['method'] == 'POST' and fetch['redirect'] == 'error', 'SDK method/redirect changed')
             equal(fetch['admission'], 'recovery' if name == 'seed_activate' else
-                ('data' if case['operation'] in ('execute', 'query') else 'control'), 'admission class changed')
+                ('data' if case['operation'] in ('create', 'execute', 'query') else 'control'), 'admission class changed')
             body = capture(fetch, 'body', 'body_sha256', 65536)
             equal(parse(body), action(name), 'original wire action changed: ' + name)
             equal(capture(request, 'request_body', 'request_sha256', 65536), body, 'relay changed original request')
@@ -749,7 +749,8 @@ def process_audit(data, build, http, net):
     require(len(owned.incarnations) == 10, 'total owned child denominator')
     listeners = [r for r in events if r['event'] == 'listener_started']
     closed = [r for r in events if r['event'] == 'listener_closed']
-    equal([r['name'] for r in listeners], ['sink', 's3-s', 's3-p', 's3-q', 'http-s', 'http-p'], 'listener denominator')
+    equal(Counter(r['name'] for r in listeners),
+        Counter(['sink', 's3-s', 's3-p', 's3-q', 'http-s', 'http-p']), 'listener denominator')
     listener_urls = {'sink': config['sink'].removesuffix('/v1'),
         **{'s3-' + worker: config['s3_endpoints'][worker] for worker in WORKERS},
         **{'http-' + worker: config['endpoints'][worker].removesuffix('/v1') for worker in ('s', 'p')}}

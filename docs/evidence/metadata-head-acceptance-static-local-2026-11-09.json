@@ -1,0 +1,244 @@
+{
+  "acceptance": {
+    "actual": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "external_oracle": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "remote_ci": "NOT_RUN"
+  },
+  "controls": {
+    "actual_full_copy_positive": 1,
+    "actual_projection_negative": 9,
+    "scope": "Nine precise semantic mutations after a full audited raw-to-projection conversion; not nine whole-raw forgery tests. The identity-positive copy repeats the full audit.",
+    "status": "NOT_RUN"
+  },
+  "documentation_only_delta": "README records the subsequently executed 38-test run; all eight executable/test source files match the frozen inputs.",
+  "earlier_unit27": {
+    "bytes": 575,
+    "path": "/tmp/scap-metadata-oracle-unit01/receipt.json",
+    "sha256": "006ecbada9567551bf064913e0142ad5060245a791d8e6b263239dc38b36e0ae"
+  },
+  "fixed_contract": {
+    "F_signed_requests": 3,
+    "M_head_get": 13,
+    "M_head_put_412": 1,
+    "M_head_put_accepted": 3,
+    "M_head_put_attempts": 4,
+    "M_http": 13,
+    "M_immutable_io": 0,
+    "S_http": 28,
+    "joined_proxy_listeners": 5,
+    "owned_wait4_children": 10,
+    "sdk_posts": 41,
+    "seed_sql_acks": 6
+  },
+  "limitations": [
+    "Metadata ACK proves only the original HEAD CAS, not payload/native image health.",
+    "No automatic retry, new ETag, replacement SQL or new nonce after UNKNOWN/412.",
+    "Resident quarantine is a source-bound single-control-worker/lifetime claim, not a global health protocol.",
+    "This fixture does not validate the direct core closure cursor path, generation copy/promote, product GC/DELETE, PITR or automatic owner control."
+  ],
+  "oracle_freeze": {
+    "bytes": 2101,
+    "path": "/tmp/scap-metadata-oracle-static02/manifest.json",
+    "sha256": "42c36ca71c05dbb67ce51634976a7d0667171836748224e48fec59fb5e633047"
+  },
+  "producer_freeze": {
+    "bytes": 2402,
+    "path": "/tmp/scap-metadata-producer-freeze03/manifest.json",
+    "sha256": "c99f5361c79972293b58f7c029f72ee71fa70e752622dc214a8e455b42f45036"
+  },
+  "publication_checks": {
+    "diff_check": "PASS",
+    "remote_ci": "NOT_RUN",
+    "repository": "PASS: 416 text files, 446 local links",
+    "unchanged_frozen_executable_test_sources": 8,
+    "unchanged_original_daemon_sdk_fixture_build_inputs": 230,
+    "workflow_actionlint": "PASS"
+  },
+  "publication_parent": "eda037fb41057c5ee7173728fb17ecc9f0ab9638",
+  "published_readme": {
+    "bytes": 15607,
+    "path": "/workspace/scratch/591a71cb3372/delivery-metadata-head-acceptance/experiments/object-metadata/README.md",
+    "sha256": "8933e69d4c8b30c3d15aab8e23f052dce21c219a88b86044c0dd19b6acdbf378"
+  },
+  "runtime_base_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "schema": 1,
+  "scope": "Independent metadata-only transport fixture; no production changes. Existing service ledger/observer and original 70-command/144-POST owner contract remain byte-identical.",
+  "source_files": [
+    {
+      "bytes": 5436,
+      "mode": "100644",
+      "path": "experiments/object-metadata/fixture_spec.py",
+      "sha256": "41f034393f563ae7cdafebbd5bd303dc544ea6d0edb25f2bff22d738f55d10af"
+    },
+    {
+      "bytes": 17576,
+      "mode": "100644",
+      "path": "experiments/object-metadata/proxy.py",
+      "sha256": "481c02dbb5f0b40482dc2ff000d0244ff2ef4bc0ad1edd57d25e8811e983ae1a"
+    },
+    {
+      "bytes": 6701,
+      "mode": "100644",
+      "path": "experiments/object-metadata/probe.mjs",
+      "sha256": "001a7f55db95f48be894ce998f1debc2e41eb4afaffef67d8d4baebd1c3d38d4"
+    },
+    {
+      "bytes": 32840,
+      "mode": "100644",
+      "path": "experiments/object-metadata/run.py",
+      "sha256": "9550a8e761f545ab5b58001a2cd1748f6a84ff93a88092683a4c46ac54ec03e6"
+    },
+    {
+      "bytes": 13179,
+      "mode": "100644",
+      "path": "experiments/object-metadata/test_cleanup.py",
+      "sha256": "6b6d94e77f876f2e65b3b975f15108458a9fd3f06e3389c0a57843d94dc072d5"
+    },
+    {
+      "bytes": 97186,
+      "path": "experiments/object-metadata/oracle.py",
+      "sha256": "4c32ddeedff8f6bb7a89def6b5fa6d5d556c83e6178ce776598b01f23a365a87"
+    },
+    {
+      "bytes": 11387,
+      "path": "experiments/object-metadata/controls.py",
+      "sha256": "a1eb6d430abaac68d218565aeb2ffbd4f2150d8b2bcb5f0ad7a17b3c5dd5bae4"
+    },
+    {
+      "bytes": 20034,
+      "path": "experiments/object-metadata/test_oracle.py",
+      "sha256": "132d07b7a2ae47f1a98cdeb316e5f79b426516dbfa64204f59dc4865c98f53ed"
+    },
+    {
+      "bytes": 15592,
+      "path": "experiments/object-metadata/README.md",
+      "sha256": "60a4a30726d1b4aff6ec7004e4ff91b0856f7d9af39378503636b09b4857b185"
+    }
+  ],
+  "static_findings": [
+    {
+      "finding": "The source_manifest CLI takes a positional manifest; producer02 corrected an offered --manifest option.",
+      "status": "corrected_before_actual"
+    },
+    {
+      "finding": "Evidence emission/fsync failure could skip owned child wait4 or held-handler cleanup. Producer03 latches failures, continues owned cleanup and honestly distinguishes failure before versus after private-directory removal.",
+      "status": "corrected_before_actual"
+    },
+    {
+      "finding": "Equal handler/request totals did not prove bijection. Oracle02 requires each handler exactly once and rejects two requests sharing one handler plus a compensating empty failed handler.",
+      "status": "corrected_before_actual"
+    }
+  ],
+  "static_reviews": [
+    {
+      "bytes": 4028,
+      "path": "/tmp/scap-metadata-producer-peer-review01/receipt.json",
+      "sha256": "68e79a2f5d900ee7bffbee72bd0649e724fd03ef3df6360ad8415320d0940d5f"
+    },
+    {
+      "bytes": 5793,
+      "path": "/tmp/scap-metadata-producer-peer-review02/receipt.json",
+      "sha256": "82e241244f5abe59a134c868fa4c9658b39ba5849ae1f13f5e08e1cfb41a5a38"
+    },
+    {
+      "bytes": 9503,
+      "path": "/tmp/scap-metadata-oracle-peer-review01/receipt.json",
+      "sha256": "1640f8a937fd29ae4ce8aaabdabb9572df6b76e7cace7c4d6f3855bbbb0948fe"
+    }
+  ],
+  "status": "implemented_unit_pass",
+  "unit": {
+    "counts": {
+      "cleanup": 10,
+      "oracle_synthetic": 28,
+      "total": 38
+    },
+    "receipt": {
+      "bytes": 2750,
+      "path": "/tmp/scap-metadata-fixture-units02/receipt.json",
+      "sha256": "c2baec7ed04eec6befc0ba954fc2b9e5f37150aeb905c2bdb68983f363890786"
+    },
+    "result": {
+      "actual": "NOT_RUN",
+      "actual_full_copy_positive_control": "NOT_RUN",
+      "actual_projection_negative_controls": "NOT_RUN",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-metadata",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "earlier_oracle27": "The original static01 27-test receipt remains unchanged. It does not validate static02; this is a separate run.",
+      "exit_code": 0,
+      "finished_ns": 64694917521960,
+      "independent_actual_oracle": "NOT_RUN",
+      "log": {
+        "bytes": 5197,
+        "path": "/tmp/scap-metadata-fixture-units02/unit.log",
+        "sha256": "2188ac6dc008ba14e745aa5ffac0cab27c1b7ff2517240217b92ba6eb401810a"
+      },
+      "oracle_static02_manifest_sha256": "42c36ca71c05dbb67ce51634976a7d0667171836748224e48fec59fb5e633047",
+      "producer_freeze03_manifest_sha256": "c99f5361c79972293b58f7c029f72ee71fa70e752622dc214a8e455b42f45036",
+      "schema": 1,
+      "scope": "28 independent oracle synthetic tests plus 10 cleanup tests owning harmless Python children; no daemon, SDK HTTP, S3, native or model BFS",
+      "source": [
+        {
+          "bytes": 15592,
+          "path": "experiments/object-metadata/README.md",
+          "sha256": "60a4a30726d1b4aff6ec7004e4ff91b0856f7d9af39378503636b09b4857b185"
+        },
+        {
+          "bytes": 11387,
+          "path": "experiments/object-metadata/controls.py",
+          "sha256": "a1eb6d430abaac68d218565aeb2ffbd4f2150d8b2bcb5f0ad7a17b3c5dd5bae4"
+        },
+        {
+          "bytes": 5436,
+          "path": "experiments/object-metadata/fixture_spec.py",
+          "sha256": "41f034393f563ae7cdafebbd5bd303dc544ea6d0edb25f2bff22d738f55d10af"
+        },
+        {
+          "bytes": 97186,
+          "path": "experiments/object-metadata/oracle.py",
+          "sha256": "4c32ddeedff8f6bb7a89def6b5fa6d5d556c83e6178ce776598b01f23a365a87"
+        },
+        {
+          "bytes": 6701,
+          "path": "experiments/object-metadata/probe.mjs",
+          "sha256": "001a7f55db95f48be894ce998f1debc2e41eb4afaffef67d8d4baebd1c3d38d4"
+        },
+        {
+          "bytes": 17576,
+          "path": "experiments/object-metadata/proxy.py",
+          "sha256": "481c02dbb5f0b40482dc2ff000d0244ff2ef4bc0ad1edd57d25e8811e983ae1a"
+        },
+        {
+          "bytes": 32840,
+          "path": "experiments/object-metadata/run.py",
+          "sha256": "9550a8e761f545ab5b58001a2cd1748f6a84ff93a88092683a4c46ac54ec03e6"
+        },
+        {
+          "bytes": 13179,
+          "path": "experiments/object-metadata/test_cleanup.py",
+          "sha256": "6b6d94e77f876f2e65b3b975f15108458a9fd3f06e3389c0a57843d94dc072d5"
+        },
+        {
+          "bytes": 20034,
+          "path": "experiments/object-metadata/test_oracle.py",
+          "sha256": "132d07b7a2ae47f1a98cdeb316e5f79b426516dbfa64204f59dc4865c98f53ed"
+        }
+      ],
+      "source_unchanged": true,
+      "started_ns": 64694105269255,
+      "status": "passed"
+    }
+  }
+}

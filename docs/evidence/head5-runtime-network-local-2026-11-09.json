@@ -1,0 +1,2769 @@
+{
+  "schema": 1,
+  "status": "PASS_SIX_CANONICAL_LOCAL_NATIVE_S3_SUBCOMMANDS",
+  "source_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "source_tree": "6abe36cbfa804e772eaa4b72e3a9cdec8d7707e5",
+  "source_unchanged": true,
+  "completion": {
+    "path": "/tmp/scap-runtime-network-778a4d2-01/completion.json",
+    "bytes": 5597,
+    "sha256": "48264e6a0510ce09e5c861cf9170c990a7a1654cc11453e5d5ed0cf503322274"
+  },
+  "commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-runtime-network-778a4d2-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 69478229085449,
+      "finished_ns": 69479585673726,
+      "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb"
+    },
+    {
+      "name": "listing",
+      "argv": [
+        "python3",
+        "experiments/object-network/listing_contract.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/examples/scap-object-listing",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-receipt",
+        "/tmp/scap-runtime-build-778a4d2-02/listing-build/build.json",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/listing"
+      ],
+      "exit_code": 0,
+      "started_ns": 69479592346065,
+      "finished_ns": 69510580143456,
+      "log_sha256": "5fd8edd765b9fc4430edcca59dc09598bf90aa1824709488f2c389e9f333fd9c"
+    },
+    {
+      "name": "response-bounds",
+      "argv": [
+        "python3",
+        "experiments/object-network/response_contract.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/examples/scap-object-listing",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-receipt",
+        "/tmp/scap-runtime-build-778a4d2-02/listing-build/build.json",
+        "--bounded",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/response-bounds"
+      ],
+      "exit_code": 0,
+      "started_ns": 69510580888825,
+      "finished_ns": 69533204519819,
+      "log_sha256": "8a005e9c9625deaa5a52210889706d8abd892f1ba0b01dc134498e4e8defc3d0"
+    },
+    {
+      "name": "network",
+      "argv": [
+        "python3",
+        "experiments/object-network/run.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-runtime-build-778a4d2-02/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/network"
+      ],
+      "exit_code": 0,
+      "started_ns": 69533207813760,
+      "finished_ns": 69615809965074,
+      "log_sha256": "1c283136b5c04fa7d6b6485ac663c4ed08694aa9834d8caf39f4e5664e52c688"
+    },
+    {
+      "name": "retained-results",
+      "argv": [
+        "python3",
+        "experiments/object-network/retained_result_contract.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-runtime-build-778a4d2-02/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/retained-results"
+      ],
+      "exit_code": 0,
+      "started_ns": 69615853735079,
+      "finished_ns": 69657189022413,
+      "log_sha256": "e99a350c11dcba05e4c47f5092307e68d9f9c401caefd87026ead69ff3ec5c93"
+    },
+    {
+      "name": "lifecycle",
+      "argv": [
+        "python3",
+        "experiments/object-network/lifecycle_contract.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-runtime-build-778a4d2-02/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/lifecycle"
+      ],
+      "exit_code": 0,
+      "started_ns": 69657201853694,
+      "finished_ns": 69717663731825,
+      "log_sha256": "ee42cefdbb883ff03b6788909e9cfa1b95fe9d5485130633f9904ab0cae0a3e2"
+    },
+    {
+      "name": "catalogue",
+      "argv": [
+        "python3",
+        "experiments/object-network/catalogue_contract.py",
+        "--worker",
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-runtime-build-778a4d2-02/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-runtime-network-778a4d2-01/catalogue"
+      ],
+      "exit_code": 0,
+      "started_ns": 69717679583431,
+      "finished_ns": 70012389530194,
+      "log_sha256": "1d1c359bcd6a57876b594dc4deba248073b61165c8f6dd227d5c56bb98229748"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-runtime-network-778a4d2-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 70012761579884,
+      "finished_ns": 70013106988862,
+      "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+    }
+  ],
+  "driver": {
+    "path": "/tmp/scap-runtime-network-778a4d2-01/driver.py",
+    "bytes": 10841,
+    "sha256": "7cd4fa6d44764e19ff5ee669bef54063f34642ce8bf8a660dfa291350f969332"
+  },
+  "source_manifest": {
+    "path": "/tmp/scap-runtime-network-778a4d2-01/source-before.json",
+    "bytes": 114050,
+    "sha256": "9fb21e791bb3c353a350441c4009ea1e6ccd794f19073c025fb28ee526a0645d"
+  },
+  "original_reports": {
+    "listing": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/listing/listing-oracle.json",
+      "bytes": 557,
+      "sha256": "fd3cdb86c539514e9be913d460d8e9720b35cd344d41485eaf69b1344eaab783"
+    },
+    "response_bounds": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/response-bounds/response-oracle.json",
+      "bytes": 2867,
+      "sha256": "9447240778fef7a4c3fee34ecf41b31ffaff678a5daca66cbdefa5fc753d29c3"
+    },
+    "network": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/summary.json",
+      "bytes": 116545,
+      "sha256": "0b6606805c2e1c34d661cf4bae486a80bd60dae2617d07cbc615c28c56d037ba"
+    },
+    "retained": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/summary.json",
+      "bytes": 8566,
+      "sha256": "0b0e0ed2cc55086d6a14bdffb65b9f518ed21146687ef217293e51d35d20fddd"
+    },
+    "lifecycle": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-oracle.json",
+      "bytes": 5460,
+      "sha256": "07ae319646f4d8b76e0c81557a967ffd416c6aa1eb728b78e406444574512b23"
+    },
+    "catalogue": {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-oracle.json",
+      "bytes": 36966,
+      "sha256": "313de8781cbb276a5d956fe8f8b2abe7c0c01e0d161fc68298989547c56afa7a"
+    }
+  },
+  "listing": {
+    "audit_negative_controls": 5,
+    "binary": {
+      "path": "/tmp/scap-runtime-release-778a4d2-02/release/examples/scap-object-listing",
+      "sha256": "8074e3ff18496125806155382dccd2db85559a878f8699600613a7fd917cd344"
+    },
+    "calls": 174,
+    "complete_inventory_scans": 3,
+    "history_sha256": "08906b948ac5ee6f1f788fbc93b3fcd3b5f89a0348175f397aa2932cc38b6d79",
+    "input_sha256": "7c4396bdcdb7ae3ebe9f1cd94c88e57c5cb13724b6e0a3102bed9cd9e2c28fed",
+    "list_calls": 34,
+    "negative_controls": 21,
+    "observed_online_non_snapshot": true,
+    "scope": "N2-A-storage-port-only",
+    "status": "passed",
+    "audit_controls": [
+      {
+        "case": "omit-call",
+        "rejected": true
+      },
+      {
+        "case": "forged-success",
+        "rejected": true
+      },
+      {
+        "case": "false-empty",
+        "rejected": true
+      },
+      {
+        "case": "changed-frontier",
+        "rejected": true
+      },
+      {
+        "case": "unauthenticated",
+        "rejected": true
+      }
+    ]
+  },
+  "response_bounds": {
+    "auxiliary_response_limit": 65536,
+    "aws_standard": "NOT_RUN",
+    "cases": {
+      "get_large_404": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 25.177348,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Unknown",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 73728
+      },
+      "get_small_404": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 32.182326,
+        "kernel_maxrss_bytes": 20013056,
+        "result": {
+          "error": "Missing",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 65536
+      },
+      "get_stream_500": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 41.696272,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Unknown",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 73728
+      },
+      "get_success_large": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 79.87938,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Limit",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 12288
+      },
+      "put_accepted_500": {
+        "actual_backend_requests": 2,
+        "elapsed_ms": 46.851612,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Unknown",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 73728
+      },
+      "put_large_412": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 26.173549,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Unknown",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 73728
+      },
+      "put_small_412": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 26.961924,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "error": "Conflict",
+          "id": 1,
+          "ok": false
+        },
+        "sent_response_bytes": 65536
+      },
+      "put_success_large": {
+        "actual_backend_requests": 1,
+        "elapsed_ms": 21.640988,
+        "kernel_maxrss_bytes": 20144128,
+        "result": {
+          "etag": "\"3bacbe4b197abfffebe432b8edb8eb6e\"",
+          "id": 1,
+          "ok": true
+        },
+        "sent_response_bytes": 8192
+      }
+    },
+    "max_successful_get_bytes": 1024,
+    "negative_controls": [
+      {
+        "name": "unbounded_error_was_consumed",
+        "rejected": true
+      },
+      {
+        "name": "accepted_put_misreported_local_limit",
+        "rejected": true
+      },
+      {
+        "name": "accepted_put_misreported_conflict",
+        "rejected": true
+      },
+      {
+        "name": "exact_readback_changed",
+        "rejected": true
+      },
+      {
+        "name": "missing_kernel_wait4",
+        "rejected": true
+      }
+    ],
+    "original_history_sha256": "bac831e71c90c65dc5ee5bb35325d26e8183b284f2e8349afe9355fbb30b62cc",
+    "scope": "storage-port-development-contract",
+    "status": "passed"
+  },
+  "network": {
+    "completed_contracts": [
+      "signed_exact_key_conditional_objects",
+      "same_etag_two_process_competition",
+      "original_result_and_all_compute_loss",
+      "lost_head_response_keeps_original_result",
+      "takeover_fences_inflight_old_writer",
+      "commit_cancel_both_orders",
+      "lost_cancel_response_preserves_fence",
+      "corrupt_dependency_fails_closed_without_head_change",
+      "object_blackhole_fails_closed",
+      "backend_process_restart_retains_acknowledged_state",
+      "each_observed_dependency_upload_cut_retains_previous_authority",
+      "accepted_head_survives_process_loss_and_native_publication_failure",
+      "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+      "changed_head_during_recovery_refuses_old_activation",
+      "alter_schema_original_results_and_all_compute_loss"
+    ],
+    "base_ack_audited_count": 4,
+    "base_ack_mismatch_count": 0,
+    "fault_contracts": {
+      "ack_audited_count": 61,
+      "ack_mismatch_count": 0,
+      "ack_recorded_count": 61,
+      "backend_corrupt_cases": 5,
+      "backend_missing_cases": 5,
+      "outcome_mismatch_count": 0,
+      "passed_case_count": 30,
+      "planned_case_count": 30,
+      "status": "passed"
+    },
+    "schema_contracts": {
+      "ack_audited_count": 12,
+      "ack_mismatch_count": 0,
+      "ack_recorded_count": 12,
+      "ack_replayed_count": 12,
+      "aws_endpoint_gate": "NOT_RUN",
+      "status": "passed",
+      "unit_coverage_contribution": false
+    },
+    "counting_scope": "Base, fault and schema ledgers have separate denominators; do not sum them as one unique request count."
+  },
+  "retained_results": {
+    "scenarios": 12,
+    "entrypoint_checks": 72,
+    "ack_recorded_count": 30,
+    "ack_audited_count": 30,
+    "ack_mismatch_count": 0,
+    "outcome_mismatch_count": 0,
+    "case_results": [
+      {
+        "case": "result_current_bad_magic",
+        "damage": "bad_magic",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1001,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_current_truncated_footer",
+        "damage": "truncated_footer",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1002,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_current_trailing_byte",
+        "damage": "trailing_byte",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1003,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_current_unknown_tag",
+        "damage": "unknown_tag",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1004,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_current_nonfinite_real",
+        "damage": "nonfinite_real",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1005,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_current_invalid_utf8",
+        "damage": "invalid_utf8",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "current",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1006,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_bad_magic",
+        "damage": "bad_magic",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1007,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_truncated_footer",
+        "damage": "truncated_footer",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1008,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_trailing_byte",
+        "damage": "trailing_byte",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1009,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_unknown_tag",
+        "damage": "unknown_tag",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1010,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_nonfinite_real",
+        "damage": "nonfinite_real",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1011,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      },
+      {
+        "case": "result_closed_invalid_utf8",
+        "damage": "invalid_utf8",
+        "entrypoints": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "epoch_kind": "closed",
+        "original_result_and_data_audited": true,
+        "scope": {
+          "database": 1012,
+          "deployment": 78,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 88
+        },
+        "status": "passed"
+      }
+    ]
+  },
+  "lifecycle": {
+    "ack_classifications": {
+      "deleted_access": 5,
+      "retained_original": 71,
+      "retired": 2
+    },
+    "ack_identities": 30,
+    "ack_mismatches": 0,
+    "ack_responses": 78,
+    "aws_endpoint_gate": "NOT_RUN",
+    "build": {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "sha256": "f8fbf2fbcb490064ecf6eb025d5a8627be072787e970c2a52aeb6dec4a8d9f03"
+      },
+      "cargo_process_exit_code": 0,
+      "executable_native_bytes": "verified",
+      "local_source_manifest_matches": true,
+      "original_cargo_build_finished": true,
+      "profile": "network",
+      "retrieved_artifacts": [
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+      ],
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67",
+      "source_bytes_verified": 2466979,
+      "source_files_verified": 158,
+      "status": "verified",
+      "unavailable_artifacts": [],
+      "unique_child_incarnations": 67,
+      "verification_scope": "full"
+    },
+    "cancellation_identities": 12,
+    "cancellation_proof_observations": 34,
+    "case_results": [
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-01",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-02",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "deleted_access",
+        "ack_identities": 2,
+        "ack_responses": 2,
+        "id": "LC-03",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-04",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-05",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "deleted_access",
+        "ack_identities": 3,
+        "ack_responses": 3,
+        "id": "LC-06",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-07",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 3,
+        "ack_responses": 9,
+        "id": "LC-08",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-09",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 4,
+        "ack_responses": 14,
+        "id": "LC-10",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retired",
+        "ack_identities": 2,
+        "ack_responses": 2,
+        "id": "LC-11",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      },
+      {
+        "ack_classification": "retained_original",
+        "ack_identities": 2,
+        "ack_responses": 6,
+        "id": "LC-12",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "status": "passed"
+      }
+    ],
+    "checked_cases": 12,
+    "closed_lookup_checks": 1,
+    "committed_observations_before_execute_ack": 1,
+    "deleted_access_checks": 40,
+    "execute_responses": 122,
+    "inputs": 56,
+    "planned_cases": 12,
+    "production_slo_passed": false,
+    "rejected_candidate_calls": [
+      12,
+      44,
+      79,
+      227,
+      358,
+      433
+    ],
+    "resolved_without_execute_ack_identities": 0,
+    "resolved_without_execute_ack_observations": 0,
+    "retired_lookup_checks": 11,
+    "revoked_access_checks": 4,
+    "source_sha256": {
+      "build-receipt.json": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67",
+      "history.jsonl": "3fd984cc93cfd0a35872de871736e45e9952fe65a3fffdec5846ec5fabab701e",
+      "lifecycle-ack-ledger.jsonl": "1020f1e3b0a056dd4cada4eab05d17544dc2e45612fe019617ebc4273c788032",
+      "lifecycle-client-ledger.jsonl": "aa81f489bbbdf5e640e1a038b4cb6ed126a1afd16bd297d0df9025902712491c",
+      "lifecycle-facts.jsonl": "82de5b866388b293d1f19ec6ef10b7194ccef87d374699aa7ef02d4990145a8a",
+      "lifecycle-input-ledger.jsonl": "158c570232956de0f6df6b4d17965ff578c3f136f2948d2221662f845921633d",
+      "lifecycle-plan.json": "be1f14e0b8f73b350db8da0265e8a95eba0cfc4b77a142bdaca9a758bcb091c2"
+    },
+    "status": "passed",
+    "unit_coverage_contribution": false
+  },
+  "catalogue": {
+    "ack_classifications": {
+      "catalogue_progress": 728,
+      "deleted": 26,
+      "retained": 246
+    },
+    "ack_responses": 1000,
+    "actual_http_statuses": {
+      "backend_200": 18081,
+      "backend_404": 1947,
+      "backend_412": 307,
+      "linearization_constraints": 20970
+    },
+    "aws_endpoint_gate": "NOT_RUN",
+    "case_results": [
+      {
+        "ack_responses": 11,
+        "descriptor_identities": 1,
+        "id": "PILOT-prepare",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 11,
+        "descriptor_identities": 1,
+        "id": "PILOT-resume",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 7,
+        "descriptor_identities": 1,
+        "id": "PILOT-abort_missing",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 7,
+        "descriptor_identities": 1,
+        "id": "PILOT-abort_provisioning",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 7,
+        "descriptor_identities": 1,
+        "id": "PILOT-abort_foreign",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "PILOT-delete",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-prepare-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-prepare-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-prepare-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-02-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-02-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-02-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-03-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-03-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-03-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-04-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-04-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-04-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-05-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-05-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-05-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-06-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-06-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CUT-resume-06-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-02-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-02-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-02-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-03-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-03-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-03-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-04-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-04-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-04-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-05-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-05-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-05-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-06-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-06-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-06-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-07-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-07-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_missing-07-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-02-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-02-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-02-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-03-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-03-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-03-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-04-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-04-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-04-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-05-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-05-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_provisioning-05-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-02-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-02-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-02-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-03-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-03-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-03-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-04-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-04-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CUT-abort_foreign-04-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-01-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-01-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-01-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-02-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-02-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-02-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-03-before_forward",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-03-after_backend",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CUT-delete-03-after_consumed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 14,
+        "descriptor_identities": 2,
+        "id": "CAT-01-different",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 11,
+        "descriptor_identities": 1,
+        "id": "CAT-01-same",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 13,
+        "descriptor_identities": 1,
+        "id": "CAT-02-bind",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 7,
+        "descriptor_identities": 1,
+        "id": "CAT-02-abort",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 7,
+        "descriptor_identities": 1,
+        "id": "CAT-03-provision",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CAT-03-tombstone",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 16,
+        "descriptor_identities": 2,
+        "id": "CAT-04-abort-conflict",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 2,
+        "id": "CAT-04-abort-unknown",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 13,
+        "descriptor_identities": 2,
+        "id": "CAT-04-delete-conflict",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 12,
+        "descriptor_identities": 2,
+        "id": "CAT-04-delete-unknown",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-incarnation-ready",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-incarnation-maintenance",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-incarnation-deleted",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-generation-ready",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-generation-maintenance",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-generation-deleted",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-direct-ready",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-direct-maintenance",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 18,
+        "descriptor_identities": 2,
+        "id": "CAT-05-direct-deleted",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 3,
+        "descriptor_identities": 1,
+        "id": "CAT-05-provenance-missing_descriptor",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 2,
+        "id": "CAT-05-provenance-descriptor_hash",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 2,
+        "id": "CAT-05-provenance-descriptor_scope",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 3,
+        "descriptor_identities": 1,
+        "id": "CAT-06-missing",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 3,
+        "descriptor_identities": 1,
+        "id": "CAT-06-malformed",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 3,
+        "descriptor_identities": 1,
+        "id": "CAT-06-format",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 3,
+        "descriptor_identities": 1,
+        "id": "CAT-06-physical_key",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "corrupt"
+      },
+      {
+        "ack_responses": 14,
+        "descriptor_identities": 1,
+        "id": "CAT-07-boundaries",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 9,
+        "descriptor_identities": 1,
+        "id": "CAT-08-authorization",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 21,
+        "descriptor_identities": 2,
+        "id": "CAT-09-reuse",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 4,
+        "status": "passed",
+        "terminal": "deleted"
+      },
+      {
+        "ack_responses": 11,
+        "descriptor_identities": 1,
+        "id": "CAT-10-ready-reentry",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      },
+      {
+        "ack_responses": 6,
+        "descriptor_identities": 1,
+        "id": "CAT-11-provisioning",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 0,
+        "status": "passed",
+        "terminal": "aborted"
+      },
+      {
+        "ack_responses": 10,
+        "descriptor_identities": 1,
+        "id": "CAT-12-invalid",
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "sql_identities": 2,
+        "status": "passed",
+        "terminal": "ready"
+      }
+    ],
+    "checked_cases": 116,
+    "complete_responses": 2791,
+    "descriptor_ack_identities": 133,
+    "explicit_lost_unknown": 153,
+    "invoked_calls": 2944,
+    "limits": [
+      "real loopback SeaweedFS 4.51 is not AWS Standard acceptance",
+      "cache removal is a source-bound controller stat/rmtree observation, not external filesystem attestation",
+      "valid foreign named hash collisions are not manufactured; direct foreign identities and invalid provenance are separate",
+      "no general all-stage 403/5xx matrix, namespace inventory, garbage collection or operational SLO claim"
+    ],
+    "mismatch_count": 0,
+    "oracle_sha256": "ba7b29c72178e7a2917f6ad62ad7d63f93e7d67f813b411e8fccdb3a88948e56",
+    "pilot_profiles": 6,
+    "processes": {
+      "backend_processes_killed": 4,
+      "backend_replacements": 4,
+      "build": {
+        "binary": {
+          "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+          "sha256": "f8fbf2fbcb490064ecf6eb025d5a8627be072787e970c2a52aeb6dec4a8d9f03"
+        },
+        "cargo_process_exit_code": 0,
+        "executable_native_bytes": "verified",
+        "local_source_manifest_matches": true,
+        "original_cargo_build_finished": true,
+        "profile": "network",
+        "retrieved_artifacts": [
+          "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+          "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+        ],
+        "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67",
+        "source_bytes_verified": 2466979,
+        "source_files_verified": 158,
+        "status": "verified",
+        "unavailable_artifacts": [],
+        "verification_scope": "full"
+      },
+      "compute_incarnations": 619,
+      "lost_invocations": 153,
+      "unique_child_incarnations": 627,
+      "verified_cache_loss_observations": 501
+    },
+    "production_slo_passed": false,
+    "put_cut_cases": 78,
+    "recovery_stages": [
+      "compute_recovery",
+      "backend_recovery"
+    ],
+    "saved_catalogue_intents": 939,
+    "source_artifacts": {
+      "build-receipt.json": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67",
+      "catalogue-ack-ledger.jsonl": "2056add7fb1c108cedc0573b7bbb3371ed2ff81b84bf218ddcf3e74447de6146",
+      "catalogue-client-ledger.jsonl": "9ec57bd8684061451189a23d6e0a92b6bcaa62c6181f66405eaeef334655f919",
+      "catalogue-cut-plan.json": "7a09c726576a0d44d5c0f30d0edb45975ea54c53ad46029710f02d9461aae016",
+      "catalogue-facts.jsonl": "ddd4a852a8bcd2c1362bfd72538d1c0598764b83bae93a03a1181e0175bf2a22",
+      "catalogue-input-ledger.jsonl": "79402cf946a532124891812c0a3e82d8ab03b869482d1de8283ee0414982d341",
+      "catalogue-plan.json": "5e0fc6e76f4f5b721c9100e453790851e0fec32780a12f3f0bc5ab4be5ae32f7",
+      "history.jsonl": "085c212b2e43cf99533e6e6129d57c22a8058c74516aef2db5551a733ada6c70"
+    },
+    "sql_ack_identities": 108,
+    "sql_inputs": 109,
+    "status": "passed",
+    "structural_cases": 32,
+    "unit_coverage_contribution": false,
+    "wire_reader_sha256": "28186c3ffad25121a218277ec85fcd00c3085dc78d5f50ffb35ec6b5b1fbaede"
+  },
+  "native_build_binding": {
+    "build_evidence": "/tmp/scap-runtime-build-778a4d2-02",
+    "worker": {
+      "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+      "sha256": "f8fbf2fbcb490064ecf6eb025d5a8627be072787e970c2a52aeb6dec4a8d9f03"
+    },
+    "listing": {
+      "path": "/tmp/scap-runtime-release-778a4d2-02/release/examples/scap-object-listing",
+      "sha256": "8074e3ff18496125806155382dccd2db85559a878f8699600613a7fd917cd344"
+    },
+    "backend": {
+      "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    },
+    "worker_source_files_verified": 158,
+    "source_and_native_artifacts": {
+      "binary": {
+        "path": "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "sha256": "f8fbf2fbcb490064ecf6eb025d5a8627be072787e970c2a52aeb6dec4a8d9f03"
+      },
+      "cargo_process_exit_code": 0,
+      "executable_native_bytes": "verified",
+      "local_source_manifest_matches": true,
+      "original_cargo_build_finished": true,
+      "profile": "network",
+      "retrieved_artifacts": [
+        "/tmp/scap-runtime-release-778a4d2-02/release/scap-object-network",
+        "/tmp/scap-runtime-release-778a4d2-02/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+      ],
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67",
+      "source_bytes_verified": 2466979,
+      "source_files_verified": 158,
+      "status": "verified",
+      "unavailable_artifacts": [],
+      "unique_child_incarnations": 67,
+      "verification_scope": "full"
+    },
+    "native_rebuild_during_actual": false
+  },
+  "raw_artifacts": [
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue.log",
+      "bytes": 159540768,
+      "sha256": "1d1c359bcd6a57876b594dc4deba248073b61165c8f6dd227d5c56bb98229748"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/completion.json",
+      "bytes": 5597,
+      "sha256": "48264e6a0510ce09e5c861cf9170c990a7a1654cc11453e5d5ed0cf503322274"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/driver.py",
+      "bytes": 10841,
+      "sha256": "7cd4fa6d44764e19ff5ee669bef54063f34642ce8bf8a660dfa291350f969332"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle.log",
+      "bytes": 12326936,
+      "sha256": "ee42cefdbb883ff03b6788909e9cfa1b95fe9d5485130633f9904ab0cae0a3e2"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/listing.log",
+      "bytes": 1856,
+      "sha256": "5fd8edd765b9fc4430edcca59dc09598bf90aa1824709488f2c389e9f333fd9c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network.log",
+      "bytes": 18203515,
+      "sha256": "1c283136b5c04fa7d6b6485ac663c4ed08694aa9834d8caf39f4e5664e52c688"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/response-bounds.log",
+      "bytes": 4166,
+      "sha256": "8a005e9c9625deaa5a52210889706d8abd892f1ba0b01dc134498e4e8defc3d0"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results.log",
+      "bytes": 10290508,
+      "sha256": "e99a350c11dcba05e4c47f5092307e68d9f9c401caefd87026ead69ff3ec5c93"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/source-before.json",
+      "bytes": 114050,
+      "sha256": "9fb21e791bb3c353a350441c4009ea1e6ccd794f19073c025fb28ee526a0645d"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/source-final.log",
+      "bytes": 99,
+      "sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/source-verify.log",
+      "bytes": 99,
+      "sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/source.log",
+      "bytes": 108,
+      "sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/listing/listing-audit-negatives.json",
+      "bytes": 298,
+      "sha256": "0f38c961ce4a4844227bd828189a6c97c03d38908a37b0b7aa8067f03ca69bb9"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/listing/listing-history.jsonl",
+      "bytes": 4845172,
+      "sha256": "08906b948ac5ee6f1f788fbc93b3fcd3b5f89a0348175f397aa2932cc38b6d79"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/listing/listing-oracle.json",
+      "bytes": 557,
+      "sha256": "fd3cdb86c539514e9be913d460d8e9720b35cd344d41485eaf69b1344eaab783"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/response-bounds/response-history.jsonl",
+      "bytes": 23048,
+      "sha256": "bac831e71c90c65dc5ee5bb35325d26e8183b284f2e8349afe9355fbb30b62cc"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/response-bounds/response-oracle.json",
+      "bytes": 2867,
+      "sha256": "9447240778fef7a4c3fee34ecf41b31ffaff678a5daca66cbdefa5fc753d29c3"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/ack-ledger.jsonl",
+      "bytes": 4997,
+      "sha256": "cd37b43d30f0102ee73f82245b24fbebc5847359bd3f38f085787c5ca3615f23"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/build-cargo.stderr.log",
+      "bytes": 1041,
+      "sha256": "bd54f90e45b91d7103d903703ccb105b81f1b9bd63ce6c9c6882655a96c1657b"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/build-cargo.stdout.jsonl",
+      "bytes": 191927,
+      "sha256": "b5686d51e1ad163bc736147079b8c6ca773afc53b5e4ea2b02e2e5307bb17cb1"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/build-receipt.json",
+      "bytes": 20644,
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/build-source-manifest.json",
+      "bytes": 18668,
+      "sha256": "8977bb23425329c7de861979f40458ac8508d45f65bc29327c4b5ec462f02eea"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/build-source.tar",
+      "bytes": 2600960,
+      "sha256": "f1e0a1be25aec80c5ca0718e7816e441212b00071cc9451c6d90acdd9692bf2c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/fault-ack-ledger.jsonl",
+      "bytes": 90026,
+      "sha256": "396386ea694ef7bd91df7c1a30953f597450e336e30cbfed4fd52add3810272a"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/fault-cases.jsonl",
+      "bytes": 574343,
+      "sha256": "6fc7be6b5edc18b816e5f0089aec0781627c91e9254f1b2ca84492a8dd9a19e7"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/fault-input-ledger.jsonl",
+      "bytes": 118328,
+      "sha256": "5377a43e2ea9d0a56eb9d8c882ca21b2c251983c9a9706d9d8fdc661afcbfeb8"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/fault-outcome-ledger.jsonl",
+      "bytes": 38304,
+      "sha256": "ba80063e9061a975339f4f900748a52ae7f47f9f951ebf03ab55fce8e6a50ad4"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/fault-plan.json",
+      "bytes": 5419,
+      "sha256": "61a870b86c55b987b827e476880f35aedc3aa68f2f8542d38f9ed1be1aacd687"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/history.jsonl",
+      "bytes": 18202216,
+      "sha256": "1d2d55569261e7f2b561d328df9da2b4c803c102df5bf3eef8883652f99b2107"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/schema-ack-ledger.jsonl",
+      "bytes": 18262,
+      "sha256": "f4ac4c5a0383bfc1d21c12b5c5ab76e03c36258d51700fbe575d9d9cfd29b976"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/schema-audit.jsonl",
+      "bytes": 79613,
+      "sha256": "516d2174d6f06a2c85da202ce049c94599e3fc1cc5f80948101ba2feb228844a"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/schema-input-ledger.jsonl",
+      "bytes": 12190,
+      "sha256": "bdbe454ba9091a086cc8b7c387a2196a246f0b3ffc053183b5d82bba3ea0f462"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/network/summary.json",
+      "bytes": 116545,
+      "sha256": "0b6606805c2e1c34d661cf4bae486a80bd60dae2617d07cbc615c28c56d037ba"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/build-cargo.stderr.log",
+      "bytes": 1041,
+      "sha256": "bd54f90e45b91d7103d903703ccb105b81f1b9bd63ce6c9c6882655a96c1657b"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/build-cargo.stdout.jsonl",
+      "bytes": 191927,
+      "sha256": "b5686d51e1ad163bc736147079b8c6ca773afc53b5e4ea2b02e2e5307bb17cb1"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/build-receipt.json",
+      "bytes": 20644,
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/build-source-manifest.json",
+      "bytes": 18668,
+      "sha256": "8977bb23425329c7de861979f40458ac8508d45f65bc29327c4b5ec462f02eea"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/build-source.tar",
+      "bytes": 2600960,
+      "sha256": "f1e0a1be25aec80c5ca0718e7816e441212b00071cc9451c6d90acdd9692bf2c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/fault-ack-ledger.jsonl",
+      "bytes": 45732,
+      "sha256": "0b9ba9b844eeffbafceb6e76e48d801284555594a7a9defc9666a3bba84fd55e"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/fault-cases.jsonl",
+      "bytes": 665875,
+      "sha256": "13bda848f165f8155da6d761a6abe280f42238259d5b6b9ba6bc91920c860076"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/fault-input-ledger.jsonl",
+      "bytes": 47334,
+      "sha256": "6eeb1f516b77de9fb42dad0e20e8cb5ab091f98d3f628a759b4c4e82f7e1a1f6"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/fault-outcome-ledger.jsonl",
+      "bytes": 15220,
+      "sha256": "025adcdf0856002c3a59f7aa128ea94d9af9a1a139de7c35a031d5d6f860cd80"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/history.jsonl",
+      "bytes": 10289119,
+      "sha256": "0bf8c4735a9b2a79db3eaec4a592d4c947cffdc00528590a1f86e150712cc0b8"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/retained-results/summary.json",
+      "bytes": 8566,
+      "sha256": "0b0e0ed2cc55086d6a14bdffb65b9f518ed21146687ef217293e51d35d20fddd"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/build-cargo.stderr.log",
+      "bytes": 1041,
+      "sha256": "bd54f90e45b91d7103d903703ccb105b81f1b9bd63ce6c9c6882655a96c1657b"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/build-cargo.stdout.jsonl",
+      "bytes": 191927,
+      "sha256": "b5686d51e1ad163bc736147079b8c6ca773afc53b5e4ea2b02e2e5307bb17cb1"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/build-receipt.json",
+      "bytes": 20644,
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/build-source-manifest.json",
+      "bytes": 18668,
+      "sha256": "8977bb23425329c7de861979f40458ac8508d45f65bc29327c4b5ec462f02eea"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/build-source.tar",
+      "bytes": 2600960,
+      "sha256": "f1e0a1be25aec80c5ca0718e7816e441212b00071cc9451c6d90acdd9692bf2c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/history.jsonl",
+      "bytes": 12325554,
+      "sha256": "3fd984cc93cfd0a35872de871736e45e9952fe65a3fffdec5846ec5fabab701e"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-ack-ledger.jsonl",
+      "bytes": 101623,
+      "sha256": "1020f1e3b0a056dd4cada4eab05d17544dc2e45612fe019617ebc4273c788032"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-client-ledger.jsonl",
+      "bytes": 1158491,
+      "sha256": "aa81f489bbbdf5e640e1a038b4cb6ed126a1afd16bd297d0df9025902712491c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-facts.jsonl",
+      "bytes": 158031,
+      "sha256": "82de5b866388b293d1f19ec6ef10b7194ccef87d374699aa7ef02d4990145a8a"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-input-ledger.jsonl",
+      "bytes": 34036,
+      "sha256": "158c570232956de0f6df6b4d17965ff578c3f136f2948d2221662f845921633d"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-oracle.json",
+      "bytes": 5460,
+      "sha256": "07ae319646f4d8b76e0c81557a967ffd416c6aa1eb728b78e406444574512b23"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/lifecycle-plan.json",
+      "bytes": 3778,
+      "sha256": "be1f14e0b8f73b350db8da0265e8a95eba0cfc4b77a142bdaca9a758bcb091c2"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/lifecycle/summary.json",
+      "bytes": 201415,
+      "sha256": "bf5281a6fa1d0214c142dd8c9191f24fecd8ce5e043b3a1c4b32ae450395a839"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/build-cargo.stderr.log",
+      "bytes": 1041,
+      "sha256": "bd54f90e45b91d7103d903703ccb105b81f1b9bd63ce6c9c6882655a96c1657b"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/build-cargo.stdout.jsonl",
+      "bytes": 191927,
+      "sha256": "b5686d51e1ad163bc736147079b8c6ca773afc53b5e4ea2b02e2e5307bb17cb1"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/build-receipt.json",
+      "bytes": 20644,
+      "sha256": "ea6400d4f39363cd1b97e45b1929d5efe9ed105789108c77840b00d85ef6bc67"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/build-source-manifest.json",
+      "bytes": 18668,
+      "sha256": "8977bb23425329c7de861979f40458ac8508d45f65bc29327c4b5ec462f02eea"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/build-source.tar",
+      "bytes": 2600960,
+      "sha256": "f1e0a1be25aec80c5ca0718e7816e441212b00071cc9451c6d90acdd9692bf2c"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-ack-ledger.jsonl",
+      "bytes": 1009916,
+      "sha256": "2056add7fb1c108cedc0573b7bbb3371ed2ff81b84bf218ddcf3e74447de6146"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-client-ledger.jsonl",
+      "bytes": 4892297,
+      "sha256": "9ec57bd8684061451189a23d6e0a92b6bcaa62c6181f66405eaeef334655f919"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-cut-plan.json",
+      "bytes": 10744,
+      "sha256": "7a09c726576a0d44d5c0f30d0edb45975ea54c53ad46029710f02d9461aae016"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-facts.jsonl",
+      "bytes": 2276889,
+      "sha256": "ddd4a852a8bcd2c1362bfd72538d1c0598764b83bae93a03a1181e0175bf2a22"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-input-ledger.jsonl",
+      "bytes": 466492,
+      "sha256": "79402cf946a532124891812c0a3e82d8ab03b869482d1de8283ee0414982d341"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-oracle.json",
+      "bytes": 36966,
+      "sha256": "313de8781cbb276a5d956fe8f8b2abe7c0c01e0d161fc68298989547c56afa7a"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/catalogue-plan.json",
+      "bytes": 729,
+      "sha256": "5e0fc6e76f4f5b721c9100e453790851e0fec32780a12f3f0bc5ab4be5ae32f7"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/history.jsonl",
+      "bytes": 159539386,
+      "sha256": "085c212b2e43cf99533e6e6129d57c22a8058c74516aef2db5551a733ada6c70"
+    },
+    {
+      "path": "/tmp/scap-runtime-network-778a4d2-01/catalogue/summary.json",
+      "bytes": 1051699,
+      "sha256": "6ed93138e9fb3cc017dd8cdd587668b200463fa08e27480fa125cb23663dd2ac"
+    }
+  ],
+  "cleanup": {
+    "four_worker_suites": "No cleanup/proxy errors in original network, retained, lifecycle or catalogue summary.",
+    "lifecycle_child_incarnations_audited": 67,
+    "catalogue_child_incarnations_audited": 627,
+    "catalogue_verified_cache_loss_observations": 501,
+    "scope": "Original fault-injection ledgers include intended SIGKILL and replacement; no claim that every child exited normally."
+  },
+  "boundaries": {
+    "actual_interface": "Rust worker/example with actual TCP and signed local S3-compatible backend. These are not ordinary /v1 HTTP service RPC counts.",
+    "catalogue_http_statuses": "These status counts describe the signed object-store backend, not user-facing HTTP.",
+    "unit_coverage_contribution": false,
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "new_encoder_or_output_pool_acceptance": "NOT_RUN; these results bind only runtime778.",
+    "remaining_runtime778": [
+      "Capacity",
+      "Deployment recovery",
+      "Service/transport",
+      "Owner",
+      "Resource",
+      "Restricted GC transport"
+    ],
+    "product_gc": "NOT_ENABLED",
+    "multi_generation": "NOT_ENABLED",
+    "pitr": "NOT_IMPLEMENTED"
+  },
+  "prior_failures": "Original 052 fmt, release-attempt01 precondition, 4329 discovery and 3ca metadata observer failures retain their original source identities and statuses."
+}

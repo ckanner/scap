@@ -1,0 +1,1773 @@
+{
+  "schema": 1,
+  "status": "WORKSPACE_UNIT_AND_AUXILIARY_GATES_PASS_ACTUAL_GATES_PENDING",
+  "source_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "source_tree": "6abe36cbfa804e772eaa4b72e3a9cdec8d7707e5",
+  "source_files": 433,
+  "source_unchanged": true,
+  "source_manifest": {
+    "path": "/tmp/scap-runtime-unit-778a4d2-01/source-before.json",
+    "bytes": 114050,
+    "sha256": "9fb21e791bb3c353a350441c4009ea1e6ccd794f19073c025fb28ee526a0645d"
+  },
+  "scope": "Local canonical complete-workspace unit-only gates; new actual native/S3/HTTP acceptance is separate.",
+  "unit_gate": {
+    "completion": {
+      "path": "/tmp/scap-runtime-unit-778a4d2-01/completion.json",
+      "bytes": 31293,
+      "sha256": "f063f3e5a5d7f0b0068ebf78f26a382686758d0f043abfe8ad1d2a44e13f8a68"
+    },
+    "driver": {
+      "path": "/tmp/scap-composed-gate-driver-02.py",
+      "bytes": 9492,
+      "sha256": "d2399ef31b255a7d42f63b446511abe10545c02ab2ceca0f3e4dcceaf4b2bfcf"
+    },
+    "unit_counts": {
+      "stable": 538,
+      "coverage": 538
+    },
+    "units_by_crate": {
+      "scap-object": 259,
+      "scap-object-sqlite": 79,
+      "scap-object-store": 40,
+      "scap-service": 127,
+      "scapd": 0,
+      "scap-sql": 33
+    },
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-runtime-unit-778a4d2-01/source-before.json"
+        ],
+        "started_monotonic_ns": 59460541490808,
+        "pid": 8,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59461602814151,
+        "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb"
+      },
+      {
+        "name": "stable-rustc-version",
+        "argv": [
+          "rustc",
+          "+1.90.0",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 59461606979089,
+        "pid": 19,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59462117628804,
+        "log_sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      {
+        "name": "nightly-rustc-version",
+        "argv": [
+          "rustc",
+          "+nightly-2025-09-18",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 59462118315953,
+        "pid": 29,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59462438784912,
+        "log_sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      {
+        "name": "llvm-cov-version",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--version"
+        ],
+        "started_monotonic_ns": 59462439773981,
+        "pid": 39,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59462614674321,
+        "log_sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      },
+      {
+        "name": "format",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "started_monotonic_ns": 59462620878744,
+        "pid": 48,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59465485930970,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "started_monotonic_ns": 59465488045943,
+        "pid": 75,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59513963405882,
+        "log_sha256": "8b39c766a4ccfa3c7acf319030f8375ca987a9cf73464581b947d4bb24f1e5c5"
+      },
+      {
+        "name": "stable",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "test",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--frozen",
+          "--",
+          "--test-threads=1"
+        ],
+        "started_monotonic_ns": 59513966822384,
+        "pid": 171,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59725753213801,
+        "log_sha256": "6721ebd10e9e6f6d9ad2e1622619bc92a57caed19d89f663274747bd423238e1"
+      },
+      {
+        "name": "coverage-clean",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "clean",
+          "--workspace",
+          "--frozen"
+        ],
+        "started_monotonic_ns": 59725762208177,
+        "pid": 1432,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59726589211286,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "coverage",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--frozen",
+          "--branch",
+          "--no-cfg-coverage",
+          "--no-cfg-coverage-nightly",
+          "--json",
+          "--output-path",
+          "/tmp/scap-runtime-unit-778a4d2-01/unit.json",
+          "--",
+          "--test-threads=1"
+        ],
+        "started_monotonic_ns": 59726699156246,
+        "pid": 1480,
+        "exit_code": 0,
+        "finished_monotonic_ns": 60047663359465,
+        "log_sha256": "f61dff187f0b088f4b2f1b0ce3b525ae78ba7962afb1b16b22a847a26b3bbb3f"
+      },
+      {
+        "name": "exact-counters",
+        "argv": [
+          "python3",
+          "scripts/check_unit_coverage.py",
+          "/tmp/scap-runtime-unit-778a4d2-01/unit.json"
+        ],
+        "started_monotonic_ns": 60047669696149,
+        "pid": 2792,
+        "exit_code": 0,
+        "finished_monotonic_ns": 60049506160609,
+        "log_sha256": "6c94e0e2ccd0f3ff04aa997dd1fbeaa920d61442e5913a2eb9799299a72488ab"
+      },
+      {
+        "name": "source-verify",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "verify",
+          "/tmp/scap-runtime-unit-778a4d2-01/source-before.json"
+        ],
+        "started_monotonic_ns": 60049507207715,
+        "pid": 2793,
+        "exit_code": 0,
+        "finished_monotonic_ns": 60049926963242,
+        "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+      }
+    ],
+    "build_jobs": 1,
+    "incremental": false,
+    "profile_overrides": {},
+    "cached_native_compilation": true,
+    "cache_provenance": {
+      "ownership_receipt_sha256": "106fbc94e22a26f0468ebe82e670bce87afd71902494d6329d2845d66fcede74",
+      "previous_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+      "archive_path": "/tmp/scap-head5-unit-archive-f6c9073-01/head5-unit-f6c9073-01.tar.gz",
+      "archive_sha256": "a17119995e25d7fbc1ce5fe6eebbc8bb6585597ad470497ecbca30af848a4bd8",
+      "exclusive_reuse": true,
+      "copy_performed": false,
+      "old_artifacts_archived_exactly": true
+    },
+    "old_profiles_used": false,
+    "integration_profiles_used": false,
+    "zero_profiles_before_collection": true,
+    "residual_original_profiles_preserved_separately": [
+      {
+        "old_path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/head5-composed-next.profdata",
+        "preserved_path": "/tmp/scap-runtime-unit-778a4d2-01/prior-profile-quarantine/llvm-cov-target/head5-composed-next.profdata",
+        "bytes": 4328064,
+        "sha256": "75fb56747b29b8c9e143abec025e736ad52d98b4adb2373ecd31b96b4e7aa600"
+      }
+    ],
+    "raw_profiles": 93,
+    "merged_profiles": 1,
+    "production_rust_files": 56,
+    "exact_counters": {
+      "lines": {
+        "covered": 10180,
+        "count": 10180
+      },
+      "functions": {
+        "covered": 899,
+        "count": 899
+      },
+      "regions": {
+        "covered": 15570,
+        "count": 15570
+      },
+      "branches": {
+        "covered": 1882,
+        "count": 1882
+      }
+    },
+    "per_file_counters": {
+      "crates/scap-object-sqlite/src/config.rs": {
+        "lines": {
+          "covered": 129,
+          "count": 129
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 205,
+          "count": 205
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      "crates/scap-object-sqlite/src/file.rs": {
+        "lines": {
+          "covered": 131,
+          "count": 131
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 163,
+          "count": 163
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      "crates/scap-object-sqlite/src/gate.rs": {
+        "lines": {
+          "covered": 104,
+          "count": 104
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 123,
+          "count": 123
+        },
+        "branches": {
+          "covered": 20,
+          "count": 20
+        }
+      },
+      "crates/scap-object-sqlite/src/image.rs": {
+        "lines": {
+          "covered": 64,
+          "count": 64
+        },
+        "functions": {
+          "covered": 3,
+          "count": 3
+        },
+        "regions": {
+          "covered": 74,
+          "count": 74
+        },
+        "branches": {
+          "covered": 38,
+          "count": 38
+        }
+      },
+      "crates/scap-object-sqlite/src/lib.rs": {
+        "lines": {
+          "covered": 120,
+          "count": 120
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 171,
+          "count": 171
+        },
+        "branches": {
+          "covered": 12,
+          "count": 12
+        }
+      },
+      "crates/scap-object-sqlite/src/query.rs": {
+        "lines": {
+          "covered": 46,
+          "count": 46
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 75,
+          "count": 75
+        },
+        "branches": {
+          "covered": 6,
+          "count": 6
+        }
+      },
+      "crates/scap-object-sqlite/src/sql.rs": {
+        "lines": {
+          "covered": 392,
+          "count": 392
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 476,
+          "count": 476
+        },
+        "branches": {
+          "covered": 72,
+          "count": 72
+        }
+      },
+      "crates/scap-object-sqlite/src/storage.rs": {
+        "lines": {
+          "covered": 70,
+          "count": 70
+        },
+        "functions": {
+          "covered": 10,
+          "count": 10
+        },
+        "regions": {
+          "covered": 100,
+          "count": 100
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      "crates/scap-object-store/src/gc.rs": {
+        "lines": {
+          "covered": 235,
+          "count": 235
+        },
+        "functions": {
+          "covered": 20,
+          "count": 20
+        },
+        "regions": {
+          "covered": 340,
+          "count": 340
+        },
+        "branches": {
+          "covered": 92,
+          "count": 92
+        }
+      },
+      "crates/scap-object-store/src/gc_xml.rs": {
+        "lines": {
+          "covered": 118,
+          "count": 118
+        },
+        "functions": {
+          "covered": 9,
+          "count": 9
+        },
+        "regions": {
+          "covered": 188,
+          "count": 188
+        },
+        "branches": {
+          "covered": 44,
+          "count": 44
+        }
+      },
+      "crates/scap-object-store/src/lib.rs": {
+        "lines": {
+          "covered": 207,
+          "count": 207
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 289,
+          "count": 289
+        },
+        "branches": {
+          "covered": 68,
+          "count": 68
+        }
+      },
+      "crates/scap-object-store/src/listing.rs": {
+        "lines": {
+          "covered": 121,
+          "count": 121
+        },
+        "functions": {
+          "covered": 12,
+          "count": 12
+        },
+        "regions": {
+          "covered": 186,
+          "count": 186
+        },
+        "branches": {
+          "covered": 46,
+          "count": 46
+        }
+      },
+      "crates/scap-object-store/src/listing_guard.rs": {
+        "lines": {
+          "covered": 79,
+          "count": 79
+        },
+        "functions": {
+          "covered": 11,
+          "count": 11
+        },
+        "regions": {
+          "covered": 143,
+          "count": 143
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      "crates/scap-object-store/src/listing_xml.rs": {
+        "lines": {
+          "covered": 216,
+          "count": 216
+        },
+        "functions": {
+          "covered": 14,
+          "count": 14
+        },
+        "regions": {
+          "covered": 379,
+          "count": 379
+        },
+        "branches": {
+          "covered": 66,
+          "count": 66
+        }
+      },
+      "crates/scap-object/src/catalogue/control.rs": {
+        "lines": {
+          "covered": 399,
+          "count": 399
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 660,
+          "count": 660
+        },
+        "branches": {
+          "covered": 74,
+          "count": 74
+        }
+      },
+      "crates/scap-object/src/catalogue/create.rs": {
+        "lines": {
+          "covered": 111,
+          "count": 111
+        },
+        "functions": {
+          "covered": 4,
+          "count": 4
+        },
+        "regions": {
+          "covered": 221,
+          "count": 221
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      "crates/scap-object/src/catalogue/discovery.rs": {
+        "lines": {
+          "covered": 293,
+          "count": 293
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 397,
+          "count": 397
+        },
+        "branches": {
+          "covered": 76,
+          "count": 76
+        }
+      },
+      "crates/scap-object/src/catalogue/discovery_budget.rs": {
+        "lines": {
+          "covered": 96,
+          "count": 96
+        },
+        "functions": {
+          "covered": 10,
+          "count": 10
+        },
+        "regions": {
+          "covered": 125,
+          "count": 125
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      "crates/scap-object/src/catalogue/discovery_names.rs": {
+        "lines": {
+          "covered": 143,
+          "count": 143
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 167,
+          "count": 167
+        },
+        "branches": {
+          "covered": 30,
+          "count": 30
+        }
+      },
+      "crates/scap-object/src/catalogue/discovery_records.rs": {
+        "lines": {
+          "covered": 279,
+          "count": 279
+        },
+        "functions": {
+          "covered": 16,
+          "count": 16
+        },
+        "regions": {
+          "covered": 555,
+          "count": 555
+        },
+        "branches": {
+          "covered": 48,
+          "count": 48
+        }
+      },
+      "crates/scap-object/src/catalogue/inspect.rs": {
+        "lines": {
+          "covered": 247,
+          "count": 247
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 403,
+          "count": 403
+        },
+        "branches": {
+          "covered": 26,
+          "count": 26
+        }
+      },
+      "crates/scap-object/src/catalogue/mod.rs": {
+        "lines": {
+          "covered": 324,
+          "count": 324
+        },
+        "functions": {
+          "covered": 34,
+          "count": 34
+        },
+        "regions": {
+          "covered": 522,
+          "count": 522
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      "crates/scap-object/src/catalogue/records.rs": {
+        "lines": {
+          "covered": 230,
+          "count": 230
+        },
+        "functions": {
+          "covered": 23,
+          "count": 23
+        },
+        "regions": {
+          "covered": 350,
+          "count": 350
+        },
+        "branches": {
+          "covered": 54,
+          "count": 54
+        }
+      },
+      "crates/scap-object/src/catalogue/recovery_budget.rs": {
+        "lines": {
+          "covered": 161,
+          "count": 161
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 205,
+          "count": 205
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      "crates/scap-object/src/catalogue/recovery_job.rs": {
+        "lines": {
+          "covered": 288,
+          "count": 288
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 391,
+          "count": 391
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      "crates/scap-object/src/catalogue/types.rs": {
+        "lines": {
+          "covered": 8,
+          "count": 8
+        },
+        "functions": {
+          "covered": 1,
+          "count": 1
+        },
+        "regions": {
+          "covered": 8,
+          "count": 8
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      "crates/scap-object/src/closure.rs": {
+        "lines": {
+          "covered": 340,
+          "count": 340
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 465,
+          "count": 465
+        },
+        "branches": {
+          "covered": 48,
+          "count": 48
+        }
+      },
+      "crates/scap-object/src/data_tree.rs": {
+        "lines": {
+          "covered": 291,
+          "count": 291
+        },
+        "functions": {
+          "covered": 23,
+          "count": 23
+        },
+        "regions": {
+          "covered": 434,
+          "count": 434
+        },
+        "branches": {
+          "covered": 60,
+          "count": 60
+        }
+      },
+      "crates/scap-object/src/format.rs": {
+        "lines": {
+          "covered": 365,
+          "count": 365
+        },
+        "functions": {
+          "covered": 41,
+          "count": 41
+        },
+        "regions": {
+          "covered": 663,
+          "count": 663
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      "crates/scap-object/src/head_publication.rs": {
+        "lines": {
+          "covered": 35,
+          "count": 35
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 41,
+          "count": 41
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      "crates/scap-object/src/lib.rs": {
+        "lines": {
+          "covered": 874,
+          "count": 874
+        },
+        "functions": {
+          "covered": 75,
+          "count": 75
+        },
+        "regions": {
+          "covered": 1369,
+          "count": 1369
+        },
+        "branches": {
+          "covered": 112,
+          "count": 112
+        }
+      },
+      "crates/scap-object/src/object_context.rs": {
+        "lines": {
+          "covered": 71,
+          "count": 71
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 111,
+          "count": 111
+        },
+        "branches": {
+          "covered": 4,
+          "count": 4
+        }
+      },
+      "crates/scap-object/src/object_frame.rs": {
+        "lines": {
+          "covered": 60,
+          "count": 60
+        },
+        "functions": {
+          "covered": 5,
+          "count": 5
+        },
+        "regions": {
+          "covered": 101,
+          "count": 101
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      "crates/scap-object/src/options.rs": {
+        "lines": {
+          "covered": 98,
+          "count": 98
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 113,
+          "count": 113
+        },
+        "branches": {
+          "covered": 38,
+          "count": 38
+        }
+      },
+      "crates/scap-object/src/request_index.rs": {
+        "lines": {
+          "covered": 221,
+          "count": 221
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 298,
+          "count": 298
+        },
+        "branches": {
+          "covered": 28,
+          "count": 28
+        }
+      },
+      "crates/scap-service/src/auth.rs": {
+        "lines": {
+          "covered": 69,
+          "count": 69
+        },
+        "functions": {
+          "covered": 11,
+          "count": 11
+        },
+        "regions": {
+          "covered": 102,
+          "count": 102
+        },
+        "branches": {
+          "covered": 28,
+          "count": 28
+        }
+      },
+      "crates/scap-service/src/catalogue.rs": {
+        "lines": {
+          "covered": 50,
+          "count": 50
+        },
+        "functions": {
+          "covered": 3,
+          "count": 3
+        },
+        "regions": {
+          "covered": 86,
+          "count": 86
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      "crates/scap-service/src/catalogue_scheduler.rs": {
+        "lines": {
+          "covered": 222,
+          "count": 222
+        },
+        "functions": {
+          "covered": 32,
+          "count": 32
+        },
+        "regions": {
+          "covered": 309,
+          "count": 309
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      "crates/scap-service/src/catalogue_wire.rs": {
+        "lines": {
+          "covered": 200,
+          "count": 200
+        },
+        "functions": {
+          "covered": 26,
+          "count": 26
+        },
+        "regions": {
+          "covered": 368,
+          "count": 368
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      "crates/scap-service/src/config.rs": {
+        "lines": {
+          "covered": 159,
+          "count": 159
+        },
+        "functions": {
+          "covered": 18,
+          "count": 18
+        },
+        "regions": {
+          "covered": 208,
+          "count": 208
+        },
+        "branches": {
+          "covered": 50,
+          "count": 50
+        }
+      },
+      "crates/scap-service/src/daemon.rs": {
+        "lines": {
+          "covered": 158,
+          "count": 158
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 244,
+          "count": 244
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      "crates/scap-service/src/discovery.rs": {
+        "lines": {
+          "covered": 206,
+          "count": 206
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 273,
+          "count": 273
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      "crates/scap-service/src/discovery_cursor.rs": {
+        "lines": {
+          "covered": 165,
+          "count": 165
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 258,
+          "count": 258
+        },
+        "branches": {
+          "covered": 20,
+          "count": 20
+        }
+      },
+      "crates/scap-service/src/discovery_wire.rs": {
+        "lines": {
+          "covered": 94,
+          "count": 94
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 159,
+          "count": 159
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      "crates/scap-service/src/engine.rs": {
+        "lines": {
+          "covered": 277,
+          "count": 277
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 394,
+          "count": 394
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      "crates/scap-service/src/http.rs": {
+        "lines": {
+          "covered": 243,
+          "count": 243
+        },
+        "functions": {
+          "covered": 24,
+          "count": 24
+        },
+        "regions": {
+          "covered": 407,
+          "count": 407
+        },
+        "branches": {
+          "covered": 40,
+          "count": 40
+        }
+      },
+      "crates/scap-service/src/http/discovery.rs": {
+        "lines": {
+          "covered": 57,
+          "count": 57
+        },
+        "functions": {
+          "covered": 4,
+          "count": 4
+        },
+        "regions": {
+          "covered": 101,
+          "count": 101
+        },
+        "branches": {
+          "covered": 4,
+          "count": 4
+        }
+      },
+      "crates/scap-service/src/intake.rs": {
+        "lines": {
+          "covered": 137,
+          "count": 137
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 183,
+          "count": 183
+        },
+        "branches": {
+          "covered": 36,
+          "count": 36
+        }
+      },
+      "crates/scap-service/src/lib.rs": {
+        "lines": {
+          "covered": 36,
+          "count": 36
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 33,
+          "count": 33
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      "crates/scap-service/src/main.rs": {
+        "lines": {
+          "covered": 3,
+          "count": 3
+        },
+        "functions": {
+          "covered": 1,
+          "count": 1
+        },
+        "regions": {
+          "covered": 6,
+          "count": 6
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      "crates/scap-service/src/scheduler.rs": {
+        "lines": {
+          "covered": 471,
+          "count": 471
+        },
+        "functions": {
+          "covered": 49,
+          "count": 49
+        },
+        "regions": {
+          "covered": 762,
+          "count": 762
+        },
+        "branches": {
+          "covered": 104,
+          "count": 104
+        }
+      },
+      "crates/scap-service/src/transport.rs": {
+        "lines": {
+          "covered": 70,
+          "count": 70
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 96,
+          "count": 96
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      "crates/scap-service/src/wire.rs": {
+        "lines": {
+          "covered": 254,
+          "count": 254
+        },
+        "functions": {
+          "covered": 35,
+          "count": 35
+        },
+        "regions": {
+          "covered": 413,
+          "count": 413
+        },
+        "branches": {
+          "covered": 42,
+          "count": 42
+        }
+      },
+      "crates/scap-sql/src/lib.rs": {
+        "lines": {
+          "covered": 228,
+          "count": 228
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 432,
+          "count": 432
+        },
+        "branches": {
+          "covered": 50,
+          "count": 50
+        }
+      },
+      "crates/scap-sql/src/result_memory.rs": {
+        "lines": {
+          "covered": 73,
+          "count": 73
+        },
+        "functions": {
+          "covered": 9,
+          "count": 9
+        },
+        "regions": {
+          "covered": 133,
+          "count": 133
+        },
+        "branches": {
+          "covered": 4,
+          "count": 4
+        }
+      },
+      "crates/scap-sql/src/result_validation.rs": {
+        "lines": {
+          "covered": 42,
+          "count": 42
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 92,
+          "count": 92
+        },
+        "branches": {
+          "covered": 12,
+          "count": 12
+        }
+      }
+    },
+    "compiler_zero_branch_denominator": [
+      "crates/scap-object/src/catalogue/types.rs",
+      "crates/scap-object/src/object_frame.rs",
+      "crates/scap-service/src/catalogue.rs",
+      "crates/scap-service/src/lib.rs",
+      "crates/scap-service/src/main.rs"
+    ],
+    "zero_denominator_rule": "Each listed branch counter is the actual compiler 0/0; no percentage or coverage proof is invented for it.",
+    "original_llvm_map": {
+      "path": "/tmp/scap-runtime-unit-778a4d2-01/unit.json",
+      "bytes": 48015915,
+      "sha256": "12fa2768bc97bd3c2197e8d7b56f643a83451f6552af9a48ddb9b9aab0d30f99"
+    },
+    "printed_exact_counters": {
+      "path": "/tmp/scap-runtime-unit-778a4d2-01/exact-counters.log",
+      "bytes": 5804,
+      "sha256": "6c94e0e2ccd0f3ff04aa997dd1fbeaa920d61442e5913a2eb9799299a72488ab"
+    },
+    "toolchain_logs": [
+      {
+        "path": "/tmp/scap-runtime-unit-778a4d2-01/stable-rustc-version.log",
+        "bytes": 196,
+        "sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      {
+        "path": "/tmp/scap-runtime-unit-778a4d2-01/nightly-rustc-version.log",
+        "bytes": 212,
+        "sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      {
+        "path": "/tmp/scap-runtime-unit-778a4d2-01/llvm-cov-version.log",
+        "bytes": 22,
+        "sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      }
+    ]
+  },
+  "artifact_identity": {
+    "binding_receipt": {
+      "path": "/tmp/scap-runtime-unit-778a4d2-01/artifact-binding/receipt.json",
+      "bytes": 40588,
+      "sha256": "96157e155a58daf6ac3cf7951891bb5871b943e9fd361c7c899164ec5afabaf9"
+    },
+    "actual_running_unittest_executables": {
+      "stable": [
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scap_object-e0e2eb28fea1db3d",
+          "bytes": 95287360,
+          "sha256": "15f672b3c3beb11e9c575b281256fd298a89bb860ce78fc022b6b2e44baedfef"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scap_object_sqlite-6720b44b27183985",
+          "bytes": 19727016,
+          "sha256": "704a976afcb6e30b6af7e019678442a8ae0b661ab232d93bca5efe7cf6dbc4d7"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scap_object_store-5f5549d3b3a0da6e",
+          "bytes": 87040248,
+          "sha256": "fdd8ebdad33561125f8773c1b10232de4f226f7598c4ef2de182ca25323b6271"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scap_service-2f75ab6d61c669bd",
+          "bytes": 130360248,
+          "sha256": "d8b70c87e266505a2ab3a34e54d4024eeafdeec5d99f8cdc5f6fb6f45c943cdc"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scapd-5983eabdf44c4f5a",
+          "bytes": 7607760,
+          "sha256": "0811cb554e9dd34bfbe4b95414c24b65c501bbd74e0598bd54fd70b5c65fbc49"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/stable/debug/deps/scap_sql-3eb71c6550ab481d",
+          "bytes": 7694416,
+          "sha256": "9d198fb34b14d80400e5f2c9e5b5b4696c0c696f2ecd4998ff8d77bf31728e20"
+        }
+      ],
+      "coverage": [
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scap_object-99362015aed8d406",
+          "bytes": 115916208,
+          "sha256": "a071f6954e808ccf30562098e978aa4986f78a13bf678f03e6d72763d4df91f4"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scap_object_sqlite-a4708556add622a9",
+          "bytes": 22803392,
+          "sha256": "76344f34ab60a9f000f370c969cf6ac62a38c03b643e2fe7b1276b79e1ce17e6"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scap_object_store-180af98280e1a028",
+          "bytes": 106314720,
+          "sha256": "1fcda648ab66fdb00af0be94c90e89c1973e06e4d3b434aeadeeb0a4d79b45f9"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scap_service-587e19226534de52",
+          "bytes": 161055272,
+          "sha256": "9ae4258ba5f7e189889b16a93fc1f73383289a7ad0ee148dd4df00aa9ffd866d"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scapd-49e347cfa7ea8a5f",
+          "bytes": 8153600,
+          "sha256": "a93fb59c619e267255e1c78a9e3c538fe4f8bf459d433c39a2e27ce9e5f1c1ff"
+        },
+        {
+          "path": "/tmp/scap-head5-composed-unit-target-f6c9073-01/coverage/llvm-cov-target/debug/deps/scap_sql-40060190ea6223ee",
+          "bytes": 8143464,
+          "sha256": "9a3b43111172cc5c1e21cbfd58c16752283cad27edae4a98c20952e8d724f0c9"
+        }
+      ]
+    },
+    "native_binding": "Two actual unit native dependency chains are matched through Cargo fingerprints, original fixed build-output paths, and ffi rlib object bytes; cache reuse is not a fresh C recompilation.",
+    "archive_receipt": {
+      "path": "/tmp/scap-runtime-unit-archive-778a4d2-01/completion.json",
+      "bytes": 1838,
+      "sha256": "5a714503c253f4e5c098c6b5cec0474288721aa583b6204855739b14fd717a49"
+    },
+    "archive": {
+      "path": "/tmp/scap-runtime-unit-archive-778a4d2-01/runtime-unit-778a4d2-01.tar.gz",
+      "bytes": 276822138,
+      "sha256": "f9c6f91270095557d1e730290c2c32ca1dc5fce2699782e49bafda3bfe728f0e"
+    },
+    "inventory": {
+      "path": "/tmp/scap-runtime-unit-archive-778a4d2-01/inventory.json",
+      "bytes": 44864,
+      "sha256": "2c304c06a88cb414121724ca08fe33ebc01bc138ffe8d7259b23be777c75b95b"
+    },
+    "stored_members": 177,
+    "source_members_verified": 433,
+    "unit_executables": 12,
+    "native_archives": 2,
+    "ffi_rlibs": 2,
+    "all_members_byte_and_sha256_readback": true,
+    "original_artifacts_unchanged": true,
+    "original_f6_archive_modified": false,
+    "targets_retained_intact_and_frozen": true
+  },
+  "auxiliary_gate": {
+    "completion": {
+      "path": "/tmp/scap-runtime-aux-778a4d2-01/completion.json",
+      "bytes": 7678,
+      "sha256": "930387d133c837e34ccc4209ccd7843428fdb908a25fa4499f10849b911f2932"
+    },
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-runtime-aux-778a4d2-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 60129097261549,
+        "finished_ns": 60129673328738
+      },
+      {
+        "name": "tooling",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/python/bin/python",
+          "-m",
+          "coverage",
+          "run",
+          "--branch",
+          "--source=scripts",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests/tooling"
+        ],
+        "exit_code": 0,
+        "started_ns": 60129673929236,
+        "finished_ns": 60134080535220
+      },
+      {
+        "name": "tooling-counters",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/python/bin/python",
+          "-m",
+          "coverage",
+          "report",
+          "--show-missing",
+          "--fail-under=100"
+        ],
+        "exit_code": 0,
+        "started_ns": 60134081606755,
+        "finished_ns": 60134512514246
+      },
+      {
+        "name": "tooling-json",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/python/bin/python",
+          "-m",
+          "coverage",
+          "json",
+          "-o",
+          "/tmp/scap-runtime-aux-778a4d2-01/tooling.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 60134514837737,
+        "finished_ns": 60135093806474
+      },
+      {
+        "name": "node-codec",
+        "argv": [
+          "npm",
+          "--prefix",
+          "sdk/node-codec",
+          "test"
+        ],
+        "exit_code": 0,
+        "started_ns": 60135094488750,
+        "finished_ns": 60137774855371
+      },
+      {
+        "name": "node-sdk",
+        "argv": [
+          "npm",
+          "--prefix",
+          "sdk/node",
+          "test"
+        ],
+        "exit_code": 0,
+        "started_ns": 60137776729543,
+        "finished_ns": 60139994158919
+      },
+      {
+        "name": "node-http",
+        "argv": [
+          "npm",
+          "--prefix",
+          "sdk/node",
+          "run",
+          "test:http"
+        ],
+        "exit_code": 0,
+        "started_ns": 60139994539000,
+        "finished_ns": 60142589288271
+      },
+      {
+        "name": "client-transport-fixture",
+        "argv": [
+          "node",
+          "--test",
+          "experiments/object-service/test_client_ledger.mjs"
+        ],
+        "exit_code": 0,
+        "started_ns": 60142590085973,
+        "finished_ns": 60143626519176
+      },
+      {
+        "name": "repository",
+        "argv": [
+          "python3",
+          "scripts/check_repo.py"
+        ],
+        "exit_code": 0,
+        "started_ns": 60143627215689,
+        "finished_ns": 60144099282008
+      },
+      {
+        "name": "workflows",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/actionlint/actionlint",
+          ".github/workflows/developer-tools.yml",
+          ".github/workflows/docs.yml",
+          ".github/workflows/node-codec.yml",
+          ".github/workflows/node-sdk.yml",
+          ".github/workflows/quality.yml"
+        ],
+        "exit_code": 0,
+        "started_ns": 60144103935288,
+        "finished_ns": 60144139053496
+      },
+      {
+        "name": "object-authority-model-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-authority-model",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60144140535319,
+        "finished_ns": 60201580576188
+      },
+      {
+        "name": "object-network-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-network",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60201582498806,
+        "finished_ns": 60209210254196
+      },
+      {
+        "name": "object-service-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-service",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60209211668657,
+        "finished_ns": 60219085898822
+      },
+      {
+        "name": "object-discovery-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-discovery",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60219090772286,
+        "finished_ns": 60220330075397
+      },
+      {
+        "name": "object-gc-store-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-gc-store",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60220330533412,
+        "finished_ns": 60221366787999
+      },
+      {
+        "name": "resource-limits-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/resource-limits",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60221369754129,
+        "finished_ns": 60221543098719
+      },
+      {
+        "name": "bounded-transport-fixtures",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/bounded-transport",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60221543541138,
+        "finished_ns": 60221768036291
+      },
+      {
+        "name": "model",
+        "argv": [
+          "python3",
+          "experiments/object-authority-model/explore.py",
+          "--output",
+          "/tmp/scap-runtime-aux-778a4d2-01/model"
+        ],
+        "exit_code": 0,
+        "started_ns": 60221769023934,
+        "finished_ns": 60259718242600
+      },
+      {
+        "name": "catalogue-model",
+        "argv": [
+          "python3",
+          "experiments/object-authority-model/named_catalogue_model.py",
+          "--output",
+          "/tmp/scap-runtime-aux-778a4d2-01/catalogue-model"
+        ],
+        "exit_code": 0,
+        "started_ns": 60259720524919,
+        "finished_ns": 60303174177682
+      },
+      {
+        "name": "environment-shell",
+        "argv": [
+          "bash",
+          "-n",
+          "dev/environment/validate.sh"
+        ],
+        "exit_code": 0,
+        "started_ns": 60303175504594,
+        "finished_ns": 60303187488622
+      },
+      {
+        "name": "environment",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/python/bin/python",
+          "-m",
+          "coverage",
+          "run",
+          "--branch",
+          "--source=dev/environment",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "dev/environment",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "started_ns": 60303187870910,
+        "finished_ns": 60307154126049
+      },
+      {
+        "name": "environment-json",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/python/bin/python",
+          "-m",
+          "coverage",
+          "json",
+          "--include=*/bootstrap.py",
+          "-o",
+          "/tmp/scap-runtime-aux-778a4d2-01/environment.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 60307156503988,
+        "finished_ns": 60307474241905
+      },
+      {
+        "name": "source-verify",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "verify",
+          "/tmp/scap-runtime-aux-778a4d2-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 60307475478544,
+        "finished_ns": 60307744337943
+      }
+    ],
+    "command_count": 23,
+    "scope": "SDK V8, codec, fixture Node/HTTP tests, tooling coverage, repository/workflow checks, existing Python fixture groups/models, environment/source verification; these do not replace actual HTTP/S3 runs."
+  },
+  "independent_raw_review": {
+    "receipt": {
+      "path": "/tmp/scap-runtime-root-unit-review01/receipt.json",
+      "bytes": 20679,
+      "sha256": "def736523f8f29eb92ce7ac2c53b88c45b147dd296a6cb1b817599cbc0b3d553"
+    },
+    "scope": "independent source and original LLVM map/counter/log review; not a new test run",
+    "method": "Independent raw LLVM summary mapping, git-derived production-file denominator, original stable/nightly logs, frozen source bytes and profile-cleanliness review; did not import the canonical coverage checker."
+  },
+  "pending": {
+    "new_release_actual_native_s3_http": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "guarded_status_new_slice": "NOT_RUN; not part of this source commit"
+  },
+  "unchanged_limits": [
+    "Storage active/allocated remains 1/1.",
+    "Product GC DELETE, copy/promote, retained holds, SnapshotExpired and PITR remain disabled.",
+    "No global output budget or automatic owner controller is implemented by these gates.",
+    "Historical f6 passes and 4329 discovery failure retain their original source identities."
+  ]
+}

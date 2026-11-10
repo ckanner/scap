@@ -1,0 +1,244 @@
+{
+  "schema": 1,
+  "status": "CORRECTED_UNIT_PASS_ACTUAL_NOT_RUN",
+  "scope": "Fixture observer audit only; product, SDK, observer, relay, producer, deadlines and original evidence unchanged",
+  "base_fixture_commit": "3ca5acd948303c86f902c1dd03e6a3c9da78b768",
+  "runtime_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "original_actual": {
+    "status": "FAILED_PRESERVED",
+    "source_commit": "3ca5acd948303c86f902c1dd03e6a3c9da78b768",
+    "runtime_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+    "completion": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/completion.json",
+      "bytes": 2392,
+      "sha256": "851c7811b238596537f1d70b4dc188eca4def63c60a19abfd21e4f8fba16abeb"
+    },
+    "log": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/metadata.log",
+      "bytes": 3708,
+      "sha256": "ffca9de1196e1c15eaf5a0bd4bfbccd94a30e415fe45671d497ea853834de088"
+    },
+    "summary": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/run/summary.json",
+      "bytes": 331,
+      "sha256": "e26350624b99d8449507c60e21800b6b719f302aac2893acab5dce2e1cbbe7d9"
+    },
+    "source_manifest": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/source-before.json",
+      "bytes": 117807,
+      "sha256": "03e83ceba29c1e2faab2d576730fd9b0dd37e7cef21be98b2bbcc785772244a8"
+    },
+    "fixture_source_archive": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/run/metadata-source.tar",
+      "bytes": 7608320,
+      "sha256": "08dfea690ebd40661b04293b4fca66a80fe5ea87a8198917d517ab42968d004a"
+    },
+    "fixture_source_manifest": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/run/metadata-source-before.json",
+      "bytes": 117807,
+      "sha256": "03e83ceba29c1e2faab2d576730fd9b0dd37e7cef21be98b2bbcc785772244a8"
+    },
+    "daemon_build_receipt": {
+      "path": "/tmp/scap-metadata-3ca5acd-01/run/daemon-build-evidence/build-receipt.json",
+      "bytes": 28444,
+      "sha256": "b8cb9455c6844daa47813e09a65229185a561adbac411fd8d3413837d6f571c9"
+    },
+    "failure": "ValueError: transport sidecar incomplete/failed/unplanned, at observer_proof before S3/history/process semantic audit",
+    "execution_context": {
+      "cpu_max": "800000 100000",
+      "discovery_source_after_preexists": true,
+      "other_work": "Read-only discovery audit/control computation may remain active; its 26 Node, 3 daemon and 4 backend children have already been reaped.",
+      "scope": "Small correctness contract only, not an idle-host latency/RSS/throughput qualification. No Cargo/native/model BFS/bulk archive work runs concurrently."
+    },
+    "runner_contract_finished": true,
+    "runner_cleanup_errors": [],
+    "runner_private_deleted": true,
+    "source_unchanged": true,
+    "external_oracle": "NOT_RUN after the first runner audit failure",
+    "negative_and_copy_controls": "NOT_RUN after the first runner audit failure",
+    "raw_observations": {
+      "sidecar": {
+        "path": "/tmp/scap-metadata-3ca5acd-01/run/http-client-transport.jsonl",
+        "bytes": 89953,
+        "sha256": "38c834d024090a0a43bdea3ab77c5429ef6e81666d605a8f9ababe3c7865ea7b"
+      },
+      "rows": 494,
+      "events": {
+        "observer_started": 1,
+        "fetch_started": 41,
+        "request_created": 41,
+        "socket_observed": 41,
+        "request_send_headers": 41,
+        "request_response_headers": 41,
+        "request_body_complete": 41,
+        "socket_error": 41,
+        "fetch_response_headers": 41,
+        "fetch_body_started": 41,
+        "fetch_body_complete": 41,
+        "call_observation_finished": 41,
+        "socket_close": 41,
+        "observer_stopped": 1
+      },
+      "socket_error_fields": {
+        "count": 41,
+        "error_name": "UNKNOWN",
+        "error_code": "UND_ERR_INFO",
+        "cause_code": "UNKNOWN"
+      },
+      "complete_call_terminals": 41,
+      "observer_end": {
+        "event": "observer_stopped",
+        "observation_status": "RECORDED",
+        "remaining_connections": 0
+      },
+      "scope": "Raw event inventory only; does not replace the unexecuted full semantic audit or reclassify this run"
+    }
+  },
+  "analysis": {
+    "pinned_source": {
+      "path": "/tmp/scap-metadata-observer-failure-analysis01/node22.16.0-undici.js",
+      "bytes": 601703,
+      "sha256": "b6ba65bd17b764b8eaae71a81e358f82b3efcd5954f2bd0da6f6b6206f0250e7"
+    },
+    "source_receipt": {
+      "path": "/tmp/scap-metadata-observer-failure-analysis01/source.json",
+      "bytes": 373,
+      "sha256": "50f204a53d03311f9e77d88966f053903f8a7d8806c59fe1e3f44ffc8038f0fb"
+    },
+    "source_kind": "Node v22.16.0 exact embedded internal/deps/undici/undici module extracted from installed pinned binary",
+    "finding": "onMessageComplete checks response length and calls onComplete/trailers before non-keepalive informational disposal. Frozen safe observer records the code, not the arbitrary literal message. Observations are compatible with post-completion informational disposal; reset was not an observed literal reason.",
+    "reclassification": false
+  },
+  "correction": {
+    "freeze01": {
+      "path": "/tmp/scap-metadata-observer-fix-static01/manifest.json",
+      "bytes": 3493,
+      "sha256": "fc834a3f20f57bcda26b415f0d6832907e3d83d7db9c05c9d8c9baa41bcfa7c5"
+    },
+    "freeze02": {
+      "path": "/tmp/scap-metadata-observer-fix-static02/manifest.json",
+      "bytes": 3862,
+      "sha256": "85bd62989fac87be0ac7d52e0334254ed15ee0325241abe8f7e7f26f524f895b"
+    },
+    "seam_only": {
+      "path": "/tmp/scap-metadata-observer-fix-static02/changes-from-static01.patch",
+      "bytes": 6032,
+      "sha256": "6293712ceffb50cb1335831379eeb174cb45d2b9c0aa222f6a88ce8448f5380d"
+    },
+    "full_patch_sha256": "f068998e08fed8b0dcc99a99d608e499894ccf2123f39134dadc5a01dd8c701e",
+    "source_files": [
+      {
+        "bytes": 100917,
+        "path": "experiments/object-metadata/oracle.py",
+        "sha256": "efa8c9e93ad43fcd3a1e61a4f7b00879f11dfebf94daa0141c0866953e1d9afd"
+      },
+      {
+        "bytes": 33256,
+        "path": "experiments/object-metadata/test_oracle.py",
+        "sha256": "5e7e7b8ced4268a6bfef6b6f14284b33528179a354df7f915264910d7ffa674d"
+      },
+      {
+        "bytes": 18341,
+        "path": "experiments/object-metadata/README.md",
+        "sha256": "6fde99e6baeecdda43f4c6018ccf8b733c350655e8a2fe76fdabf80ee142d66c"
+      }
+    ],
+    "unchanged_inputs": [
+      {
+        "bytes": 3418,
+        "equals_base": true,
+        "path": "experiments/object-service/client_ledger.mjs",
+        "sha256": "98b8cb5616abb0718816aeb7ca936f3ad95983a46d6bc79018b36952c0995224"
+      },
+      {
+        "bytes": 9482,
+        "equals_base": true,
+        "path": "experiments/object-service/client_transport.mjs",
+        "sha256": "0c3e9c4ecee09bef2223462edf0388bb2e09bfbe2d5aae7f099f91080d296813"
+      },
+      {
+        "bytes": 17576,
+        "equals_base": true,
+        "path": "experiments/object-metadata/proxy.py",
+        "sha256": "481c02dbb5f0b40482dc2ff000d0244ff2ef4bc0ad1edd57d25e8811e983ae1a"
+      },
+      {
+        "bytes": 6701,
+        "equals_base": true,
+        "path": "experiments/object-metadata/probe.mjs",
+        "sha256": "001a7f55db95f48be894ce998f1debc2e41eb4afaffef67d8d4baebd1c3d38d4"
+      },
+      {
+        "bytes": 32840,
+        "equals_base": true,
+        "path": "experiments/object-metadata/run.py",
+        "sha256": "9550a8e761f545ab5b58001a2cd1748f6a84ff93a88092683a4c46ac54ec03e6"
+      },
+      {
+        "bytes": 5436,
+        "equals_base": true,
+        "path": "experiments/object-metadata/fixture_spec.py",
+        "sha256": "41f034393f563ae7cdafebbd5bd303dc544ea6d0edb25f2bff22d738f55d10af"
+      },
+      {
+        "bytes": 11387,
+        "equals_base": true,
+        "path": "experiments/object-metadata/controls.py",
+        "sha256": "a1eb6d430abaac68d218565aeb2ffbd4f2150d8b2bcb5f0ad7a17b3c5dd5bae4"
+      },
+      {
+        "bytes": 13179,
+        "equals_base": true,
+        "path": "experiments/object-metadata/test_cleanup.py",
+        "sha256": "6b6d94e77f876f2e65b3b975f15108458a9fd3f06e3389c0a57843d94dc072d5"
+      }
+    ],
+    "rule": "One original call/request per connection; full original Fetch/relay/ledger and RECORDED required. Exact safe INFO fields only after that request body completion; every visible end/error/close follows the original send. Each lifecycle event unique, observed close last and has error iff INFO observed; remaining exactly matches visible unclosed identities. Missing close is a partial-lifetime observation, not proof of physical close.",
+    "static_finding": "freeze01 accepted optional end before original send. Root and independent peer found this before execution; freeze02 adds the causal check and one paired positive/negative unit. freeze01 is static, not an executed failed run.",
+    "independent_review": {
+      "path": "/tmp/scap-metadata-observer-peer-review01/receipt.json",
+      "bytes": 11451,
+      "sha256": "ac4db82b1eb8d8bcae7035d9892093630e9d4526e14881258fc50d64a07b11c4"
+    }
+  },
+  "new_units": {
+    "receipt": {
+      "path": "/tmp/scap-metadata-fixture-units03/receipt.json",
+      "bytes": 3105,
+      "sha256": "20cb0821f09898c3ab7da510aa62a866f162d70be9cea1f423dd402ac54146d0"
+    },
+    "log": {
+      "path": "/tmp/scap-metadata-fixture-units03/unit.log",
+      "bytes": 7208,
+      "sha256": "749036f4ee95e8d50468c7238e4ccbe1343347bac224bd9a5dbf81daffba16b7"
+    },
+    "count": 51,
+    "oracle_count": 41,
+    "cleanup_count": 10,
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "experiments/object-metadata",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "scope": "41 independent synthetic oracle tests plus 10 cleanup tests owning harmless Python children; no daemon, SDK HTTP, S3, native or model BFS",
+    "publication_delta": "Code bytes are identical to tested freeze02. README status and the architecture entry are updated after the run."
+  },
+  "remaining": {
+    "new_source_actual": "NOT_RUN",
+    "new_source_independent_oracle": "NOT_RUN",
+    "nine_projection_negative_controls": "NOT_RUN",
+    "full_copy_positive_control": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "remote_ci": "NOT_RUN"
+  }
+}
