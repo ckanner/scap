@@ -1,5 +1,5 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
@@ -21,6 +21,22 @@ async function contract() {
   // @ts-expect-error A controller cannot change its fixed policy after construction.
   policy.workers[0].rank = 3;
   await controller.close(); void noNativeClaim;
+  const transport = new ControllerHttp({ maxRequests: 8 });
+  const fleet = new OwnerControllerFleet({ entries: [{ policy, token: 'synthetic-typecheck-only-credential' }], transport });
+  const activeTicks: number = fleet.poll().active;
+  const activeRequests: number = transport.snapshot().active;
+  const fleetReports = fleet.takeReports();
+  const notCertified: 'NOT_CERTIFIED' | undefined = fleetReports[0]?.nativeSession;
+  // @ts-expect-error A fleet never accepts SQL or a dynamic untrusted routing callback.
+  new OwnerControllerFleet({ entries: [], route: () => 'https://example.invalid/v1' });
+  // @ts-expect-error Resource ownership requires a joinable close, not fetch alone.
+  new OwnerControllerFleet({ entries: [], transport: { fetch } });
+  await fleet.close(); void activeTicks; void activeRequests; void notCertified;
+  const entries = readControllerEntries('/example/controller.json', { SCAP_OWNER_CONTROLLER_TOKEN: undefined });
+  const configured = new OwnerControllerFleet({ entries });
+  await runControllerFleet(configured, { signal: AbortSignal.abort(), outputFd: 1 });
+  // @ts-expect-error A process loop always requires an explicit shutdown signal.
+  runControllerFleet(configured, {});
   const client = new CatalogueClient({ endpoint: 'https://example.invalid/v1/catalogue',
     token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
   const create = client.prepareIntent({ operation: 'prepare_create', name: 'notes', create_operation: '11',

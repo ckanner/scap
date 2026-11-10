@@ -1,0 +1,257 @@
+{
+  "aws": "NOT_RUN",
+  "base_commit": "c5cf07abd554eb80dc938f8d2d762ab511f7a2ec",
+  "finite_model": "IN_PROGRESS_NOT_FORMALLY_RUN",
+  "frozen_product_candidate": "NOT_YET_FROZEN",
+  "logs": [
+    {
+      "bytes": 40724,
+      "name": "controller-sdk-dev-05.stdout",
+      "sha256": "61977bb4f3369237c9dad0df10a47ab44bd749a4076eb50f1bbacd6f299b56e3"
+    },
+    {
+      "bytes": 164,
+      "name": "controller-sdk-dev-05.stderr",
+      "sha256": "be0add606c52f8122dc039525d21822e803b42df1b9ddd5831e2e8df232f3b5c"
+    },
+    {
+      "bytes": 3165,
+      "name": "controller-loopback-dev-02.stdout",
+      "sha256": "0f6b9999d2a751fd104a3e91049b9da1d1429311b65e13fa76b88001baf9385d"
+    },
+    {
+      "bytes": 0,
+      "name": "controller-loopback-dev-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "name": "controller-types-dev-02.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "name": "controller-types-dev-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "name": "controller-actionlint-dev-02.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "name": "controller-actionlint-dev-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "notes": [
+    "Prior failed development coverage runs and the actionlint path typo remain separate records. No unit profiles are supplied by loopback runs.",
+    "Legal server UNKNOWN envelopes are decoded as UnknownError by the SDK; prepare/resume UNKNOWN remains recorded after later verified observations. No speculative production error-class change was needed.",
+    "JSONL reports are bounded latest observations, not a complete durable audit log. DNS callbacks and blocking kernel output prevent a fixed shutdown RTO promise."
+  ],
+  "production_slo": "NOT_RUN",
+  "production_source": [
+    {
+      "bytes": 3080,
+      "path": "sdk/node/src/catalogue.js",
+      "sha256": "2c44dd99b0bd7d2eef31ccf410810c615c850ec9fe1180ccbf1751cab1bafa22"
+    },
+    {
+      "bytes": 9372,
+      "path": "sdk/node/src/catalogue_wire.js",
+      "sha256": "a040562d2c93609fa1ea5cbcdab040f0059f6425b961c32c18a16082727676a0"
+    },
+    {
+      "bytes": 13389,
+      "path": "sdk/node/src/client.js",
+      "sha256": "8bb6e3f4d4af5200df87958e3d97dba52a410d351d0fe5c60c72e29151fa89fc"
+    },
+    {
+      "bytes": 15954,
+      "path": "sdk/node/src/controller.js",
+      "sha256": "881e423ed123cba73ca4a07e3dc22ea50ec02f49f7711b8e3859e4348057feb8"
+    },
+    {
+      "bytes": 5184,
+      "path": "sdk/node/src/controller_fleet.js",
+      "sha256": "cbf78f8b09f91c0f413c4de25cc1ec03f5ffee12bbaa3faf30081fd442506c0d"
+    },
+    {
+      "bytes": 10992,
+      "path": "sdk/node/src/controller_http.js",
+      "sha256": "e47e82f41828c8c53c3a6340b510d42f4dc1c71085cc116496e885f45c9a1312"
+    },
+    {
+      "bytes": 6016,
+      "path": "sdk/node/src/controller_policy.js",
+      "sha256": "65a30380c5b3c91bd973d0214c7356d2ea78b58a2ed952f8151c6a3d08163150"
+    },
+    {
+      "bytes": 4910,
+      "path": "sdk/node/src/controller_process.js",
+      "sha256": "edccd2ce58574937741616adab5be6555defba9bc651064bde137dedcf382f9a"
+    },
+    {
+      "bytes": 1929,
+      "path": "sdk/node/src/discovery.js",
+      "sha256": "9af11ce80ecf3b4477660887a7d2e8156ebbd15d4d2580c85d3ebd99ab80a018"
+    },
+    {
+      "bytes": 5902,
+      "path": "sdk/node/src/discovery_wire.js",
+      "sha256": "9b3cddbd8678a5646e8ea34e5486e808438674fcd324a163546917f0f40d214a"
+    },
+    {
+      "bytes": 2286,
+      "path": "sdk/node/src/errors.js",
+      "sha256": "ab3683d69ac853c9f10e3c7f0fea2d1e3a9393b4da5023dedbd4ca0ce99bf3e5"
+    },
+    {
+      "bytes": 2425,
+      "path": "sdk/node/src/operation_budget.js",
+      "sha256": "230ff8e8cf9e7144e0139c92bfe77e3376d3d13d65065216d0d5b4236476a9a6"
+    },
+    {
+      "bytes": 4195,
+      "path": "sdk/node/src/owner.js",
+      "sha256": "c23c135687f787bb0a8c284386a26c98938fcce00728b15043326d67ca14e110"
+    },
+    {
+      "bytes": 5679,
+      "path": "sdk/node/src/owner_intent.js",
+      "sha256": "3d20960e3c69cf1acc6a3989d0e5eb06445024789c082624081ed7b393353961"
+    },
+    {
+      "bytes": 3176,
+      "path": "sdk/node/src/owner_plan.js",
+      "sha256": "a3ba1af9c8974ee3b184b3172fee59172afb0f8f2abbbef2cad8411278b63be0"
+    },
+    {
+      "bytes": 8071,
+      "path": "sdk/node/src/owner_plan_wire.js",
+      "sha256": "3d8b0d67f7284e6867c0489c42a1bf4f5bf2122bdff29a7d2c10d264f60725b4"
+    },
+    {
+      "bytes": 3604,
+      "path": "sdk/node/src/route_registry.js",
+      "sha256": "642191c023bd2c8bdc862467194df19ec70fe73e48be1c2b10a104f33911c426"
+    },
+    {
+      "bytes": 2344,
+      "path": "sdk/node/src/routed.js",
+      "sha256": "b7e6f428391e449c7b533ef587292c2af3ba8b4b1462807b9f05354b12adcf2f"
+    },
+    {
+      "bytes": 8260,
+      "path": "sdk/node/src/transport.js",
+      "sha256": "574dfd5821b7a10364de21e1e48247ebd208486eb5d633a4d515d3117de1daa2"
+    },
+    {
+      "bytes": 26127,
+      "path": "sdk/node/src/wire.js",
+      "sha256": "90fbd62e4ca79136559fa359532c2e007fc7e8653feaf18ca6c7cfa80e7e9d49"
+    }
+  ],
+  "real_controller_sqlite_s3": "NOT_RUN",
+  "real_loopback": {
+    "cli_process_tests": 3,
+    "owned_http_tests": 8,
+    "source": "Separate real Node HTTP/HTTPS/DNS, child-process, socket and filesystem checks; not SQLite/S3/AWS acceptance",
+    "total": 11
+  },
+  "recorded_utc": "2026-11-10T20:46:22.203235+00:00",
+  "schema": 1,
+  "status": "DEVELOPMENT_CHECKPOINT_PASSED_NOT_FORMAL_PRODUCT_ACCEPTANCE",
+  "strict_types": "PASS_TypeScript_5.9.3",
+  "units": {
+    "failures": 0,
+    "integration_profiles_used": false,
+    "per_module_lines_functions_branches": "exact_100_percent",
+    "production_modules": 20,
+    "raw_v8_all_functions_and_ranges_positive": {
+      "catalogue.js": {
+        "functions": 21,
+        "ranges": 21
+      },
+      "catalogue_wire.js": {
+        "functions": 19,
+        "ranges": 76
+      },
+      "client.js": {
+        "functions": 60,
+        "ranges": 110
+      },
+      "controller.js": {
+        "functions": 31,
+        "ranges": 186
+      },
+      "controller_fleet.js": {
+        "functions": 14,
+        "ranges": 46
+      },
+      "controller_http.js": {
+        "functions": 30,
+        "ranges": 146
+      },
+      "controller_policy.js": {
+        "functions": 17,
+        "ranges": 48
+      },
+      "controller_process.js": {
+        "functions": 7,
+        "ranges": 39
+      },
+      "discovery.js": {
+        "functions": 12,
+        "ranges": 18
+      },
+      "discovery_wire.js": {
+        "functions": 12,
+        "ranges": 42
+      },
+      "errors.js": {
+        "functions": 8,
+        "ranges": 21
+      },
+      "operation_budget.js": {
+        "functions": 13,
+        "ranges": 28
+      },
+      "owner.js": {
+        "functions": 13,
+        "ranges": 38
+      },
+      "owner_intent.js": {
+        "functions": 12,
+        "ranges": 67
+      },
+      "owner_plan.js": {
+        "functions": 15,
+        "ranges": 48
+      },
+      "owner_plan_wire.js": {
+        "functions": 16,
+        "ranges": 55
+      },
+      "route_registry.js": {
+        "functions": 13,
+        "ranges": 28
+      },
+      "routed.js": {
+        "functions": 14,
+        "ranges": 31
+      },
+      "transport.js": {
+        "functions": 14,
+        "ranges": 80
+      },
+      "wire.js": {
+        "functions": 53,
+        "ranges": 200
+      }
+    },
+    "tests": 148
+  },
+  "workflow_actionlint": "PASS"
+}

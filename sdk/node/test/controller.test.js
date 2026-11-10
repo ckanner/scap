@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { OwnerController } from '../src/controller.js';
-import { ClientError } from '../src/errors.js';
+import { Client } from '../src/client.js';
+import { OwnerPlanClient } from '../src/owner_plan.js';
+import { ClientError, UnknownError } from '../src/errors.js';
 import { policy, input } from './controller_policy.test.js';
 import { A, B, OPTIONS, head, script, success, failure } from './owner_fixture.js';
 import { observed, prepared } from './owner_plan_fixture.js';
@@ -249,4 +251,139 @@ test('healthy active original owner never inspects or cancels an old unaccepted 
   const p = policy(), h = head(), io = script([h, h]), c = controller(p, io);
   assert.equal((await c.tick()).state, 'healthy');
   assert.deepEqual(io.calls.map(({ body }) => body.operation), ['status', 'status']); await c.close();
+});
+
+test('a concurrent accepted blocker, fenced claim and changed first winner never manufacture activation', async (t) => {
+  const now = clock(t), p = policy(), i = input(p), o = original(p);
+  const blocked = script([o.status, o.status, missing,
+    { state: 'pending', reference: { creator: '8', operation: '22', descriptor_hash: 'c'.repeat(64) } }]);
+  const a = controller(p, blocked);
+  assert.equal((await a.tick()).reason, 'ACCEPTED_PLAN_CHANGED'); await a.close();
+  for (const stage of ['inspect', 'claim']) {
+    now(0);
+    const fenced = observed('fenced', i);
+    const replies = [o.status, o.status, missing, { state: 'prepared', prepared: prepared(i) },
+      o.status, o.status, o];
+    if (stage === 'claim') replies.push(o);
+    replies.push(fenced);
+    const io = script(replies), c = controller(p, io);
+    assert.equal((await c.tick()).state, 'prepared'); now(5000);
+    const report = await c.tick();
+    assert.equal(report.reason, stage === 'inspect' ? 'FIRST_WINNER_CHANGED' : 'VERIFIED_OWNER_OBSERVATION');
+    assert.equal(report.state, stage === 'inspect' ? 'waiting' : 'fenced');
+    assert.equal(report.acceptedPhase, null);
+    assert.equal(io.calls.filter(({ body }) => body.operation === 'owner_resume').length, 0); await c.close();
+  }
+});
+
+test('read-only first-winner lookup rejects fenced bases, descending ranks and authorization failures', async (t) => {
+  const now = clock(t), p = policy(), i = input(p), fenced = observed('fenced', i);
+  const direct = controller(p, script([fenced.status, fenced.status, fenced]));
+  assert.equal((await direct.tick()).reason, 'FIRST_WINNER_BASE_OR_RANK_MISMATCH'); await direct.close();
+  const denied = controller(p, script([fenced.status, fenced.status, () => failure('DENIED', 403)]));
+  assert.equal((await denied.tick()).reason, 'DENIED'); await denied.close();
+  const descending = observed('prepared', input(p, { mode: 'takeover', target_worker: '100' }));
+  descending.status.owner_instance = '200';
+  const fail = [descending.status, lost, descending.status];
+  const io = script([...fail, ...fail, ...fail, descending]), c = controller(p, io);
+  now(0); await c.tick(); now(5000); await c.tick(); now(10000);
+  assert.equal((await c.tick()).reason, 'FIRST_WINNER_BASE_OR_RANK_MISMATCH');
+  assert.equal(io.calls.some(({ body }) => ['owner_claim', 'owner_abort'].includes(body.operation)), false); await c.close();
+});
+
+test('an unavailable fixed target needs its own complete window before cancelling the original descriptor', async (t) => {
+  const now = clock(t), p = policy(), i = input(p, { mode: 'takeover', target_worker: '200' });
+  const o = observed('prepared', i), ownerFailure = [o.status, lost, o.status];
+  const fixedFailure = [...ownerFailure, o, lost, o.status];
+  const io = script([...ownerFailure, ...ownerFailure, ...fixedFailure, ...fixedFailure,
+    ...fixedFailure, { state: 'prepared', prepared: prepared(i) },
+    ...fixedFailure, o, observed('cancelling', i)]), c = controller(p, io);
+  const expected = ['OWNER_SUSPICION_INCOMPLETE', 'OWNER_SUSPICION_INCOMPLETE',
+    'FIXED_TARGET_SUSPICION_INCOMPLETE', 'FIXED_TARGET_SUSPICION_INCOMPLETE',
+    'ORIGINAL_INPUT_VERIFIED', 'VERIFIED_OWNER_OBSERVATION'];
+  for (let index = 0; index < expected.length; index++) {
+    now(index * 5000); const report = await c.tick(); assert.equal(report.reason, expected[index]);
+    assert.ok(report.httpCalls <= 8); assert.ok(report.mutations <= 1);
+  }
+  assert.deepEqual(io.calls.filter(({ body }) => !['status', 'owner_inspect'].includes(body.operation))
+    .map(({ body }) => body.operation), ['owner_prepare', 'owner_abort']);
+  assert.deepEqual(io.calls.at(-1).body.plan, prepared(i).reference); await c.close();
+  now(0);
+  const disabledPolicy = policy({ modes: { takeover: true, activate: true, cancel: false } });
+  const inactive = observed('prepared', input(disabledPolicy, { mode: 'takeover', target_worker: '200' }));
+  inactive.status.active = false;
+  const disabled = controller(disabledPolicy, script([inactive.status, inactive.status, inactive]));
+  assert.equal((await disabled.tick()).reason, 'AUTOMATIC_CANCEL_DISABLED'); await disabled.close();
+});
+
+test('an unavailable higher candidate remains a probe observation and creates no descriptor', async (t) => {
+  const now = clock(t), p = policy(), h = head(), fail = [h, lost, h];
+  const io = script([...fail, ...fail, ...fail, missing, lost, h]), c = controller(p, io);
+  await c.tick(); now(5000); await c.tick(); now(10000);
+  const report = await c.tick(); assert.equal(report.reason, 'CANDIDATE_UNAVAILABLE'); assert.equal(report.mutations, 0);
+  assert.equal(io.calls.some(({ body }) => body.operation === 'owner_prepare'), false); await c.close();
+});
+
+test('controller dispatch caps remain a boundary even if an SDK composition attempts excess calls or SQL', async (t) => {
+  const p = policy(), realStatus = Client.prototype.status;
+  let io = script(Array(8).fill(head())), c = controller(p, io);
+  const repeated = t.mock.method(Client.prototype, 'status', async function (options) {
+    let result; for (let index = 0; index < 9; index++) result = await realStatus.call(this, options);
+    return result;
+  });
+  let report = await c.tick(); assert.equal(report.reason, 'LIMIT'); assert.equal(report.httpCalls, 8);
+  assert.equal(io.calls.length, 8); assert.equal(report.mutations, 0); await c.close(); repeated.mock.restore();
+  const sql = t.mock.method(Client.prototype, 'status', function (options) {
+    return this.query([{ sql: 'SELECT 1', parameters: [] }], options);
+  });
+  io = script([]); c = controller(p, io); report = await c.tick();
+  assert.equal(report.reason, 'INVALID'); assert.equal(io.calls.length, 0); await c.close(); sql.mock.restore();
+  const realPrepare = OwnerPlanClient.prototype.prepare;
+  const doubled = t.mock.method(OwnerPlanClient.prototype, 'prepare', async function (saved, options) {
+    await realPrepare.call(this, saved, options); return realPrepare.call(this, saved, options);
+  });
+  const o = original(p), i = input(p);
+  io = script([o.status, o.status, missing, { state: 'prepared', prepared: prepared(i) }]); c = controller(p, io);
+  report = await c.tick(); assert.equal(report.state, 'unknown'); assert.equal(report.mutations, 1);
+  assert.equal(io.calls.filter(({ body }) => body.operation === 'owner_prepare').length, 1);
+  assert.deepEqual(JSON.parse(report.lastUncertainCall.request).input, i); await c.close(); doubled.mock.restore();
+});
+
+test('unclassified local failures are sanitized and an unobserved SDK UNKNOWN keeps its original reference', async (t) => {
+  const local = t.mock.method(Client.prototype, 'status', () => { throw new Error('synthetic-secret'); });
+  let c = controller(policy(), script([])), report = await c.tick();
+  assert.equal(report.reason, 'CLIENT'); assert.equal(JSON.stringify(report).includes('synthetic-secret'), false);
+  await c.close(); local.mock.restore();
+  const reference = { operation: 'owner_prepare', ownerInput: input(policy()) };
+  const uncertain = t.mock.method(Client.prototype, 'status', () => { throw new UnknownError(reference, new ClientError('TRANSPORT', 'uncertain')); });
+  c = controller(policy(), script([])); report = await c.tick();
+  assert.equal(report.state, 'unknown'); assert.equal(report.httpCalls, 0); assert.equal(report.pastUnknown, true);
+  assert.deepEqual(JSON.parse(report.lastUncertainCall.reference), reference);
+  await c.close(); uncertain.mock.restore();
+});
+
+test('real service UNKNOWN envelopes retain the original mutation after later prepared or Active observations', async (t) => {
+  const now = clock(t), p = policy(), i = input(p), o = original(p);
+  const serverUnknown = () => failure('UNKNOWN', 503);
+  const prepare = script([o.status, o.status, missing, serverUnknown,
+    o.status, o.status, o, { state: 'prepared', prepared: prepared(i) }]);
+  const a = controller(p, prepare);
+  let report = await a.tick(); assert.equal(report.state, 'unknown'); assert.equal(report.pastUnknown, true);
+  const originalPrepare = report.lastUncertainCall;
+  assert.equal(originalPrepare.operation, 'owner_prepare'); assert.deepEqual(JSON.parse(originalPrepare.request).input, i);
+  now(5000); report = await a.tick(); assert.equal(report.state, 'prepared'); assert.equal(report.pastUnknown, true);
+  assert.deepEqual(report.lastUncertainCall, originalPrepare); await a.close();
+  now(0);
+  const claimed = observed('claimed', i), active = observed('active', i);
+  const inspection = [claimed.status, claimed, claimed, claimed.status];
+  const resume = script([...inspection, ...inspection, serverUnknown, active.status, active, active.status]);
+  const b = controller(p, resume);
+  assert.equal((await b.tick()).reason, 'RECOVERY_REQUIRES_NEXT_TICK_BUDGET'); now(5000);
+  report = await b.tick(); assert.equal(report.state, 'unknown'); assert.equal(report.pastUnknown, true);
+  const originalResume = report.lastUncertainCall; assert.equal(originalResume.operation, 'owner_resume');
+  now(10000); report = await b.tick(); assert.equal(report.state, 'healthy'); assert.equal(report.acceptedPhase, 'active');
+  assert.equal(report.pastUnknown, true); assert.deepEqual(report.lastUncertainCall, originalResume);
+  assert.equal(resume.calls.filter(({ body }) => body.operation === 'owner_resume').length, 1); await b.close();
+  const read = controller(p, script([head(), serverUnknown]));
+  report = await read.tick(); assert.equal(report.reason, 'UNKNOWN'); assert.equal(report.mutations, 0); await read.close();
 });

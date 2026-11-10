@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22.16.0" },
+  "bin": { "scap-owner-controller": "./bin/owner-controller.mjs" },
   "exports": { ".": { "types": "./src/client.d.ts", "import": "./src/client.js" } },
   "scripts": {
     "test": "node test/run.mjs",
     "check:coverage": "node test/check-coverage.mjs",
-    "test:http": "node --test test/http.test.js"
+    "test:http": "node --test test/http.test.js",
+    "test:controller-http": "node --test test/controller_http_loopback.test.js test/controller_process_loopback.test.js"
   }
 }

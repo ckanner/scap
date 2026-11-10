@@ -1,6 +1,6 @@
 # 有限 Scope 的持久 owner 自动控制器：实施提案 V1
 
-状态：实现草稿，单独工作树推进。policy 与单 Scope 状态机已有开发单位；全模块精确覆盖、独立有限模型和真实网络合同尚未完成。本稿不认证已冻结 HEAD8 core 以外的后续产品。
+状态：实现草稿，单独工作树推进。policy、单 Scope 状态机、fleet、owned HTTP 与 CLI 已通过148个组合开发单位、20个生产模块精确V8检查，以及11个真实loopback/子进程检查；独立有限模型和真实产品网络合同继续验证。本稿不认证已冻结 HEAD8 core 以外的后续产品。
 
 代码依据为已冻结 HEAD8 的 `owner.rs` / `owner_format.rs`、
 `owner_wire.rs`、SDK `owner_plan.js` / `owner_plan_wire.js`、`route_registry.js`，
@@ -185,8 +185,9 @@ RECOVERY_BUSY 是准入压力，两者都不累计死亡，不可借此连续晋
 wire/redirect、MISSING/CORRUPT、policy 冲突不累计；429/RECOVERY_BUSY/LIMIT 有界退避。
 已核实的 S3/服务端 UNKNOWN、UNAVAILABLE 不能直接当成 owner 死亡。
 
-现有 SDK 会把多种底层 Fetch 故障统一为 TRANSPORT，不能声称已区分 DNS/TLS配置错误
-与连接失败；它们可能导致可疑策略误判。guarded probe 正常只证明控制路径和 fresh READ，
+默认 controller HTTP 将已识别的 TLS 证书错误、错误 HTTP framing 和重定向拒绝归入非死亡
+错误；普通 SDK 注入的 Fetch 仍可能把多种底层故障统一为 TRANSPORT。DNS/网络配置错误
+与连接失败仍不能全部区分，它们可能导致可疑策略误判。guarded probe 正常只证明控制路径和 fresh READ，
 不证明数据 actor 没有卡住。两种局限都需明示，不能声称精确故障检测或无条件 RTO。
 
 FailureObservation 只在内存保留 full Scope、owner tuple、R/S、active/lifecycle、storage
@@ -216,9 +217,9 @@ deadline 从首次验证/authority读取前开始，探测、descriptor核验、
 permit。服务端已有归属和资源池继续约束实际工作；新一轮遇忙按策略退避。controller
 自身本地限额不是整个 fleet 的全局预算。真实分母必须记录每次原请求和后台已完成清理。
 
-CLI 还应有有界HTTP连接池/关闭流程；现有 global Fetch 的 SDK 调用次数不能直接证明
-整个进程 FD/RSS 上限。实现前固定 Node版本、dispatcher选择与连接cap，专门测慢响应、
-Abort、shutdown和FD峰值，不以逻辑字节cap冒称RSS硬隔离。
+CLI 使用独立的有界 HTTP 归属与关闭流程。现有 global Fetch 的 SDK 调用次数不能直接证明
+整个进程 FD/RSS 上限。固定 Node 版本和连接 cap，单独验证慢响应、Abort、shutdown 和
+实际资源峰值，不以逻辑字节 cap 冒称 RSS 硬隔离。
 
 ## 9. 当前 API 是否足够
 
@@ -257,7 +258,7 @@ mutation endpoint、S3 signing 身份或 fleet journal。需要新增的是 cont
 ## 11. 当前实现与明确资源选择
 
 生产模块位于 `sdk/node/src/controller_policy.js`、`controller.js`、
-`controller_fleet.js` 和 `controller_http.js`。策略的 canonical bytes 包含全部固定上限、
+`controller_fleet.js`、`controller_http.js` 和 `controller_process.js`。策略的 canonical bytes 包含全部固定上限、
 故障阈值、路由/rank、Scope、authority 和主体；凭据不进入摘要。四个 nonce 无损保留
 整个摘要。每个 Scope 的 operation 使用原 `head_serial`，不会用本地计数器或随机身份。
 
@@ -274,6 +275,26 @@ owned 网络资源清理，不宣称撤销已经到达服务的操作。
 
 Node 固定 22.16.0；默认 HTTP 使用内置 http/https，关闭 keep-alive（每个请求独占连接），
 无重定向和隐式重试。绝对原 signal、16 KiB 请求/headers、64 KiB 响应和真实 request/socket
-关闭后的资源归还须由独立单位与 loopback 合同验证。逻辑资源限额不等同于容器 RSS 硬隔离。
+关闭后的资源归还由独立单位与 loopback 合同验证。不可取消的系统 DNS 查询在 callback
+真正完成前继续占用原 slot；abort 不提前退款。TLS 明确要求 `rejectUnauthorized: true`，
+不会因 `NODE_TLS_REJECT_UNAUTHORIZED=0` 接受自签名证书。逻辑资源限额不等同于容器 RSS 硬隔离。
+
+CLI 入口为 `sdk/node/bin/owner-controller.mjs`。启动时读取一个至多 64 KiB 的普通 JSON
+文件，固定一次配置；读文件本身有字节上限并检查同一 fd 前后大小与纳秒修改时间。打开时
+使用非阻塞标志，FIFO/设备在类型检查时被拒绝。凭据只通过显式 `tokenEnv` 获取；日志不含
+凭据、文件路径或原底层异常。所有 Scope/worker 的组合约束仍在 fleet 构造时验证。
+
+进程每 250ms 检查可用 slot；Scope 自己仍遵循 5 秒 tick 和固定退避，没有每 250ms 创建
+新轮次的队列。标准输出为每 Scope 最新完成报告的 JSONL；每行最大 128 KiB，使用一次
+同步 fd 写入，不建立异步日志队列。部分写、EAGAIN 或其他写错误立即停止新 admission 并
+关闭 fleet。阻塞的内核输出目标会阻塞进程，部署方应使用受控日志消费者；这与系统 DNS
+不可取消一样，意味着本实现不承诺固定 shutdown RTO。报告不是持久审计日志，也不补造
+未消费的旧报告或旧调用 ACK。库使用方可自行调用 `poll()` / `takeReports()` 接入自己的
+有界观测出口。
+
+SIGINT/SIGTERM 停止轮询，然后等待所有 Scope tick、请求、socket 与 DNS callback 完成。
+重复 SIGINT/SIGTERM 仍走同一关闭流程；SIGKILL/外部强制退出另算，不能记为 graceful join。
+关闭期间才完成的最新报告可能没有输出，因此 JSONL 不代表全部调用历史。它只关闭本地
+工作，不撤销已在服务 admission 的 owner 操作。重启从实际持久计划重新查证。
 
 参考：[Node 22.16 HTTP](https://nodejs.org/download/release/v22.16.0/docs/api/http.html)。

@@ -28,6 +28,9 @@ jobs:
       - name: Exercise real Fetch transport separately from unit profiles
         working-directory: sdk/node
         run: npm run test:http
+      - name: Exercise owned controller HTTP and process shutdown separately
+        working-directory: sdk/node
+        run: npm run test:controller-http
       - name: Retain SDK unit maps
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

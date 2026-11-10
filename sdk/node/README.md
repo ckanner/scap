@@ -426,7 +426,7 @@ fresh HEAD 并检查 READ，所以返回的 `owner_instance` 可以属于另一�
 `prepareActivation` 意图，保存后明确执行。这只继续恢复，不增加 owner epoch。总 deadline 默认
 采用恢复预算，status、claim、恢复和 activation 不逐步续期。没有自动 failover、后台重试、
 自动故障检测或配置滚动选主。这段旧式恢复只适用于 owner_plan 为 null 的库；持久 owner
-计划通过独立 OwnerPlanClient 恢复。有限 Scope 自动 controller 仍是后续工作，见
+计划通过独立 OwnerPlanClient 恢复。有限 Scope 自动 controller 另有实现草稿，见
 [controller 与 owner-plan 边界](../../docs/architecture/owner-controller-plan.md)和
 [owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
 
@@ -522,20 +522,49 @@ try {
 
 `resultLimits` 收紧 [node-codec 的持久格式解析能力](../node-codec/README.md)，`allocation` 独立设置 `{maxRows,maxValues,maxColumns}`，默认分别为 1,000,000、1,000,000、100,000。如果摘要完整通过后只因客户端物化预算不足而失败，事务仍是 committed，可保留 `rawResult` 后显式调用导出的 `decodeResult(raw, limits, allocation)` 选择更合适的预算；不能重发业务作为读取结果的方法。
 
-## 验证入口
+## 自动 owner controller 实现草稿
 
-### 自动 owner controller 实现草稿
-
-`createControllerPolicy` 与 `OwnerController` 目前为独立开发检查点，不能继承 HEAD8 的
+`createControllerPolicy`、`OwnerController`、`OwnerControllerFleet` 与 CLI 为独立开发检查点，不能继承 HEAD8 的
 SQLite/HTTP/S3 验收结论。固定策略用四个 u64 nonce 无损承诺全部 SHA-256，operation
 使用原 `head_serial`；每个 tick 最多 8 POST、一个持久管理阶段，不接受 SQL。
 首次重启发现 Claimed 先完成只读观察，下一轮才从起点取得恢复总期限。一次 UNKNOWN
 记录原输入/引用；后续成功观察不把旧调用改写为收到过 ACK。完整策略、rank、并发和
 网络资源范围见[控制器设计](../../docs/architecture/owner-controller-v2.md)。
 
-本检查点已有 policy 与单 Scope 开发单位。Fleet、默认有界 HTTP、CLI、全模块精确
-单位覆盖、独立模型和真实网络合同继续实施，尚不满足合入门禁。注入普通 Fetch 的
-单 Scope API 不自行证明进程 FD、后台 DNS、RSS 或整个 fleet 的资源上限。
+默认 `ControllerHttp` 最多保留 8 个尚未完成归属清理的网络 attempt；取消后的 request、
+socket 和系统 DNS callback 完成前仍占用原 slot。Fleet 最多 128 Scope、256 worker，
+canonical policy 合计 64 KiB；全局 8 个 tick、每 tenant 4 个、1 个恢复 tick。独立模型和
+真实产品网络合同继续实施，尚不满足合入门禁。注入普通 Fetch 的单 Scope API 不自行证明
+进程 FD、后台 DNS、RSS 或整个 fleet 的资源上限。
+
+部署时使用[示例配置](examples/controller.json)，填入真实完整 Scope、专用 READ+ADMIN
+principal、受信 metadata 入口和从未复用的 worker incarnation。rank 固定且严格递增；
+自动 takeover 只向较高 rank 推进。凭据通过示例中的 `SCAP_OWNER_CONTROLLER_TOKEN`
+环境变量提供，不写入 JSON。配置和 worker 表在整个进程生命周期内不变。
+
+```bash
+# 从可信 Secret/环境提供 SCAP_OWNER_CONTROLLER_TOKEN 后运行。
+node sdk/node/bin/owner-controller.mjs /absolute/path/controller.json
+```
+
+SIGINT/SIGTERM 停止新 tick 并等待本地 owned 资源结束。系统 DNS 无法强制取消，所以
+不承诺固定关闭时间。标准输出为有上限的最新报告 JSONL，不是完整持久审计日志；同步
+输出不会建立日志队列，写失败或部分写会停止控制器，内核输出阻塞也会阻塞进程。部署时
+应接入受控日志消费者。库使用方可以自己轮询和消费报告：
+
+```javascript
+import { OwnerControllerFleet, readControllerEntries, runControllerFleet } from './sdk/node/src/client.js';
+
+const stopped = new AbortController();
+process.once('SIGTERM', () => stopped.abort());
+const fleet = new OwnerControllerFleet({ entries: readControllerEntries('/absolute/path/controller.json') });
+await runControllerFleet(fleet, { signal: stopped.signal });
+```
+
+健康 owner 不自动迁回较低 rank；未知 owner、foreign policy 或注册表耗尽时报告阻断。
+每次启动新的服务进程都需要新的 worker 身份，不能把示例中的数值当作可重复使用的槽位。
+
+## 验证入口
 
 ```bash
 # unit-only：默认新建独立 profile 目录，也可由调用方提供空目录。
@@ -544,6 +573,9 @@ npm --prefix sdk/node test
 # 独立的真实 loopback Fetch：重定向不转发凭据、流式超时、解压预算。
 # 它不向单元 profile 补覆盖，也不冒充 SQLite／S3 测试。
 npm --prefix sdk/node run test:http
+
+# 独立的 controller owned HTTP：DNS/socket 归属、严格 TLS、慢流和协议边界。
+npm --prefix sdk/node run test:controller-http
 ```
 
 `npm test` 同时执行 Node 内置 100% 行／函数／分支阈值与 raw V8 gate。后者自动发现每个生产 JS 模块，检查完整 function/range map，拒绝缺失模块、重复 profile、空分母、非法或零命中 counter；负对照同门禁运行。`.d.ts` 是无可执行代码的类型声明，明确分类，不掩盖 JS 源。传入已有 `coverage-*.json` 的目录会被拒绝，防止混入集成运行或旧样本。

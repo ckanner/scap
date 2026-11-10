@@ -647,3 +647,55 @@ export class OwnerController {
   tick(options?: CallOptions): Promise<ControllerReport>;
   close(): Promise<void>;
 }
+
+export interface OwnedControllerTransport {
+  readonly fetch: typeof globalThis.fetch;
+  /** Join every original request, socket and DNS callback owned by this transport. */
+  close(): Promise<void>;
+}
+export interface ControllerHttpSnapshot {
+  readonly closed: boolean;
+  readonly active: number;
+  readonly peak: number;
+  readonly started: number;
+  readonly completed: number;
+}
+export class ControllerHttp implements OwnedControllerTransport {
+  constructor(options?: { readonly maxRequests?: number });
+  readonly fetch: typeof globalThis.fetch;
+  snapshot(): ControllerHttpSnapshot;
+  /** Aborts attempts and joins resources; a system DNS callback has no fixed shutdown bound. */
+  close(): Promise<void>;
+}
+export interface ControllerFleetSnapshot {
+  readonly closed: boolean;
+  readonly scopes: number;
+  readonly active: number;
+  readonly recoveries: number;
+  readonly pendingReports: number;
+}
+export interface ControllerFailureReport {
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly policyDigest: string;
+  readonly state: 'blocked';
+  readonly reason: 'CONTROLLER_FAILURE';
+  readonly nativeSession: 'NOT_CERTIFIED';
+}
+export class OwnerControllerFleet {
+  constructor(options: {
+    readonly entries: readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+    readonly transport?: OwnedControllerTransport;
+  });
+  snapshot(): ControllerFleetSnapshot;
+  /** Admit eligible ticks into free slots; never queue another round for a busy Scope. */
+  poll(): ControllerFleetSnapshot & { readonly started: number };
+  /** Latest completed report per Scope only, not a durable or complete event log. */
+  takeReports(): readonly (ControllerReport | ControllerFailureReport)[];
+  close(): Promise<void>;
+}
+export function readControllerEntries(path: string, environment?: Readonly<Record<string, string | undefined>>):
+  readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+/** Runs bounded polling and joins the fleet on shutdown; synchronous output has no logging queue. */
+export function runControllerFleet(fleet: OwnerControllerFleet,
+  options: { readonly signal: AbortSignal; readonly outputFd?: number }): Promise<void>;

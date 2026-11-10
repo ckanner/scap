@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "scopes": [
+    {
+      "tokenEnv": "SCAP_OWNER_CONTROLLER_TOKEN",
+      "policy": {
+        "scope": {
+          "deployment": "1",
+          "tenant": "2",
+          "database": "3",
+          "incarnation": "1",
+          "generation": "1"
+        },
+        "authorityId": "example-deployment",
+        "principal": "7",
+        "metadataEndpoints": [
+          "https://worker-a.example.invalid/v1",
+          "https://worker-b.example.invalid/v1"
+        ],
+        "workers": [
+          { "workerInstance": "1001", "endpoint": "https://worker-a.example.invalid/v1", "rank": 0 },
+          { "workerInstance": "1002", "endpoint": "https://worker-b.example.invalid/v1", "rank": 1 }
+        ],
+        "modes": { "takeover": true, "activate": true, "cancel": true },
+        "recoveryTimeoutMs": 1800000
+      }
+    }
+  ]
+}
