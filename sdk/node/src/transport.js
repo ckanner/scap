@@ -6,7 +6,7 @@ import { ClientError, RemoteError, UnknownError, CommittedResultError } from './
 import { record, requireValue, parseJson, envelope } from './wire.js';
 
 const MAX_WIRE_BYTES = 96 * 1024 * 1024;
-const RECOVERY = new Set(['open', 'activate']);
+const RECOVERY = new Set(['open', 'activate', 'compact_copy', 'gc_prepare', 'gc_resume']);
 const DATA = new Set(['create', 'execute', 'query']);
 const CATALOGUE = new Set(['prepare_create', 'resume_create', 'abort_create',
   'inspect_create_operation', 'resolve_name', 'delete_name']);

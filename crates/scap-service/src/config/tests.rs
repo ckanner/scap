@@ -412,3 +412,127 @@ fn execution_graph_budget_is_explicit_and_does_not_reinterpret_wire_or_database_
         assert!(Config::parse(input.to_string().as_bytes()).is_err());
     }
 }
+
+fn garbage_configuration(parent: &std::path::Path) -> serde_json::Value {
+    let mut value = sample_config(parent);
+    value["gc"] = json!({"deployment":"1", "access_key_env":"SCAP_GC_ACCESS",
+        "secret_key_env":"SCAP_GC_SECRET", "session_token_env":null});
+    value
+}
+
+fn garbage_environment(name: &str) -> Option<OsString> {
+    Some(OsString::from(match name {
+        "SCAP_GC_ACCESS" => "collector-access",
+        "SCAP_GC_SECRET" => "collector-secret",
+        "SCAP_GC_TOKEN" => "collector-token",
+        _ => "ordinary-secret",
+    }))
+}
+
+#[test]
+fn garbage_is_disabled_by_default_and_uses_dedicated_credentials_for_one_fixed_namespace() {
+    let directory = tempfile::tempdir().unwrap();
+    let disabled = parsed(sample_config(directory.path()))
+        .prepare_with(&environment)
+        .unwrap();
+    assert!(disabled.gc.is_none());
+    assert_eq!(disabled.service.gc_deployment, None);
+    let mut value = garbage_configuration(directory.path());
+    let enabled = parsed(value.clone())
+        .prepare_with(&garbage_environment)
+        .unwrap();
+    assert_eq!(enabled.service.gc_deployment, Some(1));
+    let gc = enabled.gc.unwrap();
+    assert_eq!(gc.deployment, 1);
+    assert_eq!(gc.s3.endpoint, enabled.s3.endpoint);
+    assert_eq!(gc.s3.region, enabled.s3.region);
+    assert_eq!(gc.s3.bucket, enabled.s3.bucket);
+    assert_eq!(gc.s3.timeout, enabled.s3.timeout);
+    assert_eq!(gc.s3.allow_http, enabled.s3.allow_http);
+    assert_eq!(gc.s3.max_object_bytes, MAX_OBJECT_BYTES);
+    assert_eq!(gc.s3.access_key, "collector-access");
+    assert_eq!(gc.s3.secret_key, "collector-secret");
+    assert!(gc.s3.session_token.is_none());
+    value["gc"]["session_token_env"] = json!("SCAP_GC_TOKEN");
+    assert_eq!(
+        parsed(value)
+            .prepare_with(&garbage_environment)
+            .unwrap()
+            .gc
+            .unwrap()
+            .s3
+            .session_token
+            .as_deref(),
+        Some("collector-token")
+    );
+}
+
+#[test]
+fn garbage_configuration_cannot_change_namespace_or_reuse_ordinary_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let value = garbage_configuration(directory.path());
+    for field in ["deployment", "access_key_env", "secret_key_env"] {
+        let mut bad = value.clone();
+        bad["gc"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(bad.to_string().as_bytes()).is_err());
+    }
+    for field in ["endpoint", "region", "bucket", "prefix", "keys"] {
+        let mut bad = value.clone();
+        bad["gc"][field] = json!("not-configurable");
+        assert!(Config::parse(bad.to_string().as_bytes()).is_err());
+    }
+    for deployment in ["0", "2"] {
+        let mut bad = value.clone();
+        bad["gc"]["deployment"] = json!(deployment);
+        assert_eq!(
+            parsed(bad)
+                .prepare_with(&|_| panic!("GC namespace before credentials"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    for field in ["access_key_env", "secret_key_env", "session_token_env"] {
+        for ordinary in ["SCAP_TEST_ACCESS", "SCAP_TEST_SECRET", "READ_TOKEN"] {
+            let mut bad = value.clone();
+            bad["s3"]["session_token_env"] = json!("READ_TOKEN");
+            bad["gc"][field] = json!(ordinary);
+            assert_eq!(
+                parsed(bad)
+                    .prepare_with(&|_| panic!("dedicated names before credentials"))
+                    .err()
+                    .unwrap()
+                    .code,
+                "CONFIG"
+            );
+        }
+    }
+    // Distinct environment names cannot conceal the same access-key identity.
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&environment)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for missing in ["SCAP_GC_ACCESS", "SCAP_GC_SECRET", "SCAP_GC_TOKEN"] {
+        let mut bad = value.clone();
+        bad["gc"]["session_token_env"] = json!("SCAP_GC_TOKEN");
+        assert_eq!(
+            parsed(bad)
+                .prepare_with(&|name| {
+                    if name == missing {
+                        None
+                    } else {
+                        garbage_environment(name)
+                    }
+                })
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+}

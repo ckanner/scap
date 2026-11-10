@@ -321,7 +321,7 @@ def network(directory,history,facts,calls,observed,creations,acks):
     provision=faults["late_provision"];serial=provision["observation"]["request_serial"]
     require(responses[serial]["status"]==412 and provision["observation"]["if_none_match"]=="*","late original create did not fail backend conditional create")
     candidate=parse(b64(provision["payload"]))
-    require(candidate["format"]==5 and candidate["lifecycle"]=="provisioning","hold missed original provisioning HEAD")
+    require(candidate["format"]==6 and candidate["lifecycle"]=="provisioning","hold missed original provisioning HEAD")
     equal(candidate["scope"],{key:decimal(value) for key,value in creations["cancelled"]["scope"].items()},"held candidate targets another identity")
     path=provision["observation"]["path"]
     cancelled_heads=[parse(bytes(request["head_request_bytes"])) for key,request in requests.items()
@@ -329,7 +329,7 @@ def network(directory,history,facts,calls,observed,creations,acks):
     require(cancelled_heads and all(head["lifecycle"]=="deleted" for head in cancelled_heads),"cancelled creation became serviceable")
     for label,lifecycle in (("ready_response_loss","ready"),("delete_response_loss","deleted")):
         head=parse(b64(faults[label]["payload"]))
-        require(head["format"]==5 and head["lifecycle"]==lifecycle,"response loss at wrong HEAD stage")
+        require(head["format"]==6 and head["lifecycle"]==lifecycle,"response loss at wrong HEAD stage")
     delete_head=parse(b64(faults["delete_response_loss"]["payload"]))
     require(delete_head["deletion"]["principal"]==12 and delete_head["creation"]["creator"]==11,"delete proof confused creator and ADMIN")
 
@@ -372,7 +372,7 @@ def network(directory,history,facts,calls,observed,creations,acks):
         require(readbacks,"ACK lacks exact original Result object readback")
         require(stamp(responses[publication["request_serial"]])<stamp(calls[ack["call_id"]]["response"]),"ACK before durable HEAD")
     return {"object_requests":len(requests),"real_late_provision_412":True,"unknown_accepted_responses":3,
-            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":5,"result_format":2,
+            "lookup_cancel_completed_during_catalogue_hold":True,"head_format":6,"result_format":2,
             "object_version_audit":versions}
 
 

@@ -594,6 +594,10 @@ fn errors_and_configuration_are_explicit() {
         (CatalogueError::Unknown, DiscoveryError::Unknown),
         (CatalogueError::NotFound, DiscoveryError::Corrupt),
         (CatalogueError::Corrupt, DiscoveryError::Corrupt),
+        (
+            CatalogueError::SnapshotExpired,
+            DiscoveryError::SnapshotExpired,
+        ),
     ] {
         assert_eq!(DiscoveryError::from(source), expected);
     }
@@ -1420,7 +1424,7 @@ fn failed_io_keeps_conservative_byte_reservations_and_quota_remains_distinct() {
             meter.failure(DiscoveryError::Corrupt),
             DiscoveryError::Corrupt
         );
-        assert_eq!(meter.get("any", 8, deadline()), Err(StoreError::Limit));
+        assert_eq!(meter.get("any", 8, deadline()), Err(StoreError::Budget));
         assert_eq!(meter.usage().exact_gets, 1);
         assert_eq!(
             meter.failure(DiscoveryError::Corrupt),

@@ -95,6 +95,7 @@ fn store_error(error: StoreError) -> CatalogueError {
         StoreError::Unknown => CatalogueError::Unknown,
         StoreError::Invalid => CatalogueError::Invalid,
         StoreError::Limit | StoreError::Corrupt => CatalogueError::Corrupt,
+        StoreError::Budget => CatalogueError::Limit,
     }
 }
 
@@ -103,7 +104,8 @@ fn core_error(error: Error) -> CatalogueError {
         Error::Store(StoreError::Unknown) | Error::Unknown => CatalogueError::Unknown,
         Error::Denied => CatalogueError::Denied,
         Error::Conflict | Error::Store(StoreError::Conflict) => CatalogueError::Conflict,
-        Error::Limit => CatalogueError::Limit,
+        Error::Limit | Error::Store(StoreError::Budget) => CatalogueError::Limit,
+        Error::SnapshotExpired => CatalogueError::SnapshotExpired,
         _ => CatalogueError::Corrupt,
     }
 }
@@ -406,6 +408,7 @@ impl Catalogue {
             worker: self.worker,
             options,
             quarantined: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            knowledge: Arc::new(crate::object_context::Knowledge::default()),
         }
     }
 

@@ -640,3 +640,148 @@ fn discovery_startup_requires_a_listing_transport_and_validates_the_direct_worke
     assert!(state.discovery.is_some());
     drop(state);
 }
+
+fn gc_prepared(parent: &std::path::Path) -> Prepared {
+    let mut value = prepared(parent);
+    value.service.gc_deployment = Some(1);
+    value.gc = Some(PreparedGarbage {
+        deployment: 1,
+        s3: S3Config {
+            endpoint: value.s3.endpoint.clone(),
+            region: value.s3.region.clone(),
+            bucket: value.s3.bucket.clone(),
+            access_key: "collector-access".into(),
+            secret_key: "collector-secret".into(),
+            session_token: None,
+            timeout: value.s3.timeout,
+            max_object_bytes: value.s3.max_object_bytes,
+            allow_http: value.s3.allow_http,
+        },
+    });
+    value
+}
+
+#[test]
+fn direct_prepared_gc_cannot_rebind_authority_or_silently_enable_delete() {
+    let directory = tempfile::tempdir().unwrap();
+    let changes: [fn(&mut Prepared); 10] = [
+        |p| p.service.gc_deployment = None,
+        |p| p.gc.as_mut().unwrap().s3.endpoint = "http://127.0.0.1:8".into(),
+        |p| p.gc.as_mut().unwrap().s3.region = "elsewhere".into(),
+        |p| p.gc.as_mut().unwrap().s3.bucket = "other-bucket".into(),
+        |p| p.gc.as_mut().unwrap().s3.timeout += Duration::from_secs(1),
+        |p| p.gc.as_mut().unwrap().s3.allow_http = !p.s3.allow_http,
+        |p| p.gc.as_mut().unwrap().s3.max_object_bytes += 1,
+        |p| p.gc.as_mut().unwrap().s3.access_key = p.s3.access_key.clone(),
+        |p| {
+            p.gc.as_mut().unwrap().deployment = 0;
+            p.service.gc_deployment = Some(0);
+        },
+        |p| p.gc.as_mut().unwrap().s3.secret_key.clear(),
+    ];
+    for change in changes {
+        let mut value = gc_prepared(directory.path());
+        change(&mut value);
+        assert_eq!(
+            gc_backend(value.gc, value.service.gc_deployment, &value.s3)
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    let value = gc_prepared(directory.path());
+    assert_eq!(
+        gc_backend(None, value.service.gc_deployment, &value.s3)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    assert!(gc_backend(value.gc, value.service.gc_deployment, &value.s3)
+        .unwrap()
+        .is_some());
+    let mut missing = gc_prepared(directory.path());
+    missing.gc = None;
+    assert_eq!(
+        serve(missing, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
+    );
+    // Production construction/drop remains outside its request runtime even when
+    // both ordinary and dedicated S3 adapters are present.
+    serve(gc_prepared(directory.path()), Box::pin(async {})).unwrap();
+}
+
+#[test]
+fn gc_assembly_requires_exact_capabilities_and_wires_the_collector_into_workers() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    for (deployment, listing, garbage) in [
+        (Some(0), true, true),
+        (Some(1), false, true),
+        (Some(1), true, false),
+        (None, true, true),
+    ] {
+        let mut value = prepared(directory.path()).service;
+        value.gc_deployment = deployment;
+        assert_eq!(
+            assemble_with_storage(
+                value,
+                memory.clone(),
+                listing.then(|| memory.clone() as Arc<dyn Listings>),
+                garbage.then(|| memory.clone() as Arc<dyn Garbage>)
+            )
+            .err()
+            .unwrap()
+            .code,
+            "CONFIG"
+        );
+    }
+    let (_, state) = assemble_with_storage(
+        gc_prepared(directory.path()).service,
+        memory.clone(),
+        Some(memory.clone()),
+        Some(memory.clone()),
+    )
+    .unwrap();
+    let submit = |action| {
+        state
+            .scheduler
+            .submit(principal(), call(action), until())
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap()
+    };
+    let first = submit(Action::Create { nonce: Decimal(1) });
+    let begun = submit(Action::CompactBegin {
+        expected_head_serial: Decimal(first["head_serial"].as_str().unwrap().parse().unwrap()),
+    });
+    let plan = Decimal(
+        begun["storage"]["plan"]["serial"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap(),
+    );
+    let aborted = submit(Action::CompactAbort { plan_serial: plan });
+    let empty = submit(Action::GcPrepare {
+        expected_head_serial: Decimal(aborted["head_serial"].as_str().unwrap().parse().unwrap()),
+        generation: Decimal(2),
+        after: None,
+    });
+    assert_eq!(empty["scanned"], 0);
+    assert_eq!(empty["exhausted"], true);
+    assert!(empty["status"]["storage"]["sweep"].is_null());
+    assert!(memory
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|call| call.starts_with("LIST ")));
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}

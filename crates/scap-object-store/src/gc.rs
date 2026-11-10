@@ -38,6 +38,30 @@ pub enum DeleteOutcome {
     Conflict,
 }
 
+/// A full, bounded exact GET of one candidate. Missing requires the complete
+/// S3 NoSuchKey response; a generic HTTP 404 or absent bucket is not evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GcCandidate {
+    Present { etag: String },
+    Missing,
+}
+
+/// Dedicated collector capability, separate from ordinary object access.
+/// Callers must persist and freshly observe a retirement checkpoint before
+/// deleting. This adapter checks the fixed backend configuration on each call,
+/// but never proves retirement, changes a key/ETag, or retries a network call.
+pub trait Garbage: Send + Sync {
+    fn inspect(&self, prefix: &str, hash: &str, deadline: Instant) -> Result<GcCandidate, GcError>;
+
+    fn delete(
+        &self,
+        prefix: &str,
+        hash: &str,
+        etag: &str,
+        deadline: Instant,
+    ) -> Result<DeleteOutcome, GcError>;
+}
+
 /// Construct separately with the dedicated GC credentials. Ordinary `S3` and
 /// `Objects` have no conversion or DELETE method. No ambient credentials,
 /// automatic retries, redirects, governance bypass, or version deletion.
@@ -166,6 +190,18 @@ impl GcS3 {
         query: Option<&str>,
         etag: Option<&str>,
     ) -> Result<Response, GcError> {
+        self.request_bounded(method, key, query, etag, MAX_GC_RESPONSE_BYTES)
+            .await
+    }
+
+    async fn request_bounded(
+        &self,
+        method: Method,
+        key: &str,
+        query: Option<&str>,
+        etag: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Response, GcError> {
         let mut url = self.endpoint.clone();
         url.set_path(&format!(
             "/{}{}{}",
@@ -196,12 +232,17 @@ impl GcS3 {
             .await
             .map_err(|_| GcError::Unknown)?;
         let status = response.status().as_u16();
+        let max_bytes = if status == 200 {
+            max_bytes
+        } else {
+            MAX_GC_RESPONSE_BYTES
+        };
         let (parts, body) = response.into_parts();
         let mut stream = body.bytes_stream();
         let mut bytes = Vec::new();
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|_| GcError::Unknown)?;
-            if chunk.len() > MAX_GC_RESPONSE_BYTES - bytes.len() {
+            if chunk.len() > max_bytes - bytes.len() {
                 return Err(GcError::Unknown);
             }
             bytes.extend_from_slice(&chunk);
@@ -214,17 +255,47 @@ impl GcS3 {
     }
 }
 
+impl Garbage for GcS3 {
+    fn inspect(&self, prefix: &str, hash: &str, deadline: Instant) -> Result<GcCandidate, GcError> {
+        if !valid_hash(hash) {
+            return Err(GcError::Invalid);
+        }
+        // Preserve the original deadline across both configuration reads and
+        // the exact candidate GET. No HEAD or LIST result supplies this ETag.
+        let batch = self.begin_batch(prefix, deadline)?;
+        self.execute(batch.deadline, async {
+            let response = self
+                .request_bounded(
+                    Method::GET,
+                    &format!("{}{hash}", batch.prefix),
+                    None,
+                    None,
+                    self.inner.max_object_bytes,
+                )
+                .await?;
+            candidate(response)
+        })
+    }
+
+    fn delete(
+        &self,
+        prefix: &str,
+        hash: &str,
+        etag: &str,
+        deadline: Instant,
+    ) -> Result<DeleteOutcome, GcError> {
+        if !valid_hash(hash) || !crate::valid_etag(etag) {
+            return Err(GcError::Invalid);
+        }
+        self.begin_batch(prefix, deadline)?.delete(hash, etag)
+    }
+}
+
 impl GcBatch<'_> {
     /// Only a lowercase content hash can be appended to the fixed prefix. The
     /// ETag comes from an exact candidate GET, never from a LIST authority guess.
     pub fn delete(&mut self, hash: &str, etag: &str) -> Result<DeleteOutcome, GcError> {
-        if Handle::try_current().is_ok()
-            || hash.len() != 64
-            || !hash
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            || !crate::valid_etag(etag)
-        {
+        if Handle::try_current().is_ok() || !valid_hash(hash) || !crate::valid_etag(etag) {
             return Err(GcError::Invalid);
         }
         if self.remaining == 0 {
@@ -307,6 +378,54 @@ fn deletion(response: Response) -> Result<DeleteOutcome, GcError> {
         403 => Err(GcError::Denied),
         _ => Err(GcError::Unknown),
     }
+}
+
+fn candidate(response: Response) -> Result<GcCandidate, GcError> {
+    if response.headers.contains_key("x-amz-version-id")
+        || response.headers.contains_key("x-amz-delete-marker")
+        || response.headers.contains_key(http::header::CONTENT_RANGE)
+        || response
+            .headers
+            .contains_key(http::header::CONTENT_ENCODING)
+    {
+        return Err(GcError::Unknown);
+    }
+    match response.status {
+        200 => {
+            let etag = response
+                .headers
+                .get(http::header::ETAG)
+                .and_then(|value| value.to_str().ok())
+                .filter(|value| crate::valid_etag(value))
+                .ok_or(GcError::Unknown)?;
+            if response.headers.get_all(http::header::ETAG).iter().count() != 1 {
+                return Err(GcError::Unknown);
+            }
+            let length = response
+                .headers
+                .get(http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<usize>().ok())
+                .ok_or(GcError::Unknown)?;
+            if length != response.bytes.len() {
+                return Err(GcError::Unknown);
+            }
+            Ok(GcCandidate::Present { etag: etag.into() })
+        }
+        404 => match crate::gc_xml::error_code(&response.bytes) {
+            Ok(code) if code == "NoSuchKey" => Ok(GcCandidate::Missing),
+            _ => Err(GcError::Unknown),
+        },
+        403 => Err(GcError::Denied),
+        _ => Err(GcError::Unknown),
+    }
+}
+
+fn valid_hash(hash: &str) -> bool {
+    hash.len() == 64
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 fn valid_prefix(prefix: &str, deployment: u64) -> bool {

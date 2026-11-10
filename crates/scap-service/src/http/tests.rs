@@ -579,3 +579,51 @@ fn parsing_cannot_extend_an_expired_upload_budget_into_recovery() {
         "INVALID"
     );
 }
+
+#[test]
+fn maintenance_requests_cannot_claim_the_wrong_intake_class() {
+    let state = state();
+    let app = router(state).unwrap();
+    runtime().block_on(async {
+        for (operation, fields, class) in [
+            (
+                "compact_begin",
+                json!({"expected_head_serial":"1"}),
+                "control",
+            ),
+            ("compact_copy", json!({"plan_serial":"2"}), "recovery"),
+            ("compact_promote", json!({"plan_serial":"2"}), "control"),
+            ("compact_abort", json!({"plan_serial":"2"}), "control"),
+            (
+                "gc_prepare",
+                json!({"expected_head_serial":"3","generation":"1","after":null}),
+                "recovery",
+            ),
+            ("gc_resume", json!({"batch_serial":"4"}), "recovery"),
+        ] {
+            let mut value: Value = serde_json::from_str(&body(operation, 3)).unwrap();
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            for supplied in [class, "data"] {
+                let request = Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1")
+                    .header("authorization", format!("Bearer {}", "a".repeat(32)))
+                    .header("content-type", "application/json")
+                    .header("x-scap-admission", supplied)
+                    .body(Body::from(value.to_string()))
+                    .unwrap();
+                let response = app.clone().oneshot(request).await.unwrap();
+                if supplied == class {
+                    assert_eq!(response.status(), StatusCode::OK);
+                    assert_eq!(decoded(response).await["value"]["served"], class);
+                } else {
+                    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+                    assert_eq!(decoded(response).await["error"]["code"], "INVALID");
+                }
+            }
+        }
+    });
+}

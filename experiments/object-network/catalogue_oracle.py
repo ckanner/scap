@@ -122,13 +122,13 @@ def immutable_address(path):
     """Validate even orphan, missing and raw-fixture object request keys.
 
     A content hash alone cannot prove a captured physical namespace. Foundation
-    HEAD5 admits only storage generation one, including pre-HEAD bootstrap.
+    HEAD6 admits only storage generation one, including pre-HEAD bootstrap.
     """
     require(type(path) is str, "invalid immutable physical path")
     parts = path.split("/")
     require(len(parts) == 15 and parts[:4] == ["", "scap-test", "scap-object", "v1"]
             and [parts[7], parts[9], parts[11], parts[13]] == ["inc", "gen", "storage", "objects"],
-            "immutable path does not use the complete HEAD5 namespace")
+            "immutable path does not use the complete HEAD6 namespace")
     numbers = [parts[index] for index in (4, 5, 6, 8, 10, 12)]
     require(all(1 <= len(number) <= 20 and number[0] in "123456789" and
                 all(character in "0123456789" for character in number) for number in numbers),
@@ -938,7 +938,7 @@ class Auditor:
                 "expected_head_revision": saved.get("expected_head_revision"), "nonce": saved["nonce"]}
 
     def inventory(self):
-        require(self.plan["version"] == 1 and self.plan["head_format"] == 5 and self.plan["immutable_format"] == 2
+        require(self.plan["version"] == 1 and self.plan["head_format"] == 6 and self.plan["immutable_format"] == 2
                 and self.plan["catalogue_record_bytes"] == 65536, "catalogue wire/capture plan changed")
         equal(self.plan["fixture_limits"], PROFILE, "fixture resource profile changed")
         equal(self.plan["pilot_profiles"], list(PILOTS), "pilot denominator changed")

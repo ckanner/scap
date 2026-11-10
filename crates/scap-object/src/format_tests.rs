@@ -234,12 +234,14 @@ fn transition() -> Transition {
 
 fn head() -> Head {
     Head {
-        format: 5,
+        format: 6,
         scope: scope(),
         head_serial: 1,
         storage: Storage {
             active_generation: 1,
             allocated_through: 1,
+            plan: None,
+            sweep: None,
         },
         revision: 1,
         transition: transition(),
@@ -402,7 +404,7 @@ fn head5_requires_serial_and_exact_foundation_storage_without_future_states() {
             );
         }
     }
-    for old in [1, 2, 3, 4] {
+    for old in [1, 2, 3, 4, 5] {
         let mut value = original.clone();
         value["format"] = old.into();
         assert_eq!(
@@ -528,8 +530,8 @@ fn largest_foundation_head_keeps_the_existing_head_and_acl_bounds() {
     let bytes = encode_head(&value).unwrap();
     // Independently derived canonical serialized size; this is a format-valid
     // maximum-width witness, not a claimed reachable workload history.
-    assert_eq!(bytes.len(), 79_621);
-    assert_eq!(MAX_HEAD_BYTES - bytes.len(), 182_523);
+    assert_eq!(bytes.len(), 79_646);
+    assert_eq!(MAX_HEAD_BYTES - bytes.len(), 182_498);
     assert_eq!(decode_head(&bytes, &value.scope).unwrap(), value);
     assert_eq!(head_key(&value.scope).len(), 82);
     assert_eq!(object_key(&value.scope, 1, &"f".repeat(64)).len(), 210);
@@ -1371,7 +1373,7 @@ fn strict_serde_rejects_unknown_duplicate_out_of_range_and_missing_fields() {
         );
     }
     let wire = String::from_utf8(encode_head(&head()).unwrap()).unwrap();
-    let duplicate = wire.replacen("\"format\":5", "\"format\":5,\"format\":5", 1);
+    let duplicate = wire.replacen("\"format\":6", "\"format\":6,\"format\":6", 1);
     assert_ne!(duplicate, wire);
     assert_eq!(
         decode_head(duplicate.as_bytes(), &scope()),

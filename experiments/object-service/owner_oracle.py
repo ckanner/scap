@@ -294,7 +294,8 @@ def initial_limits(head):
 
 def status_from_head(head):
     return {'scope': {key: str(number) for key, number in head['scope'].items()},
-            **{key: str(head[key]) for key in ('revision', 'sequence', 'owner_epoch', 'owner_instance', 'auth_epoch', 'request_epoch')},
+            **{key: str(head[key]) for key in ('head_serial', 'revision', 'sequence', 'owner_epoch', 'owner_instance', 'auth_epoch', 'request_epoch')},
+            'storage': {'active_generation': '1', 'allocated_through': '1', 'plan': None, 'sweep': None},
             'active': head['active'], 'lifecycle': head['lifecycle'],
             'max_bytes': None if head['quota']['max_bytes'] is None else str(head['quota']['max_bytes']),
             'transition': {key: str(value) for key, value in head['transition'].items()},
@@ -906,8 +907,8 @@ def head_history(net, calls, by_command):
             equal(head['transition'], {'revision': revision, 'nonce': nonce}, 'original transition identity changed')
             if previous is None:
                 initial_limits(head)
-                expected = {**head, 'format': 5, 'head_serial': 1,
-                            'storage': {'active_generation': 1, 'allocated_through': 1},
+                expected = {**head, 'format': 6, 'head_serial': 1,
+                            'storage': {'active_generation': 1, 'allocated_through': 1, 'plan': None, 'sweep': None},
                             'revision': 1, 'sequence': 0, 'owner_epoch': 1,
                             'owner_instance': int(WORKERS['a']), 'active': False, 'auth_epoch': 1,
                             'policy': [{'principal': 11, 'read': True, 'write': True, 'admin': True}],

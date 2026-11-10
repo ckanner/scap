@@ -11,8 +11,8 @@ HEAD = "/scap-test/scap-object/v1/1/7/10/head"
 
 
 def body(revision):
-    value = {"format": 5, "head_serial": revision,
-             "storage": {"active_generation": 1, "allocated_through": 1},
+    value = {"format": 6, "head_serial": revision,
+             "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
              "scope": {"deployment": 1, "tenant": 7, "database": 10, "incarnation": 1, "generation": 1},
              "revision": revision, "transition": {"revision": revision, "nonce": revision}, "sequence": 0,
              "owner_epoch": 1, "owner_instance": 7, "active": False, "auth_epoch": 1,
@@ -193,18 +193,18 @@ class HeadFiveBoundaryControls(unittest.TestCase):
         original = wire.parse(body(2))
         wire.head5_profile(original)
         changes = [
-            ("legacy", lambda h: h.update(format=4), "HEAD is not format 5"),
-            ("future", lambda h: h.update(format=6), "HEAD is not format 5"),
-            ("serial_missing", lambda h: h.pop("head_serial"), "HEAD5 fields"),
-            ("storage_missing", lambda h: h.pop("storage"), "HEAD5 fields"),
-            ("storage_null", lambda h: h.update(storage=None), "incomplete HEAD5 storage"),
-            ("storage_empty", lambda h: h.update(storage={}), "incomplete HEAD5 storage"),
-            ("unsupported_pins", lambda h: h.update(pins=[]), "HEAD5 fields"),
-            ("unsupported_stage", lambda h: h["storage"].update(staging=None), "incomplete HEAD5 storage"),
+            ("legacy", lambda h: h.update(format=5), "HEAD is not format 6"),
+            ("future", lambda h: h.update(format=7), "HEAD is not format 6"),
+            ("serial_missing", lambda h: h.pop("head_serial"), "HEAD6 fields"),
+            ("storage_missing", lambda h: h.pop("storage"), "HEAD6 fields"),
+            ("storage_null", lambda h: h.update(storage=None), "incomplete HEAD6 storage"),
+            ("storage_empty", lambda h: h.update(storage={}), "incomplete HEAD6 storage"),
+            ("unsupported_pins", lambda h: h.update(pins=[]), "HEAD6 fields"),
+            ("unsupported_stage", lambda h: h["storage"].update(staging=None), "incomplete HEAD6 storage"),
             ("active_zero", lambda h: h["storage"].update(active_generation=0), "invalid HEAD unsigned integer"),
             ("active_bool", lambda h: h["storage"].update(active_generation=True), "invalid HEAD unsigned integer"),
-            ("allocated_two", lambda h: h["storage"].update(allocated_through=2), "unsupported HEAD5 storage generation"),
-            ("both_two", lambda h: h.update(storage={"active_generation": 2, "allocated_through": 2}), "unsupported HEAD5 storage generation"),
+            ("allocated_two", lambda h: h["storage"].update(allocated_through=2), "unsupported HEAD6 storage generation"),
+            ("both_two", lambda h: h.update(storage={"active_generation": 2, "allocated_through": 2, "plan": None, "sweep": None}), "unsupported HEAD6 storage generation"),
             ("serial_zero", lambda h: h.update(head_serial=0), "invalid HEAD unsigned integer"),
             ("serial_bool", lambda h: h.update(head_serial=True), "invalid HEAD unsigned integer"),
             ("serial_overflow", lambda h: h.update(head_serial=2**64), "invalid HEAD unsigned integer"),

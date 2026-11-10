@@ -53,6 +53,7 @@ pub fn error(value: core::DiscoveryError) -> Failure {
         Conflict => "CONFLICT",
         Unknown => "UNKNOWN",
         Corrupt => "CORRUPT",
+        SnapshotExpired => "SNAPSHOT_EXPIRED",
     })
 }
 

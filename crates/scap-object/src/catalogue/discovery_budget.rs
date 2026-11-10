@@ -92,7 +92,7 @@ impl Objects for Meter {
                 || used.metadata_bytes == self.limit.metadata_bytes
             {
                 self.blocked.store(true, Ordering::Relaxed);
-                return Err(StoreError::Limit);
+                return Err(StoreError::Budget);
             }
             used.exact_gets += 1;
             let allowance = max_bytes.min(self.limit.metadata_bytes - used.metadata_bytes);
@@ -101,9 +101,10 @@ impl Objects for Meter {
             used.metadata_bytes += allowance;
             allowance
         };
-        let result = self.inner.get(key, allowance, deadline);
+        let mut result = self.inner.get(key, allowance, deadline);
         if matches!(result, Err(StoreError::Limit)) && allowance < max_bytes {
             self.blocked.store(true, Ordering::Relaxed);
+            result = Err(StoreError::Budget);
         }
         // An error has no trustworthy consumed-byte count. Keep the full
         // reservation; only a successful bounded body earns a refund.

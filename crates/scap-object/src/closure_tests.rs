@@ -187,7 +187,7 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
                 sequence: 4,
                 transition: Transition {
                     revision: 3,
-                    nonce: epoch,
+                    nonce: 10,
                 },
                 data_root: digest(b"historical receipt identity, deliberately absent"),
                 bytes: result.clone(),
@@ -210,7 +210,7 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
                         outcome: OutcomeRef::Cancelled {
                             transition: Transition {
                                 revision: 2,
-                                nonce: 7,
+                                nonce: 90,
                             },
                         },
                         result_bytes: 0,
@@ -229,12 +229,14 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
     let mut options = Options::default();
     options.retention.max_entries = 2;
     let head = crate::format::Head {
-        format: 5,
+        format: 6,
         scope: scope(),
         head_serial: 11,
         storage: crate::format::Storage {
             active_generation: 1,
             allocated_through: 1,
+            plan: None,
+            sweep: None,
         },
         revision: 10,
         transition: Transition {
@@ -456,7 +458,7 @@ fn leaf(
             sequence,
             transition: Transition {
                 revision: 3,
-                nonce: 17,
+                nonce: first,
             },
             data_root: digest(b"absent history"),
             bytes: raw.clone(),
@@ -473,7 +475,7 @@ fn leaf(
                 OutcomeRef::Cancelled {
                     transition: Transition {
                         revision: 2,
-                        nonce: 1,
+                        nonce: first + offset as u64,
                     },
                 }
             },
@@ -720,9 +722,13 @@ fn every_unknown_or_missing_read_cut_consumes_the_prefix_without_success() {
             assert!(
                 matches!(drive(&fixture, true), Err(Error::Store(ref actual)) if *actual == error)
             );
-            assert_eq!(fixture.trace.reads.lock().unwrap().len(), at);
             assert_eq!(
-                fixture.database.quarantined.load(Ordering::Acquire),
+                fixture.trace.reads.lock().unwrap().len(),
+                at + usize::from(error == StoreError::Missing)
+            );
+            assert!(!fixture.database.quarantined.load(Ordering::Acquire));
+            assert_eq!(
+                fixture.database.healthy().is_err(),
                 error == StoreError::Missing
             );
         }
@@ -842,7 +848,7 @@ fn noncanonical_original_bytes_and_valid_maximum_results_are_not_materialized_tw
                 sequence: 1,
                 transition: Transition {
                     revision: 2,
-                    nonce: 3,
+                    nonce: request.id,
                 },
                 data_root: digest(b"receipt identity is not a retained edge"),
                 bytes: bytes.clone(),
@@ -945,7 +951,11 @@ fn highest_data_geometry_is_a_verified_prefix_not_a_full_capacity_claim() {
         cursor.advance(StepBudget::default(), &mut |_| Ok(())),
         Err(Error::Store(StoreError::Missing))
     ));
-    assert_eq!(fixture.trace.reads.lock().unwrap().len(), 7);
+    assert_eq!(fixture.trace.reads.lock().unwrap().len(), 8);
+    assert_eq!(
+        fixture.trace.reads.lock().unwrap().last().unwrap().key,
+        crate::format::head_key(&fixture.snapshot.head.scope)
+    );
 }
 
 fn branch(
@@ -1060,6 +1070,101 @@ fn namespace_original_head_and_byte_budget_admission_are_bound_without_new_reads
 }
 
 #[test]
+fn copy_cursor_requires_exact_plan_basis_and_original_source_context() {
+    let mut fixture = fixture(0, 1);
+    fixture.snapshot.head.active = false;
+    fixture.snapshot.head.storage.allocated_through = 2;
+    let mut plan = crate::format::CopyPlan {
+        serial: 11,
+        source: 1,
+        target: 2,
+        phase: crate::format::CopyPhase::Copying,
+        basis: crate::format::CopyBasis::capture(&fixture.snapshot.head),
+    };
+    fixture.snapshot.head.storage.plan = Some(plan.clone());
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    plan.target = 3;
+    assert!(matches!(
+        Cursor::for_copy(&context, &fixture.snapshot, &plan, deadline(), &not_stopped),
+        Err(Error::Conflict)
+    ));
+    assert!(matches!(
+        ObjectContext::target(&fixture.database, &fixture.snapshot, &plan, deadline()),
+        Err(Error::Conflict)
+    ));
+    plan.target = 2;
+    plan.basis.sequence += 1;
+    fixture.snapshot.head.storage.plan = Some(plan.clone());
+    assert!(matches!(
+        Cursor::for_copy(&context, &fixture.snapshot, &plan, deadline(), &not_stopped),
+        Err(Error::Conflict)
+    ));
+    assert!(matches!(
+        ObjectContext::target(&fixture.database, &fixture.snapshot, &plan, deadline()),
+        Err(Error::Conflict)
+    ));
+    plan.basis.sequence -= 1;
+    fixture.snapshot.head.storage.plan = Some(plan.clone());
+    let mut foreign = fixture.snapshot.head.clone();
+    foreign.scope.generation += 1;
+    let foreign = ObjectContext::capture(&fixture.database, &foreign);
+    assert!(matches!(
+        Cursor::for_copy(&foreign, &fixture.snapshot, &plan, deadline(), &not_stopped),
+        Err(Error::StaleSnapshot)
+    ));
+    assert!(fixture.trace.reads.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_later_acl_revision_cannot_legitimize_results_or_cancellation_newer_than_copy_basis() {
+    for cancelled in [false, true] {
+        let mut fixture = fixture(0, 1);
+        if cancelled {
+            let root = put(
+                &fixture.trace,
+                Payload::Index(RequestIndex::Leaf {
+                    epoch: 1,
+                    entries: vec![Entry {
+                        request: identity(1, 1),
+                        outcome: OutcomeRef::Cancelled {
+                            transition: Transition {
+                                revision: 2,
+                                nonce: 1,
+                            },
+                        },
+                        result_bytes: 0,
+                    }],
+                }),
+            );
+            fixture.snapshot.head.windows[0].root = root;
+            fixture.snapshot.head.windows[0].count = 1;
+            fixture.snapshot.head.windows[0].result_bytes = 0;
+        }
+        fixture.snapshot.head.active = false;
+        fixture.snapshot.head.storage.allocated_through = 2;
+        let mut basis = crate::format::CopyBasis::capture(&fixture.snapshot.head);
+        basis.revision = 1;
+        let plan = crate::format::CopyPlan {
+            serial: 11,
+            source: 1,
+            target: 2,
+            phase: crate::format::CopyPhase::Copying,
+            basis,
+        };
+        fixture.snapshot.head.storage.plan = Some(plan.clone());
+        fixture.snapshot.head.validate().unwrap();
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let cursor =
+            Cursor::for_copy(&context, &fixture.snapshot, &plan, deadline(), &not_stopped).unwrap();
+        assert!(matches!(
+            cursor.advance(StepBudget::default(), &mut |_| Ok(())),
+            Err(Error::Corrupt)
+        ));
+        assert!(fixture.database.quarantined.load(Ordering::Relaxed));
+    }
+}
+
+#[test]
 fn existing_verifier_drives_multiple_steps_without_restarting_the_prefix() {
     let fixture = fixture(2048, 1);
     assert!(fixture.expected.len() > StepBudget::default().max_frames as usize);
@@ -1082,7 +1187,6 @@ fn existing_verifier_drives_multiple_steps_without_restarting_the_prefix() {
 #[test]
 fn every_observed_stop_checkpoint_withholds_completion_without_quarantine() {
     let fixture = fixture(33, 3);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
     let calls = Cell::new(0);
     let stop_at = Cell::new(usize::MAX);
     let visits = Cell::new(0);
@@ -1091,6 +1195,7 @@ fn every_observed_stop_checkpoint_withholds_completion_without_quarantine() {
         calls.get() == stop_at.get()
     };
     let run = || {
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &stop)?;
         match cursor.advance(StepBudget::default(), &mut |_| {
             visits.set(visits.get() + 1);

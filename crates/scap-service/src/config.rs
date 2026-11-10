@@ -29,6 +29,8 @@ pub struct Config {
     pub worker_instance: Decimal,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
+    /// Missing GC credentials leave physical deletion unavailable.
+    pub gc: Option<GarbageConfig>,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
     pub discovery: Option<DiscoveryConfig>,
@@ -48,6 +50,17 @@ pub struct ObjectConfig {
     pub session_token_env: Option<String>,
     pub allow_http: bool,
     pub timeout_ms: u64,
+}
+
+/// Dedicated credentials for the same fixed object namespace. The API cannot
+/// select a backend, bucket, deployment or credential for physical deletion.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GarbageConfig {
+    pub deployment: Decimal,
+    pub access_key_env: String,
+    pub secret_key_env: String,
+    pub session_token_env: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +171,12 @@ pub struct DiscoveryConfig {
 pub struct Prepared {
     pub service: ServiceConfig,
     pub s3: S3Config,
+    pub gc: Option<PreparedGarbage>,
+}
+
+pub struct PreparedGarbage {
+    pub deployment: u64,
+    pub s3: S3Config,
 }
 
 pub struct ServiceConfig {
@@ -170,6 +189,7 @@ pub struct ServiceConfig {
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
     pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
+    pub gc_deployment: Option<u64>,
     pub cache: Cache,
     pub auth: Authenticator,
 }
@@ -257,6 +277,30 @@ impl Config {
         if let Some(catalogue) = &self.catalogue {
             catalogue.validate()?;
         }
+        if let Some(gc) = &self.gc {
+            let ordinary = [
+                Some(self.s3.access_key_env.as_str()),
+                Some(self.s3.secret_key_env.as_str()),
+                self.s3.session_token_env.as_deref(),
+            ];
+            let dedicated = [
+                Some(gc.access_key_env.as_str()),
+                Some(gc.secret_key_env.as_str()),
+                gc.session_token_env.as_deref(),
+            ];
+            if gc.deployment.0 == 0
+                || self
+                    .credentials
+                    .iter()
+                    .any(|credential| credential.deployment.0 != gc.deployment.0)
+                || dedicated
+                    .into_iter()
+                    .flatten()
+                    .any(|name| ordinary.contains(&Some(name)))
+            {
+                return Err(Failure::new("CONFIG"));
+            }
+        }
         // Even a disposable execution image requires SQLite-compatible local
         // I/O. Reject unsupported mounts before credentials or workers are used.
         scap_object_sqlite::validate_cache_directory(&self.cache_directory)
@@ -269,6 +313,34 @@ impl Config {
             .as_ref()
             .map(|name| secret(name, environment))
             .transpose()?;
+        let gc_deployment = self.gc.as_ref().map(|gc| gc.deployment.0);
+        let gc = match self.gc {
+            Some(gc) => {
+                let gc_access_key = secret(&gc.access_key_env, environment)?;
+                if gc_access_key == access_key {
+                    return Err(Failure::new("CONFIG"));
+                }
+                Some(PreparedGarbage {
+                    deployment: gc.deployment.0,
+                    s3: S3Config {
+                        endpoint: self.s3.endpoint.clone(),
+                        region: self.s3.region.clone(),
+                        bucket: self.s3.bucket.clone(),
+                        access_key: gc_access_key,
+                        secret_key: secret(&gc.secret_key_env, environment)?,
+                        session_token: gc
+                            .session_token_env
+                            .as_ref()
+                            .map(|name| secret(name, environment))
+                            .transpose()?,
+                        timeout: Duration::from_millis(self.s3.timeout_ms),
+                        max_object_bytes: MAX_OBJECT_BYTES,
+                        allow_http: self.s3.allow_http,
+                    },
+                })
+            }
+            None => None,
+        };
         let discovery = match self.discovery {
             Some(config) => {
                 let key = crate::auth::decode_hash(&secret(&config.cursor_key_env, environment)?)?;
@@ -286,6 +358,7 @@ impl Config {
             None => None,
         };
         Ok(Prepared {
+            gc,
             s3: S3Config {
                 endpoint: self.s3.endpoint,
                 region: self.s3.region,
@@ -307,6 +380,7 @@ impl Config {
                 admission: self.admission,
                 catalogue: self.catalogue,
                 discovery,
+                gc_deployment,
                 cache: self.cache,
                 auth: Authenticator::new(self.credentials)?,
             },

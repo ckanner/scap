@@ -180,7 +180,7 @@ def wrong_initial_quota(directory):
                 raw = oracle.b64(row[body_key])
                 if not raw or raw[:1] != b'{': continue
                 value = oracle.parse(raw)
-                if value.get('format') != 5: continue
+                if value.get('format') != 6: continue
                 value['quota'] = {'max_bytes': None}; raw = json.dumps(value, separators=(',', ':')).encode()
                 row[body_key] = base64.b64encode(raw).decode(); row[suffix + '_bytes'] = len(raw)
                 row[suffix + '_sha256'] = oracle.sha(raw); row['head_' + suffix + '_bytes'] = list(raw)

@@ -455,6 +455,7 @@ fn codec_and_boundary_error_mapping_are_fail_closed() {
         (StoreError::Invalid, CatalogueError::Invalid),
         (StoreError::Limit, CatalogueError::Corrupt),
         (StoreError::Corrupt, CatalogueError::Corrupt),
+        (StoreError::Budget, CatalogueError::Limit),
     ] {
         assert_eq!(store_error(error), expected);
     }
@@ -465,6 +466,8 @@ fn codec_and_boundary_error_mapping_are_fail_closed() {
         (Error::Conflict, CatalogueError::Conflict),
         (Error::Store(StoreError::Conflict), CatalogueError::Conflict),
         (Error::Limit, CatalogueError::Limit),
+        (Error::Store(StoreError::Budget), CatalogueError::Limit),
+        (Error::SnapshotExpired, CatalogueError::SnapshotExpired),
         (Error::Store(StoreError::Missing), CatalogueError::Corrupt),
         (Error::Corrupt, CatalogueError::Corrupt),
     ] {

@@ -1182,3 +1182,334 @@ fn directory_creation_failure_after_storage_admission_is_reported() {
     assert_eq!(error.code, "CACHE_IO");
     assert!(directory.path().exists());
 }
+
+fn physical_serial(value: &Value) -> Decimal {
+    Decimal(value["head_serial"].as_str().unwrap().parse().unwrap())
+}
+fn copy_serial(value: &Value) -> Decimal {
+    Decimal(
+        value["storage"]["plan"]["serial"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap(),
+    )
+}
+fn batch_serial(value: &Value) -> Decimal {
+    Decimal(
+        value["status"]["storage"]["sweep"]["serial"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap(),
+    )
+}
+
+#[test]
+fn manual_compaction_and_gc_preserve_native_data_receipts_and_explicit_owner_activation() {
+    use crate::output::{tests::small_pool, BASE_BYTES};
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    let activated = active(&mut engine);
+    invoke(
+        &mut engine,
+        Action::Policy {
+            expected_revision: revision(&activated),
+            nonce: Decimal(20),
+            permissions: vec![
+                WirePermission {
+                    principal: Decimal(3),
+                    read: true,
+                    write: true,
+                    admin: true,
+                },
+                WirePermission {
+                    principal: Decimal(4),
+                    read: true,
+                    write: false,
+                    admin: false,
+                },
+            ],
+        },
+    );
+    invoke(
+        &mut engine,
+        action(1, "CREATE TABLE kept(id INTEGER PRIMARY KEY)"),
+    );
+    let insert = action(2, "INSERT INTO kept VALUES(1) RETURNING id");
+    let request = match &insert {
+        Action::Execute { request, .. } => request.clone(),
+        _ => unreachable!(),
+    };
+    let original = invoke(&mut engine, insert);
+    let before = invoke(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::CompactBegin {
+                    expected_head_serial: Decimal(physical_serial(&before).0 + 1),
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    let begun = invoke(
+        &mut engine,
+        Action::CompactBegin {
+            expected_head_serial: physical_serial(&before),
+        },
+    );
+    assert_eq!(begun["active"], false);
+    assert_eq!(begun["revision"], before["revision"]);
+    assert_eq!(begun["sequence"], before["sequence"]);
+    assert!(engine.cache.values().all(|entry| entry.session.is_none()));
+    let plan = copy_serial(&begun);
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::CompactPromote { plan_serial: plan }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    let occupied = engine.recovery.clone().try_acquire_owned().unwrap();
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::CompactCopy { plan_serial: plan }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "RECOVERY_BUSY"
+    );
+    drop(occupied);
+    let mut reader = principal();
+    reader.principal = 4;
+    assert_eq!(
+        engine
+            .execute(
+                &reader,
+                call(Action::CompactCopy { plan_serial: plan }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+    let copied = invoke(&mut engine, Action::CompactCopy { plan_serial: plan });
+    assert_eq!(copied["storage"]["plan"]["phase"], "sealed");
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::CompactAbort {
+                    plan_serial: Decimal(plan.0 + 1)
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    let promoted = invoke(&mut engine, Action::CompactPromote { plan_serial: plan });
+    assert_eq!(promoted["storage"]["active_generation"], "2");
+    assert_eq!(promoted["active"], false);
+    assert!(promoted["storage"]["plan"].is_null());
+    assert!(engine.cache.values().all(|entry| entry.session.is_none()));
+    assert_eq!(
+        invoke(
+            &mut engine,
+            Action::Lookup {
+                request: request.clone()
+            }
+        ),
+        original
+    );
+    let reactivated = invoke(
+        &mut engine,
+        Action::Activate {
+            expected_revision: revision(&promoted),
+            nonce: Decimal(30),
+            expected_worker_instance: None,
+        },
+    );
+    assert_eq!(reactivated["active"], true);
+    assert_eq!(
+        result(&invoke(
+            &mut engine,
+            Action::Query {
+                statements: statements("SELECT count(*) FROM kept")
+            }
+        ))
+        .statements[0]
+            .rows,
+        vec![vec![scap_sql::Value::Integer(1)]]
+    );
+
+    let prepare = Action::GcPrepare {
+        expected_head_serial: physical_serial(&reactivated),
+        generation: Decimal(1),
+        after: None,
+    };
+    assert_eq!(
+        engine
+            .execute(&principal(), call(prepare.clone()), until())
+            .unwrap_err()
+            .code,
+        "GC_DISABLED"
+    );
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::GcResume {
+                    batch_serial: Decimal(1)
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "GC_DISABLED"
+    );
+    engine.collector = Some(Collector {
+        deployment: 9,
+        listings: memory.clone(),
+        garbage: memory.clone(),
+    });
+    assert_eq!(
+        engine
+            .execute(&principal(), call(prepare.clone()), until())
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+    engine.collector.as_mut().unwrap().deployment = 1;
+    let occupied = engine.recovery.clone().try_acquire_owned().unwrap();
+    for action in [
+        prepare.clone(),
+        Action::GcResume {
+            batch_serial: Decimal(1),
+        },
+    ] {
+        assert_eq!(
+            engine
+                .execute(&principal(), call(action), until())
+                .unwrap_err()
+                .code,
+            "RECOVERY_BUSY"
+        );
+    }
+    drop(occupied);
+    assert_eq!(
+        engine
+            .execute(&reader, call(prepare.clone()), until())
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+    let prepared = invoke(&mut engine, prepare);
+    let batch = batch_serial(&prepared);
+    assert_eq!(
+        engine
+            .execute(
+                &principal(),
+                call(Action::GcResume {
+                    batch_serial: Decimal(batch.0 + 1)
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    assert!(memory
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|call| !call.starts_with("DELETE ")));
+    let pool = small_pool(8 * BASE_BYTES, 8 * BASE_BYTES);
+    let swept = budgeted(
+        &mut engine,
+        Action::GcResume {
+            batch_serial: batch,
+        },
+        &pool,
+    );
+    assert!(swept["value"]["status"]["storage"]["sweep"].is_null());
+    assert!(!memory
+        .values
+        .lock()
+        .unwrap()
+        .keys()
+        .any(|key| key.contains("/storage/1/objects/")));
+    assert_eq!(
+        invoke(
+            &mut engine,
+            Action::Lookup {
+                request: request.clone()
+            }
+        ),
+        original
+    );
+
+    // An aborted target is retired even though it lies above the active number.
+    let current = invoke(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
+    let begun = invoke(
+        &mut engine,
+        Action::CompactBegin {
+            expected_head_serial: physical_serial(&current),
+        },
+    );
+    let plan = copy_serial(&begun);
+    invoke(&mut engine, Action::CompactCopy { plan_serial: plan });
+    let aborted = invoke(&mut engine, Action::CompactAbort { plan_serial: plan });
+    assert_eq!(aborted["storage"]["active_generation"], "2");
+    assert_eq!(aborted["storage"]["allocated_through"], "3");
+    let prepared = budgeted(
+        &mut engine,
+        Action::GcPrepare {
+            expected_head_serial: physical_serial(&aborted),
+            generation: Decimal(3),
+            after: None,
+        },
+        &pool,
+    );
+    let swept = invoke(
+        &mut engine,
+        Action::GcResume {
+            batch_serial: batch_serial(&prepared["value"]),
+        },
+    );
+    assert!(swept["status"]["storage"]["sweep"].is_null());
+    assert!(!memory
+        .values
+        .lock()
+        .unwrap()
+        .keys()
+        .any(|key| key.contains("/storage/3/objects/")));
+    assert_eq!(invoke(&mut engine, Action::Lookup { request }), original);
+    assert!(memory
+        .values
+        .lock()
+        .unwrap()
+        .keys()
+        .any(|key| key.contains("/storage/2/objects/")));
+}

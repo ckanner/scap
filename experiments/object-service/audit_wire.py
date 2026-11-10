@@ -13,11 +13,11 @@ import re
 import struct
 
 
-_HEAD5_SPEC = importlib.util.spec_from_file_location(
+_HEAD6_SPEC = importlib.util.spec_from_file_location(
     "scap_independent_service_head5_schema",
     Path(__file__).resolve().parents[1] / "object-network" / "head5_audit.py")
-_HEAD5 = importlib.util.module_from_spec(_HEAD5_SPEC)
-_HEAD5_SPEC.loader.exec_module(_HEAD5)
+_HEAD6 = importlib.util.module_from_spec(_HEAD6_SPEC)
+_HEAD6_SPEC.loader.exec_module(_HEAD6)
 
 
 def require(condition, message):
@@ -197,12 +197,12 @@ def moment(row):
 
 
 def head5_profile(value):
-    """Validate the complete independent HEAD5 schema from original HEAD bytes.
+    """Validate the complete independent HEAD6 schema from original HEAD bytes.
 
     The shared reader has no controller or production imports. Per-experiment
     lifecycle, predecessor and complete dependency-closure proofs remain here.
     """
-    return _HEAD5.validate(value)
+    return _HEAD6.validate(value)
 
 
 def head5_publication(candidate, predecessor=None):
@@ -210,14 +210,14 @@ def head5_publication(candidate, predecessor=None):
     head5_profile(candidate)
     if predecessor is None:
         require(candidate["head_serial"] == candidate["revision"] == 1,
-                "HEAD5 initial authority must start at serial/revision one")
+                "HEAD6 initial authority must start at serial/revision one")
     else:
         head5_profile(predecessor)
-        equal(candidate["scope"], predecessor["scope"], "HEAD5 CAS changed logical Scope")
+        equal(candidate["scope"], predecessor["scope"], "HEAD6 CAS changed logical Scope")
         require(candidate["head_serial"] == predecessor["head_serial"] + 1,
-                "HEAD5 CAS did not advance original head serial exactly once")
+                "HEAD6 CAS did not advance original head serial exactly once")
         require(candidate["revision"] == predecessor["revision"] + 1,
-                "HEAD5 foundation business publication revision")
+                "HEAD6 foundation business publication revision")
 
 
 def capture(row, *, response=False):
@@ -239,7 +239,7 @@ def capture(row, *, response=False):
         require(length <= 65536, "catalogue authority capture exceeds bound")
     if prefix == "head" and ((response and row["method"] == "GET" and row["status"] == 200)
                               or (not response and row["method"] == "PUT")):
-        require(length <= 256 * 1024, "HEAD5 exceeds production byte bound")
+        require(length <= 256 * 1024, "HEAD6 exceeds production byte bound")
         head5_profile(parse(raw))
     return raw
 
@@ -276,7 +276,7 @@ def object_exchanges(history, *, phases, blackhole_phases=()):
                                r"/inc/([1-9][0-9]*)/gen/([1-9][0-9]*)/storage/1/objects/[0-9a-f]{64}",
                                request["path"])
             require(key is not None and all(int(value) < 2**64 for value in key.groups()),
-                    "HEAD5 immutable path lacks exact supported physical namespace")
+                    "HEAD6 immutable path lacks exact supported physical namespace")
         capture(request)
         if request["method"] == "GET":
             require(request["request_bytes"] == 0 and request["request_sha256"] == hashlib.sha256(b"").hexdigest()

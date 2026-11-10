@@ -82,9 +82,57 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | `setPolicy({ expectedRevision, nonce, permissions }, options?)` | 有界且主体不重复的 `{principal,read,write,admin}` 列表，保留管理员 |
 | `setLifecycle({ expectedRevision, nonce, lifecycle }, options?)` | `ready`、`maintenance` 或 `deleted` |
 
-`options` 只含 `{ timeoutMs?, signal? }`。`open` 和 `activate` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。管理成功响应会核对 scope、`expectedRevision + 1` 与原 nonce，不接受另一个转换的 status 作为成功。
+`options` 只含 `{ timeoutMs?, signal? }`。`open`、`activate`、`compactCopy`、`gcPrepare` 和 `gcResume` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。管理成功响应会核对 scope、`expectedRevision + 1` 与原 nonce，不接受另一个转换的 status 作为成功。
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
+
+## 显式物理代压缩与 GC
+
+`status()` 还返回物理 `head_serial` 和有界 `storage` 状态。`scope.generation` 仍是原逻辑
+身份；业务 receipt、请求 ID 和原结果 hash 不随物理搬迁改变。六个管理员方法均只有一次 POST：
+
+| 方法 | 含义 |
+| --- | --- |
+| `compactBegin({expectedHeadSerial})` | 固定完整源闭包、分配新物理代，返回带原 plan serial 的 inactive status |
+| `compactCopy({planSerial})` | 复制、回读校验并封口同一 plan；使用恢复预算 |
+| `compactPromote({planSerial})` | 将封口目标发布为新 A，保持 inactive；不自动 activate |
+| `compactAbort({planSerial})` | 中止原 plan；已分配目标不复用 |
+| `gcPrepare({expectedHeadSerial,generation,after})` | 最多扫描 32 项，安装原 ETag checkpoint，不执行 DELETE |
+| `gcResume({batchSerial})` | 按同一持久 batch 继续退休代条件删除；不接任意 key 或新 ETag |
+
+这里的 `generation` 是物理代；`after` 必须显式为 `null` 或上一页返回的 64 位小写 hash。
+GC 返回 `SweepReport {status,generation,scanned,next_after,exhausted}`，checkpoint 摘要位于
+`status.storage.sweep`。整页 inspect 都是 Missing 时，scanned 可以大于零而没有 checkpoint；
+`exhausted` 只说明本次 LIST 遍历边界，不保证退休 prefix 永久为空。
+
+```javascript
+const before = await db.status();
+const begun = await db.compactBegin({ expectedHeadSerial: before.head_serial });
+const planSerial = begun.storage.plan.serial;
+// 应用先持久保存 scope、planSerial、source 和 target，再继续明确的阶段。
+await db.compactCopy({ planSerial });
+const promoted = await db.compactPromote({ planSerial });
+// 新 owner 仍 inactive。明确决定后，按当前 owner 协议接管/激活，不自动发送 SQL。
+const page = await db.gcPrepare({
+  expectedHeadSerial: promoted.head_serial,
+  generation: begun.storage.plan.source,
+  after: null,
+});
+if (page.status.storage.sweep !== null) {
+  // 应用先保存原 batch serial，再明确继续一次有界删除批。
+  const batchSerial = page.status.storage.sweep.serial;
+  console.log(await db.gcResume({ batchSerial }));
+}
+```
+
+新方法的 UnknownError.reference 保存 `expectedHeadSerial` / `planSerial` / `batchSerial`、
+`storageGeneration` 和 `after` 中实际使用的原条件。先显式 `status` 查证；不自动更换 serial
+重发。`SNAPSHOT_EXPIRED`、`GC_DISABLED` 和 `GC_UNSUPPORTED` 保留为未决的 RemoteError。
+快照过期不是业务请求窗口的 RETIRED，不授权重做已提交 SQL。
+
+服务默认不授予 GC，需配置与普通读写身份分离的固定 namespace 凭据。HEAD6 本片没有
+retained snapshot/持久 reader pin；Deleted 的最后 active 代也不会被清扫。完整 HTTP 字段、
+32 项预算、重启/UNKNOWN 处理及部署约束见[服务文档](../../crates/scap-service/docs/reclamation.md)。
 
 ## 受信 owner 路由
 
@@ -127,7 +175,7 @@ try {
 不等待 owner 恢复。`query` 在等待路由前复制调用者 SQL 和参数，允许 Maintenance 强读；
 `execute` 要求 Ready、active 的 owner。未知 owner 返回 `UNROUTABLE`，未激活写 owner 返回
 `OWNER_INACTIVE`；它们不会触发 takeover。路由后 owner 变化产生的 FENCED、CONFLICT、
-STALE_SNAPSHOT 或 UNKNOWN 直接返回，不刷新路由后重发业务。
+STALE_SNAPSHOT、SNAPSHOT_EXPIRED 或 UNKNOWN 直接返回，不刷新路由后重发业务。
 
 每个 registry 至多 256 项，每项输入 endpoint 至多 2048 字节，总规范地址与 worker 字符串
 至多 64 KiB。重复 worker 或 endpoint 拒绝。构造器复制 scope、route 和结果预算，调用者之后

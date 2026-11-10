@@ -21,6 +21,7 @@ pub enum CatalogueError {
     Corrupt,
     Limit,
     Unknown,
+    SnapshotExpired,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

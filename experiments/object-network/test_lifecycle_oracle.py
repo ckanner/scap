@@ -21,8 +21,8 @@ IDENTITY = {"epoch": 1, "id": 2, "principal": 17, "fingerprint": oracle.fingerpr
 
 
 def full_head(revision=1, *, lifecycle="ready"):
-    return {"format": 5, "scope": dict(SCOPE), "head_serial": revision,
-            "storage": {"active_generation": 1, "allocated_through": 1},
+    return {"format": 6, "scope": dict(SCOPE), "head_serial": revision,
+            "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
             "revision": revision, "transition": {"revision": revision, "nonce": 1},
             "sequence": 0, "owner_epoch": 1, "owner_instance": 101, "active": False,
             "auth_epoch": 1, "policy": [{"principal": 17, "read": True, "write": True, "admin": True}],
@@ -158,10 +158,10 @@ def check_race(data, commit_first=False, cancel=False):
 
 
 class WireAndOriginalTests(unittest.TestCase):
-    def test_head_five_requires_explicit_unnamed_origins(self):
+    def test_head_six_requires_explicit_unnamed_origins(self):
         value = full_head()
         self.assertEqual(oracle.head(list(json.dumps(value).encode())), value)
-        invalid = [{**value, "format": 3}, {**value, "format": 4}, {**value, "format": 6},
+        invalid = [{**value, "format": 3}, {**value, "format": 4}, {**value, "format": 5}, {**value, "format": 7},
                    {**value, "creation": {"creator": 17}},
                    {**value, "deletion": {"operation": 1}}]
         for missing in ("creation", "deletion"):

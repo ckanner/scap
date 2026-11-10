@@ -349,11 +349,13 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         "cancelled"
     );
     let head = Head {
-        format: 5,
+        format: 6,
         head_serial: 7,
         storage: scap_object::format::Storage {
             active_generation: 1,
             allocated_through: 1,
+            plan: None,
+            sweep: None,
         },
         creation: None,
         deletion: None,
@@ -595,4 +597,155 @@ fn nonnumeric_versions_are_rejected_without_coercion() {
         )
         .is_err());
     }
+}
+
+#[test]
+fn maintenance_actions_have_explicit_serials_bounded_frontiers_and_separate_admission() {
+    for (operation, fields, admission) in [
+        (
+            "compact_begin",
+            json!({"expected_head_serial":"1"}),
+            "control",
+        ),
+        ("compact_copy", json!({"plan_serial":"2"}), "recovery"),
+        ("compact_promote", json!({"plan_serial":"2"}), "control"),
+        ("compact_abort", json!({"plan_serial":"2"}), "control"),
+        (
+            "gc_prepare",
+            json!({"expected_head_serial":"3","generation":"1","after":null}),
+            "recovery",
+        ),
+        ("gc_resume", json!({"batch_serial":"4"}), "recovery"),
+    ] {
+        let mut value: Json =
+            serde_json::from_str(&call(&format!("\"operation\":\"{operation}\""))).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(fields.as_object().unwrap().clone());
+        let action = parse(value.to_string().as_bytes()).unwrap().action;
+        assert_eq!(action.admission(), admission);
+        assert!(action.priority());
+        assert_eq!(action.expected_worker(), None);
+        for field in fields.as_object().unwrap().keys() {
+            let mut bad = value.clone();
+            bad.as_object_mut().unwrap().remove(field);
+            assert!(
+                parse(bad.to_string().as_bytes()).is_err(),
+                "{operation}/{field}"
+            );
+        }
+        for field in fields
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|field| *field != "after")
+        {
+            let mut bad = value.clone();
+            bad[field] = json!("0");
+            assert_eq!(
+                parse(bad.to_string().as_bytes()).unwrap_err().code,
+                "INVALID"
+            );
+        }
+        value["key"] = json!("arbitrary/object");
+        assert!(parse(value.to_string().as_bytes()).is_err());
+    }
+    for after in [
+        json!("?"),
+        json!("A".repeat(64)),
+        json!("prefix/"),
+        json!(1),
+    ] {
+        let value = call(&format!(
+            r#""operation":"gc_prepare","expected_head_serial":"1","generation":"2","after":{after}"#
+        ));
+        assert_eq!(parse(value.as_bytes()).unwrap_err().code, "INVALID");
+    }
+    let value = call(&format!(
+        r#""operation":"gc_prepare","expected_head_serial":"1","generation":"2","after":"{}""#,
+        "a".repeat(64)
+    ));
+    assert!(parse(value.as_bytes()).is_ok());
+}
+
+#[test]
+fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
+    use scap_object::format::{
+        CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
+    };
+    let memory = std::sync::Arc::new(crate::tests::Memory::default());
+    let db =
+        scap_object::Database::new(memory, crate::tests::scope().native().unwrap(), 100).unwrap();
+    let mut head = db.create(3, 1, crate::tests::until()).unwrap();
+    assert_eq!(status(&head)["head_serial"], "1");
+    head.head_serial = 5;
+    head.storage = Storage {
+        active_generation: 1,
+        allocated_through: 2,
+        sweep: None,
+        plan: Some(CopyPlan {
+            serial: 2,
+            source: 1,
+            target: 2,
+            phase: CopyPhase::Copying,
+            basis: CopyBasis {
+                data_root: head.data_root.clone(),
+                windows: head.windows.clone(),
+                sequence: head.sequence,
+                revision: head.revision,
+                quota: head.quota.clone(),
+                retention: head.retention.clone(),
+                request_epoch: head.request_epoch,
+            },
+        }),
+    };
+    assert_eq!(
+        status(&head)["storage"]["plan"],
+        json!({"serial":"2","source":"1","target":"2","phase":"copying"})
+    );
+    head.storage.plan.as_mut().unwrap().phase = CopyPhase::Sealed;
+    assert_eq!(status(&head)["storage"]["plan"]["phase"], "sealed");
+    head.storage.plan = None;
+    head.storage.sweep = Some(SweepCheckpoint {
+        serial: 5,
+        generation: 2,
+        next_after: Some("f".repeat(64)),
+        exhausted: false,
+        entries: [
+            SweepDisposition::Pending,
+            SweepDisposition::Applied,
+            SweepDisposition::ObservedAbsent,
+            SweepDisposition::ConditionMismatch,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, disposition)| SweepEntry {
+            key: format!("private-key-{index}"),
+            hash: format!("{index:064x}"),
+            etag: format!("\"private-etag-{index}\""),
+            disposition,
+        })
+        .collect(),
+    });
+    let report = scap_object::SweepReport {
+        head,
+        generation: 2,
+        scanned: 4,
+        next_after: Some("f".repeat(64)),
+        exhausted: false,
+    };
+    let output = sweep(&report);
+    assert_eq!(
+        output["status"]["storage"]["sweep"],
+        json!({"serial":"5","generation":"2",
+        "next_after":"f".repeat(64),"exhausted":false,"pending":1,"applied":1,"observed_absent":1,"condition_mismatch":1})
+    );
+    assert_eq!(output["scanned"], 4);
+    let encoded = output.to_string();
+    assert!(
+        !encoded.contains("private-key")
+            && !encoded.contains("private-etag")
+            && !encoded.contains("basis")
+    );
 }

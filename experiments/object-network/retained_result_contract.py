@@ -107,10 +107,11 @@ def rewrite(head_bytes, index_bytes, result_bytes, epoch, damage):
     it is not a product publication or an accepted business transition proof.
     """
     head = load_json(head_bytes)
-    require(type(head["format"]) is int and head["format"] == 5, "fixture HEAD version")
+    require(type(head["format"]) is int and head["format"] == 6, "fixture HEAD version")
     require(type(head["head_serial"]) is int and head["head_serial"] >= head["revision"] >= 1, "fixture HEAD serial")
-    require(head["storage"] == {"active_generation": 1, "allocated_through": 1}
-            and all(type(value) is int for value in head["storage"].values()), "fixture HEAD storage")
+    require(head["storage"] == {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None}
+            and all(type(head["storage"][field]) is int
+                    for field in ("active_generation", "allocated_through")), "fixture HEAD storage")
     selected = [window for window in head["windows"] if window["epoch"] == epoch]
     require(len(selected) == 1, "exact retained window required")
     window = selected[0]

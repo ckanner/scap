@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import * as wire from './wire.js';
 import * as catalogue from './catalogue_wire.js';
 
-const STOPPED = ['INVALID', 'DENIED', 'LIMIT', 'CONFLICT', 'UNKNOWN', 'CORRUPT'];
+const STOPPED = ['INVALID', 'DENIED', 'LIMIT', 'CONFLICT', 'UNKNOWN', 'CORRUPT', 'SNAPSHOT_EXPIRED'];
 const KINDS = ['name', 'create', 'control', 'abort_proof', 'head', 'orphan_prefix'];
 const STATES = ['descriptor_only', 'reserved', 'provisioning', 'bound', 'ready', 'maintenance',
   'aborting', 'aborted', 'deleting', 'deleted', 'name_conflict', 'identity_conflict', 'control_admitted', 'orphan'];

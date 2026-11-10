@@ -250,10 +250,10 @@ fn configuration_and_construction_fail_closed_without_ambient_credentials() {
 #[test]
 fn input_limits_paths_etags_and_deadlines_precede_any_io() {
     let s3 = S3::new(config("http://127.0.0.1:1")).unwrap();
-    assert_eq!(s3.get("key", 4097, deadline()), Err(StoreError::Limit));
+    assert_eq!(s3.get("key", 4097, deadline()), Err(StoreError::Budget));
     assert_eq!(
         s3.put("key", &[0; 4097], Condition::Absent, deadline()),
-        Err(StoreError::Limit)
+        Err(StoreError::Budget)
     );
     for key in ["", "../bad", "/prefix", "trailing/", "key\0"] {
         assert_eq!(

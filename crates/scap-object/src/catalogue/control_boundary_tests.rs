@@ -23,6 +23,47 @@ fn admitted(catalog: &Catalogue, source: &Source, kind: NamedDeletionKind) -> Ad
 }
 
 #[test]
+fn named_delete_cannot_cross_a_live_copy_or_sweep_checkpoint() {
+    for sweep in [false, true] {
+        let (_, catalog, creation) = stage(CreationPhase::Ready);
+        let source = descriptor(&catalog, &creation);
+        let control = admitted(&catalog, &source, NamedDeletionKind::Delete);
+        let mut view = catalog.view(&source, deadline()).unwrap();
+        let head = &mut view.head.as_mut().unwrap().head;
+        head.head_serial += 1;
+        head.active = false;
+        head.storage.allocated_through = 2;
+        if sweep {
+            head.storage.sweep = Some(format::SweepCheckpoint {
+                serial: head.head_serial,
+                generation: 2,
+                next_after: None,
+                exhausted: true,
+                entries: vec![format::SweepEntry {
+                    key: format::object_key(&head.scope, 2, &"a".repeat(64)),
+                    hash: "a".repeat(64),
+                    etag: "\"old\"".into(),
+                    disposition: format::SweepDisposition::Pending,
+                }],
+            });
+        } else {
+            head.storage.plan = Some(format::CopyPlan {
+                serial: head.head_serial,
+                source: 1,
+                target: 2,
+                phase: format::CopyPhase::Copying,
+                basis: format::CopyBasis::capture(head),
+            });
+        }
+        format::encode_head(head).unwrap();
+        assert!(matches!(
+            catalog.delete_plan(&source, &control, &view),
+            Err(CatalogueError::Conflict)
+        ));
+    }
+}
+
+#[test]
 fn observed_abort_steps_report_only_durably_accepted_cancellation() {
     for cut in 0..6 {
         let (objects, catalog, creation) = stage(if cut == 2 {

@@ -44,6 +44,7 @@
     "crates/scap-object/src/object_frame_tests.rs",
     "crates/scap-object/src/options_tests.rs",
     "crates/scap-object/src/quarantine_tests.rs",
+    "crates/scap-object/src/reclamation_tests.rs",
     "crates/scap-object/src/request_index_tests.rs",
     "crates/scap-object/src/result_validation_tests.rs",
     "crates/scap-object/src/review_tests.rs",
@@ -83,7 +84,11 @@
     "experiments/object-discovery",
     "experiments/object-gc-store",
     "experiments/resource-limits",
-    "experiments/bounded-transport"
+    "experiments/bounded-transport",
+    "experiments/object-metadata",
+    "experiments/guarded-status",
+    "experiments/output-pool",
+    "experiments/object-reclamation-runtime"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

@@ -67,6 +67,47 @@ struct State {
 }
 
 impl Memory {
+    pub(super) fn operation_count(&self) -> usize {
+        self.inner.lock().unwrap().operations
+    }
+
+    pub(super) fn get_count(&self) -> usize {
+        self.inner.lock().unwrap().gets
+    }
+
+    pub(super) fn fail_after(&self, offset: usize) {
+        let mut state = self.inner.lock().unwrap();
+        state.fail_at = Some(state.operations + offset);
+    }
+
+    pub(super) fn entries(&self) -> Vec<(String, Stored)> {
+        self.inner
+            .lock()
+            .unwrap()
+            .values
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
+    }
+
+    pub(super) fn remove(&self, key: &str) {
+        self.inner.lock().unwrap().values.remove(key);
+    }
+
+    pub(super) fn delete_exact(&self, key: &str, etag: &str) -> scap_object_store::DeleteOutcome {
+        let mut state = self.inner.lock().unwrap();
+        match state.values.get(key) {
+            None => scap_object_store::DeleteOutcome::Missing,
+            Some(value) if format!("\"{}\"", value.etag) != etag => {
+                scap_object_store::DeleteOutcome::Conflict
+            }
+            Some(_) => {
+                state.values.remove(key);
+                scap_object_store::DeleteOutcome::Applied
+            }
+        }
+    }
+
     pub(super) fn set(&self, key: String, bytes: Vec<u8>) {
         let mut state = self.inner.lock().unwrap();
         state.serial += 1;
@@ -1113,7 +1154,10 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
                 result_bytes: 0,
                 request: identity(id),
                 outcome: OutcomeRef::Cancelled {
-                    transition: head.transition.clone(),
+                    transition: Transition {
+                        revision: head.revision,
+                        nonce: id,
+                    },
                 },
             })
             .collect();

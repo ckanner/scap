@@ -347,7 +347,10 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
         result_bytes: 0,
         request: identity(3),
         outcome: OutcomeRef::Cancelled {
-            transition: head.transition.clone(),
+            transition: Transition {
+                revision: head.revision,
+                nonce: 3,
+            },
         },
     };
     assert!(matches!(

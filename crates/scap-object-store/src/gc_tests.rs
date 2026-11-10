@@ -436,3 +436,217 @@ fn signing_failure_is_unknown_before_any_delete_is_sent() {
     server.join().unwrap();
     assert_eq!(capture.lock().unwrap().len(), 2);
 }
+
+#[test]
+fn garbage_capability_inspects_one_full_candidate_and_keeps_its_original_etag() {
+    let mut replies = ready_replies();
+    replies.push(reply(200, b"original object bytes"));
+    replies.extend(ready_replies());
+    replies.push(reply(404, b"<Error><Code>NoSuchKey</Code></Error>"));
+    replies.extend(ready_replies());
+    replies.push(reply(204, b""));
+    let (endpoint, server, capture) = transport(replies);
+    let store: Box<dyn Garbage> = Box::new(GcS3::new(config(endpoint), 1).unwrap());
+    let candidate = store.inspect(PREFIX, HASH, deadline()).unwrap();
+    assert_eq!(
+        candidate,
+        GcCandidate::Present {
+            etag: "\"unit-version\"".into()
+        }
+    );
+    assert_eq!(
+        store.inspect(PREFIX, HASH, deadline()),
+        Ok(GcCandidate::Missing)
+    );
+    let GcCandidate::Present { etag } = candidate else {
+        panic!("original GET must identify its exact version");
+    };
+    assert_eq!(
+        store.delete(PREFIX, HASH, &etag, deadline()),
+        Ok(DeleteOutcome::Applied)
+    );
+    server.join().unwrap();
+    let requests = capture.lock().unwrap();
+    assert_eq!(requests.len(), 9);
+    for index in [2, 5] {
+        assert!(requests[index].starts_with(&format!("get /scap-unit/{PREFIX}{HASH} ")));
+        assert!(!requests[index].contains("range:"));
+        assert!(!requests[index].contains("if-match:"));
+    }
+    assert!(requests[8].starts_with(&format!("delete /scap-unit/{PREFIX}{HASH} ")));
+    assert!(requests[8].contains("if-match: \"unit-version\""));
+    assert!(requests
+        .iter()
+        .all(|r| r.contains("authorization: aws4-hmac-sha256")));
+}
+
+#[test]
+fn candidate_uncertainty_never_becomes_absence_or_an_eligible_new_etag() {
+    let mut missing_etag = reply(200, b"ok");
+    missing_etag.etag = None;
+    let mut invalid_etag = reply(200, b"ok");
+    invalid_etag.etag = Some("weak".into());
+    let mut short = reply(200, b"short");
+    short.declared_size += 1;
+    let mut redirect = reply(307, b"");
+    redirect.location = Some("http://127.0.0.1:1/".into());
+    for (response, expected) in [
+        (missing_etag, GcError::Unknown),
+        (invalid_etag, GcError::Unknown),
+        (short, GcError::Unknown),
+        (redirect, GcError::Unknown),
+        (reply(200, &[0; 4097]), GcError::Unknown),
+        (
+            reply(404, b"<Error><Code>NoSuchBucket</Code></Error>"),
+            GcError::Unknown,
+        ),
+        (reply(404, b"not complete S3 XML"), GcError::Unknown),
+        (
+            reply(404, &vec![0; MAX_GC_RESPONSE_BYTES + 1]),
+            GcError::Unknown,
+        ),
+        (reply(206, b"partial"), GcError::Unknown),
+        (reply(403, b"denied"), GcError::Denied),
+        (reply(409, b"conflict"), GcError::Unknown),
+        (reply(500, b"failed"), GcError::Unknown),
+    ] {
+        let mut replies = ready_replies();
+        replies.push(response);
+        let (endpoint, server, capture) = transport(replies);
+        let store = GcS3::new(config(endpoint), 1).unwrap();
+        assert_eq!(store.inspect(PREFIX, HASH, deadline()), Err(expected));
+        server.join().unwrap();
+        assert_eq!(capture.lock().unwrap().len(), 3);
+    }
+}
+
+#[test]
+fn garbage_capability_rejects_bad_namespace_inputs_and_keeps_original_deadlines() {
+    let store = GcS3::new(config("http://127.0.0.1:1"), 1).unwrap();
+    assert_eq!(
+        store.inspect(PREFIX, "bad", deadline()),
+        Err(GcError::Invalid)
+    );
+    assert_eq!(
+        store.inspect("other/", HASH, deadline()),
+        Err(GcError::Invalid)
+    );
+    assert_eq!(
+        store.inspect(PREFIX, HASH, Instant::now()),
+        Err(GcError::Unknown)
+    );
+    assert_eq!(
+        store.delete(PREFIX, "bad", "\"x\"", deadline()),
+        Err(GcError::Invalid)
+    );
+    assert_eq!(
+        store.delete(PREFIX, HASH, "*", deadline()),
+        Err(GcError::Invalid)
+    );
+    assert_eq!(
+        store.delete("other/", HASH, "\"x\"", deadline()),
+        Err(GcError::Invalid)
+    );
+    assert_eq!(
+        store.delete(PREFIX, HASH, "\"x\"", Instant::now()),
+        Err(GcError::Unknown)
+    );
+    let runtime = crate::runtime().unwrap();
+    let guard = runtime.enter();
+    assert_eq!(
+        store.inspect(PREFIX, HASH, deadline()),
+        Err(GcError::Invalid)
+    );
+    drop(guard);
+
+    for delete in [false, true] {
+        let (endpoint, server, capture) = transport(vec![reply(403, b"preflight denied")]);
+        let store = GcS3::new(config(endpoint), 1).unwrap();
+        if delete {
+            assert_eq!(
+                store.delete(PREFIX, HASH, "\"x\"", deadline()),
+                Err(GcError::Denied)
+            );
+        } else {
+            assert_eq!(
+                store.inspect(PREFIX, HASH, deadline()),
+                Err(GcError::Denied)
+            );
+        }
+        server.join().unwrap();
+        assert_eq!(capture.lock().unwrap().len(), 1);
+    }
+
+    let mut late = reply(200, b"complete but too late");
+    late.delay = Duration::from_millis(150);
+    let mut replies = ready_replies();
+    replies.push(late);
+    let (endpoint, server, capture) = transport(replies);
+    let store = GcS3::new(config(endpoint), 1).unwrap();
+    assert_eq!(
+        store.inspect(PREFIX, HASH, Instant::now() + Duration::from_millis(80)),
+        Err(GcError::Unknown)
+    );
+    server.join().unwrap();
+    assert_eq!(capture.lock().unwrap().len(), 3);
+}
+
+fn candidate_response() -> Response {
+    let mut headers = HeaderMap::new();
+    headers.insert(http::header::ETAG, HeaderValue::from_static("\"original\""));
+    headers.insert(http::header::CONTENT_LENGTH, HeaderValue::from_static("3"));
+    Response {
+        status: 200,
+        headers,
+        bytes: b"abc".to_vec(),
+    }
+}
+
+#[test]
+fn candidate_requires_one_exact_version_and_a_complete_unencoded_unversioned_body() {
+    for name in [
+        "x-amz-version-id",
+        "x-amz-delete-marker",
+        "content-range",
+        "content-encoding",
+    ] {
+        let mut response = candidate_response();
+        response
+            .headers
+            .insert(name, HeaderValue::from_static("unexpected"));
+        assert_eq!(candidate(response), Err(GcError::Unknown));
+    }
+    let mut response = candidate_response();
+    response
+        .headers
+        .append(http::header::ETAG, HeaderValue::from_static("\"second\""));
+    assert_eq!(candidate(response), Err(GcError::Unknown));
+    let mut response = candidate_response();
+    response.headers.insert(
+        http::header::ETAG,
+        HeaderValue::from_bytes(b"\xff").unwrap(),
+    );
+    assert_eq!(candidate(response), Err(GcError::Unknown));
+    let mut response = candidate_response();
+    response.headers.remove(http::header::CONTENT_LENGTH);
+    assert_eq!(candidate(response), Err(GcError::Unknown));
+    for value in [
+        b"invalid".as_slice(),
+        b"4",
+        b"\xff",
+        b"184467440737095516160",
+    ] {
+        let mut response = candidate_response();
+        response.headers.insert(
+            http::header::CONTENT_LENGTH,
+            HeaderValue::from_bytes(value).unwrap(),
+        );
+        assert_eq!(candidate(response), Err(GcError::Unknown));
+    }
+    assert_eq!(
+        candidate(candidate_response()),
+        Ok(GcCandidate::Present {
+            etag: "\"original\"".into()
+        })
+    );
+}

@@ -420,8 +420,8 @@ def durable_audit(data, http, net):
         head = parse(b64(request['request_body']))
         nonce = (31001, 31002, 1, 31003, 31004)[revision - 1]
         if previous is None:
-            expected = {**head, 'format': 5, 'scope': {k: int(v) for k, v in SCOPE.items()},
-                'head_serial': 1, 'storage': {'active_generation': 1, 'allocated_through': 1},
+            expected = {**head, 'format': 6, 'scope': {k: int(v) for k, v in SCOPE.items()},
+                'head_serial': 1, 'storage': {'active_generation': 1, 'allocated_through': 1, 'plan': None, 'sweep': None},
                 'revision': 1, 'transition': {'revision': 1, 'nonce': nonce}, 'sequence': 0,
                 'owner_epoch': 1, 'owner_instance': 9101, 'active': False, 'auth_epoch': 1,
                 'policy': [{'principal': 11, 'read': True, 'write': True, 'admin': True}],

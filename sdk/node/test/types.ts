@@ -1,6 +1,6 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
 import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, RouteError, OwnerReconcileError, UnknownError,
-  type DatabaseStatus, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
+  type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
@@ -40,6 +40,20 @@ async function contract() {
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
   const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
+  const plan: DatabaseStatus = await db.compactBegin({ expectedHeadSerial: guarded.head_serial });
+  await db.compactCopy({ planSerial: plan.storage.plan!.serial });
+  await db.compactPromote({ planSerial: plan.storage.plan!.serial });
+  await db.compactAbort({ planSerial: '11' });
+  const batch: SweepReport = await db.gcPrepare({ expectedHeadSerial: '13', generation: '1', after: null });
+  await db.gcResume({ batchSerial: batch.status.storage.sweep!.serial });
+  // @ts-expect-error Physical collector identities are decimal strings.
+  db.gcResume({ batchSerial: 1 });
+  // @ts-expect-error No public operation accepts arbitrary object keys.
+  db.gcPrepare({ expectedHeadSerial: '1', generation: '2', after: null, keys: ['unsafe'] });
+  // @ts-expect-error An explicit hash frontier or null is required.
+  db.gcPrepare({ expectedHeadSerial: '1', generation: '2' });
+  // @ts-expect-error Observed checkpoint metadata is immutable.
+  batch.status.storage.sweep!.pending = 0;
   await db.takeover({ expectedRevision: '1', nonce: '2', expectedWorkerInstance: '10' });
   const routing = { bootstrapEndpoint: 'https://example.invalid/v1',
     routes: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1' }],

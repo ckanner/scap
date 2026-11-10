@@ -10,7 +10,9 @@ export const EMPTY = Buffer.from('534341505245533100000000', 'hex');
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export function head(changes = {}) {
   const revision = changes.revision ?? '10';
-  return { scope: clone(SCOPE), revision, sequence: '0', owner_epoch: '2', owner_instance: '100', active: true,
+  return { scope: clone(SCOPE), revision, head_serial: revision,
+    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null },
+    sequence: '0', owner_epoch: '2', owner_instance: '100', active: true,
     auth_epoch: '1', lifecycle: 'ready', request_epoch: '3', max_bytes: null,
     retention: { max_entries: 4096, max_result_bytes: '268435456', oldest_epoch: '1' },
     transition: { revision, nonce: '9' }, ...changes };

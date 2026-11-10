@@ -7,12 +7,12 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
-use scap_object_store::{Listings, Objects, S3};
+use scap_object_store::{Garbage, GcS3, Listings, Objects, S3Config, S3};
 use tokio::sync::Semaphore;
 
 use crate::{
-    config::{Config, Prepared, ServiceConfig},
-    engine::Engine,
+    config::{Config, Prepared, PreparedGarbage, ServiceConfig},
+    engine::{Collector, Engine},
     http::{self, CatalogueState, HttpState},
     intake::{Class, Intake},
     scheduler::{Factory, Scheduler},
@@ -37,9 +37,38 @@ pub fn assemble_with_listings(
     objects: Arc<dyn Objects>,
     listings: Option<Arc<dyn Listings>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    assemble_with_storage(prepared, objects, listings, None)
+}
+
+/// Trusted Rust assembly must bind all capabilities to the same backend.
+/// Missing or unexpected collector capability is a startup configuration error.
+pub fn assemble_with_storage(
+    prepared: ServiceConfig,
+    objects: Arc<dyn Objects>,
+    listings: Option<Arc<dyn Listings>>,
+    garbage: Option<Arc<dyn Garbage>>,
+) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
+    let collector = match prepared.gc_deployment {
+        Some(deployment) => {
+            if deployment == 0 {
+                return Err(Failure::new("CONFIG"));
+            }
+            Some(Collector {
+                deployment,
+                listings: listings.clone().ok_or_else(|| Failure::new("CONFIG"))?,
+                garbage: garbage.ok_or_else(|| Failure::new("CONFIG"))?,
+            })
+        }
+        None => {
+            if garbage.is_some() {
+                return Err(Failure::new("CONFIG"));
+            }
+            None
+        }
+    };
     let discovery = match prepared.discovery {
         Some(codec) => Some(Arc::new(crate::discovery::Discovery::new(
             objects.clone(),
@@ -78,15 +107,18 @@ pub fn assemble_with_listings(
     let limits = prepared.admission.limits();
     let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
     let factory: Factory = Arc::new(move |_| {
-        Ok(Box::new(Engine::new(
-            objects.clone(),
-            prepared.worker_instance,
-            options.clone(),
-            &prepared.cache_directory,
-            1,
-            prepared.cache.pages_per_actor,
-            recovery.clone(),
-        )?))
+        Ok(Box::new(
+            Engine::new(
+                objects.clone(),
+                prepared.worker_instance,
+                options.clone(),
+                &prepared.cache_directory,
+                1,
+                prepared.cache.pages_per_actor,
+                recovery.clone(),
+            )?
+            .with_collector(collector.clone()),
+        ))
     });
     let scheduler = Arc::new(Scheduler::new(limits, factory)?);
     let admission = prepared.admission;
@@ -128,12 +160,44 @@ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
     // before S3 clients or any workers are created.
     let transport = prepared.service.transport.checked()?;
     prepared.service.output.checked()?;
+    let garbage = gc_backend(prepared.gc, prepared.service.gc_deployment, &prepared.s3)?;
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
     let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
     let (address, state) =
-        assemble_with_listings(prepared.service, backend.clone(), Some(backend))?;
+        assemble_with_storage(prepared.service, backend.clone(), Some(backend), garbage)?;
     run(address, state, transport, shutdown, runtime)
+}
+
+fn gc_backend(
+    configured: Option<PreparedGarbage>,
+    deployment: Option<u64>,
+    authority: &S3Config,
+) -> Result<Option<Arc<dyn Garbage>>, Failure> {
+    match configured {
+        Some(gc) => {
+            if deployment != Some(gc.deployment)
+                || gc.s3.endpoint != authority.endpoint
+                || gc.s3.region != authority.region
+                || gc.s3.bucket != authority.bucket
+                || gc.s3.timeout != authority.timeout
+                || gc.s3.allow_http != authority.allow_http
+                || gc.s3.max_object_bytes != authority.max_object_bytes
+                || gc.s3.access_key == authority.access_key
+            {
+                return Err(Failure::new("CONFIG"));
+            }
+            Ok(Some(Arc::new(
+                GcS3::new(gc.s3, gc.deployment).map_err(|_| Failure::new("CONFIG"))?,
+            )))
+        }
+        None => {
+            if deployment.is_some() {
+                return Err(Failure::new("CONFIG"));
+            }
+            Ok(None)
+        }
+    }
 }
 
 fn runtime() -> std::io::Result<tokio::runtime::Runtime> {

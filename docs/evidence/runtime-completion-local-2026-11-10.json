@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "HISTORICAL_EXECUTIONS_COMPLETE_DISCOVERY_CONTROLS_PENDING_KNOWN_SEMANTIC_GAP",
+  "status": "HISTORICAL_EXECUTED_GATES_PASSED_KNOWN_SEMANTIC_GAP",
   "date": "2026-11-10",
   "pull_request": "https://github.com/ckanner/scap/pull/54",
   "candidate": {
@@ -221,6 +221,11 @@
       "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-http-final-summary.json",
       "sha256": "e074452bf8d9229a05718027197e1de6e1294cb972d952da7f4181264598198e",
       "bytes": 22157
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-http-final-summary-v2.json",
+      "sha256": "bb25dddb3bd883d0cf709850b26f744af9ae01f7c1de21b33284451f8f54e0f1",
+      "bytes": 24940
     }
   ],
   "actual_reports": {
@@ -294,6 +299,19 @@
       "manifest": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-source.json",
       "manifest_sha256": "8c2e006a611c7762893960b7e0434f34ad27aa3f02d80743facb5749f51fd1ff",
       "stdout": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-http-final-source-verify.stdout",
+      "stdout_sha256": "8f2d8a46261ac55b2b1e62ffc922ef98b2adbad1606fdf29150e135556ea001c"
+    },
+    "final_source_verification_v2": {
+      "argv": [
+        "python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-source.json"
+      ],
+      "cwd": "/workspace/scratch/3ff9bab58e00/scap-candidate",
+      "exit_code": 0,
+      "stdout": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-http-final-v2-source-verify.stdout",
       "stdout_sha256": "8f2d8a46261ac55b2b1e62ffc922ef98b2adbad1606fdf29150e135556ea001c"
     },
     "gates": {
@@ -428,7 +446,18 @@
         "controls": {
           "cause": "Negative control appended a request to an already full 512-GET page, reaching operation-budget limit before intended causal deadline boundary.",
           "original_failed_report": "/workspace/scratch/3ff9bab58e00/scap-evidence/discovery-http-candidate-01/discovery-oracle.json",
-          "status": "PENDING_ROOT_OFFLINE_CORRECTION"
+          "status": "ORIGINAL_FAILURE_PRESERVED_SUPERSEDED_BY_SEPARATE_CORRECTED_CONTROLS"
+        },
+        "corrected_controls": {
+          "negative_count": 29,
+          "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/discovery-control-fix-run-02/controls.json",
+          "positive_count": 1,
+          "run_receipt": "/workspace/scratch/3ff9bab58e00/scap-evidence/discovery-control-fix-run-02/result.json",
+          "run_receipt_sha256": "f230d2c999b4e6f70b02fb53b7f0df9d2559cc4d17e70ca9c5b642c2d3d87c1e",
+          "scope": "Offline audit of unchanged d60 raw actual history; no product calls reissued.",
+          "sha256": "2e4d733e9523095d2dd45e720d725ec99acc76bfcfdd592aab7b1338591b90a7",
+          "source_commit": "6e107a1524275c4cd3a136795f875a60e544c2c0",
+          "status": "passed"
         },
         "oracle": {
           "denominators": {
@@ -672,18 +701,20 @@
       "owner": {
         "actual": "/workspace/scratch/3ff9bab58e00/scap-evidence/http-candidate-path-rerun-02/owner-1.json",
         "controls": {
+          "cause": "Control changed If-Match but retained an inconsistent old serial/revision/transition, reaching the new HEAD5 serial check before its intended no-same-call-GET check.",
+          "original_failed_report": "/tmp/scap-owner-candidate-02-controls/controls.json",
+          "status": "ORIGINAL_FAILURE_PRESERVED_SUPERSEDED_BY_SEPARATE_CORRECTED_CONTROLS"
+        },
+        "corrected_controls": {
+          "negative_count": 24,
           "path": "/tmp/scap-owner-candidate-04-controls/controls.json",
+          "positive_count": 1,
+          "run_receipt": "/workspace/scratch/3ff9bab58e00/scap-evidence/owner-control-fix-run-04/result.json",
+          "run_receipt_sha256": "9709f71368a5123a6e69c5880f57bd5eb93dbfdc87ce90ef59479acec751eb0b",
+          "scope": "Offline audit of unchanged d60 raw actual history; no product calls reissued.",
           "sha256": "23ea80871668db1ec8f31375fe440ae370530ddc6527a082375d5f73a9bae01a",
-          "bytes": 167443,
           "source_commit": "6e107a1524275c4cd3a136795f875a60e544c2c0",
-          "status": "passed",
-          "negative_controls": 24,
-          "positive_controls": 1,
-          "run": {
-            "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/owner-control-fix-run-04/result.json",
-            "sha256": "9709f71368a5123a6e69c5880f57bd5eb93dbfdc87ce90ef59479acec751eb0b",
-            "bytes": 612
-          }
+          "status": "passed"
         },
         "oracle": {
           "denominators": {
@@ -761,6 +792,11 @@
         }
       }
     },
+    "later_discovered_limit": {
+      "does_not_invalidate_original_observations": true,
+      "issue": "Retained Result/cancel nonce must equal request.id. Legitimate d60 actual inputs passed; later review found this semantic validation gap. HEAD6 fixes it and still needs separate frozen-candidate acceptance.",
+      "phase1_merge_approved": false
+    },
     "limitations": [
       "Local authenticated SeaweedFS only; AWS Standard NOT_RUN",
       "Fixed acceptance workloads, not throughput/SLO measurements",
@@ -785,7 +821,12 @@
       }
     ],
     "schema": 1,
-    "status": "ACTUAL_AND_INDEPENDENT_ORACLES_PASSED_CONTROL_CORRECTIONS_PENDING",
+    "status": "PHASE1_HTTP_BOUNDED_GATES_PASSED_NOT_FULL_MERGE_APPROVAL",
+    "supersedes_summary": {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-http-final-summary.json",
+      "preserved": true,
+      "sha256": "e074452bf8d9229a05718027197e1de6e1294cb972d952da7f4181264598198e"
+    },
     "unchanged_public_evidence_archives": [
       {
         "copy": "/workspace/scratch/3ff9bab58e00/scap-evidence/scap-owner-candidate-02-archived",
@@ -816,6 +857,12 @@
         "files": 1,
         "inventory_sha256": "5d77bebb7ae0ab1fb6756dc4c33b8151aa1585a88f7a1911ed2dbd370e4deb25",
         "original": "/tmp/scap-metadata-candidate-02-controls.json"
+      },
+      {
+        "copy": "/workspace/scratch/3ff9bab58e00/scap-evidence/scap-owner-candidate-04-controls-archived",
+        "files": 1851,
+        "inventory_sha256": "06f4e57d15d056e0edc3a86a26edafe25ee336e67e9d62440e4c6d6e9705eca1",
+        "original": "/tmp/scap-owner-candidate-04-controls"
       }
     ]
   },
@@ -914,5 +961,33 @@
     "cause": "Not established from available remote evidence; not treated as passing.",
     "branch_protection_changed": false
   },
-  "interpretation": "Only the named frozen historical candidate and exact offline control source are covered. Local signed SeaweedFS is not AWS. Passing executed gates do not erase a later discovered semantic-validation defect or certify HEAD6."
+  "interpretation": "Only the named frozen historical candidate and exact offline control source are covered. Local signed SeaweedFS is not AWS. Passing executed gates do not erase a later discovered semantic-validation defect or certify HEAD6.",
+  "final_source_verifications": [
+    {
+      "cwd": "/workspace/scratch/3ff9bab58e00/scap-candidate",
+      "argv": [
+        "python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/3ff9bab58e00/scap-evidence/candidate-source.json"
+      ],
+      "exit_code": 0,
+      "stdout": "PASS: source identity matches d60ea98eab8d073cfe118f3176c41ba6e2a4ab02; test verdicts are separate\n",
+      "stderr": ""
+    },
+    {
+      "cwd": "/workspace/scratch/3ff9bab58e00/scap-owner-control-fix",
+      "argv": [
+        "python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/3ff9bab58e00/scap-evidence/control-fix-source.json"
+      ],
+      "exit_code": 0,
+      "stdout": "PASS: source identity matches 6e107a1524275c4cd3a136795f875a60e544c2c0; test verdicts are separate\n",
+      "stderr": ""
+    }
+  ]
 }

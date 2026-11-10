@@ -41,10 +41,21 @@ fn failure_codes_preserve_authority_semantics() {
         (Error::Store(StoreError::Missing), "MISSING"),
         (Error::Limit, "LIMIT"),
         (Error::Store(StoreError::Limit), "LIMIT"),
+        (Error::Store(StoreError::Budget), "LIMIT"),
         (Error::Corrupt, "CORRUPT"),
         (Error::Format(FormatError::Invalid), "CORRUPT"),
         (Error::Store(StoreError::Corrupt), "CORRUPT"),
         (Error::StaleSnapshot, "STALE_SNAPSHOT"),
+        (Error::SnapshotExpired, "SNAPSHOT_EXPIRED"),
+        (Error::Gc(scap_object_store::GcError::Invalid), "INVALID"),
+        (Error::Gc(scap_object_store::GcError::Limit), "LIMIT"),
+        (Error::Gc(scap_object_store::GcError::Denied), "DENIED"),
+        (
+            Error::Gc(scap_object_store::GcError::Unsupported),
+            "GC_UNSUPPORTED",
+        ),
+        (Error::Gc(scap_object_store::GcError::Corrupt), "CORRUPT"),
+        (Error::Gc(scap_object_store::GcError::Unknown), "UNKNOWN"),
         (Error::Sql(scap_sql::SqlError::Invalid), "INVALID"),
         (Error::Store(StoreError::Invalid), "INVALID"),
         (Error::Engine(Native::ResultLimit), "LIMIT"),
@@ -287,6 +298,57 @@ impl Objects for Memory {
             return Err(StoreError::Unknown);
         }
         Ok(etag)
+    }
+}
+
+impl scap_object_store::Garbage for Memory {
+    fn inspect(
+        &self,
+        prefix: &str,
+        hash: &str,
+        deadline: Instant,
+    ) -> Result<scap_object_store::GcCandidate, scap_object_store::GcError> {
+        use scap_object_store::{GcCandidate, GcError};
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("INSPECT {prefix}{hash}"));
+        if Instant::now() >= deadline {
+            return Err(GcError::Unknown);
+        }
+        Ok(
+            match self.values.lock().unwrap().get(&format!("{prefix}{hash}")) {
+                Some(value) => GcCandidate::Present {
+                    etag: value.etag.clone(),
+                },
+                None => GcCandidate::Missing,
+            },
+        )
+    }
+
+    fn delete(
+        &self,
+        prefix: &str,
+        hash: &str,
+        etag: &str,
+        deadline: Instant,
+    ) -> Result<scap_object_store::DeleteOutcome, scap_object_store::GcError> {
+        use scap_object_store::{DeleteOutcome, GcError};
+        let key = format!("{prefix}{hash}");
+        self.calls.lock().unwrap().push(format!("DELETE {key}"));
+        if Instant::now() >= deadline {
+            return Err(GcError::Unknown);
+        }
+        let mut values = self.values.lock().unwrap();
+        let outcome = match values.get(&key) {
+            Some(value) if value.etag == etag => {
+                values.remove(&key);
+                DeleteOutcome::Applied
+            }
+            Some(_) => DeleteOutcome::Conflict,
+            None => DeleteOutcome::Missing,
+        };
+        Ok(outcome)
     }
 }
 

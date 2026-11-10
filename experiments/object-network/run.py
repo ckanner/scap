@@ -1019,10 +1019,10 @@ for command in sys.stdin:
 
     def delete_fixture_object(self, case, key):
         captured = json.loads(bytes(case["before"]["bytes"]))
-        assert captured["format"] == 5 and captured["scope"] == case["scope"]
+        assert captured["format"] == 6 and captured["scope"] == case["scope"]
         storage = captured["storage"]
-        assert storage == {"active_generation": 1, "allocated_through": 1}
-        assert all(type(value) is int for value in storage.values())
+        assert storage == {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None}
+        assert all(type(storage[field]) is int for field in ("active_generation", "allocated_through"))
         expected = ("scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}"
                     "/storage/".format(**captured["scope"]) + str(storage["active_generation"]) + "/objects/")
         assert isinstance(key, str) and key.startswith(expected)

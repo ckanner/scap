@@ -2,8 +2,8 @@
 //!
 //! This private primitive grants no permission or immutable-read protection.
 //! Business publication retains its own manifest, quota and health checks.
-//! Future technical transitions must supply their complete admission protocol
-//! before using it; the current decoder rejects pins and migration states.
+//! Storage transitions enter only through the sealed reclamation candidate;
+//! their admission and complete-copy checks remain in that owning module.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -21,6 +21,7 @@ pub(super) struct PreparedHead {
     bytes: Vec<u8>,
     etag: String,
     deadline: Instant,
+    generation: u64,
 }
 
 impl PreparedHead {
@@ -30,9 +31,34 @@ impl PreparedHead {
         next: &Head,
         deadline: Instant,
     ) -> Result<Self, Error> {
+        if next.storage != base.head.storage {
+            return Err(Error::Format(FormatError::Invalid));
+        }
+        Self::bound(database, base, next, deadline)
+    }
+
+    pub(super) fn technical(
+        database: &Database,
+        candidate: crate::reclamation::TechnicalHead,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        let (base, next) = candidate.into_parts();
+        Self::bound(database, &base, &next, deadline)
+    }
+
+    pub(super) fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    fn bound(
+        database: &Database,
+        base: &Snapshot,
+        next: &Head,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        base.head.validate().map_err(Error::Format)?;
         if base.head.scope != database.scope
             || next.scope != base.head.scope
-            || next.storage != base.head.storage
             || base.etag.is_empty()
         {
             return Err(Error::Format(FormatError::Invalid));
@@ -48,6 +74,7 @@ impl PreparedHead {
             bytes,
             etag: base.etag.clone(),
             deadline,
+            generation: base.head.storage.active_generation,
         })
     }
 

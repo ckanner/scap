@@ -1,4 +1,4 @@
-"""Independent HEAD5/tree decoder for the real segmented-index experiment.
+"""Independent HEAD6/tree decoder for the real segmented-index experiment.
 
 This module imports no controller and no Rust codec. Its graph walk checks every
 retained branch and actual result; parent summaries never replace a child read.
@@ -58,7 +58,7 @@ def envelope(raw, key):
 
 
 def head(raw):
-    require(len(raw.encode() if isinstance(raw, str) else raw) <= 256 * 1024, "HEAD5 byte bound")
+    require(len(raw.encode() if isinstance(raw, str) else raw) <= 256 * 1024, "HEAD6 byte bound")
     value = head5_profile(parse(raw))
     equal(value["scope"], SCOPE, "HEAD complete scope")
     for name in ("revision", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch"):

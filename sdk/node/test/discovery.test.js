@@ -51,7 +51,7 @@ test('discovery constructor budgets and cursor syntax reject before any transpor
 test('metadata pages cannot claim health or hide incomplete traversal and retain cross-tenant inventory only',()=>{
   const n=names();n.cursor='cursor';n.traversal_exhausted=false;n.stopped=null;
   assert.equal(wire.names(n,CONTEXT).cursor,'cursor');
-  for(const stopped of ['INVALID','DENIED','LIMIT','CONFLICT','UNKNOWN','CORRUPT']){n.stopped=stopped;assert.equal(wire.names(n,CONTEXT).stopped,stopped);}
+  for(const stopped of ['INVALID','DENIED','LIMIT','CONFLICT','UNKNOWN','CORRUPT','SNAPSHOT_EXPIRED']){n.stopped=stopped;assert.equal(wire.names(n,CONTEXT).stopped,stopped);}
   const i=inventory();i.records[0].creation.scope.tenant='42';i.records[0].scope.tenant='42';
   assert.equal(wire.inventory(i,CONTEXT).records[0].scope.tenant,'42');
   invalid(()=>wire.names({...names(),names:[{...names().names[0],creation:i.records[0].creation}]},CONTEXT));

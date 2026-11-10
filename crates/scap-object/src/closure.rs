@@ -59,6 +59,7 @@ struct Basis<'a> {
     objects: &'a ObjectContext,
     deadline: Instant,
     stop: &'a dyn Fn() -> bool,
+    retained_revision: u64,
 }
 
 impl Basis<'_> {
@@ -278,6 +279,7 @@ impl<'a> Cursor<'a> {
             objects,
             deadline,
             stop,
+            retained_revision: snapshot.head.revision,
         };
         basis.check()?;
         Ok(Box::new(Self {
@@ -292,6 +294,22 @@ impl<'a> Cursor<'a> {
             manifest_pages: 0,
             totals: ClosureTotals::default(),
         }))
+    }
+
+    pub(super) fn for_copy(
+        objects: &'a ObjectContext,
+        snapshot: &'a Snapshot,
+        plan: &crate::format::CopyPlan,
+        deadline: Instant,
+        stop: &'a dyn Fn() -> bool,
+    ) -> Result<Box<Self>, Error> {
+        if snapshot.head.storage.plan.as_ref() != Some(plan) || !plan.basis.matches(&snapshot.head)
+        {
+            return Err(Error::Conflict);
+        }
+        let mut cursor = Self::new(objects, snapshot, deadline, stop)?;
+        cursor.basis.retained_revision = plan.basis.revision;
+        Ok(cursor)
     }
 
     fn push(&mut self, frame: PathFrame) -> Result<(), Error> {
@@ -334,8 +352,11 @@ impl<'a> Cursor<'a> {
                     id,
                     transition,
                 }) => {
-                    check_cancelled(&self.basis.snapshot.head, &transition)
+                    check_cancelled(&self.basis.snapshot.head, id, &transition)
                         .map_err(|error| self.basis.objects.observe(error))?;
+                    if transition.revision > self.basis.retained_revision {
+                        return Err(self.basis.objects.observe(Error::Corrupt));
+                    }
                     self.entry(window, id, 0, false)
                         .map_err(|error| self.basis.objects.observe(error))?;
                 }
@@ -434,6 +455,9 @@ impl<'a> Cursor<'a> {
                 Payload::Result(stored),
             ) => {
                 check_retained_result(head, request, &stored, raw)?;
+                if stored.transition.revision > self.basis.retained_revision {
+                    return Err(Error::Corrupt);
+                }
                 if raw.len() as u64 != *bytes {
                     return Err(Error::Corrupt);
                 }

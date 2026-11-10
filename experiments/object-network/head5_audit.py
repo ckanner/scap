@@ -1,7 +1,9 @@
-"""Independent, strict HEAD5 schema reader shared by network evidence audits.
+"""Independent HEAD6 reader for the fixed ordinary-operation network profiles.
 
 This reader has no controller, production, or transition implementation import.
-It accepts only the initial storage-generation profile implemented by this cut.
+These profiles perform no compaction or GC: they must retain generation one
+with no plan/checkpoint. The separate reclamation oracle audits technical state
+and transitions. The historical filename is not a format-5 compatibility path.
 """
 from __future__ import annotations
 
@@ -35,9 +37,11 @@ def digest(value):
 
 
 def storage_generation(value):
-    fields(value, {"active_generation", "allocated_through"}, "incomplete HEAD5 storage")
+    fields(value, {"active_generation", "allocated_through", "plan", "sweep"}, "incomplete HEAD6 storage")
     for field in ("active_generation", "allocated_through"):
-        require(uint(value[field]) == 1, "unsupported HEAD5 storage generation")
+        require(uint(value[field]) == 1, "unsupported HEAD6 storage generation")
+    require(value["plan"] is None and value["sweep"] is None,
+            "ordinary-operation profile cannot contain compaction or GC")
     return value["active_generation"]
 
 
@@ -52,8 +56,8 @@ def object_prefix(scope, generation):
 
 
 def validate(value):
-    fields(value, HEAD_FIELDS, "incomplete HEAD5 fields")
-    require(type(value["format"]) is int and value["format"] == 5, "HEAD is not format 5")
+    fields(value, HEAD_FIELDS, "incomplete HEAD6 fields")
+    require(type(value["format"]) is int and value["format"] == 6, "HEAD is not format 6")
     fields(value["scope"], SCOPE_FIELDS, "incomplete HEAD Scope")
     for item in value["scope"].values():
         uint(item)

@@ -159,7 +159,7 @@ fn invalid_metadata_candidates_and_serial_exhaustion_do_no_io() {
             }
             7 => next.transition.nonce = 0,
             8 => {
-                base.head.storage.allocated_through = 2;
+                base.head.storage.allocated_through = base.head.head_serial + 1;
                 next.storage = base.head.storage.clone();
             }
             _ => next.format = 4,

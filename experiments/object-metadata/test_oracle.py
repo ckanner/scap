@@ -18,8 +18,8 @@ def encoded(value):
 
 
 def base_head(name):
-    return {"format": 5, "scope": {key: int(value) for key, value in oracle.SCOPES[name].items()},
-            "head_serial": 4, "storage": {"active_generation": 1, "allocated_through": 1},
+    return {"format": 6, "scope": {key: int(value) for key, value in oracle.SCOPES[name].items()},
+            "head_serial": 4, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
             "revision": 4, "transition": {"revision": 4, "nonce": 10002 + 10 * oracle.NAMES.index(name)},
             "sequence": 1, "owner_epoch": 1, "owner_instance": 8101, "active": True, "auth_epoch": 2,
             "policy": oracle.native_policy(oracle.BASE_POLICY), "lifecycle": "ready", "creation": None, "deletion": None,
@@ -536,7 +536,7 @@ class ContractTests(unittest.TestCase):
     def test_pinned_head_fields_cannot_disappear(self):
         value = base_head("success")
         del value["head_serial"]
-        with self.assertRaisesRegex(ValueError, "HEAD5"):
+        with self.assertRaisesRegex(ValueError, "HEAD6"):
             oracle.head(encoded(value), "success")
 
     def test_owned_wait4_requires_actual_kernel_usage(self):

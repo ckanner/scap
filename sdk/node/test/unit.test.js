@@ -14,6 +14,7 @@ import './discovery.test.js';
 import './operation_budget.test.js';
 import './routing.test.js';
 import './owner.test.js';
+import './reclamation.test.js';
 
 const SCOPE = { deployment: '1', tenant: '2', database: '9007199254740993', incarnation: '4', generation: '5' };
 const TOKEN = 'synthetic-unit-only-bearer-credential';
@@ -90,7 +91,9 @@ function commit(request, raw = result()) {
 }
 function statusValue(action = {}) {
   const revision = action.operation === 'create' ? '1' : String(BigInt(action.expected_revision ?? '10') + 1n);
-  return { scope: clone(SCOPE), revision, sequence: '0', owner_epoch: '2', owner_instance: '3', active: true,
+  return { scope: clone(SCOPE), revision, head_serial: revision,
+    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null },
+    sequence: '0', owner_epoch: '2', owner_instance: '3', active: true,
     auth_epoch: '4', lifecycle: 'ready', request_epoch: '3', max_bytes: '10737418240',
     transition: { revision, nonce: action.nonce ?? '9' },
     retention: { max_entries: 4096, max_result_bytes: '268435456', oldest_epoch: '1' } };

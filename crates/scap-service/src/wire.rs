@@ -229,6 +229,27 @@ pub enum Action {
         nonce: Decimal,
         lifecycle: scap_object::format::Lifecycle,
     },
+    CompactBegin {
+        expected_head_serial: Decimal,
+    },
+    CompactCopy {
+        plan_serial: Decimal,
+    },
+    CompactPromote {
+        plan_serial: Decimal,
+    },
+    CompactAbort {
+        plan_serial: Decimal,
+    },
+    GcPrepare {
+        expected_head_serial: Decimal,
+        generation: Decimal,
+        #[serde(deserialize_with = "required_after")]
+        after: Option<String>,
+    },
+    GcResume {
+        batch_serial: Decimal,
+    },
 }
 
 impl Action {
@@ -323,6 +344,34 @@ impl Action {
             .validate()
             .map_err(|_| Failure::new("INVALID"))?;
         }
+        let serial = match self {
+            Self::CompactBegin {
+                expected_head_serial,
+            }
+            | Self::GcPrepare {
+                expected_head_serial,
+                ..
+            } => Some(expected_head_serial.0),
+            Self::CompactCopy { plan_serial }
+            | Self::CompactPromote { plan_serial }
+            | Self::CompactAbort { plan_serial } => Some(plan_serial.0),
+            Self::GcResume { batch_serial } => Some(batch_serial.0),
+            _ => None,
+        };
+        if serial == Some(0) {
+            return Err(Failure::new("INVALID"));
+        }
+        if let Self::GcPrepare {
+            generation, after, ..
+        } = self
+        {
+            if generation.0 == 0 {
+                return Err(Failure::new("INVALID"));
+            }
+            if let Some(after) = after {
+                crate::auth::decode_hash(after).map_err(|_| Failure::new("INVALID"))?;
+            }
+        }
         Ok(())
     }
 
@@ -335,7 +384,11 @@ impl Action {
 
     pub fn admission(&self) -> &'static str {
         match self {
-            Self::Open {} | Self::Activate { .. } => "recovery",
+            Self::Open {}
+            | Self::Activate { .. }
+            | Self::CompactCopy { .. }
+            | Self::GcPrepare { .. }
+            | Self::GcResume { .. } => "recovery",
             Self::Query { .. } | Self::Execute { .. } | Self::Create { .. } => "data",
             _ => "control",
         }
@@ -409,6 +462,10 @@ fn required_quota<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<D
     Option::<Decimal>::deserialize(deserializer)
 }
 
+fn required_after<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
+}
+
 pub fn parse(bytes: &[u8]) -> Result<Call, Failure> {
     let call: Call = serde_json::from_slice(bytes).map_err(|_| Failure::new("INVALID"))?;
     if call.version != 1 {
@@ -437,6 +494,7 @@ pub fn receipt(receipt: &Receipt) -> Json {
 /// Public status contains no ETag, bucket credentials or complete policy list.
 pub fn status(head: &Head) -> Json {
     json!({ "scope": scope(&head.scope), "revision": Decimal(head.revision),
+        "head_serial": Decimal(head.head_serial), "storage": storage(&head.storage),
         "sequence": Decimal(head.sequence), "owner_epoch": Decimal(head.owner_epoch),
         "owner_instance": Decimal(head.owner_instance), "active": head.active,
         "auth_epoch": Decimal(head.auth_epoch), "lifecycle": head.lifecycle,
@@ -445,6 +503,39 @@ pub fn status(head: &Head) -> Json {
         "retention": { "max_entries": head.retention.max_entries,
             "max_result_bytes": Decimal(head.retention.max_result_bytes),
             "oldest_epoch": Decimal(head.windows.last().map_or(head.request_epoch, |window| window.epoch)) } })
+}
+
+/// Maintenance status exposes bounded identities and progress, never physical
+/// object keys, observed ETags, credentials or the captured request windows.
+fn storage(storage: &scap_object::format::Storage) -> Json {
+    let plan = storage.plan.as_ref().map(|plan| {
+        json!({"serial": Decimal(plan.serial), "source": Decimal(plan.source),
+            "target": Decimal(plan.target), "phase": plan.phase})
+    });
+    let sweep = storage.sweep.as_ref().map(|sweep| {
+        use scap_object::format::SweepDisposition;
+        let mut counts = [0_u32; 4];
+        for entry in &sweep.entries {
+            let index = match entry.disposition {
+                SweepDisposition::Pending => 0,
+                SweepDisposition::Applied => 1,
+                SweepDisposition::ObservedAbsent => 2,
+                SweepDisposition::ConditionMismatch => 3,
+            };
+            counts[index] += 1;
+        }
+        json!({"serial": Decimal(sweep.serial), "generation": Decimal(sweep.generation),
+            "next_after": sweep.next_after, "exhausted": sweep.exhausted,
+            "pending": counts[0], "applied": counts[1],
+            "observed_absent": counts[2], "condition_mismatch": counts[3]})
+    });
+    json!({"active_generation": Decimal(storage.active_generation),
+        "allocated_through": Decimal(storage.allocated_through), "plan": plan, "sweep": sweep})
+}
+
+pub fn sweep(report: &scap_object::SweepReport) -> Json {
+    json!({"status": status(&report.head), "generation": Decimal(report.generation),
+        "scanned": report.scanned, "next_after": report.next_after, "exhausted": report.exhausted})
 }
 
 pub fn result(result: &TransactionResult) -> Result<String, Failure> {

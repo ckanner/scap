@@ -439,6 +439,9 @@ impl Catalogue {
         view: &'a View,
     ) -> Result<DeleteStep<'a>, CatalogueError> {
         let base = Self::admin(source, view, control.principal)?;
+        if base.head.storage.plan.is_some() || base.head.storage.sweep.is_some() {
+            return Err(CatalogueError::Conflict);
+        }
         let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
         if base.head.lifecycle != Lifecycle::Deleted {
             // admin verified any proof against this same own HEAD. An abort

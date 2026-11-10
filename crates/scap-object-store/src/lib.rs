@@ -6,7 +6,10 @@ mod listing;
 mod listing_guard;
 mod listing_xml;
 
-pub use gc::{DeleteOutcome, GcBatch, GcError, GcS3, MAX_DELETE_BATCH, MAX_GC_RESPONSE_BYTES};
+pub use gc::{
+    DeleteOutcome, Garbage, GcBatch, GcCandidate, GcError, GcS3, MAX_DELETE_BATCH,
+    MAX_GC_RESPONSE_BYTES,
+};
 
 pub use listing::{
     ListEnd, ListEntry, ListError, ListKind, ListMode, ListPage, ListRequest, Listings,
@@ -38,6 +41,10 @@ pub enum StoreError {
     Conflict,
     Unknown,
     Invalid,
+    /// Local configured or aggregate allowance was exhausted. No physical
+    /// response corruption or missing durable object is implied.
+    Budget,
+    /// The actual response exceeds the caller's format bound.
     Limit,
     Corrupt,
 }
@@ -161,7 +168,7 @@ impl S3 {
             return Err(StoreError::Invalid);
         }
         if size > self.max_object_bytes {
-            return Err(StoreError::Limit);
+            return Err(StoreError::Budget);
         }
         budget(deadline)?;
         if key.is_empty() || key.len() > 1024 {

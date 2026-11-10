@@ -118,7 +118,7 @@ impl Catalogue {
         require(binding.body.creation == source.creation && binding.stage == NameStage::Bound)?;
         Self::provisioning(source, &base.head)?;
         let database = self.database(source);
-        let objects = ObjectContext::capture(&database, &base.head);
+        let objects = ObjectContext::from_snapshot(&database, base, deadline);
         database
             .verify_closure(&objects, base, deadline)
             .map_err(core_error)?;

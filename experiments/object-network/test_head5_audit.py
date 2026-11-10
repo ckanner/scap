@@ -9,8 +9,8 @@ import lifecycle_oracle
 
 
 def head(revision=3, serial=7):
-    return {"format": 5, "scope": {"deployment": 1, "tenant": 2, "database": 3, "incarnation": 4, "generation": 5},
-            "head_serial": serial, "storage": {"active_generation": 1, "allocated_through": 1},
+    return {"format": 6, "scope": {"deployment": 1, "tenant": 2, "database": 3, "incarnation": 4, "generation": 5},
+            "head_serial": serial, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
             "revision": revision, "transition": {"revision": revision, "nonce": 6}, "sequence": 2,
             "owner_epoch": 1, "owner_instance": 7, "active": True, "auth_epoch": 1,
             "policy": [{"principal": 17, "read": True, "write": True, "admin": True}],
@@ -43,7 +43,7 @@ class HeadFiveSchema(unittest.TestCase):
                 audit.validate(dict(original, **{field: None}))
 
     def test_exact_version_and_serial_unsigned_bounds(self):
-        for value in (None, True, False, 4, 6, 5.0, "5"):
+        for value in (None, True, False, 5, 7, 6.0, "6"):
             with self.subTest(format=value), self.assertRaises(ValueError): audit.validate(dict(head(), format=value))
         for serial in (None, True, 0, -1, 2, 2**64, 7.0, "7"):
             with self.subTest(serial=serial), self.assertRaises(ValueError): audit.validate(dict(head(), head_serial=serial))
@@ -54,7 +54,9 @@ class HeadFiveSchema(unittest.TestCase):
                      {"active_generation": 1, "allocated_through": 1, "future": None}]
         for field in ("active_generation", "allocated_through"):
             for value in (None, True, False, 0, 2, -1, 2**64, "1", 1.0):
-                malformed.append(dict(active_generation=1, allocated_through=1) | {field: value})
+                malformed.append(dict(active_generation=1, allocated_through=1, plan=None, sweep=None) | {field: value})
+        for field in ("plan", "sweep"):
+            malformed.append(dict(active_generation=1, allocated_through=1, plan=None, sweep=None) | {field: {}})
         for storage in malformed:
             with self.subTest(storage=storage), self.assertRaises(ValueError): audit.validate(dict(head(), storage=storage))
 

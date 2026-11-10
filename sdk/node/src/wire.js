@@ -185,7 +185,7 @@ export function restore(serialized, databaseScope) {
 
 export function status(value, expectedScope) {
   record(value, ['scope', 'revision', 'sequence', 'owner_epoch', 'owner_instance', 'active',
-    'auth_epoch', 'lifecycle', 'request_epoch', 'max_bytes', 'transition', 'retention']);
+    'auth_epoch', 'lifecycle', 'request_epoch', 'max_bytes', 'transition', 'retention', 'head_serial', 'storage']);
   const result = { ...value, scope: scope(value.scope), transition: transition(value.transition) };
   sameScope(result.scope, expectedScope);
   for (const key of ['revision', 'owner_epoch', 'owner_instance', 'auth_epoch', 'request_epoch']) decimal(value[key]);
@@ -201,7 +201,71 @@ export function status(value, expectedScope) {
   decimal(value.retention.oldest_epoch);
   requireValue(BigInt(value.retention.oldest_epoch) <= BigInt(value.request_epoch), 'Invalid retention epoch');
   result.retention = Object.freeze({ ...value.retention });
+  decimal(value.head_serial);
+  requireValue(BigInt(value.head_serial) >= BigInt(value.revision), 'Physical HEAD serial precedes logical revision');
+  result.storage = storage(value.storage, value.head_serial, value.active, value.lifecycle);
   return Object.freeze(result);
+}
+
+/** A listing cursor is one content hash; never a key, prefix or backend URL. */
+export function afterHash(value) {
+  return value === null ? null : hash(value);
+}
+
+function storage(value, serial, activeOwner, lifecycleState) {
+  record(value, ['active_generation', 'allocated_through', 'plan', 'sweep']);
+  const active = decimal(value.active_generation), allocated = decimal(value.allocated_through);
+  requireValue(BigInt(active) <= BigInt(allocated), 'Active physical generation was not allocated');
+  requireValue(BigInt(allocated) <= BigInt(serial), 'Physical allocation precedes its HEAD publication');
+  requireValue(value.plan === null || value.sweep === null, 'Copy and deletion checkpoints cannot overlap');
+  let plan = null, sweep = null;
+  if (value.plan !== null) {
+    requireValue(activeOwner === false && lifecycleState === 'ready', 'Copy requires an inactive ready owner');
+    record(value.plan, ['serial', 'source', 'target', 'phase']);
+    const p = value.plan;
+    decimal(p.serial); decimal(p.source); decimal(p.target);
+    requireValue(BigInt(p.serial) <= BigInt(serial) && p.source === active && p.target === allocated &&
+      BigInt(p.source) < BigInt(p.target), 'Invalid copy plan identity');
+    requireValue(['copying', 'sealed'].includes(p.phase), 'Unknown copy phase');
+    plan = Object.freeze({ ...p });
+  }
+  if (value.sweep !== null) {
+    requireValue(lifecycleState === 'ready', 'Deletion checkpoint requires ready lifecycle');
+    record(value.sweep, ['serial', 'generation', 'next_after', 'exhausted',
+      'pending', 'applied', 'observed_absent', 'condition_mismatch']);
+    const s = value.sweep;
+    decimal(s.serial); decimal(s.generation); afterHash(s.next_after);
+    requireValue(BigInt(s.serial) <= BigInt(serial) && s.generation !== active &&
+      BigInt(s.generation) <= BigInt(allocated), 'Invalid retired generation checkpoint');
+    requireValue(typeof s.exhausted === 'boolean', 'Expected listing completion state');
+    requireValue(s.exhausted === (s.next_after === null), 'Checkpoint frontier contradicts listing completion');
+    const counts = ['pending', 'applied', 'observed_absent', 'condition_mismatch'].map((key) => s[key]);
+    requireValue(counts.every((count) => Number.isSafeInteger(count) && count >= 0 && count <= 32) &&
+      counts.reduce((total, count) => total + count, 0) > 0 &&
+      counts.reduce((total, count) => total + count, 0) <= 32, 'Invalid bounded checkpoint counts');
+    sweep = Object.freeze({ ...s });
+  }
+  return Object.freeze({ active_generation: active, allocated_through: allocated, plan, sweep });
+}
+
+export function sweepReport(value, expectedScope) {
+  record(value, ['status', 'generation', 'scanned', 'next_after', 'exhausted']);
+  const head = status(value.status, expectedScope), generation = decimal(value.generation);
+  requireValue(head.lifecycle === 'ready', 'Sweep report requires ready lifecycle');
+  afterHash(value.next_after);
+  requireValue(Number.isSafeInteger(value.scanned) && value.scanned >= 0 && value.scanned <= 32,
+    'Invalid scanned object count');
+  requireValue(typeof value.exhausted === 'boolean', 'Expected listing completion state');
+  requireValue(value.exhausted === (value.next_after === null), 'Report frontier contradicts listing completion');
+  requireValue(generation !== head.storage.active_generation &&
+    BigInt(generation) <= BigInt(head.storage.allocated_through) &&
+    (head.storage.plan === null || generation !== head.storage.plan.target), 'Sweep targets an unretired generation');
+  if (head.storage.sweep !== null) {
+    requireValue(head.storage.sweep.generation === generation &&
+      head.storage.sweep.next_after === value.next_after,
+      'Sweep report does not match its persisted checkpoint');
+  }
+  return Object.freeze({ ...value, status: head });
 }
 
 export function lifecycle(value) {
@@ -323,6 +387,7 @@ const ERROR_STATUS = Object.freeze({
   COMMITTED_BUT_UNAVAILABLE: 503, LIFECYCLE: 409, FENCED: 409, CONFLICT: 409, TARGET_MISMATCH: 409,
   REQUEST_CONFLICT: 409, WINDOW_FULL: 409, CLOSED: 409, RETIRED: 409, MISSING: 409,
   CORRUPT: 409, IDENTITY_CONFLICT: 409, STALE_SNAPSHOT: 409, ENGINE: 409, CONFIG: 409, CACHE_IO: 409,
+  SNAPSHOT_EXPIRED: 409, GC_DISABLED: 409, GC_UNSUPPORTED: 409,
 });
 
 /** Only the versioned API envelope may provide an outcome; HTTP alone cannot. */

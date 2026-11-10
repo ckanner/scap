@@ -50,10 +50,20 @@ impl From<Error> for Failure {
             Error::Unknown | Error::Store(StoreError::Unknown) => "UNKNOWN",
             Error::Store(StoreError::Missing) => "MISSING",
             Error::Limit
+            | Error::Store(StoreError::Budget)
             | Error::Store(StoreError::Limit)
             | Error::Sql(scap_sql::SqlError::ResourceExhausted) => "LIMIT",
             Error::Corrupt | Error::Format(_) | Error::Store(StoreError::Corrupt) => "CORRUPT",
             Error::StaleSnapshot => "STALE_SNAPSHOT",
+            Error::SnapshotExpired => "SNAPSHOT_EXPIRED",
+            Error::Gc(error) => match error {
+                scap_object_store::GcError::Invalid => "INVALID",
+                scap_object_store::GcError::Limit => "LIMIT",
+                scap_object_store::GcError::Denied => "DENIED",
+                scap_object_store::GcError::Unsupported => "GC_UNSUPPORTED",
+                scap_object_store::GcError::Corrupt => "CORRUPT",
+                scap_object_store::GcError::Unknown => "UNKNOWN",
+            },
             Error::CommittedButUnavailable(receipt) => {
                 return Self {
                     code: "COMMITTED_BUT_UNAVAILABLE",

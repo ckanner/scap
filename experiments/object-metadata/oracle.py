@@ -176,7 +176,8 @@ def expected_code(name):
 
 def status_from_head(head):
     return {"scope": {key: str(value) for key, value in head["scope"].items()},
-            **{key: str(head[key]) for key in ("revision", "sequence", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch")},
+            **{key: str(head[key]) for key in ("head_serial", "revision", "sequence", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch")},
+            "storage": {"active_generation": "1", "allocated_through": "1", "plan": None, "sweep": None},
             "active": head["active"], "lifecycle": head["lifecycle"],
             "max_bytes": None if head["quota"]["max_bytes"] is None else str(head["quota"]["max_bytes"]),
             "transition": {key: str(value) for key, value in head["transition"].items()},
@@ -732,7 +733,7 @@ def normalized(item, field):
 
 
 def normal_versions(exchanges):
-    # Only this one declared F corruption/restoration is outside HEAD5 history.
+    # Only this one declared F corruption/restoration is outside HEAD6 history.
     # Its S-only seed history remains ordinary and is independently included.
     selected = [item for item in exchanges if item["request"]["path"] != head_path("known_quarantine") or item["request"]["worker"] == "S"]
     requests = {item["request"]["request_serial"]: normalized(item, "request") for item in selected}
@@ -792,8 +793,8 @@ def head_history(exchanges, calls):
         expected_revisions = list(range(1, 7 if name == "success" else 6 if name in ("put_unknown", "stale_412") else 5))
         equal(sorted(values), expected_revisions, "Scope publication history differs from fixed program")
         initial, active, written, base = [values[number]["head"] for number in (1, 2, 3, 4)]
-        expected_initial = {"format": 5, "scope": {key: int(value) for key, value in SCOPES[name].items()},
-                            "head_serial": 1, "storage": {"active_generation": 1, "allocated_through": 1},
+        expected_initial = {"format": 6, "scope": {key: int(value) for key, value in SCOPES[name].items()},
+                            "head_serial": 1, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
                             "revision": 1, "transition": {"revision": 1, "nonce": 10000 + index * 10},
                             "sequence": 0, "owner_epoch": 1, "owner_instance": 8101, "active": False, "auth_epoch": 1,
                             "policy": [{"principal": 11, "read": True, "write": True, "admin": True}],

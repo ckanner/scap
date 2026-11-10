@@ -1,4 +1,4 @@
-//! Strict v5 HEAD values and unchanged v2 immutable object frames.
+//! Strict v6 HEAD values and unchanged v2 immutable object frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -8,6 +8,13 @@ use std::collections::BTreeSet;
 #[path = "object_frame.rs"]
 mod object_frame;
 pub(crate) use object_frame::ValidatedFrame;
+
+#[path = "storage.rs"]
+mod storage;
+pub use storage::{
+    CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
+    MAX_SWEEP_ENTRIES,
+};
 
 pub const PAGE_SIZE: usize = 4096;
 pub const CHUNK_PAGES: u32 = 32;
@@ -27,8 +34,8 @@ pub const MAX_RESULT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_HEAD_BYTES: usize = 256 * 1024;
 pub const MAX_OBJECT_BYTES: usize = MAX_RESULT_BYTES + 64 * 1024;
 pub const MAX_PRINCIPALS: usize = 1024;
-/// The foundation admits one physical generation until all pin and freeze
-/// admission paths exist. Logical Scope generations have a separate meaning.
+/// Initial physical namespace. HEAD6 allocates later namespaces monotonically;
+/// logical Scope generations identify independent databases, not compactions.
 pub const INITIAL_STORAGE_GENERATION: u64 = 1;
 const MAGIC: &[u8; 8] = b"SCAPOBJ2";
 const FRAME_BYTES: usize = 20;
@@ -226,13 +233,6 @@ impl Window {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Storage {
-    pub active_generation: u64,
-    pub allocated_through: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Head {
     pub format: u32,
     pub scope: Scope,
@@ -260,7 +260,7 @@ pub struct Head {
 
 impl Head {
     pub(crate) fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 5)?;
+        check(self.format == 6)?;
         self.scope.validate()?;
         nonzero(&[
             self.head_serial,
@@ -271,10 +271,6 @@ impl Head {
             self.request_epoch,
         ])?;
         check(self.head_serial >= self.revision)?;
-        // Do not decode future storage states before every immutable I/O
-        // admission path implements their protection and retirement rules.
-        check(self.storage.active_generation == INITIAL_STORAGE_GENERATION)?;
-        check(self.storage.allocated_through == INITIAL_STORAGE_GENERATION)?;
         self.transition.validate()?;
         check(self.transition.revision == self.revision)?;
         check(hash_valid(&self.data_root))?;
@@ -302,6 +298,7 @@ impl Head {
             }
         }
         self.validate_named()?;
+        self.storage.validate(self)?;
         Ok(())
     }
 
@@ -744,7 +741,7 @@ fn required_option<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     Option::deserialize(deserializer)
 }
 
-fn hash_valid(hash: &str) -> bool {
+pub(crate) fn hash_valid(hash: &str) -> bool {
     hash.len() == 64
         && hash
             .bytes()

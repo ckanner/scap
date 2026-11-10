@@ -52,6 +52,22 @@ AWS 明确区分从未启用 versioning 的空配置与 `Suspended`；后者仍�
 
 ## 删除及错误语义
 
+正式回收器另使用封闭的 `Garbage` capability。`inspect(prefix, hash, deadline)`
+完成同一原期限内的配置检查和一次完整 GET，返回该响应的唯一合法 ETag；它不使用
+LIST 或单独 HEAD 的值。成功正文按部署的 `max_object_bytes` 收集，必须与完整
+Content-Length 相等；部分响应、编码、版本或 delete-marker 标志均拒绝。
+失败正文仍受 32 KiB 限制。只有完整 HTTP 404 和明确 `NoSuchKey` 返回
+`GcCandidate::Missing`；`NoSuchBucket`、截断及未知错误不形成缺失证据。
+
+`Garbage::delete` 同样先检查固定配置，然后只发送一次原 key/ETag 的 DELETE。
+每次调用单独检查配置是保守的初版实现；它会增加请求数，不作为低成本结论。
+调用方必须先持久化并 fresh exact GET 观察自己的退休检查点，才可使用删除能力。
+传输层不验证 HEAD 世代状态；普通 `Objects` 与普通 `S3` 仍没有 DELETE。
+
+本地配置或累计额度不足返回 `StoreError::Budget`，实际 GET 正文超过调用方格式
+上限仍返回 `StoreError::Limit`。资源失败不能自动生成对象损坏 incident，也不能
+借一份新额度去调查退休。该区分由实际返回值携带，不能读取可竞争的 last-error。
+
 每次调用只发一个已签名 `DELETE`，`If-Match` 必须保持候选原 ETag。SDK 使用
 已固定版本的 `AwsAuthorizer` 签名；直接 HTTP client 关闭自动重试、redirect、
 环境代理及透明解压。每个响应最多收集 32 KiB，CPU 解析也计入原 deadline。

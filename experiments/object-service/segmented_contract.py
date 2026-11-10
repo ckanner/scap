@@ -249,7 +249,7 @@ class Suite:
         self.proxy.set_phase("inspection")
         captured = self.curl("original_head", "GET", HEAD)
         self.head_bytes = captured["body"]; self.head = json.loads(self.head_bytes)
-        assert self.head["format"] == 5 and self.head["windows"][0]["count"] == PLAN["retained_entries"]
+        assert self.head["format"] == 6 and self.head["windows"][0]["count"] == PLAN["retained_entries"]
         right = self.right_path(); self.target, self.original_leaf, _ = right[-1]
         self.auth_control(self.target)
         self.service.stop(); self.start_service(); self.phase("cold"); self.service.stop()

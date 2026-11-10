@@ -150,7 +150,7 @@ impl Objects for RecoveryMeter {
         let deadline = deadline.min(self.deadline);
         self.check(deadline).map_err(|error| {
             if error == RecoveryStop::Limit {
-                StoreError::Limit
+                StoreError::Budget
             } else {
                 StoreError::Unknown
             }
@@ -165,7 +165,7 @@ impl Objects for RecoveryMeter {
             };
             if used.exact_gets == self.limit.exact_gets || remaining == 0 {
                 self.blocked.store(true, Ordering::Relaxed);
-                return Err(StoreError::Limit);
+                return Err(StoreError::Budget);
             }
             used.exact_gets += 1;
             let allowance = (max_bytes as u64).min(remaining) as usize;
@@ -176,9 +176,10 @@ impl Objects for RecoveryMeter {
             }
             allowance
         };
-        let result = self.objects.get(key, allowance, deadline);
+        let mut result = self.objects.get(key, allowance, deadline);
         if matches!(result, Err(StoreError::Limit)) && allowance < max_bytes {
             self.blocked.store(true, Ordering::Relaxed);
+            result = Err(StoreError::Budget);
         }
         let actual = result.as_ref().map_or(allowance, |value| value.bytes.len());
         if actual > allowance {

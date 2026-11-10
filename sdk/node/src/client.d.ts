@@ -54,9 +54,33 @@ export type Resolution = Committed |
   { readonly state: 'unknown' | 'closed' | 'retired' };
 
 export type Lifecycle = 'ready' | 'maintenance' | 'deleted';
+export interface CopyPlanStatus {
+  readonly serial: Decimal;
+  readonly source: Decimal;
+  readonly target: Decimal;
+  readonly phase: 'copying' | 'sealed';
+}
+export interface SweepStatus {
+  readonly serial: Decimal;
+  readonly generation: Decimal;
+  readonly next_after: string | null;
+  readonly exhausted: boolean;
+  readonly pending: number;
+  readonly applied: number;
+  readonly observed_absent: number;
+  readonly condition_mismatch: number;
+}
+export interface StorageStatus {
+  readonly active_generation: Decimal;
+  readonly allocated_through: Decimal;
+  readonly plan: CopyPlanStatus | null;
+  readonly sweep: SweepStatus | null;
+}
 export interface DatabaseStatus {
   readonly scope: Scope;
   readonly revision: Decimal;
+  readonly head_serial: Decimal;
+  readonly storage: StorageStatus;
   readonly sequence: Decimal;
   readonly owner_epoch: Decimal;
   readonly owner_instance: Decimal;
@@ -71,6 +95,13 @@ export interface DatabaseStatus {
     readonly max_result_bytes: Decimal;
     readonly oldest_epoch: Decimal;
   };
+}
+export interface SweepReport {
+  readonly status: DatabaseStatus;
+  readonly generation: Decimal;
+  readonly scanned: number;
+  readonly next_after: string | null;
+  readonly exhausted: boolean;
 }
 export interface Permission {
   readonly principal: Decimal;
@@ -122,6 +153,11 @@ export interface OperationReference {
   readonly nonce?: Decimal;
   readonly expectedRevision?: Decimal;
   readonly expectedWorkerInstance?: Decimal;
+  readonly expectedHeadSerial?: Decimal;
+  readonly planSerial?: Decimal;
+  readonly batchSerial?: Decimal;
+  readonly storageGeneration?: Decimal;
+  readonly after?: string | null;
 }
 
 export interface OwnerRoute { readonly workerInstance: Decimal; readonly endpoint: string }
@@ -323,7 +359,7 @@ export class CatalogueClient {
   deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
 }
 
-export type DiscoveryStop = 'INVALID' | 'DENIED' | 'LIMIT' | 'CONFLICT' | 'UNKNOWN' | 'CORRUPT' | null;
+export type DiscoveryStop = 'INVALID' | 'DENIED' | 'LIMIT' | 'CONFLICT' | 'UNKNOWN' | 'CORRUPT' | 'SNAPSHOT_EXPIRED' | null;
 export interface VisibleName {
   readonly creation: Creation;
   readonly binding_revision: Decimal;
@@ -424,6 +460,16 @@ export class Client {
   setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
   setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;
   setLifecycle(input: AdministrativeInput & { readonly lifecycle: Lifecycle }, options?: CallOptions): Promise<DatabaseStatus>;
+  /** Freeze a closure at the exact physical HEAD; does not retry an uncertain begin. */
+  compactBegin(input: { readonly expectedHeadSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  compactCopy(input: { readonly planSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  /** Publishes the new generation inactive; never activates or replays SQL. */
+  compactPromote(input: { readonly planSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  compactAbort(input: { readonly planSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  /** Install at most one bounded checkpoint; no deletion occurs in this call. */
+  gcPrepare(input: { readonly expectedHeadSerial: Decimal; readonly generation: Decimal; readonly after: string | null }, options?: CallOptions): Promise<SweepReport>;
+  /** Resume only the persisted batch identity and original candidate ETags. */
+  gcResume(input: { readonly batchSerial: Decimal }, options?: CallOptions): Promise<SweepReport>;
 }
 
 export function validateResult(bytes: Uint8Array, overrides?: ResultLimits): void;

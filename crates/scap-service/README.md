@@ -94,8 +94,8 @@ mkdir -p /absolute/private-cache
 | admission | 操作 | 总时间预算 |
 | --- | --- | --- |
 | `data`（可省略） | `create`、`query`、`execute` | `timeout_ms` |
-| `control` | `status`、`lookup`、`cancel`、`takeover`、`close_full`、`policy`、`quota`、`lifecycle` | `timeout_ms` |
-| `recovery` | `open`、`activate` | `recovery_timeout_ms` |
+| `control` | `status`、`lookup`、`cancel`、`takeover`、`close_full`、`policy`、`quota`、`lifecycle`、`compact_begin`、`compact_promote`、`compact_abort` | `timeout_ms` |
+| `recovery` | `open`、`activate`、`compact_copy`、`gc_prepare`、`gc_resume` | `recovery_timeout_ms` |
 
 两种时间预算都从最初接收请求时开始；body 读取仍须在短预算内结束，排队也占用原预算。数据库内部更短的操作期限继续有效。HTTP 超时或响应消失不表示 SQL 已回滚。
 
@@ -111,6 +111,11 @@ mkdir -p /absolute/private-cache
 ```
 
 `create` 还需非零 `nonce`，仅允许 provisioning 凭据；成功后库处于未激活状态。`activate`、`takeover`、`close_full`、`policy`、`quota` 和 `lifecycle` 必须给出 `expected_revision` 与 `nonce`；冲突或 UNKNOWN 不会被服务自动换 revision 重发。
+
+HEAD6 的手动 `compact_*` 使用物理 `head_serial` / `plan_serial`，不改变原业务 receipt。
+可选 GC 凭据默认关闭；`gc_prepare` 只安装最多 32 项的原 ETag checkpoint，`gc_resume`
+才执行经 core 退休证明允许的条件删除。全部新操作仍需当前 ADMIN，不接受客户端指定任意
+key 或后台。配置、原身份恢复、owner inactive 和准确删除范围见[压缩与回收](docs/reclamation.md)。
 
 `activate` 和 `takeover` 可额外给出非零规范十进制字符串 `expected_worker_instance`。
 在 bearer 与 scope 准入之后，Engine 将其与实际接收进程的启动身份比较，不匹配返回
@@ -133,13 +138,13 @@ Node `OwnerClient` 的协调步骤总是提供这个 guard，参见[SDK](../../s
 
 SQL / 恢复请求按固定 HEAD key 定位专属 actor；同一库的 SQLite 会话在同一线程创建、恢复、调用和销毁。`active_database_actors` 与 `active_database_actors_per_tenant` 分别限制全实例及每租户的活跃库数，actor、control worker 加固定一个 reaper 的总数最多 256。首次访问在限额内懒创建 actor；容量满时新库返回 `BACKPRESSURE`，已有热 actor 继续运行。空闲达到 `actor_idle_timeout_ms` 后线程自行关闭 Session；固定 reaper 在请求路径之外等待旧线程完整退出，再释放槽位。慢 native / TLS 析构只延迟旧槽位回收，提交请求本身不执行 join。
 
-全局、每租户、每 HEAD 的排队预算跨所有 actor 与 control lane 统一计算，`queued_total` 不随线程数倍增。`reserved_controls` 预留只允许真正 control 请求使用，`open` / `activate` 不得挤占。actor 内的 priority burst 最多三次后让排队 SQL 前进；独立 control worker pool 在租户及数据库间轮转。`lookup`、`cancel` 及元数据转换不占 SQL / 恢复执行线程。严格 JSON 拒绝原 `workers` / `queued_per_worker` / `sessions_per_worker` / `pages_per_worker`，应显式迁移配置。
+全局、每租户、每 HEAD 的排队预算跨所有 actor 与 control lane 统一计算，`queued_total` 不随线程数倍增。`reserved_controls` 预留只允许真正 control 请求使用，`open` / `activate` / `compact_copy` / `gc_prepare` / `gc_resume` 不得挤占。actor 内的 priority burst 最多三次后让排队 SQL 前进；独立 control worker pool 在租户及数据库间轮转。`lookup`、`cancel` 及元数据转换不占 SQL / 恢复执行线程。严格 JSON 拒绝原 `workers` / `queued_per_worker` / `sessions_per_worker` / `pages_per_worker`，应显式迁移配置。
 
 HTTP 的 data、control、recovery 与 catalogue 各有独立 intake 池；鉴权后、读取 body 前，原子预留全局与租户的请求数及 body 字节。相同租户换凭据不能增加配额；完整读取后退还未用 body extent。租约贯穿实际排队、worker、响应 body 及其发出的最后字节，HTTP 超时也不提前释放仍在执行的任务。配置兼容值、显式 version 1 profile 和精确资源边界见[准入说明](docs/intake-reservations.md)。底层 HTTP 在发出最后一帧后可先销毁 body，传输缓冲中的字节及其 clone／slice 仍持有配额，慢客户端不能靠这个生命周期差异提前释放名额。绑定不会复制响应 payload。执行开始后，即使客户端断开，worker 也只完成该次原请求；它不会回滚一个已发布 HEAD，也不会重做 SQL。尚未开始且接收端已消失的排队请求会被丢弃，超出原 deadline 的排队请求不会执行。
 
 每个 actor 最多保留一个完整 scope 的 Session，`pages_per_actor` 按操作完成后的实际页面数决定缓存保留；失败 session 不复用。此阈值不预留恢复期间所需磁盘，单库超过阈值时会在操作后丢弃 Session。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、物理对象 GC、PITR 和跨区域灾备仍有后续实现与验收门禁。
+一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、retained snapshot/PITR、Deleted 最后 active 代的物理 purge 和跨区域灾备仍有后续实现与验收门禁；手动 live/abandoned 代压缩与回收的范围见[专门说明](docs/reclamation.md)。
 
 ## 验证
 

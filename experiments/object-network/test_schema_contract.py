@@ -219,8 +219,8 @@ class FixtureDeletionBoundaryTests(unittest.TestCase):
     def test_delete_is_bound_to_complete_captured_scope_storage_and_hash(self):
         import run as support
         scope = {"deployment": 7, "tenant": 8, "database": 9, "incarnation": 10, "generation": 11}
-        captured = {"format": 5, "scope": scope,
-                    "storage": {"active_generation": 1, "allocated_through": 1}}
+        captured = {"format": 6, "scope": scope,
+                    "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None}}
         case = {"scope": scope, "before": {"bytes": list(json.dumps(captured).encode())}}
         key = "scap-object/v1/7/8/9/inc/10/gen/11/storage/1/objects/" + "a" * 64
         suite = object.__new__(support.FaultSuite)

@@ -38,7 +38,7 @@ fn install(
     head.head_serial += 1;
     head.transition = Transition {
         revision: head.revision,
-        nonce: 100,
+        nonce: request.id,
     };
     head.sequence = 1;
     head.active = !inactive;
@@ -159,7 +159,10 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
                     .map(|id| Entry {
                         request: identity(id),
                         outcome: OutcomeRef::Cancelled {
-                            transition: head.transition.clone(),
+                            transition: Transition {
+                                revision: head.revision,
+                                nonce: id,
+                            },
                         },
                         result_bytes: 0,
                     })
@@ -250,6 +253,84 @@ fn valid_historical_results_keep_exact_receipt_and_bytes_with_lower_local_limits
             before
         );
         assert!(restricted.healthy().is_ok());
+    }
+}
+
+#[test]
+fn retained_nonce_is_bound_to_request_id_in_lookup_activation_and_compaction() {
+    for cancelled in [false, true] {
+        for operation in 0..3 {
+            let (objects, database, request, _) = install(valid_result(), false, true);
+            let mut head = database.read_head(deadline()).unwrap().head;
+            let mut entries =
+                crate::tests::index_entries(&database, &head.windows[0], deadline()).unwrap();
+            if cancelled {
+                entries[0].outcome = OutcomeRef::Cancelled {
+                    transition: Transition {
+                        revision: head.revision,
+                        nonce: request.id + 1,
+                    },
+                };
+                entries[0].result_bytes = 0;
+                head.windows[0].result_bytes = 0;
+            } else {
+                let OutcomeRef::Committed { result } = &entries[0].outcome else {
+                    panic!()
+                };
+                let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+                    .load(result, deadline())
+                    .unwrap()
+                else {
+                    panic!()
+                };
+                stored.transition.nonce = request.id + 1;
+                entries[0].outcome = OutcomeRef::Committed {
+                    result: ObjectContext::bootstrap(&database)
+                        .save(Payload::Result(stored), deadline())
+                        .unwrap(),
+                };
+            }
+            head.windows[0].root = ObjectContext::bootstrap(&database)
+                .save(crate::tests::index_payload(1, entries), deadline())
+                .unwrap();
+            objects.set(head_key(&scope()), encode_head(&head).unwrap());
+            let (result, expected) = match operation {
+                0 => (database.lookup(7, &request, deadline()).map(|_| ()), head),
+                1 => (
+                    database
+                        .activate(7, head.revision, 88, deadline())
+                        .map(|_| ()),
+                    head,
+                ),
+                _ => {
+                    let begin = database
+                        .compact_begin(7, head.head_serial, deadline())
+                        .unwrap();
+                    let serial = begin.storage.plan.as_ref().unwrap().serial;
+                    (
+                        database.compact_copy(7, serial, deadline()).map(|_| ()),
+                        begin,
+                    )
+                }
+            };
+            assert!(
+                matches!(result, Err(Error::Corrupt)),
+                "cancelled={cancelled}, operation={operation}"
+            );
+            let actual = database.status(7, deadline()).unwrap();
+            assert_eq!(actual, expected);
+            if operation == 2 {
+                assert_eq!(
+                    actual.storage.plan.as_ref().unwrap().phase,
+                    CopyPhase::Copying
+                );
+                assert!(matches!(
+                    database.compact_promote(7, actual.storage.plan.unwrap().serial, deadline()),
+                    Err(Error::Conflict)
+                ));
+            }
+            assert!(database.quarantined.load(Ordering::Acquire));
+        }
     }
 }
 

@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use scap_object::format::{head_key, DatabaseQuota};
 use scap_object::{Database, Options, Session};
-use scap_object_store::Objects;
+use scap_object_store::{Garbage, Listings, Objects};
 use serde_json::{Map, Value};
 use tokio::sync::Semaphore;
 
@@ -21,6 +21,13 @@ struct Cached {
     touched: u64,
 }
 
+#[derive(Clone)]
+pub(crate) struct Collector {
+    pub deployment: u64,
+    pub listings: Arc<dyn Listings>,
+    pub garbage: Arc<dyn Garbage>,
+}
+
 pub struct Engine {
     objects: Arc<dyn Objects>,
     worker: u64,
@@ -32,6 +39,7 @@ pub struct Engine {
     max_pages: u64,
     serial: u64,
     recovery: Arc<Semaphore>,
+    collector: Option<Collector>,
 }
 
 /// Keep storage admission and its ordering identical when testing a directory
@@ -75,7 +83,13 @@ impl Engine {
             max_pages,
             serial: 0,
             recovery,
+            collector: None,
         })
+    }
+
+    pub(crate) fn with_collector(mut self, collector: Option<Collector>) -> Self {
+        self.collector = collector;
+        self
     }
 
     fn next_path(&mut self) -> Result<PathBuf, Failure> {
@@ -188,14 +202,7 @@ impl Engine {
             },
         };
         entry.touched = self.serial;
-        let result = self.dispatch(
-            principal.principal,
-            &mut entry,
-            call.action,
-            &path,
-            deadline,
-            output,
-        );
+        let result = self.dispatch(principal, &mut entry, call.action, &path, deadline, output);
         // A failed native operation may have invalidated the private connection.
         // Quarantined Database handles survive while resident; no failed cache
         // is reused, and a future recreation verifies S3 before serving.
@@ -231,13 +238,15 @@ impl Engine {
 
     fn dispatch(
         &self,
-        principal: u64,
+        principal: &Principal,
         entry: &mut Cached,
         action: Action,
         path: &Path,
         deadline: Instant,
         output: Option<&mut crate::output::OutputContext>,
     ) -> Result<Value, Failure> {
+        let deployment = principal.deployment;
+        let principal = principal.principal;
         let database = entry.database.clone();
         let head =
             match action {
@@ -367,11 +376,85 @@ impl Engine {
                         deadline,
                     )?
                 }
+                Action::CompactBegin {
+                    expected_head_serial,
+                } => {
+                    entry.session = None;
+                    database.compact_begin(principal, expected_head_serial.0, deadline)?
+                }
+                Action::CompactCopy { plan_serial } => {
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    database.compact_copy(principal, plan_serial.0, deadline)?
+                }
+                Action::CompactPromote { plan_serial } => {
+                    // Promotion leaves ownership inactive. Never retain the
+                    // retired image or silently activate/replay application SQL.
+                    entry.session = None;
+                    database.compact_promote(principal, plan_serial.0, deadline)?
+                }
+                Action::CompactAbort { plan_serial } => {
+                    database.compact_abort(principal, plan_serial.0, deadline)?
+                }
+                Action::GcPrepare {
+                    expected_head_serial,
+                    generation,
+                    after,
+                } => {
+                    let collector = self.collector(deployment)?;
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    let report = database.gc_prepare(
+                        principal,
+                        expected_head_serial.0,
+                        generation.0,
+                        after.as_deref(),
+                        collector.listings.as_ref(),
+                        collector.garbage.as_ref(),
+                        deadline,
+                    )?;
+                    if let Some(output) = output {
+                        output.head_result();
+                    }
+                    return Ok(wire::sweep(&report));
+                }
+                Action::GcResume { batch_serial } => {
+                    let collector = self.collector(deployment)?;
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    let report = database.gc_resume(
+                        principal,
+                        batch_serial.0,
+                        collector.garbage.as_ref(),
+                        deadline,
+                    )?;
+                    if let Some(output) = output {
+                        output.head_result();
+                    }
+                    return Ok(wire::sweep(&report));
+                }
             };
         if let Some(output) = output {
             output.head_result();
         }
         Ok(wire::status(&head))
+    }
+
+    fn collector(&self, deployment: u64) -> Result<&Collector, Failure> {
+        let collector = self
+            .collector
+            .as_ref()
+            .ok_or_else(|| Failure::new("GC_DISABLED"))?;
+        if deployment != collector.deployment {
+            return Err(Failure::new("DENIED"));
+        }
+        Ok(collector)
     }
 }
 

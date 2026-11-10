@@ -200,7 +200,7 @@ fn paused_bootstrap_does_not_follow_a_replacement_scope_or_publish_over_it() {
     ));
     assert_eq!(replacement.read_head(deadline()).unwrap().head, winner);
     assert_eq!(winner.scope, replacement_scope);
-    assert_eq!(winner.format, 5);
+    assert_eq!(winner.format, 6);
     assert_eq!(winner.head_serial, 1);
     assert_eq!(winner.storage.active_generation, 1);
     assert_eq!(winner.revision, 1);

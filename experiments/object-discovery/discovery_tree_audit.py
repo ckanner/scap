@@ -1,6 +1,6 @@
 """Independent complete typed closure decoder; never imports a controller.
 
-HEAD5 is deliberate. Storage generation comes from the captured HEAD; this
+HEAD6 is deliberate. Storage generation comes from the captured HEAD; this
 reader never silently accepts HEAD4 or a later unsupported storage profile.
 """
 from __future__ import annotations

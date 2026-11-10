@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent original-wire/process/build audit for the HEAD5 index contract."""
+"""Independent original-wire/process/build audit for the HEAD6 index contract."""
 from __future__ import annotations
 
 import argparse
@@ -407,7 +407,7 @@ def semantic_network(ordered, by_call, fixture, expected, originals, observed):
             expected_count = 4 if name == "cancelled" else 5
             require(len(items) == expected_count and all(item["request"]["method"] == "GET" for item in items),
                     "three-level point lookup did not stay on one bounded path")
-    return {"accepted_runtime_HEADs": len(publications), "head_format": 5, "observed_split_counts": [129, 2113],
+    return {"accepted_runtime_HEADs": len(publications), "head_format": 6, "observed_split_counts": [129, 2113],
             "retained_entries": len(proof["entries"]), "current_index_nodes": len(proof["dependencies"]) - 2,
             "current_complete_dependencies": len(complete), "original_result_bytes": proof["summary"]["result_bytes"],
             "cold_complete_graph_checks": 2, "rejected_non_target_checks": 6, "resident_HEAD_only_queries": 3,

@@ -28,7 +28,7 @@ def raw(value):
 
 
 def authority(scope=None):
-    return {"format": 5, "head_serial": 3, "storage": {"active_generation": 1, "allocated_through": 1}, "scope": scope or {"deployment": 7, "tenant": 2, "database": 13, "incarnation": 1, "generation": 1},
+    return {"format": 6, "head_serial": 3, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None}, "scope": scope or {"deployment": 7, "tenant": 2, "database": 13, "incarnation": 1, "generation": 1},
             "revision": 3, "transition": {"revision": 3, "nonce": 1}, "sequence": 1, "owner_epoch": 1,
             "owner_instance": 42, "active": True, "auth_epoch": 1,
             "policy": [{"principal": 17, "read": True, "write": True, "admin": True}], "lifecycle": "ready",
@@ -231,7 +231,7 @@ class FullDataAndResultControls(unittest.TestCase):
         self.assertEqual(head(raw(h), path), h)
         for fault in ("legacy", "future", "bool", "physical", "quota", "unclosed"):
             changed = copy.deepcopy(h)
-            if fault in ("legacy", "future", "bool"): changed["format"] = {"legacy": 4, "future": 6, "bool": True}[fault]
+            if fault in ("legacy", "future", "bool"): changed["format"] = {"legacy": 5, "future": 7, "bool": True}[fault]
             elif fault == "physical": changed["scope"]["database"] += 1
             elif fault == "quota": changed["quota"]["max_bytes"] += 1
             else:

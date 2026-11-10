@@ -516,6 +516,14 @@ impl Listings for DeniedListings {
 
 #[test]
 fn typed_storage_denial_transport_unknown_and_object_limits_are_not_acl_filtering() {
+    assert_eq!(
+        RecoveryStop::from(DiscoveryError::SnapshotExpired),
+        RecoveryStop::SnapshotExpired
+    );
+    assert_eq!(
+        recovery_error(Error::SnapshotExpired),
+        RecoveryStop::SnapshotExpired
+    );
     let objects = Arc::new(Memory::default());
     let database = direct(objects.clone(), 2, 42);
     let temp = tempfile::tempdir().unwrap();

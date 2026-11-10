@@ -60,7 +60,12 @@ export class Client {
       ...(action.request === undefined ? {} : { request: action.request }),
       ...(action.nonce === undefined ? {} : { nonce: action.nonce }),
       ...(action.expected_worker_instance === undefined ? {} : { expectedWorkerInstance: action.expected_worker_instance }),
-      ...(action.expected_revision === undefined ? {} : { expectedRevision: action.expected_revision }) });
+      ...(action.expected_revision === undefined ? {} : { expectedRevision: action.expected_revision }),
+      ...(action.expected_head_serial === undefined ? {} : { expectedHeadSerial: action.expected_head_serial }),
+      ...(action.plan_serial === undefined ? {} : { planSerial: action.plan_serial }),
+      ...(action.batch_serial === undefined ? {} : { batchSerial: action.batch_serial }),
+      ...(action.generation === undefined ? {} : { storageGeneration: action.generation }),
+      ...(action.after === undefined ? {} : { after: action.after }) });
     return this.#transport.call({ version: 1, scope: this.#scope, ...action }, reference, decode, options);
   }
 
@@ -151,5 +156,83 @@ export class Client {
   setLifecycle(input, options) {
     wire.record(input, ['expectedRevision', 'nonce', 'lifecycle']);
     return this.#admin('lifecycle', input, { lifecycle: wire.lifecycle(input.lifecycle) }, options);
+  }
+
+  compactBegin(input, options) {
+    wire.record(input, ['expectedHeadSerial']);
+    const serial = wire.decimal(input.expectedHeadSerial);
+    return this.#call({ operation: 'compact_begin', expected_head_serial: serial }, (value) => {
+      const head = wire.status(value, this.#scope);
+      wire.requireValue(BigInt(head.head_serial) === BigInt(serial) + 1n &&
+        head.storage.plan?.serial === head.head_serial && head.storage.plan.phase === 'copying',
+      'Copy plan does not match the requested physical HEAD');
+      return head;
+    }, options);
+  }
+
+  compactCopy(input, options) {
+    wire.record(input, ['planSerial']);
+    const serial = wire.decimal(input.planSerial);
+    return this.#call({ operation: 'compact_copy', plan_serial: serial }, (value) => {
+      const head = wire.status(value, this.#scope);
+      wire.requireValue(head.storage.plan?.serial === serial && head.storage.plan.phase === 'sealed',
+        'Sealed copy does not match the requested plan');
+      return head;
+    }, options);
+  }
+
+  compactPromote(input, options) {
+    wire.record(input, ['planSerial']);
+    const serial = wire.decimal(input.planSerial);
+    return this.#call({ operation: 'compact_promote', plan_serial: serial }, (value) => {
+      const head = wire.status(value, this.#scope);
+      wire.requireValue(BigInt(head.head_serial) > BigInt(serial) && head.storage.plan === null &&
+        head.storage.sweep === null && head.storage.active_generation === head.storage.allocated_through &&
+        head.active === false && head.lifecycle === 'ready', 'Promotion did not publish an inactive new generation');
+      return head;
+    }, options);
+  }
+
+  compactAbort(input, options) {
+    wire.record(input, ['planSerial']);
+    const serial = wire.decimal(input.planSerial);
+    return this.#call({ operation: 'compact_abort', plan_serial: serial }, (value) => {
+      const head = wire.status(value, this.#scope);
+      wire.requireValue(BigInt(head.head_serial) > BigInt(serial) && head.storage.plan === null &&
+        head.storage.sweep === null && BigInt(head.storage.active_generation) < BigInt(head.storage.allocated_through) &&
+        head.active === false && head.lifecycle === 'ready',
+      'Abort did not leave the abandoned generation permanently allocated');
+      return head;
+    }, options);
+  }
+
+  gcPrepare(input, options) {
+    wire.record(input, ['expectedHeadSerial', 'generation', 'after']);
+    const serial = wire.decimal(input.expectedHeadSerial), generation = wire.decimal(input.generation);
+    const after = wire.afterHash(input.after);
+    return this.#call({ operation: 'gc_prepare', expected_head_serial: serial, generation, after }, (value) => {
+      const report = wire.sweepReport(value, this.#scope);
+      wire.requireValue(report.generation === generation, 'Sweep report targets another generation');
+      if (report.status.storage.sweep === null) {
+        wire.requireValue(report.status.head_serial === serial,
+          'A classified page without a deletion checkpoint changed authority');
+      } else {
+        wire.requireValue(BigInt(report.status.head_serial) === BigInt(serial) + 1n &&
+          report.status.storage.sweep.serial === report.status.head_serial,
+        'Deletion checkpoint does not match the requested physical HEAD');
+      }
+      return report;
+    }, options);
+  }
+
+  gcResume(input, options) {
+    wire.record(input, ['batchSerial']);
+    const serial = wire.decimal(input.batchSerial);
+    return this.#call({ operation: 'gc_resume', batch_serial: serial }, (value) => {
+      const report = wire.sweepReport(value, this.#scope);
+      wire.requireValue(BigInt(report.status.head_serial) > BigInt(serial) && report.status.storage.sweep === null,
+        'Deletion checkpoint remains unresolved');
+      return report;
+    }, options);
   }
 }

@@ -196,6 +196,7 @@ fn catalogue_errors_preserve_unknown_missing_identity_and_authorization_distinct
         (core::CatalogueError::Conflict, "CONFLICT"),
         (core::CatalogueError::IdentityConflict, "IDENTITY_CONFLICT"),
         (core::CatalogueError::Corrupt, "CORRUPT"),
+        (core::CatalogueError::SnapshotExpired, "SNAPSHOT_EXPIRED"),
         (core::CatalogueError::Limit, "LIMIT"),
         (core::CatalogueError::Unknown, "UNKNOWN"),
     ] {

@@ -1,4 +1,4 @@
-"""Frozen input denominators for the real HEAD5 segmented-index contract."""
+"""Frozen input denominators for the real HEAD6 segmented-index contract."""
 
 LAST_ID = 2114
 SCOPE = {"deployment": "1", "tenant": "7", "database": "991", "incarnation": "1", "generation": "1"}
@@ -21,7 +21,7 @@ CALLS = {
 DEADLINES = {"client_request_ms": 40000, "seed_phase_ms": 600000, "other_phase_ms": 120000,
              "service_ready_ms": 20000, "s3_request_ms": 10000, "curl_ms": 15000,
              "ordinary_service_ms": 10000, "recovery_service_ms": 30000}
-PLAN = {"schema": 1, "profile": "segmented-request-index-real-http-s3-v1", "head_format": 5,
+PLAN = {"schema": 1, "profile": "segmented-request-index-real-http-s3-v1", "head_format": 6,
         "immutable_format": 2, "scope": SCOPE, "owner_instance": 8871, "last_id": LAST_ID,
         "phases": list(PHASES), "calls": {phase: [list(item) for item in CALLS[phase]] for phase in PHASES},
         "deadlines": DEADLINES, "http_invocations": sum(map(len, CALLS.values())),

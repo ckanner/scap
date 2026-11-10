@@ -6,7 +6,7 @@
 
 [组合验收记录](runtime-completion-validation.md)绑定 d60 冻结生产候选与 6e 离线控制
 修正：stable/nightly 各 580 单位、57 个生产文件四维精确计数，新的 native/HTTP/S3
-合同和 1 GiB 恢复均按原始回执归属。最后的 discovery 反例审计状态见该记录。
+合同和 1 GiB 恢复均按原始回执归属。最后的 discovery 29 负/1 正对照已通过。
 
 独立审查随后发现 retained-result/cancelled 的 nonce 与 request.id 绑定缺口；即使
 上述实际合法负载通过，也不能将此候选当作完整 fail-closed 交付。修复随 HEAD6
