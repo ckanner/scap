@@ -1,5 +1,5 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
@@ -9,6 +9,18 @@ const scope = { deployment: '1', tenant: '2', database: '3', incarnation: '1', g
 const creation: Creation = { creator: '7', operation: '11', name: 'notes', scope, expected_name_revision: null };
 
 async function contract() {
+  const policy = createControllerPolicy({ scope, authorityId: 'production-example', principal: '7',
+    metadataEndpoints: ['https://example.invalid/v1'],
+    workers: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1', rank: 0 }],
+    modes: { takeover: true, activate: true, cancel: true } });
+  const controller = new OwnerController({ policy, token: 'synthetic-typecheck-only-credential', fetch });
+  const controllerReport = await controller.tick({ timeoutMs: 1000 });
+  const noNativeClaim: 'NOT_CERTIFIED' = controllerReport.nativeSession;
+  // @ts-expect-error Controllers do not execute or replay business SQL.
+  controller.execute({ sql: 'SELECT 1' });
+  // @ts-expect-error A controller cannot change its fixed policy after construction.
+  policy.workers[0].rank = 3;
+  await controller.close(); void noNativeClaim;
   const client = new CatalogueClient({ endpoint: 'https://example.invalid/v1/catalogue',
     token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
   const create = client.prepareIntent({ operation: 'prepare_create', name: 'notes', create_operation: '11',

@@ -524,6 +524,19 @@ try {
 
 ## 验证入口
 
+### 自动 owner controller 实现草稿
+
+`createControllerPolicy` 与 `OwnerController` 目前为独立开发检查点，不能继承 HEAD8 的
+SQLite/HTTP/S3 验收结论。固定策略用四个 u64 nonce 无损承诺全部 SHA-256，operation
+使用原 `head_serial`；每个 tick 最多 8 POST、一个持久管理阶段，不接受 SQL。
+首次重启发现 Claimed 先完成只读观察，下一轮才从起点取得恢复总期限。一次 UNKNOWN
+记录原输入/引用；后续成功观察不把旧调用改写为收到过 ACK。完整策略、rank、并发和
+网络资源范围见[控制器设计](../../docs/architecture/owner-controller-v2.md)。
+
+本检查点已有 policy 与单 Scope 开发单位。Fleet、默认有界 HTTP、CLI、全模块精确
+单位覆盖、独立模型和真实网络合同继续实施，尚不满足合入门禁。注入普通 Fetch 的
+单 Scope API 不自行证明进程 FD、后台 DNS、RSS 或整个 fleet 的资源上限。
+
 ```bash
 # unit-only：默认新建独立 profile 目录，也可由调用方提供空目录。
 npm --prefix sdk/node test

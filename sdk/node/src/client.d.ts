@@ -581,3 +581,69 @@ export class Client {
 
 export function validateResult(bytes: Uint8Array, overrides?: ResultLimits): void;
 export function decodeResult(bytes: Uint8Array, overrides?: ResultLimits, allocation?: AllocationLimits): TransactionResult;
+
+export interface ControllerWorker {
+  readonly workerInstance: Decimal;
+  readonly endpoint: string;
+  readonly rank: number;
+}
+export interface ControllerPolicyOptions {
+  readonly scope: Scope;
+  readonly authorityId: string;
+  /** Dedicated READ+ADMIN creator; its owner operation domain is reserved for this controller. */
+  readonly principal: Decimal;
+  readonly metadataEndpoints: readonly string[];
+  readonly workers: readonly ControllerWorker[];
+  readonly modes: { readonly takeover: boolean; readonly activate: boolean; readonly cancel: boolean };
+  readonly allowInsecureHttp?: boolean;
+  readonly recoveryTimeoutMs?: number;
+}
+declare const controllerPolicy: unique symbol;
+export interface ControllerPolicy {
+  readonly [controllerPolicy]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly authorityId: string;
+  readonly principal: Decimal;
+  readonly metadataEndpoints: readonly string[];
+  readonly workers: readonly ControllerWorker[];
+  readonly modes: ControllerPolicyOptions['modes'];
+  readonly allowInsecureHttp: boolean;
+  readonly canonical: string;
+  readonly digest: string;
+  readonly nonces: OwnerNonces;
+  readonly limits: Readonly<Record<'scopes' | 'workers' | 'metadataEndpoints' | 'policyBytes' | 'ticks' |
+    'tenantTicks' | 'recoveries' | 'httpCalls' | 'mutations' | 'requestBytes' | 'responseBytes' | 'headerBytes' |
+    'timeoutMs' | 'recoveryTimeoutMs' | 'probeTimeoutMs' | 'tickIntervalMs' | 'failureCount' | 'failureIntervalMs' |
+    'failureSpanMs', number> & { backoffMs: readonly number[] }>;
+}
+export function createControllerPolicy(options: ControllerPolicyOptions): ControllerPolicy;
+export interface ControllerReport {
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly policyDigest: string;
+  readonly state: 'healthy' | 'waiting' | 'prepared' | 'claimed' | 'cancelling' | 'aborted' | 'active_observed' |
+    'fenced' | 'blocked' | 'unknown';
+  readonly reason: string;
+  readonly currentAuthority: DatabaseStatus | null;
+  readonly acceptedPhase: OwnerPlan['phase']['kind'] | null;
+  readonly httpCalls: number;
+  readonly mutations: number;
+  readonly recoveryBudget: boolean;
+  readonly pastUnknown: boolean;
+  /** Latest uncertain original call only; pastUnknown is not reset by later observations. */
+  readonly lastUncertainCall: { readonly operation: string; readonly request?: string; readonly reference?: string } | null;
+  readonly nativeSession: 'NOT_CERTIFIED';
+  /** Process-local monotonic milliseconds, not a lease or durable timestamp. */
+  readonly nextTickAt: number;
+}
+export class OwnerController {
+  /** Injected fetch must honor the owned-resource contract; the default fleet transport supplies it. */
+  constructor(options: { readonly policy: ControllerPolicy; readonly token: string; readonly fetch: typeof globalThis.fetch });
+  readonly policy: ControllerPolicy;
+  readonly needsRecovery: boolean;
+  readonly nextTickAt: number;
+  readonly lastReport: ControllerReport | null;
+  tick(options?: CallOptions): Promise<ControllerReport>;
+  close(): Promise<void>;
+}

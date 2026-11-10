@@ -15,6 +15,7 @@ import './operation_budget.test.js';
 import './routing.test.js';
 import './owner.test.js';
 import './owner_plan.test.js';
+import './controller.test.js';
 import './reclamation.test.js';
 import './terminal.test.js';
 
