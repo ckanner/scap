@@ -35,6 +35,7 @@
     "crates/scap-object/src/catalogue/recovery_budget_tests.rs",
     "crates/scap-object/src/catalogue/recovery_job_tests.rs",
     "crates/scap-object/src/catalogue/recovery_tests.rs",
+    "crates/scap-object/src/catalogue/terminal_tests.rs",
     "crates/scap-object/src/catalogue/tests.rs",
     "crates/scap-object/src/closure_tests.rs",
     "crates/scap-object/src/data_tree_tests.rs",

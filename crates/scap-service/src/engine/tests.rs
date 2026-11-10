@@ -1206,6 +1206,303 @@ fn batch_serial(value: &Value) -> Decimal {
 }
 
 #[test]
+fn direct_terminal_management_requires_admin_and_retires_metadata_before_final_payload_gc() {
+    use scap_object::format::{decode_head, head_key, TerminalSeal};
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    let activated = active(&mut engine);
+    for action in [
+        Action::StorageStatus {},
+        Action::RetireStorage {
+            expected_head_serial: physical_serial(&activated),
+        },
+    ] {
+        assert_eq!(
+            engine
+                .execute(&principal(), call(action), until())
+                .unwrap_err()
+                .code,
+            "LIFECYCLE"
+        );
+    }
+    invoke(
+        &mut engine,
+        Action::Policy {
+            expected_revision: revision(&activated),
+            nonce: Decimal(20),
+            permissions: vec![
+                WirePermission {
+                    principal: Decimal(3),
+                    read: true,
+                    write: true,
+                    admin: true,
+                },
+                WirePermission {
+                    principal: Decimal(4),
+                    read: true,
+                    write: false,
+                    admin: false,
+                },
+                WirePermission {
+                    principal: Decimal(9),
+                    read: false,
+                    write: false,
+                    admin: true,
+                },
+            ],
+        },
+    );
+    invoke(
+        &mut engine,
+        action(1, "CREATE TABLE final_payload (value INTEGER)"),
+    );
+    let committed = invoke(
+        &mut engine,
+        action(2, "INSERT INTO final_payload VALUES (7) RETURNING value"),
+    );
+    assert_eq!(committed["state"], "committed");
+    let request = identity(
+        2,
+        &statements("INSERT INTO final_payload VALUES (7) RETURNING value"),
+    );
+    let before_delete = invoke(
+        &mut engine,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    );
+    let deleted = invoke(
+        &mut engine,
+        Action::Lifecycle {
+            expected_revision: revision(&before_delete),
+            nonce: Decimal(21),
+            lifecycle: Lifecycle::Deleted,
+        },
+    );
+    let mut reader = principal();
+    reader.principal = 4;
+    let mut admin = principal();
+    admin.principal = 9;
+    admin.provision = false;
+    for action in [
+        Action::StorageStatus {},
+        Action::RetireStorage {
+            expected_head_serial: physical_serial(&deleted),
+        },
+    ] {
+        assert_eq!(
+            engine
+                .execute(&reader, call(action), until())
+                .unwrap_err()
+                .code,
+            "DENIED"
+        );
+    }
+    assert_eq!(
+        engine
+            .execute(&admin, call(Action::StorageStatus {}), until())
+            .unwrap(),
+        deleted
+    );
+    assert_eq!(
+        engine
+            .execute(
+                &admin,
+                call(Action::RetireStorage {
+                    expected_head_serial: Decimal(physical_serial(&deleted).0 + 1),
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    let native_scope = scope().native().unwrap();
+    let key = head_key(&native_scope);
+    let old = decode_head(&memory.values.lock().unwrap()[&key].bytes, &native_scope).unwrap();
+    memory.calls.lock().unwrap().clear();
+    assert!(engine.collector.is_none());
+    let sealed = engine
+        .execute(
+            &admin,
+            call(Action::RetireStorage {
+                expected_head_serial: physical_serial(&deleted),
+            }),
+            until(),
+        )
+        .unwrap();
+    assert_eq!(
+        sealed["storage"]["terminal"]["serial"],
+        sealed["head_serial"]
+    );
+    assert_eq!(sealed["active"], false);
+    assert!(engine.cache.values().all(|entry| entry.session.is_none()));
+    let mut expected = old;
+    expected.format = 7;
+    expected.head_serial += 1;
+    expected.active = false;
+    expected.storage.terminal = Some(TerminalSeal {
+        serial: expected.head_serial,
+    });
+    assert_eq!(
+        decode_head(&memory.values.lock().unwrap()[&key].bytes, &native_scope).unwrap(),
+        expected
+    );
+    assert!(memory
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|call| call == &format!("GET {key}") || call == &format!("PUT {key}")));
+    assert_eq!(
+        engine
+            .execute(
+                &admin,
+                call(Action::RetireStorage {
+                    expected_head_serial: physical_serial(&sealed),
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    let prepare = Action::GcPrepare {
+        expected_head_serial: physical_serial(&sealed),
+        generation: Decimal(1),
+        after: None,
+    };
+    assert_eq!(
+        engine
+            .execute(&admin, call(prepare.clone()), until())
+            .unwrap_err()
+            .code,
+        "GC_DISABLED"
+    );
+    engine.collector = Some(Collector {
+        deployment: 1,
+        listings: memory.clone(),
+        garbage: memory.clone(),
+    });
+    let prepared = engine.execute(&admin, call(prepare), until()).unwrap();
+    assert_eq!(prepared["exhausted"], true);
+    let done = engine
+        .execute(
+            &admin,
+            call(Action::GcResume {
+                batch_serial: batch_serial(&prepared),
+            }),
+            until(),
+        )
+        .unwrap();
+    assert_eq!(
+        done["status"]["storage"]["terminal"],
+        sealed["storage"]["terminal"]
+    );
+    assert!(done["status"]["storage"]["sweep"].is_null());
+    assert!(!memory
+        .values
+        .lock()
+        .unwrap()
+        .keys()
+        .any(|key| key.contains("/storage/1/objects/")));
+    assert!(memory.values.lock().unwrap().contains_key(&key));
+    memory.calls.lock().unwrap().clear();
+    assert_eq!(
+        engine
+            .execute(&admin, call(Action::StorageStatus {}), until())
+            .unwrap(),
+        done["status"]
+    );
+    assert!(memory
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|call| call == &format!("GET {key}")));
+    for action in [
+        Action::Status {
+            expected_worker_instance: None,
+        },
+        Action::Lookup { request },
+        Action::Query {
+            statements: statements("SELECT * FROM final_payload"),
+        },
+        Action::Open {},
+    ] {
+        assert_eq!(
+            engine
+                .execute(&principal(), call(action), until())
+                .unwrap_err()
+                .code,
+            "LIFECYCLE"
+        );
+    }
+}
+
+#[test]
+fn direct_terminal_unknown_keeps_original_condition_and_does_not_replay_the_seal() {
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    let active = active(&mut engine);
+    let deleted = invoke(
+        &mut engine,
+        Action::Lifecycle {
+            expected_revision: revision(&active),
+            nonce: Decimal(20),
+            lifecycle: Lifecycle::Deleted,
+        },
+    );
+    let retire = Action::RetireStorage {
+        expected_head_serial: physical_serial(&deleted),
+    };
+    memory.calls.lock().unwrap().clear();
+    *memory.lose_head.lock().unwrap() = true;
+    assert_eq!(
+        engine
+            .execute(&principal(), call(retire.clone()), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    let observed = invoke(&mut engine, Action::StorageStatus {});
+    assert_eq!(
+        physical_serial(&observed).0,
+        physical_serial(&deleted).0 + 1
+    );
+    assert_eq!(
+        observed["storage"]["terminal"]["serial"],
+        observed["head_serial"]
+    );
+    assert_eq!(
+        engine
+            .execute(&principal(), call(retire), until())
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    assert_eq!(
+        memory
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|call| call.starts_with("PUT "))
+            .count(),
+        1
+    );
+    memory.calls.lock().unwrap().clear();
+    *memory.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+    assert_eq!(
+        engine
+            .execute(&principal(), call(Action::StorageStatus {}), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 1);
+    assert_eq!(invoke(&mut engine, Action::StorageStatus {}), observed);
+}
+
+#[test]
 fn manual_compaction_and_gc_preserve_native_data_receipts_and_explicit_owner_activation() {
     use crate::output::{tests::small_pool, BASE_BYTES};
     let (_directory, memory, mut engine) = fixture(4, 10000);

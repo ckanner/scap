@@ -158,6 +158,17 @@ export class Client {
     return this.#admin('lifecycle', input, { lifecycle: wire.lifecycle(input.lifecycle) }, options);
   }
 
+  storageStatus(options) {
+    return this.#call({ operation: 'storage_status' }, (value) => wire.storageStatus(value, this.#scope), options);
+  }
+
+  retireStorage(input, options) {
+    wire.record(input, ['expectedHeadSerial']);
+    const serial = wire.decimal(input.expectedHeadSerial);
+    return this.#call({ operation: 'retire_storage', expected_head_serial: serial },
+      (value) => wire.retiredStorage(value, this.#scope, serial), options);
+  }
+
   compactBegin(input, options) {
     wire.record(input, ['expectedHeadSerial']);
     const serial = wire.decimal(input.expectedHeadSerial);

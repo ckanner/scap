@@ -22,6 +22,15 @@ async function contract() {
   const aborted: AbortProgress = await client.abortCreate({ creation, control_operation: '12', expected_name_revision: '1', nonce: '12' });
   const deleted: DeletionProgress = await client.deleteName({ creation, control_operation: '13',
     expected_name_revision: '2', expected_head_revision: '3', nonce: '13' });
+  const namedStorage: DatabaseStatus = await client.storageStatus(creation);
+  const retiredNamed: DatabaseStatus = await client.retireStorage({ creation, expected_head_serial: namedStorage.head_serial });
+  const retiredIntent: DatabaseStatus = await client.submit(client.prepareIntent({
+    operation: 'retire_named_storage', creation, expected_head_serial: '4' }));
+  const inspectedStorage: DatabaseStatus = await client.submit(client.prepareIntent({ operation: 'named_storage_status', creation }));
+  // @ts-expect-error Named retirement requires the original physical HEAD serial.
+  client.retireStorage({ creation });
+  // @ts-expect-error Physical retirement does not accept object keys or delete capabilities.
+  client.retireStorage({ creation, expected_head_serial: '4', keys: ['unsafe'] });
   const input = { operation: 'delete_name' as const, creation: { ...creation, scope: { ...scope } },
     control_operation: '14', expected_name_revision: '2', expected_head_revision: '3', nonce: '14' };
   const tracked = client.prepareIntent(input);
@@ -40,6 +49,13 @@ async function contract() {
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
   const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
+  const directStorage: DatabaseStatus = await db.storageStatus();
+  const retiredDirect: DatabaseStatus = await db.retireStorage({ expectedHeadSerial: directStorage.head_serial });
+  const terminalSerial: string | undefined = retiredDirect.storage.terminal?.serial;
+  // @ts-expect-error Physical retirement serials are lossless decimal strings.
+  db.retireStorage({ expectedHeadSerial: 1 });
+  // @ts-expect-error Observed terminal barriers are immutable.
+  retiredDirect.storage.terminal!.serial = '1';
   const plan: DatabaseStatus = await db.compactBegin({ expectedHeadSerial: guarded.head_serial });
   await db.compactCopy({ planSerial: plan.storage.plan!.serial });
   await db.compactPromote({ planSerial: plan.storage.plan!.serial });

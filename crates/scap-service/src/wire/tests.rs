@@ -356,6 +356,7 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
             allocated_through: 1,
             plan: None,
             sweep: None,
+            terminal: None,
         },
         creation: None,
         deletion: None,
@@ -602,6 +603,12 @@ fn nonnumeric_versions_are_rejected_without_coercion() {
 #[test]
 fn maintenance_actions_have_explicit_serials_bounded_frontiers_and_separate_admission() {
     for (operation, fields, admission) in [
+        ("storage_status", json!({}), "control"),
+        (
+            "retire_storage",
+            json!({"expected_head_serial":"1"}),
+            "control",
+        ),
         (
             "compact_begin",
             json!({"expected_head_serial":"1"}),
@@ -672,18 +679,21 @@ fn maintenance_actions_have_explicit_serials_bounded_frontiers_and_separate_admi
 #[test]
 fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
     use scap_object::format::{
-        CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
+        CopyBasis, CopyPhase, CopyPlan, Lifecycle, Storage, SweepCheckpoint, SweepDisposition,
+        SweepEntry, TerminalSeal,
     };
     let memory = std::sync::Arc::new(crate::tests::Memory::default());
     let db =
         scap_object::Database::new(memory, crate::tests::scope().native().unwrap(), 100).unwrap();
     let mut head = db.create(3, 1, crate::tests::until()).unwrap();
     assert_eq!(status(&head)["head_serial"], "1");
+    assert_eq!(status(&head)["storage"]["terminal"], Json::Null);
     head.head_serial = 5;
     head.storage = Storage {
         active_generation: 1,
         allocated_through: 2,
         sweep: None,
+        terminal: None,
         plan: Some(CopyPlan {
             serial: 2,
             source: 1,
@@ -707,6 +717,11 @@ fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
     head.storage.plan.as_mut().unwrap().phase = CopyPhase::Sealed;
     assert_eq!(status(&head)["storage"]["plan"]["phase"], "sealed");
     head.storage.plan = None;
+    head.format = 7;
+    head.lifecycle = Lifecycle::Deleted;
+    head.active = false;
+    head.storage.terminal = Some(TerminalSeal { serial: 4 });
+    assert_eq!(status(&head)["storage"]["terminal"], json!({"serial":"4"}));
     head.storage.sweep = Some(SweepCheckpoint {
         serial: 5,
         generation: 2,
@@ -742,6 +757,10 @@ fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
         "next_after":"f".repeat(64),"exhausted":false,"pending":1,"applied":1,"observed_absent":1,"condition_mismatch":1})
     );
     assert_eq!(output["scanned"], 4);
+    assert_eq!(
+        output["status"]["storage"]["terminal"],
+        json!({"serial":"4"})
+    );
     let encoded = output.to_string();
     assert!(
         !encoded.contains("private-key")

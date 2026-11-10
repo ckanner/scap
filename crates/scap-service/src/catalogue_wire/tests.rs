@@ -17,6 +17,8 @@ fn valid() -> Vec<Value> {
         json!({"version":1,"operation":"inspect_create_operation","create_operation":"1"}),
         json!({"version":1,"operation":"resolve_name","name":"  名称É  "}),
         json!({"version":1,"operation":"delete_name","creation":reference(),"control_operation":"2","expected_name_revision":"1","expected_head_revision":"3","nonce":"4"}),
+        json!({"version":1,"operation":"named_storage_status","creation":reference()}),
+        json!({"version":1,"operation":"retire_named_storage","creation":reference(),"expected_head_serial":"7"}),
     ]
 }
 
@@ -161,6 +163,7 @@ fn malformed_nullable_integer_names_options_and_nested_duplicates_fail_closed() 
         (5, "expected_name_revision"),
         (5, "expected_head_revision"),
         (5, "nonce"),
+        (7, "expected_head_serial"),
     ] {
         let mut value = valid()[index].clone();
         value[field] = json!("0");
@@ -190,7 +193,7 @@ fn malformed_nullable_integer_names_options_and_nested_duplicates_fail_closed() 
 
 #[test]
 fn each_normalized_input_and_direct_authorizer_rejects_its_invalid_creation() {
-    for index in [2, 5] {
+    for index in [2, 5, 6, 7] {
         let mut value = valid()[index].clone();
         value["creation"]["name"] = json!("");
         assert_eq!(
@@ -198,12 +201,13 @@ fn each_normalized_input_and_direct_authorizer_rejects_its_invalid_creation() {
             "INVALID"
         );
     }
-    for index in [1, 5] {
+    for index in [1, 5, 6, 7] {
         let mut action = decoded(&valid()[index]).action;
         match &mut action {
-            Action::ResumeCreate { creation } | Action::DeleteName { creation, .. } => {
-                creation.scope.database.0 = 0
-            }
+            Action::ResumeCreate { creation }
+            | Action::DeleteName { creation, .. }
+            | Action::NamedStorageStatus { creation }
+            | Action::RetireNamedStorage { creation, .. } => creation.scope.database.0 = 0,
             _ => unreachable!(),
         }
         assert_eq!(action.authorize(&principal()).unwrap_err().code, "INVALID");
@@ -237,7 +241,7 @@ fn provision_creator_and_tenant_checks_do_not_confuse_admin_with_discovery() {
             "DENIED"
         );
     }
-    for index in [4, 5] {
+    for index in [4, 5, 6, 7] {
         decoded(&valid()[index])
             .action
             .authorize(&principal)
@@ -255,10 +259,15 @@ fn provision_creator_and_tenant_checks_do_not_confuse_admin_with_discovery() {
             "DENIED"
         );
     }
-    decoded(&valid()[5]).action.authorize(&principal).unwrap();
+    for index in [5, 6, 7] {
+        decoded(&valid()[index])
+            .action
+            .authorize(&principal)
+            .unwrap();
+    }
     principal.principal = 3;
     principal.tenant = 99;
-    for index in [1, 2, 5] {
+    for index in [1, 2, 5, 6, 7] {
         assert_eq!(
             decoded(&valid()[index])
                 .action

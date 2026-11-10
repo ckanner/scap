@@ -47,7 +47,7 @@ def head_shape(head):
     if head["format"] == 6:
         return counters and head["terminal"] is None
     terminal = head["terminal"]
-    return counters and head["format"] == 7 and terminal is not None and head["allocated"] < terminal["serial"] <= head["serial"] and head["lifecycle"] == "deleted" and head["active"] is False and head["plan_target"] is None and (head["checkpoint"] is None or terminal["serial"] < head["checkpoint"]["serial"] <= head["serial"])
+    return counters and head["format"] == 7 and terminal is not None and head["allocated"] < terminal["serial"] <= head["serial"] and head["revision"] < terminal["serial"] and head["lifecycle"] == "deleted" and head["active"] is False and head["plan_target"] is None and (head["checkpoint"] is None or terminal["serial"] < head["checkpoint"]["serial"] <= head["serial"])
 
 
 def reader_state(actual, expected, sequence):

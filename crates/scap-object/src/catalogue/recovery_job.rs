@@ -400,7 +400,8 @@ impl RecoveryJob {
         };
         let deadline = self.options.deadline(deadline, true);
         self.meter.check(deadline)?;
-        let objects = ObjectContext::from_snapshot(&database, &snapshot, deadline);
+        let objects =
+            ObjectContext::from_snapshot(&database, &snapshot, deadline).map_err(recovery_error)?;
         let mut session = database
             .restore(&objects, &snapshot, directory, deadline)
             .map_err(recovery_error)?;

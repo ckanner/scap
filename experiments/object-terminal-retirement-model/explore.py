@@ -276,7 +276,7 @@ def main():
             if entry.get("observed_rule") != case["expected_rule"]:
                 raise RuntimeError("counterexample was not rejected by its expected rule: " + case["name"])
         expected = 53 if args.smoke else 1212
-        if len(manifest["positive"]) != expected or len(manifest["counterexamples"]) != 19:
+        if len(manifest["positive"]) != expected or len(manifest["counterexamples"]) != 20:
             raise RuntimeError("unexpected explored profile cardinality")
         if sources != {str(path.relative_to(repo)): sha(path) for path in sorted(root.glob("*.py"))}:
             raise RuntimeError("source changed during exploration")

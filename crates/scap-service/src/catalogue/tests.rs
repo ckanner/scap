@@ -100,6 +100,19 @@ fn adapter_uses_real_descriptor_binding_and_head_transitions_without_resetting_i
     let mut admin = principal();
     admin.principal = 9;
     admin.provision = false;
+    for operation in ["named_storage_status", "retire_named_storage"] {
+        let mut input = json!({"version":1,"operation":operation,"creation":creation});
+        if operation == "retire_named_storage" {
+            input["expected_head_serial"] = json!(head.head_serial.to_string());
+        }
+        assert_eq!(
+            worker
+                .execute(&admin, call(input), until())
+                .unwrap_err()
+                .code,
+            "CONFLICT"
+        );
+    }
     assert_eq!(
         worker
             .execute(
@@ -117,6 +130,67 @@ fn adapter_uses_real_descriptor_binding_and_head_transitions_without_resetting_i
     let deleted = worker.execute(&admin, deletion.clone(), until()).unwrap();
     assert_eq!(deleted["phase"], "deleted");
     assert_eq!(deleted["creation"], creation);
+    assert_eq!(
+        worker.execute(&admin, deletion.clone(), until()).unwrap(),
+        deleted
+    );
+    let status_call =
+        call(json!({"version":1,"operation":"named_storage_status","creation":creation}));
+    let status = worker
+        .execute(&admin, status_call.clone(), until())
+        .unwrap();
+    assert_eq!(status["lifecycle"], "deleted");
+    assert!(status["storage"]["terminal"].is_null());
+    let retire = call(
+        json!({"version":1,"operation":"retire_named_storage","creation":creation,"expected_head_serial":status["head_serial"]}),
+    );
+    let mut denied = admin.clone();
+    denied.principal = 88;
+    for input in [status_call.clone(), retire.clone()] {
+        assert_eq!(
+            worker.execute(&denied, input, until()).unwrap_err().code,
+            "DENIED"
+        );
+    }
+    let scope = reference.native().unwrap().scope;
+    let key = scap_object::format::head_key(&scope);
+    let old = scap_object::format::decode_head(&objects.values.lock().unwrap()[&key].bytes, &scope)
+        .unwrap();
+    objects.calls.lock().unwrap().clear();
+    let sealed = worker.execute(&admin, retire.clone(), until()).unwrap();
+    assert_eq!(
+        sealed["storage"]["terminal"]["serial"],
+        sealed["head_serial"]
+    );
+    assert_eq!(sealed["active"], false);
+    let mut expected = old;
+    expected.format = 7;
+    expected.head_serial += 1;
+    expected.active = false;
+    expected.storage.terminal = Some(scap_object::format::TerminalSeal {
+        serial: expected.head_serial,
+    });
+    assert_eq!(
+        scap_object::format::decode_head(&objects.values.lock().unwrap()[&key].bytes, &scope)
+            .unwrap(),
+        expected
+    );
+    assert!(objects
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|call| !call.contains("/objects/") && !call.starts_with("DELETE ")));
+    assert_eq!(
+        worker.execute(&admin, retire, until()).unwrap_err().code,
+        "CONFLICT"
+    );
+    assert_eq!(
+        worker.execute(&admin, status_call, until()).unwrap(),
+        sealed
+    );
+    // The permanent storage marker must not rewrite the original deletion's
+    // transition or make recovery depend on the now-retired payload closure.
     assert_eq!(worker.execute(&admin, deletion, until()).unwrap(), deleted);
     assert_eq!(
         worker
@@ -217,6 +291,8 @@ fn every_runtime_dispatch_preserves_an_object_failure_without_retry() {
         json!({"version":1,"operation":"abort_create","creation":creation,"control_operation":"41","expected_name_revision":"1","nonce":"42"}),
         json!({"version":1,"operation":"inspect_create_operation","create_operation":"40"}),
         json!({"version":1,"operation":"delete_name","creation":creation,"control_operation":"43","expected_name_revision":"1","expected_head_revision":"1","nonce":"44"}),
+        json!({"version":1,"operation":"named_storage_status","creation":creation}),
+        json!({"version":1,"operation":"retire_named_storage","creation":creation,"expected_head_serial":"1"}),
     ] {
         objects.calls.lock().unwrap().clear();
         *objects.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);

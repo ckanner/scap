@@ -18,7 +18,7 @@ pub(super) fn test_options() -> Options {
 // A small test oracle only; the production recovery path streams into a file.
 impl Database {
     fn image(&self, head: &Head, until: Instant) -> Result<Vec<u8>, Error> {
-        let objects = ObjectContext::capture(self, head);
+        let objects = ObjectContext::capture(self, head).unwrap();
         let manifest = data_tree::manifest(&objects, &head.data_root, until)?;
         let mut bytes = Vec::new();
         data_tree::walk(&objects, &manifest, until, |_, chunk| {
@@ -39,7 +39,7 @@ pub(super) fn attempt(
 ) -> AttemptContext {
     AttemptContext {
         base: base.clone(),
-        objects: ObjectContext::capture(database, &base.head),
+        objects: ObjectContext::capture(database, &base.head).unwrap(),
         request: request.clone(),
         deadline,
     }
@@ -920,7 +920,7 @@ fn precise_page_deltas_reuse_unchanged_pages_and_validate_bounds() {
     let transition = head.transition.clone();
     assert!(matches!(
         database.append(
-            &ObjectContext::capture(&database, &head),
+            &ObjectContext::capture(&database, &head).unwrap(),
             &mut head,
             Entry {
                 result_bytes: 0,
@@ -1134,7 +1134,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         head.sequence = 1;
         database
             .append(
-                &ObjectContext::capture(&database, &head),
+                &ObjectContext::capture(&database, &head).unwrap(),
                 &mut head,
                 Entry {
                     result_bytes: scap_sql::encode_result(&empty_result(), sql_limits())
@@ -1388,7 +1388,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
         .unwrap();
     assert!(matches!(
         database.resolve_entry(
-            &ObjectContext::capture(&database, &head),
+            &ObjectContext::capture(&database, &head).unwrap(),
             &head,
             &identity(1),
             &OutcomeRef::Committed { result: wrong_kind },
@@ -1420,7 +1420,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
             .unwrap();
         assert!(matches!(
             database.resolve_entry(
-                &ObjectContext::capture(&database, &accepted),
+                &ObjectContext::capture(&database, &accepted).unwrap(),
                 &accepted,
                 &identity(1),
                 &OutcomeRef::Committed { result },
@@ -1431,7 +1431,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     }
     assert!(matches!(
         database.resolve_entry(
-            &ObjectContext::capture(&database, &accepted),
+            &ObjectContext::capture(&database, &accepted).unwrap(),
             &accepted,
             &identity(1),
             &OutcomeRef::Cancelled {
@@ -1450,7 +1450,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
         .unwrap();
     database
         .append(
-            &ObjectContext::capture(&database, &accepted),
+            &ObjectContext::capture(&database, &accepted).unwrap(),
             &mut accepted,
             Entry {
                 result_bytes: b"bad codec".len() as u64,

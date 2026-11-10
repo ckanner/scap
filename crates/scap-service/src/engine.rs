@@ -252,6 +252,18 @@ impl Engine {
             match action {
                 Action::Create { nonce } => database.create(principal, nonce.0, deadline)?,
                 Action::Status { .. } => database.status(principal, deadline)?,
+                Action::StorageStatus {} => {
+                    entry.session = None;
+                    database.storage_status(principal, deadline)?
+                }
+                Action::RetireStorage {
+                    expected_head_serial,
+                } => {
+                    // This publishes a permanent metadata barrier. It neither
+                    // needs delete credentials nor replays any application SQL.
+                    entry.session = None;
+                    database.retire_storage(principal, expected_head_serial.0, deadline)?
+                }
                 Action::Open {} => {
                     // An explicit recovery call has its own HTTP deadline and
                     // refreshes a cached stale root without ever replaying SQL.

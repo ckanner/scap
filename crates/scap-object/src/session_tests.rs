@@ -330,7 +330,11 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     database.cancel(7, &identity(1), deadline()).unwrap();
     let head = database.read_head(deadline()).unwrap().head;
     database
-        .verify_results(&ObjectContext::capture(&database, &head), &head, deadline())
+        .verify_results(
+            &ObjectContext::capture(&database, &head).unwrap(),
+            &head,
+            deadline(),
+        )
         .unwrap();
     let temp = tempfile::tempdir().unwrap();
     let mut session = database
@@ -340,7 +344,11 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     let mut head = database.read_head(deadline()).unwrap().head;
     head.windows[0].result_bytes += 1;
     assert!(matches!(
-        database.verify_results(&ObjectContext::capture(&database, &head), &head, deadline()),
+        database.verify_results(
+            &ObjectContext::capture(&database, &head).unwrap(),
+            &head,
+            deadline()
+        ),
         Err(Error::Corrupt)
     ));
     let entry = Entry {
@@ -355,7 +363,7 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     };
     assert!(matches!(
         database.append(
-            &ObjectContext::capture(&database, &head),
+            &ObjectContext::capture(&database, &head).unwrap(),
             &mut head,
             Entry {
                 result_bytes: u64::MAX,
@@ -368,7 +376,7 @@ fn exact_history_bytes_cancelled_entries_and_full_window_admission() {
     head.windows[0].result_bytes = 0;
     assert!(matches!(
         database.append(
-            &ObjectContext::capture(&database, &head),
+            &ObjectContext::capture(&database, &head).unwrap(),
             &mut head,
             Entry {
                 result_bytes: u64::MAX,
@@ -485,7 +493,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     ));
     assert!(matches!(
         database.verify_closure(
-            &ObjectContext::capture(&database, &bad.head),
+            &ObjectContext::capture(&database, &bad.head).unwrap(),
             &bad,
             deadline()
         ),
@@ -501,7 +509,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     ));
     assert!(matches!(
         database.restore(
-            &ObjectContext::capture(&database, &bad.head),
+            &ObjectContext::capture(&database, &bad.head).unwrap(),
             &bad,
             &temp.path().join("invalid-quota"),
             deadline()
@@ -527,7 +535,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     ));
     assert!(matches!(
         database.verify_closure(
-            &ObjectContext::capture(&database, &over),
+            &ObjectContext::capture(&database, &over).unwrap(),
             &Snapshot {
                 head: over.clone(),
                 etag: base.etag.clone()
@@ -539,7 +547,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     over.quota.max_bytes = None;
     assert!(matches!(
         database.verify_closure(
-            &ObjectContext::capture(&database, &over),
+            &ObjectContext::capture(&database, &over).unwrap(),
             &Snapshot {
                 head: over.clone(),
                 etag: base.etag.clone()
@@ -556,7 +564,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
             page[16..18].copy_from_slice(&[0x10, 0]);
         }
         let root = data_tree::update(
-            &ObjectContext::capture(&database, &base.head),
+            &ObjectContext::capture(&database, &base.head).unwrap(),
             &base.head.data_root,
             &PageBatch {
                 size_after: 1,
@@ -573,7 +581,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
         malformed.head.data_root = root;
         assert!(matches!(
             database.restore(
-                &ObjectContext::capture(&database, &malformed.head),
+                &ObjectContext::capture(&database, &malformed.head).unwrap(),
                 &malformed,
                 &temp.path().join(format!("bad-image-{header_valid}")),
                 deadline()
@@ -589,7 +597,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     execute(&mut session, 1, "CREATE TABLE x(value)");
     let current = database.read_head(deadline()).unwrap();
     let manifest = data_tree::manifest(
-        &ObjectContext::capture(&database, &current.head),
+        &ObjectContext::capture(&database, &current.head).unwrap(),
         &current.head.data_root,
         deadline(),
     )
@@ -601,7 +609,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     );
     assert!(matches!(
         database.restore(
-            &ObjectContext::capture(&database, &current.head),
+            &ObjectContext::capture(&database, &current.head).unwrap(),
             &current,
             &lost,
             deadline()

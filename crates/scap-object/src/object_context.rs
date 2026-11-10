@@ -104,7 +104,7 @@ impl ObjectContext {
         database: &Database,
         snapshot: &Snapshot,
         deadline: Instant,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         Self::bound(
             database,
             snapshot,
@@ -113,7 +113,15 @@ impl ObjectContext {
         )
     }
 
-    fn bound(database: &Database, snapshot: &Snapshot, generation: u64, deadline: Instant) -> Self {
+    fn bound(
+        database: &Database,
+        snapshot: &Snapshot,
+        generation: u64,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        if snapshot.head.storage.terminal.is_some() {
+            return Err(Error::Lifecycle);
+        }
         let context = Self::new(
             database,
             &snapshot.head.scope,
@@ -130,12 +138,20 @@ impl ObjectContext {
             .deadline
             .set(deadline)
             .expect("new context deadline");
-        context
+        Ok(context)
     }
 
     #[cfg(test)]
-    pub(super) fn capture(database: &Database, head: &Head) -> Self {
-        Self::new(database, &head.scope, head.storage.active_generation, None)
+    pub(super) fn capture(database: &Database, head: &Head) -> Result<Self, Error> {
+        if head.storage.terminal.is_some() {
+            return Err(Error::Lifecycle);
+        }
+        Ok(Self::new(
+            database,
+            &head.scope,
+            head.storage.active_generation,
+            None,
+        ))
     }
 
     pub(super) fn target(
@@ -148,7 +164,7 @@ impl ObjectContext {
         {
             return Err(Error::Conflict);
         }
-        Ok(Self::bound(database, snapshot, plan.target, deadline))
+        Self::bound(database, snapshot, plan.target, deadline)
     }
 
     pub(super) fn bootstrap(database: &Database) -> Self {
@@ -184,7 +200,9 @@ impl ObjectContext {
     }
 
     pub(super) fn matches(&self, head: &Head) -> bool {
-        self.scope == head.scope && self.storage_generation == head.storage.active_generation
+        head.storage.terminal.is_none()
+            && self.scope == head.scope
+            && self.storage_generation == head.storage.active_generation
     }
 
     fn check(&self, deadline: Instant) -> Result<Instant, Error> {
@@ -250,6 +268,11 @@ impl ObjectContext {
                 || (head.head_serial == basis.serial
                     && (stored.etag != basis.etag || head_fingerprint(&head) != basis.fingerprint))
                 || (head.head_serial > basis.serial && stored.etag == basis.etag)
+                || head
+                    .storage
+                    .terminal
+                    .as_ref()
+                    .is_some_and(|terminal| terminal.serial <= basis.serial)
             {
                 self.quarantined.store(true, Ordering::Release);
                 return error;

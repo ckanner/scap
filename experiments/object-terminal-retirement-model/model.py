@@ -51,7 +51,7 @@ def valid_head(head):
         return False
     if head["format"] == 6:
         return head["terminal"] is None
-    return head["format"] == 7 and head["terminal"] is not None and head["allocated"] < head["terminal"]["serial"] <= head["serial"] and head["lifecycle"] == "deleted" and not head["active"] and head["plan_target"] is None and (head["checkpoint"] is None or head["terminal"]["serial"] < head["checkpoint"]["serial"] <= head["serial"])
+    return head["format"] == 7 and head["terminal"] is not None and head["allocated"] < head["terminal"]["serial"] <= head["serial"] and head["revision"] < head["terminal"]["serial"] and head["lifecycle"] == "deleted" and not head["active"] and head["plan_target"] is None and (head["checkpoint"] is None or head["terminal"]["serial"] < head["checkpoint"]["serial"] <= head["serial"])
 
 
 class Rejected(Exception):

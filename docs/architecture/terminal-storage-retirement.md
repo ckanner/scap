@@ -1,6 +1,6 @@
 # Deleted 最后一代数据的永久终态退休
 
-状态：**协议提案与独立有界模型，尚未实现到产品**。本稿以 `66f452ec73111f8c9dc7509883717828ba883e8a` 的 HEAD6 产品为基线；后续实验与文档提交不改变这个产品基线。本稿不修改冻结的 core、service、SDK，也不授权 HEAD6 清扫 Deleted 的最后 active generation。
+状态：**HEAD7 产品候选接口与核心实现已完成，源码尚未冻结，正式验收 NOT_RUN**。本稿以 `66f452ec73111f8c9dc7509883717828ba883e8a` 的 HEAD6 产品为基线；HEAD7 在独立工作树中实现，不修改已经冻结的 HEAD6 源码，也不授权旧 HEAD6 清扫 Deleted 的最后 active generation。开发阶段定向单位与模型自测用于继续审查，不能继承 HEAD6 的正式通过结论。
 
 HEAD6 已有 live database 压缩、放弃 target 的永久退休和可重启 GC checkpoint。这里补齐另一个独立条件：一个逻辑数据库永久删除后，如何明确解除最后物理世代的保护，同时保留目录恢复与旧请求的屏障。本文沿用 [HEAD6 压缩与 GC 协议](head6-compaction-gc.md)，不重做复制、conditional DELETE 或普通读 pin 协议。
 
@@ -58,9 +58,9 @@ storage:
     serial: s
 ```
 
-完整校验要求 `1 <= A <= M < s <= head_serial`，lifecycle 必须 Deleted，active 必须 false，plan 必须 null。首次 seal 的 `s` 等于新 `head_serial`；后续技术转移不得修改 s/A/M。seal 的 admission 不接受旧 sweep，因此后续 checkpoint 还必须满足 `s < sweep.serial <= head_serial`。没有 holds 字段；当前片段的 holds 固定为空。未来若增加 retained snapshot / PITR roots，必须修改终态 admission 与保护集，不能自动沿用“全部退休”。
+完整校验要求 `1 <= A <= M < s <= head_serial` 且 **`revision < s`**，lifecycle 必须 Deleted，active 必须 false，plan 必须 null。首次 seal 的 `s` 等于新 `head_serial`；后续技术转移不得修改 s/A/M。最后业务 revision 不超过封口前的 head_serial，seal 再把 serial 加一，因此 `revision >= s` 是单份 HEAD 就能识别的不可能状态，不能作为 final-A 退休证明。seal 的 admission 不接受旧 sweep，因此后续 checkpoint 还必须满足 `s < sweep.serial <= head_serial`。没有 holds 字段；当前片段的 holds 固定为空。未来若增加 retained snapshot / PITR roots，必须修改终态 admission 与保护集，不能自动沿用“全部退休”。
 
-解码建议使用两个私有的严格 wire 类型 `Head6Wire/Storage6Wire`、`Head7Wire/Storage7Wire`，再归一成内部 Head。先从原始 bounded bytes 识别 format，再用对应类型**重新从原始 bytes**完整解析；拒绝未知字段、重复字段、缺失的 required nullable 字段和错误版本，不通过宽松 `Value` 重编码后再解析。编码同样按 format 分支，不能给 HEAD6 悄悄加入默认 `terminal:null`，也不能让 HEAD7 缺字段退回旧语义。
+HEAD7 草稿采用一次从原始 bounded bytes 进行的 typed serde 解析，并在严格验证器中交叉检查版本与字段是否存在。`storage.terminal` 缺失时取 None；字段存在时，专用 `present_terminal` 必须解析出非空的 `TerminalSeal`。因此 HEAD6 显式 `terminal:null`、HEAD6 带 seal、HEAD7 缺字段或 null 都拒绝。`deny_unknown_fields` 与 serde 字段重复检查继续生效，不通过宽松 `Value` 重编码后再解析。编码仅为 Some seal 输出字段，再由格式验证保证 HEAD6 不输出 terminal、HEAD7 必须输出它。这与两个严格 wire schema 的合同相同，不依赖宽松的版本回退。
 
 旧 binary 收到 HEAD7 必须格式失败关闭。它此前准备的 HEAD6 CAS 仍保留原 ETag，必定被后继 HEAD fence；旧 Absent HEAD PUT 被永久存在的 HEAD 阻挡。升级不要求旧请求已经消失，不从进程死亡、租约或 TTL 推断安全。要在部署启用此操作，全部读取 HEAD 的产品消费者必须理解这个版本边界。
 
@@ -92,7 +92,7 @@ Catalogue::storage_status(caller, &Creation, deadline)
     -> Result<Head, CatalogueError>;
 ```
 
-直接入口要求 `creation == None && deletion == None`。具名入口必须由 Catalogue 构造私有 `VerifiedDeletionSource`，随后与该次 exact HEAD snapshot 一起进入私有 `TerminalCandidate`；它不能调用一个只检查 lifecycle 的公共通用退役函数。
+直接入口要求 `creation == None && deletion == None`。具名入口必须由 [`catalogue/terminal.rs`](../../crates/scap-object/src/catalogue/terminal.rs) 构造私有 `VerifiedDeletionSource`，随后把该次 exact HEAD snapshot 交给私有 `retire_named_storage/retire_deleted` 技术候选构造；它不能调用一个只检查 lifecycle 的公共通用退役函数。`publish_technical` 再限制终态之后只有 serial 与 sweep 可变，最终仍由持有原 ETag 的 `PreparedHead` 一次发布。
 
 `storage_status` 是专门的 Deleted 管理元数据观察，要求当前 ADMIN；直接与具名路径分别执行自己的身份/来源检查，不能替代普通 status/lookup，也不授予可执行 Snapshot。service 复用现有状态投影，增加必填 `storage.terminal: null | {serial}`；这是 API 的归一字段，不表示真实 HEAD6 wire 允许 `terminal:null`。直接 HTTP action 为 `storage_status/retire_storage`，具名 action 为 `named_storage_status/retire_named_storage`，避免 SDK transport 的全局 operation 分类冲突。两个客户端均可公开 `storageStatus/retireStorage` 方法。
 
@@ -128,7 +128,7 @@ seal 不等 Name Release，避免把目录进度引入物理安全条件；但�
 
 [`ObjectContext::physical`](../../crates/scap-object/src/object_context.rs) 继续只允许一次原 backend/meter/deadline 的 exact HEAD 调查。完整 Scope、serial/A/M 单调性、同 serial 的 body/ETag 一致性、后继 serial 与原 ETag 的 fence 都必须核实。只有这次证明原 g 已退休，才返回 `SnapshotExpired`。调查 UNKNOWN、超预算、超时或仍为 HEAD6 protected A 时保留原故障；hash-valid 内容语义坏、native InvalidImage 和 authority 矛盾仍进入全局 latch，不能用 terminal 转成正常过期。
 
-旧 context 必须从非 terminal 的 HEAD6 入场，因此新鲜 HEAD7 的 `terminal.serial` 还必须严格大于原 `basis.head_serial`。例如原 HEAD6 serial=100、A=M=1，随后调查得到 HEAD7 serial=101、terminal.serial=2：单独检查 serial/A/M 不回退会漏过这个不可能历史。它意味着终态之后曾出现新的 HEAD6 authority，必须全局隔离，不能正常 expiry。
+旧 context 必须从非 terminal 的 HEAD6 入场，因此新鲜 HEAD7 的 `terminal.serial` 还必须严格大于原 `basis.head_serial`。例如原 HEAD6 revision=2、serial=100、A=M=1，随后调查得到 HEAD7 serial=102、terminal.serial=3：该 HEAD 单独满足 `revision < terminal.serial`，但结合原 context 就是一个不可能历史。它意味着终态之后曾出现新的 HEAD6 authority，必须全局隔离，不能正常 expiry。物理失败调查仍返回原 raw 错误；若原失败是 Missing，对外保持 MISSING，同时该谱系进入全局隔离。静态 HEAD7 格式矛盾则由普通解码直接返回 CORRUPT。
 
 知识谱系仍遵守 HEAD6：Database clones/Session/context 共享知识；独立构造是新谱系，必须从新鲜 authority 开始新的尝试。每-g 物理 incident 不能升级成所有新 namespace 的损坏，也不能凭“terminal 已观察到”清掉无关 semantic latch。
 
@@ -184,7 +184,7 @@ ETag 不必是每次重新写入都不同的 payload 版本号。同 bytes 重�
 
 当前工作树只含较早的 [`object-authority-model`](../../experiments/object-authority-model/README.md)。PR43/49 的 GC/handle 模型不在本树，本片没有取回并证明它们与 HEAD6 等价；引用设计思路或 core unit 覆盖不能冒充该证明。
 
-模型计数、实际运行命令、原始输出目录与已保留反例记录在新模型 README 和每次运行 manifest 中。最终 43 个定向协议、调度器与独立 observer 自测通过，完整 1,212 正向 history 矩阵通过，19 条反例均由预期规则拒绝；共记录 51,571 events、3,697 个宏状态与 3,778 条宏边。旧 Provisioning ordinary-read 不可达前缀及先前源码已另存诊断，修正后的普通读只来自 Ready direct/delete；首次完整结果与最终严格 checkpoint 版本也分别保留。没有使用这些研究测试补生产单位覆盖，更不把有限模型通过标为 HEAD7 产品已经实现或验收。
+模型计数、实际运行命令、原始输出目录与已保留反例记录在新模型 README 和每次运行 manifest 中。已发布 `1219d35700c0a634f5876ae033bbeb9e0a6b79f8` 的旧有限域有 43 个自测、1,212 正向 histories 与 19 条预期反例；这些历史结果不覆盖随后发现的 `revision < terminal.serial` 规则。HEAD7 工作树对 model 与独立 observer 分别补上该规则，并增加独立 malformed HEAD 自测和第 20 条 metadata/observer 变异。新的 `terminal-model-validation-20261110-03` 已通过 44 个自测、完整 1,212 正向 histories 和 20 条预期反例，正向历史仍记录 51,571 events、3,697 个宏状态与 3,778 条宏边；其源码指纹与 manifest 独立保存，不追认旧结果。旧 Provisioning ordinary-read 不可达前缀及先前源码也保持独立诊断。没有使用这些研究测试补生产单位覆盖，更不把有限模型通过标为 HEAD7 产品已经验收。
 
 ## 7. 后续产品实现与验收顺序
 
@@ -192,7 +192,7 @@ ETag 不必是每次重新写入都不同的 payload 版本号。同 bytes 重�
 
 | 批次 | 拟修改文件 / 责任 | 完成条件 |
 | --- | --- | --- |
-| 核心格式与候选 | `crates/scap-object/src/{format.rs,storage.rs,head_publication.rs,object_context.rs,reclamation.rs,lib.rs}`；建议新 `terminal.rs` | 严格 V6/V7 wire、私有 terminal candidate、payload context 拒绝终态、新退休谓词、live/terminal 健康域、原 receipt/expiry 语义全部贯通。 |
+| 核心格式与候选 | `crates/scap-object/src/{format.rs,storage.rs,head_publication.rs,object_context.rs,reclamation.rs,lib.rs}` | 严格 V6/V7 wire、私有 terminal candidate、payload context 拒绝终态、新退休谓词、live/terminal 健康域、原 receipt/expiry 语义全部贯通。 |
 | 真实目录组合 | `crates/scap-object/src/catalogue/{mod.rs,control.rs,inspect.rs,recovery_job.rs,types.rs}` 及相关 discovery 消费者 | own 删除来源、proof-before-HEAD / Name 双读、原意图重入；terminal sweep 不阻止纯元数据 Release/Done；ForeignOccupied 不获清扫权。 |
 | service 与 SDK | 现有 service control/recovery admission、status/wire 与 `sdk/node` 对应 decode/client/types | 专门的 terminal 管理观察与一次 POST；不自动重试旧操作；不暴露 ETag/key；已删除普通调用仍是 Lifecycle。 |
 | 真实验收 | 新的 terminal runtime fixture，与冻结 HEAD6 fixture 分开 | 正式 binary、native SQLite、签名 HTTP/S3、真实进程退出、原始独立 history oracle 与定向负控。 |
@@ -202,7 +202,7 @@ ETag 不必是每次重新写入都不同的 payload 版本号。同 bytes 重�
 1. 正常具名删除、OwnDeleted 取消、FenceAbsent 三条真实目录路径，都能在 Name Release 前后 seal；proof 已存在与稍后产生两种次序都保持原 transition；名称复用后旧 intent 仍恢复为原结果。
 2. 缺 descriptor/control/proof、错误 nonce、不同 creation、foreign slot、改变中的 Name 都失败关闭，绝不从请求补造缺失权威。
 3. 终态前 A 无法 GC；seal 的原 CAS 丢响应并晚于 status 观测落地，仍保留原 Unknown；两个固定候选只有一个条件成功；旧 owner/initial-create 请求都不能复活库。
-4. 已保存原结果不变；旧 GET 在删除后失败要 fresh-prove 才 Expired；hash-valid 语义坏和 authority 矛盾始终坏；新 HEAD7 seal serial 不得早于旧 HEAD6 context，checkpoint serial 必须晚于 seal；Budget 不读额外 HEAD、不 latch；同谱系/独立谱系与 terminal metadata 发布域均有针对测试。
+4. 已保存原结果不变；旧 GET 在删除后失败要 fresh-prove 才 Expired；hash-valid 语义坏和 authority 矛盾始终坏；seal serial 必须晚于最后业务 revision 与旧 HEAD6 context，checkpoint serial 必须晚于 seal；Budget 不读额外 HEAD、不 latch；同谱系/独立谱系与 terminal metadata 发布域均有针对测试。
 5. 最后一代和既有 abandoned 代都可安装/恢复 checkpoint；32 项、分页、重启、DELETE 丢响应、真实同 bytes 不同 ETag、实际原条件 412、NoSuchBucket、迟到 PUT 再扫、clear 后迟到 DELETE 都有原始证据。
 6. 永久 HEAD/descriptor/control/proof 不在 payload GC 的 key 集合；邻接新 Scope、新同名数据库及 foreign 当前数据库字节完全不受影响。
 7. 所有新增/受影响产品文件继续满足逐文件行、函数、region、分支精确 100% 单位覆盖；独立 actual 门禁通过后才启用。模型通过不是替代项。

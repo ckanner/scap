@@ -100,6 +100,13 @@ pub struct DeleteNamed {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RetireNamedStorage {
+    pub creation: Creation,
+    pub expected_head_serial: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CreationPhase {
     NotReserved,

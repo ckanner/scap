@@ -319,7 +319,7 @@ fn corrupt_missing_data_and_native_images_keep_the_exact_slot_pending() {
             page[16..18].copy_from_slice(&[0x10, 0]);
         }
         let root = crate::data_tree::update(
-            &ObjectContext::capture(&database, &original.head),
+            &ObjectContext::capture(&database, &original.head).unwrap(),
             &original.head.data_root,
             &scap_object_sqlite::PageBatch {
                 size_after: 1,

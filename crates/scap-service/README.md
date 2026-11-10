@@ -94,7 +94,7 @@ mkdir -p /absolute/private-cache
 | admission | 操作 | 总时间预算 |
 | --- | --- | --- |
 | `data`（可省略） | `create`、`query`、`execute` | `timeout_ms` |
-| `control` | `status`、`lookup`、`cancel`、`takeover`、`close_full`、`policy`、`quota`、`lifecycle`、`compact_begin`、`compact_promote`、`compact_abort` | `timeout_ms` |
+| `control` | `status`、`storage_status`、`retire_storage`、`lookup`、`cancel`、`takeover`、`close_full`、`policy`、`quota`、`lifecycle`、`compact_begin`、`compact_promote`、`compact_abort` | `timeout_ms` |
 | `recovery` | `open`、`activate`、`compact_copy`、`gc_prepare`、`gc_resume` | `recovery_timeout_ms` |
 
 两种时间预算都从最初接收请求时开始；body 读取仍须在短预算内结束，排队也占用原预算。数据库内部更短的操作期限继续有效。HTTP 超时或响应消失不表示 SQL 已回滚。
@@ -115,7 +115,9 @@ mkdir -p /absolute/private-cache
 HEAD6 的手动 `compact_*` 使用物理 `head_serial` / `plan_serial`，不改变原业务 receipt。
 可选 GC 凭据默认关闭；`gc_prepare` 只安装最多 32 项的原 ETag checkpoint，`gc_resume`
 才执行经 core 退休证明允许的条件删除。全部新操作仍需当前 ADMIN，不接受客户端指定任意
-key 或后台。配置、原身份恢复、owner inactive 和准确删除范围见[压缩与回收](docs/reclamation.md)。
+key 或后台。Deleted 库先通过显式 `retire_storage` 或目录 `retire_named_storage` 发布永久
+terminal seal，才允许 GC 回收最后一个 A；专用管理查询不恢复普通 SQL/lookup 访问。
+配置、原身份恢复、owner inactive 和准确删除范围见[压缩与回收](docs/reclamation.md)。
 
 `activate` 和 `takeover` 可额外给出非零规范十进制字符串 `expected_worker_instance`。
 在 bearer 与 scope 准入之后，Engine 将其与实际接收进程的启动身份比较，不匹配返回
@@ -144,7 +146,7 @@ HTTP 的 data、control、recovery 与 catalogue 各有独立 intake 池；鉴�
 
 每个 actor 最多保留一个完整 scope 的 Session，`pages_per_actor` 按操作完成后的实际页面数决定缓存保留；失败 session 不复用。此阈值不预留恢复期间所需磁盘，单库超过阈值时会在操作后丢弃 Session。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、retained snapshot/PITR、Deleted 最后 active 代的物理 purge 和跨区域灾备仍有后续实现与验收门禁；手动 live/abandoned 代压缩与回收的范围见[专门说明](docs/reclamation.md)。
+一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、retained snapshot/PITR 和跨区域灾备仍有后续实现与验收门禁。手动 live/abandoned 代回收与 HEAD7 Deleted 终态 payload 回收的范围见[专门说明](docs/reclamation.md)；永久身份元数据仍保留，HEAD6 验收不能代替新增终态路径的独立门禁。
 
 ## 验证
 

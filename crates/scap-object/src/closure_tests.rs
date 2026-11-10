@@ -237,6 +237,7 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
             allocated_through: 1,
             plan: None,
             sweep: None,
+            terminal: None,
         },
         revision: 10,
         transition: Transition {
@@ -276,7 +277,7 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
 }
 
 fn drive(fixture: &Fixture, single: bool) -> Result<(ClosureTotals, Vec<String>), Error> {
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let end = deadline();
     let stop = || fixture.trace.stopped.load(Ordering::Acquire);
     let mut cursor = Cursor::new(&context, &fixture.snapshot, end, &stop)?;
@@ -666,7 +667,7 @@ fn retained_result_binding_length_and_wire_failures_are_not_hidden_by_valid_hash
 fn callback_errors_do_not_quarantine_source_and_completions_keep_original_identity() {
     for error in [Error::Corrupt, Error::Store(StoreError::Corrupt)] {
         let fixture = fixture(0, 1);
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
         let mut error = Some(error);
         assert!(cursor
@@ -677,7 +678,7 @@ fn callback_errors_do_not_quarantine_source_and_completions_keep_original_identi
     }
     for changed_body in [false, true] {
         let fixture = fixture(0, 1);
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
         let Step::Complete(proof) = cursor
             .advance(StepBudget::default(), &mut |_| Ok(()))
@@ -694,7 +695,7 @@ fn callback_errors_do_not_quarantine_source_and_completions_keep_original_identi
         assert!(matches!(proof.finish(&foreign), Err(Error::StaleSnapshot)));
     }
     let fixture = fixture(0, 1);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let stopped = Cell::new(false);
     let stop = || stopped.get();
     let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &stop).unwrap();
@@ -738,7 +739,7 @@ fn every_unknown_or_missing_read_cut_consumes_the_prefix_without_success() {
 #[test]
 fn stop_deadline_and_budget_boundaries_never_quarantine_or_create_a_completion() {
     let fixture = fixture(33, 1);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let stopped = Cell::new(false);
     let stop = || stopped.get();
     assert!(matches!(
@@ -925,7 +926,7 @@ fn highest_data_geometry_is_a_verified_prefix_not_a_full_capacity_claim() {
     expected.reverse();
     fixture.snapshot.head.data_root = manifest;
     fixture.snapshot.head.quota.max_bytes = None;
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
     let mut visited = Vec::new();
     let Step::Pending(cursor) = cursor
@@ -1037,13 +1038,13 @@ fn namespace_original_head_and_byte_budget_admission_are_bound_without_new_reads
         } else {
             foreign.storage.active_generation += 1;
         }
-        let context = ObjectContext::capture(&fixture.database, &foreign);
+        let context = ObjectContext::capture(&fixture.database, &foreign).unwrap();
         assert!(matches!(
             Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped),
             Err(Error::StaleSnapshot)
         ));
     }
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let mut invalid = fixture.snapshot.clone();
     invalid.head.format = 4;
     assert!(matches!(
@@ -1082,7 +1083,7 @@ fn copy_cursor_requires_exact_plan_basis_and_original_source_context() {
         basis: crate::format::CopyBasis::capture(&fixture.snapshot.head),
     };
     fixture.snapshot.head.storage.plan = Some(plan.clone());
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     plan.target = 3;
     assert!(matches!(
         Cursor::for_copy(&context, &fixture.snapshot, &plan, deadline(), &not_stopped),
@@ -1107,7 +1108,7 @@ fn copy_cursor_requires_exact_plan_basis_and_original_source_context() {
     fixture.snapshot.head.storage.plan = Some(plan.clone());
     let mut foreign = fixture.snapshot.head.clone();
     foreign.scope.generation += 1;
-    let foreign = ObjectContext::capture(&fixture.database, &foreign);
+    let foreign = ObjectContext::capture(&fixture.database, &foreign).unwrap();
     assert!(matches!(
         Cursor::for_copy(&foreign, &fixture.snapshot, &plan, deadline(), &not_stopped),
         Err(Error::StaleSnapshot)
@@ -1153,7 +1154,7 @@ fn a_later_acl_revision_cannot_legitimize_results_or_cancellation_newer_than_cop
         };
         fixture.snapshot.head.storage.plan = Some(plan.clone());
         fixture.snapshot.head.validate().unwrap();
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor =
             Cursor::for_copy(&context, &fixture.snapshot, &plan, deadline(), &not_stopped).unwrap();
         assert!(matches!(
@@ -1168,7 +1169,7 @@ fn a_later_acl_revision_cannot_legitimize_results_or_cancellation_newer_than_cop
 fn existing_verifier_drives_multiple_steps_without_restarting_the_prefix() {
     let fixture = fixture(2048, 1);
     assert!(fixture.expected.len() > StepBudget::default().max_frames as usize);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let end = deadline();
     fixture
         .database
@@ -1195,7 +1196,7 @@ fn every_observed_stop_checkpoint_withholds_completion_without_quarantine() {
         calls.get() == stop_at.get()
     };
     let run = || {
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &stop)?;
         match cursor.advance(StepBudget::default(), &mut |_| {
             visits.set(visits.get() + 1);
@@ -1232,7 +1233,7 @@ fn private_accounting_and_path_guards_fail_closed_before_any_completion() {
     // format-valid closure can naturally contain u64::MAX frames or entries.
     for counter in 0..9 {
         let fixture = fixture(1, 1);
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let mut cursor =
             Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
         match counter {
@@ -1259,7 +1260,7 @@ fn private_accounting_and_path_guards_fail_closed_before_any_completion() {
     }
 
     let fixture = fixture(0, 1);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let mut cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
     assert!(matches!(cursor.entry(3, 1, 0, false), Err(Error::Corrupt)));
     for index_action in [false, true] {
@@ -1302,7 +1303,7 @@ fn private_accounting_and_path_guards_fail_closed_before_any_completion() {
 #[test]
 fn raw_edge_checks_reject_wrong_physical_key_and_out_of_range_window() {
     let fixture = fixture(0, 1);
-    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+    let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
     let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
     let hash = &fixture.snapshot.head.windows[0].root;
     let key = object_key(&fixture.snapshot.head.scope, 1, hash);
@@ -1387,7 +1388,7 @@ fn raw_edge_checks_reject_wrong_physical_key_and_out_of_range_window() {
 fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
     for fault in 0..6 {
         let fixture = fixture(1, 1);
-        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
         let Step::Complete(proof) = cursor
             .advance(StepBudget::default(), &mut |_| Ok(()))

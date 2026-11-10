@@ -187,6 +187,21 @@ def examples():
     next(event for event in case["history"]["events"] if event["event"] == "get" and event["result"] == "unknown")["result"] = "missing"
     yield case
 
+    # The stored metadata is actually malformed. This observer mutation then
+    # falsely treats that GET as a retirement proof; it is not a legal API path.
+    m = Model()
+    seal(m)
+    collect(m)
+    m.run("old-read")
+    m.reader_reply()
+    malformed = deepcopy(m.store[head_key()]["body"])
+    malformed["revision"] = malformed["terminal"]["serial"]
+    m.corrupt_authority(head_key(), malformed)
+    m.diagnose()
+    case = record("terminal-seal-not-after-business-revision", "strict_expiry_proof", m, "observer_mutation")
+    next(event for event in case["history"]["events"] if event["event"] == "diagnostic")["state"]["outcome"] = "snapshot_expired"
+    yield case
+
 
 if __name__ == "__main__":
     import json

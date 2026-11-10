@@ -29,7 +29,7 @@ const client = (fetcher, extra = {}) => new CatalogueClient({ ...OPTIONS, fetch:
 const withoutOperation = ({ operation, ...value }) => value;
 function head() {
   return { scope: clone(SCOPE), revision: U64, head_serial: U64,
-    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null },
+    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null, terminal: null },
     sequence: '0', owner_epoch: '2', owner_instance: '3', active: false,
     auth_epoch: '4', lifecycle: 'ready', request_epoch: '5', max_bytes: null,
     transition: { revision: U64, nonce: '6' },

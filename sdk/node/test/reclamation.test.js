@@ -6,7 +6,7 @@ import { head, SCOPE, clone, success, failure } from './owner_fixture.js';
 
 const OPTIONS = { endpoint: 'http://127.0.0.1:8123/v1', token: 'synthetic-maintenance-only-credential', scope: SCOPE, principal: '7' };
 const HASH = 'a'.repeat(64);
-const physical = (active = '1', allocated = '2') => ({ active_generation: active, allocated_through: allocated, plan: null, sweep: null });
+const physical = (active = '1', allocated = '2') => ({ active_generation: active, allocated_through: allocated, plan: null, sweep: null, terminal: null });
 function planned(phase = 'copying') {
   return head({ head_serial: phase === 'copying' ? '11' : '12', active: false,
     storage: { ...physical(), plan: { serial: '11', source: '1', target: '2', phase } } });
