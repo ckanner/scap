@@ -488,6 +488,24 @@ def durable_audit(data, http, net):
     return {'head_publications': 5, 'sql_identities': 1, 'original_result_sha256': sha(raw), 'final_revision': 5}
 
 
+def credential_audit(credentials, identities):
+    """Compare complete credential records as a multiset, preserving duplicates.
+
+    Authentication binds the digest to its trusted principal and tenant; it
+    does not depend on the order of configuration entries. Canonical JSON
+    preserves every field and type while avoiding a dict that would silently
+    collapse duplicate credentials.
+    """
+    expected = [{'sha256': identities[role], 'deployment': '1',
+        'tenant': '8' if role == 'foreign' else '7', 'principal': principal,
+        'provision': role == 'writer'} for role, principal in PRINCIPALS.items()]
+    require(type(credentials) is list, 'trusted credential partition changed')
+    def records(values):
+        return Counter(json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False)
+            for value in values)
+    equal(records(credentials), records(expected), 'trusted credential partition changed')
+
+
 def configuration_audit(data):
     config = data['configuration']
     equal(config['scope'], SCOPE, 'configured logical Scope changed')
@@ -512,9 +530,7 @@ def configuration_audit(data):
         service = data['service_configs'][worker]
         require(service['version'] == 1 and service['worker_instance'] == WORKERS[worker] and
             service['listen'] == f"127.0.0.1:{config['daemon_ports'][worker]}", 'daemon instance/address binding')
-        equal(service['credentials'], [{'sha256': config['credential_sha256'][role], 'deployment': '1',
-            'tenant': '8' if role == 'foreign' else '7', 'principal': principal,
-            'provision': role == 'writer'} for role, principal in PRINCIPALS.items()], 'trusted credential partition changed')
+        credential_audit(service['credentials'], config['credential_sha256'])
         s3 = service['s3']
         equal(s3, {'endpoint': config['s3_endpoints'][worker], 'region': 'us-east-1', 'bucket': 'scap-test',
             'access_key_env': 'SCAP_TEST_ACCESS', 'secret_key_env': 'SCAP_TEST_SECRET',
