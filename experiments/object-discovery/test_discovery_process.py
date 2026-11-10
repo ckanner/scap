@@ -53,13 +53,13 @@ class OwnedChildCleanup(unittest.TestCase):
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as directory:
                 owner = self.owner(Path(directory), "print(json.dumps({'ready':False}),flush=True);time.sleep(30)", fail=fail)
                 with self.assertRaises((AssertionError, OSError)):
-                    ShortWorker(owner, "seed", {"worker": 1})
+                    Worker(owner, "seed", {"worker": 1})
                 self.assertEqual(len(owner.workers), 1); self.assert_reaped(owner.workers[0])
 
     def test_failed_stop_log_still_kills_waits_and_closes_owned_child(self):
         with tempfile.TemporaryDirectory() as directory:
             owner = self.owner(Path(directory), "print(json.dumps({'ready':True,'resources':{'namespace_pid':os.getpid()}}),flush=True);time.sleep(30)")
-            worker = ShortWorker(owner, "seed", {"worker": 1})
+            worker = Worker(owner, "seed", {"worker": 1})
             owner.facts.fail = "worker_stop_requested"
             with self.assertRaisesRegex(OSError, "log write failure"):
                 worker.stop("unit_failure")
