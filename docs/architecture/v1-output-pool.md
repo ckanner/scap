@@ -1,8 +1,9 @@
 # 普通 `/v1` 编码缓冲池
 
-状态：**已接入 daemon。冻结运行时 `f074897` 的格式检查和严格 Clippy 通过；
-stable 编译完成，但单位执行控制丢失，完整门禁为 INCOMPLETE_EXECUTION_CONTROL_LOST。
-没有取得完整单位或本片四维结果，实际服务合同仍 NOT_RUN。** 基线为
+状态：**已接入 daemon。新环境中冻结运行时 `f074897` 的格式检查、严格 Clippy 和
+stable/nightly 各572项单位测试通过；完整门禁为 FAILED_EXACT_COUNTERS，
+`output.rs` 的 region 为462/464。本提交两文件窄修只有静态格式检查，完整重测和
+实际服务合同仍 NOT_RUN。** 基线为
 `acec129c51c7d51f019fbaf34ff4ea0bd0509cb0`；基础编码器的独立门禁不替代本片验收。
 本片落实[结果输出预算](result-output-budget.md)第1、3–7节；不打开新存储世代或 GC。
 
@@ -175,3 +176,32 @@ worker仍运行时HTTP timeout不退E、排队放弃、发送失败与原deadlin
 [中断与归档身份记录](../evidence/service-output-pool-incomplete-local-2026-11-09.json)
 列出最后成功验证的产物及当前执行边界。归档内容在环境失去访问前已验证；此时不宣称
 仍可从不可用环境重新读取这些本地文件。
+
+## 7. 2026-11-10：新环境完整门禁失败与窄修
+
+此前环境的 worktree、target 和原始归档在恢复后不可用；第6节记录的历史中断及
+失去访问前的保全事实保持，不声称重新读回那些旧文件。本轮从已发布的精确
+`f074897403e7e85e7612584027bbbfd680353a43` 恢复450个 tracked source，使用新安装的
+固定工具链、全新 stable/nightly target 和 collection 前零 profile 观测，未借用旧结果。
+
+本轮 format、严格 Clippy、stable572项和nightly572项单位测试全部通过。原检查器对
+57个生产文件报告 lines10766/10766、functions968/968、regions16356/16358、
+branches1948/1948；5个真实 branch 0/0 原样保留。唯一失败是 `output.rs` 的
+regions462/464，因此原门禁以 exit1/FAILED_EXACT_COUNTERS 结束，源码核验通过。
+缺口为原文件341行的 Base64 长度错误传播，以及530行精确 JSON extent 断言消息。
+
+原 Running unittests 日志所指的12个实际 ELF、真实 Cargo/native 依赖链、218个
+本轮 raw profile 与原 merged/list、LLVM JSON及完整源码共815个归档成员全部读回。
+原失败、源码和 target 身份未改；精确计数、归档 SHA 和当前可用性见
+[本轮失败回执](../evidence/service-output-pool-coverage-failure-local-2026-11-10.json)。
+
+本提交仅把合法 byte slice 的 Base64 长度调用点改为显式不变量：
+`len <= isize::MAX` 保证 `4 * ceil(len / 3)` 适合 `usize`。任意 usize 的 checked helper
+和原 overflow/short-buffer/allocator-refusal 测试不变。新增安全 oversized JSON
+目标 slice 的单位定义，要求现有 `counted JSON extent` 断言拒绝多余尾部；不构造非法
+slice/plan，不改变 JSON 编码、额度或错误码，也不排除生产文件或过滤原始覆盖率计数。
+
+该修正目前只通过固定 rustfmt 和静态仓库检查，新的 Cargo/单位/四维门禁为 NOT_RUN。
+下一步须在发布后的精确新提交上，以 workspace 磁盘上的全新 target/profile 运行原完整
+门禁，再绑定实际 ELF/native/profile并归档读回。真实输出池 HTTP/S3 合同与 AWS
+Standard 验收继续单独列为 NOT_RUN；本次失败和修正都不能代替这些验收。

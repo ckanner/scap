@@ -531,6 +531,15 @@ fn count_and_fixed_writer_share_the_same_borrowed_serializer_and_fail_without_gr
 }
 
 #[test]
+#[should_panic(expected = "counted JSON extent")]
+fn fixed_json_writer_rejects_an_oversized_safe_destination() {
+    let value = json!({"empty": [], "escaped": "\n"});
+    let envelope = Envelope::Success(wire::success(&value));
+    let mut bytes = vec![0; json_length(&envelope, MAX_JSON_BYTES).unwrap() + 1];
+    write_json(&envelope, &mut bytes).unwrap();
+}
+
+#[test]
 fn oversized_safe_json_input_fails_counting_before_requesting_a_final_backing() {
     let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
     let output = pool.acquire(&principal(), false).unwrap();

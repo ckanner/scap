@@ -338,7 +338,9 @@ impl OutputContext {
     }
 
     fn base64_with(&mut self, raw: &[u8], allocate: &mut Allocate<'_>) -> Result<String, Failure> {
-        let length = base64_length(raw.len())?;
+        // A valid byte slice has at most isize::MAX bytes, so its padded
+        // Base64 length, 4 * ceil(len / 3), fits usize on supported targets.
+        let length = base64_length(raw.len()).expect("safe byte slice Base64 length fits usize");
         let mut buffer = self.allocate_with(length, allocate)?;
         STANDARD
             .encode_slice(raw, buffer.as_mut())
