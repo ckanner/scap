@@ -600,3 +600,72 @@ jobs:
             ${{ runner.temp }}/scap-reclamation-evidence/oracle.json
             ${{ runner.temp }}/scap-reclamation-evidence/controls/**
           if-no-files-found: warn
+
+  object-load-baseline:
+    name: Local throughput and cold recovery baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-load-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-load-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-load-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-load-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-load-tools" weed
+      - name: Verify observers and every original SDK input
+        run: |
+          python3 -B -m unittest discover -s experiments/object-load -p 'test_*.py' -v
+          node --check experiments/object-load/probe.mjs
+          node --check experiments/object-load/input.mjs
+      - name: Build the actual service
+        run: |
+          mkdir "$RUNNER_TEMP/scap-load-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-load-release" \
+            --evidence "$RUNNER_TEMP/scap-load-evidence/build"
+      - name: Observe the fixed workload in this dedicated job
+        run: |
+          python3 -B experiments/object-load/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$RUNNER_TEMP/scap-load-release/release/scapd" \
+            --build-record "$RUNNER_TEMP/scap-load-evidence/build/build.json" \
+            --weed "$RUNNER_TEMP/scap-load-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-load-evidence/run"
+      - name: Recompute metrics and verify all original outcomes
+        run: |
+          python3 -B experiments/object-load/oracle.py \
+            "$RUNNER_TEMP/scap-load-evidence/run" \
+            > "$RUNNER_TEMP/scap-load-evidence/oracle.json"
+          python3 -B experiments/object-load/controls.py \
+            "$RUNNER_TEMP/scap-load-evidence/run" \
+            --output "$RUNNER_TEMP/scap-load-evidence/controls" \
+            > "$RUNNER_TEMP/scap-load-evidence/controls.json"
+      - name: Retain measured data without claiming a production SLO
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: object-load-local-s3
+          path: |
+            ${{ runner.temp }}/scap-load-evidence/build/**
+            ${{ runner.temp }}/scap-load-evidence/run/**
+            ${{ runner.temp }}/scap-load-evidence/oracle.json
+            ${{ runner.temp }}/scap-load-evidence/controls/**
+            ${{ runner.temp }}/scap-load-evidence/controls.json
+          if-no-files-found: warn

@@ -88,7 +88,8 @@
     "experiments/object-metadata",
     "experiments/guarded-status",
     "experiments/output-pool",
-    "experiments/object-reclamation-runtime"
+    "experiments/object-reclamation-runtime",
+    "experiments/object-load"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

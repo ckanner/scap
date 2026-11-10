@@ -124,6 +124,22 @@ a repeated business effect. A whole unchanged copied history must still pass.
 Target protection, exact state transitions, nonce binding and atomic raw
 observation also have focused deterministic tests.
 
+## Preserved fixture failure
+
+The first actual attempt, using fixture commit `8d0ff6a` and runtime commit
+`66f452e`, stopped during local SDK request preparation. The assembler passed
+the native wire field `params` to the public SDK, which requires `parameters`.
+The SDK returned `INVALID` before any /v1 operation or S3 request. All owned
+processes were reaped, and the original failed evidence and private directory
+were retained. This was a fixture input adaptation failure, not a GC verdict.
+
+The adapter now explicitly translates the fixed empty positional parameters
+for both preparation and query calls. A regression test runs the real SDK
+client against all 267 original identities, verifies the serialized native
+statements and independently recomputed fingerprints, and requires zero HTTP
+observations. It does not substitute for a new actual run. The workload,
+production binaries, and original deadlines are unchanged.
+
 ## Scope of the result
 
 This is a bounded local compatible-backend acceptance contract. It is not AWS

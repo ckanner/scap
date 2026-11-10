@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import unittest
 import os
@@ -16,6 +17,7 @@ import audit_model as model
 import controls
 import oracle
 import support
+import spec
 
 
 def base():
@@ -72,6 +74,38 @@ def graph(nonce=1):
     authority = {'data_root': data_root, 'sequence': 1, 'revision': 3,
                  'windows': [{'epoch': 1, 'root': root, 'count': 1, 'result_bytes': len(raw)}]}
     return values, authority
+
+
+class SdkInputTests(unittest.TestCase):
+    def test_real_sdk_prepares_all_original_native_inputs_without_network(self):
+        directory = Path(__file__).resolve().parent
+        originals = spec.inputs()
+        self.assertEqual(len(originals), 267)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'raw').mkdir()
+            config = root / 'client.private.json'
+            config.write_text(json.dumps({'source_root': str(directory.parents[1]),
+                'endpoint': 'http://127.0.0.1:1', 'token': 'unit-only-' * 4, 'scopes': spec.SCOPES}))
+            command = {'id': 'prepare-inputs', 'operation': 'prepare', 'specs': originals}
+            process = subprocess.run([shutil.which('node') or 'node', str(directory / 'client.mjs'),
+                str(config), str(root), 'A'], input=json.dumps(command) + '\n',
+                text=True, capture_output=True, timeout=15)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            output = [json.loads(line) for line in process.stdout.splitlines()]
+            self.assertEqual(output, [{'ready': True}, {'id': 'prepare-inputs', 'ok': True,
+                'value': {'prepared': 267}}])
+            saved = json.loads((root / 'intents.json').read_text())
+            self.assertEqual(set(saved), {row['name'] for row in originals})
+            for row in originals:
+                restored = json.loads(saved[row['name']]['serialized'])
+                self.assertEqual(restored['scope'], spec.SCOPES[row['scope_name']])
+                self.assertEqual(restored['statements'], row['statements'])
+                self.assertEqual(restored['request'], {'epoch': row['epoch'],
+                    'id': row['request_id'], 'principal': '11',
+                    'fingerprint': oracle.wire.fingerprint(row['statements'])})
+            events = [json.loads(line) for line in (root / 'sdk-A.jsonl').read_text().splitlines()]
+            self.assertFalse(any(row['event'].startswith('http_') for row in events))
 
 
 class ModelTests(unittest.TestCase):

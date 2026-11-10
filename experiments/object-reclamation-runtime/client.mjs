@@ -71,12 +71,21 @@ function publicValue(value) {
     result: archive(value.rawResult) };
   return safe(value);
 }
+function sdkStatements(statements) {
+  return statements.map((statement) => {
+    if (Object.keys(statement).sort().join(',') !== 'params,sql'
+        || !Array.isArray(statement.params) || statement.params.length !== 0)
+      throw new Error('fixed SQL inputs require empty native positional parameters');
+    return { sql: statement.sql, parameters: [] };
+  });
+}
 async function perform(command) {
   if (command.operation === 'prepare') {
     if (existsSync(evidence + '/intents.json')) throw new Error('original intents already exist');
     const originals = {};
     for (const spec of command.specs) {
-      const value = client(spec.scope_name).prepare(spec.statements, { epoch: spec.epoch, id: spec.request_id });
+      const value = client(spec.scope_name).prepare(sdkStatements(spec.statements),
+        { epoch: spec.epoch, id: spec.request_id });
       originals[spec.name] = { scope_name: spec.scope_name, serialized: client(spec.scope_name).save(value) };
     }
     const bytes = Buffer.from(JSON.stringify(originals, null, 2) + '\n');
@@ -92,7 +101,7 @@ async function perform(command) {
     case 'takeover': return value.takeover(input, options);
     case 'activate': return value.activate(input, options);
     case 'policy': return value.setPolicy(input, options);
-    case 'query': return value.query(command.statements, options);
+    case 'query': return value.query(sdkStatements(command.statements), options);
     case 'execute': return value.execute(intent(command.intent), options);
     case 'lookup': return value.lookup(intent(command.intent), options);
     case 'cancel': return value.cancel(intent(command.intent), options);
