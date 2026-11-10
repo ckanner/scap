@@ -36,6 +36,8 @@ pub struct Config {
     pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
     pub execution: Option<ExecutionConfig>,
+    /// Per owner-resume payload reads; independent of output, quota and RSS.
+    pub owner_recovery: Option<OwnerRecoveryConfig>,
     pub credentials: Vec<Credential>,
 }
 
@@ -155,6 +157,13 @@ pub struct ExecutionConfig {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct OwnerRecoveryConfig {
+    pub payload_gets: u64,
+    pub payload_bytes: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Cache {
     pub pages_per_actor: u64,
     pub parallel_recoveries: usize,
@@ -242,6 +251,10 @@ impl Config {
         let mut options = scap_object::Options::default();
         if let Some(execution) = self.execution {
             options.result_memory_bytes = execution.result_memory_bytes;
+        }
+        if let Some(recovery) = self.owner_recovery {
+            options.owner_recovery_gets = recovery.payload_gets;
+            options.owner_recovery_bytes = recovery.payload_bytes;
         }
         options.validate().map_err(|_| Failure::new("CONFIG"))?;
         let admission = &self.admission;

@@ -340,6 +340,38 @@ impl Engine {
                     entry.session = None;
                     database.takeover(principal, expected_revision.0, nonce.0, deadline)?
                 }
+                Action::OwnerPrepare { input } => {
+                    let value = database.owner_prepare(principal, &input.native()?, deadline)?;
+                    return owner_response(crate::owner_wire::preparation(&value), output);
+                }
+                Action::OwnerInspect { identity } => {
+                    let value = database.owner_inspect(principal, &identity.native()?, deadline)?;
+                    return owner_response(crate::owner_wire::observation(&value), output);
+                }
+                Action::OwnerClaim { plan, .. } => {
+                    entry.session = None;
+                    let value = database.owner_claim(principal, &plan.native()?, deadline)?;
+                    return owner_response(crate::owner_wire::observation(&value), output);
+                }
+                Action::OwnerResume { plan, .. } => {
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    entry.session = None;
+                    let (value, session) =
+                        database.owner_resume(principal, &plan.native()?, path, deadline)?;
+                    // Only this call's complete recovery and successful Active
+                    // publication can supply Some. Historical observation alone
+                    // never recreates or reuses a writer capability.
+                    entry.session = session;
+                    return owner_response(crate::owner_wire::observation(&value), output);
+                }
+                Action::OwnerAbort { plan } => {
+                    entry.session = None;
+                    let value = database.owner_abort(principal, &plan.native()?, deadline)?;
+                    return owner_response(crate::owner_wire::observation(&value), output);
+                }
                 Action::CloseFull {
                     expected_revision,
                     nonce,
@@ -468,6 +500,18 @@ impl Engine {
         }
         Ok(collector)
     }
+}
+
+fn owner_response(
+    value: Value,
+    output: Option<&mut crate::output::OutputContext>,
+) -> Result<Value, Failure> {
+    if let Some(output) = output {
+        // An accepted phase or prepared descriptor must not become a definite
+        // pre-publication LIMIT when only response serialization fails.
+        output.head_result();
+    }
+    Ok(value)
 }
 
 fn committed(

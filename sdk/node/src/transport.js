@@ -6,13 +6,13 @@ import { ClientError, RemoteError, UnknownError, CommittedResultError } from './
 import { record, requireValue, parseJson, envelope } from './wire.js';
 
 const MAX_WIRE_BYTES = 96 * 1024 * 1024;
-const RECOVERY = new Set(['open', 'activate', 'compact_copy', 'gc_prepare', 'gc_resume']);
+const RECOVERY = new Set(['open', 'activate', 'compact_copy', 'gc_prepare', 'gc_resume', 'owner_resume']);
 const DATA = new Set(['create', 'execute', 'query']);
 const CATALOGUE = new Set(['prepare_create', 'resume_create', 'abort_create',
   'inspect_create_operation', 'resolve_name', 'delete_name', 'named_storage_status', 'retire_named_storage']);
 const DISCOVERY = new Set(['list_names', 'deployment_inventory']);
 const READ = new Set(['status', 'query', 'open', 'storage_status', 'named_storage_status',
-  'inspect_create_operation', 'resolve_name', ...DISCOVERY]);
+  'inspect_create_operation', 'resolve_name', 'owner_inspect', ...DISCOVERY]);
 
 export function duration(value) {
   requireValue(Number.isSafeInteger(value) && value > 0 && value <= 2147483647,

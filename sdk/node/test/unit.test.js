@@ -14,6 +14,7 @@ import './discovery.test.js';
 import './operation_budget.test.js';
 import './routing.test.js';
 import './owner.test.js';
+import './owner_plan.test.js';
 import './reclamation.test.js';
 import './terminal.test.js';
 
@@ -92,7 +93,7 @@ function commit(request, raw = result()) {
 }
 function statusValue(action = {}) {
   const revision = action.operation === 'create' ? '1' : String(BigInt(action.expected_revision ?? '10') + 1n);
-  return { scope: clone(SCOPE), revision, head_serial: revision,
+  return { scope: clone(SCOPE), revision, head_serial: revision, owner_plan: null,
     storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null, terminal: null },
     sequence: '0', owner_epoch: '2', owner_instance: '3', active: true,
     auth_epoch: '4', lifecycle: 'ready', request_epoch: '3', max_bytes: '10737418240',

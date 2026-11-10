@@ -2,6 +2,7 @@
 import { decodeResult, FORMAT_LIMITS } from '../../node-codec/src/codec.js';
 import { Buffer } from 'node:buffer';
 import * as wire from './wire.js';
+import * as ownerPlan from './owner_plan_wire.js';
 import { Transport } from './transport.js';
 
 export { ClientError, RemoteError, UnknownError, CommittedResultError, RouteError } from './errors.js';
@@ -9,6 +10,7 @@ export { CatalogueClient } from './catalogue.js';
 export { DiscoveryClient } from './discovery.js';
 export { RoutedClient } from './routed.js';
 export { OwnerClient } from './owner.js';
+export { OwnerPlanClient } from './owner_plan.js';
 export { OwnerReconcileError } from './errors.js';
 export { decodeResult, validateResult } from '../../node-codec/src/codec.js';
 
@@ -65,7 +67,10 @@ export class Client {
       ...(action.plan_serial === undefined ? {} : { planSerial: action.plan_serial }),
       ...(action.batch_serial === undefined ? {} : { batchSerial: action.batch_serial }),
       ...(action.generation === undefined ? {} : { storageGeneration: action.generation }),
-      ...(action.after === undefined ? {} : { after: action.after }) });
+      ...(action.after === undefined ? {} : { after: action.after }),
+      ...(action.input === undefined ? {} : { ownerInput: action.input }),
+      ...(action.identity === undefined ? {} : { ownerIdentity: action.identity }),
+      ...(action.plan === undefined ? {} : { ownerPlan: action.plan }) });
     return this.#transport.call({ version: 1, scope: this.#scope, ...action }, reference, decode, options);
   }
 
@@ -136,6 +141,36 @@ export class Client {
     const extra = Object.hasOwn(input, 'expectedWorkerInstance') ?
       { expected_worker_instance: wire.decimal(input.expectedWorkerInstance) } : {};
     return this.#admin(operation, input, extra, options);
+  }
+
+  ownerPrepare(input, options) {
+    const fixed = ownerPlan.input(input);
+    return this.#call({ operation: 'owner_prepare', input: fixed },
+      (value) => ownerPlan.preparation(value, this.#scope, fixed), options);
+  }
+
+  ownerInspect(input, options) {
+    const fixed = ownerPlan.input(input);
+    const identity = ownerPlan.identity({ creator: fixed.creator, operation: fixed.operation });
+    return this.#call({ operation: 'owner_inspect', identity },
+      (value) => ownerPlan.observation(value, this.#scope, identity, fixed), options);
+  }
+
+  ownerObserve(input, options) {
+    const identity = ownerPlan.identity(input);
+    return this.#call({ operation: 'owner_inspect', identity },
+      (value) => ownerPlan.observation(value, this.#scope, identity), options);
+  }
+
+  ownerClaim(prepared, options) { return this.#ownerPlan('owner_claim', prepared, options); }
+  ownerResume(prepared, options) { return this.#ownerPlan('owner_resume', prepared, options); }
+  ownerAbort(prepared, options) { return this.#ownerPlan('owner_abort', prepared, options); }
+
+  #ownerPlan(operation, supplied, options) {
+    const prepared = ownerPlan.checkPrepared(supplied, this.#scope);
+    const guard = operation === 'owner_abort' ? {} : { expected_worker_instance: prepared.input.target_worker };
+    return this.#call({ operation, plan: prepared.reference, ...guard },
+      (value) => ownerPlan.observation(value, this.#scope, prepared.reference, prepared.input), options);
   }
 
   closeFull(input, options) {

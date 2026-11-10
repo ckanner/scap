@@ -36,6 +36,7 @@ function normalize(value, registry) {
 export function prepareIntent(registry, observed, input, mode) {
   const head = status(observed, registry.direct.scope);
   requireValue(head.lifecycle === 'ready', 'Owner transitions require the Ready lifecycle');
+  requireValue(head.owner_plan === null, 'Legacy owner intents are permanently closed after durable plan admission');
   record(input, mode === 'takeover' ? ['targetWorker', 'takeoverNonce', 'activateNonce'] : ['activateNonce']);
   const intent = normalize({ version: 1, scope: head.scope, principal: registry.direct.principal,
     registryDigest: registry.digest, mode, baseRevision: head.revision, baseOwnerEpoch: head.owner_epoch,
@@ -70,7 +71,7 @@ export function restoreIntent(serialized, registry) {
 }
 
 export function matchesBase(intent, head) {
-  return head.revision === intent.baseRevision && head.owner_epoch === intent.baseOwnerEpoch &&
+  return head.owner_plan === null && head.revision === intent.baseRevision && head.owner_epoch === intent.baseOwnerEpoch &&
     head.owner_instance === intent.baseOwnerInstance && head.active === intent.baseActive && head.lifecycle === 'ready';
 }
 
@@ -84,14 +85,15 @@ export function expected(intent, phase) {
 
 export function matchesTransition(intent, phase, head) {
   const candidate = expected(intent, phase);
-  return head.revision === candidate.revision && head.transition.nonce === candidate.nonce &&
+  return head.owner_plan === null && head.revision === candidate.revision && head.transition.nonce === candidate.nonce &&
     head.owner_instance === candidate.owner && head.owner_epoch === candidate.epoch &&
     head.active === candidate.active && head.lifecycle === 'ready';
 }
 
 export function inspectIntent(intent, head) {
   let state;
-  if (matchesTransition(intent, 'activate', head)) state = 'activation_accepted';
+  if (head.owner_plan !== null) state = 'blocked';
+  else if (matchesTransition(intent, 'activate', head)) state = 'activation_accepted';
   else if (intent.mode === 'takeover' && matchesTransition(intent, 'takeover', head)) state = 'takeover_accepted';
   else if (matchesBase(intent, head)) state = 'base_observed';
   else if (head.lifecycle !== 'ready') state = 'blocked';

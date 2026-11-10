@@ -3,6 +3,9 @@
 pub mod catalogue;
 pub mod format;
 pub mod options;
+pub mod owner;
+
+mod owner_format;
 
 mod closure;
 mod data_tree;
@@ -217,6 +220,30 @@ impl Database {
         }
     }
 
+    fn no_pending_owner(head: &Head) -> Result<(), Error> {
+        if head.owner_plan.as_ref().is_some_and(|plan| plan.pending()) {
+            Err(Error::Fenced)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn legacy_owner(head: &Head) -> Result<(), Error> {
+        if head.owner_plan.is_some() {
+            Err(Error::Fenced)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn owner_metadata_room(head: &Head) -> Result<(), Error> {
+        if head.owner_plan.as_ref().is_some_and(|plan| plan.pending()) {
+            head.revision.checked_add(2).ok_or(Error::Limit)?;
+            head.head_serial.checked_add(2).ok_or(Error::Limit)?;
+        }
+        Ok(())
+    }
+
     fn read_head(&self, deadline: Instant) -> Result<Snapshot, Error> {
         let object = self
             .objects
@@ -273,6 +300,7 @@ impl Database {
 
     fn writer(&self, head: &Head) -> Result<(), Error> {
         Self::ready(head)?;
+        Self::no_pending_owner(head)?;
         Self::no_copy(head)?;
         self.healthy_in(head.storage.active_generation)?;
         if !head.active || head.owner_instance != self.worker {
@@ -299,12 +327,14 @@ impl Database {
         let mut head = Self::next(&base.head, nonce)?;
         match update {
             MetadataUpdate::Takeover => {
+                Self::legacy_owner(&base.head)?;
                 Self::no_copy(&base.head)?;
                 head.owner_epoch = head.owner_epoch.checked_add(1).ok_or(Error::Limit)?;
                 head.owner_instance = self.worker;
                 head.active = false;
             }
             MetadataUpdate::Policy(policy) => {
+                Self::owner_metadata_room(&base.head)?;
                 head.auth_epoch = head.auth_epoch.checked_add(1).ok_or(Error::Limit)?;
                 head.policy = policy;
             }
@@ -381,6 +411,7 @@ impl Database {
             sequence: 0,
             owner_epoch: 1,
             owner_instance: self.worker,
+            owner_plan: None,
             active: false,
             auth_epoch: 1,
             policy: vec![Permission {
@@ -581,6 +612,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::legacy_owner(&base.head)?;
         Self::ready(&base.head)?;
         Self::no_copy(&base.head)?;
         self.publish_metadata(&base, nonce, MetadataUpdate::Takeover, deadline)
@@ -594,6 +626,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::legacy_owner(&base.head)?;
         Self::ready(&base.head)?;
         Self::no_copy(&base.head)?;
         if base.head.owner_instance != self.worker || base.head.active {
@@ -632,6 +665,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::no_pending_owner(&base.head)?;
         Self::no_copy(&base.head)?;
         if base.head.storage.sweep.is_some() {
             return Err(Error::Fenced);
@@ -658,6 +692,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::owner_metadata_room(&base.head)?;
         Self::no_copy(&base.head)?;
         let maximum = quota.max_pages().map_err(Error::Format)?;
         let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
@@ -682,6 +717,7 @@ impl Database {
         deadline: Instant,
     ) -> Result<Head, Error> {
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::no_pending_owner(&base.head)?;
         Self::no_copy(&base.head)?;
         if !base.head.windows[0].full(&base.head.retention) {
             return Err(Error::WindowFull);
@@ -742,6 +778,7 @@ impl Database {
         if resolution != Resolution::Unknown {
             return Ok(resolution);
         }
+        Self::no_pending_owner(&base.head)?;
         Self::no_copy(&base.head)?;
         let mut head = Self::next(&base.head, request.id)?;
         let transition = head.transition.clone();
@@ -873,6 +910,7 @@ impl Database {
         }
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, true, true, false)?;
+        Self::no_pending_owner(&base.head)?;
         let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         match self.resolve(&objects, &base.head, identity, deadline)? {
             Resolution::Committed { receipt, bytes } => {
@@ -971,6 +1009,7 @@ impl Database {
     ) -> Result<(Head, Session), Error> {
         let deadline = self.options.deadline(deadline, true);
         let base = self.control(principal, expected_revision, deadline)?;
+        Self::legacy_owner(&base.head)?;
         Self::ready(&base.head)?;
         Self::no_copy(&base.head)?;
         if base.head.owner_instance != self.worker || base.head.active {

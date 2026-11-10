@@ -247,6 +247,7 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
         sequence: 5,
         owner_epoch: 1,
         owner_instance: 10,
+        owner_plan: None,
         active: true,
         auth_epoch: 1,
         policy: vec![crate::format::Permission {

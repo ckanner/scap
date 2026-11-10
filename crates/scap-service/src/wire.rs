@@ -213,6 +213,23 @@ pub enum Action {
         #[serde(default, deserialize_with = "present_worker")]
         expected_worker_instance: Option<Decimal>,
     },
+    OwnerPrepare {
+        input: crate::owner_wire::Prepare,
+    },
+    OwnerInspect {
+        identity: crate::owner_wire::Identity,
+    },
+    OwnerClaim {
+        plan: crate::owner_wire::Reference,
+        expected_worker_instance: Decimal,
+    },
+    OwnerResume {
+        plan: crate::owner_wire::Reference,
+        expected_worker_instance: Decimal,
+    },
+    OwnerAbort {
+        plan: crate::owner_wire::Reference,
+    },
     CloseFull {
         expected_revision: Decimal,
         nonce: Decimal,
@@ -271,6 +288,14 @@ impl Action {
                 expected_worker_instance,
                 ..
             } => expected_worker_instance.map(|value| value.0),
+            Self::OwnerClaim {
+                expected_worker_instance,
+                ..
+            }
+            | Self::OwnerResume {
+                expected_worker_instance,
+                ..
+            } => Some(expected_worker_instance.0),
             _ => None,
         }
     }
@@ -280,6 +305,20 @@ impl Action {
     pub fn validate(&self) -> Result<(), Failure> {
         if self.expected_worker() == Some(0) {
             return Err(Failure::new("INVALID"));
+        }
+        match self {
+            Self::OwnerPrepare { input } => {
+                input.native()?;
+            }
+            Self::OwnerInspect { identity } => {
+                identity.native()?;
+            }
+            Self::OwnerClaim { plan, .. }
+            | Self::OwnerResume { plan, .. }
+            | Self::OwnerAbort { plan } => {
+                plan.native()?;
+            }
+            _ => {}
         }
         if matches!(
             self,
@@ -393,6 +432,7 @@ impl Action {
         match self {
             Self::Open {}
             | Self::Activate { .. }
+            | Self::OwnerResume { .. }
             | Self::CompactCopy { .. }
             | Self::GcPrepare { .. }
             | Self::GcResume { .. } => "recovery",
@@ -502,6 +542,7 @@ pub fn receipt(receipt: &Receipt) -> Json {
 pub fn status(head: &Head) -> Json {
     json!({ "scope": scope(&head.scope), "revision": Decimal(head.revision),
         "head_serial": Decimal(head.head_serial), "storage": storage(&head.storage),
+        "owner_plan": head.owner_plan.as_ref().map(crate::owner_wire::plan),
         "sequence": Decimal(head.sequence), "owner_epoch": Decimal(head.owner_epoch),
         "owner_instance": Decimal(head.owner_instance), "active": head.active,
         "auth_epoch": Decimal(head.auth_epoch), "lifecycle": head.lifecycle,

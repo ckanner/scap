@@ -82,6 +82,8 @@ export interface DatabaseStatus {
   readonly revision: Decimal;
   readonly head_serial: Decimal;
   readonly storage: StorageStatus;
+  /** Historical durable owner marker; null only before the first accepted plan. */
+  readonly owner_plan: OwnerPlan | null;
   readonly sequence: Decimal;
   readonly owner_epoch: Decimal;
   readonly owner_instance: Decimal;
@@ -159,6 +161,68 @@ export interface OperationReference {
   readonly batchSerial?: Decimal;
   readonly storageGeneration?: Decimal;
   readonly after?: string | null;
+  readonly ownerInput?: PrepareOwnerInput;
+  readonly ownerIdentity?: OwnerIdentity;
+  readonly ownerPlan?: OwnerPlanRef;
+}
+
+export interface OwnerIdentity { readonly creator: Decimal; readonly operation: Decimal }
+export interface OwnerPlanRef extends OwnerIdentity { readonly descriptor_hash: string }
+export interface OwnerNonces {
+  readonly claim: Decimal;
+  readonly cancel: Decimal;
+  readonly activate: Decimal;
+  readonly abort: Decimal;
+}
+export interface PrepareOwnerInput extends OwnerIdentity {
+  readonly expected_revision: Decimal;
+  readonly expected_head_serial: Decimal;
+  readonly mode: 'takeover' | 'activate';
+  readonly target_worker: Decimal;
+  readonly nonces: OwnerNonces;
+}
+export interface OwnerPlan {
+  readonly reference: OwnerPlanRef;
+  readonly admission: {
+    readonly kind: 'claim' | 'cancel';
+    readonly revision: Decimal;
+    readonly head_serial: Decimal;
+  };
+  readonly phase: {
+    readonly kind: 'claimed' | 'cancelling' | 'active' | 'aborted';
+    readonly revision: Decimal;
+    readonly head_serial: Decimal;
+    readonly nonce: Decimal;
+    readonly owner_epoch: Decimal;
+    readonly owner_instance: Decimal;
+  };
+}
+declare const savedOwnerInput: unique symbol;
+export interface SavedOwnerInput {
+  readonly [savedOwnerInput]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly input: PrepareOwnerInput;
+}
+/** Public immutable history; identity-only observation cannot authorize SDK mutation. */
+export interface OwnerRecord {
+  readonly scope: Scope;
+  readonly input: PrepareOwnerInput;
+  readonly reference: OwnerPlanRef;
+}
+declare const preparedOwner: unique symbol;
+/** SDK misuse guard, not a credential. The server verifies current ADMIN on every call. */
+export interface PreparedOwner extends OwnerRecord { readonly [preparedOwner]: true }
+export type OwnerPreparation =
+  { readonly state: 'prepared'; readonly prepared: PreparedOwner } |
+  { readonly state: 'pending'; readonly reference: OwnerPlanRef };
+export interface OwnerObservation<P extends OwnerRecord = OwnerRecord> {
+  /** Historical phase; Active does not assert today's active owner or a native Session. */
+  readonly state: 'prepared' | 'claimed' | 'cancelling' | 'active' | 'aborted' | 'fenced';
+  readonly status: DatabaseStatus;
+  readonly prepared: P;
+  /** Fenced with null accepted means past outcome unknown, never proven NotApplied. */
+  readonly accepted: OwnerPlan | null;
 }
 
 export interface OwnerRoute { readonly workerInstance: Decimal; readonly endpoint: string }
@@ -226,6 +290,27 @@ export class OwnerClient {
   /** Consumes a fresh intent once, even if observation fails before a transition. */
   reconcile(intent: OwnerIntent, options?: CallOptions): Promise<ActiveOwner>;
   inspect(intent: OwnerIntent, options?: CallOptions): Promise<OwnerInspection>;
+}
+export class OwnerPlanClient {
+  /** Current ADMIN only. No network method sends SQL or automatically retries a phase. */
+  constructor(options: RoutedClientOptions);
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  /** Pure, deep immutable snapshot. Durably save it before the first prepare POST. */
+  prepareInput(input: PrepareOwnerInput): SavedOwnerInput;
+  saveInput(input: SavedOwnerInput): string;
+  restoreInput(serialized: string): SavedOwnerInput;
+  prepare(input: SavedOwnerInput, options?: CallOptions): Promise<OwnerPreparation>;
+  /** Identity-only wire read followed by full original input and Scope comparison. */
+  inspect(input: SavedOwnerInput, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** Pure history read; its OwnerRecord cannot be supplied to claim/resume/abort. */
+  observe(identity: OwnerIdentity, options?: CallOptions): Promise<OwnerObservation>;
+  /** Uses only the immutable target's locally configured route and mandatory worker guard. */
+  claim(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** Uses recoveryTimeoutMs under one original deadline; no automatic second POST. */
+  resume(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** May be sent by a current ADMIN through the metadata bootstrap, without a live target. */
+  abort(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
 }
 export class RouteError extends ClientError {
   readonly outcome: 'not_sent';
@@ -468,6 +553,12 @@ export class Client {
   cancel(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
   activate(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   takeover(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  ownerPrepare(input: PrepareOwnerInput, options?: CallOptions): Promise<OwnerPreparation>;
+  ownerInspect(input: PrepareOwnerInput, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerObserve(identity: OwnerIdentity, options?: CallOptions): Promise<OwnerObservation>;
+  ownerClaim(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerResume(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerAbort(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
   closeFull(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
   setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;

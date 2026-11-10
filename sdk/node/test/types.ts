@@ -1,5 +1,6 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, RouteError, OwnerReconcileError, UnknownError,
+  type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
@@ -75,6 +76,38 @@ async function contract() {
     routes: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1' }],
     token: 'synthetic-typecheck-only-credential', scope, principal: '7' };
   const routed = new RoutedClient(routing), owner = new OwnerClient(routing);
+  const durable = new OwnerPlanClient(routing);
+  const savedPlan: SavedOwnerInput = durable.prepareInput({ creator: '7', operation: '91', expected_revision: '10',
+    expected_head_serial: '15', mode: 'takeover', target_worker: '10',
+    nonces: { claim: '92', cancel: '93', activate: '94', abort: '95' } });
+  const originalPlan: SavedOwnerInput = durable.restoreInput(durable.saveInput(savedPlan));
+  const ownerPrepared: OwnerPreparation = await durable.prepare(originalPlan);
+  const verifiedPlan: OwnerObservation<PreparedOwner> = await durable.inspect(originalPlan);
+  const unverifiedHistory: OwnerObservation = await durable.observe({ creator: '7', operation: '91' });
+  const marker: OwnerPlan | null = verifiedPlan.status.owner_plan;
+  if (ownerPrepared.state === 'prepared') {
+    await durable.claim(ownerPrepared.prepared);
+    await durable.resume(ownerPrepared.prepared, { timeoutMs: 1000 });
+    await durable.abort(ownerPrepared.prepared);
+  }
+  await db.ownerPrepare(savedPlan.input);
+  await db.ownerInspect(savedPlan.input);
+  await db.ownerObserve({ creator: '7', operation: '91' });
+  await db.ownerClaim(verifiedPlan.prepared);
+  await db.ownerResume(verifiedPlan.prepared);
+  await db.ownerAbort(verifiedPlan.prepared);
+  // @ts-expect-error Identity-only history does not mint the SDK mutation brand.
+  durable.claim(unverifiedHistory.prepared);
+  // @ts-expect-error A reference alone cannot replace the saved complete input.
+  durable.inspect(verifiedPlan.prepared.reference);
+  // @ts-expect-error Caller-supplied worker redirects cannot replace the fixed target.
+  durable.resume(verifiedPlan.prepared, { expectedWorkerInstance: '11' });
+  // @ts-expect-error Saved original inputs are deeply readonly.
+  savedPlan.input.nonces.claim = '99';
+  // @ts-expect-error Owner markers are immutable history.
+  marker!.phase.owner_instance = '11';
+  // @ts-expect-error Decimal identities cannot be rounded through Number.
+  durable.observe({ creator: '7', operation: 91 });
   const probed: DatabaseStatus = await owner.probe('10');
   // @ts-expect-error Worker identities are canonical decimal strings, never JavaScript numbers.
   db.guardedStatus(10);

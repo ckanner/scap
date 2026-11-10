@@ -79,12 +79,14 @@ impl Database {
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, false, false, true)?;
         Self::ready(&base.head)?;
+        Self::no_pending_owner(&base.head)?;
         Ok(base)
     }
 
     fn gc_base(&self, principal: u64, deadline: Instant) -> Result<Snapshot, Error> {
         let base = self.read_head(deadline)?;
         Self::permission(&base.head, principal, false, false, true)?;
+        Self::no_pending_owner(&base.head)?;
         if base.head.lifecycle != Lifecycle::Ready && base.head.storage.terminal.is_none() {
             return Err(Error::Lifecycle);
         }
@@ -133,6 +135,7 @@ impl Database {
         expected_head_serial: u64,
         deadline: Instant,
     ) -> Result<Head, Error> {
+        Self::no_pending_owner(&base.head)?;
         if base.head.head_serial != expected_head_serial
             || base.head.storage.terminal.is_some()
             || base.head.storage.plan.is_some()
@@ -141,7 +144,7 @@ impl Database {
             return Err(Error::Conflict);
         }
         let mut next = technical_next(&base.head)?;
-        next.format = 7;
+        next.format = if next.owner_plan.is_some() { 8 } else { 7 };
         next.active = false;
         next.storage.terminal = Some(TerminalSeal {
             serial: next.head_serial,
@@ -156,6 +159,14 @@ impl Database {
         next: &Head,
         deadline: Instant,
     ) -> Result<(), Error> {
+        Self::no_pending_owner(&base.head)?;
+        if next.owner_plan != base.head.owner_plan
+            || next.owner_epoch != base.head.owner_epoch
+            || next.owner_instance != base.head.owner_instance
+            || (!base.head.active && next.active)
+        {
+            return Err(Error::Format(FormatError::Invalid));
+        }
         if base.head.storage.terminal.is_some() {
             let mut expected = base.head.clone();
             expected.head_serial = next.head_serial;

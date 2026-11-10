@@ -2,7 +2,7 @@
 
 这个无第三方运行时依赖的 ESM 客户端连接新的 `scap-service`。`Client` 使用 `POST /v1`，`CatalogueClient` 使用 `POST /v1/catalogue`。它复用 [node-codec](../node-codec/README.md) 的精确 SQL 指纹及结果编解码，保留 u64 身份、i64 整数、负零、Unicode 和 BLOB；没有引入旧 Raft 协议。包目前标记 `private`，从仓库使用，尚未发布到 npm。
 
-原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求；独立 `OwnerClient` 仅按显式保存的意图协调 takeover 与 activation。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
+原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求。`OwnerPlanClient` 逐次执行持久 owner 计划，支持 prepare 响应丢失后的原输入查证；旧 `OwnerClient` 保留 HEAD8 之前的显式 takeover 与 activation 流程。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
 
 ## 使用
 
@@ -82,7 +82,7 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | `setPolicy({ expectedRevision, nonce, permissions }, options?)` | 有界且主体不重复的 `{principal,read,write,admin}` 列表，保留管理员 |
 | `setLifecycle({ expectedRevision, nonce, lifecycle }, options?)` | `ready`、`maintenance` 或 `deleted` |
 
-`options` 只含 `{ timeoutMs?, signal? }`。`open`、`activate`、`compactCopy`、`gcPrepare` 和 `gcResume` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。管理成功响应会核对 scope、`expectedRevision + 1` 与原 nonce，不接受另一个转换的 status 作为成功。
+`options` 只含 `{ timeoutMs?, signal? }`。`open`、`activate`、`compactCopy`、`gcPrepare`、`gcResume` 和 `ownerResume` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。旧单阶段管理响应会核对 scope、`expectedRevision + 1` 与原 nonce；持久 owner 计划按下述固定 descriptor、准入与历史 phase 校验。
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
 
@@ -240,11 +240,116 @@ bootstrap 不属于管理目标映射的 digest：原 bootstrap 不可用时，�
 包括同步编码和结果物化；底层 Fetch 前再次检查绝对期限，因此编码耗尽预算后不会继续派发。
 已经派发后的异常仍保留原 UNKNOWN 或已核对的 committed 回执。
 
-## 显式 owner 协调与保存意图
+## 持久 owner 计划与原输入恢复
+
+`OwnerPlanClient` 使用 HEAD8 的持久 descriptor、HEAD marker 和不可变终态 proof。
+每次 prepare、inspect、observe、claim、resume 或 abort 都最多一个 POST，没有自动阶段循环。
+所有操作都要求数据库的当前 ADMIN；这里不把创建计划的 `creator` 当成当前调用者，也不以
+历史成功替代当前 ACL。命名库可以使用已核实的原完整 Scope；不得在恢复途中按名字重新解析
+并把旧计划发送给一个新库。
+
+新 `DatabaseStatus.owner_plan` 是必填字段：未接受过持久计划的库返回 `null`；首次 claim
+或 Cancelling 发布后一直保留非空 marker。旧服务缺少这个字段会被拒绝，需配套部署新 SDK
+与服务。marker 包含 `reference`、`admission` 和 `phase`；descriptor 的原 HEAD ETag/hash
+由服务持久保留，客户端不会获得换一个 ETag 重试的接口。
+
+```javascript
+import { OwnerPlanClient } from './sdk/node/src/client.js';
+
+const ownerV2 = new OwnerPlanClient({
+  bootstrapEndpoint: 'https://metadata.example/v1',
+  routes: [
+    { workerInstance: '1001', endpoint: 'https://worker-a.example/v1' },
+    { workerInstance: '1002', endpoint: 'https://worker-b.example/v1' },
+  ],
+  token: process.env.SCAP_ADMIN_TOKEN,
+  principal: '7', scope: db.scope,
+});
+const before = await db.status();
+const original = ownerV2.prepareInput({
+  creator: '7', operation: '201',
+  expected_revision: before.revision,
+  expected_head_serial: before.head_serial,
+  mode: 'takeover', target_worker: '1002',
+  nonces: { claim: '202', cancel: '203', activate: '204', abort: '205' },
+});
+const saved = ownerV2.saveInput(original);
+// 应用必须先把 saved 持久写入并同步自己的管理日志，再发第一次请求。
+const preparation = await ownerV2.prepare(original);
+if (preparation.state === 'prepared') {
+  // 以下是显式授权的两次操作，库内部不会自动调用下一步。
+  const claimed = await ownerV2.claim(preparation.prepared);
+  console.log(claimed.state, claimed.status.owner_instance);
+  const resumed = await ownerV2.resume(preparation.prepared, { timeoutMs: 120000 });
+  console.log(resumed.state, resumed.status.active);
+}
+
+// UNKNOWN 或客户端重启后的另一条显式恢复路径：
+const restored = ownerV2.restoreInput(saved);
+const inspected = await ownerV2.inspect(restored);
+console.log(inspected.state, inspected.accepted, inspected.status);
+// 应用根据已核对的当前状态和授权决定是否再调用一次 resume 或 abort。
+// inspect 本身不 claim、不恢复 SQLite、不执行 SQL，也不分配新 operation。
+```
+
+`prepareInput` 是纯同步操作，复制并冻结 Scope、完整原输入和四个非零互异 nonce。
+`saveInput` 返回最多 16 KiB 的版本化 JSON；应用负责持久化和日志完整性。输入中不保存 URL、
+bearer token 或 server 计算的 descriptor hash。允许另一位当前 ADMIN 在新的可信 bootstrap
+恢复同一日志。显式 takeover 可以保持相同 worker 数值并推进 owner epoch；activate 模式
+只允许原 base 的未激活 owner，目标不能改变。
+
+| 方法 | 单次行为及返回 |
+| --- | --- |
+| `prepareInput(input)` / `saveInput(input)` / `restoreInput(text)` | 纯本地保存或恢复完整原 `PrepareOwnerInput`，不联系服务 |
+| `prepare(savedInput, options?)` | bootstrap 上一次 `owner_prepare`；返回 `prepared` 或独立 `pending` 状态 |
+| `inspect(savedInput, options?)` | 按原 creator/operation 一次 `owner_inspect`，再逐字段核对实际 descriptor 的完整 input 与 Scope |
+| `observe({creator,operation}, options?)` | 只读历史；返回普通 `OwnerRecord`，不授予后续 SDK mutation brand |
+| `claim(prepared, options?)` | 在固定 target 的本地受信 route 上一次 `owner_claim`，必填 worker 实例校验 |
+| `resume(prepared, options?)` | 同一 target、同一原 plan reference，一次 `owner_resume`；使用 recovery 准入及恢复总预算 |
+| `abort(prepared, options?)` | bootstrap 上一次 `owner_abort`；不要求旧 target 仍可路由，不把取消请求当作已完成取消 |
+
+准备结果为 `{state:'prepared', prepared:{scope,input,reference}}` 或
+`{state:'pending', reference}`。Pending 指向当前阻塞新准备的 accepted plan，可以属于另一位
+creator 和另一个 operation；不表示本次输入已准备成功，也不能直接传给 claim。
+prepare 响应全部丢失时，应用依然有发送前保存的原输入：
+`inspect(restored)` 只用 creator/operation 查询，核对服务返回的真实 descriptor，而不要求客户端
+事先知道 hash。同一身份对应另一份输入会被拒绝；不会根据今天的新 revision 重建旧计划。
+
+其它响应均为 `OwnerObservation {state,status,prepared,accepted}`。六种 state 分别是
+`prepared`、`claimed`、`cancelling`、`active`、`aborted` 和 `fenced`。`accepted` 是历史 marker，
+可以早于今天的 status：历史 Active 不代表当前 active、当前目标进程拥有 native Session，
+也不把原 UNKNOWN 改写成当时已经收到 ACK。Fenced 且 accepted 为 null 只说明不能再按旧 base
+取得新准入、过去结果仍未知；绝不是 NotApplied。当前 marker 被新计划覆盖后，旧终态 proof
+的 R/S 必须严格早于新 marker 的 admission；SDK 还检查原 input、reference、phase nonce、
+counter reserve、phase 顺序和 storage/lifecycle 互斥，拒绝矛盾投影。
+
+只有 `prepare` 的 Prepared 结果，或者 `inspect(savedInput)` 完整核对后的结果，能传给
+claim/resume/abort。纯 history、反序列化的任意 reference 和 Pending 都不能绕过该检查。
+这个不透明 brand 是 SDK 防误用机制；真正的授权仍由服务的当前 ADMIN、原 descriptor、原
+HEAD ETag、目标 worker 与条件发布共同决定。SDK 不把它当成凭据或防篡改签名。
+
+`Client` 也提供同样的一次 POST 低层方法：`ownerPrepare(input)`、`ownerInspect(input)`、
+`ownerObserve(identity)`、`ownerClaim(prepared)`、`ownerResume(prepared)`、`ownerAbort(prepared)`。
+前两者接受完整原输入；claim/resume 自动从已经核对的 Prepared 中派生必填的
+`expected_worker_instance`。低层 Client 使用固定 endpoint，不替调用者挑 route。
+
+UNKNOWN 保存原 `scope`、`operation` 及适用的 `ownerInput` / `ownerIdentity` / `ownerPlan`、
+`expectedWorkerInstance`，不保留 token 或任意服务端错误文本。普通超时默认为 30 秒，resume
+默认为 30 分钟；路由、发送、读取和解码共用原 deadline。超时不撤销已 invoked 的 CAS、
+恢复或 SQL；旧请求结果仍按原业务 request 身份 lookup/cancel，绝不由 owner 协调重放。
+
+服务端的 descriptor/proof 留存、Cancelling 两阶段关闭、旧 owner 永久拒绝、原 ETag 绑定和
+资源上限见[持久 owner 计划设计](../../docs/architecture/accepted-owner-plan.md)。SDK 单元和
+loopback Fetch 通过不等于原生/S3 故障验收通过；最终候选的实际验收单独记录。
+
+## 旧 owner 协调与保存意图
 
 `OwnerClient` 与业务客户端独立配置，凭据必须被数据库当前 ACL 明确授予 **READ+ADMIN**：
 status 使用 READ，takeover/activate 每次重新检查 ADMIN。SDK 不隐式增加权限，也不检测 owner
 是否死亡。接管健康 owner 是一个明确的管理员操作，不能放在普通 execute 的失败重试分支。
+这一接口只用于尚未接受持久 owner 计划的库。一旦 `owner_plan` 非空，SDK 不再生成新的旧式
+intent，旧意图 inspect 返回 blocked；服务端也永久拒绝旧 owner 发布。既有 restoreIntent
+仍然只能查证，不能通过 reconcile 恢复派发资格。
 
 ```javascript
 import { OwnerClient, OwnerReconcileError } from './sdk/node/src/client.js';
@@ -311,12 +416,14 @@ fresh HEAD 并检查 READ，所以返回的 `owner_instance` 可以属于另一�
 `inspect.state` 的 `takeover_accepted`、`activation_accepted` 要求原转换所有字段精确匹配。
 `target_active/target_inactive` 只证明此时看到的目标 owner 状态，不能证明已经被后继 HEAD 覆盖的
 原 nonce；`base_observed` 也不证明旧请求永远不会迟到。`superseded`、`blocked` 和 `unresolved`
-分别保留取代、生命周期和无法确认的情况。当前 HEAD 没有完整管理转换历史。
+分别保留取代、生命周期和无法确认的情况。旧 HEAD6/7 没有完整管理转换历史；HEAD8 的
+持久计划历史使用前一节的独立接口。
 
 发生 UNKNOWN 或重启后，若显式 `inspect/observe` 确认目标仍是当前未激活 owner，可准备一个新的
 `prepareActivation` 意图，保存后明确执行。这只继续恢复，不增加 owner epoch。总 deadline 默认
 采用恢复预算，status、claim、恢复和 activation 不逐步续期。没有自动 failover、后台重试、
-自动故障检测或配置滚动选主。后续优先设计 HEAD 绑定的可恢复 owner plan，见
+自动故障检测或配置滚动选主。这段旧式恢复只适用于 owner_plan 为 null 的库；持久 owner
+计划通过独立 OwnerPlanClient 恢复。有限 Scope 自动 controller 仍是后续工作，见
 [controller 与 owner-plan 边界](../../docs/architecture/owner-controller-plan.md)和
 [owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
 

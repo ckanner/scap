@@ -5,6 +5,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
+pub use crate::owner_format::{
+    OwnerAdmission, OwnerAdmissionKind, OwnerPhase, OwnerPhaseKind, OwnerPlan, OwnerPlanRef,
+};
+
 #[path = "object_frame.rs"]
 mod object_frame;
 pub(crate) use object_frame::ValidatedFrame;
@@ -243,6 +247,12 @@ pub struct Head {
     pub sequence: u64,
     pub owner_epoch: u64,
     pub owner_instance: u64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::owner_format::present_owner"
+    )]
+    pub owner_plan: Option<OwnerPlan>,
     pub active: bool,
     pub auth_epoch: u64,
     pub policy: Vec<Permission>,
@@ -260,7 +270,8 @@ pub struct Head {
 
 impl Head {
     pub(crate) fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 6 || self.format == 7)?;
+        check(matches!(self.format, 6..=8))?;
+        check((self.format == 8) == self.owner_plan.is_some())?;
         self.scope.validate()?;
         nonzero(&[
             self.head_serial,
@@ -299,6 +310,9 @@ impl Head {
         }
         self.validate_named()?;
         self.storage.validate(self)?;
+        if let Some(plan) = &self.owner_plan {
+            plan.validate_head(self)?;
+        }
         Ok(())
     }
 

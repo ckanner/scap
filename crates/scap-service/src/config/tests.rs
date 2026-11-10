@@ -413,6 +413,78 @@ fn execution_graph_budget_is_explicit_and_does_not_reinterpret_wire_or_database_
     }
 }
 
+#[test]
+fn owner_recovery_budget_is_local_bounded_and_checked_before_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let baseline = parsed(base.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .options;
+    assert_eq!(baseline.owner_recovery_gets, 1_048_576);
+    assert_eq!(
+        baseline.owner_recovery_bytes,
+        64 * scap_object::options::GIB
+    );
+    for (gets, bytes) in [
+        (0, 0),
+        (1, 512),
+        (1024, 1024 * 1024),
+        (baseline.owner_recovery_gets, baseline.owner_recovery_bytes),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = json!({"payload_gets":gets,"payload_bytes":bytes});
+        let options = parsed(value)
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .options;
+        assert_eq!(options.owner_recovery_gets, gets);
+        assert_eq!(options.owner_recovery_bytes, bytes);
+        assert_eq!(options.quota, baseline.quota);
+        assert_eq!(options.retention, baseline.retention);
+        assert_eq!(options.sql, baseline.sql);
+        assert_eq!(options.result_memory_bytes, baseline.result_memory_bytes);
+        assert_eq!(options.recovery_timeout, baseline.recovery_timeout);
+    }
+    for budget in [
+        json!({"payload_gets":baseline.owner_recovery_gets+1,"payload_bytes":512}),
+        json!({"payload_gets":1,"payload_bytes":baseline.owner_recovery_bytes+1}),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = budget;
+        assert_eq!(
+            parsed(value)
+                .prepare_with(&|_| panic!("owner budget before secrets"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    for budget in [
+        json!({}),
+        json!({"payload_gets":1}),
+        json!({"payload_bytes":512}),
+        json!({"payload_gets":-1,"payload_bytes":512}),
+        json!({"payload_gets":"1","payload_bytes":512}),
+        json!({"payload_gets":1,"payload_bytes":null}),
+        json!({"payload_gets":1,"payload_bytes":512,"rss_bytes":512}),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = budget;
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    let mut value = base;
+    value["owner_recovery"] = json!({"payload_gets":1,"payload_bytes":512});
+    let repeated = value.to_string().replace(
+        "\"payload_gets\":1",
+        "\"payload_gets\":1,\"payload_gets\":1",
+    );
+    assert!(Config::parse(repeated.as_bytes()).is_err());
+}
+
 fn garbage_configuration(parent: &std::path::Path) -> serde_json::Value {
     let mut value = sample_config(parent);
     value["gc"] = json!({"deployment":"1", "access_key_env":"SCAP_GC_ACCESS",

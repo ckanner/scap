@@ -178,6 +178,7 @@ def status_from_head(head):
     return {"scope": {key: str(value) for key, value in head["scope"].items()},
             **{key: str(head[key]) for key in ("head_serial", "revision", "sequence", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch")},
             "storage": {"active_generation": "1", "allocated_through": "1", "plan": None, "sweep": None, "terminal": None},
+            "owner_plan": None,
             "active": head["active"], "lifecycle": head["lifecycle"],
             "max_bytes": None if head["quota"]["max_bytes"] is None else str(head["quota"]["max_bytes"]),
             "transition": {key: str(value) for key, value in head["transition"].items()},

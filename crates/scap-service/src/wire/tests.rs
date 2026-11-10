@@ -360,6 +360,7 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         },
         creation: None,
         deletion: None,
+        owner_plan: None,
         scope,
         revision: 2,
         transition: receipt_value.transition.clone(),

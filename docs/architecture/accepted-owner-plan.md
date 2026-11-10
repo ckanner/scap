@@ -1,6 +1,7 @@
 # 可恢复的 owner 计划：权威状态与取消屏障
 
-状态：**待独立模型与实现的具体协议设计，NOT_RUN**。本文件细化
+状态：**独立有限模型已验证，生产实现与正式验收进行中**。提交 `58b2f986` 的干净源码
+通过 985 条固定正向轨迹、45 个语义负控和 3 个正控；这不认证后续产品实现。本文件细化
 [owner controller 方案](owner-controller-plan.md)的 V2 路线，不能据此宣称自动接管、
 跨重启管理恢复或新格式已交付。HEAD6/HEAD7 的验证不认证本文的新状态机。
 
@@ -44,13 +45,22 @@ null 代替必需对象，一律拒绝。解码和重新编码只使用严格结
 | 控制 key | 完整 key 至多 512 字节，所有身份为非零 u64 的规范十进制；不接受调用人自定义路径 |
 | 输入身份 | 完整 Scope 加 creator/operation；四个 nonce 均非零且在一个 descriptor 内两两不同 |
 | 请求期限 | 每个 prepare/claim/inspect/resume/abort 调用只有一个原总 deadline；本轮任何 I/O 都不得延长它 |
-| 控制元数据 I/O | 每次调用至多 8 次精确 GET/条件 PUT，计入同一预算；恢复的数据/结果闭包读取另受现有 recovery meter 和同一总期限约束 |
+| 控制元数据 I/O | 每次调用至多 8 次 HEAD/owner 元数据精确 GET/条件 PUT；按原总期限执行 |
+| owner 恢复 payload I/O | 每个新的 resume 独立累计，默认至多 1,048,576 次 GET、64 GiB 返回体预算；本地配置可降低，不能继承目录 RecoveryJob 的 meter 或冒称既有保证 |
 
 控制对象 key 固定为
 `scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/owner/v1/{descriptor|proof}/{creator}/{operation}`。
 它同时绑定完整 Scope，且与 `storage/{generation}/objects/` 不相交。descriptor 的输入
 摘要绑定版本、完整身份、mode、target、原 hash/ETag、原 counters/owner 和全部 nonce。
 `prepare` 不读取旧历史列表；旧 descriptor/proof 只能通过具体身份精确读取。
+
+owner 恢复的 payload meter 先把 GET cap 收窄到原 cap 与剩余字节额度中的较小值，
+在调用底层 Objects 前预留一次请求和实际授予的 cap；
+成功后只退还最大值与实际返回字节的差额，失败不退。额度不足在该次 I/O 开始前失败，
+不隔离数据库、不发布 Active，也不向调用人返回 native Session。下一次明确发起的 resume
+有自己的预算和原期限，仍须重新鉴权、读取当前阶段并完成全部恢复。成功返回的 Session
+不继承已经耗用的恢复 meter。该预算约束 Objects 接口的读取与返回体，不是底层 HTTP
+重试的实际线缆流量，也不是进程 RSS、SQLite 或本地临时盘的硬总量上限。
 
 marker 固定包含 descriptor 的 creator/operation/hash，admission 的 kind（claim 或
 cancel）、原接受 revision/serial，以及 phase 的原接受 revision/serial/nonce 和 owner
@@ -85,14 +95,18 @@ HEAD 未引用计划，不能断言旧 claim 不会迟到；仅向独立 key 写
 head serial、mode、target worker，以及四个 nonce。这些字段在准备响应丢失后仍能取得；
 服务器根据原 exact HEAD 计算的 descriptor hash 不能成为唯一的找回入口。
 
-1. 精确查找该完整 Scope 和 creator/operation 对应的 descriptor。已存在时检查当前
-   ADMIN，并逐字段比较上述原完整输入；相同则返回原 descriptor/ref。即使 HEAD 已
+1. 精确查找该完整 Scope 与 creator/operation 对应的 descriptor，暂存原读取结果；
+   随后 fresh exact GET HEAD，检查完整 Scope 和当前 ADMIN。鉴权之后才处理 descriptor
+   的成功、缺失、损坏或输入冲突，避免延迟的 descriptor 读取跨越撤权后仍返回历史内容。
+   已存在且与上述原完整输入逐字段相同时返回原 descriptor/ref。即使 HEAD 已
    推进，也不据此重建原 base。不得在 current ADMIN 检查之前返回历史内容或输入冲突。
-2. 仅 Missing 时，fresh exact GET 获取同次 HEAD body/ETag，验证完整 Scope、Ready、
-   当前 ADMIN、creator 等于本次调用主体、原 expected revision/head serial 一致、没有
+2. 仅 Missing 时，在上述同次 HEAD body/ETag 上验证 Ready、creator 等于本次调用主体、
+   原 expected revision/head serial 一致、没有
    storage copy/sweep/terminal，以及计数空间。activate-only 还必须要求原 base inactive、
    target 等于原 owner instance；不能把已经 active 的 owner 静默停活再恢复。
    若有其他 pending plan，只返回明确的 Pending 身份，不为它准备替代 descriptor。
+   若当前 marker 引用相同 creator/operation，或该 operation 的永久 proof 已存在，
+   descriptor 的缺失是权威损坏，必须拒绝，不能用新 base 重新填充旧 key。
 3. 构造有界 descriptor，固定所有输入；条件创建并 exact 回读匹配原 bytes。
 4. 返回 Prepared 或 Pending 的明确分支。restore 只恢复原保存输入/描述，不改变
    operation、base、目标或 nonce。Pending 不是调用人新计划的准备成功。
@@ -168,6 +182,9 @@ Session，不读取已删除 payload，不授予 activation/GC，也不要求调
 精确读取原 operation 的 descriptor/proof，校验完整身份与 hash；不能从请求重建缺失记录。
 在历史读取之后再次读取 HEAD 并检查当前 ADMIN 与同一 body/ETag。两次 HEAD 不一致时
 返回本次观察不稳定，不能把跨时序的 Missing 归结为历史未发生或历史损坏。
+若原终态 marker 已被替换，原 proof 的 phase revision/head serial 必须严格早于当前
+marker 的 admission counters，且当前仍为 HEAD8。仅检查 proof counters 小于当前 HEAD
+不足以排除 marker 回退后又有普通 SQL 推进的矛盾；必须先完成稳定双读，再判断损坏。
 
 若稳定的当前 HEAD 已不再允许原 base CAS，但没有该 operation 的终态证明，只能报告
 原 admission 的未来效果已被 fence、过去效果尚不确定。缺失证明不能推出 NotApplied，
@@ -241,4 +258,5 @@ legacy 在 pending 时新准备、terminal 后迟到；proof Unknown 与后继�
 
 必须提供对应的错误实现或原始记录变异，并证明 oracle 在所声明的语义处拒绝。有限模型
 通过后，生产 core/service/SDK 仍需新冻结源码、逐文件精确单位覆盖、真实 SQLite/HTTP/S3
-暂停切点、独立原历史审计和负对照。没有这些证据，本设计保持 NOT_RUN。
+暂停切点、独立原历史审计和负对照。没有这些证据，产品交付状态保持 NOT_RUN；有限模型
+通过与产品、自动 controller、真实 AWS 的验证状态分别记录。

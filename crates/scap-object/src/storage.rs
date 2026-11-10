@@ -142,9 +142,11 @@ impl Storage {
                 && self.allocated_through <= head.head_serial,
         )?;
         check(self.plan.is_none() || self.sweep.is_none())?;
-        // Head::validate admitted exactly versions 6 and 7. A missing field is
-        // legal only for v6; present_terminal rejected an explicit JSON null.
-        check((head.format == 6) == self.terminal.is_none())?;
+        // HEAD8 preserves its owner marker through a storage terminal seal.
+        // Older formats retain their exact omit/present wire contract.
+        if head.format != 8 {
+            check((head.format == 6) == self.terminal.is_none())?;
+        }
         if let Some(terminal) = &self.terminal {
             check(head.lifecycle == Lifecycle::Deleted && !head.active)?;
             check(self.plan.is_none())?;
