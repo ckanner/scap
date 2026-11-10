@@ -1,7 +1,8 @@
 # 资源、冷恢复与吞吐的组合门禁
 
-状态：设计；这里的目标不是已完成的性能承诺。小规模首批实测由
-[object-load](../../experiments/object-load/PLAN.md) 承接。大库、持续过载和硬资源隔离
+状态：完整组合仍为设计；小规模首批 [object-load](../../experiments/object-load/PLAN.md)
+已按冻结 HEAD6 完成实际运行、独立审计和14负/3正向核对，见[验收记录](head6-runtime-validation.md)。
+这里的完整目标不是已完成的性能承诺。大库、持续过载和硬资源隔离
 仍须分别通过下面的门禁，不能由一次本机延迟数字代替。
 
 ## 已有保证与待测问题

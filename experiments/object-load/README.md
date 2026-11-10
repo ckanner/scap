@@ -5,6 +5,12 @@ SQLite 和 SeaweedFS 4.51。计划为八库、两个租户、871 个固定 POST�
 execute、288 次测量调用。任何原 execute 都只发送一次；后续只用原身份 lookup/cancel。
 夹具不实现数据库的恢复、提交、重试或复制算法。
 
+2026-11-10 的固定本地运行已完成：产品 `66f452e`、夹具 `f8a40d7`，独立 oracle、14 个
+负对照及三个正向核对通过；185 原 execute 全部 committed。单库 C1/C4 写入分别为
+8.795/8.750 req/s，四库 C4 为 14.376 req/s；完整时延、排队、S3 放大、冷恢复与采样
+局限见[本轮验收](../../docs/engineering/head6-runtime-validation.md)和[机器记录](../../docs/evidence/head6-runtime-local-2026-11-10.json)。
+本段是后续结果说明，不改变原固定计划、夹具运行身份或 raw summary。
+
 ## 执行与身份
 
 需要 Python 3.12、Node 22.16.0、正式 release 服务及其完整 build receipt、SeaweedFS

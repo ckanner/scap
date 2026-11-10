@@ -10,6 +10,14 @@ the product's copy, fencing, retirement, or deletion algorithm.
 negative controls establish a passing observation. This source tree does not
 claim an actual run merely because its observer unit tests pass.
 
+The 2026-11-10 run of product `66f452e` with fixture `8fd8a3d` completed its
+independent oracle and all 23 negative / one unchanged positive control.
+The audit checked 20,296 S3 requests, 264 original ACKs and cold lookups,
+46 checkpoint cycles, and 1,340 DELETE requests. Earlier failed runs retain
+their original evidence and verdicts. Exact source identities and limits are
+in the [HEAD6 validation record](../../docs/engineering/head6-runtime-validation.md).
+Deleted final active generations remain protected in this HEAD6 product.
+
 ## Fixed workload
 
 | Scope | Original data and retained outcomes | Maintenance and faults |

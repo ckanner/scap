@@ -4,7 +4,7 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**，原生故障、保留结果、生命周期、目录和新的 1 GiB 全量恢复均通过；整栈 HTTP/资源/回收/负载验收仍在完成，PR 保持草稿。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
+**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**；原生故障、保留结果、生命周期、目录、新的 1 GiB 全量恢复，以及整栈 HTTP/资源/回收/负载和全部独立判定/负对照均通过，进入合入收尾。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。[PR #55](https://github.com/ckanner/scap/pull/55) 继续实现 Deleted 最后一代的显式永久退休，按新源码独立验收。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
 
 对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
 
@@ -70,7 +70,7 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用。**HEAD5 验收候选没有产品 DELETE；HEAD6 开发候选增加显式管理员 compaction 与退休世代 GC，默认仍未启用 GC 权限，须完成新的整栈验收。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
+关闭窗口只变更引用。**HEAD6 的显式管理员 compaction 与退休世代 GC 已完成本批整栈本地验收，默认仍未启用 GC 权限。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。HEAD6 仍保护 Deleted 最后一代，PR #55 独立补齐该终态退休。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
 
 HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
 
