@@ -331,6 +331,16 @@ class Audit:
                     'all-pending-entries')
             require(all(row['outcome'] == {'kind': 'error', 'value': {'code': 'PENDING'}}
                         for row in attempted if row['input']['args']['entry'] in PENDING_DENY), 'all-pending-entries')
+        elif name.startswith('damage-owner-binding-'):
+            require(name in {'damage-owner-binding-0', 'damage-owner-binding-1'}, 'declared-owner-binding-scenario')
+            faults = [row for row in events if row['event'] == 'explicit_owner_binding_fault']
+            inspections = [row for row in self.calls.values() if row['input']['operation'] == 'inspect']
+            require(len(faults) == len(inspections) == 1, 'planned-owner-binding-damage')
+            call = inspections[0]
+            expected = 'CONFLICT' if name.endswith('-1') else 'CORRUPT'
+            require(call['outcome'] == {'kind': 'error', 'value': {'code': expected}}, 'planned-owner-binding-outcome')
+            proof_reads = [io for io in call['reads'] if '/owner/v1/proof/' in self.reads[io]['request']['key']]
+            require(len(proof_reads) == 1 and self.read(proof_reads[0], call) is None, 'planned-owner-binding-missing-proof')
         else:
             require(name.split('-')[0] in {'descriptor', 'crash', 'cancelling', 'metadata', 'reserve',
                     'counter', 'activate', 'sameworker', 'replacement', 'legacy', 'latehttp', 'proof',
@@ -394,6 +404,25 @@ class Audit:
         require(event['value']['etag'] not in self.etags, 'etag-aba')
         self.etags.add(event['value']['etag'])
         self.objects[event['key']] = deepcopy(event['value'])
+
+    def event_explicit_owner_binding_fault(self, event):
+        require(event['key'] == HEAD_KEY and self.objects[HEAD_KEY] == event['previous'] and
+                event['purpose'] == 'test same immutable operation identity with another HEAD descriptor hash',
+                'declared-owner-binding-damage-only')
+        original = parse_head(event['previous']['body'], self.maximum)
+        damaged = parse_head(event['value']['body'], self.maximum)
+        require(original['format'] == 8, 'declared-owner-binding-damage-only')
+        expected = deepcopy(original)
+        expected['owner_plan']['descriptor_hash'] = damaged['owner_plan']['descriptor_hash']
+        require(damaged == expected and damaged['owner_plan']['descriptor_hash'] !=
+                original['owner_plan']['descriptor_hash'], 'declared-owner-binding-damage-only')
+        descriptor = self.objects.get(key_for('descriptor', original['owner_plan']['identity']))
+        require(descriptor is not None and sha(descriptor['body']) == original['owner_plan']['descriptor_hash'],
+                'damage-existing-owner-dependency')
+        quoted_etag(event['value']['etag'])
+        require(event['value']['etag'] not in self.etags, 'etag-aba')
+        self.etags.add(event['value']['etag'])
+        self.objects[HEAD_KEY] = deepcopy(event['value'])
 
     def event_process_exited(self, event):
         require(event['process'] in self.processes and self.processes[event['process']]['live'], 'process-exit')
@@ -831,7 +860,11 @@ class Audit:
                 self.reads[event['basis_io']]['response_sequence'] and
                 self.reads[event['final_io']]['request']['sequence'] >
                 self.reads[event['proof_io']]['response_sequence'], 'history-barrier-order')
-        self.authorized(call, parse_head(final['body'], self.maximum))
+        head = parse_head(final['body'], self.maximum)
+        self.authorized(call, head)
+        current = head.get('owner_plan')
+        require(current is None or current['identity'] != desc['identity'] or current['descriptor_hash'] == sha(desc),
+                'same-identity-descriptor-binding')
         if proof is not None:
             value = parse_proof(proof['body'], self.maximum)
             self.phase_binding(value['marker'], desc)
@@ -869,6 +902,19 @@ class Audit:
         require(call['server_result'] is None and call['process'] is not None and
                 self.processes[call['process']]['live'], 'server-result-once')
         kind, value, operation = event['kind'], event['value'], call['input']['operation']
+        if operation == 'inspect':
+            heads = [self.read(io, call, HEAD_KEY) for io in call['reads']
+                     if self.reads[io]['request']['key'] == HEAD_KEY]
+            if heads:
+                first = parse_head(heads[0]['body'], self.maximum)
+                current = first.get('owner_plan')
+                desc = self.desc_read(call['reads'][0], call)
+                if (call['input']['principal'] in first['admins'] and current is not None and current['identity'] == desc['identity'] and
+                        current['descriptor_hash'] != sha(desc)):
+                    require(len(heads) == 2, 'owner-binding-final-barrier')
+                    changed = heads[0] != heads[-1]
+                    require(kind == 'error' and value == {'code': 'CONFLICT' if changed else 'CORRUPT'},
+                            'changed-head-before-corruption' if changed else 'same-identity-descriptor-binding')
         if operation == 'prepare':
             observed = [io for io in call['reads'] if self.reads[io]['request']['key'] == HEAD_KEY]
             if observed:

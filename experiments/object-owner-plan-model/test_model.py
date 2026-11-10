@@ -24,7 +24,7 @@ class ProtocolTests(unittest.TestCase):
                 observed = audit(case.build().trace(case.name), strict_scenario=True)
                 self.assertEqual(observed['status'], 'PASSED')
                 passed += 1
-        self.assertEqual(passed, 92)
+        self.assertEqual(passed, 94)
 
     def test_all_semantic_negative_boundaries(self):
         for control in counterexamples.negatives():
@@ -46,8 +46,18 @@ class ProtocolTests(unittest.TestCase):
 
     def test_exact_registered_denominators(self):
         counts = explore.check_inventory(cases.cases(), counterexamples.negatives())
-        self.assertEqual(sum(counts.values()), 985)
+        self.assertEqual(sum(counts.values()), 987)
         self.assertEqual(counts['preparelost'], 8)
+        self.assertEqual(counts['damage'], 7)
+
+    def test_same_operation_wrong_hash_is_corrupt_only_after_a_stable_final_head(self):
+        for changed in (False, True):
+            world = cases.owner_binding_fault(changed)
+            observed = [row for row in world.calls.values() if row.operation == 'inspect']
+            self.assertEqual(len(observed), 1)
+            self.assertEqual(observed[0].outcome, {'kind': 'error',
+                'value': {'code': 'CONFLICT' if changed else 'CORRUPT'}})
+            audit(world.trace(f'damage-owner-binding-{int(changed)}'), strict_scenario=True)
 
     def test_oracle_does_not_import_candidate_or_runner(self):
         parsed = ast.parse((Path(__file__).parent / 'oracle.py').read_text())

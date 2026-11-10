@@ -538,6 +538,10 @@ class World:
             if head != call.basis['head'] or etag != call.basis['etag']:
                 raise Rejected('CONFLICT')
             self._authorize(head, call.principal)
+            current = marker(head)
+            if (current is not None and current['identity'] == call.desc['identity'] and
+                    current['descriptor_hash'] != digest(call.desc)):
+                raise Rejected('CORRUPT')
             proof = call.inspected_proof
             if proof is not None:
                 old = json.loads(proof['body'])['marker']
@@ -815,6 +819,15 @@ class World:
         self._install(key, encoded(value))
         self.emit('explicit_proof_fault', key=key, previous=previous, value=self.objects[key],
                   purpose='test stable superseded proof counter contradiction')
+
+    def fault_owner_binding(self):
+        previous = deepcopy(self.objects[HEAD])
+        value = self.head()
+        original = value['owner_plan']['descriptor_hash']
+        value['owner_plan']['descriptor_hash'] = ('0' if original[0] != '0' else '1') + original[1:]
+        self._install(HEAD, encoded(value))
+        self.emit('explicit_owner_binding_fault', key=HEAD, previous=previous, value=self.objects[HEAD],
+                  purpose='test same immutable operation identity with another HEAD descriptor hash')
 
     def snapshot(self):
         return {'objects': deepcopy(self.objects), 'processes': deepcopy(self.processes),

@@ -569,6 +569,24 @@ def future_proof(changed_head):
     return world
 
 
+def owner_binding_fault(changed_head):
+    world = World(maximum=20)
+    reference = prepared(world)
+    accepted(world, 'claim', {'identity': reference})
+    descriptor_before = deepcopy(world.objects[control_key('descriptor', **reference)])
+    world.fault_owner_binding()
+    call = world.begin('inspect', {'identity': reference}, route='owner')
+    world.admit(call)
+    world.inspect_proof(call)
+    if changed_head:
+        accepted(world, 'quota', {'quota': 77}, route='other')
+    world.inspect_finish(call)
+    result(world, call, code='CONFLICT' if changed_head else 'CORRUPT')
+    assert world.objects[control_key('descriptor', **reference)] == descriptor_before
+    assert control_key('proof', **reference) not in world.objects
+    return world
+
+
 @dataclass(frozen=True)
 class Case:
     name: str
@@ -632,4 +650,5 @@ def cases():
         add('damage-' + kind, missing_permanent_descriptor, kind)
     for changed in (False, True):
         add(f'damage-future-proof-{int(changed)}', future_proof, changed)
+        add(f'damage-owner-binding-{int(changed)}', owner_binding_fault, changed)
     return result

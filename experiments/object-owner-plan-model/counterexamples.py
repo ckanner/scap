@@ -477,6 +477,22 @@ def future_historical_proof():
         'basis_io': heads[0][0], 'proof_io': proof, 'final_io': heads[-1][0]})
 
 
+def incorrect_owner_binding_outcome(changed_head):
+    world = cases.owner_binding_fault(changed_head)
+    identifier = next(name for name, call in world.calls.items() if call.operation == 'inspect')
+    value = trace(world)
+    at = index(value, 'server_finished', predicate=lambda row: row['call'] == identifier)
+    if changed_head:
+        value['events'][at]['value']['code'] = 'CORRUPT'
+    else:
+        desc = world.calls[identifier].desc
+        value['events'][at].update(kind='observed', value={'phase': 'unaccepted_or_fenced',
+            'prepared': {'body': encoded(desc), 'descriptor_hash': digest(desc)},
+            'current_head': world.head(), 'past_effect': 'unknown', 'native_session': False,
+            'historical_ack': False})
+    return prefix(value, at)
+
+
 @dataclass(frozen=True)
 class Negative:
     name: str
@@ -531,5 +547,7 @@ def negatives():
         ('rebuild-descriptor-still-in-marker', 'referenced-descriptor-must-exist', lambda: rebuild_missing_descriptor('terminal')),
         ('rebuild-descriptor-retained-by-proof', 'referenced-descriptor-must-exist', lambda: rebuild_missing_descriptor('superseded')),
         ('old-proof-not-before-new-admission', 'historical-proof-before-current-admission', future_historical_proof),
+        ('same-operation-wrong-hash-reported-fenced', 'same-identity-descriptor-binding', lambda: incorrect_owner_binding_outcome(False)),
+        ('changing-head-latched-as-owner-corruption', 'changed-head-before-corruption', lambda: incorrect_owner_binding_outcome(True)),
     )
     return [Negative(*row) for row in rows]

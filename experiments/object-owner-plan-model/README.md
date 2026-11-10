@@ -4,8 +4,8 @@
 它回答 owner 计划的持久接受、恢复、取消、历史覆盖和旧入口 fencing 是否遵守声明的
 有限状态合同；**不提供生产 owner API，也不启动 controller、SQLite、HTTP 或 S3**。
 
-固定范围、分母与资源界限见 [PLAN.md](PLAN.md)。当前注册 985 条正向原始轨迹、
-45 个明确拒绝边界的语义反例，以及 3 个判定器正控。是否实际通过以对应冻结源码和
+固定范围、分母与资源界限见 [PLAN.md](PLAN.md)。当前注册 987 条正向原始轨迹、
+47 个明确拒绝边界的语义反例，以及 3 个判定器正控。是否实际通过以对应冻结源码和
 证据 `report.json`、`controls.json` 为准；此 README 中的数量不是运行结果。
 
 ## 文件职责
@@ -15,7 +15,7 @@
 | `model.py` | 单 Scope、有限计数的候选协议；原条件请求与后端在途队列独立 |
 | `cases.py` | 固定工作负载及两条宏步骤链的完整线性扩展；断言每个目标场景确实发生 |
 | `oracle.py` | 只消费原始事件，独立重建对象服务、同次 GET body/ETag、调用与进程知识；不导入以上文件 |
-| `counterexamples.py` | 45 个定向错误历史；期望规则名称固定，错误位置变化即失败 |
+| `counterexamples.py` | 47 个定向错误历史；期望规则名称固定，错误位置变化即失败 |
 | `explore.py` | 有界落盘、源码/工具身份、全部审计、正负控与源后复核 |
 | `test_model.py` | 协议边界、负控、枚举分母、独立可执行 oracle 和证据保存自测 |
 
@@ -55,6 +55,14 @@ proof 只包含 marker 的原稳定字段。后来的 SQL、ACL、quota 和 name
 当前 HEAD、owner epoch，却不改变旧 proof 的字节。新 Claim 与 Cancelling 两个覆盖入口
 都必须 exact 回读旧 proof。双 HEAD 的历史查询遇 ACL/marker 变化返回观察不稳定。
 历史 Active 不意味着当前 active，也不意味着新进程已有可执行 native Session。
+同一个 immutable creator/operation 在当前 HEAD 中改成另一个 descriptor hash 属于
+权威依赖矛盾：稳定双读后拒绝为 Corrupt，若 HEAD2 变化则先报告 Conflict。两条明确
+operator 损坏轨迹从 Claimed 开始并保留原 descriptor；变化分支安排合法 pending quota 更新，
+负控拒绝错误的 Fenced 结果和跨读误报腐坏。
+生产健康隔离不在这个历史返回投影内，仍由核心的独立验证证明。
+
+旧提交 `58b2f986` 的正式 985／45／3 结果保持原样；这一新增损坏边界必须以新源码
+和新 evidence 复验，不能将旧通过结果改写为包含本次缺口。
 
 每次元数据调用最多 8 次 GET/条件 PUT，并持有原总期限。descriptor 16KiB、proof 8KiB、
 marker 4KiB、HEAD 256KiB；它们只是待实现合同在模型中的边界。控制历史永久累积，
