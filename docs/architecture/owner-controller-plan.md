@@ -10,6 +10,10 @@
 2. 后续优先 V2：将不可变 intent 与 accepted phase 纳入 HEAD 权威状态，或采用不可变 descriptor + HEAD 绑定，让服务端按固定计划与当前 phase 幂等推进。先做独立模型，再完整接线和验收；旧 `OwnerClient.restoreIntent` 永远不能因此获得派发权。
 3. §4–9 保留 V1 controller + S3 admission journal 的完整候选与成本比较，**不是当前实施承诺**。它可处理正常路径并保存重启后的知识，但部分 UNKNOWN 会永久阻止安全自动进展，不能完成全部自动恢复目标。
 
+V2 的具体 HEAD8 阶段、原输入找回、未接受取消屏障、永久 legacy 围栏、历史 proof 与数值
+上限见[可恢复的 owner 计划](accepted-owner-plan.md)。该批正在独立建模和实现，尚未完成
+生产验收；不能将这份具体提案或 HEAD7 的通过结果算作自动 controller 已交付。
+
 S3 journal 既不能把不可靠探测变成死亡证明，也不能填平旧 HTTP 的不确定窗口。§7 的完整 future-phase fence 区分未来不可能再生效与过去是否已生效；该区别对 V2 仍然必要。
 
 ## 2. 静态基线接口及限制
