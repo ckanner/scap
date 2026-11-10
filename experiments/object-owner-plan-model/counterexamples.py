@@ -114,6 +114,7 @@ def claim_rebase():
         head['owner']['epoch'] += 1
         head['owner']['instance'] = 2
         head['format'], head['active'] = 8, False
+        head['transition_nonce'] = current.desc['nonces']['claim']
         head['owner_plan'] = {'identity': current.desc['identity'], 'descriptor_hash': digest(current.desc),
             'admission': {'kind': 'claim', 'revision': head['revision'], 'head_serial': head['head_serial']},
             'phase': {'kind': 'claimed', 'revision': head['revision'], 'head_serial': head['head_serial'],
@@ -493,6 +494,11 @@ def incorrect_owner_binding_outcome(changed_head):
     return prefix(value, at)
 
 
+def wrong_current_owner_nonce():
+    world = cases.phase_nonce_successor('technical')
+    return candidate(world, 'storage', lambda head, _row: head.update(transition_nonce=9001))
+
+
 @dataclass(frozen=True)
 class Negative:
     name: str
@@ -549,5 +555,6 @@ def negatives():
         ('old-proof-not-before-new-admission', 'historical-proof-before-current-admission', future_historical_proof),
         ('same-operation-wrong-hash-reported-fenced', 'same-identity-descriptor-binding', lambda: incorrect_owner_binding_outcome(False)),
         ('changing-head-latched-as-owner-corruption', 'changed-head-before-corruption', lambda: incorrect_owner_binding_outcome(True)),
+        ('technical-head-changes-current-owner-nonce', 'current-owner-transition-nonce', wrong_current_owner_nonce),
     )
     return [Negative(*row) for row in rows]

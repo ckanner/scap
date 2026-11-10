@@ -149,6 +149,7 @@ fn input_and_descriptor_independently_validate_identity_nonces_bounds_and_origin
             _ => input.nonces.abort = input.nonces.activate,
         }
         assert!(input.validate().is_err(), "input cut {cut}");
+        assert!(OwnerDescriptor::new(&base, &input).is_err());
     }
     assert!(OwnerIdentity {
         creator: 7,
@@ -286,6 +287,18 @@ fn marker_proof_and_physical_record_limits_are_not_inferred_from_the_current_hea
         bounded(&"x".repeat(MAX_MARKER), MAX_MARKER),
         Err(FormatError::Limit)
     );
+    assert!(bounded(&"small".to_string(), MAX_MARKER).is_ok());
+    // The shared serializer's cap applies separately to every record type.
+    // Exercise it with a smaller caller allowance; their strict field bounds
+    // intentionally prevent valid records from reaching the format ceilings.
+    assert_eq!(bounded(&descriptor, 0), Err(FormatError::Limit));
+    assert_eq!(bounded(&original, 0), Err(FormatError::Limit));
+    let proof = OwnerProof {
+        version: 1,
+        scope: descriptor.scope.clone(),
+        marker: original,
+    };
+    assert_eq!(bounded(&proof, 0), Err(FormatError::Limit));
     for etag in ["", "\"", "a\"", "\"a", "\"a\"b\"", "\"a b\"", "\"a\nb\""] {
         assert!(!valid_etag(etag));
     }
@@ -310,6 +323,13 @@ fn pending_markers_bind_current_authority_and_reserve_the_terminal_counter_slot(
     head.active = false;
     head.owner_plan = Some(plan.clone());
     head.validate().unwrap();
+    let mut malformed = head.clone();
+    malformed.owner_plan.as_mut().unwrap().phase.nonce = 0;
+    assert!(encode_head(&malformed).is_err());
+    assert!(
+        crate::format::decode_head(&serde_json::to_vec(&malformed).unwrap(), &malformed.scope,)
+            .is_err()
+    );
     for cut in 0..13 {
         let mut changed = head.clone();
         match cut {
@@ -375,5 +395,98 @@ fn pending_markers_bind_current_authority_and_reserve_the_terminal_counter_slot(
             _ => changed.phase.kind = OwnerPhaseKind::Active,
         }
         assert!(changed.validate().is_err(), "phase cut {cut}");
+    }
+}
+
+#[test]
+fn maximal_legal_counters_and_fully_escaped_etag_still_fit_the_fixed_descriptor_cap() {
+    let (mut snapshot, original) = descriptor();
+    snapshot.head.scope = Scope {
+        deployment: u64::MAX,
+        tenant: u64::MAX,
+        database: u64::MAX,
+        incarnation: u64::MAX,
+        generation: u64::MAX,
+    };
+    snapshot.head.revision = u64::MAX - 2;
+    snapshot.head.head_serial = u64::MAX - 2;
+    snapshot.head.transition.revision = snapshot.head.revision;
+    snapshot.head.owner_epoch = u64::MAX - 1;
+    snapshot.head.owner_instance = u64::MAX;
+    snapshot.head.policy[0].principal = u64::MAX;
+    snapshot.etag = format!("\"{}\"", "\\".repeat(1022));
+    let mut input = original.input;
+    input.creator = u64::MAX;
+    input.operation = u64::MAX;
+    input.expected_revision = snapshot.head.revision;
+    input.expected_head_serial = snapshot.head.head_serial;
+    input.target_worker = u64::MAX;
+    input.nonces = OwnerNonces {
+        claim: u64::MAX,
+        cancel: u64::MAX - 1,
+        activate: u64::MAX - 2,
+        abort: u64::MAX - 3,
+    };
+    let mut previous = marker(
+        &OwnerDescriptor::new(&snapshot, &input).unwrap(),
+        OwnerPhaseKind::Active,
+    );
+    previous.reference.operation -= 1;
+    previous.admission.revision = snapshot.head.revision - 1;
+    previous.admission.head_serial = snapshot.head.head_serial - 1;
+    previous.phase.revision = snapshot.head.revision;
+    previous.phase.head_serial = snapshot.head.head_serial;
+    previous.phase.owner_epoch = snapshot.head.owner_epoch;
+    previous.phase.owner_instance = snapshot.head.owner_instance;
+    snapshot.head.transition.nonce = previous.phase.nonce;
+    snapshot.head.format = 8;
+    snapshot.head.owner_plan = Some(previous);
+    let descriptor = OwnerDescriptor::new(&snapshot, &input).unwrap();
+    let bytes = descriptor.bytes().unwrap();
+    assert!(bytes.len() < MAX_DESCRIPTOR);
+    assert_eq!(OwnerDescriptor::decode(&bytes).unwrap(), descriptor);
+    assert_eq!(descriptor.base.etag.len(), 1024);
+    assert!(key(&descriptor.scope, &descriptor.input.identity(), false).len() < 512);
+    for kind in [OwnerPhaseKind::Claimed, OwnerPhaseKind::Active] {
+        descriptor.marker(&marker(&descriptor, kind)).unwrap();
+    }
+}
+
+#[test]
+fn phase_at_the_current_business_revision_keeps_its_nonce_across_technical_successors() {
+    let (base, descriptor) = descriptor();
+    let marker = marker(&descriptor, OwnerPhaseKind::Active);
+    let mut head = base.head;
+    head.format = 8;
+    head.revision = marker.phase.revision;
+    head.head_serial = marker.phase.head_serial;
+    head.transition.revision = head.revision;
+    head.transition.nonce = marker.phase.nonce;
+    head.owner_epoch = marker.phase.owner_epoch;
+    head.owner_instance = marker.phase.owner_instance;
+    head.active = true;
+    head.owner_plan = Some(marker);
+    let encoded = encode_head(&head).unwrap();
+    assert_eq!(
+        crate::format::decode_head(&encoded, &head.scope).unwrap(),
+        head
+    );
+    let mut technical = head.clone();
+    technical.head_serial += 3;
+    technical.active = false;
+    encode_head(&technical).unwrap();
+    let mut business = technical.clone();
+    business.revision += 1;
+    business.head_serial += 1;
+    business.transition.revision = business.revision;
+    business.transition.nonce += 20;
+    encode_head(&business).unwrap();
+    for mut invalid in [head, technical] {
+        invalid.transition.nonce += 20;
+        assert!(encode_head(&invalid).is_err());
+        assert!(
+            crate::format::decode_head(&serde_json::to_vec(&invalid).unwrap(), &invalid.scope)
+                .is_err()
+        );
     }
 }

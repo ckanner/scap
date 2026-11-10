@@ -2,10 +2,13 @@
 
 这是 [V2 方案](../../docs/architecture/accepted-owner-plan.md)的可复跑研究门禁。
 它回答 owner 计划的持久接受、恢复、取消、历史覆盖和旧入口 fencing 是否遵守声明的
-有限状态合同；**不提供生产 owner API，也不启动 controller、SQLite、HTTP 或 S3**。
+有限状态合同；**不执行或认证生产 owner API，也不启动 controller、SQLite、HTTP 或 S3**。
+仓库已有 HEAD8 生产实现的开发检查点，代码存在不等于完成验收。新报告使用
+`production: NOT_EXECUTED_BY_MODEL`；controller 仍为 `NOT_IMPLEMENTED`，原生与网络
+验证为 `NOT_RUN`。历史报告的状态字段不回填。
 
-固定范围、分母与资源界限见 [PLAN.md](PLAN.md)。当前注册 987 条正向原始轨迹、
-47 个明确拒绝边界的语义反例，以及 3 个判定器正控。是否实际通过以对应冻结源码和
+固定范围、分母与资源界限见 [PLAN.md](PLAN.md)。当前注册 989 条正向原始轨迹、
+48 个明确拒绝边界的语义反例，以及 3 个判定器正控。是否实际通过以对应冻结源码和
 证据 `report.json`、`controls.json` 为准；此 README 中的数量不是运行结果。
 
 ## 文件职责
@@ -15,7 +18,7 @@
 | `model.py` | 单 Scope、有限计数的候选协议；原条件请求与后端在途队列独立 |
 | `cases.py` | 固定工作负载及两条宏步骤链的完整线性扩展；断言每个目标场景确实发生 |
 | `oracle.py` | 只消费原始事件，独立重建对象服务、同次 GET body/ETag、调用与进程知识；不导入以上文件 |
-| `counterexamples.py` | 47 个定向错误历史；期望规则名称固定，错误位置变化即失败 |
+| `counterexamples.py` | 48 个定向错误历史；期望规则名称固定，错误位置变化即失败 |
 | `explore.py` | 有界落盘、源码/工具身份、全部审计、正负控与源后复核 |
 | `test_model.py` | 协议边界、负控、枚举分母、独立可执行 oracle 和证据保存自测 |
 
@@ -25,6 +28,12 @@ owner 写成 `{instance,epoch}`，把 reference 拆成 identity/hash；生产 AP
 必须另行严格实现和验证。这里的 canonical JSON/hash 和模型 ETag 不认证生产编码。
 真实 payload 类型解析及 SQLite 的 native publication 合同沿用已单独验证的产品假设；
 模型只用完整的有限 data/result 依赖对象表示该前提。
+
+HEAD 的 `transition_nonce` 投影对应当前业务 transition nonce，业务 revision 使用 HEAD.R。
+两条合法轨迹分别保留 technical 后继的原 nonce、允许较晚业务 revision 的新 nonce；
+相等 R 的错 nonce 由独立 schema 单位和 raw 候选负控拒绝。普通不透明 SQL 的完整生产
+nonce/receipt 编码不在该投影内。这里的 codec 拒绝不等于实际产品返回 Corrupt，后者由
+核心真实 Database 回归与单独网络验收负责。
 
 ## 已接受与未接受的取消
 
@@ -63,9 +72,11 @@ operator 损坏轨迹从 Claimed 开始并保留原 descriptor；变化分支安
 
 旧提交 `58b2f986` 的正式 985／45／3 结果保持原样；这一新增损坏边界必须以新源码
 和新 evidence 复验，不能将旧通过结果改写为包含本次缺口。
+`f8cc2613` 的 987／47／3 结果也保留原件，本次 transition_nonce 投影使用新的
+989／48／3 源码和证据。
 
 每次元数据调用最多 8 次 GET/条件 PUT，并持有原总期限。descriptor 16KiB、proof 8KiB、
-marker 4KiB、HEAD 256KiB；它们只是待实现合同在模型中的边界。控制历史永久累积，
+marker 4KiB、HEAD 256KiB；这些是模型校验的合同边界，不认证生产实现或其正式验收。控制历史永久累积，
 payload GC 不回收它们。模型没有声称无限历史、自动故障检测或生产吞吐/RTO。
 
 ## 运行与解释

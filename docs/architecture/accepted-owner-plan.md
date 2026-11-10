@@ -1,7 +1,9 @@
 # 可恢复的 owner 计划：权威状态与取消屏障
 
-状态：**独立有限模型已验证，生产实现与正式验收进行中**。提交 `58b2f986` 的干净源码
-通过 985 条固定正向轨迹、45 个语义负控和 3 个正控；这不认证后续产品实现。本文件细化
+状态：**独立有限模型已验证，生产实现与正式验收进行中**。`58b2f986` 的 985/45/3
+历史结果保留；提交 `f8cc2613` 的干净源码另通过 987 条固定正向轨迹、47 个语义负控和
+3 个正控，补入同身份、不同 descriptor hash 的边界。core/service/SDK 已在 `3f0b1ad`
+发布开发检查点；后续修正仍按新源码冻结验证，不能把模型或局部开发检查认证成产品通过。本文件细化
 [owner controller 方案](owner-controller-plan.md)的 V2 路线，不能据此宣称自动接管、
 跨重启管理恢复或新格式已交付。HEAD6/HEAD7 的验证不认证本文的新状态机。
 
@@ -24,7 +26,7 @@
 | OwnerTerminalProof | 绑定 descriptor 与已接受终态 marker 的不可变证据。在后继计划覆盖当前 marker 前持久化并 exact 回读。普通 SQL/ACL 变更保留 marker，不重新用较晚 revision 拼装旧结果。 |
 
 这些对象属于永久控制元数据，不进入 storage-generation payload prefix，也不由现有
-GC 删除。下述数值是待实现的硬上限，不是当前二进制已施加的保证。
+GC 删除。下述数值已接入开发实现；其产品保证以绑定新源码的完整正式验收为依据。
 
 ### 2.1 固定编码与预算
 
@@ -56,7 +58,7 @@ null 代替必需对象，一律拒绝。解码和重新编码只使用严格结
 
 owner 恢复的 payload meter 先把 GET cap 收窄到原 cap 与剩余字节额度中的较小值，
 在调用底层 Objects 前预留一次请求和实际授予的 cap；
-成功后只退还最大值与实际返回字节的差额，失败不退。额度不足在该次 I/O 开始前失败，
+成功且原总期限仍有效时，只退还最大值与实际返回字节的差额；失败或返回时期限已到不退。额度不足在该次 I/O 开始前失败，
 不隔离数据库、不发布 Active，也不向调用人返回 native Session。下一次明确发起的 resume
 有自己的预算和原期限，仍须重新鉴权、读取当前阶段并完成全部恢复。成功返回的 Session
 不继承已经耗用的恢复 meter。该预算约束 Objects 接口的读取与返回体，不是底层 HTTP
@@ -66,7 +68,10 @@ marker 固定包含 descriptor 的 creator/operation/hash，admission 的 kind�
 cancel）、原接受 revision/serial，以及 phase 的原接受 revision/serial/nonce 和 owner
 tuple。pending 时 phase 与 admission 的接受 counters 相同，后续 ACL/quota 不改变这些
 字段。terminal phase 的 counters 必须严格晚于 admission；Active 只允许来自 claim。
-当前 HEAD 的 counters 不得早于 phase counters。proof 由完整 Scope、descriptor 身份和
+当前 HEAD 的 counters 不得早于 phase counters。如果当前业务 revision 与 phase.revision
+相等，HEAD.transition.nonce 必须等于 phase.nonce；只增加技术 serial 也不能改变该
+nonce。后续业务 revision 已增加时，新的 transition nonce 可以不同。这是单份 HEAD
+即可判断的严格格式约束，不需要跨对象读屏障。proof 由完整 Scope、descriptor 身份和
 上述稳定字段组成；其中不包含 proof 创建时的最新 HEAD revision、ETag、墙上时间或 ACL。
 
 HEAD8 的 Active marker 是历史上的一次激活结果；之后 Maintenance/compaction 可以使
@@ -185,6 +190,11 @@ Session，不读取已删除 payload，不授予 activation/GC，也不要求调
 若原终态 marker 已被替换，原 proof 的 phase revision/head serial 必须严格早于当前
 marker 的 admission counters，且当前仍为 HEAD8。仅检查 proof counters 小于当前 HEAD
 不足以排除 marker 回退后又有普通 SQL 推进的矛盾；必须先完成稳定双读，再判断损坏。
+
+当前 marker 若使用同一 creator/operation，却绑定不同 descriptor hash，也必须先完成
+最终 HEAD 屏障：HEAD 已变化返回 Conflict；HEAD 稳定则为权威矛盾并隔离，不能因为
+全 ref 不相等而落到缺 proof 的 fenced 分支。第一次持久 descriptor 的身份不能被新 hash
+重新解释。
 
 若稳定的当前 HEAD 已不再允许原 base CAS，但没有该 operation 的终态证明，只能报告
 原 admission 的未来效果已被 fence、过去效果尚不确定。缺失证明不能推出 NotApplied，

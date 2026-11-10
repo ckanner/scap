@@ -78,6 +78,8 @@ Aborted。原 claim 已在途时，与 Cancelling 竞争同一个原 ETag。进�
 HTTP 断开和本地 sent 标记都不能撤销已经 invoke 的 S3 请求。
 
 accepted marker 保留原 admission/phase 的 revision、head serial、nonce 和 owner tuple。
+当 status.revision 等于 phase.revision 时，status.transition.nonce 必须等于 phase.nonce；
+只增加 head serial 的技术变化保持这项绑定。业务 revision 已推进时可以有新的 nonce。
 status 中的 revision、owner epoch、lifecycle、active 可能已变化。历史 `state: active`
 不代表现在 active，也不代表新进程已有 Session。重复 resume 观察到终态时只返回元数据；
 只有本次完整恢复、最终原 HEAD barrier 和 Active CAS 成功后才在 Engine 中保存新 Session。
@@ -100,6 +102,9 @@ Deleted 或 terminal sealed 后，当前 ADMIN 仍可 metadata-only inspect 原 
 这不恢复普通 SQL/lookup 访问，也不授予 GC。永久 descriptor/proof 与 HEAD 不属于
 payload 清扫范围。新 marker 覆盖旧终态前必须保存并 exact 回读旧 proof；缺失或损坏的
 永久权威不能通过重建记录掩盖。
+同一 creator/operation 对应不同 descriptor hash 属于权威矛盾：双读 HEAD 稳定后返回
+CORRUPT；若 HEAD 在观察间变化，先返回 CONFLICT。单份 HEAD 内部 nonce 不一致则
+由严格格式校验直接拒绝。
 
 ## 恢复预算
 

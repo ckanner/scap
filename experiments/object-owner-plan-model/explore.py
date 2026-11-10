@@ -23,8 +23,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 MAX_SECONDS = 120
 MAX_BYTES = 256 * 1024 * 1024
-POSITIVE_COUNT = 987
-NEGATIVE_COUNT = 47
+POSITIVE_COUNT = 989
+NEGATIVE_COUNT = 48
 EXPECTED_FAMILIES = {'claim_cancel': 140, 'two_resume': 504, 'resume_abort': 252}
 
 
@@ -75,7 +75,7 @@ def check_inventory(positive, negative):
 def run(directory, diagnostic=False):
     output = Output(directory)
     started = time.monotonic()
-    report = {'status': 'FAILED', 'production': 'NOT_IMPLEMENTED', 'controller': 'NOT_IMPLEMENTED',
+    report = {'status': 'FAILED', 'production': 'NOT_EXECUTED_BY_MODEL', 'controller': 'NOT_IMPLEMENTED',
               'native_sqlite_http_s3': 'NOT_RUN', 'aws': 'NOT_RUN', 'diagnostic': diagnostic,
               'bound_seconds': MAX_SECONDS, 'bound_evidence_bytes': MAX_BYTES}
     def expired(_signum, _frame):

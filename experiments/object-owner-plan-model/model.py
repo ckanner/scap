@@ -147,7 +147,7 @@ class World:
         self._install(payload_key(digest(data)), encoded(data))
         self._install(payload_key(digest(result)), encoded(result))
         head = {'format': 6, 'scope': deepcopy(SCOPE), 'revision': revision,
-                'head_serial': serial, 'owner': {'instance': 1, 'epoch': epoch},
+                'head_serial': serial, 'transition_nonce': 1, 'owner': {'instance': 1, 'epoch': epoch},
                 'active': active, 'lifecycle': lifecycle, 'auth_epoch': 1,
                 'admins': [11, 12], 'readers': [11, 12], 'quota': 100,
                 'data_root': digest(data), 'windows': ['seed'], 'requests': [
@@ -402,6 +402,7 @@ class World:
             next_head['owner']['epoch'] += 1
             next_head['owner']['instance'] = desc['target']
         next_head['owner_plan'] = self._new_marker(desc, next_head, 'claim', 'claimed')
+        next_head['transition_nonce'] = desc['nonces']['claim']
         self._ready(call, HEAD, next_head, {'if_match': etag}, basis)
 
     @staticmethod
@@ -438,11 +439,13 @@ class World:
             next_head['head_serial'] += 1
             next_head['format'], next_head['active'] = 8, False
             next_head['owner_plan'] = self._new_marker(desc, next_head, 'cancel', 'cancelling')
+            next_head['transition_nonce'] = desc['nonces']['cancel']
         self._ready(call, HEAD, next_head, {'if_match': etag}, basis)
 
     @staticmethod
     def _phase(head, desc, kind, nonce):
         head['active'] = kind == 'active'
+        head['transition_nonce'] = desc['nonces'][nonce]
         head['owner_plan']['phase'] = {'kind': kind, 'revision': head['revision'],
             'head_serial': head['head_serial'], 'nonce': desc['nonces'][nonce],
             'owner': deepcopy(head['owner'])}
@@ -578,6 +581,7 @@ class World:
         next_head = deepcopy(head)
         next_head['revision'] += 1
         next_head['head_serial'] += 1
+        next_head['transition_nonce'] = call.args.get('transition_nonce', head['transition_nonce'])
         if kind == 'acl':
             if head['auth_epoch'] == self.maximum:
                 raise Rejected('LIMIT')

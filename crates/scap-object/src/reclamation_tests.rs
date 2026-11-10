@@ -7,6 +7,70 @@ use scap_object_store::{
 };
 use std::sync::Mutex;
 
+#[test]
+fn storage_candidates_cannot_change_owner_history_or_cross_a_pending_owner() {
+    let (objects, database) = fixture();
+    let mut base = database.read_head(deadline()).unwrap();
+    base.head.format = 8;
+    base.head.revision += 2;
+    base.head.head_serial += 2;
+    base.head.transition.revision = base.head.revision;
+    base.head.active = false;
+    base.head.owner_plan = Some(OwnerPlan {
+        reference: OwnerPlanRef {
+            creator: 7,
+            operation: 101,
+            descriptor_hash: digest(b"owner descriptor"),
+        },
+        admission: OwnerAdmission {
+            kind: OwnerAdmissionKind::Claim,
+            revision: base.head.revision - 1,
+            head_serial: base.head.head_serial - 1,
+        },
+        phase: OwnerPhase {
+            kind: OwnerPhaseKind::Aborted,
+            revision: base.head.revision,
+            head_serial: base.head.head_serial,
+            nonce: base.head.transition.nonce,
+            owner_epoch: base.head.owner_epoch,
+            owner_instance: base.head.owner_instance,
+        },
+    });
+    base.head.validate().unwrap();
+    let count = objects.operation_count();
+    for cut in 0..4 {
+        let mut next = technical_next(&base.head).unwrap();
+        match cut {
+            0 => next.owner_plan = None,
+            1 => next.owner_epoch += 1,
+            2 => next.owner_instance += 1,
+            _ => next.active = true,
+        }
+        assert!(
+            matches!(
+                database.publish_technical(&base, &next, deadline()),
+                Err(Error::Format(FormatError::Invalid))
+            ),
+            "storage cut {cut}"
+        );
+    }
+    let marker = base.head.owner_plan.as_mut().unwrap();
+    marker.phase.kind = OwnerPhaseKind::Claimed;
+    marker.admission.revision = marker.phase.revision;
+    marker.admission.head_serial = marker.phase.head_serial;
+    base.head.validate().unwrap();
+    let next = technical_next(&base.head).unwrap();
+    assert!(matches!(
+        database.publish_technical(&base, &next, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert!(matches!(
+        database.retire_deleted(base.clone(), base.head.head_serial, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert_eq!(objects.operation_count(), count);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Event {
     Inspect(String),

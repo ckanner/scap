@@ -587,6 +587,22 @@ def owner_binding_fault(changed_head):
     return world
 
 
+def phase_nonce_successor(kind):
+    world, _reference = active(World(maximum=20))
+    original = deepcopy(marker(world.head()))
+    if kind == 'technical':
+        accepted(world, 'storage', {'value': 'technical'})
+        assert world.head()['revision'] == original['phase']['revision']
+        assert world.head()['transition_nonce'] == original['phase']['nonce']
+    else:
+        assert kind == 'business'
+        accepted(world, 'quota', {'quota': 77, 'transition_nonce': 9001})
+        assert world.head()['revision'] == original['phase']['revision'] + 1
+        assert world.head()['transition_nonce'] != original['phase']['nonce']
+    assert marker(world.head()) == original
+    return world
+
+
 @dataclass(frozen=True)
 class Case:
     name: str
@@ -651,4 +667,6 @@ def cases():
     for changed in (False, True):
         add(f'damage-future-proof-{int(changed)}', future_proof, changed)
         add(f'damage-owner-binding-{int(changed)}', owner_binding_fault, changed)
+    for kind in ('technical', 'business'):
+        add('transition-' + kind, phase_nonce_successor, kind)
     return result

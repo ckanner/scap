@@ -14,13 +14,14 @@
 | 独立固定家族 | first-wins、4 类 crash、Cancelling 重启、恢复中 ACL/quota、R/S/epoch、target 更替、legacy、proof、storage/入口、期限/I/O、SQL UNKNOWN | 76 |
 | prepare ACK 丢失找回 | effect 在 crash 前/后 × HEAD 未变/已 Claimed/metadata 推进/Deleted | 8 |
 | 损坏控制元数据 | current/past descriptor 缺失、superseded proof counter 矛盾、同 identity 不同 descriptor hash，及跨读变化 | 7 |
-| **合计** | 全部名称在运行前写入 inventory.json | **987** |
+| 当前 owner transition | serial-only 后继保留 nonce、较晚业务 revision 使用新 nonce | 2 |
+| **合计** | 全部名称在运行前写入 inventory.json | **989** |
 
 响应模式固定为两条竞争请求的回复均正常、或它们实际发生的写回复均丢失。未发生的
 候选不会被伪造为 invoke/effect；oracle 从原始 admission/recovery/PUT 历史独立核对
 每个调度编号对应的宏步骤顺序。它不会通过读取模型的状态或构造器得出答案。
 
-47 个命名语义负控全部在 `counterexamples.py` 注册，必须在预先指定的 rule 拒绝；
+48 个命名语义负控全部在 `counterexamples.py` 注册，必须在预先指定的 rule 拒绝；
 换成 generic malformed/EOF 等其他失败不能计为通过。每个失败原始前缀独立留存。
 3 个正控依次为指定原 proof 历史、伪造 controller summary 后同一历史、全部负控后
 再次审计且核对未改变的原历史。它们不是三轮生产数据库测量。
@@ -62,6 +63,12 @@ proof→HEAD；双 HEAD/ETag 变化仅报不稳定，权限以当前 HEAD 为准
 原 descriptor 保持不变，变化分支在 HEAD1/HEAD2 之间安排合法的 pending quota 更新。
 模型验证上述历史返回边界，生产健康 latch 由核心独立单元与实际验收承担。
 
+HEAD 的有限投影新增精确 `transition_nonce`，对应业务 transition 的 nonce；其 revision
+由 HEAD.revision 表示。owner phase.revision 等于当前 R 时，两者 nonce 必须相等；
+serial-only 后继不解除此限制，R 增长后的合法 ACL/quota/SQL 后继可以有不同 nonce。
+独立 codec 单位与 raw 错误候选负控证明静态拒绝，两个合法轨迹证明后继边界；它们不
+声称已运行产品读取坏 HEAD 并返回 Corrupt，实际返回与健康隔离由核心 Database 回归负责。
+
 ## 组合入口
 
 pending 下逐项拒绝：execute、commit、cancel Unknown、close_full、epoch、lifecycle、
@@ -79,6 +86,8 @@ owner 操作变化。普通显式 SQL 用一个不透明固定输入与原结果
 
 提交 `58b2f986` 的 985 正向／45 负控／3 正控是保留的旧正式边界。新增同 identity
 错误 hash 的两条损坏轨迹与两条拒绝规则使用新源码、新输出目录复验，不回填旧证据。
+提交 `f8cc2613` 的 987／47／3 同样保留，新增 transition_nonce 投影只由这轮新的
+989／48／3 固定分母认证，不回填该版本的原结果。
 
 `explore.py` 先保存源码清单、Python 二进制 hash/版本、固定 inventory；每条正向原始
 历史先落盘，再由不导入 model 的 oracle 判定。全部负控也先保存，失败不会删除副本。

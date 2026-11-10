@@ -256,6 +256,8 @@ function headOwner(value, head) {
   const plan = ownerPlan(value), p = plan.phase;
   requireValue(BigInt(p.revision) <= BigInt(head.revision) && BigInt(p.head_serial) <= BigInt(head.head_serial),
     'Owner phase is newer than current authority');
+  requireValue(p.revision !== head.revision || head.transition.nonce === p.nonce,
+    'Current business transition contradicts the owner phase nonce');
   requireValue(p.kind === 'active' || head.active === false, 'Non-active owner phase cannot own an active HEAD');
   if (ownerPending(plan)) {
     requireValue(head.lifecycle === 'ready' && head.storage.plan === null && head.storage.sweep === null &&

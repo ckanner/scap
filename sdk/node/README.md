@@ -322,6 +322,9 @@ prepare 响应全部丢失时，应用依然有发送前保存的原输入：
 取得新准入、过去结果仍未知；绝不是 NotApplied。当前 marker 被新计划覆盖后，旧终态 proof
 的 R/S 必须严格早于新 marker 的 admission；SDK 还检查原 input、reference、phase nonce、
 counter reserve、phase 顺序和 storage/lifecycle 互斥，拒绝矛盾投影。
+同一 HEAD 的业务 revision 仍等于 phase.revision 时，transition.nonce 必须等于
+phase.nonce；只增加技术 head_serial 不解除这个约束。较晚的业务 revision 可以有新的
+transition nonce，不能据此改写原历史 phase。
 
 只有 `prepare` 的 Prepared 结果，或者 `inspect(savedInput)` 完整核对后的结果，能传给
 claim/resume/abort。纯 history、反序列化的任意 reference 和 Pending 都不能绕过该检查。

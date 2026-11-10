@@ -192,6 +192,9 @@ impl OwnerPlan {
                 && self.phase.head_serial <= head.head_serial
                 && head.lifecycle != Lifecycle::Provisioning,
         )?;
+        // Technical serial changes preserve the last business transition.
+        // A later business revision may legitimately carry a different nonce.
+        valid(self.phase.revision != head.revision || self.phase.nonce == head.transition.nonce)?;
         if self.phase.kind != OwnerPhaseKind::Active {
             valid(!head.active)?;
         }

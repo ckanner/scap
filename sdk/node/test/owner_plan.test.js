@@ -162,6 +162,23 @@ test('owner observations keep historical success separate from current ownership
   assert.equal(decode(observed('claimed', sameWorker), sameWorker).accepted.phase.owner_instance, '100');
 });
 
+test('equal business revision binds the owner nonce even after technical serial changes, while later business transitions may differ', () => {
+  const active = observed('active').status;
+  const technical = clone(active); technical.head_serial = String(BigInt(active.head_serial) + 1n);
+  assert.equal(wire.status(technical, SCOPE).transition.nonce, active.owner_plan.phase.nonce);
+  for (const value of [active, technical, observed('claimed').status]) {
+    mutate(value, (x) => x.transition.nonce = '9001', (x) => wire.status(x, SCOPE));
+  }
+  for (const phase of ['claimed', 'active']) {
+    const business = observed(phase).status;
+    business.revision = String(BigInt(business.revision) + 1n);
+    business.head_serial = String(BigInt(business.head_serial) + 1n);
+    business.transition = { revision: business.revision, nonce: '9001' };
+    assert.equal(wire.status(business, SCOPE).transition.nonce, '9001');
+    assert.notEqual(business.transition.nonce, business.owner_plan.phase.nonce);
+  }
+});
+
 test('observation decoder rejects cross-operation, cross-base, phase, proof ordering and omitted-history mutations', () => {
   const value = observed('active');
   for (const change of [(x) => x.prepared.input.operation = '8', (x) => x.prepared.scope.database = '8',

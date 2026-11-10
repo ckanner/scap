@@ -123,13 +123,13 @@ impl Objects for OwnerMeter {
         if actual > allowance {
             return Err(StoreError::Corrupt);
         }
+        if (self.now)() >= deadline {
+            return Err(StoreError::Unknown);
+        }
         self.used
             .lock()
             .expect("private owner recovery accounting")
             .bytes -= (allowance - actual) as u64;
-        if (self.now)() >= deadline {
-            return Err(StoreError::Unknown);
-        }
         result
     }
 
@@ -343,7 +343,10 @@ impl Database {
             Err(error) => return Err(Error::Store(error)),
         }
         let descriptor = OwnerDescriptor::new(&base, input).map_err(Error::Format)?;
-        let bytes = descriptor.bytes().map_err(Error::Format)?;
+        // No mutation follows new's strict validation. Its fixed-width fields
+        // and 1,024-byte ASCII ETag (even doubled by JSON escapes) have a
+        // strict total bound below the 16 KiB record ceiling.
+        let bytes = descriptor.bytes().expect("new bounded descriptor is valid");
         match database
             .objects
             .put(&key, &bytes, Condition::Absent, deadline)
@@ -389,8 +392,14 @@ impl Database {
             .head
             .owner_plan
             .as_ref()
-            .filter(|marker| marker.reference == descriptor.reference())
+            .filter(|marker| marker.reference.identity() == descriptor.input.identity())
         {
+            if marker.reference != descriptor.reference() {
+                // One immutable identity cannot name two first-persisted
+                // descriptors. Establish the stable observation before latching.
+                self.owner_barrier(principal, &base, deadline)?;
+                return Err(self.observe(Error::Corrupt));
+            }
             self.owner_marker(descriptor, marker)?;
             Some(marker.clone())
         } else {
@@ -510,7 +519,8 @@ impl Database {
                 (OwnerPhaseKind::Cancelling, descriptor.input.nonces.cancel)
             }
         };
-        let mut next = Self::next(&base.head, nonce)?;
+        // The same immutable base passed owner_admission's +2 reservation.
+        let mut next = Self::next(&base.head, nonce).expect("owner admission reserved counters");
         next.format = 8;
         next.active = false;
         if kind == OwnerAdmissionKind::Claim && descriptor.input.mode == OwnerMode::Takeover {
@@ -579,7 +589,8 @@ impl Database {
                     &base.head,
                     OwnerPhaseKind::Aborted,
                     descriptor.input.nonces.abort,
-                )?;
+                )
+                .expect("validated pending HEAD reserves its terminal counters");
                 return database.owner_publish(base, next, &descriptor, deadline);
             }
         }
@@ -625,7 +636,8 @@ impl Database {
             &base.head,
             OwnerPhaseKind::Active,
             descriptor.input.nonces.activate,
-        )?;
+        )
+        .expect("validated pending HEAD reserves its terminal counters");
         let observation = database.owner_publish(base, next, &descriptor, deadline)?;
         Ok((observation, Some(session)))
     }

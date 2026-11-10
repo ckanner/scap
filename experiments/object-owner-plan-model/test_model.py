@@ -24,7 +24,7 @@ class ProtocolTests(unittest.TestCase):
                 observed = audit(case.build().trace(case.name), strict_scenario=True)
                 self.assertEqual(observed['status'], 'PASSED')
                 passed += 1
-        self.assertEqual(passed, 94)
+        self.assertEqual(passed, 96)
 
     def test_all_semantic_negative_boundaries(self):
         for control in counterexamples.negatives():
@@ -46,9 +46,23 @@ class ProtocolTests(unittest.TestCase):
 
     def test_exact_registered_denominators(self):
         counts = explore.check_inventory(cases.cases(), counterexamples.negatives())
-        self.assertEqual(sum(counts.values()), 987)
+        self.assertEqual(sum(counts.values()), 989)
         self.assertEqual(counts['preparelost'], 8)
         self.assertEqual(counts['damage'], 7)
+        self.assertEqual(counts['transition'], 2)
+
+    def test_equal_revision_nonce_is_static_while_later_business_nonce_is_independent(self):
+        world, _reference = cases.active()
+        states = [world.head(), cases.phase_nonce_successor('technical').head()]
+        for head in states:
+            self.assertEqual(parse_head(encoded(head), 20), head)
+            changed = deepcopy(head)
+            changed['transition_nonce'] = 9001
+            with self.assertRaises(Violation) as rejected:
+                parse_head(encoded(changed), 20)
+            self.assertEqual(rejected.exception.rule, 'current-owner-transition-nonce')
+        later = cases.phase_nonce_successor('business').head()
+        self.assertEqual(parse_head(encoded(later), 20), later)
 
     def test_same_operation_wrong_hash_is_corrupt_only_after_a_stable_final_head(self):
         for changed in (False, True):

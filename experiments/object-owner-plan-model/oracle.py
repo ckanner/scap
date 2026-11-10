@@ -140,7 +140,7 @@ def owner_marker(value, maximum):
 
 def parse_head(raw, maximum):
     value = raw_json(raw, 262144)
-    expected = {'format', 'scope', 'revision', 'head_serial', 'owner', 'active', 'lifecycle',
+    expected = {'format', 'scope', 'revision', 'head_serial', 'transition_nonce', 'owner', 'active', 'lifecycle',
                 'auth_epoch', 'admins', 'readers', 'quota', 'data_root', 'windows', 'requests', 'storage'}
     require(value.get('format') in (6, 7, 8), 'head-version')
     if value['format'] == 8:
@@ -150,6 +150,7 @@ def parse_head(raw, maximum):
     for name in ('revision', 'head_serial', 'auth_epoch'):
         integer(value[name], maximum)
     require(value['revision'] <= value['head_serial'], 'serial-order')
+    integer(value['transition_nonce'])
     owner(value['owner'], maximum)
     require(type(value['active']) is bool, 'strict-schema')
     require(value['lifecycle'] in ('ready', 'maintenance', 'deleted'), 'lifecycle')
@@ -182,6 +183,8 @@ def parse_head(raw, maximum):
         phase = plan['phase']
         require(phase['revision'] <= value['revision'] and phase['head_serial'] <= value['head_serial'],
                 'phase-not-in-future')
+        require(phase['revision'] != value['revision'] or phase['nonce'] == value['transition_nonce'],
+                'current-owner-transition-nonce')
         if phase['kind'] != 'active':
             require(not value['active'], 'inactive-phase')
         if phase['kind'] in PENDING_PHASES:
@@ -341,6 +344,17 @@ class Audit:
             require(call['outcome'] == {'kind': 'error', 'value': {'code': expected}}, 'planned-owner-binding-outcome')
             proof_reads = [io for io in call['reads'] if '/owner/v1/proof/' in self.reads[io]['request']['key']]
             require(len(proof_reads) == 1 and self.read(proof_reads[0], call) is None, 'planned-owner-binding-missing-proof')
+        elif name.startswith('transition-'):
+            require(name in {'transition-technical', 'transition-business'}, 'declared-transition-scenario')
+            head = parse_head(self.objects[HEAD_KEY]['body'], self.maximum)
+            phase = head['owner_plan']['phase']
+            require(head['head_serial'] == phase['head_serial'] + 1, 'planned-transition-serial')
+            if name == 'transition-technical':
+                require(head['revision'] == phase['revision'] and head['transition_nonce'] == phase['nonce'],
+                        'planned-technical-transition')
+            else:
+                require(head['revision'] == phase['revision'] + 1 and head['transition_nonce'] == 9001 and
+                        head['transition_nonce'] != phase['nonce'], 'planned-business-transition')
         else:
             require(name.split('-')[0] in {'descriptor', 'crash', 'cancelling', 'metadata', 'reserve',
                     'counter', 'activate', 'sameworker', 'replacement', 'legacy', 'latehttp', 'proof',
@@ -637,6 +651,7 @@ class Audit:
                     'phase': {'kind': phase, 'revision': expected['revision'],
                               'head_serial': expected['head_serial'], 'nonce': desc['nonces'][admission],
                               'owner': deepcopy(expected['owner'])}}
+                expected['transition_nonce'] = desc['nonces'][admission]
             else:
                 require(same and is_pending, 'monotonic-accepted-phase')
                 self.reserve(before, 1)
@@ -651,9 +666,11 @@ class Audit:
                 expected['owner_plan']['phase'] = {'kind': kind, 'revision': expected['revision'],
                     'head_serial': expected['head_serial'], 'nonce': desc['nonces'][nonce],
                     'owner': deepcopy(expected['owner'])}
+                expected['transition_nonce'] = desc['nonces'][nonce]
         elif operation in ('acl', 'quota'):
             require(before['lifecycle'] == 'ready' and not before['storage']['terminal'], 'metadata-lifecycle')
             self.reserve(before, 2 if is_pending else 1)
+            expected['transition_nonce'] = args.get('transition_nonce', before['transition_nonce'])
             if operation == 'acl':
                 require(before['auth_epoch'] < self.maximum, 'auth-epoch-overflow')
                 expected['auth_epoch'] += 1
