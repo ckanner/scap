@@ -7,7 +7,8 @@
 ## 固定合同
 
 [oracle.py](oracle.py)冻结小容量 profile：2 connections、4 headers、512 header bytes、
-8192 字节 Hyper buffer 配置、3000 ms header 窗口。完整默认值另由产品 unit 验证。
+8192 字节 Hyper buffer 配置、3000 ms header 窗口，以及 30000 ms 响应发送和关闭窗口。
+完整默认值另由产品 unit 验证。
 
 | 合同 | 观察方式 |
 | --- | --- |
@@ -24,7 +25,10 @@ connect 成功不是 accept 证据；前两条已收到的健康响应才证明�
 不能把 deadline 自然释放的名额误认为显式释放的效果。
 真实网络时间测试保留原 monotonic 时间及宽松调度窗口；窗口内失败必须保留，不能改写为成功。
 不对慢响应、S3 工作或整个 daemon 的 RSS 推导额外保证。慢响应最后 Bytes 和 active drain
-由正式单元中的实际 Hyper + DuplexStream 路径另行验证。
+及不续期的发送/关闭上界由正式单元中的实际 Hyper + DuplexStream 路径另行验证；
+本 healthz 实验不把小响应成功计作真实大响应或 SQL 的发送期限验收。
+实际 SQLite/S3 大响应、逐字节慢读、已提交响应截断后的原身份 lookup，以及活跃响应关闭
+由独立的 [response 夹具](response/README.md) 验收；它有自己的冻结 PLAN、raw oracle 和负控。
 
 ## 执行
 

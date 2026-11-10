@@ -60,11 +60,14 @@ fn transport_defaults_and_explicit_profiles_are_checked_before_credentials() {
         crate::transport::Profile::default()
     );
     let profile = json!({"version":1,"max_connections":7,"max_headers":32,
-        "max_header_bytes":8192,"max_buffer_bytes":16384,"header_timeout_ms":1000});
+        "max_header_bytes":8192,"max_buffer_bytes":16384,"header_timeout_ms":1000,
+        "response_timeout_ms":4000,"shutdown_timeout_ms":6000});
     value["transport"] = profile.clone();
     let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
     assert_eq!(prepared.service.transport.max_connections, 7);
     assert_eq!(prepared.service.transport.header_timeout_ms, 1000);
+    assert_eq!(prepared.service.transport.response_timeout_ms, 4000);
+    assert_eq!(prepared.service.transport.shutdown_timeout_ms, 6000);
     value["transport"]["max_connections"] = json!(0);
     assert_eq!(
         parsed(value.clone())

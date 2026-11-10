@@ -26,7 +26,9 @@ catalogue 与 discovery 的应用准入预算继续独立；连接层不知道�
     "max_headers": 64,
     "max_header_bytes": 16384,
     "max_buffer_bytes": 32768,
-    "header_timeout_ms": 5000
+    "header_timeout_ms": 5000,
+    "response_timeout_ms": 30000,
+    "shutdown_timeout_ms": 30000
   }
 }
 ```
@@ -38,6 +40,8 @@ catalogue 与 discovery 的应用准入预算继续独立；连接层不知道�
 | `max_header_bytes` | 1–65536，且不大于 `max_buffer_bytes` | 包含 request line 的完整 header 字节数；同时约束 chunked trailer 大小 |
 | `max_buffer_bytes` | 8192–1048576 | Hyper HTTP/1 缓冲策略配置 |
 | `header_timeout_ms` | 1–60000 | 从开始读本次 header 到读完整段 header 的时间窗口 |
+| `response_timeout_ms` | 1–86400000 | handler 产出响应后，完成 body 和实际 socket flush 的绝对时间窗口 |
+| `shutdown_timeout_ms` | 1–86400000 | 停止 accept 后所有连接 graceful drain 的共同绝对时间窗口 |
 
 这些值不缩小 SQL 输入、业务结果 wire、数据库配额或 body intake 上限。
 它们明确限制运输层请求头；额外代理 header 也计入大小及数量。默认 16 KiB 请求头可以
@@ -75,13 +79,35 @@ header 完成后仍由原 handler 在进入时记录 `received`；body 读取、
 共用既有绝对 deadline，recovery 也不重新起算。运输层不延长业务 deadline，不提交 SQL，
 也不添加重试、回滚或身份替换。
 
-关闭信号先停止 accept、销毁 listener，再通知现有连接调用 Hyper graceful shutdown。
-每个连接继续被 poll 到响应完成并 join。之后 daemon 按原有顺序销毁请求 runtime，
-再 join/drop 实际 S3/native worker。客户端断连不提前释放实际 running Job 所持的 intake 租约。
+发送期限从 handler 产出响应开始，SQL 执行和长时间恢复仍使用原业务 deadline；等待
+handler 期间不会启动发送计时。期限直到 body 已销毁、Hyper 的最后排队 frame 已写入
+底层 I/O 且 flush 成功后才解除。仅仅 `Body::is_end_stream()`、取出最后一个 frame 或
+客户端读走一个字节都不会提前解除或重置期限。分块响应中间的 flush 和数据间歇也不续期。
+keep-alive 后的新响应有新的发送窗口；若 pipeline 的多个响应尚有共同未 flush 的字节，
+它们沿用这批字节中最早的期限，不能用后一个响应延长前一个。
 
-这一版保留原有 graceful 合同，没有强制 drain deadline。慢读响应仍可能长期占用一个
-连接名额并延迟进程关闭。独立 control listener、write-progress timeout 和强制关闭政策
-需要另外冻结行为与提交状态合同，不能以“连接数有上限”代替这些能力。
+实现给每个响应 body 增加一个销毁观察，并在原始 AsyncWrite 的成功 flush 处核对是否
+已无存活 body；它不转移或退款业务预算。固定 Hyper 1.12 的 flush 在其 write queue
+排空后才到达底层 I/O。`writev` 继续传递原 Bytes；响应期限到达时丢弃实际连接 future，
+其 body、排队 Bytes 和底层 socket 随真实所有权释放，再 join 回收连接名额。这里的
+flush 只证明数据交给 socket，不证明对端应用已经完整收到响应。
+
+关闭信号先停止 accept、销毁 listener，再通知现有连接调用 Hyper graceful shutdown。
+所有连接共享一个不续期的 shutdown 窗口；提前完成的正常回收，到期仍存在的连接统一
+abort 并逐项 join，不能留下 detached task。响应发送期限在 graceful drain 期间继续生效。
+之后 daemon 按原有顺序销毁请求 runtime，再 join/drop 实际 S3/native worker。
+因此连接 drain 有界；不合作的同步/native worker 仍可能延迟整个进程退出，不能把这个
+窗口宣称为所有数据库工作可强制终止的保证。
+
+连接超时、半截响应或断连不证明事务未提交，也不撤销已经派发的 Job 或 S3 请求。
+客户端保留原请求身份并查证，不自动重放 SQL。running Job 的 intake/WorkHold 独立
+存活到实际工作结束；已知提交的 receipt 也不会因传输关闭而被改写为未提交。客户端
+最多只能以完整且通过既有 SDK 校验的响应认定成功，截断响应保持 UNKNOWN。
+
+显式 `transport` 对象现在必须同时提供两项新字段；省略整个对象仍采用默认配置。
+旧的不完整显式对象返回 CONFIG，避免在部署时悄悄选取发送/关闭政策。
+这些期限依赖 Tokio 任务获得运行机会，不是可抢占任意同步代码的硬实时保证。
+独立 control listener 尚未实现；它仍不能绕过同端口的 TCP 连接饱和。
 
 ## 不能由本实现推导的结论
 
@@ -93,7 +119,9 @@ frame、JSON、原生 SQLite、TLS、线程栈和内核 socket 都不能从这�
 
 [单元测试](../src/transport/tests.rs)使用内存 DuplexStream 和暂停的 Tokio 时钟，覆盖
 接纳饱和、回收、首次/keep-alive deadline、parser 大小和数量边界、trailer、h2 拒绝、
-连接失败、慢响应 Bytes 所有权及 graceful drain。它们进入正式 Rust unit 四维覆盖。
+连接失败、慢响应 Bytes 所有权、drip/分块响应的绝对发送期限、keep-alive 与长 handler
+隔离、空 body/HEAD、最早 pipeline 期限、I/O 失败及有界 graceful drain。它们进入正式
+Rust unit 四维覆盖。
 
 [真实 TCP 实验](../../../experiments/bounded-transport/README.md)另启实际 `scapd`，使用原始
 socket 验证用户空间接纳、header deadline、431、h2 拒绝和 owned child 回收。

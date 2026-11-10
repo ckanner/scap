@@ -24,7 +24,9 @@ mkdir -p /absolute/private-cache
     "max_headers": 64,
     "max_header_bytes": 16384,
     "max_buffer_bytes": 32768,
-    "header_timeout_ms": 5000
+    "header_timeout_ms": 5000,
+    "response_timeout_ms": 30000,
+    "shutdown_timeout_ms": 30000
   },
   "worker_instance": "5001",
   "cache_directory": "/absolute/private-cache",

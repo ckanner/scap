@@ -137,6 +137,8 @@ fn versioned_profile_validates_every_limit_before_building_hyper() {
             max_header_bytes: 16384,
             max_buffer_bytes: 32768,
             header_timeout_ms: 5000,
+            response_timeout_ms: 30000,
+            shutdown_timeout_ms: 30000,
         }
     );
     assert!(profile.checked().is_ok());
@@ -153,6 +155,10 @@ fn versioned_profile_validates_every_limit_before_building_hyper() {
         |p| p.max_buffer_bytes = 8192,
         |p| p.header_timeout_ms = 0,
         |p| p.header_timeout_ms = 60001,
+        |p| p.response_timeout_ms = 0,
+        |p| p.response_timeout_ms = 86400001,
+        |p| p.shutdown_timeout_ms = 0,
+        |p| p.shutdown_timeout_ms = 86400001,
     ];
     for change in changes {
         let mut invalid = profile;
@@ -165,6 +171,8 @@ fn versioned_profile_validates_every_limit_before_building_hyper() {
         max_header_bytes: 1,
         max_buffer_bytes: 8192,
         header_timeout_ms: 1,
+        response_timeout_ms: 1,
+        shutdown_timeout_ms: 1,
         ..profile
     }
     .checked()
@@ -175,6 +183,8 @@ fn versioned_profile_validates_every_limit_before_building_hyper() {
         max_header_bytes: 65536,
         max_buffer_bytes: 1048576,
         header_timeout_ms: 60000,
+        response_timeout_ms: 86400000,
+        shutdown_timeout_ms: 86400000,
         ..profile
     }
     .checked()
@@ -467,4 +477,332 @@ async fn shutdown_without_connections_or_with_idle_keepalive_finishes() {
     stream.read_exact(&mut body).await.unwrap();
     server.finish().await;
     assert!(closed_response(&mut stream).await.is_empty());
+}
+
+fn large_router(dropped: Arc<AtomicUsize>) -> Router {
+    router().route(
+        "/large",
+        get(move || {
+            let dropped = dropped.clone();
+            async move {
+                Body::from(Bytes::from_owner(TrackedBytes {
+                    bytes: vec![b'x'; 65536],
+                    dropped,
+                }))
+            }
+        }),
+    )
+}
+
+const LARGE: &[u8] = b"GET /large HTTP/1.1\r\nHost: unit\r\n\r\n";
+
+#[tokio::test(start_paused = true)]
+async fn slow_response_deadline_keeps_last_backing_until_close_and_releases_capacity() {
+    let dropped = Arc::new(AtomicUsize::new(0));
+    let server = Running::start(
+        Profile {
+            max_connections: 1,
+            response_timeout_ms: 100,
+            ..Profile::default()
+        },
+        large_router(dropped.clone()),
+    );
+    let mut slow = server.connect(128);
+    slow.write_all(LARGE).await.unwrap();
+    assert!(headers(&mut slow).await.starts_with(b"HTTP/1.1 200"));
+    let mut waiting = server.connect(4096);
+    waiting.write_all(REQUEST).await.unwrap();
+    turns().await;
+    assert_eq!(server.accepted.load(Ordering::SeqCst), 1);
+    for _ in 0..2 {
+        tokio::time::advance(Duration::from_millis(40)).await;
+        assert_eq!(slow.read_u8().await.unwrap(), b'x');
+        turns().await;
+        assert_eq!(dropped.load(Ordering::SeqCst), 0);
+        assert!(pending_read(&mut waiting).await);
+    }
+    tokio::time::advance(Duration::from_millis(21)).await;
+    turns().await;
+    assert_eq!(dropped.load(Ordering::SeqCst), 1);
+    let remainder = closed_response(&mut slow).await;
+    assert!(remainder.len() < 65534);
+    assert!(remainder.iter().all(|byte| *byte == b'x'));
+    assert!(closed_response(&mut waiting).await.ends_with(b"ok"));
+    assert_eq!(server.accepted.load(Ordering::SeqCst), 2);
+    server.finish().await;
+}
+
+struct Chunks {
+    input: mpsc::Receiver<Bytes>,
+    dropped: Arc<AtomicUsize>,
+}
+
+impl HttpBody for Chunks {
+    type Data = Bytes;
+    type Error = Infallible;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Bytes>, Infallible>>> {
+        self.input
+            .poll_recv(cx)
+            .map(|bytes| bytes.map(|bytes| Ok(http_body::Frame::data(bytes))))
+    }
+}
+
+impl Drop for Chunks {
+    fn drop(&mut self) {
+        self.dropped.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn flushed_chunks_and_stream_gaps_do_not_renew_the_response_deadline() {
+    let (send, input) = mpsc::channel(2);
+    let input = Arc::new(Mutex::new(Some(input)));
+    let dropped = Arc::new(AtomicUsize::new(0));
+    let app = Router::new().route(
+        "/",
+        get({
+            let dropped = dropped.clone();
+            move || {
+                let input = input.lock().unwrap().take().unwrap();
+                let dropped = dropped.clone();
+                async move { Body::new(Chunks { input, dropped }) }
+            }
+        }),
+    );
+    let server = Running::start(
+        Profile {
+            response_timeout_ms: 100,
+            ..Profile::default()
+        },
+        app,
+    );
+    let mut stream = server.connect(4096);
+    stream.write_all(REQUEST).await.unwrap();
+    assert!(headers(&mut stream).await.starts_with(b"HTTP/1.1 200"));
+    for _ in 0..2 {
+        tokio::time::advance(Duration::from_millis(40)).await;
+        send.send(Bytes::from_static(b"x")).await.unwrap();
+        let mut chunk = [0; 6];
+        stream.read_exact(&mut chunk).await.unwrap();
+        assert_eq!(&chunk, b"1\r\nx\r\n");
+    }
+    tokio::time::advance(Duration::from_millis(21)).await;
+    assert!(closed_response(&mut stream).await.is_empty());
+    assert_eq!(dropped.load(Ordering::SeqCst), 1);
+    assert!(send.send(Bytes::from_static(b"late")).await.is_err());
+    server.finish().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn application_work_and_fresh_keepalive_responses_have_separate_send_budgets() {
+    let entered = Arc::new(Semaphore::new(0));
+    let release = Arc::new(Semaphore::new(0));
+    let app = router()
+        .route(
+            "/wait",
+            get({
+                let entered = entered.clone();
+                let release = release.clone();
+                move || {
+                    let entered = entered.clone();
+                    let release = release.clone();
+                    async move {
+                        entered.add_permits(1);
+                        release.acquire().await.unwrap().forget();
+                        "ok"
+                    }
+                }
+            }),
+        )
+        .route("/empty", get(|| async { StatusCode::NO_CONTENT }));
+    let server = Running::start(
+        Profile {
+            response_timeout_ms: 50,
+            ..Profile::default()
+        },
+        app,
+    );
+    let mut stream = server.connect(4096);
+    for _ in 0..2 {
+        stream
+            .write_all(b"GET /wait HTTP/1.1\r\nHost: unit\r\n\r\n")
+            .await
+            .unwrap();
+        entered.acquire().await.unwrap().forget();
+        tokio::time::advance(Duration::from_millis(100)).await;
+        assert!(pending_read(&mut stream).await);
+        release.add_permits(1);
+        assert!(headers(&mut stream).await.starts_with(b"HTTP/1.1 200"));
+        let mut body = [0; 2];
+        stream.read_exact(&mut body).await.unwrap();
+        assert_eq!(&body, b"ok");
+        turns().await;
+        tokio::time::advance(Duration::from_millis(100)).await;
+        assert!(pending_read(&mut stream).await);
+    }
+    for request in [
+        b"GET /empty HTTP/1.1\r\nHost: unit\r\n\r\n".as_slice(),
+        b"HEAD / HTTP/1.1\r\nHost: unit\r\n\r\n",
+    ] {
+        stream.write_all(request).await.unwrap();
+        assert!(headers(&mut stream).await.starts_with(b"HTTP/1.1 2"));
+        turns().await;
+        tokio::time::advance(Duration::from_millis(100)).await;
+        assert!(pending_read(&mut stream).await);
+    }
+    stream.write_all(REQUEST).await.unwrap();
+    assert!(closed_response(&mut stream).await.ends_with(b"ok"));
+    server.finish().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn response_expiry_and_shutdown_force_drop_real_backing_then_join() {
+    for (response_ms, shutdown_ms) in [(100, 1000), (1000, 100)] {
+        let dropped = Arc::new(AtomicUsize::new(0));
+        let mut server = Running::start(
+            Profile {
+                response_timeout_ms: response_ms,
+                shutdown_timeout_ms: shutdown_ms,
+                ..Profile::default()
+            },
+            large_router(dropped.clone()),
+        );
+        let mut stream = server.connect(128);
+        stream.write_all(LARGE).await.unwrap();
+        assert!(headers(&mut stream).await.starts_with(b"HTTP/1.1 200"));
+        server.signal();
+        turns().await;
+        tokio::time::advance(Duration::from_millis(99)).await;
+        assert!(!server.task.is_finished());
+        assert_eq!(dropped.load(Ordering::SeqCst), 0);
+        tokio::time::advance(Duration::from_millis(2)).await;
+        server.task.await.unwrap();
+        assert!(server.dropped.load(Ordering::SeqCst));
+        assert_eq!(dropped.load(Ordering::SeqCst), 1);
+        assert!(closed_response(&mut stream).await.len() < 65536);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn unflushed_response_batch_keeps_earliest_deadline_until_every_body_is_dropped() {
+    let (drain, deadlines) = Drain::new();
+    drain.flushed();
+    assert!(deadlines.borrow().is_none());
+    let first = drain.begin(Duration::from_millis(100));
+    let original = *deadlines.borrow();
+    tokio::time::advance(Duration::from_millis(40)).await;
+    let second = drain.begin(Duration::from_millis(100));
+    assert_eq!(*deadlines.borrow(), original);
+    drop(first);
+    drain.flushed();
+    assert_eq!(*deadlines.borrow(), original);
+    drop(second);
+    assert_eq!(*deadlines.borrow(), original);
+    drain.flushed();
+    assert!(deadlines.borrow().is_none());
+    let fresh = drain.begin(Duration::from_millis(100));
+    assert!(*deadlines.borrow() > original);
+    drop(fresh);
+    drain.flushed();
+}
+
+struct ScriptIo {
+    flush: u8,
+}
+
+impl AsyncRead for ScriptIo {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        bytes: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        bytes.put_slice(b"r");
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncWrite for ScriptIo {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _bytes: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(Ok(0))
+    }
+
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        _bytes: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.flush {
+            0 => Poll::Pending,
+            1 => Poll::Ready(Err(io::ErrorKind::BrokenPipe.into())),
+            _ => Poll::Ready(Ok(())),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn io_errors_zero_progress_and_pending_flush_never_clear_the_deadline() {
+    let (drain, deadlines) = Drain::new();
+    let body = drain.begin(Duration::from_secs(1));
+    let mut io = DrainIo {
+        inner: ScriptIo { flush: 0 },
+        drain: drain.clone(),
+    };
+    assert_eq!(io.read_u8().await.unwrap(), b'r');
+    assert!(io.is_write_vectored());
+    assert_eq!(io.write(b"ignored").await.unwrap(), 0);
+    assert_eq!(
+        io.write_vectored(&[io::IoSlice::new(b"ignored")])
+            .await
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    drop(body);
+    let original = *deadlines.borrow();
+    assert!(poll_fn(|cx| Poll::Ready(Pin::new(&mut io).poll_flush(cx).is_pending())).await);
+    assert_eq!(*deadlines.borrow(), original);
+    io.inner.flush = 1;
+    assert_eq!(
+        io.flush().await.unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(*deadlines.borrow(), original);
+    io.inner.flush = 2;
+    io.flush().await.unwrap();
+    assert!(deadlines.borrow().is_none());
+    io.shutdown().await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn deadline_observer_stops_if_its_connection_owners_are_gone() {
+    for active in [false, true] {
+        let (drain, deadlines) = Drain::new();
+        let expired = tokio::spawn(response_expired(deadlines));
+        let body = active.then(|| drain.begin(Duration::from_secs(1)));
+        turns().await;
+        assert!(!expired.is_finished());
+        drop(body);
+        drop(drain);
+        expired.await.unwrap();
+    }
 }

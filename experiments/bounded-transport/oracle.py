@@ -9,7 +9,8 @@ from pathlib import Path
 
 
 PROFILE = {"version": 1, "max_connections": 2, "max_headers": 4,
-           "max_header_bytes": 512, "max_buffer_bytes": 8192, "header_timeout_ms": 3000}
+           "max_header_bytes": 512, "max_buffer_bytes": 8192, "header_timeout_ms": 3000,
+           "response_timeout_ms": 30000, "shutdown_timeout_ms": 30000}
 CASES = {"capacity", "first_header_deadline", "keepalive_header_deadline",
          "header_bytes_at", "header_bytes_over", "header_count_at", "header_count_over", "h2"}
 H2 = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
