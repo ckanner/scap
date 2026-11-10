@@ -172,14 +172,41 @@ Promote 后 G1 在两域都退休，所以仅把断言改成 2 不能保持原�
 `m:12` Freeze CAS 使用 `m:8` 的原 ETag。两次 Applied 后，D0 为 A1/M3/T3、
 无 hold，G2 已退休；D1 仍为 A2，同一个 G2 仍 active。测试先检查合法删除，
 再构造假拒绝，要求独立 oracle 拒绝借用 D1 权威，命中
-`fixture rejected already retired generation`。上述新路径仍待单位执行确认。
+`fixture rejected already retired generation`。该路径已由下节 c8 的单位执行确认。
 
 35 个测试名称、46 个固定输入及全部 caps、producer、独立 oracle 和 controls
-保持不变。本次测试修正只有静态审阅，**新源码的单位、完整 BFS、独立 oracle 和
-controls 均 NOT_RUN**，须在新干净 commit 上依次执行。原 bc9 单位失败和更早的
-e396 完整门禁失败各自保留。原 driver、日志、exit、源码及输入身份见
+保持不变。该测试修正发布为 `c8f65f6631c0acf62f9ea14ae696e7587c6b39c3`，
+其新冻结门禁结果见下节。原 bc9 单位失败和更早的 e396 完整门禁失败各自保留。
+原 driver、日志、exit、源码及输入身份见
 [本次失败摘要](../../docs/evidence/handle-knowledge-units-failure-local-2026-11-10.json)；
 原始运行日志不提交到仓库。
+
+## 2026-11-10 c8 完整有限门禁
+
+精确 commit `c8f65f6631c0acf62f9ea14ae696e7587c6b39c3`、tree
+`02565092aaaff0a4ff4d4058837e580efdc8db0d` 的本轮门禁已完成，结论为
+**PASS_WITHIN_DECLARED_MODEL_SCOPE**。35 项单位先通过，随后才执行完整枚举、
+独立审计和负控；全部九个阶段命令退出码为 0，444 个 tracked source 文件在前后
+校验中保持不变。
+
+| 门槛 | 本轮实际结果 |
+| --- | --- |
+| Focused units | 35 / 35 PASS |
+| 完整固定输入枚举 | 46 profiles；57,420 states；136,266 edges；无截断 |
+| 独立 oracle | 全部状态、边、enabled choices 和 119 mandatory witnesses 通过 |
+| 语义负控 | 47 个均在声明边界拒绝；47 个原 edge 正例均通过 |
+| 图级负控 | 2 个均拒绝；原完整 choice set 正例通过 |
+| 源码与输入 | 原 46 输入和全部 caps 未变；前后源码校验通过 |
+
+本轮与独立目录中的 jobs=1 Rust 正确性任务并行。保留原每 profile 120 秒等全部
+上界，没有为并行调高 cap；这不是吞吐、延迟或性能资格验证。有限模型通过不等于
+生产多世代 admission、SQLite/native、HTTP/S3、GC 或 AWS Standard 已完成验收。
+
+本轮完整新图、日志、审计和负控输出、444 文件源码与 driver 已归档；788 个 member
+全部流式读回并核对 SHA256/长度。归档也保存仍可用的 bc9 单位失败原件和完整源码
+恢复映射。旧 e396 大图在恢复环境不可用，历史摘要仍保持 FAILED；不把本轮新图
+当作旧图，也不覆盖两个原失败。精确阶段 exit/hash、输入、并行说明和归档身份见
+[完整验收摘要](../../docs/evidence/handle-knowledge-acceptance-local-2026-11-10.json)。
 
 ## 运行命令与证据
 

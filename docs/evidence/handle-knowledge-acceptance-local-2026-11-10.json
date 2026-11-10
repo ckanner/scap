@@ -1,0 +1,410 @@
+{
+  "all_owned_commands_exited": true,
+  "all_stage_exit_codes_zero": true,
+  "archive": {
+    "all_member_names_unique_and_complete": true,
+    "contents": [
+      "本轮所有原始压缩state/edge图与逐profile报告",
+      "原始日志、source captures、独立oracle/witness及controls输出",
+      "c8全部444源码及真实commit对象",
+      "两个原driver及bc9失败原始小证据",
+      "bc9完整443源码恢复映射：只复用逐字节相等的c8文件，其余原差异文件单独存储"
+    ],
+    "every_member_sha256_and_size_stream_verified": true,
+    "exact_bc9_source_files_via_map": 443,
+    "file": {
+      "bytes": 23678780,
+      "path": "/workspace/scratch/591a71cb3372/handle-knowledge-c8f65f6-archive-20261110-01/handle-knowledge-c8f65f6-20261110-01.tar.gz",
+      "sha256": "df934f37dc8c723857e65e8efdbb07e9c165730803698c374cc54909d1429211"
+    },
+    "member_manifest": {
+      "bytes": 273639,
+      "path": "/workspace/scratch/591a71cb3372/handle-knowledge-c8f65f6-archive-20261110-01/member-manifest.json",
+      "sha256": "a9f45f5800ab8b8bd6b97815d373b14087901a40add13ec5869bd82de807d099"
+    },
+    "original_source_worktrees_changed": false,
+    "original_tmp_evidence_deleted_or_modified": false,
+    "packager": {
+      "bytes": 9204,
+      "path": "/workspace/scratch/591a71cb3372/handle-knowledge-c8f65f6-archive-20261110-01/archive_evidence.py",
+      "sha256": "37202504aad08d4621bcdcd3a81acff700bb084c21d2256812312a11247ee894"
+    },
+    "receipt": {
+      "bytes": 3227,
+      "path": "/workspace/scratch/591a71cb3372/handle-knowledge-c8f65f6-archive-20261110-01/archive-receipt.json",
+      "sha256": "592e380c6e59fe247923f718ee888b82f41c7d2db9d4885f41fdfec1bbd8232b"
+    },
+    "restore": "标准tar读取；c8源码在source/，本轮证据在evidence/c8f65f6/；bc9源码逐文件位置见metadata/bc9-source-map.json，失败证据在evidence/bc9f9e6-failed/。",
+    "status": "ARCHIVE_ALL_MEMBERS_STREAM_VERIFIED",
+    "tracked_c8_source_files": 444,
+    "verified_member_bytes": 40163302,
+    "verified_members": 788
+  },
+  "assessment_date_utc": "2026-11-10",
+  "aws_standard": "NOT_RUN",
+  "bounds": {
+    "actors": 4,
+    "domains": 2,
+    "edges_per_profile": 150000,
+    "frames": 8,
+    "generations": 3,
+    "holds": 1,
+    "lineages": 3,
+    "plans": 1,
+    "scopes": 2,
+    "seconds_per_profile": 120,
+    "states_per_profile": 50000,
+    "steps_per_actor": 96,
+    "tokens": 48,
+    "workers": 2
+  },
+  "commands": [
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 1879991106535,
+      "log": {
+        "bytes": 108,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/focused-source.log",
+        "sha256": "a62d0a4f26dd5ce6a56bdd5d506e33eee89d9db35931cbb628cf7a3cfa1bb133"
+      },
+      "name": "focused-source",
+      "pid": 8,
+      "started_monotonic_ns": 1879785210089
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-handle-knowledge-model",
+        "-p",
+        "test_model.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 1881170125201,
+      "log": {
+        "bytes": 6404,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/focused-units.log",
+        "sha256": "38efce402be79cd4a10fad474b2dd17ef7d3bb2d45dfedde0c0695481d3a6896"
+      },
+      "name": "focused-units",
+      "pid": 19,
+      "started_monotonic_ns": 1879991366385
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 1881313977402,
+      "log": {
+        "bytes": 99,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/focused-source-verify.log",
+        "sha256": "7958aadbe2a267e7fb7eb93e7854c293be608d66915010486ddd013d4d3ee929"
+      },
+      "name": "focused-source-verify",
+      "pid": 20,
+      "started_monotonic_ns": 1881172840774
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 1881447049041,
+      "log": {
+        "bytes": 108,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/full-source.log",
+        "sha256": "a62d0a4f26dd5ce6a56bdd5d506e33eee89d9db35931cbb628cf7a3cfa1bb133"
+      },
+      "name": "full-source",
+      "pid": 31,
+      "started_monotonic_ns": 1881316418137
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "experiments/object-handle-knowledge-model/run.py",
+        "--output",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 2013396171294,
+      "log": {
+        "bytes": 2685,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/enumerate.log",
+        "sha256": "a2700073e2e2da7e856a336013782ce0ee21f8d7d1fbc4f69a36c0e324623911"
+      },
+      "name": "enumerate",
+      "pid": 42,
+      "started_monotonic_ns": 1881447847762
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "experiments/object-handle-knowledge-model/oracle.py",
+        "--graph",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph",
+        "--output",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/audit"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 2126887293409,
+      "log": {
+        "bytes": 1144,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/independent-oracle.log",
+        "sha256": "df15bdafcec0a522ad40467f11b042218d7133e57238405cb3df3ca6655dea44"
+      },
+      "name": "independent-oracle",
+      "pid": 44,
+      "started_monotonic_ns": 2013397368479
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "experiments/object-handle-knowledge-model/controls.py",
+        "--graph",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph",
+        "--audit",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/audit/receipt.json",
+        "--output",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/controls"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 2146430253494,
+      "log": {
+        "bytes": 642,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/controls.log",
+        "sha256": "43cf276e95b170a0aac2bc38946da14f08f95c51c4239d4d2301448fb0c64889"
+      },
+      "name": "controls",
+      "pid": 45,
+      "started_monotonic_ns": 2126889956019
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 2146567559932,
+      "log": {
+        "bytes": 99,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/final-source-verify-0.log",
+        "sha256": "7958aadbe2a267e7fb7eb93e7854c293be608d66915010486ddd013d4d3ee929"
+      },
+      "name": "final-source-verify-0",
+      "pid": 46,
+      "started_monotonic_ns": 2146431287028
+    },
+    {
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/source-before.json"
+      ],
+      "exit_code": 0,
+      "finished_monotonic_ns": 2146701658092,
+      "log": {
+        "bytes": 99,
+        "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/final-source-verify-1.log",
+        "sha256": "7958aadbe2a267e7fb7eb93e7854c293be608d66915010486ddd013d4d3ee929"
+      },
+      "name": "final-source-verify-1",
+      "pid": 57,
+      "started_monotonic_ns": 2146568150911
+    }
+  ],
+  "completion": {
+    "bytes": 9848,
+    "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/completion.json",
+    "sha256": "387587696c6b8e9f0716e89e61aead9295808b76feb0760725677f590de1acbc"
+  },
+  "controls": {
+    "graph_negative_controls": 2,
+    "limits": "Reachable original edge/prefix mutations against exact frozen independent rules; no new BFS or altered acceptance mode.",
+    "positive_original_choice_sets": 1,
+    "positive_original_edges": 47,
+    "receipt": {
+      "bytes": 12988,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/controls/receipt.json",
+      "sha256": "b7491e1cc0c8b33ec3a196ea034a088015b2850e893274971755712bb4587dcf"
+    },
+    "semantic_negative_controls": 47,
+    "source_unchanged": true,
+    "status": "PASS_WITHIN_CONTROL_SCOPE"
+  },
+  "driver": {
+    "bytes": 10794,
+    "path": "/tmp/scap-handle-knowledge-c8f65f6-gates01.py",
+    "sha256": "6d74ba4d7f23a5da387a019cac43700d98e5b7cdced105d6fb002553c2eda382"
+  },
+  "enumeration": {
+    "edges": 136266,
+    "manifest": {
+      "bytes": 12286,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph/manifest.json",
+      "sha256": "4c1eca359ba783791fc266f329811320ce49fba331f8979df0eedd18ebdacc98"
+    },
+    "profiles": 46,
+    "source_unchanged": true,
+    "states": 57420,
+    "status": "ENUMERATED",
+    "truncated": false,
+    "whole_inventory": true
+  },
+  "execution_context": {
+    "affinity_cpu_count": 9,
+    "concurrent_correctness_workload": true,
+    "cpu_max": "UNAVAILABLE",
+    "logical_cpu_count": 9,
+    "original_caps_unchanged": true,
+    "other_allowed_workload": "Separate jobs=1 Rust correctness build/unit collection, independent source/targets.",
+    "performance_qualification": false,
+    "qualification": "有限正确性门槛允许与独立 jobs=1 Rust 构建/单位并行；不作吞吐、延迟或生产性能结论。"
+  },
+  "focused_units": {
+    "errors": 0,
+    "failures": 0,
+    "receipt": {
+      "bytes": 2919,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/receipt.json",
+      "sha256": "58429fe2433d16c244647b0194d1220f1eda30c0407860b623a013e10a220e8b"
+    },
+    "skipped": 0,
+    "status": "PASS",
+    "tests": 35
+  },
+  "independent_oracle": {
+    "edges": 136266,
+    "mandatory_witnesses": 119,
+    "profiles": 46,
+    "receipt": {
+      "bytes": 41299,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/audit/receipt.json",
+      "sha256": "921af7c549498fe49e1c69c4f4c94e08febe371706f2db94121859d3eec7d34f"
+    },
+    "states": 57420,
+    "status": "PASS_WITHIN_DECLARED_MODEL_SCOPE",
+    "whole_inventory": true
+  },
+  "inputs": {
+    "bytes": 699518,
+    "path": "/workspace/scratch/591a71cb3372/handle-foreign-authority-test-publication/experiments/object-handle-knowledge-model/inputs.json",
+    "sha256": "9cd5c13adda7f74bae847fe3786cabec83b5594086788edb423f0ff3b4f6da4a"
+  },
+  "inputs_and_caps_changed": false,
+  "limitations": [
+    "仅覆盖冻结输入中的有限程序和原caps，不证明任意客户端程序或无限调度。",
+    "模型格式不是SCAPOBJ2/SCAPRES1/native SQLite的真实语义证明。",
+    "生产generation admission、Provisioning/Catalogue/RecoveryMeter、GC、真实deadline/native/backend行为仍需独立生产接入与验收。",
+    "记录的并行任务不改变caps，也不提供性能资格证明。"
+  ],
+  "native_or_service_acceptance": "NOT_RUN",
+  "new_complete_graphs": "AVAILABLE_IN_THIS_ARCHIVE_NOT_RECONSTRUCTED_FROM_OLD_SUMMARIES",
+  "prior_failures": [
+    {
+      "commit": "e396d48011a69628fe47186549a390aad1f145b6",
+      "controls": "NOT_RUN",
+      "enumeration": {
+        "edges": 136266,
+        "profiles": 46,
+        "states": 57420
+      },
+      "error": "unaccounted rejection boundary: fixture_remove_live_generation",
+      "failure_stage": "independent-oracle",
+      "original_large_raw_graphs_in_restored_environment": "UNAVAILABLE",
+      "raw_graphs_reconstructed": false,
+      "reinterpreted_as_pass": false,
+      "status": "FAILED",
+      "summary": {
+        "bytes": 27571,
+        "path": "docs/evidence/handle-knowledge-rejections-static-local-2026-11-09.json",
+        "sha256": "a1344dbe213b396e343a25dbe4bff696dc9e023f6dfa5121b0c58feb84c84801"
+      }
+    },
+    {
+      "bfs": "NOT_RUN",
+      "commit": "bc9f9e6af7a9024a39a39ced7b59969ffe66cfda",
+      "controls": "NOT_RUN",
+      "failure_stage": "focused-units",
+      "failures": 1,
+      "independent_oracle": "NOT_RUN",
+      "original_failure_logs_and_source": "AVAILABLE_IN_THIS_ARCHIVE",
+      "passed": 34,
+      "reinterpreted_as_pass": false,
+      "status": "FAILED",
+      "summary": {
+        "bytes": 13394,
+        "path": "docs/evidence/handle-knowledge-units-failure-local-2026-11-10.json",
+        "sha256": "04972faf0b3461e865402e6a926fcb66610b4418a0bf34709b4e0f46eb85d7f7"
+      },
+      "unit_tests": 35
+    }
+  ],
+  "production_runtime_changed_by_this_docs_commit": false,
+  "raw_logs_committed": false,
+  "runtime": {
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "python": {
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "version": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]"
+    }
+  },
+  "schema": 1,
+  "scope": "固定46个handle-knowledge有限actor程序的完整枚举、独立图审计与语义/图负控；不声称生产多世代或实际引擎/后端完成。",
+  "source_commit": "c8f65f6631c0acf62f9ea14ae696e7587c6b39c3",
+  "source_manifests": {
+    "focused": {
+      "bytes": 117254,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/focused/source-before.json",
+      "sha256": "cfee619e6ed530a16f27a9f24f0eb27ca51da71f400fa283fa22fab92290190d"
+    },
+    "full": {
+      "bytes": 117254,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/source-before.json",
+      "sha256": "cfee619e6ed530a16f27a9f24f0eb27ca51da71f400fa283fa22fab92290190d"
+    },
+    "model_after": {
+      "bytes": 3310,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph/source-after.json",
+      "sha256": "db559987171dafc74263589e8e42a249380ee439395e410b9d4d4829fcbc53a9"
+    },
+    "model_before": {
+      "bytes": 3310,
+      "path": "/tmp/scap-handle-knowledge-c8f65f6-20261110-01/full/graph/source-before.json",
+      "sha256": "db559987171dafc74263589e8e42a249380ee439395e410b9d4d4829fcbc53a9"
+    },
+    "tracked_source_files": 444
+  },
+  "source_tree": "02565092aaaff0a4ff4d4058837e580efdc8db0d",
+  "source_unchanged": true,
+  "status": "PASS_WITHIN_DECLARED_MODEL_SCOPE"
+}
