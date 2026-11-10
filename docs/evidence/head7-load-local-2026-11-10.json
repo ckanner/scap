@@ -1,0 +1,649 @@
+{
+  "acceptance": {
+    "all_owned_processes_reaped": true,
+    "independent_oracle": "PASSED",
+    "negative_controls": [
+      {
+        "case": "missing_call",
+        "rejected_by": "http-denominator"
+      },
+      {
+        "case": "slow_sample_removed",
+        "rejected_by": "call-clock"
+      },
+      {
+        "case": "request_identity_changed",
+        "rejected_by": "original-http-input"
+      },
+      {
+        "case": "retained_result_changed",
+        "rejected_by": "committed-wire"
+      },
+      {
+        "case": "cold_blob_changed",
+        "rejected_by": "complete-business-values"
+      },
+      {
+        "case": "publication_missing",
+        "rejected_by": "s3-exchange"
+      },
+      {
+        "case": "whole_tail_exchange_missing",
+        "rejected_by": "s3-denominator"
+      },
+      {
+        "case": "warm_hidden_download",
+        "rejected_by": "warm-head-only"
+      },
+      {
+        "case": "busy_error_changed",
+        "rejected_by": "sdk-error-code"
+      },
+      {
+        "case": "gate_released_early",
+        "rejected_by": "hot-before-gate-release"
+      },
+      {
+        "case": "wrong_process",
+        "rejected_by": "resource-process-identity"
+      },
+      {
+        "case": "missing_samples",
+        "rejected_by": "resource-samples"
+      },
+      {
+        "case": "wrong_binary",
+        "rejected_by": "runtime-binary"
+      },
+      {
+        "case": "unreaped_service",
+        "rejected_by": "owned-service-exit"
+      }
+    ],
+    "positive_control_meanings": [
+      "Original untouched evidence independently audits successfully.",
+      "A persistent separate copy with fabricated controller summary yields exactly the same audited result.",
+      "Original evidence independently reaudits to the identical result after every negative mutation."
+    ],
+    "positive_controls": 3,
+    "private_directory_removed": true,
+    "raw_runner_exit_code": 0,
+    "source_and_binary_after": "PASSED"
+  },
+  "artifact_sha256": {
+    "evidence/head7-load-commands-01/load-1.json": "19a334ee652b5c633974c37afbcd3a94a078043fb99027c3331de7ca338d6116",
+    "evidence/head7-load-commands-01/load-2.stdout": "c189f88100390e8f1c02a96263322637141112352d1b0b83b49bdfe334926166",
+    "evidence/head7-load-commands-01/source-after.json": "28c5effe2c54060037f507f30168fd6fea79217e516a080f9298f145d26cde92",
+    "evidence/object-load-head7-actual-01/acks.jsonl": "8e347f75d7f467036dd6a563e4d7d684dd416e2032197a3b6753cd988959bc0e",
+    "evidence/object-load-head7-actual-01/events.jsonl": "668f6c332fcc95445f07210afc2a7e1dc72bb2fcbaa9809e7f5a0f76a3f716c2",
+    "evidence/object-load-head7-actual-01/inputs.json": "fb5eb8d25b2136bb8c0b86b243120d4d4e57ee85ff7bd3d60167ebaa40fbd069",
+    "evidence/object-load-head7-actual-01/intents.jsonl": "a62b73dd289c69b4299f44c7fcfc974b8c13c5e4e64468ef980d9f45b3d5971d",
+    "evidence/object-load-head7-actual-01/resources-1.jsonl": "184fac062502f76b2dfd903df4e4ee5063f70f9cbf17e5903bcfe2b9334eeb22",
+    "evidence/object-load-head7-actual-01/resources-2.jsonl": "4a285a7069de51f46898f5f7ea2abc17d5779d177bf12bff9c17bc4bf42f0bec",
+    "evidence/object-load-head7-actual-01/s3.jsonl": "34ad87cd3abb9054b099cf567e8db6f6a8df3ceea60b0259010b8119a1e43049",
+    "evidence/object-load-head7-actual-01/sdk.jsonl": "4048155cb942438d9060acd0a777185197fc9234c21def023ac6dcb15893b60d",
+    "evidence/object-load-head7-actual-01/summary.json": "46f05a240a6c96a8a84b73f90e27afe4cf78f3d85fd97268b1cfe2b3d050ac46",
+    "evidence/object-load-head7-actual-01/workload.json": "77b8df40cdbb69f59d9fccdca65b5ebcd8f70c77780a4d051f1474630fc079d9",
+    "evidence/object-load-head7-controls-01/controls.json": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353",
+    "evidence/object-load-head7-controls-01/original-oracle.json": "042014323add28ce27e6ca72cf823e9c09d3e5e275ce4f1fb8eaf0cc1aefe297",
+    "evidence/object-load-head7-results-01.py": "394d7faf16769874b2869510dc70565c109c75752f01f401b22fa5b2895027cc"
+  },
+  "cold_recovery": {
+    "all_probes_finished_after_gate_arrived_ms": 182.917414,
+    "all_probes_finished_before_gate_release": true,
+    "backend_or_host_page_cache_cold_claimed": false,
+    "cold_means_fresh_process_and_empty_compute_cache": true,
+    "cold_open_includes_artificial_gate": true,
+    "database_pages": 8258,
+    "downloaded_dependencies": 281,
+    "gate_hold_ms": 225.374135,
+    "hot_control_calls": 11,
+    "open_ms": 1498.696748,
+    "probe_groups": {
+      "cold_status_controls": 2,
+      "hot_queries": 8,
+      "recovery_busy_probe": 1
+    },
+    "probe_latency_with_generator_queue_max_ms": 130.099597,
+    "probe_request_latency_max_ms": 87.575229,
+    "probes": [
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 119.603374,
+        "finished_before_gate_release_ms": 105.770761,
+        "id": "hot-probe-0",
+        "latency_ms_including_generator_queue": 66.785557,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 65.212292,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 126.859706,
+        "finished_before_gate_release_ms": 98.514429,
+        "id": "hot-probe-1",
+        "latency_ms_including_generator_queue": 74.041889,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 70.671829,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 134.26494,
+        "finished_before_gate_release_ms": 91.109195,
+        "id": "hot-probe-2",
+        "latency_ms_including_generator_queue": 81.447123,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 77.455354,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 144.918196,
+        "finished_before_gate_release_ms": 80.455939,
+        "id": "hot-probe-3",
+        "latency_ms_including_generator_queue": 92.100379,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 87.575229,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 159.341735,
+        "finished_before_gate_release_ms": 66.0324,
+        "id": "hot-probe-4",
+        "latency_ms_including_generator_queue": 106.523918,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 38.890025,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 150.323711,
+        "finished_before_gate_release_ms": 75.050424,
+        "id": "hot-probe-5",
+        "latency_ms_including_generator_queue": 97.505894,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 22.818326,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 172.839197,
+        "finished_before_gate_release_ms": 52.534938,
+        "id": "hot-probe-6",
+        "latency_ms_including_generator_queue": 120.02138,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 34.310614,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 169.346471,
+        "finished_before_gate_release_ms": 56.027664,
+        "id": "hot-probe-7",
+        "latency_ms_including_generator_queue": 116.528654,
+        "operation": "query",
+        "request_latency_ms_including_service_queue": 23.846227,
+        "scope": "hot",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 179.036362,
+        "finished_before_gate_release_ms": 46.337773,
+        "id": "cold-status-0",
+        "latency_ms_including_generator_queue": 126.218545,
+        "operation": "status",
+        "request_latency_ms_including_service_queue": 19.075419,
+        "scope": "cold",
+        "success": true
+      },
+      {
+        "error_code": null,
+        "finished_after_gate_arrived_ms": 166.609695,
+        "finished_before_gate_release_ms": 58.76444,
+        "id": "cold-status-1",
+        "latency_ms_including_generator_queue": 113.791878,
+        "operation": "status",
+        "request_latency_ms_including_service_queue": 15.508743,
+        "scope": "cold",
+        "success": true
+      },
+      {
+        "error_code": "RECOVERY_BUSY",
+        "finished_after_gate_arrived_ms": 182.917414,
+        "finished_before_gate_release_ms": 42.456721,
+        "id": "recovery-busy",
+        "latency_ms_including_generator_queue": 130.099597,
+        "operation": "open",
+        "request_latency_ms_including_service_queue": 9.398234,
+        "scope": "seq",
+        "success": false
+      }
+    ],
+    "user_bytes": 33554432
+  },
+  "comparisons": {
+    "read_multi_over_same": 1.0158976214101947,
+    "write_multi_over_same": 1.4585478401256293,
+    "write_same_over_sequential": 0.9316922215125196
+  },
+  "controls_root": "evidence/object-load-head7-controls-01",
+  "denominators": {
+    "ack_observations": 690,
+    "all_error_codes": {
+      "RECOVERY_BUSY": 1
+    },
+    "all_outcomes": {
+      "rejected": 1,
+      "success": 870
+    },
+    "automatic_business_retries": 0,
+    "counts_by_phase": {
+      "cold-open": 1,
+      "cold-probes": 11,
+      "cold-warm": 1,
+      "hot-open": 1,
+      "read_multi": 64,
+      "read_same": 64,
+      "seed": 41,
+      "verify": 528,
+      "write_multi": 64,
+      "write_same": 64,
+      "write_seq": 32
+    },
+    "health_readiness_gets": 2,
+    "http_posts": 871,
+    "measured_calls": 288,
+    "original_execute_calls": 185,
+    "original_execute_outcomes": {
+      "committed": 185,
+      "committed_but_unavailable": 0,
+      "conflict": 0,
+      "other_error": 0,
+      "unknown": 0
+    },
+    "rejected_http_calls": 1,
+    "successful_http_calls": 870,
+    "unsigned_backend_probe_gets": 1
+  },
+  "evidence_root": "evidence/object-load-head7-actual-01",
+  "fixture_commit": "7b757f7ec184af96d81ca5cd700bf3bc65d0f741",
+  "invocation_to_owned_backend_cleanup_seconds": 60.36681718,
+  "limits": {
+    "aws_standard": "NOT_RUN",
+    "comparison": "Sequential writes use 32 calls; same-library concurrency uses 64 writes in one database, multi-library concurrency uses 16 in each of four databases; object sizes and S3 amplification differ.",
+    "hard_resource_peak_proved": false,
+    "latency": "Request latency includes service queue, response decoding and observer persistence; generator queue latency is reported separately.",
+    "memory_discrepancy": "The independent audit preserves sampled procfs values, decreases if observed, and owned wait4 separately; neither is a proved hard process limit.",
+    "production_slo_passed": false,
+    "quantiles": "Nearest rank, all offered outcomes included; p99 equals the maximum in these 32/64-call samples.",
+    "resource_scope": "scapd procfs samples and owned wait4 are separate observations; Node/Python/proxy/backend memory and host page cache are not counted as daemon RSS.",
+    "sample_interval_ms": 100,
+    "sampling": "RSS/FD/thread/disk samples can miss transients; nonzero collection time and actual maximum sample gaps are preserved.",
+    "scope": "One fixed local instrumented run through the unchanged release daemon and SDK, with a signed S3-compatible endpoint."
+  },
+  "measured": {
+    "read_multi": {
+      "concurrency_limit": 4,
+      "conflicts": 0,
+      "elapsed_seconds": 0.417327022,
+      "error_codes": {},
+      "latency_ms_including_generator_queue": {
+        "maximum": 419.048004,
+        "p50": 269.650788,
+        "p95": 410.504903,
+        "p99": 419.048004,
+        "samples": 64
+      },
+      "observed_concurrency": 4,
+      "offered": 64,
+      "offered_per_second": 153.35695180553154,
+      "original_write_outcomes": null,
+      "outcomes": {
+        "success": 64
+      },
+      "outcomes_including_zeros": {
+        "committed_but_unavailable": 0,
+        "not_sent": 0,
+        "rejected": 0,
+        "success": 64,
+        "unknown": 0
+      },
+      "request_latency_ms_including_service_queue": {
+        "maximum": 89.791202,
+        "p50": 20.785097,
+        "p95": 67.145484,
+        "p99": 89.791202,
+        "samples": 64
+      },
+      "s3_methods": {
+        "GET": 64
+      },
+      "s3_request_body_bytes": 0,
+      "s3_requests": 64,
+      "s3_requests_per_offered_call": 1.0,
+      "s3_response_body_bytes": 49152,
+      "success_per_second": 153.35695180553154,
+      "unknowns": 0
+    },
+    "read_same": {
+      "concurrency_limit": 4,
+      "conflicts": 0,
+      "elapsed_seconds": 0.423961529,
+      "error_codes": {},
+      "latency_ms_including_generator_queue": {
+        "maximum": 426.276365,
+        "p50": 263.993075,
+        "p95": 413.100694,
+        "p99": 426.276365,
+        "samples": 64
+      },
+      "observed_concurrency": 4,
+      "offered": 64,
+      "offered_per_second": 150.95709309039688,
+      "original_write_outcomes": null,
+      "outcomes": {
+        "success": 64
+      },
+      "outcomes_including_zeros": {
+        "committed_but_unavailable": 0,
+        "not_sent": 0,
+        "rejected": 0,
+        "success": 64,
+        "unknown": 0
+      },
+      "request_latency_ms_including_service_queue": {
+        "maximum": 88.796934,
+        "p50": 20.859361,
+        "p95": 69.669126,
+        "p99": 88.796934,
+        "samples": 64
+      },
+      "s3_methods": {
+        "GET": 64
+      },
+      "s3_request_body_bytes": 0,
+      "s3_requests": 64,
+      "s3_requests_per_offered_call": 1.0,
+      "s3_response_body_bytes": 49216,
+      "success_per_second": 150.95709309039688,
+      "unknowns": 0
+    },
+    "write_multi": {
+      "concurrency_limit": 4,
+      "conflicts": 0,
+      "elapsed_seconds": 4.351590642,
+      "error_codes": {},
+      "latency_ms_including_generator_queue": {
+        "maximum": 4352.835772,
+        "p50": 2419.071186,
+        "p95": 4308.954574,
+        "p99": 4352.835772,
+        "samples": 64
+      },
+      "observed_concurrency": 4,
+      "offered": 64,
+      "offered_per_second": 14.70726574836678,
+      "original_write_outcomes": {
+        "committed": 64,
+        "committed_but_unavailable": 0,
+        "conflict": 0,
+        "other_error": 0,
+        "unknown": 0
+      },
+      "outcomes": {
+        "success": 64
+      },
+      "outcomes_including_zeros": {
+        "committed_but_unavailable": 0,
+        "not_sent": 0,
+        "rejected": 0,
+        "success": 64,
+        "unknown": 0
+      },
+      "request_latency_ms_including_service_queue": {
+        "maximum": 366.517908,
+        "p50": 259.076355,
+        "p95": 343.297987,
+        "p99": 366.517908,
+        "samples": 64
+      },
+      "s3_methods": {
+        "GET": 768,
+        "PUT": 384
+      },
+      "s3_request_body_bytes": 3568556,
+      "s3_requests": 1152,
+      "s3_requests_per_offered_call": 18.0,
+      "s3_response_body_bytes": 6648492,
+      "success_per_second": 14.70726574836678,
+      "unknowns": 0
+    },
+    "write_same": {
+      "concurrency_limit": 4,
+      "conflicts": 0,
+      "elapsed_seconds": 6.347003132,
+      "error_codes": {},
+      "latency_ms_including_generator_queue": {
+        "maximum": 6348.307636,
+        "p50": 2790.38017,
+        "p95": 6025.293924,
+        "p99": 6348.307636,
+        "samples": 64
+      },
+      "observed_concurrency": 4,
+      "offered": 64,
+      "offered_per_second": 10.083499041827793,
+      "original_write_outcomes": {
+        "committed": 64,
+        "committed_but_unavailable": 0,
+        "conflict": 0,
+        "other_error": 0,
+        "unknown": 0
+      },
+      "outcomes": {
+        "success": 64
+      },
+      "outcomes_including_zeros": {
+        "committed_but_unavailable": 0,
+        "not_sent": 0,
+        "rejected": 0,
+        "success": 64,
+        "unknown": 0
+      },
+      "request_latency_ms_including_service_queue": {
+        "maximum": 579.566733,
+        "p50": 390.154774,
+        "p95": 517.274056,
+        "p99": 579.566733,
+        "samples": 64
+      },
+      "s3_methods": {
+        "GET": 844,
+        "PUT": 423
+      },
+      "s3_request_body_bytes": 10099679,
+      "s3_requests": 1267,
+      "s3_requests_per_offered_call": 19.796875,
+      "s3_response_body_bytes": 20103119,
+      "success_per_second": 10.083499041827793,
+      "unknowns": 0
+    },
+    "write_seq": {
+      "concurrency_limit": 1,
+      "conflicts": 0,
+      "elapsed_seconds": 2.956726724,
+      "error_codes": {},
+      "latency_ms_including_generator_queue": {
+        "maximum": 2958.550188,
+        "p50": 1516.114102,
+        "p95": 2857.32802,
+        "p99": 2958.550188,
+        "samples": 32
+      },
+      "observed_concurrency": 1,
+      "offered": 32,
+      "offered_per_second": 10.822779034752621,
+      "original_write_outcomes": {
+        "committed": 32,
+        "committed_but_unavailable": 0,
+        "conflict": 0,
+        "other_error": 0,
+        "unknown": 0
+      },
+      "outcomes": {
+        "success": 32
+      },
+      "outcomes_including_zeros": {
+        "committed_but_unavailable": 0,
+        "not_sent": 0,
+        "rejected": 0,
+        "success": 32,
+        "unknown": 0
+      },
+      "request_latency_ms_including_service_queue": {
+        "maximum": 137.288958,
+        "p50": 89.159202,
+        "p95": 119.850277,
+        "p99": 137.288958,
+        "samples": 32
+      },
+      "s3_methods": {
+        "GET": 395,
+        "PUT": 198
+      },
+      "s3_request_body_bytes": 3063762,
+      "s3_requests": 593,
+      "s3_requests_per_offered_call": 18.53125,
+      "s3_response_body_bytes": 5948394,
+      "success_per_second": 10.822779034752621,
+      "unknowns": 0
+    }
+  },
+  "plan_sha256": "d21c13273f00b6dc0908c4c531429f0701b49e16ff8267073ebc5bace2d4ae81",
+  "raw_evidence_unique_bytes": 227054360,
+  "resources": [
+    {
+      "first_sample_delay_ms": 1.005052,
+      "hard_peak_or_limit_proved": false,
+      "instance": 1,
+      "kernel_lifetime_maxrss_bytes": 76075008,
+      "last_sample_to_exit_ms": 58.721422,
+      "maximum_sample_collection_ms": 85.884927,
+      "maximum_sample_gap_ms": 186.167847,
+      "observed_hwm_decreases": 7,
+      "sampled_backend_allocated_peak_bytes": 55107584,
+      "sampled_backend_logical_peak_bytes": 54911172,
+      "sampled_cache_allocated_peak_bytes": 34914304,
+      "sampled_cache_logical_peak_bytes": 34885632,
+      "sampled_fd_peak": 49,
+      "sampled_hwm_max_bytes": 76890112,
+      "sampled_rss_above_wait4_maxrss_bytes": 815104,
+      "sampled_rss_peak_bytes": 76890112,
+      "sampled_thread_peak": 15,
+      "samples": 220
+    },
+    {
+      "first_sample_delay_ms": 0.366142,
+      "hard_peak_or_limit_proved": false,
+      "instance": 2,
+      "kernel_lifetime_maxrss_bytes": 58482688,
+      "last_sample_to_exit_ms": 90.956451,
+      "maximum_sample_collection_ms": 4.740706,
+      "maximum_sample_gap_ms": 184.418859,
+      "observed_hwm_decreases": 2,
+      "sampled_backend_allocated_peak_bytes": 55107584,
+      "sampled_backend_logical_peak_bytes": 54911945,
+      "sampled_cache_allocated_peak_bytes": 34885632,
+      "sampled_cache_logical_peak_bytes": 34885632,
+      "sampled_fd_peak": 41,
+      "sampled_hwm_max_bytes": 58585088,
+      "sampled_rss_above_wait4_maxrss_bytes": 102400,
+      "sampled_rss_peak_bytes": 58585088,
+      "sampled_thread_peak": 15,
+      "samples": 119
+    }
+  ],
+  "runtime_source_commit": "7b757f7ec184af96d81ca5cd700bf3bc65d0f741",
+  "s3": {
+    "audited_product_requests": 6266,
+    "authority": {
+      "accepted_versions": 1462,
+      "ambiguous_http_intervals": 0,
+      "blackholed_before_forward": 0,
+      "causal_constraints": 5198,
+      "conditional_put_responses": 1462,
+      "exact_get_body_etag_pairs": 4804,
+      "http_interval_binding": "NOT_REQUESTED"
+    },
+    "methods": {
+      "GET": 4804,
+      "PUT": 1462
+    },
+    "request_body_bytes": 53955052,
+    "response_body_bytes": 116479013,
+    "setup_backend_administration_included": false
+  },
+  "schema": 1,
+  "source_after": {
+    "argv": [
+      "python3",
+      "-B",
+      "scripts/source_manifest.py",
+      "verify",
+      "evidence/head7-source.json"
+    ],
+    "cwd": "workspace/scap-head7",
+    "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+    "exit_code": 0,
+    "finish_monotonic_ns": 16165409031050,
+    "name": "source-after",
+    "plan_sha256": "2272c9f67e84bdfa4d881aa7ce78069d7fffac971eeebc2bf45caf708d6988d1",
+    "start_monotonic_ns": 16165192041087,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "95eea9c059642c5ea6bbb31325d9dc6a1f3b8b39e5af09e7e2af45629257003e",
+    "timeout": false,
+    "timeout_seconds": 60
+  },
+  "status": "PASSED",
+  "tools": {
+    "node": {
+      "path": "workspace/scap-env/node/bin/node",
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+    },
+    "scapd": {
+      "path": "workspace/scap-target/service-head7/release/scapd",
+      "sha256": "76b36de23bd43f19f0946f5f94d3e55e2b3c909cd9aaf141e3414cf525c3b319"
+    },
+    "weed": {
+      "path": "workspace/scap-env/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    }
+  },
+  "verified_results": {
+    "ack_observations": 690,
+    "measured_write_resolutions": {
+      "committed": 160
+    },
+    "original_committed": 185,
+    "verified_rows": {
+      "cold": 512,
+      "hot": 1,
+      "m0": 16,
+      "m1": 16,
+      "m2": 16,
+      "m3": 16,
+      "same": 64,
+      "seq": 32
+    }
+  }
+}

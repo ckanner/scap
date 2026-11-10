@@ -6,6 +6,8 @@
 
 **当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**；原生故障、保留结果、生命周期、目录、新的 1 GiB 全量恢复，以及整栈 HTTP/资源/回收/负载和全部独立判定/负对照均通过，进入合入收尾。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。[PR #55](https://github.com/ckanner/scap/pull/55) 继续实现 Deleted 最后一代的显式永久退休，按新源码独立验收。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
 
+**最新增量：PR #54 已合入 main `733f012`。HEAD7 的冻结产品 `7b757` 已通过 stable/nightly 各 652 项单元、60 个生产文件四维精确覆盖，以及 terminal retirement 的真实合同与 25 负/1 正对照、新的 1 GiB 恢复和固定负载合同；其余 HTTP 汇总与多代 GC 最终负对照仍在执行。** 详见 [HEAD7 验收](docs/engineering/head7-runtime-validation.md)。[PR #56](https://github.com/ckanner/scap/pull/56) 已发布可恢复 owner plan 的 core/service/SDK 开发检查点；独立模型的新 987 正向、47 负对照、3 正对照已通过，生产正式验收仍未完成。
+
 对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
 
 历史 [HEAD5 组合候选](docs/architecture/head5-runtime-composition.md)的冻结运行时 `778a4d2` 已通过完整538+538单位、发现/metadata专项以及[六个实际native/S3网络子门禁](docs/evidence/head5-runtime-network-local-2026-11-09.json)。本轮目录为116场景、1,000次ACK零错配，保留结果为12场景/72入口；这些使用Rust worker与真实签名S3，不替代仍待完成的HTTP服务、容量/部署恢复、owner和资源门禁，也不接受后续编码器/输出池源码。该历史候选由 PR #54 承接；新运行结果与新发现以顶部记录为准。
