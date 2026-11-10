@@ -22,6 +22,7 @@ pub enum DiscoveryError {
     Conflict,
     Unknown,
     Corrupt,
+    SnapshotExpired,
 }
 
 impl From<CatalogueError> for DiscoveryError {
@@ -33,6 +34,7 @@ impl From<CatalogueError> for DiscoveryError {
             CatalogueError::Conflict | CatalogueError::IdentityConflict => Self::Conflict,
             CatalogueError::Unknown => Self::Unknown,
             CatalogueError::NotFound | CatalogueError::Corrupt => Self::Corrupt,
+            CatalogueError::SnapshotExpired => Self::SnapshotExpired,
         }
     }
 }

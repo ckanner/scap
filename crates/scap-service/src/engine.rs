@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use scap_object::format::{head_key, DatabaseQuota};
 use scap_object::{Database, Options, Session};
-use scap_object_store::Objects;
-use serde_json::{json, Value};
+use scap_object_store::{Garbage, Listings, Objects};
+use serde_json::{Map, Value};
 use tokio::sync::Semaphore;
 
 use crate::auth::Principal;
@@ -19,6 +19,13 @@ struct Cached {
     database: Database,
     session: Option<Session>,
     touched: u64,
+}
+
+#[derive(Clone)]
+pub(crate) struct Collector {
+    pub deployment: u64,
+    pub listings: Arc<dyn Listings>,
+    pub garbage: Arc<dyn Garbage>,
 }
 
 pub struct Engine {
@@ -32,6 +39,7 @@ pub struct Engine {
     max_pages: u64,
     serial: u64,
     recovery: Arc<Semaphore>,
+    collector: Option<Collector>,
 }
 
 /// Keep storage admission and its ordering identical when testing a directory
@@ -75,7 +83,13 @@ impl Engine {
             max_pages,
             serial: 0,
             recovery,
+            collector: None,
         })
+    }
+
+    pub(crate) fn with_collector(mut self, collector: Option<Collector>) -> Self {
+        self.collector = collector;
+        self
     }
 
     fn next_path(&mut self) -> Result<PathBuf, Failure> {
@@ -122,6 +136,28 @@ impl Engine {
         call: Call,
         deadline: Instant,
     ) -> Result<Value, Failure> {
+        self.execute_using(principal, call, deadline, None)
+    }
+
+    /// HTTP workers must explicitly forward the original context and deadline.
+    /// This does not cover core/native buffers allocated before service output.
+    pub fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: &mut crate::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        self.execute_using(principal, call, deadline, Some(output))
+    }
+
+    fn execute_using(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: Option<&mut crate::output::OutputContext>,
+    ) -> Result<Value, Failure> {
         if call.version != 1 {
             return Err(Failure::new("VERSION"));
         }
@@ -131,6 +167,13 @@ impl Engine {
         let scope = call.scope.native()?;
         call.action.validate()?;
         principal.authorize(&scope)?;
+        if call
+            .action
+            .expected_worker()
+            .is_some_and(|worker| worker != self.worker)
+        {
+            return Err(Failure::new("TARGET_MISMATCH"));
+        }
         if matches!(call.action, Action::Create { .. }) && !principal.provision {
             return Err(Failure::new("DENIED"));
         }
@@ -159,13 +202,7 @@ impl Engine {
             },
         };
         entry.touched = self.serial;
-        let result = self.dispatch(
-            principal.principal,
-            &mut entry,
-            call.action,
-            &path,
-            deadline,
-        );
+        let result = self.dispatch(principal, &mut entry, call.action, &path, deadline, output);
         // A failed native operation may have invalidated the private connection.
         // Quarantined Database handles survive while resident; no failed cache
         // is reused, and a future recreation verifies S3 before serving.
@@ -201,17 +238,20 @@ impl Engine {
 
     fn dispatch(
         &self,
-        principal: u64,
+        principal: &Principal,
         entry: &mut Cached,
         action: Action,
         path: &Path,
         deadline: Instant,
+        output: Option<&mut crate::output::OutputContext>,
     ) -> Result<Value, Failure> {
+        let deployment = principal.deployment;
+        let principal = principal.principal;
         let database = entry.database.clone();
         let head =
             match action {
                 Action::Create { nonce } => database.create(principal, nonce.0, deadline)?,
-                Action::Status {} => database.status(principal, deadline)?,
+                Action::Status { .. } => database.status(principal, deadline)?,
                 Action::Open {} => {
                     // An explicit recovery call has its own HTTP deadline and
                     // refreshes a cached stale root without ever replaying SQL.
@@ -226,7 +266,10 @@ impl Engine {
                         &statements,
                         deadline,
                     )?;
-                    return queried(value);
+                    return match output {
+                        Some(output) => queried_budgeted(value, output),
+                        None => queried(value),
+                    };
                 }
                 Action::Execute {
                     request,
@@ -242,25 +285,25 @@ impl Engine {
                     let (receipt, result) = self
                         .session(principal, entry, path, deadline)?
                         .execute(principal, &identity, &statements, deadline)?;
-                    return committed(receipt, result);
+                    return match output {
+                        Some(output) => committed_budgeted(receipt, result, output),
+                        None => committed(receipt, result),
+                    };
                 }
                 Action::Lookup { request } => {
-                    return Ok(wire::resolved(database.lookup(
-                        principal,
-                        &request.native(principal)?,
-                        deadline,
-                    )?))
+                    let resolution =
+                        database.lookup(principal, &request.native(principal)?, deadline)?;
+                    return resolved(resolution, output);
                 }
                 Action::Cancel { request } => {
-                    return Ok(wire::resolved(database.cancel(
-                        principal,
-                        &request.native(principal)?,
-                        deadline,
-                    )?))
+                    let resolution =
+                        database.cancel(principal, &request.native(principal)?, deadline)?;
+                    return resolved(resolution, output);
                 }
                 Action::Activate {
                     expected_revision,
                     nonce,
+                    ..
                 } => {
                     let _slot = self
                         .recovery
@@ -280,6 +323,7 @@ impl Engine {
                 Action::Takeover {
                     expected_revision,
                     nonce,
+                    ..
                 } => {
                     entry.session = None;
                     database.takeover(principal, expected_revision.0, nonce.0, deadline)?
@@ -332,8 +376,85 @@ impl Engine {
                         deadline,
                     )?
                 }
+                Action::CompactBegin {
+                    expected_head_serial,
+                } => {
+                    entry.session = None;
+                    database.compact_begin(principal, expected_head_serial.0, deadline)?
+                }
+                Action::CompactCopy { plan_serial } => {
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    database.compact_copy(principal, plan_serial.0, deadline)?
+                }
+                Action::CompactPromote { plan_serial } => {
+                    // Promotion leaves ownership inactive. Never retain the
+                    // retired image or silently activate/replay application SQL.
+                    entry.session = None;
+                    database.compact_promote(principal, plan_serial.0, deadline)?
+                }
+                Action::CompactAbort { plan_serial } => {
+                    database.compact_abort(principal, plan_serial.0, deadline)?
+                }
+                Action::GcPrepare {
+                    expected_head_serial,
+                    generation,
+                    after,
+                } => {
+                    let collector = self.collector(deployment)?;
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    let report = database.gc_prepare(
+                        principal,
+                        expected_head_serial.0,
+                        generation.0,
+                        after.as_deref(),
+                        collector.listings.as_ref(),
+                        collector.garbage.as_ref(),
+                        deadline,
+                    )?;
+                    if let Some(output) = output {
+                        output.head_result();
+                    }
+                    return Ok(wire::sweep(&report));
+                }
+                Action::GcResume { batch_serial } => {
+                    let collector = self.collector(deployment)?;
+                    let _slot = self
+                        .recovery
+                        .try_acquire()
+                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    let report = database.gc_resume(
+                        principal,
+                        batch_serial.0,
+                        collector.garbage.as_ref(),
+                        deadline,
+                    )?;
+                    if let Some(output) = output {
+                        output.head_result();
+                    }
+                    return Ok(wire::sweep(&report));
+                }
             };
+        if let Some(output) = output {
+            output.head_result();
+        }
         Ok(wire::status(&head))
+    }
+
+    fn collector(&self, deployment: u64) -> Result<&Collector, Failure> {
+        let collector = self
+            .collector
+            .as_ref()
+            .ok_or_else(|| Failure::new("GC_DISABLED"))?;
+        if deployment != collector.deployment {
+            return Err(Failure::new("DENIED"));
+        }
+        Ok(collector)
     }
 }
 
@@ -341,15 +462,54 @@ fn committed(
     receipt: scap_object::Receipt,
     result: scap_sql::TransactionResult,
 ) -> Result<Value, Failure> {
-    let encoded = wire::result(&result).map_err(|_| Failure {
-        code: "COMMITTED_BUT_UNAVAILABLE",
-        receipt: Some(Box::new(receipt.clone())),
-    })?;
-    Ok(json!({ "state": "committed", "receipt": wire::receipt(&receipt), "result": encoded }))
+    let encoded = match wire::result(&result) {
+        Ok(encoded) => encoded,
+        Err(_) => {
+            return Err(Failure {
+                code: "COMMITTED_BUT_UNAVAILABLE",
+                receipt: Some(Box::new(receipt)),
+            })
+        }
+    };
+    Ok(wire::committed(&receipt, encoded))
+}
+
+fn committed_budgeted(
+    receipt: scap_object::Receipt,
+    result: scap_sql::TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<Value, Failure> {
+    output.committed(receipt);
+    let encoded =
+        wire::budgeted_result(&result, output).map_err(|_| output.committed_unavailable())?;
+    Ok(wire::committed(output.receipt(), encoded))
+}
+
+fn resolved(
+    resolution: scap_object::Resolution,
+    output: Option<&mut crate::output::OutputContext>,
+) -> Result<Value, Failure> {
+    match output {
+        Some(output) => wire::budgeted_resolved(resolution, output),
+        None => Ok(wire::resolved(resolution)),
+    }
+}
+
+fn queried_budgeted(
+    result: scap_sql::TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<Value, Failure> {
+    Ok(Value::Object(Map::from_iter([(
+        "result".into(),
+        Value::String(wire::budgeted_result(&result, output)?),
+    )])))
 }
 
 fn queried(result: scap_sql::TransactionResult) -> Result<Value, Failure> {
-    Ok(json!({ "result": wire::result(&result)? }))
+    Ok(Value::Object(Map::from_iter([(
+        "result".into(),
+        Value::String(wire::result(&result)?),
+    )])))
 }
 
 #[cfg(test)]

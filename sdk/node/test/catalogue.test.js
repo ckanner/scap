@@ -28,7 +28,9 @@ const response = (value) => new Response(JSON.stringify({ ok: true, value }),
 const client = (fetcher, extra = {}) => new CatalogueClient({ ...OPTIONS, fetch: fetcher, ...extra });
 const withoutOperation = ({ operation, ...value }) => value;
 function head() {
-  return { scope: clone(SCOPE), revision: U64, sequence: '0', owner_epoch: '2', owner_instance: '3', active: false,
+  return { scope: clone(SCOPE), revision: U64, head_serial: U64,
+    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null },
+    sequence: '0', owner_epoch: '2', owner_instance: '3', active: false,
     auth_epoch: '4', lifecycle: 'ready', request_epoch: '5', max_bytes: null,
     transition: { revision: U64, nonce: '6' },
     retention: { max_entries: 4096, max_result_bytes: U64, oldest_epoch: '1' } };

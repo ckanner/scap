@@ -1,0 +1,347 @@
+{
+  "schema": 1,
+  "status": "INVARIANT_CORRECTION_STATIC_NOT_RUN",
+  "base_commit": "d012dc569b5e68dd7753bbcabdf016174d362c48",
+  "scope": "One production file, two explicit internal invariants; no test or coverage-policy changes",
+  "original_gate": {
+    "status": "FAILED_EXACT_COUNTERS_PRESERVED",
+    "source_commit": "d012dc569b5e68dd7753bbcabdf016174d362c48",
+    "completion": {
+      "path": "/tmp/scap-output-unit-d012dc5-01/completion.json",
+      "bytes": 7121,
+      "sha256": "16e28f257b111cb06eeb1293adb39137ba48e91e632264eb685bcc0e784e9ad8"
+    },
+    "source_manifest": {
+      "path": "/tmp/scap-output-unit-d012dc5-01/source-before.json",
+      "bytes": 116813,
+      "sha256": "4537c4a2b0d877b3024a243a10c0cb32b4624bb1f6bde109101c20086f0813fa"
+    },
+    "source_unchanged": true,
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-output-unit-d012dc5-01/source-before.json"
+        ],
+        "started_monotonic_ns": 67069813224949,
+        "pid": 8,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67071008680680,
+        "log_sha256": "3b8c944d0e6721d5478e55ce752bcc90a4ddcf42dcc452ba3d88e1aa1aa83b6c"
+      },
+      {
+        "name": "stable-rustc-version",
+        "argv": [
+          "rustc",
+          "+1.90.0",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 67071009564911,
+        "pid": 19,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67071430196813,
+        "log_sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      {
+        "name": "nightly-rustc-version",
+        "argv": [
+          "rustc",
+          "+nightly-2025-09-18",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 67071430725578,
+        "pid": 29,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67071705718374,
+        "log_sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      {
+        "name": "llvm-cov-version",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--version"
+        ],
+        "started_monotonic_ns": 67071706544796,
+        "pid": 39,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67071826617981,
+        "log_sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      },
+      {
+        "name": "format",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "started_monotonic_ns": 67071829512790,
+        "pid": 48,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67075692307446,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "started_monotonic_ns": 67075694052602,
+        "pid": 75,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67114349210875,
+        "log_sha256": "dc8fccc163d223012e4d001cc9af52346395204e1cd7604ff4ccee641245d6f6"
+      },
+      {
+        "name": "stable",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "test",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--frozen",
+          "--",
+          "--test-threads=1"
+        ],
+        "started_monotonic_ns": 67114349855884,
+        "pid": 166,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67317129885736,
+        "log_sha256": "6cf09c8c6af18a2a8fa91a2b75ad23aa30b64cf724f1d3fde40d6977ab016822"
+      },
+      {
+        "name": "coverage-clean",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "clean",
+          "--workspace",
+          "--frozen"
+        ],
+        "started_monotonic_ns": 67317169934989,
+        "pid": 1435,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67318516711660,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "coverage",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--frozen",
+          "--branch",
+          "--no-cfg-coverage",
+          "--no-cfg-coverage-nightly",
+          "--json",
+          "--output-path",
+          "/tmp/scap-output-unit-d012dc5-01/unit.json",
+          "--",
+          "--test-threads=1"
+        ],
+        "started_monotonic_ns": 67318598372967,
+        "pid": 1483,
+        "exit_code": 0,
+        "finished_monotonic_ns": 67580368300407,
+        "log_sha256": "d8da01608aae5187aa89712dcc4f9810a0557a20db56f5f9fe6b522395595188"
+      },
+      {
+        "name": "exact-counters",
+        "argv": [
+          "python3",
+          "scripts/check_unit_coverage.py",
+          "/tmp/scap-output-unit-d012dc5-01/unit.json"
+        ],
+        "started_monotonic_ns": 67580379930776,
+        "pid": 2803,
+        "exit_code": 1,
+        "finished_monotonic_ns": 67581914850148,
+        "log_sha256": "f423ee5f8d43bb53850dbda7b23c8472b89ee8467fd6b711d14ffbb5cc3af79e"
+      }
+    ],
+    "unit_counts": {
+      "stable": 546,
+      "nightly_coverage": 546,
+      "per_binary": {
+        "stable": [
+          259,
+          81,
+          40,
+          129,
+          0,
+          37
+        ],
+        "coverage": [
+          259,
+          81,
+          40,
+          129,
+          0,
+          37
+        ]
+      }
+    },
+    "format": "PASS",
+    "strict_clippy": "PASS",
+    "unit_only_raw_llvm": {
+      "path": "/tmp/scap-output-unit-d012dc5-01/unit.json",
+      "bytes": 48134131,
+      "sha256": "2383456cba1dfed5d329d3012ffa1dc4bb369589c0c64e98fda3e263b93900c5"
+    },
+    "exact_checker_log": {
+      "path": "/tmp/scap-output-unit-d012dc5-01/exact-counters.log",
+      "bytes": 5853,
+      "sha256": "f423ee5f8d43bb53850dbda7b23c8472b89ee8467fd6b711d14ffbb5cc3af79e"
+    },
+    "fresh_zero_before_collection": true,
+    "old_or_integration_profiles_used": false,
+    "failed_file": {
+      "path": "crates/scap-sql/src/lib.rs",
+      "summary": {
+        "branches": {
+          "count": 52,
+          "covered": 52,
+          "notcovered": 0,
+          "percent": 100.0
+        },
+        "mcdc": {
+          "count": 0,
+          "covered": 0,
+          "notcovered": 0,
+          "percent": 0.0
+        },
+        "functions": {
+          "count": 26,
+          "covered": 26,
+          "percent": 100.0
+        },
+        "instantiations": {
+          "count": 66,
+          "covered": 66,
+          "percent": 100.0
+        },
+        "lines": {
+          "count": 278,
+          "covered": 277,
+          "percent": 99.64028776978418
+        },
+        "regions": {
+          "count": 492,
+          "covered": 490,
+          "notcovered": 2,
+          "percent": 99.59349593495936
+        }
+      },
+      "zero_segments": [
+        [
+          226,
+          11,
+          0,
+          true,
+          true,
+          false
+        ],
+        [
+          263,
+          33,
+          0,
+          true,
+          true,
+          false
+        ]
+      ]
+    },
+    "other_production_files": "55 files have all emitted counters covered; genuine branch 0/0 remains 0/0, not an invented percentage."
+  },
+  "correction": {
+    "freeze": {
+      "path": "/tmp/scap-output-encoding-invariant-freeze01/manifest.json",
+      "bytes": 2221,
+      "sha256": "c4d8c3c570481158a36a5b81417b4e869686f39a9725526883915fa70ac8f0c2"
+    },
+    "patch": {
+      "path": "/tmp/scap-output-encoding-invariant-freeze01/candidate.patch",
+      "bytes": 902,
+      "sha256": "c4fa90296d5179bac31dd1776c00ee81e49211650e756273ce8c6979e5712a6e"
+    },
+    "source_files": [
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "original": {
+          "bytes": 15398,
+          "sha256": "b090350ccb5d6020374838574213d76202dc7b8cc2b3f5cb47a88bcec5cea06b"
+        },
+        "candidate": {
+          "bytes": 15555,
+          "sha256": "f2a1f8ec2be3f0f88392c748e51faab46e155f0220294366985aa64b5e5c7f78"
+        }
+      }
+    ],
+    "reason": "ResultEncoding is opaque and holds an immutable graph plus copied limits, so a successful plan cannot fail validation while writing the same result. The wrapper itself creates the exact destination length. State the two internal invariants with expect rather than fabricate an invalid private plan for unit counters.",
+    "public_errors_unchanged": [
+      "Wrong destination length returns Invalid before any write.",
+      "Invalid/Limit validation occurs before allocation.",
+      "A real fallible reservation failure remains ResourceExhausted."
+    ],
+    "internal_failure_semantics": "Violation of these established internal invariants would panic, like the existing validated decoder. No reachable safe public input is converted from a returned error to a panic.",
+    "review": "Builder, root and independent service_resources review confirmed the immutable-plan/exact-length proof; private allocation seam can only mutate the new output Vec.",
+    "static_validation": [
+      {
+        "name": "rustfmt",
+        "argv": [
+          "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/nightly-2025-09-18-x86_64-unknown-linux-gnu/bin/rustfmt",
+          "--edition",
+          "2021",
+          "--config",
+          "skip_children=true",
+          "--check",
+          "crates/scap-sql/src/lib.rs"
+        ],
+        "exit_code": 0
+      },
+      {
+        "name": "diff-check",
+        "argv": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0
+      }
+    ]
+  },
+  "execution": {
+    "corrected_workspace_units": "NOT_RUN",
+    "corrected_strict_clippy": "NOT_RUN",
+    "corrected_exact_unit_4d": "NOT_RUN",
+    "actual_native_s3_http": "NOT_RUN for corrected source",
+    "aws_standard": "NOT_RUN",
+    "remote_ci": "NOT_RUN"
+  },
+  "artifact_preservation": "The failed d012 source and raw gate evidence are immutable; actual ELF/native/profile binding and archival are handled separately before cache reuse."
+}

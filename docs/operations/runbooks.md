@@ -1,6 +1,6 @@
 # 当前运行边界
 
-当前已提供内部 Rust 单库 API、正式认证 HTTP 服务 `scapd` 与仓库内 Node SDK；服务端使用不可变 scope，显式 create／takeover／activate。配置与完整操作见[HTTP 运行手册](http-service.md)。Node 包尚未发布 npm，名称目录和自动 owner 路由仍未实现。旧三节点配置和 SDK 不适用于新协议。
+当前已提供内部 Rust 单库 API、正式认证 HTTP 服务 `scapd`、仓库内 Node SDK、名称目录、全目录发现、静态 owner 路由及显式协调；服务端使用不可变 scope，显式 create／takeover／activate。配置与完整操作见[HTTP 运行手册](http-service.md)。Node 包尚未发布 npm；自动故障探测与后台 owner controller 尚未实现。旧三节点配置和 SDK 不适用于新协议。
 
 装配S3时显式提供endpoint、region、bucket、access key、secret和可选session token。只在本地测试显式允许HTTP；正式端点要求TLS。凭据不写入仓库、日志或回执。
 
@@ -14,7 +14,7 @@
 
 S3 通过对象 API 保存权威状态；SQLite 主文件、WAL、SHM 必须位于私有、可丢弃且满足 SQLite I/O 语义的本地目录。不得把缓存目录指向 NFS/EFS、SMB、CephFS、9p、S3 FUSE 或其他共享网络文件系统。共享目录的锁失效和陈旧页可能污染 SQL 候选，S3 CAS 不能修复候选内容。
 
-本分支增加 Linux 文件系统类型检查候选：服务配置和直接 Engine 入口先检查，原生镜像构造再检查实际目录。实现与测试状态、支持范围及 overlay／底层挂载的限制见[SQLite 存储边界](sqlite-storage-safety.md)；本轮运行环境不可用，尚不能宣布防护已通过原生验收。SQLite 的排序等临时文件路径同样需配置在本地，这次目录检查不覆盖所有临时文件选择路径。
+Linux 文件系统类型检查已经实现：服务配置和直接 Engine 入口先检查，原生镜像构造再检查实际打开的目录；SQLite 全部已存在临时目录候选和 host-global override 也有准入检查。实现、候选绑定的验收、支持范围及 overlay／底层挂载的限制见[SQLite 存储边界](sqlite-storage-safety.md)。真实 NFS/EFS/FUSE 挂载和云端故障域仍须另验，不能用类型分类测试替代。管理员仍须保证所有执行路径及临时路径都位于可靠本地文件系统，且运行中不替换挂载或 VFS。
 
 ## 配额与会话
 
@@ -22,4 +22,4 @@ S3 通过对象 API 保存权威状态；SQLite 主文件、WAL、SHM 必须位�
 
 生产接线应在恢复期限内显式准备 Session。每次操作仍读取新 HEAD；出现 `StaleSnapshot` 后丢弃会话并重新恢复当前根。发生 UNKNOWN 或 CommittedButUnavailable 保留原 Request，先查证原结果，不能为了重试生成新 ID。恢复需要足够的本地文件空间，page cache 目标不等于 RSS 配额。
 
-热发布复用原 HEAD 的不可变依赖；禁止外部覆盖、删除可达对象或设置 bucket TTL。损坏调查需完整冷校验并保全根。当前 GC 未实现，必须监控后端实际总量与 orphan 增长；默认单库文件配额不能代替对象存储预算。
+热发布复用原 HEAD 的不可变依赖；禁止外部覆盖、删除可达对象或设置 bucket TTL。损坏调查需完整冷校验并保全根。HEAD6 提供显式管理员复制/晋升和持久 checkpoint 回收，默认没有 GC 删除权限；启用方式见[管理接口](../../crates/scap-service/docs/reclamation.md)，实际完成状态见[本批验收](../engineering/head6-runtime-validation.md)。普通请求不能提交任意 key/ETag 删除，也不能把当前 active/copy target 当候选。持续监控后端实际总量与 orphan 增长；默认单库文件配额不能代替对象存储预算，单次 sweep 结束不代表以后没有迟到 PUT。

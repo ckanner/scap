@@ -17,6 +17,8 @@ from pathlib import Path
 import struct
 import sys
 
+import head5_audit
+
 from lifecycle_oracle import (byte_string, decoded_result, fingerprint,
                               original_matches, parse, validate_original,
                               validate_result)
@@ -35,9 +37,7 @@ CREATION = ("creator", "operation", "name", "scope", "expected_name_revision")
 ORIGIN = ("creator", "operation", "name_hash", "descriptor_hash")
 CONTROL = ("format", "creation", "origin", "kind", "principal", "operation",
            "expected_name_revision", "expected_head_revision", "nonce")
-HEAD_FIELDS = {"format", "scope", "revision", "transition", "sequence", "owner_epoch",
-               "owner_instance", "active", "auth_epoch", "policy", "lifecycle", "creation",
-               "deletion", "data_root", "quota", "retention", "request_epoch", "windows"}
+HEAD_FIELDS = head5_audit.HEAD_FIELDS
 PROFILE = {"quota_bytes": 4194304, "retention_entries": 32, "retention_result_bytes": 134217728}
 
 
@@ -114,8 +114,31 @@ def head_path(s):
     return base(s) + f"/{s['database']}/head"
 
 
-def object_prefix(s):
-    return base(s) + "/{database}/inc/{incarnation}/gen/{generation}/objects/".format(**s)
+def object_prefix(s, storage_generation):
+    return head5_audit.object_prefix(s, storage_generation)
+
+
+def immutable_address(path):
+    """Validate even orphan, missing and raw-fixture object request keys.
+
+    A content hash alone cannot prove a captured physical namespace. Foundation
+    HEAD6 admits only storage generation one, including pre-HEAD bootstrap.
+    """
+    require(type(path) is str, "invalid immutable physical path")
+    parts = path.split("/")
+    require(len(parts) == 15 and parts[:4] == ["", "scap-test", "scap-object", "v1"]
+            and [parts[7], parts[9], parts[11], parts[13]] == ["inc", "gen", "storage", "objects"],
+            "immutable path does not use the complete HEAD6 namespace")
+    numbers = [parts[index] for index in (4, 5, 6, 8, 10, 12)]
+    require(all(1 <= len(number) <= 20 and number[0] in "123456789" and
+                all(character in "0123456789" for character in number) for number in numbers),
+            "immutable path contains a noncanonical unsigned identity")
+    values = [u64(int(number)) for number in numbers]
+    captured = dict(zip(SCOPE, values[:5])); generation = values[5]
+    require(generation == 1, "immutable path uses unsupported storage generation")
+    root = hash_value(parts[14])
+    equal(path, object_prefix(captured, generation) + root, "immutable physical path differs")
+    return captured, generation, root
 
 
 def descriptor_path(c):
@@ -167,51 +190,9 @@ def json_record(raw):
 
 
 def head_record(raw, path):
-    value = parse(raw)
-    fields(value, HEAD_FIELDS, "incomplete HEAD v4")
-    require(value["format"] == 4, "HEAD is not format 4")
-    scope(value["scope"])
+    require(0 < len(raw) <= head5_audit.MAX_HEAD, "HEAD body missing or over capture bound")
+    value = head5_audit.validate(parse(raw))
     equal(head_path(value["scope"]), path, "HEAD lies under another physical key")
-    for key in ("revision", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch"):
-        u64(value[key])
-    u64(value["sequence"], zero=True)
-    fields(value["transition"], ("revision", "nonce"), "HEAD transition incomplete")
-    equal(value["transition"]["revision"], value["revision"], "HEAD revision/transition mismatch")
-    u64(value["transition"]["nonce"])
-    require(type(value["active"]) is bool and value["lifecycle"] in ("provisioning", "ready", "maintenance", "deleted"),
-            "invalid HEAD lifecycle/activity")
-    hash_value(value["data_root"]); quota(value["quota"]); retention(value["retention"])
-    require(isinstance(value["policy"], list) and value["policy"], "HEAD lacks policy")
-    seen = set()
-    for permission in value["policy"]:
-        fields(permission, ("principal", "read", "write", "admin"), "HEAD permission incomplete")
-        principal = u64(permission["principal"])
-        require(principal not in seen and all(type(permission[k]) is bool for k in ("read", "write", "admin")),
-                "HEAD policy duplicates identity or has non-boolean grant")
-        seen.add(principal)
-    require(any(p["admin"] for p in value["policy"]), "HEAD has no ADMIN")
-    require(isinstance(value["windows"], list) and len(value["windows"]) == min(value["request_epoch"], 3),
-            "HEAD request window denominator changed")
-    for n, window in enumerate(value["windows"]):
-        fields(window, ("epoch", "root", "count", "result_bytes"), "HEAD window incomplete")
-        equal(window["epoch"], value["request_epoch"] - n, "HEAD window epoch changed")
-        hash_value(window["root"])
-        require(type(window["count"]) is int and 0 <= window["count"] <= value["retention"]["max_entries"],
-                "HEAD retained request count outside configured bound")
-        require(u64(window["result_bytes"], zero=True) <= min(value["retention"]["max_result_bytes"], window["count"] * 64 * 1024 * 1024),
-                "HEAD retained result bytes outside declared bound")
-    if value["creation"] is not None:
-        fields(value["creation"], ORIGIN, "HEAD named origin incomplete")
-        u64(value["creation"]["creator"]); u64(value["creation"]["operation"])
-        hash_value(value["creation"]["name_hash"]); hash_value(value["creation"]["descriptor_hash"])
-    if value["deletion"] is not None:
-        fields(value["deletion"], ("kind", "principal", "operation", "expected_name_revision",
-                                   "expected_head_revision", "nonce", "descriptor_hash"), "HEAD deletion origin incomplete")
-        require(value["creation"] is not None and value["lifecycle"] == "deleted", "deletion mark outside named Deleted")
-    if value["lifecycle"] == "provisioning":
-        require(value["creation"] is not None and not value["active"] and value["sequence"] == 0
-                and value["request_epoch"] == 1 and value["windows"][0]["count"] == 0, "Provisioning exposed mutable database state")
-    if value["lifecycle"] == "deleted": require(not value["active"], "Deleted HEAD remained active")
     return value
 
 
@@ -463,6 +444,10 @@ class Wire:
         for call in self.a.calls.values():
             command, operation = call["command"], call["command"]["op"]
             requests = self.events(call)
+            for request in requests:
+                path = request["path"]
+                if not path.endswith("/head") and "/catalogue/v1/" not in path:
+                    immutable_address(path)
             if operation in ("store_get", "store_put"):
                 for request in requests:
                     equal(request["path"], "/scap-test/" + command["key"], "fixture raw operation changed its explicit key")
@@ -470,7 +455,7 @@ class Wire:
             if not operation.startswith("catalogue_"):
                 for request in requests:
                     path = request["path"]
-                    require(path == head_path(call["scope"]) or path.startswith(object_prefix(call["scope"])),
+                    require(path == head_path(call["scope"]) or path.startswith(object_prefix(call["scope"], 1)),
                             "ordinary database request escaped its complete Scope")
                 continue
             context = call["scope"]
@@ -492,7 +477,7 @@ class Wire:
             object_roots = set()
             for c in related:
                 paths.update((descriptor_path(c), name_path(c), proof_path(c), head_path(c["scope"])))
-                object_roots.add(object_prefix(c["scope"]))
+                object_roots.add(object_prefix(c["scope"], 1))
             for row in self.events(call, "object_response", "GET"):
                 if row["status"] != 200: continue
                 if row["path"].endswith("/head"):
@@ -818,6 +803,7 @@ class Wire:
     def head_transition(self, call, item, previous):
         value, command, when = item["value"], call["command"], item["request"]["monotonic_ns"]
         old = previous["value"] if previous and not previous.get("missing") else None
+        head5_audit.advance(old, value)
         if old is None:
             require(value["revision"] == 1 and value["sequence"] == 0, "first HEAD did not begin at initial revision/sequence")
         else:
@@ -832,7 +818,7 @@ class Wire:
         if old is not None and old["lifecycle"] == "provisioning" and value["lifecycle"] == "ready":
             prior_roots = set()
         for root in roots - prior_roots:
-            reads = self.observed(call, object_prefix(value["scope"]) + root, when)
+            reads = self.observed(call, object_prefix(value["scope"], value["storage"]["active_generation"]) + root, when)
             require(any(row["response_sha256"] == root for row in reads), "HEAD publication preceded immutable root/index readback")
         if value["creation"] is None:
             require(not command["op"].startswith("catalogue_"), "catalogue published an unnamed HEAD")
@@ -856,7 +842,7 @@ class Wire:
             elif value["lifecycle"] == "ready":
                 require(command["op"] == "catalogue_resume" and old is not None and old["lifecycle"] == "provisioning"
                         and binding["value"]["state"] == "bound", "Ready preceded winning Bound or followed cancellation")
-                for field in HEAD_FIELDS - {"revision", "transition", "lifecycle"}:
+                for field in HEAD_FIELDS - {"head_serial", "revision", "transition", "lifecycle"}:
                     equal(value[field], old[field], "Ready completion reset existing " + field)
             else:
                 require(value["lifecycle"] == "deleted" and command["op"] in ("catalogue_abort", "catalogue_delete"),
@@ -876,7 +862,7 @@ class Wire:
                             "normal deletion rebased original HEAD/name conditions")
                     require(permission(old, control_value["principal"], "admin"), "normal deletion lacked current ADMIN")
                 if old is not None:
-                    for field in HEAD_FIELDS - {"revision", "transition", "owner_epoch", "active", "lifecycle", "deletion"}:
+                    for field in HEAD_FIELDS - {"head_serial", "revision", "transition", "owner_epoch", "active", "lifecycle", "deletion"}:
                         equal(value[field], old[field], "deletion changed unrelated " + field)
                     require(value["owner_epoch"] == old["owner_epoch"] + 1, "deletion did not fence previous owner")
         else:
@@ -952,7 +938,7 @@ class Auditor:
                 "expected_head_revision": saved.get("expected_head_revision"), "nonce": saved["nonce"]}
 
     def inventory(self):
-        require(self.plan["version"] == 1 and self.plan["head_format"] == 4 and self.plan["immutable_format"] == 2
+        require(self.plan["version"] == 1 and self.plan["head_format"] == 6 and self.plan["immutable_format"] == 2
                 and self.plan["catalogue_record_bytes"] == 65536, "catalogue wire/capture plan changed")
         equal(self.plan["fixture_limits"], PROFILE, "fixture resource profile changed")
         equal(self.plan["pilot_profiles"], list(PILOTS), "pilot denominator changed")
@@ -1282,12 +1268,12 @@ class Auditor:
                     require(candidate["lifecycle"] == "ready" and candidate["active"]
                             and candidate["owner_instance"] == call["worker"], "SQL ACK lacks active current owner publication")
                     request = self.wire.only(observed["request_serial"], "object_request")
-                    result_path = object_prefix(call["scope"]) + value["receipt"]["result_hash"]
+                    result_path = object_prefix(candidate["scope"], candidate["storage"]["active_generation"]) + value["receipt"]["result_hash"]
                     witnessed = self.wire.observed(call, result_path, request["monotonic_ns"])
                     require(any(r["response_sha256"] == value["receipt"]["result_hash"] for r in witnessed),
                             "SQL ACK's complete encoded result lacks actual durable object readback before HEAD")
                     for dependency in [candidate["data_root"], *[window["root"] for window in candidate["windows"]]]:
-                        reads = self.wire.observed(call, object_prefix(call["scope"]) + dependency, request["monotonic_ns"])
+                        reads = self.wire.observed(call, object_prefix(candidate["scope"], candidate["storage"]["active_generation"]) + dependency, request["monotonic_ns"])
                         require(any(r["response_sha256"] == dependency for r in reads), "published SQL dependency lacks original readback")
                 else:
                     require(not heads, "duplicate execute republished HEAD or reran SQL")

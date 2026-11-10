@@ -10,6 +10,7 @@ use scap_sql::{Statement, TransactionResult};
 
 use super::recovery_budget::RecoveryMeter;
 use super::*;
+use crate::object_context::ObjectContext;
 use crate::Session;
 
 /// Trusted configuration selects a READ principal for each discovered tenant.
@@ -33,6 +34,7 @@ pub enum RecoveryStop {
     Unknown,
     Corrupt,
     Local,
+    SnapshotExpired,
 }
 
 impl From<DiscoveryError> for RecoveryStop {
@@ -44,6 +46,7 @@ impl From<DiscoveryError> for RecoveryStop {
             DiscoveryError::Conflict => Self::Conflict,
             DiscoveryError::Unknown => Self::Unknown,
             DiscoveryError::Corrupt => Self::Corrupt,
+            DiscoveryError::SnapshotExpired => Self::SnapshotExpired,
         }
     }
 }
@@ -55,7 +58,8 @@ fn recovery_error(error: Error) -> RecoveryStop {
         Error::Unknown
         | Error::Store(StoreError::Unknown)
         | Error::Engine(scap_object_sqlite::Error::Interrupted) => RecoveryStop::Unknown,
-        Error::Limit | Error::Store(StoreError::Limit) => RecoveryStop::Limit,
+        Error::Limit | Error::Store(StoreError::Limit | StoreError::Budget) => RecoveryStop::Limit,
+        Error::SnapshotExpired => RecoveryStop::SnapshotExpired,
         Error::Engine(scap_object_sqlite::Error::Io(_)) => RecoveryStop::Local,
         _ => RecoveryStop::Corrupt,
     }
@@ -392,15 +396,17 @@ impl RecoveryJob {
             worker: self.worker,
             options: self.options.clone(),
             quarantined: Arc::new(AtomicBool::new(false)),
+            knowledge: Arc::new(crate::object_context::Knowledge::default()),
         };
         let deadline = self.options.deadline(deadline, true);
         self.meter.check(deadline)?;
+        let objects = ObjectContext::from_snapshot(&database, &snapshot, deadline);
         let mut session = database
-            .restore(&snapshot, directory, deadline)
+            .restore(&objects, &snapshot, directory, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         database
-            .verify_results(&snapshot.head, deadline)
+            .verify_results(&objects, &snapshot.head, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         session.history_verified = true;

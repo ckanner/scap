@@ -1,0 +1,1437 @@
+{
+  "schema_version": 1,
+  "status": "partial-local-composition",
+  "implementation_complete": false,
+  "production_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+  "production_tree": "df53d79f79e43dda7af2e2ea88c4a06d33a93d59",
+  "tested_unit_commit": "4456fc4c3165f8846e135b7e5aaeae1a481cc856",
+  "tested_owner_commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+  "post_production_changes": [
+    "crates/scap-service/src/http/catalogue_tests.rs",
+    "crates/scap-service/src/http/tests.rs",
+    "docs/architecture/object-storage-native-proposal.md",
+    "docs/architecture/sqlite-s3-turso-review.md",
+    "docs/architecture/sqlite-wal-reset-assessment.md",
+    "docs/engineering/object-runtime.md",
+    "docs/engineering/roadmap.md",
+    "docs/engineering/status-2026-11-09.md",
+    "docs/evidence/captured-context-local-2026-11-09.json",
+    "docs/evidence/resource-composition-local-2026-11-09.json",
+    "experiments/object-service/discovery_contract.md",
+    "experiments/object-service/discovery_oracle.py",
+    "experiments/object-service/discovery_probe.mjs",
+    "experiments/object-service/owner_contract.md",
+    "experiments/object-service/owner_controls.py",
+    "experiments/object-service/owner_oracle.py",
+    "experiments/object-service/owner_probe.mjs",
+    "experiments/object-service/owner_spec.py",
+    "experiments/object-service/test_discovery_progress.py",
+    "experiments/object-service/test_owner_oracle.py"
+  ],
+  "input_equivalence": {
+    "production_3b93_to_586": "byte-identical; only the listed test/acceptance files changed",
+    "rust_units_4456_to_586": "byte-identical; only six owner acceptance files changed",
+    "rust_and_cargo_4456_to_bda": {
+      "status": "byte-identical",
+      "files": 134,
+      "canonical_encoding": "sorted-key compact UTF-8 JSON",
+      "sha256": "7566b81991528616af4ea0a92ff83037128b1c123bb68faaded1d13e40e93d00",
+      "scope": "every tracked .rs, Cargo.toml, Cargo.lock and rust-toolchain.toml; Python/JS acceptance fixtures are separately validated"
+    }
+  },
+  "units": {
+    "status": "passed",
+    "format": "passed",
+    "strict_workspace_clippy": "passed",
+    "stable_tests": 494,
+    "nightly_tests": 494,
+    "production_files": 53,
+    "unit_only": true,
+    "profiles_newly_collected": true,
+    "integration_profiles": false,
+    "exclusions_added": false,
+    "source_unchanged": true,
+    "report_sha256": "4346ccb4a37b1aa8fb6f327ebf44e3c155ad97d627a30306953c716818e81b53",
+    "completion_sha256": "87ef10ce63cea7188c0ac37feb0acfee905b308e32198670f1d0ff2ad37ce775",
+    "source_manifest_sha256": "fcffd4f3dfc68ae0933d54b80dc186fa3123507c8b7703594b3b8e0d733f6243",
+    "archive": {
+      "schema": 1,
+      "status": "passed",
+      "commit": "4456fc4c3165f8846e135b7e5aaeae1a481cc856",
+      "archive": "/workspace/scratch/591a71cb3372/combined-unit-4456fc4-04.tar.gz",
+      "archive_bytes": 291291894,
+      "archive_sha256": "513f5955f937a33de9c338616a5de2630cb27831d1f07b927ab9d8ff0605ff1f",
+      "files": 128,
+      "raw_profiles": 93,
+      "merged_profiles": 1,
+      "unit_only": true,
+      "source_unchanged": true
+    },
+    "exact_files": [
+      {
+        "path": "crates/scap-object-sqlite/src/config.rs",
+        "lines": {
+          "covered": 129,
+          "count": 129
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 205,
+          "count": 205
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/file.rs",
+        "lines": {
+          "covered": 131,
+          "count": 131
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 163,
+          "count": 163
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/gate.rs",
+        "lines": {
+          "covered": 104,
+          "count": 104
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 123,
+          "count": 123
+        },
+        "branches": {
+          "covered": 20,
+          "count": 20
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/image.rs",
+        "lines": {
+          "covered": 64,
+          "count": 64
+        },
+        "functions": {
+          "covered": 3,
+          "count": 3
+        },
+        "regions": {
+          "covered": 74,
+          "count": 74
+        },
+        "branches": {
+          "covered": 38,
+          "count": 38
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/lib.rs",
+        "lines": {
+          "covered": 120,
+          "count": 120
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 171,
+          "count": 171
+        },
+        "branches": {
+          "covered": 12,
+          "count": 12
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/query.rs",
+        "lines": {
+          "covered": 46,
+          "count": 46
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 75,
+          "count": 75
+        },
+        "branches": {
+          "covered": 6,
+          "count": 6
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/sql.rs",
+        "lines": {
+          "covered": 392,
+          "count": 392
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 476,
+          "count": 476
+        },
+        "branches": {
+          "covered": 72,
+          "count": 72
+        }
+      },
+      {
+        "path": "crates/scap-object-sqlite/src/storage.rs",
+        "lines": {
+          "covered": 70,
+          "count": 70
+        },
+        "functions": {
+          "covered": 10,
+          "count": 10
+        },
+        "regions": {
+          "covered": 100,
+          "count": 100
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/gc.rs",
+        "lines": {
+          "covered": 235,
+          "count": 235
+        },
+        "functions": {
+          "covered": 20,
+          "count": 20
+        },
+        "regions": {
+          "covered": 340,
+          "count": 340
+        },
+        "branches": {
+          "covered": 92,
+          "count": 92
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/gc_xml.rs",
+        "lines": {
+          "covered": 118,
+          "count": 118
+        },
+        "functions": {
+          "covered": 9,
+          "count": 9
+        },
+        "regions": {
+          "covered": 188,
+          "count": 188
+        },
+        "branches": {
+          "covered": 44,
+          "count": 44
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/lib.rs",
+        "lines": {
+          "covered": 207,
+          "count": 207
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 289,
+          "count": 289
+        },
+        "branches": {
+          "covered": 68,
+          "count": 68
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/listing.rs",
+        "lines": {
+          "covered": 121,
+          "count": 121
+        },
+        "functions": {
+          "covered": 12,
+          "count": 12
+        },
+        "regions": {
+          "covered": 186,
+          "count": 186
+        },
+        "branches": {
+          "covered": 46,
+          "count": 46
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/listing_guard.rs",
+        "lines": {
+          "covered": 79,
+          "count": 79
+        },
+        "functions": {
+          "covered": 11,
+          "count": 11
+        },
+        "regions": {
+          "covered": 143,
+          "count": 143
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      {
+        "path": "crates/scap-object-store/src/listing_xml.rs",
+        "lines": {
+          "covered": 216,
+          "count": 216
+        },
+        "functions": {
+          "covered": 14,
+          "count": 14
+        },
+        "regions": {
+          "covered": 379,
+          "count": 379
+        },
+        "branches": {
+          "covered": 66,
+          "count": 66
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/control.rs",
+        "lines": {
+          "covered": 404,
+          "count": 404
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 659,
+          "count": 659
+        },
+        "branches": {
+          "covered": 74,
+          "count": 74
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/create.rs",
+        "lines": {
+          "covered": 116,
+          "count": 116
+        },
+        "functions": {
+          "covered": 4,
+          "count": 4
+        },
+        "regions": {
+          "covered": 220,
+          "count": 220
+        },
+        "branches": {
+          "covered": 10,
+          "count": 10
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/discovery.rs",
+        "lines": {
+          "covered": 293,
+          "count": 293
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 397,
+          "count": 397
+        },
+        "branches": {
+          "covered": 76,
+          "count": 76
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/discovery_budget.rs",
+        "lines": {
+          "covered": 96,
+          "count": 96
+        },
+        "functions": {
+          "covered": 10,
+          "count": 10
+        },
+        "regions": {
+          "covered": 125,
+          "count": 125
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/discovery_names.rs",
+        "lines": {
+          "covered": 143,
+          "count": 143
+        },
+        "functions": {
+          "covered": 7,
+          "count": 7
+        },
+        "regions": {
+          "covered": 167,
+          "count": 167
+        },
+        "branches": {
+          "covered": 30,
+          "count": 30
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/discovery_records.rs",
+        "lines": {
+          "covered": 279,
+          "count": 279
+        },
+        "functions": {
+          "covered": 16,
+          "count": 16
+        },
+        "regions": {
+          "covered": 555,
+          "count": 555
+        },
+        "branches": {
+          "covered": 48,
+          "count": 48
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/inspect.rs",
+        "lines": {
+          "covered": 247,
+          "count": 247
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 403,
+          "count": 403
+        },
+        "branches": {
+          "covered": 26,
+          "count": 26
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/mod.rs",
+        "lines": {
+          "covered": 324,
+          "count": 324
+        },
+        "functions": {
+          "covered": 34,
+          "count": 34
+        },
+        "regions": {
+          "covered": 522,
+          "count": 522
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/records.rs",
+        "lines": {
+          "covered": 230,
+          "count": 230
+        },
+        "functions": {
+          "covered": 23,
+          "count": 23
+        },
+        "regions": {
+          "covered": 350,
+          "count": 350
+        },
+        "branches": {
+          "covered": 54,
+          "count": 54
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/recovery_budget.rs",
+        "lines": {
+          "covered": 161,
+          "count": 161
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 205,
+          "count": 205
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/recovery_job.rs",
+        "lines": {
+          "covered": 288,
+          "count": 288
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 391,
+          "count": 391
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      {
+        "path": "crates/scap-object/src/catalogue/types.rs",
+        "lines": {
+          "covered": 8,
+          "count": 8
+        },
+        "functions": {
+          "covered": 1,
+          "count": 1
+        },
+        "regions": {
+          "covered": 8,
+          "count": 8
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      {
+        "path": "crates/scap-object/src/data_tree.rs",
+        "lines": {
+          "covered": 263,
+          "count": 263
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 416,
+          "count": 416
+        },
+        "branches": {
+          "covered": 60,
+          "count": 60
+        }
+      },
+      {
+        "path": "crates/scap-object/src/format.rs",
+        "lines": {
+          "covered": 383,
+          "count": 383
+        },
+        "functions": {
+          "covered": 40,
+          "count": 40
+        },
+        "regions": {
+          "covered": 720,
+          "count": 720
+        },
+        "branches": {
+          "covered": 52,
+          "count": 52
+        }
+      },
+      {
+        "path": "crates/scap-object/src/lib.rs",
+        "lines": {
+          "covered": 851,
+          "count": 851
+        },
+        "functions": {
+          "covered": 72,
+          "count": 72
+        },
+        "regions": {
+          "covered": 1343,
+          "count": 1343
+        },
+        "branches": {
+          "covered": 108,
+          "count": 108
+        }
+      },
+      {
+        "path": "crates/scap-object/src/object_context.rs",
+        "lines": {
+          "covered": 53,
+          "count": 53
+        },
+        "functions": {
+          "covered": 9,
+          "count": 9
+        },
+        "regions": {
+          "covered": 85,
+          "count": 85
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      {
+        "path": "crates/scap-object/src/options.rs",
+        "lines": {
+          "covered": 98,
+          "count": 98
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 113,
+          "count": 113
+        },
+        "branches": {
+          "covered": 38,
+          "count": 38
+        }
+      },
+      {
+        "path": "crates/scap-object/src/request_index.rs",
+        "lines": {
+          "covered": 203,
+          "count": 203
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 278,
+          "count": 278
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-service/src/auth.rs",
+        "lines": {
+          "covered": 69,
+          "count": 69
+        },
+        "functions": {
+          "covered": 11,
+          "count": 11
+        },
+        "regions": {
+          "covered": 102,
+          "count": 102
+        },
+        "branches": {
+          "covered": 28,
+          "count": 28
+        }
+      },
+      {
+        "path": "crates/scap-service/src/catalogue.rs",
+        "lines": {
+          "covered": 50,
+          "count": 50
+        },
+        "functions": {
+          "covered": 3,
+          "count": 3
+        },
+        "regions": {
+          "covered": 86,
+          "count": 86
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      {
+        "path": "crates/scap-service/src/catalogue_scheduler.rs",
+        "lines": {
+          "covered": 222,
+          "count": 222
+        },
+        "functions": {
+          "covered": 32,
+          "count": 32
+        },
+        "regions": {
+          "covered": 309,
+          "count": 309
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      {
+        "path": "crates/scap-service/src/catalogue_wire.rs",
+        "lines": {
+          "covered": 200,
+          "count": 200
+        },
+        "functions": {
+          "covered": 26,
+          "count": 26
+        },
+        "regions": {
+          "covered": 368,
+          "count": 368
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-service/src/config.rs",
+        "lines": {
+          "covered": 159,
+          "count": 159
+        },
+        "functions": {
+          "covered": 18,
+          "count": 18
+        },
+        "regions": {
+          "covered": 208,
+          "count": 208
+        },
+        "branches": {
+          "covered": 50,
+          "count": 50
+        }
+      },
+      {
+        "path": "crates/scap-service/src/daemon.rs",
+        "lines": {
+          "covered": 158,
+          "count": 158
+        },
+        "functions": {
+          "covered": 21,
+          "count": 21
+        },
+        "regions": {
+          "covered": 244,
+          "count": 244
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      {
+        "path": "crates/scap-service/src/discovery.rs",
+        "lines": {
+          "covered": 206,
+          "count": 206
+        },
+        "functions": {
+          "covered": 17,
+          "count": 17
+        },
+        "regions": {
+          "covered": 274,
+          "count": 274
+        },
+        "branches": {
+          "covered": 32,
+          "count": 32
+        }
+      },
+      {
+        "path": "crates/scap-service/src/discovery_cursor.rs",
+        "lines": {
+          "covered": 165,
+          "count": 165
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 258,
+          "count": 258
+        },
+        "branches": {
+          "covered": 20,
+          "count": 20
+        }
+      },
+      {
+        "path": "crates/scap-service/src/discovery_wire.rs",
+        "lines": {
+          "covered": 94,
+          "count": 94
+        },
+        "functions": {
+          "covered": 13,
+          "count": 13
+        },
+        "regions": {
+          "covered": 159,
+          "count": 159
+        },
+        "branches": {
+          "covered": 2,
+          "count": 2
+        }
+      },
+      {
+        "path": "crates/scap-service/src/engine.rs",
+        "lines": {
+          "covered": 271,
+          "count": 271
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 389,
+          "count": 389
+        },
+        "branches": {
+          "covered": 24,
+          "count": 24
+        }
+      },
+      {
+        "path": "crates/scap-service/src/http.rs",
+        "lines": {
+          "covered": 243,
+          "count": 243
+        },
+        "functions": {
+          "covered": 24,
+          "count": 24
+        },
+        "regions": {
+          "covered": 409,
+          "count": 409
+        },
+        "branches": {
+          "covered": 40,
+          "count": 40
+        }
+      },
+      {
+        "path": "crates/scap-service/src/http/discovery.rs",
+        "lines": {
+          "covered": 57,
+          "count": 57
+        },
+        "functions": {
+          "covered": 4,
+          "count": 4
+        },
+        "regions": {
+          "covered": 101,
+          "count": 101
+        },
+        "branches": {
+          "covered": 4,
+          "count": 4
+        }
+      },
+      {
+        "path": "crates/scap-service/src/intake.rs",
+        "lines": {
+          "covered": 137,
+          "count": 137
+        },
+        "functions": {
+          "covered": 15,
+          "count": 15
+        },
+        "regions": {
+          "covered": 183,
+          "count": 183
+        },
+        "branches": {
+          "covered": 36,
+          "count": 36
+        }
+      },
+      {
+        "path": "crates/scap-service/src/lib.rs",
+        "lines": {
+          "covered": 36,
+          "count": 36
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 33,
+          "count": 33
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      {
+        "path": "crates/scap-service/src/main.rs",
+        "lines": {
+          "covered": 3,
+          "count": 3
+        },
+        "functions": {
+          "covered": 1,
+          "count": 1
+        },
+        "regions": {
+          "covered": 6,
+          "count": 6
+        },
+        "branches": {
+          "covered": 0,
+          "count": 0
+        }
+      },
+      {
+        "path": "crates/scap-service/src/scheduler.rs",
+        "lines": {
+          "covered": 471,
+          "count": 471
+        },
+        "functions": {
+          "covered": 49,
+          "count": 49
+        },
+        "regions": {
+          "covered": 762,
+          "count": 762
+        },
+        "branches": {
+          "covered": 104,
+          "count": 104
+        }
+      },
+      {
+        "path": "crates/scap-service/src/transport.rs",
+        "lines": {
+          "covered": 70,
+          "count": 70
+        },
+        "functions": {
+          "covered": 6,
+          "count": 6
+        },
+        "regions": {
+          "covered": 96,
+          "count": 96
+        },
+        "branches": {
+          "covered": 16,
+          "count": 16
+        }
+      },
+      {
+        "path": "crates/scap-service/src/wire.rs",
+        "lines": {
+          "covered": 248,
+          "count": 248
+        },
+        "functions": {
+          "covered": 34,
+          "count": 34
+        },
+        "regions": {
+          "covered": 408,
+          "count": 408
+        },
+        "branches": {
+          "covered": 42,
+          "count": 42
+        }
+      },
+      {
+        "path": "crates/scap-sql/src/lib.rs",
+        "lines": {
+          "covered": 228,
+          "count": 228
+        },
+        "functions": {
+          "covered": 19,
+          "count": 19
+        },
+        "regions": {
+          "covered": 432,
+          "count": 432
+        },
+        "branches": {
+          "covered": 50,
+          "count": 50
+        }
+      },
+      {
+        "path": "crates/scap-sql/src/result_memory.rs",
+        "lines": {
+          "covered": 73,
+          "count": 73
+        },
+        "functions": {
+          "covered": 9,
+          "count": 9
+        },
+        "regions": {
+          "covered": 133,
+          "count": 133
+        },
+        "branches": {
+          "covered": 4,
+          "count": 4
+        }
+      },
+      {
+        "path": "crates/scap-sql/src/result_validation.rs",
+        "lines": {
+          "covered": 42,
+          "count": 42
+        },
+        "functions": {
+          "covered": 2,
+          "count": 2
+        },
+        "regions": {
+          "covered": 92,
+          "count": 92
+        },
+        "branches": {
+          "covered": 12,
+          "count": 12
+        }
+      }
+    ]
+  },
+  "owner": {
+    "status": "passed",
+    "source_commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+    "release_binary_sha256": "524c96ee8e17a5278740e39752be605554b3c18271309b3f4ec50542e0af5c67",
+    "external_oracle_sha256": "460eb7613b01f8cb1bce6d0d66031ba3775db39465033e33834d42b3dab94da2",
+    "evidence_sha256": "f5912dcfeae9ad00f9300a0172b9bab3f343c240c81acff1fe2bce4b0ab801c8",
+    "original_commands": 70,
+    "original_http_posts": 144,
+    "original_sql_acks": 15,
+    "accepted_head_publications": 74,
+    "s3_requests": 655,
+    "faults": {
+      "actual_corrupt_restore_puts": 2,
+      "blocked_recovery_hot_and_control": "verified",
+      "lost_actual_successful_responses": 2,
+      "no_untrusted_redirect_request": true,
+      "observed_holds": 9,
+      "planned_faults": 13
+    },
+    "processes": {
+      "audited_child_incarnations": 12,
+      "kernel_wait4": "verified",
+      "old_owner_and_cache_loss": "verified",
+      "private_cleanup_observation": "verified",
+      "sdk_processes": 2,
+      "service_processes": 4
+    },
+    "controls_sha256": "3be5868f626d4803e84c0105e7036c8f3358c0c6e04fa927980005ad8d9ab905",
+    "negative_controls": 24,
+    "positive_controls": 1,
+    "second_independent_review_sha256": "5044d4320bc996c68f6aec4c3dbc6b9c65225f8cc76c8dd88c13a115ec756bae",
+    "source_unchanged": true,
+    "automatic_controller": "NOT_IMPLEMENTED"
+  },
+  "real_regressions": {
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "signed_listing": "passed",
+    "bounded_response": "passed",
+    "network_publication": "passed",
+    "retained_result": "passed",
+    "lifecycle": "passed",
+    "catalogue_network": "passed",
+    "service": "passed",
+    "catalogue_service": "passed",
+    "isolation": "passed",
+    "segmented_index": "passed",
+    "tcp_8_cases": "passed",
+    "discovery": "actual03 FAILED; corrected bda5ad4 four-file fixture frozen with 183 units PASS; new actual04 and its 26 negative/1 positive controls NOT_RUN at this checkpoint",
+    "capacity_gib1": "passed in separate retry02; original disk-guard failure preserved",
+    "deployment_recovery": "passed in independent new-source run; original fail-first driver remains failed",
+    "resource_composition": "passed at 586e11b; fresh release, required fixture Clippy, actual/external oracle, 14 negative and 1 positive controls; unchanged compiled inputs"
+  },
+  "auxiliary": {
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "stages": 22,
+    "status": "passed",
+    "completion_sha256": "f93e3cf61b7d1ce07488b223bc37794b8e9f0b4cc6fceb381064dded816054f1"
+  },
+  "preserved_failures": [
+    {
+      "kind": "http_job_lifetime_unit_fixture",
+      "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+      "archive_sha256": "8d1ce81b9acb557b8512343fd65411147ac4d1b2f4f046096ef6b74af88b1542",
+      "fix": "4456fc4c3165f8846e135b7e5aaeae1a481cc856; join actual jobs while response/Bytes remain held; no sleep or production reply-order change"
+    },
+    {
+      "kind": "owner_fixture_oracle",
+      "evidence": "/tmp/scap-owner-observation-3b93b9a-01",
+      "preservation_sha256": "8f9dbd2c0009bc1cafdf89e2b56cbb0383190273e89d3d16d42fbd8e14968920",
+      "fix": "586e11b1b8df060c2b0f104fcb382c5862082e14; fixed caller roles, ordered inputs, quota, and distinct trusted read bootstrap; separate actual rerun"
+    },
+    {
+      "kind": "capacity_free_disk_guard",
+      "evidence": "/tmp/scap-context-real-3b93b9a-01/gib1",
+      "observed_free_bytes": 4252696576,
+      "required_free_bytes": 4294967296,
+      "original_deadlines_and_guard_unchanged": true
+    },
+    {
+      "kind": "discovery_read_deadline",
+      "evidence": [
+        "/tmp/scap-owner-regressions-3b93b9a-01/discovery",
+        "/tmp/scap-discovery-regression-3b93b9a-02"
+      ],
+      "status": "FAILED",
+      "interpretation": "Concurrent load alone is not established as the cause; unchanged quiet retry also failed. No third blind retry."
+    },
+    {
+      "kind": "discovery_inventory_proof_binding",
+      "source_commit": "09cfc0d05f1900992ed2c369d6853bd38600166a",
+      "status": "FAILED pre-actual verifier review; no actual run",
+      "sha256": "dc2af94db8d17ea3f50e2699b9278f01af3d3c5d259d51ec88e21aca1d8e6c62",
+      "fix": "4834434724104a6352eacf25d1b610ac70a2f865 binds each candidate to its original phase and GET interval"
+    },
+    {
+      "kind": "discovery_final_proxy_observation",
+      "source_commit": "4834434724104a6352eacf25d1b610ac70a2f865",
+      "status": "FAILED",
+      "evidence": "/tmp/scap-discovery-observation-4834434-03",
+      "original_controls": "NOT_RUN",
+      "diagnostic_sha256": "398f18f21918117e526cca57162b4fe00cf32ac447a0edaefd91f02eeca7f06d",
+      "final_list_diagnostic_sha256": "feb1b4fa64c0888498bd4a1901b5046feff01d40d9545dfc633dfe6c4b38e47b",
+      "revised_old_history_audit": "diagnostic only; does not relabel this original failure"
+    }
+  ],
+  "not_completed": [
+    "storage_generation",
+    "head_serial",
+    "safe_reclamation_and_retained_snapshot_protection",
+    "physical_gc",
+    "PITR",
+    "global_live_memory_and_disk_budgets",
+    "automatic_owner_controller",
+    "complete_N0_N4_exit"
+  ],
+  "physical_gc": "OFF",
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "capacity": {
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "status": "passed",
+    "profile": "gib1",
+    "original_deadlines_and_disk_guard_unchanged": true,
+    "summary_sha256": "504802fcdd3243bc0760f44724b8c61c11695a55b5c91178de89e52dafdd46e3",
+    "completion_sha256": "c876ecba879d403c124fbb0ea0e77ce052641968ecc111335c9dc244d57a77ca",
+    "source_unchanged": true,
+    "ack_audited_count": 39,
+    "ack_mismatch_count": 0,
+    "blob_audited_count": 16384,
+    "blob_audited_bytes": 1073741824,
+    "blob_mismatch_count": 0,
+    "worker_binary_sha256": "c70c74c5871e5fc6f25a906cc959558040f078335794ebfd3c88ec63e0658cae",
+    "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "history_sha256": "b11864aa495f3ca70242505270f759f606e1bdae8dfd4b2bf544ad16e29b9053",
+    "completed_checks": [
+      "one_gib_independent_payload_committed",
+      "warm_point_updates_do_not_transfer_whole_gib",
+      "warm_session_rechecks_permission_and_exact_root",
+      "unknown_resolved_without_sql_replay",
+      "all_compute_and_backend_process_loss_recovered_from_s3",
+      "every_client_ack_retains_exact_receipt_and_original_result",
+      "every_blob_matches_independent_preinvocation_hash",
+      "hot_cache_cannot_bypass_unavailable_fresh_head"
+    ],
+    "cold_recovery": {
+      "get_requests": 8338,
+      "get_response_bytes": 1084291337,
+      "head_puts": 2,
+      "http_statuses": {
+        "200": 8340
+      },
+      "put_request_bytes": 1453,
+      "put_requests": 2,
+      "put_success_bytes": 1453,
+      "put_successes": 2,
+      "unique_successful_put_keys": 1
+    },
+    "database_file_bytes": 1082163200,
+    "is_new_10_gib_capacity_test": false,
+    "aws_standard": "NOT_RUN"
+  },
+  "deployment_recovery": {
+    "status": "passed",
+    "original_inputs": 13,
+    "original_ack_count": 11,
+    "signed_s3_requests": 4088,
+    "list_pages": 1480,
+    "full_byte_objects": 154,
+    "processes": 62,
+    "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+    "verification_scope": "full",
+    "source_commit": "3b93b9ad1fe21857482a54c8dfdfdc265a206ab0",
+    "source_unchanged": true,
+    "oracle_sha256": "822abef18da9a8e41f57515e0b91b5bdafbb3bc7b8c81a18240ab0a85dc322c5",
+    "controls_sha256": "a528b9bed7c5cf60511e0095f40b933eb0721abae60c9c9ac47710fe25e7fb87",
+    "completion_sha256": "71c95b31f91505fc4baa4658763fbc3e050930c19f92075159ef7f3847a0ebd4",
+    "negative_controls": 23,
+    "positive_controls": 1,
+    "originals_unchanged": true,
+    "aws_standard": "NOT_RUN"
+  },
+  "discovery_failure_analysis": {
+    "receipt_sha256": "a60a7650137aff15044ee9e6be19470130c46fa64ffb87b9ade2cd01d1e6b0c7",
+    "actual_ready_candidate_gets": 8,
+    "original_service_ms": 5000,
+    "original_read_ms": 4000,
+    "original_run_completed_candidates": 33,
+    "quiet_retry_completed_candidates": 29,
+    "production_deadline_changed": false,
+    "fixture_repair_status": "under review; no accepted rerun yet"
+  },
+  "current_fixture_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+  "resource_composition": {
+    "status": "passed",
+    "source_commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+    "receipt": "resource-composition-local-2026-11-09.json",
+    "receipt_sha256": "c588e32db565cf2b3c8c10611992b42495b70f581820d83bcbfc0aeac6ba240b",
+    "observations": {
+      "backpressure": 3,
+      "http_calls": 25,
+      "object_versions": {
+        "accepted_versions": 10,
+        "ambiguous_http_intervals": 0,
+        "blackholed_before_forward": 0,
+        "causal_constraints": 56,
+        "conditional_put_responses": 10,
+        "exact_get_body_etag_pairs": 40,
+        "http_interval_binding": "checked"
+      },
+      "original_cancellation_proved": true,
+      "original_execute_attempts": 1,
+      "original_unknown": 1,
+      "processes": {
+        "all_recorded_children_reaped": true,
+        "owned_workload_processes": 6
+      },
+      "s3_requests": 50,
+      "transport_holds": [
+        "incomplete_body",
+        "server_timeout_with_running_worker",
+        "slow_response"
+      ],
+      "worker": {
+        "explicit_pause": 1,
+        "late_worker_outcome": "UNKNOWN",
+        "observed_calls": 22,
+        "server_timeouts_with_live_worker": 1
+      }
+    },
+    "gates": {
+      "actual": "passed",
+      "controls": {
+        "all_negative_rejected": true,
+        "negative": 14,
+        "positive": 1
+      },
+      "external_oracle": "passed",
+      "fixture_clippy_this_commit": {
+        "cache": "intact inactive prior dev cache reused; source-bound gate, not a fresh build claim",
+        "command": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all-targets",
+          "--frozen",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "log": {
+          "bytes": 743,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.log",
+          "sha256": "7c3596b6422e6dcecefc9ad558488afb4b2d89cf89ad14b1f09cc5f8e5e4e48c"
+        },
+        "receipt": {
+          "bytes": 1310,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-clippy.json",
+          "sha256": "56db6ad673076e3ab56865beba6a86d518801c6402c6bb77e89f2619d36b959c"
+        },
+        "status": "passed"
+      },
+      "fixture_fmt": {
+        "log": {
+          "bytes": 0,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-fmt.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "status": "passed"
+      },
+      "fixture_unit": {
+        "log": {
+          "bytes": 1688,
+          "path": "/tmp/scap-resource-586e11b-01/fixture-unit.log",
+          "sha256": "240fb8a2a9712f883eebfe0b0cde574e1350ce6c2895982c17962f9935e2beb2"
+        },
+        "status": "passed",
+        "tests": 11
+      },
+      "fresh_release_build": "passed",
+      "source_verify": {
+        "commit": "586e11b1b8df060c2b0f104fcb382c5862082e14",
+        "files": 395,
+        "status": "passed"
+      }
+    },
+    "limits": {
+      "aws_standard": "NOT_RUN",
+      "backend": "local SeaweedFS with signed S3 requests and unsigned authority-access rejection",
+      "final_bytes_clone_proof": "separate production unit test; TCP exercise is supplemental",
+      "fixed_inputs_deadlines_and_oracle": "unchanged",
+      "global_process_rss_cap": "NOT_CLAIMED",
+      "native_sqlite_global_heap_cap": "NOT_IMPLEMENTED",
+      "pause": "explicit production Worker seam used to observe timeout with work still live",
+      "production_slo": "NOT_RUN"
+    }
+  },
+  "discovery_candidate": {
+    "source_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+    "freeze_sha256": "bdf769acf5d965def8bfe3550d5a075af3b4fa755de168b04bb81a0069c9fd4a",
+    "files": [
+      {
+        "bytes": 15305,
+        "path": "experiments/object-service/discovery_contract.md",
+        "sha256": "183e8bf48d8ce0d4733a3ce9eabd3d16cbcb32214b985b432fab0f3c17b5f22c"
+      },
+      {
+        "bytes": 116982,
+        "path": "experiments/object-service/discovery_oracle.py",
+        "sha256": "0913da18c8b0e3d6c780af3dd1a61eeb6daebb7a0f76571a904f0848f1106864"
+      },
+      {
+        "bytes": 18079,
+        "path": "experiments/object-service/discovery_probe.mjs",
+        "sha256": "2e671781a20ad0449d61190842b7555e3135954f25ad4c6ab18b83e27acfef6d"
+      },
+      {
+        "bytes": 51959,
+        "path": "experiments/object-service/test_discovery_progress.py",
+        "sha256": "6ce3fbad3c2aa39691385fc17a92817788fe8e264ab4f3dc8a4a43936e160e0a"
+      }
+    ],
+    "fixture_units": {
+      "count": 183,
+      "log": "/tmp/scap-discovery-causal-tail-all-units-03.log",
+      "sha256": "f52ece8bcf3a172717a4a1b237fb3be0e494730b8f702404792a972328ccd206",
+      "status": "PASS"
+    },
+    "node_syntax": "passed",
+    "production_changed": false,
+    "actual04": "NOT_RUN",
+    "required_negative_controls": 26,
+    "required_positive_controls": 1,
+    "deadline_or_budget_relaxation": false,
+    "internal_dispatch_time": "NOT_OBSERVED"
+  },
+  "follow_on_candidates": {
+    "head5_pr": 42,
+    "head5_source": "b00d67e879c923012e89923829c0e39959b79848",
+    "head5_scope": "serial and storage namespace foundation; only active=allocated=1 accepted",
+    "head5_units": "507 stable/nightly; all54 production files exact unit-only4D PASS; actual HEAD5 NOT_RUN",
+    "conservative_reclamation_model_pr": 41,
+    "ordinary_operation_direction": "separate generation-fenced abortable model; no default permanent per-operation durable pin; finite proof and production implementation pending"
+  },
+  "native_wal_reset_assessment": {
+    "document": "../architecture/sqlite-wal-reset-assessment.md",
+    "source_commit": "b00d67e879c923012e89923829c0e39959b79848",
+    "libsql_pin": "d8bc862d20bedc72945a1da27c8b7045414c0261",
+    "sqlite_version": "3.47.0",
+    "patched": false,
+    "current_service_topology": "single controlled connection per unique private file; source-reviewed architectural trigger exclusion",
+    "native_reproducer": "NOT_RUN",
+    "native_patch_validation": "NOT_RUN",
+    "scope": "does not establish arbitrary embedding/sidecar safety or a patched native engine"
+  }
+}

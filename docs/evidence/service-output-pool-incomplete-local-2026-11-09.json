@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "status": "INCOMPLETE_EXECUTION_CONTROL_LOST",
+  "source_commit": "f074897403e7e85e7612584027bbbfd680353a43",
+  "source_tree": "b699f2d278ca983ed92276fcb122044f30db6b53",
+  "attempt": "f074897-01",
+  "observed": {
+    "format_exit_code": 0,
+    "strict_clippy_exit_code": 0,
+    "strict_clippy_seconds": 35.91,
+    "stable_compilation": "completed",
+    "current_stable_unit_elfs": 6,
+    "stable_unit_executables_observed_started": 1,
+    "stable_unit_executables_observed_finished": 0,
+    "unit_exit_code": null,
+    "original_driver_exit_code": null,
+    "source_unchanged": true,
+    "original_completion_status": "running",
+    "original_completion_preserved_unchanged": true,
+    "original_completion_sha256": "d9e2ee6d08350f37e2924c6e69faac2daf0cd18d166b5a9933035607c91440ba",
+    "coverage_collection_for_this_source": "NOT_RUN",
+    "exact_four_dimensions_for_this_source": "NOT_RUN"
+  },
+  "classification": {
+    "code_failure": false,
+    "accepted_gate": false,
+    "original_process_termination_reason": "UNDETERMINED",
+    "complete_host_process_visibility": false,
+    "readable_process_snapshot_found_original_driver_or_cargo": false
+  },
+  "last_accepted_source": {
+    "commit": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0",
+    "stable_units": 546,
+    "nightly_units": 546,
+    "production_rust_files": 56,
+    "exact_per_file_four_dimensions": "PASS"
+  },
+  "preserved_prior_profiles": {
+    "source_commit": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0",
+    "coverage_elfs": 6,
+    "raw_profiles": 93,
+    "merged_profiles": 1,
+    "original_profile_list": true,
+    "byte_identical_to_previous_binding": true,
+    "counted_as_f074_coverage": false
+  },
+  "preservation": {
+    "status": "ARCHIVE_AND_ALL_MEMBER_READBACK_PASS",
+    "last_verified_before_environment_became_unavailable": true,
+    "archive": {
+      "path": "/tmp/scap-service-output-unit-f074897-partial-01/service-output-unit-f074897-incomplete-01.tar.gz",
+      "bytes": 271908332,
+      "sha256": "16c6cf14be1ccbd686944aac6ff852025f0115ba2b90fb3cee1cb5a31d52e576",
+      "members": 214,
+      "uncompressed_member_bytes": 846507903,
+      "all_members_readback": true,
+      "source_members_verified": 450,
+      "root_independent_archive_sha256_recomputed": true
+    },
+    "completion": {
+      "path": "/tmp/scap-service-output-unit-f074897-partial-01/completion.json",
+      "bytes": 2220,
+      "sha256": "0dd2d64da079af6da970b4c52665a41c60eacd8c868a40fd91bd1189ebf1fb57"
+    },
+    "partial_binding": {
+      "path": "/tmp/scap-service-output-unit-f074897-partial-01/partial-binding.json",
+      "bytes": 46011,
+      "sha256": "1ccebae5f14bd4428f74ec211ff3c36e01d242180b0f798a8040ff497ce8a1e5"
+    },
+    "inventory": {
+      "path": "/tmp/scap-service-output-unit-f074897-partial-01/inventory.json",
+      "bytes": 120909,
+      "sha256": "06b8b62ebf9d66c915c0e26a14be823487e91ff1392eea92f77d91bcab4015df"
+    },
+    "handoff": {
+      "path": "/tmp/scap-unit-target-transfer-service-output-retry-01/ownership-transfer.json",
+      "bytes": 155603,
+      "sha256": "518a3679d43047b4d9201b1d8c0aaac8eafb5e706134796692fafc502b6a21e1",
+      "replaceable_artifacts": 187,
+      "all_archived_exactly": true,
+      "target_mutated_during_handoff": false,
+      "active_target_users_observed": [],
+      "unpreserved_artifacts": [],
+      "last_completed_functional_unit_commit": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0"
+    },
+    "native_cached_out_dirs_retained": [
+      "/tmp/scap-raw-frame-stable-01/debug/build/libsql-ffi-8eb79fc4115de32d/out",
+      "/tmp/scap-raw-frame-coverage-01/llvm-cov-target/debug/build/libsql-ffi-41951f46890e3a32/out"
+    ],
+    "current_artifact_readability": "EXECUTION_ENVIRONMENT_UNAVAILABLE"
+  },
+  "subsequent_environment_block": {
+    "status": "unavailable",
+    "message": "exec-server transport disconnected; failed to resume exec-server session: recovery timed out after 45s",
+    "later_probe": "No usable execution environment is available. Wait for an environment to become available before using this tool.",
+    "attempt02": "NOT_RUN",
+    "handle_model_bc9f9e6_units_and_full_gate": "NOT_RUN",
+    "production_source_changed": false
+  },
+  "recovery_order": [
+    "Verify original preserved artifacts, source commit/tree and exclusive target ownership",
+    "Run same frozen f074 source in a new attempt directory with the unchanged canonical driver",
+    "Clean and quarantine only exact archived residual coverage profiles; assert zero before fresh unit-only collection",
+    "Bind completed gate to actual ELF/native artifacts and fresh profiles",
+    "Run affected actual service/resource/output-pool and guarded-status contracts with matching release provenance"
+  ],
+  "unchanged_failures": [
+    "c6cb712 strict Clippy FAILED",
+    "d012dc5 exact per-file counters FAILED",
+    "e396d48 full handle-knowledge oracle FAILED"
+  ],
+  "actual_output_pool_contract": "NOT_RUN",
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "remote_ci": "NOT_CLAIMED"
+}

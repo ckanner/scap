@@ -106,6 +106,47 @@ pub(crate) fn transport(replies: Vec<Reply>) -> (String, thread::JoinHandle<()>,
     (endpoint, handle, requests)
 }
 
+/// A timeout may happen before the client has sent complete HTTP headers. Keep
+/// accepted sockets silent until the caller finishes, rather than requiring a
+/// complete request from an operation whose original deadline may already have
+/// elapsed. Closing the signal on panic also stops the owned fixture thread.
+fn stalled_transport() -> (
+    String,
+    thread::JoinHandle<usize>,
+    std::sync::mpsc::Sender<()>,
+) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let (stop, stopped) = std::sync::mpsc::channel();
+    let server = thread::spawn(move || {
+        let mut sockets = Vec::new();
+        loop {
+            let finished = !matches!(
+                stopped.recv_timeout(Duration::from_millis(1)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            );
+            // Drain connections already queued at completion as well. No HTTP
+            // response is emitted, and no early EOF is treated as a fixture bug.
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => {
+                        sockets.push(socket);
+                        assert!(sockets.len() <= 1, "one HTTP attempt per call");
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(error) => panic!("{error}"),
+                }
+            }
+            if finished {
+                break;
+            }
+        }
+        sockets.len()
+    });
+    (endpoint, server, stop)
+}
+
 #[test]
 fn signed_single_get_keeps_its_etag_and_writes_keep_exact_conditions() {
     let (endpoint, server, capture) = transport(vec![
@@ -209,10 +250,10 @@ fn configuration_and_construction_fail_closed_without_ambient_credentials() {
 #[test]
 fn input_limits_paths_etags_and_deadlines_precede_any_io() {
     let s3 = S3::new(config("http://127.0.0.1:1")).unwrap();
-    assert_eq!(s3.get("key", 4097, deadline()), Err(StoreError::Limit));
+    assert_eq!(s3.get("key", 4097, deadline()), Err(StoreError::Budget));
     assert_eq!(
         s3.put("key", &[0; 4097], Condition::Absent, deadline()),
-        Err(StoreError::Limit)
+        Err(StoreError::Budget)
     );
     for key in ["", "../bad", "/prefix", "trailing/", "key\0"] {
         assert_eq!(
@@ -343,9 +384,7 @@ fn read_failures_and_missing_put_tokens_never_become_success() {
 #[test]
 fn operation_and_transport_timeouts_keep_the_original_outcome_unknown() {
     for put in [false, true] {
-        let mut delayed = reply(200, b"");
-        delayed.delay = Duration::from_millis(100);
-        let (endpoint, server, capture) = transport(vec![delayed]);
+        let (endpoint, server, stop) = stalled_transport();
         let s3 = S3::new(config(endpoint)).unwrap();
         let bound = Instant::now() + Duration::from_millis(20);
         let result = if put {
@@ -354,17 +393,16 @@ fn operation_and_transport_timeouts_keep_the_original_outcome_unknown() {
             s3.get("key", 3, bound).map(|_| ())
         };
         assert_eq!(result, Err(StoreError::Unknown));
-        server.join().unwrap();
-        assert_eq!(capture.lock().unwrap().len(), 1);
+        stop.send(()).unwrap();
+        assert!(server.join().unwrap() <= 1);
     }
-    let mut delayed = reply(200, b"");
-    delayed.delay = Duration::from_millis(100);
-    let (endpoint, server, _) = transport(vec![delayed]);
+    let (endpoint, server, stop) = stalled_transport();
     let mut settings = config(endpoint);
     settings.timeout = Duration::from_millis(20);
     let s3 = S3::new(settings).unwrap();
     assert_eq!(s3.get("key", 1, deadline()), Err(StoreError::Unknown));
-    server.join().unwrap();
+    stop.send(()).unwrap();
+    assert!(server.join().unwrap() <= 1);
     assert_eq!(
         s3.execute(Instant::now() + Duration::from_millis(5), async {
             thread::sleep(Duration::from_millis(20));

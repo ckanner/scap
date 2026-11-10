@@ -1,0 +1,115 @@
+{
+  "schema": 1,
+  "status": "FAILED_AT_FORMAT_BEFORE_COMPILATION",
+  "source_commit": "052fbbd96ddb8571f649f4e143fadf2dc1ce77bf",
+  "completion_sha256": "b0ff27988ada8ae33d4f8e5f2241da0117c09bfaee986f69b15476e5016ba8ab",
+  "completion": {
+    "schema": 1,
+    "status": "failed",
+    "scope": "complete-workspace-unit-only",
+    "source_commit": "052fbbd96ddb8571f649f4e143fadf2dc1ce77bf",
+    "target": "/tmp/scap-head5-composed-unit-target-f6c9073-01",
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-runtime-unit-052fbbd-01/source-before.json"
+        ],
+        "started_monotonic_ns": 59323942395798,
+        "pid": 8,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59324522900087,
+        "log_sha256": "51149deaeeea094e5fb284f4e6857a4e597106f769eaa8f2c050878870dc0b12"
+      },
+      {
+        "name": "stable-rustc-version",
+        "argv": [
+          "rustc",
+          "+1.90.0",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 59324526303677,
+        "pid": 19,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59325424084488,
+        "log_sha256": "938db28b83089ab88301ca425f99fa1d8b61ee66e0371babe1db6373ae9810a3"
+      },
+      {
+        "name": "nightly-rustc-version",
+        "argv": [
+          "rustc",
+          "+nightly-2025-09-18",
+          "-Vv"
+        ],
+        "started_monotonic_ns": 59325425402833,
+        "pid": 29,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59325698932939,
+        "log_sha256": "3490ee6e8bcdb72c1c69a3dd110ba44354faa27549f1f6fce37148b2b8b1f6c6"
+      },
+      {
+        "name": "llvm-cov-version",
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--version"
+        ],
+        "started_monotonic_ns": 59325699365037,
+        "pid": 39,
+        "exit_code": 0,
+        "finished_monotonic_ns": 59325832078612,
+        "log_sha256": "efc57bc1d04870059ff6831e9722df3c7a41a6c19d78054dba6a432cff96b8d2"
+      },
+      {
+        "name": "format",
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "started_monotonic_ns": 59325832518847,
+        "pid": 48,
+        "exit_code": 1,
+        "finished_monotonic_ns": 59328433719722,
+        "log_sha256": "cb40a8dd8dbaf75554b92b6a5a8bad683290d8e5a00970b040c8583f56d59ed5"
+      }
+    ],
+    "build_jobs": 1,
+    "incremental": false,
+    "profile_overrides": {},
+    "cached_native_compilation": true,
+    "cache_provenance": {
+      "ownership_receipt_sha256": "106fbc94e22a26f0468ebe82e670bce87afd71902494d6329d2845d66fcede74",
+      "previous_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+      "archive_path": "/tmp/scap-head5-unit-archive-f6c9073-01/head5-unit-f6c9073-01.tar.gz",
+      "archive_sha256": "a17119995e25d7fbc1ce5fe6eebbc8bb6585597ad470497ecbca30af848a4bd8",
+      "exclusive_reuse": true,
+      "copy_performed": false,
+      "old_artifacts_archived_exactly": true
+    },
+    "old_profiles_used": false,
+    "integration_profiles_used": false,
+    "aws_standard": "NOT_RUN",
+    "native_fault_contracts": "NOT_RUN",
+    "error": "AssertionError('format')",
+    "source_unchanged": true
+  },
+  "format_log_sha256": "cb40a8dd8dbaf75554b92b6a5a8bad683290d8e5a00970b040c8583f56d59ed5",
+  "fix": {
+    "path": "crates/scap-service/src/discovery.rs",
+    "before_sha256": "84d3f694709c617b8b424547fa110344b5ebcf74cf6362bba65181741e167ec7",
+    "after_sha256": "d061985a7191f828d7bf49a9953a3125ed2089541f57ea89e709fb37546c8091",
+    "change": "Only the rustfmt-requested wrapping of the borrowed success envelope serialization expression."
+  },
+  "clippy_stable_coverage_actual": "NOT_RUN",
+  "old_cache_profiles_unchanged": "No compilation or coverage-clean stage was entered.",
+  "new_candidate_full_gate": "NOT_RUN",
+  "original_failure_preserved": true
+}

@@ -1,9 +1,20 @@
-//! Strict v4 HEAD values and unchanged v2 immutable object frames.
+//! Strict v6 HEAD values and unchanged v2 immutable object frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+
+#[path = "object_frame.rs"]
+mod object_frame;
+pub(crate) use object_frame::ValidatedFrame;
+
+#[path = "storage.rs"]
+mod storage;
+pub use storage::{
+    CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
+    MAX_SWEEP_ENTRIES,
+};
 
 pub const PAGE_SIZE: usize = 4096;
 pub const CHUNK_PAGES: u32 = 32;
@@ -23,6 +34,9 @@ pub const MAX_RESULT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_HEAD_BYTES: usize = 256 * 1024;
 pub const MAX_OBJECT_BYTES: usize = MAX_RESULT_BYTES + 64 * 1024;
 pub const MAX_PRINCIPALS: usize = 1024;
+/// Initial physical namespace. HEAD6 allocates later namespaces monotonically;
+/// logical Scope generations identify independent databases, not compactions.
+pub const INITIAL_STORAGE_GENERATION: u64 = 1;
 const MAGIC: &[u8; 8] = b"SCAPOBJ2";
 const FRAME_BYTES: usize = 20;
 const SMALL_METADATA_BYTES: usize = 64 * 1024 - FRAME_BYTES;
@@ -222,6 +236,8 @@ impl Window {
 pub struct Head {
     pub format: u32,
     pub scope: Scope,
+    pub head_serial: u64,
+    pub storage: Storage,
     pub revision: u64,
     pub transition: Transition,
     pub sequence: u64,
@@ -243,16 +259,18 @@ pub struct Head {
 }
 
 impl Head {
-    fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 4)?;
+    pub(crate) fn validate(&self) -> Result<(), FormatError> {
+        check(self.format == 6)?;
         self.scope.validate()?;
         nonzero(&[
+            self.head_serial,
             self.revision,
             self.owner_epoch,
             self.owner_instance,
             self.auth_epoch,
             self.request_epoch,
         ])?;
+        check(self.head_serial >= self.revision)?;
         self.transition.validate()?;
         check(self.transition.revision == self.revision)?;
         check(hash_valid(&self.data_root))?;
@@ -280,6 +298,7 @@ impl Head {
             }
         }
         self.validate_named()?;
+        self.storage.validate(self)?;
         Ok(())
     }
 
@@ -522,16 +541,27 @@ pub struct Envelope {
 
 impl Envelope {
     fn validate(&self) -> Result<(), FormatError> {
+        let raw_len = match &self.payload {
+            Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
+                bytes.len()
+            }
+            _ => 0,
+        };
+        self.validate_with_raw_len(raw_len)
+    }
+
+    /// Shared semantic checks for owned payloads and frames whose raw bytes
+    /// have not been copied into the metadata yet. Frame parsing separately
+    /// requires empty embedded bytes and no raw bytes for non-raw variants.
+    fn validate_with_raw_len(&self, raw_len: usize) -> Result<(), FormatError> {
         check(self.format == 2)?;
         self.scope.validate()?;
         match &self.payload {
-            Payload::Chunk { first_page, bytes } => {
+            Payload::Chunk { first_page, .. } => {
                 check(*first_page != 0 && (*first_page - 1).is_multiple_of(CHUNK_PAGES))?;
-                check(!bytes.is_empty() && bytes.len().is_multiple_of(PAGE_SIZE))?;
-                budget(bytes.len(), CHUNK_BYTES)?;
-                check(
-                    *first_page as u64 + (bytes.len() / PAGE_SIZE) as u64 - 1 <= MAX_PAGES as u64,
-                )?;
+                check(raw_len != 0 && raw_len.is_multiple_of(PAGE_SIZE))?;
+                budget(raw_len, CHUNK_BYTES)?;
+                check(*first_page as u64 + (raw_len / PAGE_SIZE) as u64 - 1 <= MAX_PAGES as u64)?;
             }
             Payload::Node {
                 level,
@@ -552,7 +582,7 @@ impl Envelope {
                 nonzero(&[result.sequence])?;
                 result.transition.validate()?;
                 check(hash_valid(&result.data_root))?;
-                budget(result.bytes.len(), MAX_RESULT_BYTES)?;
+                budget(raw_len, MAX_RESULT_BYTES)?;
             }
             Payload::Index(index) => index.validate()?,
         }
@@ -581,10 +611,16 @@ pub fn head_key(scope: &Scope) -> String {
     )
 }
 
-pub fn object_key(scope: &Scope, hash: &str) -> String {
+pub fn object_key(scope: &Scope, storage_generation: u64, hash: &str) -> String {
     format!(
-        "scap-object/v1/{}/{}/{}/inc/{}/gen/{}/objects/{}",
-        scope.deployment, scope.tenant, scope.database, scope.incarnation, scope.generation, hash
+        "scap-object/v1/{}/{}/{}/inc/{}/gen/{}/storage/{}/objects/{}",
+        scope.deployment,
+        scope.tenant,
+        scope.database,
+        scope.incarnation,
+        scope.generation,
+        storage_generation,
+        hash
     )
 }
 
@@ -689,37 +725,8 @@ pub fn decode_object(
     scope: &Scope,
     expected_hash: &str,
 ) -> Result<Envelope, FormatError> {
-    budget(bytes.len(), MAX_OBJECT_BYTES)?;
-    check(digest(bytes) == expected_hash).map_err(|_| FormatError::Corrupt)?;
-    check(bytes.len() >= FRAME_BYTES).map_err(|_| FormatError::Corrupt)?;
-    check(&bytes[..8] == MAGIC).map_err(|_| FormatError::Corrupt)?;
-    let metadata_len =
-        u32::from_le_bytes(bytes[8..12].try_into().expect("fixed frame field")) as usize;
-    let raw_len = u64::from_le_bytes(bytes[12..20].try_into().expect("fixed frame field"));
-    check(metadata_len <= SMALL_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
-    check(raw_len <= MAX_RESULT_BYTES as u64).map_err(|_| FormatError::Corrupt)?;
-    check(bytes.len() == FRAME_BYTES + metadata_len + raw_len as usize)
-        .map_err(|_| FormatError::Corrupt)?;
-    let metadata: Metadata =
-        serde_json::from_slice(&bytes[FRAME_BYTES..FRAME_BYTES + metadata_len])
-            .map_err(|_| FormatError::Corrupt)?;
-    let raw = &bytes[FRAME_BYTES + metadata_len..];
-    let mut payload = metadata.payload;
-    match &mut payload {
-        Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
-            check(bytes.is_empty()).map_err(|_| FormatError::Corrupt)?;
-            bytes.extend_from_slice(raw);
-        }
-        _ => check(raw.is_empty()).map_err(|_| FormatError::Corrupt)?,
-    }
-    let envelope = Envelope {
-        format: metadata.format,
-        scope: metadata.scope,
-        payload,
-    };
-    envelope.validate().map_err(|_| FormatError::Corrupt)?;
-    check(envelope.scope == *scope).map_err(|_| FormatError::Corrupt)?;
-    Ok(envelope)
+    object_frame::ValidatedFrame::parse(bytes, scope, expected_hash)
+        .map(object_frame::ValidatedFrame::into_envelope)
 }
 
 fn encode(value: &impl Serialize, maximum: usize) -> Result<Vec<u8>, FormatError> {
@@ -734,7 +741,7 @@ fn required_option<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     Option::deserialize(deserializer)
 }
 
-fn hash_valid(hash: &str) -> bool {
+pub(crate) fn hash_valid(hash: &str) -> bool {
     hash.len() == 64
         && hash
             .bytes()

@@ -63,10 +63,10 @@ class CatalogueNetworkBindingControls(unittest.TestCase):
         digest=hashlib.sha256(creation()["name"].encode()).hexdigest()
         prefix="/scap-test/scap-object/v1/1/7/"
         paths=[prefix+"catalogue/v1/name/"+digest,prefix+"catalogue/v1/create/11/1001",
-               prefix+"catalogue/v1/abort-proof/11/1001",prefix+"10/head",prefix+"10/inc/20/gen/30/objects/"+"a"*64]
+               prefix+"catalogue/v1/abort-proof/11/1001",prefix+"10/head",prefix+"10/inc/20/gen/30/storage/1/objects/"+"a"*64]
         for path in paths:oracle.bind_requests({1:{"monotonic_ns":50,"path":path,"method":"GET"}},calls,observed,known)
         for path in [prefix+"catalogue/v1/name/"+"a"*64,prefix+"catalogue/v1/create/12/1001",
-                     prefix+"11/head",prefix+"10/inc/20/gen/31/objects/"+"a"*64,
+                     prefix+"11/head",prefix+"10/inc/20/gen/31/storage/1/objects/"+"a"*64,
                      prefix+"catalogue/v1/control/12/delete/99","/scap-test/scap-object/v1/1/8/10/head"]:
             with self.subTest(path=path),self.assertRaises(ValueError):
                 oracle.bind_requests({1:{"monotonic_ns":50,"path":path,"method":"GET"}},calls,observed,known)
@@ -107,7 +107,7 @@ class CatalogueNetworkBindingControls(unittest.TestCase):
         known["prior"]=prior
         request={"monotonic_ns":50,"path":"/scap-test/scap-object/v1/1/7/9/head","method":"GET"}
         oracle.bind_requests({1:request},calls,observed,known)
-        for change in ({"method":"PUT"},{"path":"/scap-test/scap-object/v1/1/7/9/inc/20/gen/30/objects/"+"a"*64},
+        for change in ({"method":"PUT"},{"path":"/scap-test/scap-object/v1/1/7/9/inc/20/gen/30/storage/1/objects/"+"a"*64},
                        {"path":request["path"].replace("/1/7/","/1/8/")},{"monotonic_ns":101}):
             with self.subTest(change=change),self.assertRaises(ValueError):
                 oracle.bind_requests({1:{**request,**change}},calls,observed,known)

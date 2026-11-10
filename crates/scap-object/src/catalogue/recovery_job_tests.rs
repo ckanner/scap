@@ -292,7 +292,7 @@ fn corrupt_missing_data_and_native_images_keep_the_exact_slot_pending() {
     let base = Arc::new(Memory::default());
     let database = direct(base.clone(), 2, 42);
     let original = database.read_head(deadline()).unwrap();
-    let key = object_key(&database.scope, &original.head.data_root);
+    let key = object_key(&database.scope, 1, &original.head.data_root);
     let temp = tempfile::tempdir().unwrap();
     for missing in [false, true] {
         let objects = base.fork();
@@ -319,7 +319,7 @@ fn corrupt_missing_data_and_native_images_keep_the_exact_slot_pending() {
             page[16..18].copy_from_slice(&[0x10, 0]);
         }
         let root = crate::data_tree::update(
-            &database,
+            &ObjectContext::capture(&database, &original.head),
             &original.head.data_root,
             &scap_object_sqlite::PageBatch {
                 size_after: 1,
@@ -401,7 +401,7 @@ fn full_retained_history_is_checked_even_when_no_query_targets_the_old_epoch() {
     database
         .close_full(7, head.revision, 9, deadline())
         .unwrap();
-    objects.remove(&object_key(&scope, &receipt.result_hash));
+    objects.remove(&object_key(&scope, 1, &receipt.result_hash));
     objects.clear_calls();
     let mut job = job(objects.clone(), readers(), RecoveryBudget::default());
     let failed = until_stopped(&mut job, &temp.path().join("recover"));
@@ -409,7 +409,7 @@ fn full_retained_history_is_checked_even_when_no_query_targets_the_old_epoch() {
     assert!(objects
         .calls()
         .iter()
-        .any(|call| call.key == object_key(&scope, &receipt.result_hash)));
+        .any(|call| call.key == object_key(&scope, 1, &receipt.result_hash)));
     assert!(!failed.completion.recovery_complete);
     assert_eq!(failed.completion.data_verified, 0);
     assert!(!temp.path().join("recover").exists());
@@ -431,7 +431,7 @@ fn unknown_reads_and_head_changes_during_native_recovery_never_complete_the_slot
         // immutable dependency GET. The final HEAD must detect either change.
         fork.cut(
             false,
-            &object_key(&database.scope, &original.head.data_root),
+            &object_key(&database.scope, 1, &original.head.data_root),
             None,
             0,
             Fault::Replace {
@@ -451,7 +451,7 @@ fn unknown_reads_and_head_changes_during_native_recovery_never_complete_the_slot
     let mut job = job(objects.clone(), readers(), RecoveryBudget::default());
     objects.cut(
         false,
-        &object_key(&database.scope, &original.head.data_root),
+        &object_key(&database.scope, 1, &original.head.data_root),
         None,
         0,
         Fault::Before(StoreError::Unknown),
@@ -516,6 +516,14 @@ impl Listings for DeniedListings {
 
 #[test]
 fn typed_storage_denial_transport_unknown_and_object_limits_are_not_acl_filtering() {
+    assert_eq!(
+        RecoveryStop::from(DiscoveryError::SnapshotExpired),
+        RecoveryStop::SnapshotExpired
+    );
+    assert_eq!(
+        recovery_error(Error::SnapshotExpired),
+        RecoveryStop::SnapshotExpired
+    );
     let objects = Arc::new(Memory::default());
     let database = direct(objects.clone(), 2, 42);
     let temp = tempfile::tempdir().unwrap();
@@ -528,7 +536,7 @@ fn typed_storage_denial_transport_unknown_and_object_limits_are_not_acl_filterin
         let fork = objects.fork();
         fork.cut(
             false,
-            &object_key(&database.scope, &head.data_root),
+            &object_key(&database.scope, 1, &head.data_root),
             None,
             0,
             Fault::Before(error),

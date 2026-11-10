@@ -35,15 +35,16 @@ fn install(
     let request = identity(1);
     let mut head = database.read_head(deadline()).unwrap().head;
     head.revision += 1;
+    head.head_serial += 1;
     head.transition = Transition {
         revision: head.revision,
-        nonce: 100,
+        nonce: request.id,
     };
     head.sequence = 1;
     head.active = !inactive;
     let length = bytes.len() as u64;
-    let root = database
-        .upload(
+    let root = ObjectContext::bootstrap(&database)
+        .save(
             Payload::Result(StoredResult {
                 request: request.clone(),
                 sequence: 1,
@@ -54,8 +55,8 @@ fn install(
             deadline(),
         )
         .unwrap();
-    let root = database
-        .upload(
+    let root = ObjectContext::bootstrap(&database)
+        .save(
             crate::tests::index_payload(
                 1,
                 vec![Entry {
@@ -76,8 +77,8 @@ fn install(
         // HEAD or padding the scenario with unrelated result records.
         head.retention.max_entries = 1;
         head.request_epoch = 2;
-        let empty = database
-            .upload(crate::tests::index_payload(2, vec![]), deadline())
+        let empty = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(2, vec![]), deadline())
             .unwrap();
         head.windows.insert(
             0,
@@ -116,8 +117,8 @@ fn original_result_length_is_verified_against_each_leaf_claim() {
             crate::tests::index_entries(&database, &head.windows[0], deadline()).unwrap();
         entries[0].result_bytes += 1;
         head.windows[0].result_bytes += 1;
-        head.windows[0].root = database
-            .upload(crate::tests::index_payload(1, entries), deadline())
+        head.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
         let before = objects
@@ -158,20 +159,25 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
                     .map(|id| Entry {
                         request: identity(id),
                         outcome: OutcomeRef::Cancelled {
-                            transition: head.transition.clone(),
+                            transition: Transition {
+                                revision: head.revision,
+                                nonce: id,
+                            },
                         },
                         result_bytes: 0,
                     })
                     .collect(),
             };
             let summary = index.summary();
-            let hash = database.upload(Payload::Index(index), deadline()).unwrap();
+            let hash = ObjectContext::bootstrap(&database)
+                .save(Payload::Index(index), deadline())
+                .unwrap();
             children.push(IndexChild { hash, summary });
         }
-        let missing = object_key(&scope(), &children[1].hash);
+        let missing = object_key(&scope(), 1, &children[1].hash);
         head.windows[0].count = 128;
-        head.windows[0].root = database
-            .upload(
+        head.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(
                 Payload::Index(RequestIndex::Branch {
                     epoch: 1,
                     level: 1,
@@ -251,6 +257,84 @@ fn valid_historical_results_keep_exact_receipt_and_bytes_with_lower_local_limits
 }
 
 #[test]
+fn retained_nonce_is_bound_to_request_id_in_lookup_activation_and_compaction() {
+    for cancelled in [false, true] {
+        for operation in 0..3 {
+            let (objects, database, request, _) = install(valid_result(), false, true);
+            let mut head = database.read_head(deadline()).unwrap().head;
+            let mut entries =
+                crate::tests::index_entries(&database, &head.windows[0], deadline()).unwrap();
+            if cancelled {
+                entries[0].outcome = OutcomeRef::Cancelled {
+                    transition: Transition {
+                        revision: head.revision,
+                        nonce: request.id + 1,
+                    },
+                };
+                entries[0].result_bytes = 0;
+                head.windows[0].result_bytes = 0;
+            } else {
+                let OutcomeRef::Committed { result } = &entries[0].outcome else {
+                    panic!()
+                };
+                let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+                    .load(result, deadline())
+                    .unwrap()
+                else {
+                    panic!()
+                };
+                stored.transition.nonce = request.id + 1;
+                entries[0].outcome = OutcomeRef::Committed {
+                    result: ObjectContext::bootstrap(&database)
+                        .save(Payload::Result(stored), deadline())
+                        .unwrap(),
+                };
+            }
+            head.windows[0].root = ObjectContext::bootstrap(&database)
+                .save(crate::tests::index_payload(1, entries), deadline())
+                .unwrap();
+            objects.set(head_key(&scope()), encode_head(&head).unwrap());
+            let (result, expected) = match operation {
+                0 => (database.lookup(7, &request, deadline()).map(|_| ()), head),
+                1 => (
+                    database
+                        .activate(7, head.revision, 88, deadline())
+                        .map(|_| ()),
+                    head,
+                ),
+                _ => {
+                    let begin = database
+                        .compact_begin(7, head.head_serial, deadline())
+                        .unwrap();
+                    let serial = begin.storage.plan.as_ref().unwrap().serial;
+                    (
+                        database.compact_copy(7, serial, deadline()).map(|_| ()),
+                        begin,
+                    )
+                }
+            };
+            assert!(
+                matches!(result, Err(Error::Corrupt)),
+                "cancelled={cancelled}, operation={operation}"
+            );
+            let actual = database.status(7, deadline()).unwrap();
+            assert_eq!(actual, expected);
+            if operation == 2 {
+                assert_eq!(
+                    actual.storage.plan.as_ref().unwrap().phase,
+                    CopyPhase::Copying
+                );
+                assert!(matches!(
+                    database.compact_promote(7, actual.storage.plan.unwrap().serial, deadline()),
+                    Err(Error::Conflict)
+                ));
+            }
+            assert!(database.quarantined.load(Ordering::Acquire));
+        }
+    }
+}
+
+#[test]
 fn lookup_rejects_semantically_invalid_results_despite_correct_object_hashes() {
     let valid = valid_result();
     let mut bad_magic = valid.clone();
@@ -280,7 +364,9 @@ fn lookup_rejects_semantically_invalid_results_despite_correct_object_hashes() {
                 panic!("fixture is a committed reference");
             };
             assert!(matches!(
-                database.load(result, deadline()).unwrap(),
+                ObjectContext::bootstrap(&database)
+                    .load(result, deadline())
+                    .unwrap(),
                 Payload::Result(_)
             ));
             assert!(matches!(
@@ -395,13 +481,15 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
         .execute(7, &identity(1), &sql("SELECT 1"), deadline())
         .unwrap();
     let original = database.read_head(deadline()).unwrap();
-    let Payload::Result(mut stored) = database.load(&receipt.result_hash, deadline()).unwrap()
+    let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+        .load(&receipt.result_hash, deadline())
+        .unwrap()
     else {
         panic!("accepted request must have a result object");
     };
     stored.bytes[0] ^= 1;
-    let corrupt_result = database
-        .upload(Payload::Result(stored), deadline())
+    let corrupt_result = ObjectContext::bootstrap(&database)
+        .save(Payload::Result(stored), deadline())
         .unwrap();
     let mut entries =
         crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
@@ -409,8 +497,8 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
         result: corrupt_result,
     };
     let mut damaged = original.head.clone();
-    damaged.windows[0].root = database
-        .upload(crate::tests::index_payload(1, entries), deadline())
+    damaged.windows[0].root = ObjectContext::bootstrap(&database)
+        .save(crate::tests::index_payload(1, entries), deadline())
         .unwrap();
     objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
     assert!(matches!(
@@ -474,4 +562,43 @@ fn materializing_historical_results_remains_a_defensive_decoder_boundary() {
         Err(Error::Corrupt)
     ));
     assert!(matches!(database.healthy(), Err(Error::Corrupt)));
+}
+
+#[test]
+fn historical_result_memory_pressure_preserves_receipt_lookup_and_health() {
+    let bytes = valid_result();
+    let (objects, database, request, before) = install(bytes.clone(), false, false);
+    let original = database.lookup(7, &request, deadline()).unwrap();
+    let Resolution::Committed { receipt, .. } = &original else {
+        panic!("valid retained outcome must be committed");
+    };
+    let mut options = test_options();
+    options.result_memory_bytes = std::mem::size_of::<TransactionResult>() as u64;
+    let restricted = Database::with_options(objects.clone(), scope(), 10, options).unwrap();
+    let error = match restricted.decode_retained_admission(receipt.clone(), &bytes) {
+        Err(error) => error,
+        Ok(_) => panic!("typed graph exceeded its independent budget"),
+    };
+    assert!(matches!(error, Error::CommittedButUnavailable(kept) if *kept == *receipt));
+    assert!(restricted.healthy().is_ok());
+    assert_eq!(
+        restricted.lookup(7, &request, deadline()).unwrap(),
+        original
+    );
+    assert_eq!(
+        restricted.cancel(7, &request, deadline()).unwrap(),
+        original
+    );
+    assert_eq!(
+        objects
+            .get(&head_key(&scope()), MAX_HEAD_BYTES, deadline())
+            .unwrap(),
+        before
+    );
+    // Raising only the local materialization allowance recovers the original
+    // result; it neither mutates authority nor authorizes a fresh SQL attempt.
+    assert!(matches!(
+        database.decode_retained_admission(receipt.clone(), &bytes).unwrap(),
+        Admission::Existing(kept, _) if kept == *receipt
+    ));
 }

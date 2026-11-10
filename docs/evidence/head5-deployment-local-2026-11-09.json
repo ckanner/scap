@@ -1,0 +1,296 @@
+{
+  "schema": 1,
+  "status": "PASS_FOR_ORIGINAL_F6_SOURCE",
+  "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+  "completion": {
+    "schema": 1,
+    "status": "passed",
+    "stage": "deployment",
+    "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+    "source_root": "/workspace/scratch/591a71cb3372/head5-composed-next",
+    "target": "/tmp/scap-head5-release-f6c9073-01",
+    "gc_target": "/tmp/scap-head5-gc-release-f6c9073-01",
+    "build_evidence": "/tmp/scap-head5-build-f6c9073-01",
+    "commands": [
+      {
+        "name": "source",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "capture",
+          "/tmp/scap-head5-deployment-f6c9073-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 57458959054518,
+        "finished_ns": 57459555581919,
+        "log_sha256": "108286af7e66d41684e5c42f3b2d9d6edf987905f99088920a3018bb3421ba84"
+      },
+      {
+        "name": "deployment",
+        "argv": [
+          "python3",
+          "experiments/object-discovery/discovery_contract.py",
+          "--seed-worker",
+          "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+          "--seed-build",
+          "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+          "--worker",
+          "/tmp/scap-head5-release-f6c9073-01/release/scap-object-discovery",
+          "--build",
+          "/tmp/scap-head5-build-f6c9073-01/deployment-build/build.json",
+          "--weed",
+          "/workspace/scratch/591a71cb3372/environment/bin/weed",
+          "--evidence",
+          "/tmp/scap-head5-deployment-f6c9073-01/deployment"
+        ],
+        "exit_code": 0,
+        "started_ns": 57459556692782,
+        "finished_ns": 57604124623653,
+        "log_sha256": "33f57af32b3457270ca31483b41ec56cc09c99e51bb9d6b502d5d880fc1e4ada"
+      },
+      {
+        "name": "deployment-oracle",
+        "argv": [
+          "python3",
+          "experiments/object-discovery/discovery_oracle.py",
+          "--evidence",
+          "/tmp/scap-head5-deployment-f6c9073-01/deployment"
+        ],
+        "exit_code": 0,
+        "started_ns": 57604137308444,
+        "finished_ns": 57608144735646,
+        "log_sha256": "4e7ec1342c47cbefd4bd398f9e37539c6e0661d1a27ce868311623744313e045"
+      },
+      {
+        "name": "deployment-controls",
+        "argv": [
+          "python3",
+          "experiments/object-discovery/discovery_controls.py",
+          "--evidence",
+          "/tmp/scap-head5-deployment-f6c9073-01/deployment"
+        ],
+        "exit_code": 0,
+        "started_ns": 57608145417685,
+        "finished_ns": 57712551382630,
+        "log_sha256": "6416a7502362eb55efe71e10fa70c56c162c32ed8ca5b0e71dae34d67d08d8cb"
+      },
+      {
+        "name": "source-verify",
+        "argv": [
+          "python3",
+          "scripts/source_manifest.py",
+          "verify",
+          "/tmp/scap-head5-deployment-f6c9073-01/source-before.json"
+        ],
+        "exit_code": 0,
+        "started_ns": 57712564101803,
+        "finished_ns": 57713102148308,
+        "log_sha256": "2cf27d10d140fde56b05fbeef5ebd950c955d5013c9c6d554c5e07cd5fb6da90"
+      }
+    ],
+    "build_jobs": 1,
+    "profile_overrides": {},
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "backend": {
+      "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    },
+    "source_unchanged": true
+  },
+  "completion_sha256": "26db1e1f73fa92afcd11fd9c5dcea5d100a39d73e078999bb1f6c157b4ee66e9",
+  "actual_and_external_oracle": {
+    "aws_standard_contract": "NOT_RUN",
+    "builds": {
+      "recovery": {
+        "binary": {
+          "path": "/tmp/scap-head5-release-f6c9073-01/release/scap-object-discovery",
+          "sha256": "e6accece12766a97696bd799c37c2e0759e00283d5b47b10bad8fbaeeed37790"
+        },
+        "cargo_process_exit_code": 0,
+        "executable_native_bytes": "verified",
+        "local_source_manifest_matches": true,
+        "original_cargo_build_finished": true,
+        "profile": "discovery",
+        "retrieved_artifacts": [
+          "/tmp/scap-head5-release-f6c9073-01/release/scap-object-discovery",
+          "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a",
+          "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+          "/workspace/scratch/591a71cb3372/environment/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc"
+        ],
+        "sha256": "7d9382780183f13d28f933a0be33382b4f04102575e0635d7362fa5aadc28bac",
+        "source_bytes_verified": 3524624,
+        "source_files_verified": 215,
+        "status": "verified",
+        "unavailable_artifacts": [],
+        "verification_scope": "full"
+      },
+      "seed": {
+        "binary": {
+          "path": "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+          "sha256": "18aab5ec4339655379cbb6ae009357b15715830837b061d206cf17242667885d"
+        },
+        "cargo_process_exit_code": 0,
+        "executable_native_bytes": "verified",
+        "local_source_manifest_matches": true,
+        "original_cargo_build_finished": true,
+        "profile": "network",
+        "retrieved_artifacts": [
+          "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+          "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+        ],
+        "sha256": "ed0777e7bf96a46ccbcc876f1d55fc35dcfbc4d854b1721b8f8fbaab37a24665",
+        "source_bytes_verified": 2385610,
+        "source_files_verified": 156,
+        "status": "verified",
+        "unavailable_artifacts": [],
+        "verification_scope": "full"
+      }
+    },
+    "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+    "deployment": 3982068830743495160,
+    "full_byte_objects": 154,
+    "input_outcomes": {
+      "cancelled": 1,
+      "deleted_barrier": 1,
+      "retained_ack": 8,
+      "retained_committed_without_native_ack": 1,
+      "retired_barrier": 2
+    },
+    "list_pages": 1480,
+    "original_ack_count": 11,
+    "original_inputs": 13,
+    "processes": 62,
+    "production_throughput_slo": "NOT_RUN",
+    "profiles": {
+      "admin_without_read": {
+        "closure_objects": 27,
+        "data_not_required": 4,
+        "data_verified": 4,
+        "metadata_classified": 65,
+        "native_bytes": 73728,
+        "native_rows": 10,
+        "raw_http_body_bytes": 650114,
+        "recovery_complete": false,
+        "required_heads": 5,
+        "steps": 139,
+        "stopped": "PermissionBlocked",
+        "usage": {
+          "candidates": 139,
+          "data_bytes": 117626,
+          "exact_gets": 468,
+          "list_bytes": 298197,
+          "list_pages": 365,
+          "metadata_bytes": 20148707
+        }
+      },
+      "complete": {
+        "closure_objects": 32,
+        "data_not_required": 4,
+        "data_verified": 5,
+        "metadata_classified": 65,
+        "native_bytes": 86016,
+        "native_rows": 11,
+        "raw_http_body_bytes": 669876,
+        "recovery_complete": true,
+        "required_heads": 5,
+        "steps": 140,
+        "stopped": null,
+        "usage": {
+          "candidates": 139,
+          "data_bytes": 135760,
+          "exact_gets": 475,
+          "list_bytes": 298197,
+          "list_pages": 365,
+          "metadata_bytes": 20150335
+        }
+      },
+      "interrupted": {
+        "closure_objects": 13,
+        "data_not_required": 0,
+        "data_verified": 2,
+        "metadata_classified": 5,
+        "native_bytes": 36864,
+        "native_rows": 5,
+        "raw_http_body_bytes": 104086,
+        "recovery_complete": false,
+        "required_heads": 5,
+        "steps": 12,
+        "stopped": null,
+        "usage": {
+          "candidates": 12,
+          "data_bytes": 53828,
+          "exact_gets": 36,
+          "list_bytes": 36827,
+          "list_pages": 35,
+          "metadata_bytes": 1384423
+        }
+      },
+      "missing_reader": {
+        "closure_objects": 27,
+        "data_not_required": 4,
+        "data_verified": 4,
+        "metadata_classified": 65,
+        "native_bytes": 73728,
+        "native_rows": 10,
+        "raw_http_body_bytes": 650114,
+        "recovery_complete": false,
+        "required_heads": 5,
+        "steps": 139,
+        "stopped": "PermissionBlocked",
+        "usage": {
+          "candidates": 139,
+          "data_bytes": 117626,
+          "exact_gets": 468,
+          "list_bytes": 298197,
+          "list_pages": 365,
+          "metadata_bytes": 20148707
+        }
+      },
+      "missing_retained_result": {
+        "closure_objects": 13,
+        "data_not_required": 0,
+        "data_verified": 2,
+        "metadata_classified": 58,
+        "native_bytes": 36864,
+        "native_rows": 5,
+        "raw_http_body_bytes": 549201,
+        "recovery_complete": false,
+        "required_heads": 5,
+        "steps": 130,
+        "stopped": "Corrupt",
+        "usage": {
+          "candidates": 130,
+          "data_bytes": 67259813,
+          "exact_gets": 363,
+          "list_bytes": 289861,
+          "list_pages": 350,
+          "metadata_bytes": 19304835
+        }
+      }
+    },
+    "signed_s3_requests": 4088,
+    "source_sha256": {
+      "acks.jsonl": "69a97ea40c979036308cb7cd14f03141ad1c0eb875cbbf8bbde246cf9aa8d58c",
+      "calls.jsonl": "ab3e7c618967863a28e03146e99a97e98ff5e8df823ddfa84315f0a03ed9c294",
+      "facts.jsonl": "7fdcbe0fe9a8501613236a56af9f77545febde20cbd4effed01ccd40e6488834",
+      "history.jsonl": "cf7c9d04ff2c3381c3905511a2979123d8c659a019281b8ada50854b44d4403c",
+      "inputs.jsonl": "4aeb346e95e9aed59822f7bf3df5dc83865647e99c9765fbe2ad35ba651bbb63",
+      "plan.json": "c125afa176c8372e2fd5347030cfca1d928c083530968b9e3e49464b776bba8f"
+    },
+    "status": "passed",
+    "verification_scope": "full"
+  },
+  "result_sha256": "4e7ec1342c47cbefd4bd398f9e37539c6e0661d1a27ce868311623744313e045",
+  "controls_summary": {
+    "negative_controls": 23,
+    "originals_unchanged": true,
+    "positive_controls": 1,
+    "status": "passed",
+    "verification_scope": "full"
+  },
+  "controls_receipt_sha256": "6416a7502362eb55efe71e10fa70c56c162c32ed8ca5b0e71dae34d67d08d8cb",
+  "original_source_and_evidence_unchanged": true,
+  "new_runtime_composition": "NOT_RUN_REQUIRES_NEW_ACTUAL",
+  "limitation": "Per-slot verification; not a simultaneous deployment snapshot, real AWS or production throughput proof."
+}

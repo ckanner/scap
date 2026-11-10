@@ -69,21 +69,29 @@ async function page(client, label, cursor = null, inventory = false, expectedErr
   return call(client, label, inventory ? 'deployment_inventory' : 'list_names',
     () => inventory ? client.deploymentInventory(cursor, overrides) : client.listNames(cursor, overrides), expectedError);
 }
-async function complete(client, label, cursor = null, inventory = false) {
+const MAX_SCAN_PAGES = 128;
+async function complete(client, label, cursor = null, inventory = false, remaining = MAX_SCAN_PAGES) {
   const collected = [];
-  for (let index = 0; index < 128; index++) {
+  for (let index = 0; index < remaining; index++) {
     const value = await page(client, `${label}_${index}`, cursor, inventory);
     normal(value);
     collected.push(...(inventory ? value.records : value.names));
     if (value.cursor === null) return collected;
-    assert.notEqual(value.cursor, cursor);
     cursor = value.cursor;
   }
   throw new Error('explicit fixture scan exceeded its finite page bound');
 }
 function normal(value) {
-  assert.ok(value.stopped === null || value.stopped === 'LIMIT');
-  if (value.stopped === 'LIMIT') assert.equal(typeof value.cursor, 'string');
+  // A fixed read deadline can stop an unfaulted scan. The independent oracle
+  // proves progress from the following physical LIST, never from token text.
+  assert.ok(value.stopped === null || value.stopped === 'LIMIT' || value.stopped === 'UNKNOWN');
+  const exhausted = value.completion?.traversal_exhausted ?? value.traversal_exhausted;
+  assert.equal(exhausted, value.cursor === null);
+  if (exhausted) assert.equal(value.stopped, null);
+  else assert.equal(typeof value.cursor, 'string');
+}
+async function remainder(client, label, value, inventory = false) {
+  return value.cursor === null ? [] : complete(client, label, value.cursor, inventory, MAX_SCAN_PAGES - 1);
 }
 async function policy(creation, label, read) {
   const client = database(creation);
@@ -161,14 +169,18 @@ if (phase === 'setup') {
 } else if (phase === 'reader_first') {
   const value = await page(discovery(), 'reader_first');
   normal(value); assert.equal(typeof value.cursor, 'string');
-  assert.deepEqual(names(value.names), [state.first.name]);
+  const visible = names(value.names);
+  assert.ok(visible.length === 0 && value.stopped === 'UNKNOWN' ||
+    visible.length === 1 && visible[0] === state.first.name);
+  state.readerFirstNames = visible;
   state.readerCursor = value.cursor; remember();
 } else if (phase === 'revoke_continue') {
   state.revocation = await policy(state.last, 'revoke_last', false);
   const reader = catalogue('reader');
   await call(reader, 'revoked_resolve', 'resolve_name', () => reader.resolveName(state.last.name), 'DENIED');
-  const seen = await complete(discovery(), 'reader_resume', state.readerCursor);
-  assert.ok(!names(seen).includes(state.last.name)); assert.deepEqual(names(seen), []);
+  const seen = await complete(discovery(), 'reader_resume', state.readerCursor, false, MAX_SCAN_PAGES - 1);
+  assert.ok(!names(seen).includes(state.last.name));
+  assert.deepEqual([...state.readerFirstNames, ...names(seen)], [state.first.name]);
   remember();
 } else if (phase === 'capabilities') {
   await page(discovery('admin'), 'provision_is_not_inventory', null, true, 'DENIED');
@@ -180,11 +192,11 @@ if (phase === 'setup') {
   const first = await page(operator, 'operator_names_first');
   normal(first); assert.deepEqual(first.names, []); assert.equal(typeof first.cursor, 'string');
   state.operatorNamesCursor = first.cursor;
-  assert.deepEqual(await complete(operator, 'operator_names_resume', first.cursor), []);
+  assert.deepEqual(await remainder(operator, 'operator_names_resume', first), []);
   const inventory = await page(operator, 'operator_inventory_first', null, true);
   normal(inventory); assert.equal(typeof inventory.cursor, 'string');
   state.inventoryCursor = inventory.cursor;
-  const records = [...inventory.records, ...await complete(operator, 'operator_inventory_resume', inventory.cursor, true)];
+  const records = [...inventory.records, ...await remainder(operator, 'operator_inventory_resume', inventory, true)];
   assert.ok(records.some((row) => row.scope?.tenant === '8'));
   assert.ok(records.some((row) => row.kind === 'control' && row.control !== null));
   assert.ok(records.every((row) => row.scope === null || row.scope.deployment === '1'));
@@ -200,15 +212,17 @@ if (phase === 'setup') {
   await page(discovery('operator'), 'names_as_inventory', state.operatorNamesCursor, true, 'CURSOR_INVALID');
   await page(discovery('operator'), 'inventory_as_names', state.inventoryCursor, false, 'CURSOR_INVALID');
   await page(discovery('reader', true), 'other_daemon_cursor', original, false, 'CURSOR_INVALID');
-  const positive = await page(discovery(), 'original_cursor_positive', original);
+  const client = discovery();
+  const positive = await page(client, 'original_cursor_positive', original);
   normal(positive);
+  assert.deepEqual(names([...positive.names, ...await remainder(client, 'original_cursor_resume', positive)]), []);
 } else if (phase.startsWith('fault_')) {
   const result = await page(discovery(), phase);
   assert.equal(result.stopped, config.expectedStop); assert.equal(result.traversal_exhausted, false);
   assert.equal(typeof result.cursor, 'string');
   state.faultCursor = result.cursor; state.faultNames = names(result.names); remember();
 } else if (phase.startsWith('after_fault_')) {
-  const rows = await complete(discovery(), phase, state.faultCursor);
+  const rows = await complete(discovery(), phase, state.faultCursor, false, MAX_SCAN_PAGES - 1);
   const observed = [...state.faultNames, ...names(rows)];
   assert.deepEqual(observed, [state.first.name]);
 } else if (phase === 'slow_progress') {
@@ -225,7 +239,6 @@ if (phase === 'setup') {
     assert.equal(value.stopped, 'UNKNOWN');
     assert.equal(value.traversal_exhausted, false);
     assert.equal(typeof value.cursor, 'string');
-    assert.notEqual(value.cursor, cursor);
     cursor = value.cursor; incomplete++;
   }
   assert.ok(finished && incomplete >= 2, 'steady-latency pages must retain progress and complete');
@@ -256,7 +269,9 @@ if (phase === 'setup') {
   for (let index = 0; index < 150; index++) {
     try {
       const value = await page(client, `after_release_${index}`);
-      normal(value); succeeded = true; break;
+      normal(value);
+      assert.deepEqual(names([...value.names, ...await remainder(client, 'after_release_resume', value)]), [state.first.name]);
+      succeeded = true; break;
     } catch (error) {
       if (error.code !== 'BACKPRESSURE') throw error;
       await new Promise((resolve) => setTimeout(resolve, 40));
@@ -264,8 +279,10 @@ if (phase === 'setup') {
   }
   assert.equal(succeeded, true);
 } else if (phase === 'cursor_before_loss') {
-  const fresh = await page(discovery(), 'fresh_cursor_before_loss');
+  const client = discovery();
+  const fresh = await page(client, 'fresh_cursor_before_loss');
   normal(fresh); assert.equal(typeof fresh.cursor, 'string');
+  assert.deepEqual(names([...fresh.names, ...await remainder(client, 'fresh_cursor_resume', fresh)]), [state.first.name]);
   state.restartCursor = fresh.cursor; remember();
 } else if (phase === 'restart') {
   await page(discovery(), 'restart_cursor', state.restartCursor, false, 'CURSOR_INVALID');

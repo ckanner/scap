@@ -168,8 +168,10 @@ def head_key(scope):
     return "scap-object/v1/{deployment}/{tenant}/{database}/head".format(**scope)
 
 
-def object_base(scope):
-    return "/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/objects/".format(**scope)
+def object_base(scope, storage_generation):
+    assert type(storage_generation) is int and storage_generation == 1
+    return ("/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/storage/".format(**scope)
+            + str(storage_generation) + "/objects/")
 
 
 def name_key(creation):
@@ -306,7 +308,7 @@ class Suite:
             worker.stop("descriptor_only_seed_complete")
         orphan = self.spawn(scope=self.scope(2, 444))
         orphan_bytes = b"explicit unreachable fixture orphan"
-        accepted(orphan.call("orphan.put", "store_put", key=(object_base(orphan.config["scope"]) + sha(orphan_bytes)).removeprefix("/scap-test/"), bytes=list(orphan_bytes)))
+        accepted(orphan.call("orphan.put", "store_put", key=(object_base(orphan.config["scope"], 1) + sha(orphan_bytes)).removeprefix("/scap-test/"), bytes=list(orphan_bytes)))
         native, original = self.direct("native", 2, 101, ignore_fsize=True)
         maintenance, _ = self.direct("maintenance", 10, 202)
         self.control(maintenance, "maintenance.enter", "set_lifecycle", lifecycle="maintenance")
@@ -467,7 +469,8 @@ class Suite:
         self.recovery("admin_without_read", {2: 17, 10: 17, 99: 17}, expected_stop="PermissionBlocked")
         # Delete one actual closed-window Result, then restore those exact bytes.
         scope = self.original_result["scope"]
-        base = object_base(scope)
+        captured_head = json.loads(self.proxy.objects["/scap-test/" + head_key(scope)])
+        base = object_base(scope, captured_head["storage"]["active_generation"])
         original_ack = next(json.loads(line) for line in (self.evidence / "acks.jsonl").read_text().splitlines()
                             if json.loads(line)["intent_id"] == self.original_result["intent_id"])
         key = base + original_ack["response"]["value"]["receipt"]["result_hash"]

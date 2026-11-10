@@ -103,11 +103,11 @@ fn successful_gets_refund_only_unused_bytes_and_all_quotas_stop_before_io() {
         );
         assert_eq!(meter.get(key, 5, deadline()).unwrap().bytes, vec![1, 2, 3]);
         assert_eq!(meter.usage().metadata_bytes + meter.usage().data_bytes, 3);
-        assert_eq!(meter.get(key, 5, deadline()), Err(StoreError::Limit));
+        assert_eq!(meter.get(key, 5, deadline()), Err(StoreError::Budget));
         assert_eq!(meter.failure(RecoveryStop::Corrupt), RecoveryStop::Limit);
         assert_eq!(meter.usage().metadata_bytes + meter.usage().data_bytes, 5);
         let calls = objects.calls().len();
-        assert_eq!(meter.get(key, 5, deadline()), Err(StoreError::Limit));
+        assert_eq!(meter.get(key, 5, deadline()), Err(StoreError::Budget));
         assert_eq!(objects.calls().len(), calls);
         assert_eq!(
             meter.list_page(&request(), deadline()),
@@ -140,7 +140,7 @@ fn successful_gets_refund_only_unused_bytes_and_all_quotas_stop_before_io() {
     ] {
         let objects = Arc::new(Memory::default());
         let meter = make_meter(objects.clone(), page(8), budget);
-        assert_eq!(meter.get(key, 1, deadline()), Err(StoreError::Limit));
+        assert_eq!(meter.get(key, 1, deadline()), Err(StoreError::Budget));
         assert!(objects.calls().is_empty());
         assert_eq!(meter.usage().exact_gets, 0);
     }

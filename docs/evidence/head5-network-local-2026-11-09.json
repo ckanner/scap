@@ -1,0 +1,958 @@
+{
+  "schema_version": 1,
+  "status": "SIX_HEAD5_NETWORK_CONTRACTS_PASS_OTHER_ACTUAL_GATES_PENDING",
+  "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+  "source_manifest": {
+    "path": "/tmp/scap-head5-network-f6c9073-01/source-before.json",
+    "bytes": 107754,
+    "sha256": "a342f9d0c13ccc4c7cd237c32430b3f1248ecc64c428d290d856afb30939ae3b"
+  },
+  "source_unchanged": true,
+  "actual_completion": {
+    "path": "/tmp/scap-head5-network-f6c9073-01/completion.json",
+    "bytes": 5547,
+    "sha256": "f44107b3a225fd9b348837b3efcf285ccc4483fabffb2e935b7260daac79c6f5"
+  },
+  "actual_commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-head5-network-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 51706071422996,
+      "finished_ns": 51706576235813,
+      "log_sha256": "108286af7e66d41684e5c42f3b2d9d6edf987905f99088920a3018bb3421ba84"
+    },
+    {
+      "name": "listing",
+      "argv": [
+        "python3",
+        "experiments/object-network/listing_contract.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/examples/scap-object-listing",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-receipt",
+        "/tmp/scap-head5-build-f6c9073-01/listing-build/build.json",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/listing"
+      ],
+      "exit_code": 0,
+      "started_ns": 51706578197394,
+      "finished_ns": 51728920414334,
+      "log_sha256": "85ae8160925bdefac402431a3635d1235ae65ae66d718b7f1cf66ac357ffb97f"
+    },
+    {
+      "name": "response-bounds",
+      "argv": [
+        "python3",
+        "experiments/object-network/response_contract.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/examples/scap-object-listing",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-receipt",
+        "/tmp/scap-head5-build-f6c9073-01/listing-build/build.json",
+        "--bounded",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/response-bounds"
+      ],
+      "exit_code": 0,
+      "started_ns": 51728920979132,
+      "finished_ns": 51749810143022,
+      "log_sha256": "6ced0bf7b6c8bb05aa0f44d69fa8d6c7c34014711b82dd9b5691d91e43b04617"
+    },
+    {
+      "name": "network",
+      "argv": [
+        "python3",
+        "experiments/object-network/run.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/network"
+      ],
+      "exit_code": 0,
+      "started_ns": 51749811317864,
+      "finished_ns": 51851590932444,
+      "log_sha256": "bda8d9f2fe56302b5f349a808428cfe41e4348353a42b76890a69e73b9e1b8a9"
+    },
+    {
+      "name": "retained-results",
+      "argv": [
+        "python3",
+        "experiments/object-network/retained_result_contract.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/retained-results"
+      ],
+      "exit_code": 0,
+      "started_ns": 51851645357624,
+      "finished_ns": 51917700538757,
+      "log_sha256": "dadef1067e23e6779d4ca4373e1231cfff5bf0395f8d88c28b421845cb5655a2"
+    },
+    {
+      "name": "lifecycle",
+      "argv": [
+        "python3",
+        "experiments/object-network/lifecycle_contract.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/lifecycle"
+      ],
+      "exit_code": 0,
+      "started_ns": 51917732466514,
+      "finished_ns": 51979047788838,
+      "log_sha256": "9fed90cf779d509fde089fd0dfbc19de8066959e4ab6a7bc448ef91448e67566"
+    },
+    {
+      "name": "catalogue",
+      "argv": [
+        "python3",
+        "experiments/object-network/catalogue_contract.py",
+        "--worker",
+        "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "--weed",
+        "/workspace/scratch/591a71cb3372/environment/bin/weed",
+        "--build-record",
+        "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "--evidence",
+        "/tmp/scap-head5-network-f6c9073-01/catalogue"
+      ],
+      "exit_code": 0,
+      "started_ns": 51979094117809,
+      "finished_ns": 52385596701604,
+      "log_sha256": "1808f84b7d703503cb01030820baf0c64a777483e52c7846d9cf0c860f7c443c"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-head5-network-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 52386222670760,
+      "finished_ns": 52386761696835,
+      "log_sha256": "2cf27d10d140fde56b05fbeef5ebd950c955d5013c9c6d554c5e07cd5fb6da90"
+    }
+  ],
+  "build_completion": {
+    "path": "/tmp/scap-head5-build-f6c9073-01/completion.json",
+    "bytes": 4424,
+    "sha256": "61ee7c036ce56749a3724b6357cd4243104d12572f59ff6d3e23f0e21c12fa85"
+  },
+  "build_commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-head5-build-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 48888724697390,
+      "finished_ns": 48889254983007,
+      "log_sha256": "108286af7e66d41684e5c42f3b2d9d6edf987905f99088920a3018bb3421ba84"
+    },
+    {
+      "name": "resource-build",
+      "argv": [
+        "python3",
+        "experiments/resource-limits/build.py",
+        "--target",
+        "/tmp/scap-head5-release-f6c9073-01",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/resource-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 48889256839678,
+      "finished_ns": 49763765137760,
+      "log_sha256": "34cea1aeaeeca58631270b1e208b8cd9188a582625f3e7021a72226eef8aeeb4"
+    },
+    {
+      "name": "network-build",
+      "argv": [
+        "python3",
+        "experiments/object-network/build.py",
+        "--target-dir",
+        "/tmp/scap-head5-release-f6c9073-01",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/network-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 49763772481253,
+      "finished_ns": 50145078645988,
+      "log_sha256": "e20f00d442d9f15b5d0415beaf5d775ef3823b5049312e900f9e86830be77af2"
+    },
+    {
+      "name": "listing-build",
+      "argv": [
+        "python3",
+        "experiments/object-network/listing_build.py",
+        "--target-dir",
+        "/tmp/scap-head5-release-f6c9073-01",
+        "--release",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/listing-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 50145083178786,
+      "finished_ns": 50153897216096,
+      "log_sha256": "0862f68cf3470b1d4e8966de81eba4ede4c60ae812dce732f4a04e090fc2e79f"
+    },
+    {
+      "name": "deployment-build",
+      "argv": [
+        "python3",
+        "experiments/object-discovery/discovery_build.py",
+        "--target-dir",
+        "/tmp/scap-head5-release-f6c9073-01",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/deployment-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 50153898058259,
+      "finished_ns": 50163465900676,
+      "log_sha256": "265975e5449fad76ae27434f62c0e350bd702c9b1e52227e9019724f56aa83ea"
+    },
+    {
+      "name": "service-build",
+      "argv": [
+        "python3",
+        "experiments/object-service/build.py",
+        "--target-dir",
+        "/tmp/scap-head5-release-f6c9073-01",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/service-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 50163466783833,
+      "finished_ns": 50280432801873,
+      "log_sha256": "149301e15175cc29e393bb5d48aa8133f41b011bcadb19fc6fb5dad8c7e94e5a"
+    },
+    {
+      "name": "gc-build",
+      "argv": [
+        "python3",
+        "experiments/object-gc-store/build.py",
+        "--target",
+        "/tmp/scap-head5-gc-release-f6c9073-01",
+        "--evidence",
+        "/tmp/scap-head5-build-f6c9073-01/gc-build"
+      ],
+      "exit_code": 0,
+      "started_ns": 50280433794767,
+      "finished_ns": 50877340150858,
+      "log_sha256": "3ab0bb035c5b0746c999948606c4226fac1f121c62226f9ed82f59c82bd27bee"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-head5-build-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 50877346720947,
+      "finished_ns": 50877622245981,
+      "log_sha256": "2cf27d10d140fde56b05fbeef5ebd950c955d5013c9c6d554c5e07cd5fb6da90"
+    }
+  ],
+  "builds": [
+    {
+      "name": "resource-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/resource-build/build.json",
+        "bytes": 49932,
+        "sha256": "a00c9ee3b90ab1949bce0aa544fdf138ef143ea5556921f848994e4026ac544b"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-release-f6c9073-01/release/scap-resource-limits",
+        "sha256": "0ab6be59870076b30251eb83d3158a865f8275f024a160541b6a6f75cdcaee70"
+      },
+      "native_archives": {
+        "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "input_sha256": null,
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/resource-limits/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "network-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/network-build/build.json",
+        "bytes": 19982,
+        "sha256": "69900a0a1e897a5dd8baf82e7ef7ebf1f9e70fd538db2e821fb7a16c26b5da23"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-release-f6c9073-01/release/scap-object-network",
+        "sha256": "18aab5ec4339655379cbb6ae009357b15715830837b061d206cf17242667885d"
+      },
+      "native_archives": {
+        "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--locked",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "listing-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/listing-build/build.json",
+        "bytes": 20226,
+        "sha256": "d2ce253df174cdc4fb70d6b93cb6477c532be8a7ae5b084dfa34d4c42cfd43d7"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-release-f6c9073-01/release/examples/scap-object-listing",
+        "sha256": "558b062ad3edd5c86fb85f15b5fc1f718f8d02f7eb9e018a5aba426efc161b13"
+      },
+      "native_archives": null,
+      "input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--example",
+        "scap-object-listing",
+        "--message-format=json-render-diagnostics",
+        "--release"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "deployment-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/deployment-build/build.json",
+        "bytes": 27784,
+        "sha256": "202a79ee4a81daa9031a362ec834533afc28652d22ffbf62cb96373c41d3ba92"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-release-f6c9073-01/release/scap-object-discovery",
+        "sha256": "e6accece12766a97696bd799c37c2e0759e00283d5b47b10bad8fbaeeed37790"
+      },
+      "native_archives": {
+        "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "input_sha256": "f2e132eb960e5445a1f1009199ff2700a7e149329c900035931ec5574364468b",
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-discovery/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "service-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/service-build/build.json",
+        "bytes": 27401,
+        "sha256": "e7c3db72209a2c8a37bbfd7340ab69c610dca90c77939e26655184966b013844"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-release-f6c9073-01/release/scapd",
+        "sha256": "3c9c7734052405dd9c3fadb13aa38bd53e490da5f53eee3ca642cfdc9717f99c"
+      },
+      "native_archives": {
+        "/tmp/scap-head5-release-f6c9073-01/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "3ee6c6612ca2d1394a420cd7aab030638ff83b0e84d9eb18270a48caa54e54b3"
+      },
+      "input_sha256": null,
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "scap-service",
+        "--bin",
+        "scapd",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "gc-build",
+      "record": {
+        "path": "/tmp/scap-head5-build-f6c9073-01/gc-build/build.json",
+        "bytes": 50378,
+        "sha256": "74a1fa35d5578f2902db87b7a501614d0eb0c0734c59e9446851a0ae95d48413"
+      },
+      "binary": {
+        "path": "/tmp/scap-head5-gc-release-f6c9073-01/release/scap-object-gc-store",
+        "sha256": "9fdcc0660aedae183e90ea80afd58e406c7781881a2c526694e04741fb3fa4b3"
+      },
+      "native_archives": {
+        "/tmp/scap-head5-gc-release-f6c9073-01/release/build/ring-8764af21ec794629/out/libring_core_0_17_14_.a": "0d7507223e4d4ad5069c842808300f095cbca6ddc6bc5248839fb7829abf4478",
+        "/tmp/scap-head5-gc-release-f6c9073-01/release/build/ring-8764af21ec794629/out/libring_core_0_17_14__test.a": "cfa1beb2315b146e90934806a869fa87e7812e463ea9f4c14672d069020ab9de",
+        "/tmp/scap-head5-gc-release-f6c9073-01/release/deps/libcrc_fast-5e2ec298e5a01e55.a": "fa05aa815a6f77eda95edd03814efa6fca2fbe14369de8b086b17d74c280567c"
+      },
+      "input_sha256": null,
+      "command": [
+        "cargo",
+        "+1.90.0",
+        "build",
+        "--release",
+        "--frozen",
+        "--manifest-path",
+        "experiments/object-gc-store/Cargo.toml",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "build_profile": "canonical release",
+  "profile_overrides": {},
+  "build_jobs": 1,
+  "initial_release_targets_absent": true,
+  "first_resource_build_native_fresh": true,
+  "subsequent_same_target_builds_use_intact_dependency_cache": true,
+  "gc_separate_target_initially_absent": true,
+  "fixture_clippy_completion": {
+    "path": "/tmp/scap-head5-fixture-clippy-f6c9073-01/completion.json",
+    "bytes": 5157,
+    "sha256": "86c6f381e9e9331e5bc80ad2ecad0a8fafa9e9762300e20c4032e652b80f143a"
+  },
+  "fixture_clippy_commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-head5-fixture-clippy-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 50547105278352,
+      "finished_ns": 50547601101926,
+      "log_sha256": "108286af7e66d41684e5c42f3b2d9d6edf987905f99088920a3018bb3421ba84"
+    },
+    {
+      "name": "object-network-format",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_ns": 50547602620915,
+      "finished_ns": 50549497641602,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "object-network-clippy",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/object-network/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_ns": 50549506982848,
+      "finished_ns": 50832023716538,
+      "log_sha256": "dc0c175a4c1933eb8766fd76e796a13c42e0aad641d15a9919ad964d5002df02"
+    },
+    {
+      "name": "object-discovery-format",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/object-discovery/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_ns": 50832028219813,
+      "finished_ns": 50833621415716,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "object-discovery-clippy",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/object-discovery/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_ns": 50833630253289,
+      "finished_ns": 50835966942637,
+      "log_sha256": "79bed7a6e38d74b9990400303cb33042b84827b9db5c621450d6b824e7349005"
+    },
+    {
+      "name": "object-gc-store-format",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/object-gc-store/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_ns": 50835967638245,
+      "finished_ns": 50837225570929,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "object-gc-store-clippy",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/object-gc-store/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_ns": 50837227171950,
+      "finished_ns": 50851946732284,
+      "log_sha256": "995bc728c9a1327e9a6a5e192452c6cd73398839d1ab54ad82d676617da712b0"
+    },
+    {
+      "name": "resource-limits-format",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--manifest-path",
+        "experiments/resource-limits/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_ns": 50851947525665,
+      "finished_ns": 50853624946300,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "resource-limits-clippy",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--manifest-path",
+        "experiments/resource-limits/Cargo.toml",
+        "--all-targets",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "started_ns": 50853627167858,
+      "finished_ns": 50954304991151,
+      "log_sha256": "c164644d64cbdf2fb7f9f053349ae885999a853b5a14a25f86aabc1da8e19844"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-head5-fixture-clippy-f6c9073-01/source-before.json"
+      ],
+      "exit_code": 0,
+      "started_ns": 50954314215724,
+      "finished_ns": 50954658674981,
+      "log_sha256": "2cf27d10d140fde56b05fbeef5ebd950c955d5013c9c6d554c5e07cd5fb6da90"
+    }
+  ],
+  "contracts": [
+    {
+      "name": "listing",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/listing/listing-oracle.json",
+        "bytes": 555,
+        "sha256": "052dacb7270ad94d527725b8d66553d4d88a552e8b2504c5813d0e7ca7ad6c8b"
+      },
+      "reported_scalars": {
+        "audit_negative_controls": 5,
+        "calls": 174,
+        "complete_inventory_scans": 3,
+        "history_sha256": "8e1b0eac06d6901d1366df070ca37821f1128199c699cf9001c354bd3fcf1e25",
+        "input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+        "list_calls": 34,
+        "negative_controls": 21,
+        "observed_online_non_snapshot": true,
+        "scope": "N2-A-storage-port-only",
+        "status": "passed"
+      },
+      "collection_counts": {
+        "binary": 2
+      },
+      "complete_small_report": {
+        "audit_negative_controls": 5,
+        "binary": {
+          "path": "/tmp/scap-head5-release-f6c9073-01/release/examples/scap-object-listing",
+          "sha256": "558b062ad3edd5c86fb85f15b5fc1f718f8d02f7eb9e018a5aba426efc161b13"
+        },
+        "calls": 174,
+        "complete_inventory_scans": 3,
+        "history_sha256": "8e1b0eac06d6901d1366df070ca37821f1128199c699cf9001c354bd3fcf1e25",
+        "input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+        "list_calls": 34,
+        "negative_controls": 21,
+        "observed_online_non_snapshot": true,
+        "scope": "N2-A-storage-port-only",
+        "status": "passed"
+      }
+    },
+    {
+      "name": "response-bounds",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/response-bounds/response-oracle.json",
+        "bytes": 2867,
+        "sha256": "9da88b9f0e2fc4d6952186e974c6cd6feb6f7032b765687c010a125f34dde755"
+      },
+      "reported_scalars": {
+        "auxiliary_response_limit": 65536,
+        "aws_standard": "NOT_RUN",
+        "max_successful_get_bytes": 1024,
+        "original_history_sha256": "bb935b6279b73b81a05e1ae73dd9311880c1d3f1ccdc83431dfc5ebc34864932",
+        "scope": "storage-port-development-contract",
+        "status": "passed"
+      },
+      "collection_counts": {
+        "cases": 8,
+        "negative_controls": 5
+      },
+      "complete_small_report": {
+        "auxiliary_response_limit": 65536,
+        "aws_standard": "NOT_RUN",
+        "cases": {
+          "get_large_404": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 114.836916,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "get_small_404": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 32.251857,
+            "kernel_maxrss_bytes": 19582976,
+            "result": {
+              "error": "Missing",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 65536
+          },
+          "get_stream_500": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 43.354915,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "get_success_large": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 22.126625,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Limit",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 4096
+          },
+          "put_accepted_500": {
+            "actual_backend_requests": 2,
+            "elapsed_ms": 69.72949,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 77824
+          },
+          "put_large_412": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 51.309859,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "put_small_412": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 36.608353,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "error": "Conflict",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 65536
+          },
+          "put_success_large": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 16.704703,
+            "kernel_maxrss_bytes": 19845120,
+            "result": {
+              "etag": "\"3bacbe4b197abfffebe432b8edb8eb6e\"",
+              "id": 1,
+              "ok": true
+            },
+            "sent_response_bytes": 4096
+          }
+        },
+        "max_successful_get_bytes": 1024,
+        "negative_controls": [
+          {
+            "name": "unbounded_error_was_consumed",
+            "rejected": true
+          },
+          {
+            "name": "accepted_put_misreported_local_limit",
+            "rejected": true
+          },
+          {
+            "name": "accepted_put_misreported_conflict",
+            "rejected": true
+          },
+          {
+            "name": "exact_readback_changed",
+            "rejected": true
+          },
+          {
+            "name": "missing_kernel_wait4",
+            "rejected": true
+          }
+        ],
+        "original_history_sha256": "bb935b6279b73b81a05e1ae73dd9311880c1d3f1ccdc83431dfc5ebc34864932",
+        "scope": "storage-port-development-contract",
+        "status": "passed"
+      }
+    },
+    {
+      "name": "network",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/network/summary.json",
+        "bytes": 116547,
+        "sha256": "d959bd2e3ae525153b03b755f80334a83bc73d57f1e632fd7c36a71df6e14faf"
+      },
+      "reported_scalars": {
+        "ack_audit_complete": true,
+        "ack_audited_count": 4,
+        "ack_ledger_sha256": "d013e2111ef85abdee5a5bcd5d6c335a4e4f69629fd5153ec820a48c8d37a664",
+        "ack_mismatch_count": 0,
+        "acknowledged_effect_rows": 3,
+        "aws_endpoint_gate": "NOT_RUN",
+        "backend_binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+        "backend_version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+        "build_input_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+        "build_record_verified": true,
+        "diagnostic": false,
+        "private_fixture": "/tmp/scap-object-network-private-dko8jdt5",
+        "production_slo_passed": false,
+        "schema": 1,
+        "status": "passed",
+        "unit_coverage_contribution": false,
+        "worker_binary_sha256": "18aab5ec4339655379cbb6ae009357b15715830837b061d206cf17242667885d"
+      },
+      "collection_counts": {
+        "ack_mismatches": 0,
+        "cleanup_errors": 0,
+        "completed_contracts": 15,
+        "fault_contracts": 13,
+        "object_metrics": 122,
+        "proxy_errors": 0,
+        "schema_contracts": 10
+      },
+      "cleanup_errors": [],
+      "proxy_errors": []
+    },
+    {
+      "name": "retained-results",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/retained-results/summary.json",
+        "bytes": 8566,
+        "sha256": "ca9ba75253fe8c9846c202556c5fb2a3bb78d41443b596e2004a44b5d11497ba"
+      },
+      "reported_scalars": {
+        "ack_audited_count": 30,
+        "ack_mismatch_count": 0,
+        "ack_recorded_count": 30,
+        "aws_standard": "NOT_RUN",
+        "build_inputs_sha256": "331eb253190a319faa808eaf04dce8af02b5fc908f364a5671ccf40ed496acfa",
+        "harness_sha256": "c29194af533155f0953bd82b6158db301a7197611d55a6b3e6de636754fa53c6",
+        "native_unit_coverage": "separate_required_gate",
+        "outcome_mismatch_count": 0,
+        "production_slo_passed": false,
+        "real_worker_started": true,
+        "scope": "private-loopback-real-S3-and-Rust-worker",
+        "source_commit": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+        "status": "passed",
+        "verified_entrypoint_checks": 72,
+        "worker_sha256": "18aab5ec4339655379cbb6ae009357b15715830837b061d206cf17242667885d"
+      },
+      "collection_counts": {
+        "artifacts": 10,
+        "case_results": 12,
+        "cleanup_errors": 0,
+        "planned_probes_per_scenario": 6,
+        "planned_scenarios": 12
+      },
+      "cleanup_errors": []
+    },
+    {
+      "name": "lifecycle",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/lifecycle/summary.json",
+        "bytes": 201433,
+        "sha256": "f94aef833f9ba1615f8c569a51cd5c83742da1e97fe1bb2519aaa41c6b8a85b5"
+      },
+      "reported_scalars": {
+        "aws_endpoint_gate": "NOT_RUN",
+        "build_record_verified": true,
+        "production_slo_passed": false,
+        "real_worker_started": true,
+        "scope": "private-loopback-real-S3-and-Rust-worker",
+        "status": "passed",
+        "unit_coverage_contribution": false
+      },
+      "collection_counts": {
+        "artifacts": 12,
+        "case_ids": 12,
+        "cleanup_errors": 0,
+        "fixture_limits": 3,
+        "object_metrics": 586,
+        "oracle": 25,
+        "private_diagnostics": 4,
+        "proxy_errors": 0,
+        "remaining_case_compute_directories": 0
+      },
+      "cleanup_errors": [],
+      "proxy_errors": []
+    },
+    {
+      "name": "catalogue",
+      "status": "passed",
+      "report": {
+        "path": "/tmp/scap-head5-network-f6c9073-01/catalogue/summary.json",
+        "bytes": 1051829,
+        "sha256": "89afde306f692538dca77d6ce5d033d7d72b3d6ea0d722df58e0ad016a55ee8c"
+      },
+      "reported_scalars": {
+        "aws_endpoint_gate": "NOT_RUN",
+        "scope": "private-loopback-real-S3-and-Rust-catalogue",
+        "status": "passed",
+        "unit_coverage_contribution": false
+      },
+      "collection_counts": {
+        "artifacts": 13,
+        "cleanup_errors": 0,
+        "object_metrics": 2824,
+        "oracle": 26,
+        "private_diagnostics": 2,
+        "proxy_errors": 0
+      },
+      "cleanup_errors": [],
+      "proxy_errors": []
+    }
+  ],
+  "local_backend": {
+    "path": "/workspace/scratch/591a71cb3372/environment/bin/weed",
+    "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  },
+  "scope": "Private loopback real signed S3-compatible endpoint, real Rust/native worker and owned process lifecycle",
+  "unit_coverage_contribution": false,
+  "production_gc": "OFF",
+  "aws_standard": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "other_actual_gates": "PENDING; capacity in a separate owned run, deployment/service/owner/resource/GC transport and corrected discovery separately required",
+  "merge_ready": false
+}

@@ -64,7 +64,10 @@ class CatalogueCaptureTests(unittest.TestCase):
             connection.close()
 
     def history(self):
-        return [json.loads(line) for line in (self.evidence / "history.jsonl").read_text().splitlines()]
+        # The client can consume its body while the handler logs delivery.
+        # Take the logger's lock so a concurrent JSONL append is never read halfway.
+        with support.RECORD_LOCK:
+            return [json.loads(line) for line in (self.evidence / "history.jsonl").read_text().splitlines()]
 
     def test_opt_in_preserves_complete_bounded_json_and_no_authorization_header(self):
         self.proxy.capture_catalogue = True

@@ -1,0 +1,197 @@
+{
+  "schema": 1,
+  "status": "SDK_UNIT_FAILED_OTHER_SCOPED_CHECKS_PASS",
+  "source_commit": "79b5b4a30ba526c7d02fcb2a487bfcc2b8e841b0",
+  "source_unchanged": true,
+  "completion": {
+    "path": "/tmp/scap-guarded-sdk-79b5b4a-01/completion.json",
+    "bytes": 5599,
+    "sha256": "68032077c23b7523dcc4dd4b04fb1fe719ee4e165dcf6b20eea0fa206d3525db"
+  },
+  "driver": {
+    "path": "/tmp/scap-guarded-sdk-79b5b4a-01/driver.py",
+    "bytes": 3347,
+    "sha256": "82388abed195d1737c454aac1b096554a537100402a50e8e2cd955ec73034b25"
+  },
+  "commands": [
+    {
+      "name": "guarded-source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-guarded-sdk-79b5b4a-01/guarded-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61949961379976,
+      "end_ns": 61950338710516,
+      "log_sha256": "db87f896a6837944f9fa6ae13a083fb7f0746ee2c0020b358f39fc84e6b10268"
+    },
+    {
+      "name": "base-source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-guarded-sdk-79b5b4a-01/base-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 61950373149998,
+      "end_ns": 61950916549373,
+      "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb"
+    },
+    {
+      "name": "node-version",
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61950924337500,
+      "end_ns": 61951046047081,
+      "log_sha256": "256a8e08ee35cb8ad36ae16385257192c3dbe7d80cfdeff9eaa886531b2f83bc"
+    },
+    {
+      "name": "tsc-version",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--version"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61951046604478,
+      "end_ns": 61951423102186,
+      "log_sha256": "4985b444236c5acdb5b850e5d754975e130eed5b033c53f201cdf471e83d7f13"
+    },
+    {
+      "name": "guarded-node-unit",
+      "argv": [
+        "npm",
+        "--prefix",
+        "sdk/node",
+        "test"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 1,
+      "start_ns": 61951423583191,
+      "end_ns": 61954109760151,
+      "log_sha256": "96025f37d064936d90d6f51befd25571f6ff5003bc1900ee95d4d000794dc7bb"
+    },
+    {
+      "name": "guarded-types",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--target",
+        "ES2022",
+        "--module",
+        "NodeNext",
+        "--moduleResolution",
+        "NodeNext",
+        "--lib",
+        "ES2022,DOM",
+        "sdk/node/test/types.ts"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61954110356609,
+      "end_ns": 61956498083876,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "base-types",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--target",
+        "ES2022",
+        "--module",
+        "NodeNext",
+        "--moduleResolution",
+        "NodeNext",
+        "--lib",
+        "ES2022,DOM",
+        "sdk/node/test/types.ts"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 61956499412211,
+      "end_ns": 61958943203398,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "guarded-node-http",
+      "argv": [
+        "npm",
+        "--prefix",
+        "sdk/node",
+        "run",
+        "test:http"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61958943759103,
+      "end_ns": 61959626674257,
+      "log_sha256": "46189e64d26fe194d442f7e85f93f62726bd9a62786fde4edbd4ef3d7f7f86b5"
+    },
+    {
+      "name": "guarded-source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-guarded-sdk-79b5b4a-01/guarded-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/delivery-guarded-status",
+      "exit_code": 0,
+      "start_ns": 61959635960818,
+      "end_ns": 61959855331500,
+      "log_sha256": "248b3a4a6b69978f92bb1c7c2a1a588c35f17afa2150261055e391aa5c8f9355"
+    },
+    {
+      "name": "base-source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-guarded-sdk-79b5b4a-01/base-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 61959855955762,
+      "end_ns": 61960025893236,
+      "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+    }
+  ],
+  "node_units": {
+    "total": 65,
+    "pass": 64,
+    "fail": 1,
+    "failed_test": "probe absolute deadline stops dispatch after synchronous request encoding",
+    "expected": "DEADLINE",
+    "observed": "ABORTED",
+    "dispatch_count": 0,
+    "original_log": {
+      "path": "/tmp/scap-guarded-sdk-79b5b4a-01/guarded-node-unit.log",
+      "bytes": 19041,
+      "sha256": "96025f37d064936d90d6f51befd25571f6ff5003bc1900ee95d4d000794dc7bb"
+    },
+    "exact_v8_counter_gate": "NOT_RUN because unit test command failed; do not substitute printed percentages for the exact checker"
+  },
+  "cause": "OperationBudget.check first records DEADLINE and synchronously aborts its signal; inner Transport calls its onAbort and stores ABORTED, then prioritizes that inner abortCode over the original thrown deadline.",
+  "fix_scope": "Only OwnerClient.probe checks the original budget again on its error exit; no new dispatch, timeout extension, fallback, retry or mutation. Preserve the first outer stop reason, otherwise rethrow the original error.",
+  "typescript": "PASS at original guarded source; TypeScript 5.9.3 strict noEmit",
+  "node_http": "PASS at original guarded source; not actual Rust/S3 acceptance",
+  "rust_clippy_units_coverage": "NOT_RUN",
+  "actual_service_s3": "NOT_RUN",
+  "fixed_candidate_retest": "NOT_RUN at documentation capture",
+  "base_typecheck": "A separate base778 strict declaration check passed in the same driver; it was not one of the previous 23 auxiliary commands."
+}

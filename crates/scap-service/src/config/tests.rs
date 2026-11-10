@@ -10,6 +10,84 @@ fn environment(_: &str) -> Option<OsString> {
 }
 
 #[test]
+fn output_profile_is_explicit_and_checked_before_resolving_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    let defaults = parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .output;
+    assert_eq!(defaults.bytes, 512 * 1024 * 1024);
+    assert_eq!(defaults.bytes_per_tenant, 256 * 1024 * 1024);
+    let profile = json!({"version":1,"bytes":805306368,"bytes_per_tenant":536870912,
+        "control_bytes":16777216,"control_bytes_per_tenant":2097152});
+    value["output"] = profile.clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.output.bytes, 805306368);
+    assert_eq!(prepared.service.output.bytes_per_tenant, 536870912);
+    assert_eq!(prepared.service.output.control_bytes, 16777216);
+    assert_eq!(prepared.service.output.control_bytes_per_tenant, 2097152);
+    value["output"]["version"] = json!(2);
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("output before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for field in profile.as_object().unwrap().keys() {
+        value["output"] = profile.clone();
+        value["output"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    value["output"] = profile;
+    value["output"]["rss_limit"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
+fn transport_defaults_and_explicit_profiles_are_checked_before_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .transport,
+        crate::transport::Profile::default()
+    );
+    let profile = json!({"version":1,"max_connections":7,"max_headers":32,
+        "max_header_bytes":8192,"max_buffer_bytes":16384,"header_timeout_ms":1000,
+        "response_timeout_ms":4000,"shutdown_timeout_ms":6000});
+    value["transport"] = profile.clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.transport.max_connections, 7);
+    assert_eq!(prepared.service.transport.header_timeout_ms, 1000);
+    assert_eq!(prepared.service.transport.response_timeout_ms, 4000);
+    assert_eq!(prepared.service.transport.shutdown_timeout_ms, 6000);
+    value["transport"]["max_connections"] = json!(0);
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("validate before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for field in profile.as_object().unwrap().keys() {
+        value["transport"] = profile.clone();
+        value["transport"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    value["transport"] = profile;
+    value["transport"]["unknown"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
 fn configuration_resolves_only_named_credentials_and_keeps_production_defaults() {
     let directory = tempfile::tempdir().unwrap();
     let value = sample_config(directory.path());
@@ -26,12 +104,9 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     assert_eq!(prepared.s3.session_token.as_deref(), Some("unit-secret"));
     assert!(parsed(value).prepare_with(&|_| None).is_err());
     // Public environment resolver is exercised using test-owned keys only.
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
+    let _credentials = crate::tests::test_credentials();
     let result = parsed(sample_config(directory.path())).prepare().unwrap();
     assert_eq!(result.s3.secret_key, "secret");
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
 }
 
 #[test]
@@ -250,4 +325,214 @@ fn cursor_key_construction_failure_blocks_startup() {
             .code,
         "CONFIG"
     );
+}
+
+#[test]
+fn optional_versioned_intake_profiles_preserve_existing_configuration_and_reject_unsafe_overrides()
+{
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let prepared = parsed(base.clone()).prepare_with(&environment).unwrap();
+    assert!(prepared.service.admission.data_profile.is_none());
+    assert!(prepared.service.admission.control_profile.is_none());
+    assert!(prepared.service.admission.recovery_profile.is_none());
+    let body = base["admission"]["max_body_bytes"].as_u64().unwrap();
+    let profile = json!({"version":1,"requests_per_tenant":1,"body_bytes":body*2,"body_bytes_per_tenant":body});
+    for name in ["data_profile", "control_profile", "recovery_profile"] {
+        let mut value = base.clone();
+        value["admission"][name] = profile.clone();
+        assert!(parsed(value.clone()).prepare_with(&environment).is_ok());
+        for (field, replacement) in [
+            ("version", json!(2)),
+            ("requests_per_tenant", json!(0)),
+            ("requests_per_tenant", json!(4097)),
+            ("body_bytes", json!(body - 1)),
+            ("body_bytes_per_tenant", json!(body - 1)),
+            ("body_bytes_per_tenant", json!(body * 2 + 1)),
+        ] {
+            let mut invalid = value.clone();
+            invalid["admission"][name][field] = replacement;
+            assert!(parsed(invalid)
+                .prepare_with(&|_| panic!("intake validation precedes secrets"))
+                .is_err());
+        }
+        value["admission"][name]["unexpected"] = json!(1);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    let mut value = base;
+    value["catalogue"] = json!({"workers":1,"queued_total":4,"queued_per_tenant":3,"queued_per_name":2,"intake":2,"max_body_bytes":65536,"timeout_ms":1000,"intake_profile":{"version":1,"requests_per_tenant":1,"body_bytes":131072,"body_bytes_per_tenant":65536}});
+    assert!(parsed(value.clone()).prepare_with(&environment).is_ok());
+    value["catalogue"]["intake_profile"]["body_bytes"] = json!(65535);
+    assert!(parsed(value)
+        .prepare_with(&|_| panic!("catalogue intake validation precedes secrets"))
+        .is_err());
+}
+
+#[test]
+fn execution_graph_budget_is_explicit_and_does_not_reinterpret_wire_or_database_limits() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let baseline = parsed(base.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .options;
+    assert_eq!(baseline.result_memory_bytes, 128 * 1024 * 1024);
+    let minimum = std::mem::size_of::<scap_sql::TransactionResult>() as u64;
+    for bytes in [minimum, 1024, 256 * 1024 * 1024, u64::MAX] {
+        let mut value = base.clone();
+        value["execution"] = json!({"result_memory_bytes": bytes});
+        let options = parsed(value)
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .options;
+        assert_eq!(options.result_memory_bytes, bytes);
+        assert_eq!(options.sql, baseline.sql);
+        assert_eq!(options.quota, baseline.quota);
+        assert_eq!(options.retention, baseline.retention);
+    }
+    for value in [
+        json!({"result_memory_bytes": 0}),
+        json!({"result_memory_bytes": minimum-1}),
+    ] {
+        let mut input = base.clone();
+        input["execution"] = value;
+        assert!(parsed(input)
+            .prepare_with(&|_| panic!("execution budget precedes secrets"))
+            .is_err());
+    }
+    for value in [
+        json!({}),
+        json!({"result_memory_bytes": -1}),
+        json!({"result_memory_bytes": 1024,"max_result_bytes":1}),
+    ] {
+        let mut input = base.clone();
+        input["execution"] = value;
+        assert!(Config::parse(input.to_string().as_bytes()).is_err());
+    }
+}
+
+fn garbage_configuration(parent: &std::path::Path) -> serde_json::Value {
+    let mut value = sample_config(parent);
+    value["gc"] = json!({"deployment":"1", "access_key_env":"SCAP_GC_ACCESS",
+        "secret_key_env":"SCAP_GC_SECRET", "session_token_env":null});
+    value
+}
+
+fn garbage_environment(name: &str) -> Option<OsString> {
+    Some(OsString::from(match name {
+        "SCAP_GC_ACCESS" => "collector-access",
+        "SCAP_GC_SECRET" => "collector-secret",
+        "SCAP_GC_TOKEN" => "collector-token",
+        _ => "ordinary-secret",
+    }))
+}
+
+#[test]
+fn garbage_is_disabled_by_default_and_uses_dedicated_credentials_for_one_fixed_namespace() {
+    let directory = tempfile::tempdir().unwrap();
+    let disabled = parsed(sample_config(directory.path()))
+        .prepare_with(&environment)
+        .unwrap();
+    assert!(disabled.gc.is_none());
+    assert_eq!(disabled.service.gc_deployment, None);
+    let mut value = garbage_configuration(directory.path());
+    let enabled = parsed(value.clone())
+        .prepare_with(&garbage_environment)
+        .unwrap();
+    assert_eq!(enabled.service.gc_deployment, Some(1));
+    let gc = enabled.gc.unwrap();
+    assert_eq!(gc.deployment, 1);
+    assert_eq!(gc.s3.endpoint, enabled.s3.endpoint);
+    assert_eq!(gc.s3.region, enabled.s3.region);
+    assert_eq!(gc.s3.bucket, enabled.s3.bucket);
+    assert_eq!(gc.s3.timeout, enabled.s3.timeout);
+    assert_eq!(gc.s3.allow_http, enabled.s3.allow_http);
+    assert_eq!(gc.s3.max_object_bytes, MAX_OBJECT_BYTES);
+    assert_eq!(gc.s3.access_key, "collector-access");
+    assert_eq!(gc.s3.secret_key, "collector-secret");
+    assert!(gc.s3.session_token.is_none());
+    value["gc"]["session_token_env"] = json!("SCAP_GC_TOKEN");
+    assert_eq!(
+        parsed(value)
+            .prepare_with(&garbage_environment)
+            .unwrap()
+            .gc
+            .unwrap()
+            .s3
+            .session_token
+            .as_deref(),
+        Some("collector-token")
+    );
+}
+
+#[test]
+fn garbage_configuration_cannot_change_namespace_or_reuse_ordinary_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let value = garbage_configuration(directory.path());
+    for field in ["deployment", "access_key_env", "secret_key_env"] {
+        let mut bad = value.clone();
+        bad["gc"].as_object_mut().unwrap().remove(field);
+        assert!(Config::parse(bad.to_string().as_bytes()).is_err());
+    }
+    for field in ["endpoint", "region", "bucket", "prefix", "keys"] {
+        let mut bad = value.clone();
+        bad["gc"][field] = json!("not-configurable");
+        assert!(Config::parse(bad.to_string().as_bytes()).is_err());
+    }
+    for deployment in ["0", "2"] {
+        let mut bad = value.clone();
+        bad["gc"]["deployment"] = json!(deployment);
+        assert_eq!(
+            parsed(bad)
+                .prepare_with(&|_| panic!("GC namespace before credentials"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    for field in ["access_key_env", "secret_key_env", "session_token_env"] {
+        for ordinary in ["SCAP_TEST_ACCESS", "SCAP_TEST_SECRET", "READ_TOKEN"] {
+            let mut bad = value.clone();
+            bad["s3"]["session_token_env"] = json!("READ_TOKEN");
+            bad["gc"][field] = json!(ordinary);
+            assert_eq!(
+                parsed(bad)
+                    .prepare_with(&|_| panic!("dedicated names before credentials"))
+                    .err()
+                    .unwrap()
+                    .code,
+                "CONFIG"
+            );
+        }
+    }
+    // Distinct environment names cannot conceal the same access-key identity.
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&environment)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for missing in ["SCAP_GC_ACCESS", "SCAP_GC_SECRET", "SCAP_GC_TOKEN"] {
+        let mut bad = value.clone();
+        bad["gc"]["session_token_env"] = json!("SCAP_GC_TOKEN");
+        assert_eq!(
+            parsed(bad)
+                .prepare_with(&|name| {
+                    if name == missing {
+                        None
+                    } else {
+                        garbage_environment(name)
+                    }
+                })
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
 }

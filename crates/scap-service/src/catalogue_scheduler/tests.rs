@@ -31,6 +31,7 @@ fn job(tenant: u64, name: Option<&str>) -> (Job, oneshot::Receiver<Result<Value,
     let (reply, receiver) = oneshot::channel();
     (
         Job {
+            _reservation: None,
             principal,
             call: call(name),
             deadline: until(),

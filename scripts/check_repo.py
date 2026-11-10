@@ -176,7 +176,7 @@ def check_contract(text: str) -> list[str]:
             "no legacy SDK": contract["compatibility"]["legacy_sdk"] is False,
             "no dual backend": contract["compatibility"]["dual_backend"] is False,
             "configurable production capacity profile": contract["profile"] == {
-                "head_format": 4,
+                "head_format": 5,
                 "object_format": 2,
                 "catalogue_format": 1,
                 "page_size": 4096,

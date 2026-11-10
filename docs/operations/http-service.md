@@ -71,6 +71,6 @@ abort_create 和 delete_name 都先保存完整控制意图，包括 control ope
 
 ## 当前持续运行边界
 
-当前有不可变 ID 接口和待完整验收的精确名称目录候选；全目录发现、自动 owner 协调仍待实施。专属 actor 消除跨库固定 lane 的恢复阻塞，但共享存储、网络、CPU、HTTP 解析与磁盘容量仍须单独限流和负载验收。全部计算丢失后按已知名称或固定操作身份恢复，不等于已经发现 bucket 中全部数据库。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。仍需完成自动协调及正式长期留存流程。
+当前已有不可变 ID、名称目录、全目录发现、静态 owner 路由和保存原意图的显式协调；后台故障探测与自动 owner controller 仍待实施。专属 actor 消除跨库固定 lane 的恢复阻塞，但共享存储、网络、CPU、HTTP 解析与磁盘容量仍须单独限流和负载验收。全部计算丢失后的完整发现须遍历名称及永久 HEAD 槽位，并按[部署恢复合同](../architecture/catalogue-discovery-plan.md)核对各状态；仅按调用者已知名称恢复不能代替完整发现。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。HEAD6 回收管理见[接口说明](../../crates/scap-service/docs/reclamation.md)，候选验收、自动协调及长期留存分别记录。
 
 对象物理 GC/pin/PITR 仍未交付，旧块与 orphan 会增长。10 GiB 配额限制当前逻辑数据库，不限制 bucket 总量。服务适合受控开发与验收；生产可用性、总成本与长时间运行仍须完成 N3/N4 的门禁。

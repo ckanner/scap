@@ -1,0 +1,204 @@
+{
+  "schema": 1,
+  "status": "ALL_66_NODE_UNITS_PASS_V8_BRANCH_GATE_FAILED",
+  "source_commit": "65d48cba18e6c48201bb2fe5b951eb9b72852305",
+  "source_unchanged": true,
+  "completion": {
+    "path": "/tmp/scap-guarded-sdk-65d48cb-02/completion.json",
+    "bytes": 5583,
+    "sha256": "e9984c21c572089a4c802c63a4854a88e6e0f8bd8ae8a7c422edb982725411bd"
+  },
+  "original_log": {
+    "path": "/tmp/scap-guarded-sdk-65d48cb-02/guarded-node-unit.log",
+    "bytes": 17947,
+    "sha256": "4a4c0d8cc48a749cc6a081d7458810d8972dea1eaef6f29bd3c0b1b74145bace"
+  },
+  "commands": [
+    {
+      "name": "guarded-source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-guarded-sdk-65d48cb-02/guarded-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62173005098991,
+      "end_ns": 62173335192031,
+      "log_sha256": "78a4ee2586b58eccad96d265ae91a6262cd4c44a248c36a59fec47f1227872f5"
+    },
+    {
+      "name": "base-source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/tmp/scap-guarded-sdk-65d48cb-02/base-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 62173446577044,
+      "end_ns": 62173722352889,
+      "log_sha256": "e08f4f8f9e4ba040c8c100b8c5261226a8047f645005a8ab2ec6c2b0fab962eb"
+    },
+    {
+      "name": "node-version",
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62173722945750,
+      "end_ns": 62173840799893,
+      "log_sha256": "256a8e08ee35cb8ad36ae16385257192c3dbe7d80cfdeff9eaa886531b2f83bc"
+    },
+    {
+      "name": "tsc-version",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--version"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62173841335933,
+      "end_ns": 62174881640941,
+      "log_sha256": "4985b444236c5acdb5b850e5d754975e130eed5b033c53f201cdf471e83d7f13"
+    },
+    {
+      "name": "guarded-node-unit",
+      "argv": [
+        "npm",
+        "--prefix",
+        "sdk/node",
+        "test"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 1,
+      "start_ns": 62174882341604,
+      "end_ns": 62177794400051,
+      "log_sha256": "4a4c0d8cc48a749cc6a081d7458810d8972dea1eaef6f29bd3c0b1b74145bace"
+    },
+    {
+      "name": "guarded-types",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--target",
+        "ES2022",
+        "--module",
+        "NodeNext",
+        "--moduleResolution",
+        "NodeNext",
+        "--lib",
+        "ES2022,DOM",
+        "sdk/node/test/types.ts"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62177796619493,
+      "end_ns": 62182262601053,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "base-types",
+      "argv": [
+        "node",
+        "/workspace/scratch/591a71cb3372/environment/typescript/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--strict",
+        "--target",
+        "ES2022",
+        "--module",
+        "NodeNext",
+        "--moduleResolution",
+        "NodeNext",
+        "--lib",
+        "ES2022,DOM",
+        "sdk/node/test/types.ts"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 62182264148385,
+      "end_ns": 62187054420471,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "guarded-node-http",
+      "argv": [
+        "npm",
+        "--prefix",
+        "sdk/node",
+        "run",
+        "test:http"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62187054942870,
+      "end_ns": 62188377143628,
+      "log_sha256": "b486fd200f55a532daa6fe124a099a3c73c7ae8461bda226b8e560bdccc01eaa"
+    },
+    {
+      "name": "guarded-source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-guarded-sdk-65d48cb-02/guarded-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/guarded-status-budget",
+      "exit_code": 0,
+      "start_ns": 62188377823797,
+      "end_ns": 62188701190400,
+      "log_sha256": "f128766aab1858349ff9e3b1fcc85e57e12f2066eac2ab60a42897ce48f5c92e"
+    },
+    {
+      "name": "base-source-verify",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/tmp/scap-guarded-sdk-65d48cb-02/base-source-before.json"
+      ],
+      "cwd": "/workspace/scratch/591a71cb3372/head5-runtime-validated",
+      "exit_code": 0,
+      "start_ns": 62188702270514,
+      "end_ns": 62189104823316,
+      "log_sha256": "cb538e8bf8d0fabedc5dded8ef9ecf29650b6f175bffe9e70323beedcfa5d0d2"
+    }
+  ],
+  "units": {
+    "tests": 66,
+    "pass": 66,
+    "fail": 0
+  },
+  "coverage_failure": {
+    "owner_reported_branch_percent": 97.3,
+    "total_reported_branch_percent": 99.83,
+    "required_percent": 100,
+    "zero_ranges": [
+      {
+        "profile": {
+          "path": "/tmp/scap-guarded-sdk-65d48cb-02/fresh-unit-v8/coverage-69-1794248241466-0.json",
+          "bytes": 687640,
+          "sha256": "0245d31cbe8d7b97e101005e624f5b9d12c2bd8d9176c19b527e34c62eda0f96"
+        },
+        "function": "probe",
+        "range": {
+          "startOffset": 1149,
+          "endOffset": 1150,
+          "count": 0
+        }
+      }
+    ],
+    "original_source_span": "single whitespace between the catch block and finally keyword",
+    "exact_counter_checker": "NOT_RUN; Node threshold failed first"
+  },
+  "correction": "Use one normal success exit after finally, matching existing reconcile structure: assign the verified result in try, preserve rethrowing catch, close in finally, return result afterward. No ignore, counter filter, exclusion, timeout extension or new dispatch.",
+  "next_candidate_gates": "NOT_RUN at receipt capture",
+  "rust_and_actual_s3": "NOT_RUN"
+}

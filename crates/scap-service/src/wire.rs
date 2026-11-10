@@ -5,9 +5,20 @@ use scap_object::format::{Head, Permission, Request, Scope};
 use scap_object::{Receipt, Resolution};
 use scap_sql::{Statement, TransactionResult, Value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{json, Value as Json};
+use serde_json::{json, Map, Value as Json};
 
 use crate::Failure;
+
+/// Serialize an owned or borrowed value without constructing a second JSON tree.
+#[derive(Serialize)]
+pub(crate) struct Success<T> {
+    ok: bool,
+    value: T,
+}
+
+pub(crate) fn success<T>(value: T) -> Success<T> {
+    Success { ok: true, value }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Decimal(pub u64);
@@ -168,7 +179,10 @@ pub enum Action {
     Create {
         nonce: Decimal,
     },
-    Status {},
+    Status {
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
+    },
     Open {},
     Query {
         statements: Vec<WireStatement>,
@@ -186,10 +200,14 @@ pub enum Action {
     Activate {
         expected_revision: Decimal,
         nonce: Decimal,
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
     },
     Takeover {
         expected_revision: Decimal,
         nonce: Decimal,
+        #[serde(default, deserialize_with = "present_worker")]
+        expected_worker_instance: Option<Decimal>,
     },
     CloseFull {
         expected_revision: Decimal,
@@ -211,12 +229,54 @@ pub enum Action {
         nonce: Decimal,
         lifecycle: scap_object::format::Lifecycle,
     },
+    CompactBegin {
+        expected_head_serial: Decimal,
+    },
+    CompactCopy {
+        plan_serial: Decimal,
+    },
+    CompactPromote {
+        plan_serial: Decimal,
+    },
+    CompactAbort {
+        plan_serial: Decimal,
+    },
+    GcPrepare {
+        expected_head_serial: Decimal,
+        generation: Decimal,
+        #[serde(deserialize_with = "required_after")]
+        after: Option<String>,
+    },
+    GcResume {
+        batch_serial: Decimal,
+    },
 }
 
 impl Action {
+    /// Optional destination identity, checked before any authority effect.
+    pub fn expected_worker(&self) -> Option<u64> {
+        match self {
+            Self::Status {
+                expected_worker_instance,
+            }
+            | Self::Activate {
+                expected_worker_instance,
+                ..
+            }
+            | Self::Takeover {
+                expected_worker_instance,
+                ..
+            } => expected_worker_instance.map(|value| value.0),
+            _ => None,
+        }
+    }
+
     /// Reject malformed control values before any provisioning objects or HEAD
     /// reads. A client typo is INVALID, not evidence of corrupted durable data.
     pub fn validate(&self) -> Result<(), Failure> {
+        if self.expected_worker() == Some(0) {
+            return Err(Failure::new("INVALID"));
+        }
         if matches!(
             self,
             Self::Lifecycle {
@@ -231,10 +291,12 @@ impl Action {
             Self::Activate {
                 expected_revision,
                 nonce,
+                ..
             }
             | Self::Takeover {
                 expected_revision,
                 nonce,
+                ..
             }
             | Self::CloseFull {
                 expected_revision,
@@ -282,6 +344,34 @@ impl Action {
             .validate()
             .map_err(|_| Failure::new("INVALID"))?;
         }
+        let serial = match self {
+            Self::CompactBegin {
+                expected_head_serial,
+            }
+            | Self::GcPrepare {
+                expected_head_serial,
+                ..
+            } => Some(expected_head_serial.0),
+            Self::CompactCopy { plan_serial }
+            | Self::CompactPromote { plan_serial }
+            | Self::CompactAbort { plan_serial } => Some(plan_serial.0),
+            Self::GcResume { batch_serial } => Some(batch_serial.0),
+            _ => None,
+        };
+        if serial == Some(0) {
+            return Err(Failure::new("INVALID"));
+        }
+        if let Self::GcPrepare {
+            generation, after, ..
+        } = self
+        {
+            if generation.0 == 0 {
+                return Err(Failure::new("INVALID"));
+            }
+            if let Some(after) = after {
+                crate::auth::decode_hash(after).map_err(|_| Failure::new("INVALID"))?;
+            }
+        }
         Ok(())
     }
 
@@ -294,11 +384,19 @@ impl Action {
 
     pub fn admission(&self) -> &'static str {
         match self {
-            Self::Open {} | Self::Activate { .. } => "recovery",
+            Self::Open {}
+            | Self::Activate { .. }
+            | Self::CompactCopy { .. }
+            | Self::GcPrepare { .. }
+            | Self::GcResume { .. } => "recovery",
             Self::Query { .. } | Self::Execute { .. } | Self::Create { .. } => "data",
             _ => "control",
         }
     }
+}
+
+fn present_worker<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Decimal>, D::Error> {
+    Decimal::deserialize(deserializer).map(Some)
 }
 
 #[derive(Clone, Debug)]
@@ -364,6 +462,10 @@ fn required_quota<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<D
     Option::<Decimal>::deserialize(deserializer)
 }
 
+fn required_after<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
+}
+
 pub fn parse(bytes: &[u8]) -> Result<Call, Failure> {
     let call: Call = serde_json::from_slice(bytes).map_err(|_| Failure::new("INVALID"))?;
     if call.version != 1 {
@@ -392,6 +494,7 @@ pub fn receipt(receipt: &Receipt) -> Json {
 /// Public status contains no ETag, bucket credentials or complete policy list.
 pub fn status(head: &Head) -> Json {
     json!({ "scope": scope(&head.scope), "revision": Decimal(head.revision),
+        "head_serial": Decimal(head.head_serial), "storage": storage(&head.storage),
         "sequence": Decimal(head.sequence), "owner_epoch": Decimal(head.owner_epoch),
         "owner_instance": Decimal(head.owner_instance), "active": head.active,
         "auth_epoch": Decimal(head.auth_epoch), "lifecycle": head.lifecycle,
@@ -402,10 +505,64 @@ pub fn status(head: &Head) -> Json {
             "oldest_epoch": Decimal(head.windows.last().map_or(head.request_epoch, |window| window.epoch)) } })
 }
 
+/// Maintenance status exposes bounded identities and progress, never physical
+/// object keys, observed ETags, credentials or the captured request windows.
+fn storage(storage: &scap_object::format::Storage) -> Json {
+    let plan = storage.plan.as_ref().map(|plan| {
+        json!({"serial": Decimal(plan.serial), "source": Decimal(plan.source),
+            "target": Decimal(plan.target), "phase": plan.phase})
+    });
+    let sweep = storage.sweep.as_ref().map(|sweep| {
+        use scap_object::format::SweepDisposition;
+        let mut counts = [0_u32; 4];
+        for entry in &sweep.entries {
+            let index = match entry.disposition {
+                SweepDisposition::Pending => 0,
+                SweepDisposition::Applied => 1,
+                SweepDisposition::ObservedAbsent => 2,
+                SweepDisposition::ConditionMismatch => 3,
+            };
+            counts[index] += 1;
+        }
+        json!({"serial": Decimal(sweep.serial), "generation": Decimal(sweep.generation),
+            "next_after": sweep.next_after, "exhausted": sweep.exhausted,
+            "pending": counts[0], "applied": counts[1],
+            "observed_absent": counts[2], "condition_mismatch": counts[3]})
+    });
+    json!({"active_generation": Decimal(storage.active_generation),
+        "allocated_through": Decimal(storage.allocated_through), "plan": plan, "sweep": sweep})
+}
+
+pub fn sweep(report: &scap_object::SweepReport) -> Json {
+    json!({"status": status(&report.head), "generation": Decimal(report.generation),
+        "scanned": report.scanned, "next_after": report.next_after, "exhausted": report.exhausted})
+}
+
 pub fn result(result: &TransactionResult) -> Result<String, Failure> {
     let bytes = scap_sql::encode_result(result, scap_object::options::durable_sql_limits())
-        .map_err(|_| Failure::new("CORRUPT"))?;
+        .map_err(result_encoding_failure)?;
     Ok(STANDARD.encode(bytes))
+}
+
+pub(crate) fn budgeted_result(
+    result: &TransactionResult,
+    output: &mut crate::output::OutputContext,
+) -> Result<String, Failure> {
+    let plan = scap_sql::plan_result(result, scap_object::options::durable_sql_limits())
+        .map_err(result_encoding_failure)?;
+    let mut bytes = output.allocate(plan.encoded_len())?;
+    plan.write_exact(bytes.as_mut())
+        .expect("validated result and exact reserved destination");
+    // The exact wire backing and Base64 backing overlap and retain separate
+    // charges. The raw Buffer drops only after this conversion returns.
+    output.base64(bytes.as_slice())
+}
+
+fn result_encoding_failure(error: scap_sql::SqlError) -> Failure {
+    Failure::new(match error {
+        scap_sql::SqlError::ResourceExhausted => "LIMIT",
+        _ => "CORRUPT",
+    })
 }
 
 pub fn resolved(resolution: Resolution) -> Json {
@@ -413,14 +570,49 @@ pub fn resolved(resolution: Resolution) -> Json {
         Resolution::Committed {
             receipt: value,
             bytes,
-        } => json!({
-            "state": "committed", "receipt": receipt(&value), "result": STANDARD.encode(bytes) }),
+        } => Json::Object(Map::from_iter([
+            ("state".into(), Json::String("committed".into())),
+            ("receipt".into(), receipt(&value)),
+            ("result".into(), Json::String(STANDARD.encode(bytes))),
+        ])),
         Resolution::Cancelled { transition } => json!({ "state": "cancelled", "transition": {
             "revision": Decimal(transition.revision), "nonce": Decimal(transition.nonce) } }),
         Resolution::Unknown => json!({ "state": "unknown" }),
         Resolution::Closed => json!({ "state": "closed" }),
         Resolution::Retired => json!({ "state": "retired" }),
     }
+}
+
+pub(crate) fn budgeted_resolved(
+    resolution: Resolution,
+    output: &mut crate::output::OutputContext,
+) -> Result<Json, Failure> {
+    match resolution {
+        Resolution::Committed {
+            receipt: value,
+            bytes,
+        } => {
+            output.committed(value);
+            let encoded = output
+                .base64(&bytes)
+                .map_err(|_| output.committed_unavailable())?;
+            Ok(committed(output.receipt(), encoded))
+        }
+        other => {
+            // Cancelled may already have changed HEAD. These small fixed
+            // shapes use the preallocated buffer, never a retryable LIMIT.
+            output.head_result();
+            Ok(resolved(other))
+        }
+    }
+}
+
+pub(crate) fn committed(value: &Receipt, encoded: String) -> Json {
+    Json::Object(Map::from_iter([
+        ("state".into(), Json::String("committed".into())),
+        ("receipt".into(), receipt(value)),
+        ("result".into(), Json::String(encoded)),
+    ]))
 }
 
 pub fn failed(error: &Failure) -> Json {

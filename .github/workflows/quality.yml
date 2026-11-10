@@ -97,6 +97,10 @@ jobs:
         run: python3 experiments/object-authority-model/explore.py --output target/evidence/object-authority-model
       - name: Explore named catalogue publication races and negative controls
         run: python3 experiments/object-authority-model/named_catalogue_model.py --output "$GITHUB_WORKSPACE/target/evidence/named-catalogue-model"
+      - name: Check the terminal retirement model and independent observer
+        run: python3 -m unittest discover -s experiments/object-terminal-retirement-model -p 'test_*.py' -v
+      - name: Explore terminal retirement schedules without claiming product acceptance
+        run: python3 experiments/object-terminal-retirement-model/explore.py --out "$GITHUB_WORKSPACE/target/evidence/terminal-retirement-model"
       - name: Retain model evidence without claiming real S3 execution
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -105,6 +109,84 @@ jobs:
           path: |
             target/evidence/object-authority-model
             target/evidence/named-catalogue-model
+            target/evidence/terminal-retirement-model
+          if-no-files-found: warn
+
+  resource-limits:
+    name: Actual resource lifetimes and conditional GC transport
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/resource-check
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal --component rustfmt,clippy
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned private local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-resource-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-resource-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-resource-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-resource-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-resource-tools" weed
+          "$RUNNER_TEMP/scap-resource-tools/weed" version
+      - name: Check experiment code and audit controls
+        run: |
+          python3 -m unittest discover -s experiments/object-gc-store -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/resource-limits -p 'test_*.py' -v
+          cargo +1.90.0 fmt --manifest-path experiments/object-gc-store/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/object-gc-store/Cargo.toml --all-targets --locked -- -D warnings
+          cargo +1.90.0 fmt --manifest-path experiments/resource-limits/Cargo.toml --all -- --check
+          cargo +1.90.0 clippy --manifest-path experiments/resource-limits/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Freeze and verify actual HTTP TCP S3 resource lifetimes
+        # A paused object read is an explicit fixture seam, not production logic.
+        run: |
+          mkdir "$RUNNER_TEMP/scap-resource-evidence"
+          python3 experiments/resource-limits/build.py --target "$RUNNER_TEMP/scap-resource-release" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/resource-build"
+          python3 experiments/resource-limits/run.py \
+            --worker "$RUNNER_TEMP/scap-resource-release/release/scap-resource-limits" \
+            --build "$RUNNER_TEMP/scap-resource-evidence/resource-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-resource-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/resource-limits"
+          python3 experiments/resource-limits/oracle.py "$RUNNER_TEMP/scap-resource-evidence/resource-limits" \
+            > "$RUNNER_TEMP/scap-resource-evidence/resource-oracle.json"
+          python3 experiments/resource-limits/controls.py "$RUNNER_TEMP/scap-resource-evidence/resource-limits" \
+            > "$RUNNER_TEMP/scap-resource-evidence/resource-controls.json"
+      - name: Verify conditional deletion on the composed source
+        # Product GC remains disabled; this checks only the restricted transport.
+        run: |
+          python3 experiments/object-gc-store/build.py --target "$RUNNER_TEMP/scap-gc-release" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/gc-build"
+          python3 experiments/object-gc-store/run.py \
+            --worker "$RUNNER_TEMP/scap-gc-release/release/scap-object-gc-store" \
+            --build-receipt "$RUNNER_TEMP/scap-resource-evidence/gc-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-resource-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-resource-evidence/gc-store"
+      - name: Retain resource evidence without claiming AWS acceptance
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: resource-limits-local-s3
+          path: |
+            ${{ runner.temp }}/scap-resource-evidence/resource-build/**
+            ${{ runner.temp }}/scap-resource-evidence/resource-limits/**
+            ${{ runner.temp }}/scap-resource-evidence/resource-oracle.json
+            ${{ runner.temp }}/scap-resource-evidence/resource-controls.json
+            ${{ runner.temp }}/scap-resource-evidence/gc-build/**
+            ${{ runner.temp }}/scap-resource-evidence/gc-store/**
           if-no-files-found: warn
 
   object-network:
@@ -143,7 +225,13 @@ jobs:
         run: |
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/object-metadata -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/guarded-status -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/output-pool -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/bounded-transport/response -p 'test_*.py' -v
+          node --test experiments/object-service/test_client_ledger.mjs
           python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
+          python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v
       - name: Format, lint, and build the production-code harness
         run: |
           cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -238,6 +326,79 @@ jobs:
             --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
             --evidence "$GITHUB_WORKSPACE/target/evidence/object-service"
+      - name: Verify actual connection and HTTP header limits
+        run: |
+          python3 experiments/bounded-transport/run.py \
+            --binary "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --evidence "$RUNNER_TEMP/scap-bounded-transport"
+          python3 experiments/bounded-transport/oracle.py \
+            "$RUNNER_TEMP/scap-bounded-transport/observations.json" \
+            > "$RUNNER_TEMP/scap-bounded-transport-oracle.json"
+      - name: Verify owner routing and fixed takeover intents under real faults
+        # One source-bound daemon binary; private credentials stay outside evidence.
+        run: |
+          python3 experiments/object-service/owner_contract.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner"
+          python3 experiments/object-service/owner_oracle.py \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
+            > "$RUNNER_TEMP/scap-owner-evidence/oracle.json"
+          python3 experiments/object-service/owner_controls.py \
+            --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
+            --output "$RUNNER_TEMP/scap-owner-evidence/controls"
+      - name: Verify guarded status across an actual endpoint replacement
+        run: |
+          python3 -B experiments/guarded-status/run.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run"
+          python3 -B experiments/guarded-status/oracle.py \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run" \
+            --output "$RUNNER_TEMP/scap-guarded-evidence/oracle.json"
+          python3 -B experiments/guarded-status/controls.py \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run" \
+            --output "$RUNNER_TEMP/scap-guarded-evidence/controls"
+      - name: Verify output budgets with real slow clients and original-result lookup
+        run: |
+          python3 -B experiments/output-pool/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --transport-profile bounded --evidence "$RUNNER_TEMP/scap-output-evidence/run"
+          python3 -B experiments/output-pool/oracle.py "$RUNNER_TEMP/scap-output-evidence/run" \
+            > "$RUNNER_TEMP/scap-output-evidence/oracle.json"
+          python3 -B experiments/output-pool/controls.py "$RUNNER_TEMP/scap-output-evidence/run" \
+            > "$RUNNER_TEMP/scap-output-evidence/controls.json"
+      - name: Verify response expiry and bounded connection shutdown over actual TCP
+        run: |
+          python3 -B experiments/bounded-transport/response/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-response-evidence/run"
+          python3 -B experiments/bounded-transport/response/oracle.py "$RUNNER_TEMP/scap-response-evidence/run" \
+            > "$RUNNER_TEMP/scap-response-evidence/oracle.json"
+          python3 -B experiments/bounded-transport/response/controls.py "$RUNNER_TEMP/scap-response-evidence/run" \
+            > "$RUNNER_TEMP/scap-response-evidence/controls.json"
+      - name: Verify management HEAD-only I/O and exact original publication outcomes
+        # Separate dedicated M listener; no timestamp-based shared S3 attribution.
+        run: |
+          python3 -B experiments/object-metadata/run.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run"
+          python3 -B experiments/object-metadata/oracle.py \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run" \
+            --output "$RUNNER_TEMP/scap-metadata-evidence/oracle.json"
+          python3 -B experiments/object-metadata/controls.py \
+            --evidence "$RUNNER_TEMP/scap-metadata-evidence/run" \
+            --output "$RUNNER_TEMP/scap-metadata-evidence/controls.json"
       - name: Verify catalogue HTTP intents, independent admission, and recovery
         run: |
           python3 experiments/object-service/catalogue_contract.py \
@@ -281,6 +442,27 @@ jobs:
         with:
           name: object-network-local-s3
           path: |
+            ${{ runner.temp }}/scap-guarded-evidence/run/**
+            ${{ runner.temp }}/scap-guarded-evidence/oracle.json
+            ${{ runner.temp }}/scap-guarded-evidence/controls/**
+            ${{ runner.temp }}/scap-output-evidence/run/**
+            ${{ runner.temp }}/scap-output-evidence/oracle.json
+            ${{ runner.temp }}/scap-output-evidence/controls.json
+            ${{ runner.temp }}/scap-response-evidence/run/**
+            ${{ runner.temp }}/scap-response-evidence/oracle.json
+            ${{ runner.temp }}/scap-response-evidence/controls.json
+            ${{ runner.temp }}/scap-metadata-evidence/run/**
+            ${{ runner.temp }}/scap-metadata-evidence/oracle.json
+            ${{ runner.temp }}/scap-metadata-evidence/controls.json
+            ${{ runner.temp }}/scap-owner-evidence/owner/**
+            ${{ runner.temp }}/scap-owner-evidence/oracle.json
+            ${{ runner.temp }}/scap-owner-evidence/controls/**
+            ${{ runner.temp }}/scap-bounded-transport/observations.json
+            ${{ runner.temp }}/scap-bounded-transport/plan.json
+            ${{ runner.temp }}/scap-bounded-transport/events.jsonl
+            ${{ runner.temp }}/scap-bounded-transport/daemon.stdout.log
+            ${{ runner.temp }}/scap-bounded-transport/daemon.stderr.log
+            ${{ runner.temp }}/scap-bounded-transport-oracle.json
             target/evidence/deployment-recovery/**
             target/evidence/deployment-recovery-build/**
             target/evidence/deployment-recovery-oracle.json
@@ -352,3 +534,143 @@ jobs:
             target/evidence/segmented-controls/**
             target/evidence/discovery-service/**
           if-no-files-found: error
+
+  head6-reclamation:
+    name: HEAD6 compaction and durable GC faults
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-reclamation-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-reclamation-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-reclamation-tools" weed
+      - name: Verify independent model and observer boundaries
+        run: |
+          python3 -B -m unittest discover -s experiments/object-reclamation-runtime -p 'test_*.py' -v
+          node --check experiments/object-reclamation-runtime/client.mjs
+      - name: Build and bind both actual executables
+        run: |
+          mkdir "$RUNNER_TEMP/scap-reclamation-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-reclamation-release" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/service-build"
+          python3 -B experiments/object-network/build.py \
+            --target-dir "$RUNNER_TEMP/scap-reclamation-release" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/native-build"
+      - name: Observe original requests across copy promotion and retirement
+        run: |
+          python3 -B experiments/object-reclamation-runtime/run.py \
+            --server "$RUNNER_TEMP/scap-reclamation-release/release/scapd" \
+            --build-record "$RUNNER_TEMP/scap-reclamation-evidence/service-build/build.json" \
+            --worker "$RUNNER_TEMP/scap-reclamation-release/release/scap-object-network" \
+            --seed-build-record "$RUNNER_TEMP/scap-reclamation-evidence/native-build/build.json" \
+            --weed "$RUNNER_TEMP/scap-reclamation-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-reclamation-evidence/run"
+      - name: Independently verify raw history and semantic controls
+        run: |
+          python3 -B experiments/object-reclamation-runtime/oracle.py \
+            "$RUNNER_TEMP/scap-reclamation-evidence/run" \
+            > "$RUNNER_TEMP/scap-reclamation-evidence/oracle.json"
+          python3 -B experiments/object-reclamation-runtime/controls.py \
+            "$RUNNER_TEMP/scap-reclamation-evidence/run" \
+            "$RUNNER_TEMP/scap-reclamation-evidence/controls"
+      - name: Retain original public evidence and failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: head6-reclamation-local-s3
+          path: |
+            ${{ runner.temp }}/scap-reclamation-evidence/service-build/**
+            ${{ runner.temp }}/scap-reclamation-evidence/native-build/**
+            ${{ runner.temp }}/scap-reclamation-evidence/run/**
+            ${{ runner.temp }}/scap-reclamation-evidence/oracle.json
+            ${{ runner.temp }}/scap-reclamation-evidence/controls/**
+          if-no-files-found: warn
+
+  object-load-baseline:
+    name: Local throughput and cold recovery baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-load-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-load-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-load-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-load-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-load-tools" weed
+      - name: Verify observers and every original SDK input
+        run: |
+          python3 -B -m unittest discover -s experiments/object-load -p 'test_*.py' -v
+          node --check experiments/object-load/probe.mjs
+          node --check experiments/object-load/input.mjs
+      - name: Build the actual service
+        run: |
+          mkdir "$RUNNER_TEMP/scap-load-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-load-release" \
+            --evidence "$RUNNER_TEMP/scap-load-evidence/build"
+      - name: Observe the fixed workload in this dedicated job
+        run: |
+          python3 -B experiments/object-load/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$RUNNER_TEMP/scap-load-release/release/scapd" \
+            --build-record "$RUNNER_TEMP/scap-load-evidence/build/build.json" \
+            --weed "$RUNNER_TEMP/scap-load-tools/weed" \
+            --evidence "$RUNNER_TEMP/scap-load-evidence/run"
+      - name: Recompute metrics and verify all original outcomes
+        run: |
+          python3 -B experiments/object-load/oracle.py \
+            "$RUNNER_TEMP/scap-load-evidence/run" \
+            > "$RUNNER_TEMP/scap-load-evidence/oracle.json"
+          python3 -B experiments/object-load/controls.py \
+            "$RUNNER_TEMP/scap-load-evidence/run" \
+            --output "$RUNNER_TEMP/scap-load-evidence/controls" \
+            > "$RUNNER_TEMP/scap-load-evidence/controls.json"
+      - name: Retain measured data without claiming a production SLO
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: object-load-local-s3
+          path: |
+            ${{ runner.temp }}/scap-load-evidence/build/**
+            ${{ runner.temp }}/scap-load-evidence/run/**
+            ${{ runner.temp }}/scap-load-evidence/oracle.json
+            ${{ runner.temp }}/scap-load-evidence/controls/**
+            ${{ runner.temp }}/scap-load-evidence/controls.json
+          if-no-files-found: warn

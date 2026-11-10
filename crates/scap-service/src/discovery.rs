@@ -8,7 +8,10 @@ use std::time::{Duration, Instant};
 
 use scap_object::{catalogue as core, Options};
 use scap_object_store::{Listings, Objects};
-use serde_json::{json, Value};
+use serde_json::Value;
+
+#[cfg(test)]
+use serde_json::json;
 
 use crate::{
     auth::Principal,
@@ -289,7 +292,7 @@ fn read_deadline(started: Instant, deadline: Instant) -> Instant {
 
 fn bounded(value: Value, deadline: Instant) -> Result<Vec<u8>, Failure> {
     let bytes =
-        serde_json::to_vec(&json!({"ok":true,"value":value})).expect("JSON value serialization");
+        serde_json::to_vec(&crate::wire::success(&value)).expect("JSON value serialization");
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err(Failure::new("LIMIT"));
     }

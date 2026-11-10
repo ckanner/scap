@@ -341,6 +341,7 @@ fn provisioning_head_contract_rejects_validly_encoded_but_wrong_initial_state() 
     let mutations: Vec<Mutation<Head>> = vec![
         Box::new(|head| {
             head.revision = 2;
+            head.head_serial = 2;
             head.transition.revision = 2;
         }),
         Box::new(|head| head.owner_epoch = 2),

@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "status": "FROZEN_FIXTURE_UNITS_PASS_NEW_HEAD5_ACTUAL_PENDING",
+  "publication_parent": "7374822cf29c22f2d0ff73c1eed107b031d290a2",
+  "source_base_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+  "scope": "Four independent discovery fixture files only; product code, budgets and deadlines unchanged.",
+  "frozen_manifest": {
+    "artifacts": {
+      "candidate.patch": {
+        "bytes": 94635,
+        "sha256": "f8f3da217d2c0fbb192f5f8cfe6798b4a222275dde0c15dfca3e850b99f6361c"
+      },
+      "controls.json": {
+        "bytes": 5168,
+        "sha256": "0a63e4e634a8f466475ab9fa7a86b7934b3b43b57ddb3c5f6d4394b266ac016e"
+      },
+      "diagnostic/original-inputs-after.json": {
+        "bytes": 1070,
+        "sha256": "e29b925459f9ab34a63033a910b358b5602762f5399f63b7aaff2cb16e2ec237"
+      },
+      "diagnostic/original-inputs-before.json": {
+        "bytes": 1070,
+        "sha256": "e29b925459f9ab34a63033a910b358b5602762f5399f63b7aaff2cb16e2ec237"
+      },
+      "diagnostic/receipt.json": {
+        "bytes": 2589,
+        "sha256": "f0c1f8a74caa7c99871d60883a48d93985bee0197e54f3169cfdac784ab2a1c6"
+      },
+      "diagnostic/result.json": {
+        "bytes": 7015,
+        "sha256": "1b515dc5ba41025eef9419310b1199ea60dc08afb7d045c344069b0a10641ad6"
+      },
+      "diagnostic/run.py": {
+        "bytes": 5061,
+        "sha256": "ec23784853190a391794eb382b146b34cfc683f312c569c68a557fc50c47ae0d"
+      },
+      "diagnostic/source-manifest.json": {
+        "bytes": 3792,
+        "sha256": "565fb8f5bc908a2411477472bd0de1a8501d4cb10fd4d799d515957020660c93"
+      },
+      "diagnostic/stderr.log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "diagnostic/stdout.log": {
+        "bytes": 217,
+        "sha256": "e66eaf400fb40298e722f05c34bd4e29debf0bb8fc9f47a5c7403be02223824e"
+      },
+      "review.json": {
+        "bytes": 677,
+        "sha256": "1e67268f18d982fac63d1736b6b88e7dca9e95fb331261917f5d478f407d1e63"
+      },
+      "source/experiments/object-service/discovery_contract.md": {
+        "bytes": 24482,
+        "sha256": "3a6657660521d63aa7ffc48d9115098d99b1451aedc92ebc857be5767cf815d4"
+      },
+      "source/experiments/object-service/discovery_oracle.py": {
+        "bytes": 145382,
+        "sha256": "aa8e3e593be94b0c0c30b6bc0f53db4d05a77d0fe4940a666ce6e9d4f5141f14"
+      },
+      "source/experiments/object-service/test_discovery_progress.py": {
+        "bytes": 52229,
+        "sha256": "8ff381910d82f954f67bcace5fa3e0e5f09259085a1f1b9c3c76f0a6158f46be"
+      },
+      "source/experiments/object-service/test_discovery_reservations.py": {
+        "bytes": 36148,
+        "sha256": "79ac64cbb90e078f8106bfe3cea8e3a746480868b6f0f728c7adaa8728a7ecc2"
+      },
+      "units/scap-discovery-reservation-all-units-05.log": {
+        "bytes": 40068,
+        "sha256": "b3f7ff31f2ed8ef3668a9dac73e8a6ebcb852971d8c1d3f895f7bda4ad9af8e0"
+      },
+      "units/scap-discovery-reservation-units-09.log": {
+        "bytes": 19011,
+        "sha256": "6623edc95c724eb5ad268582e67ba2ba11cea08b7cc9bd5234c710bc62b4b302"
+      }
+    },
+    "composition_note": "Apply this base-bda5ad4 patch onto HEAD5 while preserving its existing shared HEAD5 wire/schema changes; do not overwrite shared oracles with old HEAD4 copies.",
+    "files": {
+      "experiments/object-service/discovery_contract.md": {
+        "bytes": 24482,
+        "sha256": "3a6657660521d63aa7ffc48d9115098d99b1451aedc92ebc857be5767cf815d4"
+      },
+      "experiments/object-service/discovery_oracle.py": {
+        "bytes": 145382,
+        "sha256": "aa8e3e593be94b0c0c30b6bc0f53db4d05a77d0fe4940a666ce6e9d4f5141f14"
+      },
+      "experiments/object-service/test_discovery_progress.py": {
+        "bytes": 52229,
+        "sha256": "8ff381910d82f954f67bcace5fa3e0e5f09259085a1f1b9c3c76f0a6158f46be"
+      },
+      "experiments/object-service/test_discovery_reservations.py": {
+        "bytes": 36148,
+        "sha256": "79ac64cbb90e078f8106bfe3cea8e3a746480868b6f0f728c7adaa8728a7ecc2"
+      }
+    },
+    "schema": 1,
+    "scope": "Only four discovery fixture files; no product code, deadlines, or budgets changed.",
+    "source_base_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+    "source_worktree": "/workspace/scratch/591a71cb3372/discovery-reservation",
+    "status": "SOURCE_FROZEN_FORMAL_ACTUAL_NOT_RUN",
+    "validation": {
+      "all_service_fixture_units": {
+        "log": "units/scap-discovery-reservation-all-units-05.log",
+        "passed": 224
+      },
+      "build_revalidation_in_diagnostic": "NOT_RUN",
+      "discovery_units": {
+        "log": "units/scap-discovery-reservation-units-09.log",
+        "passed": 103
+      },
+      "formal_composed_head5_actual": "NOT_RUN",
+      "formal_negative_count": 29,
+      "formal_positive_count": 1,
+      "git_diff_check": "PASS",
+      "historical_semantic_diagnostic": "DIAGNOSTIC_ACCEPTED_THREE_CONTROLS_REJECTED",
+      "original_actual_evidence": "/tmp/scap-discovery-observation-bda5ad4-04",
+      "original_actual_oracle_sha256": "a003fbf6283024fa0f52dd0bce4c1addc17ab6a19c3fc08893ca1c462da61329",
+      "original_actual_status": "FAILED",
+      "original_counterexample": "/tmp/scap-discovery-reservation-prerequisite-review01"
+    }
+  },
+  "frozen_manifest_file": {
+    "path": "/tmp/scap-discovery-reservation-freeze-01/manifest.json",
+    "bytes": 4716,
+    "sha256": "53dafd263144bfc2bc8ed58bdaa608cca4776d519b48f1e11b7056b673b1062d"
+  },
+  "historical_diagnostic": {
+    "actual_source_commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+    "controls": [
+      {
+        "changed_body_sha256": "7d6792f66d538ff1f5407c538ebedfbe8d3089302f9611d17d5a86ad7a61af68",
+        "changed_usage": {
+          "candidates": 2,
+          "exact_gets": 9,
+          "list_bytes": 1333,
+          "list_pages": 4,
+          "metadata_bytes": 134960
+        },
+        "label": "operator_inventory_resume_13",
+        "name": "completed_scan_fabricated_unobserved_get",
+        "operation": "GET",
+        "original_usage": {
+          "candidates": 2,
+          "exact_gets": 8,
+          "list_bytes": 1333,
+          "list_pages": 4,
+          "metadata_bytes": 69424
+        },
+        "reason": "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation",
+        "status": "REJECTED_AT_EXPECTED_BOUNDARY"
+      },
+      {
+        "changed_body_sha256": "329c3d70c7e38f1ce68e1b422a204c3b04bd55e7f13d6cf6bcbf1852604270b7",
+        "changed_usage": {
+          "candidates": 2,
+          "exact_gets": 8,
+          "list_bytes": 1049909,
+          "list_pages": 5,
+          "metadata_bytes": 69424
+        },
+        "label": "operator_inventory_resume_13",
+        "name": "completed_scan_fabricated_unobserved_list",
+        "operation": "LIST",
+        "original_usage": {
+          "candidates": 2,
+          "exact_gets": 8,
+          "list_bytes": 1333,
+          "list_pages": 4,
+          "metadata_bytes": 69424
+        },
+        "reason": "inventory cost budget differs",
+        "status": "REJECTED_AT_EXPECTED_BOUNDARY"
+      },
+      {
+        "changed_sha256": "7b855f7c907821387772dcd37578c312ccf0530b59e1082fa82ec7fe3e33f2db",
+        "key": "scap-object/v1/1/7/catalogue/v1/control/11/abort/30002",
+        "name": "coherent_invalid_control_version",
+        "original_sha256": "9af0995d513d0518c89fc04a4959d5724f900aef565171e457c88206f36cb5b8",
+        "raw_body_instances": 7,
+        "reason": "fixed metadata profile record differs from original authenticated input",
+        "status": "REJECTED_AT_EXPECTED_BOUNDARY"
+      }
+    ],
+    "driver_sha256": "ec23784853190a391794eb382b146b34cfc683f312c569c68a557fc50c47ae0d",
+    "elapsed_seconds": 254.0783657159991,
+    "negative_subset": "three_new_controls_only; original26_NOT_RUN_here",
+    "original_actual_status": "FAILED",
+    "original_inputs_unchanged": true,
+    "result_sha256": "1b515dc5ba41025eef9419310b1199ea60dc08afb7d045c344069b0a10641ad6",
+    "schema": 1,
+    "scope": "raw_semantics_no_build_revalidation",
+    "status": "DIAGNOSTIC_ACCEPTED_THREE_CONTROLS_REJECTED",
+    "verifier_manifest_sha256": "565fb8f5bc908a2411477472bd0de1a8501d4cb10fd4d799d515957020660c93"
+  },
+  "historical_diagnostic_file": {
+    "path": "/tmp/scap-discovery-reservation-freeze-01/diagnostic/receipt.json",
+    "bytes": 2589,
+    "sha256": "f0c1f8a74caa7c99871d60883a48d93985bee0197e54f3169cfdac784ab2a1c6"
+  },
+  "control_inventory": {
+    "expected_negative_count": 29,
+    "formal_composed_head5_execution": "NOT_RUN",
+    "negative_controls": [
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "false_complete_empty_404"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "tampered_cursor_false_success"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "completed_inventory_omitted_slot"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "release_before_hot_delivery"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "missing_owned_wait4"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "missing_original_result_recovery"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "replaced_original_cas_condition"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "false_complete_cache_loss"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "slow_deadline_discarded_checkpoint"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "slow_cursor_reset"
+      },
+      {
+        "expected_boundary": "legacy semantic assertions",
+        "inherited_from_bda5ad4": true,
+        "name": "nonresident_hot_query"
+      },
+      {
+        "expected_boundary": "original authenticated cursor|continuation dispatched|genuine partial first page",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_partial_false_complete"
+      },
+      {
+        "expected_boundary": "advanced past an unclassified name|name classification was not in an original successful LIST",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_frontier_skipped_unclassified_key"
+      },
+      {
+        "expected_boundary": "classified prefix omitted/repeated|unclassified disconnected tail|already classified or unrelated candidate|natural deadline cutoff|scope/phase/physical frontier",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_opaque_token_without_progress"
+      },
+      {
+        "expected_boundary": "five-second deadline",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_http_deadline_renewed"
+      },
+      {
+        "expected_boundary": "external four-second read bound",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_read_cutoff_renewed"
+      },
+      {
+        "expected_boundary": "LIST/exact-GET budget",
+        "inherited_from_bda5ad4": true,
+        "name": "natural_exact_get_budget_renewed"
+      },
+      {
+        "expected_boundary": "metadata budget differs",
+        "inherited_from_bda5ad4": true,
+        "name": "metadata_early_get_not_refunded"
+      },
+      {
+        "expected_boundary": "metadata budget differs",
+        "inherited_from_bda5ad4": true,
+        "name": "metadata_multiple_ambiguous_refunds"
+      },
+      {
+        "expected_boundary": "metadata budget differs",
+        "inherited_from_bda5ad4": true,
+        "name": "metadata_arbitrary_intermediate_count"
+      },
+      {
+        "expected_boundary": "already contributed to classified progress",
+        "inherited_from_bda5ad4": true,
+        "name": "late_final_already_classified_get"
+      },
+      {
+        "expected_boundary": "lacks explicit disconnected delivery",
+        "inherited_from_bda5ad4": true,
+        "name": "late_final_missing_disconnect"
+      },
+      {
+        "expected_boundary": "non-final work beyond",
+        "inherited_from_bda5ad4": true,
+        "name": "multiple_late_unconsumed_tails"
+      },
+      {
+        "expected_boundary": "causally enabling response exceeded",
+        "inherited_from_bda5ad4": true,
+        "name": "late_response_enabled_another_request"
+      },
+      {
+        "expected_boundary": "no authenticated invocation",
+        "inherited_from_bda5ad4": true,
+        "name": "new_work_after_original_http_return"
+      },
+      {
+        "expected_boundary": "reported LIST budget differs",
+        "inherited_from_bda5ad4": true,
+        "name": "completed_list_fabricated_full_refund"
+      },
+      {
+        "expected_boundary": "reported HTTP budget differs|inventory cost budget differs",
+        "inherited_from_bda5ad4": false,
+        "name": "completed_scan_fabricated_unobserved_get"
+      },
+      {
+        "expected_boundary": "reported HTTP budget differs|inventory cost budget differs",
+        "inherited_from_bda5ad4": false,
+        "name": "completed_scan_fabricated_unobserved_list"
+      },
+      {
+        "expected_boundary": "fixed metadata profile record differs",
+        "inherited_from_bda5ad4": false,
+        "name": "coherent_invalid_control_version"
+      }
+    ],
+    "new_controls_in_this_patch": 3,
+    "old_history_diagnostic_subset": "three_new_controls_only; original26_NOT_RUN_here",
+    "positive_original_copy_count": 1,
+    "schema": 1
+  },
+  "control_inventory_file": {
+    "path": "/tmp/scap-discovery-reservation-freeze-01/controls.json",
+    "bytes": 5168,
+    "sha256": "0a63e4e634a8f466475ab9fa7a86b7934b3b43b57ddb3c5f6d4394b266ac016e"
+  },
+  "independent_source_review": {
+    "finding": "No remaining concrete blocker in the finite input-derived catalogue metadata profile, canonical bytes, or its placement before page/reservation reasoning.",
+    "independent_runtime_execution": "NOT_RUN_BY_REVIEWER",
+    "kind": "read_only_source_review",
+    "oracle_sha256": "aa8e3e593be94b0c0c30b6bc0f53db4d05a77d0fe4940a666ce6e9d4f5141f14",
+    "reviewer": "/root/service_resources",
+    "scope_limits": [
+      "Fixed fixture record domain only; no generic catalogue codec or arbitrary concurrent-history proof.",
+      "Raw original bda5ad4 actual04 remains FAILED.",
+      "The new composed HEAD5 actual and full 29-negative plus 1-positive suite remain NOT_RUN."
+    ]
+  },
+  "primary_source_review": {
+    "status": "NO_BLOCKING_FINDING",
+    "focus": [
+      "Complete mutually exclusive five-field reservation tuples",
+      "Single typed next port action derived from original LIST and cursor",
+      "Full Creation/Origin and canonical catalogue metadata from original authenticated inputs",
+      "No observed-unconsumed tail combined with unseen next reservation",
+      "Unchanged four-second read and five-second HTTP bounds"
+    ]
+  },
+  "original_actual": {
+    "commit": "bda5ad4d28f855eb0f4d513277d461d82e3e51ba",
+    "status": "FAILED",
+    "oracle_sha256": "a003fbf6283024fa0f52dd0bce4c1addc17ab6a19c3fc08893ca1c462da61329",
+    "evidence": "/tmp/scap-discovery-observation-bda5ad4-04",
+    "rewritten": false
+  },
+  "units": {
+    "discovery": 103,
+    "all_service_fixtures": 224
+  },
+  "historical_build_revalidation": "NOT_RUN",
+  "original_26_controls_in_new_historical_subset": "NOT_RUN",
+  "new_composed_head5_actual": "NOT_RUN",
+  "full_29_negative_1_positive": "NOT_RUN",
+  "remote_ci": "NOT_CLAIMED",
+  "merge_ready": false,
+  "composition_plan": "Apply the frozen patch to current HEAD5 preserving all prior wire/schema migrations. Validate the composed HEAD5 candidate and all 29 negative controls plus one original-copy positive. No additional superseded HEAD4 actual is scheduled."
+}

@@ -110,8 +110,9 @@ class SegmentedTreeControls(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError): Trees(objects).index(window, {"sequence": 1, "revision": 3})
 
-    def test_strict_head_four_rejects_legacy_unknown_and_false_counters(self):
-        value = {"format": 4, "scope": NATIVE_SCOPE, "revision": 1, "transition": {"revision": 1, "nonce": 1}, "sequence": 0,
+    def test_strict_head_six_rejects_legacy_unknown_and_false_counters(self):
+        value = {"format": 6, "head_serial": 1, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
+                 "scope": NATIVE_SCOPE, "revision": 1, "transition": {"revision": 1, "nonce": 1}, "sequence": 0,
                  "owner_epoch": 1, "owner_instance": 8871, "active": False, "auth_epoch": 1,
                  "policy": [{"principal": 11, "read": True, "write": True, "admin": True}], "lifecycle": "ready", "creation": None, "deletion": None,
                  "data_root": "a"*64, "quota": {"max_bytes": None}, "retention": {"max_entries": 4096, "max_result_bytes": 2**28},
@@ -119,7 +120,7 @@ class SegmentedTreeControls(unittest.TestCase):
         self.assertEqual(head(json.dumps(value)), value)
         for damage in ("old", "future", "bool", "extra", "bytes", "epoch", "scope"):
             modified = copy.deepcopy(value)
-            if damage in ("old", "future", "bool"): modified["format"] = {"old": 3, "future": 5, "bool": True}[damage]
+            if damage in ("old", "future", "bool"): modified["format"] = {"old": 5, "future": 7, "bool": True}[damage]
             elif damage == "extra": modified["ignored"] = True
             elif damage == "bytes": modified["windows"][0]["result_bytes"] = 1
             elif damage == "epoch": modified["windows"][0]["epoch"] = 2

@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "status": "PASSED_WORKSPACE_UNIT_ONLY",
+  "source_commit": "6c15bcf73b9276d9079a4c93513dd938a29c7a28",
+  "source_tree": "baa5be5e3918ec35721214df74d0ca9e21b8a2b4",
+  "source_files": 452,
+  "source_unchanged": true,
+  "toolchain": {
+    "rust_stable": "1.90.0",
+    "rust_nightly": "nightly-2025-09-18",
+    "cargo_llvm_cov": "0.6.21",
+    "environment": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/environment.json",
+      "bytes": 13338,
+      "sha256": "253d557b6cdeece3bc5f129bde2350c684e44890443165fbb3dbae8a990b59bf"
+    },
+    "libclang_for_bindgen": "18.1.8"
+  },
+  "scope": "Complete workspace --lib --bins --all-features; fresh stable and nightly targets on workspace disk, zero raw/merged profiles observed before collection, no integration or old profiles, no coverage exclusions.",
+  "commands": [
+    {
+      "name": "source",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "capture",
+        "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/source-before.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "stable-rustc-version",
+      "argv": [
+        "rustc",
+        "+1.90.0",
+        "-Vv"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "nightly-rustc-version",
+      "argv": [
+        "rustc",
+        "+nightly-2025-09-18",
+        "-Vv"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "llvm-cov-version",
+      "argv": [
+        "cargo",
+        "+nightly-2025-09-18",
+        "llvm-cov",
+        "--version"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "format",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--frozen",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "stable",
+      "argv": [
+        "cargo",
+        "+1.90.0",
+        "test",
+        "--workspace",
+        "--lib",
+        "--bins",
+        "--all-features",
+        "--frozen",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "coverage-clean",
+      "argv": [
+        "cargo",
+        "+nightly-2025-09-18",
+        "llvm-cov",
+        "clean",
+        "--workspace",
+        "--frozen"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "coverage",
+      "argv": [
+        "cargo",
+        "+nightly-2025-09-18",
+        "llvm-cov",
+        "--workspace",
+        "--lib",
+        "--bins",
+        "--all-features",
+        "--frozen",
+        "--branch",
+        "--no-cfg-coverage",
+        "--no-cfg-coverage-nightly",
+        "--json",
+        "--output-path",
+        "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/unit.json",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "exact-counters",
+      "argv": [
+        "python3",
+        "scripts/check_unit_coverage.py",
+        "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/unit.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "source-final",
+      "argv": [
+        "python3",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/source-before.json"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "unit_results": {
+    "stable": {
+      "passed": 573,
+      "failed": 0,
+      "per_program": [
+        259,
+        81,
+        40,
+        156,
+        0,
+        37
+      ]
+    },
+    "nightly": {
+      "passed": 573,
+      "failed": 0,
+      "per_program": [
+        259,
+        81,
+        40,
+        156,
+        0,
+        37
+      ]
+    }
+  },
+  "coverage": {
+    "production_files": 57,
+    "exact": {
+      "lines": {
+        "covered": 10766,
+        "count": 10766
+      },
+      "functions": {
+        "covered": 968,
+        "count": 968
+      },
+      "regions": {
+        "covered": 16359,
+        "count": 16359
+      },
+      "branches": {
+        "covered": 1948,
+        "count": 1948
+      }
+    },
+    "true_zero_branch_files": [
+      "crates/scap-object/src/catalogue/types.rs",
+      "crates/scap-object/src/object_frame.rs",
+      "crates/scap-service/src/catalogue.rs",
+      "crates/scap-service/src/lib.rs",
+      "crates/scap-service/src/main.rs"
+    ],
+    "zero_denominator_claim": "These five branch counters remain 0/0; they are not relabeled as measured 100%. Other emitted branch counts sum to1948/1948.",
+    "output_rs": {
+      "lines": [
+        333,
+        333
+      ],
+      "functions": [
+        45,
+        45
+      ],
+      "regions": [
+        465,
+        465
+      ],
+      "branches": [
+        54,
+        54
+      ]
+    }
+  },
+  "profiles": {
+    "fresh_raw": 218,
+    "merged": 1,
+    "original_profile_list_preserved": true,
+    "old_profiles_used": false,
+    "integration_profiles_used": false
+  },
+  "raw_evidence": {
+    "gate": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/completion.json",
+      "bytes": 88807,
+      "sha256": "e5828af8483690eed7bf431196ee434cbfd857152843dfdf2aa3b9a8b8e52722"
+    },
+    "checker": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/exact-counters.log",
+      "bytes": 5903,
+      "sha256": "bc39cfdc73a8767642470c317951fd39965074f70979dd864a9162e34e5ac46d"
+    },
+    "llvm_json": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/unit.json",
+      "bytes": 50100173,
+      "sha256": "26f31bb82f5fcda985ad269d97e2fd16e27f29b3fba95054c57c5b07126dbbc2"
+    },
+    "counter_observation": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/counter-observation.json",
+      "bytes": 22088,
+      "sha256": "90e1c0e8fa1c597fa0ec3fbce6ae7cc5fa6a70e0ad527420bd5ce81d72e78a38"
+    },
+    "artifact_binding": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01/artifact-binding/receipt.json",
+      "bytes": 337184,
+      "sha256": "d7366e8482ed9d9f79a94b659aa28479a3a067ee336849754e27688cabb20247"
+    },
+    "archive_completion": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01-archive/completion.json",
+      "bytes": 2217,
+      "sha256": "6fe7dc2c15c9633ba1d1bb2be60ebb2140e9fa5bbc85a1949699626d7aa6a86c"
+    },
+    "archive_inventory": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01-archive/archive-inputs.json",
+      "bytes": 510842,
+      "sha256": "e9f1f74c4a2c07f3e2df3373b2977094bdc3c45af2b53d005189b7775abba213"
+    },
+    "archive": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-6c15bcf-fresh-20261110-01-archive/unit-evidence.tar.gz",
+      "bytes": 278095181,
+      "sha256": "82f40c005c6ff58578bf3be3a1e02cd9d3d30fadc261e8a4b413bd0a11820f97"
+    }
+  },
+  "artifact_binding": {
+    "actual_unit_elfs": 12,
+    "native_binding": "Original Running unittests paths -> actual SQLite test Cargo fingerprints -> libsql-sys -> libsql-ffi -> exact native OUT_DIR; original root-output and native link search agree; each static native member occurs byte-for-byte in that exact ffi rlib.",
+    "selected_target_artifacts": 312,
+    "all_selected_artifacts_unchanged": true
+  },
+  "archive": {
+    "members": 815,
+    "raw_member_bytes": 934369201,
+    "tracked_sources": 452,
+    "actual_unit_elfs": 12,
+    "fresh_raw_profiles": 218,
+    "all_members_read_back": true,
+    "complete_git_tree_and_commit_reconstructed": true,
+    "originals_unchanged": true
+  },
+  "earlier_attempts": {
+    "f074_fresh_2026_11_10": "FAILED_EXACT_COUNTERS remains unchanged; its two572-unit passes and regions462/464 are separate from this accepted6c15 run.",
+    "unavailable_old_environment": "The earlier interruption and archive records remain historical. Their raw files were unavailable after environment restoration; no old artifact or profile was used in this run."
+  },
+  "limits": {
+    "real_output_pool_http_s3": "NOT_RUN",
+    "native_fault_acceptance": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "release_artifact_acceptance": "Not part of this unit receipt",
+    "production_slo_passed": false
+  },
+  "documentation_only_followup": true
+}

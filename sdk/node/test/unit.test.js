@@ -11,6 +11,10 @@ import * as wire from '../src/wire.js';
 // One test process owns every production profile; no integration maps are merged.
 import './catalogue.test.js';
 import './discovery.test.js';
+import './operation_budget.test.js';
+import './routing.test.js';
+import './owner.test.js';
+import './reclamation.test.js';
 
 const SCOPE = { deployment: '1', tenant: '2', database: '9007199254740993', incarnation: '4', generation: '5' };
 const TOKEN = 'synthetic-unit-only-bearer-credential';
@@ -87,7 +91,9 @@ function commit(request, raw = result()) {
 }
 function statusValue(action = {}) {
   const revision = action.operation === 'create' ? '1' : String(BigInt(action.expected_revision ?? '10') + 1n);
-  return { scope: clone(SCOPE), revision, sequence: '0', owner_epoch: '2', owner_instance: '3', active: true,
+  return { scope: clone(SCOPE), revision, head_serial: revision,
+    storage: { active_generation: '1', allocated_through: '1', plan: null, sweep: null },
+    sequence: '0', owner_epoch: '2', owner_instance: '3', active: true,
     auth_epoch: '4', lifecycle: 'ready', request_epoch: '3', max_bytes: '10737418240',
     transition: { revision, nonce: action.nonce ?? '9' },
     retention: { max_entries: 4096, max_result_bytes: '268435456', oldest_epoch: '1' } };
@@ -373,6 +379,35 @@ test('each local identity or administrative preflight failure sends zero request
   const small=client(async()=>{calls++;return success({});},{maxRequestBytes:1});
   await rejectCode(small.execute(tracked(small)),'LIMIT');
   assert.equal(calls,0);
+});
+
+test('guarded status sends one read with the exact target and preserves unguarded compatibility', async () => {
+  const requests = [], c = client((url, init) => {
+    requests.push({ url, init, body: JSON.parse(init.body) });
+    return success(statusValue());
+  });
+  await c.status();
+  const observed = await c.guardedStatus(String(U64));
+  assert.equal(observed.owner_instance, '3');
+  assert.deepEqual(requests.map(({ body }) => body), [
+    { version: 1, scope: SCOPE, operation: 'status' },
+    { version: 1, scope: SCOPE, operation: 'status', expected_worker_instance: String(U64) },
+  ]);
+  for (const { url, init } of requests) {
+    assert.equal(url, OPTIONS.endpoint);
+    assert.equal(init.headers['x-scap-admission'], 'control');
+    assert.equal(init.method, 'POST'); assert.equal(init.redirect, 'error');
+  }
+  for (const worker of [undefined, null, '0', 1, 1n, '01', '+1', String(U64 + 1n)]) {
+    invalid(() => c.guardedStatus(worker));
+  }
+  assert.equal(requests.length, 2);
+  let calls = 0;
+  const rejected = client(() => { calls++; return failure('TARGET_MISMATCH', 409); });
+  await assert.rejects(rejected.guardedStatus('100'), (error) => error instanceof RemoteError &&
+    error.code === 'TARGET_MISMATCH' && error.reference.operation === 'status' &&
+    error.reference.expectedWorkerInstance === '100');
+  assert.equal(calls, 1);
 });
 
 test('administrative response must prove the exact requested revision and nonce', async () => {

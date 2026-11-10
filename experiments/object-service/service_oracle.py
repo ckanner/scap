@@ -330,7 +330,7 @@ def network(history,calls):
             scope=call["body"]["scope"]
             prefix=f"/scap-test/scap-object/v1/{scope['deployment']}/{scope['tenant']}/{scope['database']}/"
             if request["path"]==prefix+"head" or request["path"].startswith(
-                    prefix+f"inc/{scope['incarnation']}/gen/{scope['generation']}/objects/"):
+                    prefix+f"inc/{scope['incarnation']}/gen/{scope['generation']}/storage/1/objects/"):
                 matching.add(call_id)
         require(matching,"S3 request has no matching authenticated HTTP Scope/call interval")
         bindings[serial]=matching
@@ -355,7 +355,7 @@ def network(history,calls):
         require(len(witnesses)==1,"successful execute missing unique original durable HEAD")
     uncertain=[(request,response,head) for request,response,head in accepted if request["phase"]=="unknown_write"]
     require(len(uncertain)==1 and uncertain[0][1]["suppressed"] is True,"UNKNOWN lacks real accepted HEAD/response loss")
-    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":4,"result_format":2,
+    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":6,"result_format":2,
             "object_version_audit":versions}
 
 

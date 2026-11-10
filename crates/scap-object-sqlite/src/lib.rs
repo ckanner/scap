@@ -67,6 +67,9 @@ pub enum GateDecision {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WriterLimits {
     pub sql: SqlLimits,
+    /// Per-operation typed Rust result capacity, including growth overlap.
+    /// Independent of retained encoded bytes, SQLite heap and process RSS.
+    pub result_memory_bytes: u64,
     pub max_vm_steps: u32,
     pub max_database_pages: u32,
     pub max_changed_pages: u32,
@@ -85,6 +88,9 @@ pub enum Error {
     InvalidSql,
     InvalidImage,
     ResultLimit,
+    /// The typed result cannot be materialized within its separate memory
+    /// budget, or its fallible allocation failed. This is not corruption.
+    ResourceExhausted,
     Interrupted,
     Stopped,
     Rejected,
@@ -99,6 +105,9 @@ pub enum Error {
 pub type ReadInterrupt = Arc<dyn Fn() -> bool + Send + Sync>;
 
 type NativeConnection<G> = libsql_sys::Connection<WrappedWal<GateWal<G>, Sqlite3Wal>>;
+
+type ResultEncoder<'a> =
+    dyn FnMut(&TransactionResult, SqlLimits) -> Result<Vec<u8>, scap_sql::SqlError> + 'a;
 
 /// A thread-confined private cache. No raw connection, in-place reopen or
 /// path-based public access exists. Every failure permanently stops this writer.
@@ -164,7 +173,7 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         self.stopped = true;
         scap_sql::validate_statements(statements, self.limits.sql).map_err(Error::Sql)?;
         let result = query::execute(&self.connection, statements, self.limits, &interrupt)?;
-        scap_sql::encode_result(&result, self.limits.sql).map_err(Error::Sql)?;
+        scap_sql::plan_result(&result, self.limits.sql).map_err(Error::Sql)?;
         query::check(&interrupt)?;
         self.stopped = false;
         Ok(result)
@@ -177,6 +186,15 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
         &mut self,
         statements: &[Statement],
         interrupt: ReadInterrupt,
+    ) -> Result<TransactionResult, Error> {
+        self.execute_with_encoder(statements, interrupt, &mut scap_sql::encode_result)
+    }
+
+    fn execute_with_encoder(
+        &mut self,
+        statements: &[Statement],
+        interrupt: ReadInterrupt,
+        encode: &mut ResultEncoder<'_>,
     ) -> Result<TransactionResult, Error> {
         if self.stopped {
             return Err(Error::Stopped);
@@ -192,13 +210,20 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
                     return Err(self.state.borrow_mut().take_error(error));
                 }
             };
-        let encoded = match scap_sql::encode_result(&result, self.limits.sql) {
+        let encoded = match encode(&result, self.limits.sql) {
             Ok(encoded) => encoded,
             Err(error) => {
                 sql::rollback(&self.connection);
-                return Err(Error::Sql(error));
+                return Err(match error {
+                    scap_sql::SqlError::ResourceExhausted => Error::ResourceExhausted,
+                    other => Error::Sql(other),
+                });
             }
         };
+        // finish() materializes the retained result again after acceptance.
+        // Release the first graph before entering that phase, rather than
+        // retaining two typed graphs across native and remote publication.
+        drop(result);
         self.state.borrow_mut().attempt = Some(Attempt {
             base_pages: self.pages,
             result: encoded,
@@ -235,8 +260,12 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
                 // Only decide(), with an installed attempt, can accept.
                 let encoded = self.state.borrow_mut().attempt.take().unwrap().result;
-                let result = scap_sql::decode_result(&encoded, self.limits.sql)
-                    .map_err(|_| Error::CommittedButUnavailable)?;
+                let result = scap_sql::decode_result_with_memory_limit(
+                    &encoded,
+                    self.limits.sql,
+                    self.limits.result_memory_bytes,
+                )
+                .map_err(|_| Error::CommittedButUnavailable)?;
                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
                 self.pages = pages;
                 self.stopped = false;

@@ -1,0 +1,1010 @@
+{
+  "schema": 1,
+  "status": "IMPLEMENTED_STATICALLY_REVIEWED_EXECUTION_NOT_RUN",
+  "parent_commit": "bee7ddde6963bd06850615790ddf71549bf0ba05",
+  "implementation_freeze_base": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0",
+  "foundation_accepted_source": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0",
+  "foundation_evidence": {
+    "repository_path": "docs/evidence/output-encoding-workspace-local-2026-11-09.json",
+    "sha256": "008725b94c920c488c428f3c4f6e4d2812b2507a6f5eb196835c3c521bfc3e50",
+    "scope": "546 stable + 546 fresh nightly unit-only acceptance of the foundation; not this new pool candidate."
+  },
+  "freeze": {
+    "path": "/tmp/scap-service-output-freeze01/manifest.json",
+    "bytes": 16313,
+    "sha256": "75cc94af65ae0b503c8a2dcac009157304829f19e48700cc8f117c99c440b853"
+  },
+  "patch": {
+    "path": "/tmp/scap-service-output-freeze01/candidate.patch",
+    "bytes": 114711,
+    "sha256": "15b6e028016a00e1cbfe7bd28fbdd01540d6eda2ff73b90004e9de93f92d1b6c"
+  },
+  "handoff": {
+    "path": "/tmp/scap-service-output-freeze01/handoff.md",
+    "bytes": 7826,
+    "sha256": "a5c67b40c42d9c67e42e6446ed7b719d8f2b62e7ca799212d9481ecca72803ac"
+  },
+  "implementation_files": [
+    {
+      "path": "contracts/coverage-policy.json",
+      "bytes": 4394,
+      "sha256": "02e869cee33fff1cd37981cb958bda285da2f5b0373414ccc6e5d1fd7b44f1c0",
+      "original": {
+        "bytes": 4295,
+        "sha256": "93cb1613584ef2ddcb51af4cc0feb571be43b26f33516353c1802621d8979451",
+        "git_blob": "b30354b1468db6ae1ec22a65acf3cfdfc621e600"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/config.rs",
+      "bytes": 10890,
+      "sha256": "7a2cdd24e7f9a5d7fc86df771b30aeaa6e3cfe335c8831857b9e106d8ad7f2b3",
+      "original": {
+        "bytes": 10641,
+        "sha256": "eec1a631ae78aaa84dd652cd5a3690ad70bd5f69cbf2dc141d93f3f62ee782f5",
+        "git_blob": "b362d622161be1f2ba8b6c63f6597ed00c3c632e"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/config/tests.rs",
+      "bytes": 16461,
+      "sha256": "60651fc70e28e66bc12a3cb7514006dc7dff0b665c9a2c19985c468eb59255df",
+      "original": {
+        "bytes": 14867,
+        "sha256": "f6eaabca201c6ff167b11ab4d24cb1c9957905ffca9c744c1b67238f03a7c73d",
+        "git_blob": "ee949776628b611980e9df934792cd9250d2b620"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/daemon.rs",
+      "bytes": 7206,
+      "sha256": "4938bf62360ec36ccb4ce3fdfb12100a4f092e28388cd411fd3794eeaab955f9",
+      "original": {
+        "bytes": 7075,
+        "sha256": "032c6061ab937a5e941e1271d479da5b2b0ea06c6990369310501ca524e708b5",
+        "git_blob": "7251df8a7b8b59f2e21323d104a61b01ec1097b9"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/daemon/tests.rs",
+      "bytes": 20897,
+      "sha256": "dfd5380783c491474a9c42a86a79c1054cf7495bf14fd899cb54acd3b4b87d6a",
+      "original": {
+        "bytes": 18933,
+        "sha256": "bafd86a8868bfd3edd210582f311f053d00d1d2dadf2349ad6468d52f4465a36",
+        "git_blob": "ec916ea08c55665492e4a07601279363bc3b269e"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/engine.rs",
+      "bytes": 14538,
+      "sha256": "273cab8deadb14e3326830003db44bfcbb48506496d0c613dfb85845ece1a7bf",
+      "original": {
+        "bytes": 12529,
+        "sha256": "8aa6284a6b7763cc97d13a7c2955deb9e7f829e129d03718ba49ce84b224ef39",
+        "git_blob": "262d82428d0286f4a7079d170ec389ce94c4f18b"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/engine/tests.rs",
+      "bytes": 33983,
+      "sha256": "68aa70f0351347644f9ae1c1f7b8f07a7ff4be788275a7cac6dc1014c2a9f09d",
+      "original": {
+        "bytes": 29414,
+        "sha256": "70a71536be8bd0d104555dbcd6597be9e6b2d97275f82ed452d0732f96527ad6",
+        "git_blob": "f8b2f0980ac7d31a4711e75d6e704247cde48614"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/http.rs",
+      "bytes": 11967,
+      "sha256": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+      "original": {
+        "bytes": 11282,
+        "sha256": "5f6dc2679687f31ce9d535c0616912c24f2773889fb98298137a66bf071bc17b",
+        "git_blob": "6bf2c1848cb7e8aed8a9af8119caea84b9012a65"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/http/intake_tests.rs",
+      "bytes": 14846,
+      "sha256": "697345fec732c85807e94230b435d2acc10bc9c32758b5e08cca8c75691f67c9",
+      "original": {
+        "bytes": 13361,
+        "sha256": "49c0ee7e131f18fdfd27fde914e31d589a370aba19fe8bb9770b99221793e153",
+        "git_blob": "10d6162335b4008b0d007797bd0698fae9ddcc10"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/http/output_tests.rs",
+      "bytes": 9045,
+      "sha256": "65bd4653c8a9bbb48cdfeeb9242571eccc25727bb8650826195ee0cf13d6a76c",
+      "original": null
+    },
+    {
+      "path": "crates/scap-service/src/http/tests.rs",
+      "bytes": 20980,
+      "sha256": "7af6864d80525d6f2aca4685fcbac07806fd4bb5046f454988f0cd1ed7a21f60",
+      "original": {
+        "bytes": 20556,
+        "sha256": "01eecc6d8f2cc652f5088a1da38c692f79c9988e6a180683805ecfff21e63be5",
+        "git_blob": "addaff3a5c2e10a1fad690bc7064681cda8f0d64"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/lib.rs",
+      "bytes": 2772,
+      "sha256": "d8c524c08de7ed03b68500ad07eb4db7a03a501b37df78835439504d68005fd7",
+      "original": {
+        "bytes": 2756,
+        "sha256": "ec008fdcf91c6f9f78177d318eb3561d6f5c8ab89294ce8bca8c0a6bbb8b8113",
+        "git_blob": "7a2aaac2bac6e757e5e3ded7edc8987dfca272a8"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/output.rs",
+      "bytes": 16923,
+      "sha256": "c9404cd6a0f2a59a4c35e7b4023a482166f94b4e30cdca026587f82abd3bf4c4",
+      "original": null
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "bytes": 20145,
+      "sha256": "dd2d894c2784efe36897f15151f08820d8295e9ee6330f953184772a20b26142",
+      "original": null
+    },
+    {
+      "path": "crates/scap-service/src/scheduler.rs",
+      "bytes": 25503,
+      "sha256": "b3a23d1fb19afbf6f05ab055fc325ff0bc8f5546724625d9de78e41aff7bb7dc",
+      "original": {
+        "bytes": 22213,
+        "sha256": "956af0d7f228ee5e271422f30c6bd6fe81db017885b9df39a2d9f1865a3064e0",
+        "git_blob": "8d92c1b54f93e28bd0882f17a7c1000c640f6bb3"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/scheduler/tests.rs",
+      "bytes": 34073,
+      "sha256": "e28d4399600fd9668c90b1afa5cc15e39e388fbe5378ec0860620b42be977aca",
+      "original": {
+        "bytes": 28036,
+        "sha256": "826900a01db8e12ed4d0774f6e0769d0fdfdf647b9d80f082b0740a2fd4cff3d",
+        "git_blob": "52103b280520a7a817a6e55bb06b66ad6d73f78c"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/wire.rs",
+      "bytes": 18216,
+      "sha256": "209b82952db8e54038321acc043514e69dc3264772b1ead7cb6183be3ad32cad",
+      "original": {
+        "bytes": 16587,
+        "sha256": "1f4a9c5e1444570ab5f502c32326a1398a832cc075570d2972c2359708fc2ce4",
+        "git_blob": "c1f85d9105f96ccfc05283017250babc7ee30ddd"
+      }
+    },
+    {
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "bytes": 19425,
+      "sha256": "58dc9bc26243664ed543a7b15bc23d4cee89629db39667c51c5e02fcd9d49e36",
+      "original": {
+        "bytes": 16211,
+        "sha256": "9b7621547ad0725d89b84fea4654f2b6a2b3c2f8245fb77df96f6ec48fa4a76e",
+        "git_blob": "d081752c16d113824863f1c74c1fa4508b1bfaa7"
+      }
+    },
+    {
+      "path": "docs/architecture/result-output-budget.md",
+      "bytes": 21971,
+      "sha256": "c9f0afca5520b15fa97f5094cc48b47bf713e5620afb5af58dc0d4600ff08211",
+      "original": {
+        "bytes": 21699,
+        "sha256": "b0b98217aef28f2856f17d8590c4c2f498c2d2157b2b9fa737f02ba6765dc67e",
+        "git_blob": "99362e66777e0ae4b8d06fb2d9998a2e7ea28c58"
+      }
+    },
+    {
+      "path": "docs/architecture/v1-output-pool.md",
+      "bytes": 10607,
+      "sha256": "ba305ad76f09dfefdb30e4a0bb94f4c443763e9a203b53062239d3e4c61de9b2",
+      "original": null
+    },
+    {
+      "path": "experiments/resource-limits/src/main.rs",
+      "bytes": 11038,
+      "sha256": "36a26f728c8d143246d4becf1dd988f42d653f5bc16aa540caacb12bcd2699cd",
+      "original": {
+        "bytes": 10284,
+        "sha256": "daf3d7f39e0313e086f2759e4f0b92b3ce79baf872bc7e627259f8da2840349f",
+        "git_blob": "3864ec680d8ac744a6c861d2349def0d460976cc"
+      }
+    }
+  ],
+  "composition": {
+    "receipt": {
+      "path": "/tmp/scap-service-output-composition01/composition.json",
+      "bytes": 4916,
+      "sha256": "05ac9bb15bfc6c6d45ff81203a7683905895ca623dba041a5bcdc9820d9bb98a"
+    },
+    "files": [
+      {
+        "path": "contracts/coverage-policy.json",
+        "bytes": 4394,
+        "sha256": "02e869cee33fff1cd37981cb958bda285da2f5b0373414ccc6e5d1fd7b44f1c0",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/config.rs",
+        "bytes": 10890,
+        "sha256": "7a2cdd24e7f9a5d7fc86df771b30aeaa6e3cfe335c8831857b9e106d8ad7f2b3",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/config/tests.rs",
+        "bytes": 16461,
+        "sha256": "60651fc70e28e66bc12a3cb7514006dc7dff0b665c9a2c19985c468eb59255df",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/daemon.rs",
+        "bytes": 7206,
+        "sha256": "4938bf62360ec36ccb4ce3fdfb12100a4f092e28388cd411fd3794eeaab955f9",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/daemon/tests.rs",
+        "bytes": 20897,
+        "sha256": "dfd5380783c491474a9c42a86a79c1054cf7495bf14fd899cb54acd3b4b87d6a",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/engine.rs",
+        "bytes": 14538,
+        "sha256": "273cab8deadb14e3326830003db44bfcbb48506496d0c613dfb85845ece1a7bf",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/engine/tests.rs",
+        "bytes": 33983,
+        "sha256": "68aa70f0351347644f9ae1c1f7b8f07a7ff4be788275a7cac6dc1014c2a9f09d",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/http.rs",
+        "bytes": 11967,
+        "sha256": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/http/intake_tests.rs",
+        "bytes": 14846,
+        "sha256": "697345fec732c85807e94230b435d2acc10bc9c32758b5e08cca8c75691f67c9",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/http/output_tests.rs",
+        "bytes": 9045,
+        "sha256": "65bd4653c8a9bbb48cdfeeb9242571eccc25727bb8650826195ee0cf13d6a76c",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/http/tests.rs",
+        "bytes": 20980,
+        "sha256": "7af6864d80525d6f2aca4685fcbac07806fd4bb5046f454988f0cd1ed7a21f60",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/lib.rs",
+        "bytes": 2772,
+        "sha256": "d8c524c08de7ed03b68500ad07eb4db7a03a501b37df78835439504d68005fd7",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/output.rs",
+        "bytes": 16923,
+        "sha256": "c9404cd6a0f2a59a4c35e7b4023a482166f94b4e30cdca026587f82abd3bf4c4",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/output/tests.rs",
+        "bytes": 20145,
+        "sha256": "dd2d894c2784efe36897f15151f08820d8295e9ee6330f953184772a20b26142",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/scheduler.rs",
+        "bytes": 25503,
+        "sha256": "b3a23d1fb19afbf6f05ab055fc325ff0bc8f5546724625d9de78e41aff7bb7dc",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/scheduler/tests.rs",
+        "bytes": 34073,
+        "sha256": "e28d4399600fd9668c90b1afa5cc15e39e388fbe5378ec0860620b42be977aca",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/wire.rs",
+        "bytes": 18216,
+        "sha256": "209b82952db8e54038321acc043514e69dc3264772b1ead7cb6183be3ad32cad",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "crates/scap-service/src/wire/tests.rs",
+        "bytes": 19425,
+        "sha256": "58dc9bc26243664ed543a7b15bc23d4cee89629db39667c51c5e02fcd9d49e36",
+        "equals_static_freeze": true
+      },
+      {
+        "path": "docs/architecture/result-output-budget.md",
+        "bytes": 22543,
+        "sha256": "2f3be518ffd2941747e4fd1d879d71451cc2a2ff69756142c79c7a228beb66d5",
+        "equals_static_freeze": false
+      },
+      {
+        "path": "docs/architecture/v1-output-pool.md",
+        "bytes": 10695,
+        "sha256": "64b77f9f771a1f539d03aa2c56bf39f0dad429ab75ced4b7c16e043d3615a6cc",
+        "equals_static_freeze": false
+      },
+      {
+        "path": "experiments/resource-limits/src/main.rs",
+        "bytes": 11038,
+        "sha256": "36a26f728c8d143246d4becf1dd988f42d653f5bc16aa540caacb12bcd2699cd",
+        "equals_static_freeze": true
+      }
+    ],
+    "changes": "19 non-document implementation/test/policy/fixture files exactly match freeze01; two document clarifications retain the foundation acceptance and distinguish queued small-failure finalization."
+  },
+  "independent_static_review": {
+    "receipt": {
+      "path": "/tmp/scap-service-output-peer-review01/receipt.json",
+      "bytes": 14237,
+      "sha256": "a8ac3bc77e43dbb5c412206475f5366bd24c893908672df7f2cd89af0fcebeea"
+    },
+    "review": {
+      "schema": 1,
+      "status": "STATIC_REVIEW_NO_BLOCKING_FINDINGS",
+      "reviewer": "/root/build_environment",
+      "source_base": "acec129c51c7d51f019fbaf34ff4ea0bd0509cb0",
+      "source_tree": "86cd0d74cd6e67c66caa1ad0dca6c74a70610eb5",
+      "source_worktree": "/workspace/scratch/591a71cb3372/service-output-pool",
+      "freeze_manifest": {
+        "path": "/tmp/scap-service-output-freeze01/manifest.json",
+        "bytes": 16313,
+        "sha256": "75cc94af65ae0b503c8a2dcac009157304829f19e48700cc8f117c99c440b853"
+      },
+      "complete_patch": {
+        "path": "/tmp/scap-service-output-freeze01/candidate.patch",
+        "bytes": 114711,
+        "sha256": "15b6e028016a00e1cbfe7bd28fbdd01540d6eda2ff73b90004e9de93f92d1b6c"
+      },
+      "source_before": {
+        "path": "/tmp/scap-service-output-peer-review01/source-before.json",
+        "bytes": 5631,
+        "sha256": "5463c02b3fba2a7b70f7228d393410770e4dd402c25e018417b40826fdd8c823"
+      },
+      "review": {
+        "path": "/tmp/scap-service-output-peer-review01/review.md",
+        "bytes": 9515,
+        "sha256": "d98380414dc23d0cbaed98ec7fcf0eff93926968fe7ea45defec6200211323e6"
+      },
+      "files_reviewed": [
+        {
+          "path": "contracts/coverage-policy.json",
+          "bytes": 4394,
+          "sha256": "02e869cee33fff1cd37981cb958bda285da2f5b0373414ccc6e5d1fd7b44f1c0",
+          "original": {
+            "bytes": 4295,
+            "sha256": "93cb1613584ef2ddcb51af4cc0feb571be43b26f33516353c1802621d8979451",
+            "git_blob": "b30354b1468db6ae1ec22a65acf3cfdfc621e600"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/config.rs",
+          "bytes": 10890,
+          "sha256": "7a2cdd24e7f9a5d7fc86df771b30aeaa6e3cfe335c8831857b9e106d8ad7f2b3",
+          "original": {
+            "bytes": 10641,
+            "sha256": "eec1a631ae78aaa84dd652cd5a3690ad70bd5f69cbf2dc141d93f3f62ee782f5",
+            "git_blob": "b362d622161be1f2ba8b6c63f6597ed00c3c632e"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/config/tests.rs",
+          "bytes": 16461,
+          "sha256": "60651fc70e28e66bc12a3cb7514006dc7dff0b665c9a2c19985c468eb59255df",
+          "original": {
+            "bytes": 14867,
+            "sha256": "f6eaabca201c6ff167b11ab4d24cb1c9957905ffca9c744c1b67238f03a7c73d",
+            "git_blob": "ee949776628b611980e9df934792cd9250d2b620"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/daemon.rs",
+          "bytes": 7206,
+          "sha256": "4938bf62360ec36ccb4ce3fdfb12100a4f092e28388cd411fd3794eeaab955f9",
+          "original": {
+            "bytes": 7075,
+            "sha256": "032c6061ab937a5e941e1271d479da5b2b0ea06c6990369310501ca524e708b5",
+            "git_blob": "7251df8a7b8b59f2e21323d104a61b01ec1097b9"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/daemon/tests.rs",
+          "bytes": 20897,
+          "sha256": "dfd5380783c491474a9c42a86a79c1054cf7495bf14fd899cb54acd3b4b87d6a",
+          "original": {
+            "bytes": 18933,
+            "sha256": "bafd86a8868bfd3edd210582f311f053d00d1d2dadf2349ad6468d52f4465a36",
+            "git_blob": "ec916ea08c55665492e4a07601279363bc3b269e"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/engine.rs",
+          "bytes": 14538,
+          "sha256": "273cab8deadb14e3326830003db44bfcbb48506496d0c613dfb85845ece1a7bf",
+          "original": {
+            "bytes": 12529,
+            "sha256": "8aa6284a6b7763cc97d13a7c2955deb9e7f829e129d03718ba49ce84b224ef39",
+            "git_blob": "262d82428d0286f4a7079d170ec389ce94c4f18b"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/engine/tests.rs",
+          "bytes": 33983,
+          "sha256": "68aa70f0351347644f9ae1c1f7b8f07a7ff4be788275a7cac6dc1014c2a9f09d",
+          "original": {
+            "bytes": 29414,
+            "sha256": "70a71536be8bd0d104555dbcd6597be9e6b2d97275f82ed452d0732f96527ad6",
+            "git_blob": "f8b2f0980ac7d31a4711e75d6e704247cde48614"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/http.rs",
+          "bytes": 11967,
+          "sha256": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+          "original": {
+            "bytes": 11282,
+            "sha256": "5f6dc2679687f31ce9d535c0616912c24f2773889fb98298137a66bf071bc17b",
+            "git_blob": "6bf2c1848cb7e8aed8a9af8119caea84b9012a65"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/http/intake_tests.rs",
+          "bytes": 14846,
+          "sha256": "697345fec732c85807e94230b435d2acc10bc9c32758b5e08cca8c75691f67c9",
+          "original": {
+            "bytes": 13361,
+            "sha256": "49c0ee7e131f18fdfd27fde914e31d589a370aba19fe8bb9770b99221793e153",
+            "git_blob": "10d6162335b4008b0d007797bd0698fae9ddcc10"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/http/output_tests.rs",
+          "bytes": 9045,
+          "sha256": "65bd4653c8a9bbb48cdfeeb9242571eccc25727bb8650826195ee0cf13d6a76c",
+          "original": null
+        },
+        {
+          "path": "crates/scap-service/src/http/tests.rs",
+          "bytes": 20980,
+          "sha256": "7af6864d80525d6f2aca4685fcbac07806fd4bb5046f454988f0cd1ed7a21f60",
+          "original": {
+            "bytes": 20556,
+            "sha256": "01eecc6d8f2cc652f5088a1da38c692f79c9988e6a180683805ecfff21e63be5",
+            "git_blob": "addaff3a5c2e10a1fad690bc7064681cda8f0d64"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/lib.rs",
+          "bytes": 2772,
+          "sha256": "d8c524c08de7ed03b68500ad07eb4db7a03a501b37df78835439504d68005fd7",
+          "original": {
+            "bytes": 2756,
+            "sha256": "ec008fdcf91c6f9f78177d318eb3561d6f5c8ab89294ce8bca8c0a6bbb8b8113",
+            "git_blob": "7a2aaac2bac6e757e5e3ded7edc8987dfca272a8"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/output.rs",
+          "bytes": 16923,
+          "sha256": "c9404cd6a0f2a59a4c35e7b4023a482166f94b4e30cdca026587f82abd3bf4c4",
+          "original": null
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "bytes": 20145,
+          "sha256": "dd2d894c2784efe36897f15151f08820d8295e9ee6330f953184772a20b26142",
+          "original": null
+        },
+        {
+          "path": "crates/scap-service/src/scheduler.rs",
+          "bytes": 25503,
+          "sha256": "b3a23d1fb19afbf6f05ab055fc325ff0bc8f5546724625d9de78e41aff7bb7dc",
+          "original": {
+            "bytes": 22213,
+            "sha256": "956af0d7f228ee5e271422f30c6bd6fe81db017885b9df39a2d9f1865a3064e0",
+            "git_blob": "8d92c1b54f93e28bd0882f17a7c1000c640f6bb3"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/scheduler/tests.rs",
+          "bytes": 34073,
+          "sha256": "e28d4399600fd9668c90b1afa5cc15e39e388fbe5378ec0860620b42be977aca",
+          "original": {
+            "bytes": 28036,
+            "sha256": "826900a01db8e12ed4d0774f6e0769d0fdfdf647b9d80f082b0740a2fd4cff3d",
+            "git_blob": "52103b280520a7a817a6e55bb06b66ad6d73f78c"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/wire.rs",
+          "bytes": 18216,
+          "sha256": "209b82952db8e54038321acc043514e69dc3264772b1ead7cb6183be3ad32cad",
+          "original": {
+            "bytes": 16587,
+            "sha256": "1f4a9c5e1444570ab5f502c32326a1398a832cc075570d2972c2359708fc2ce4",
+            "git_blob": "c1f85d9105f96ccfc05283017250babc7ee30ddd"
+          }
+        },
+        {
+          "path": "crates/scap-service/src/wire/tests.rs",
+          "bytes": 19425,
+          "sha256": "58dc9bc26243664ed543a7b15bc23d4cee89629db39667c51c5e02fcd9d49e36",
+          "original": {
+            "bytes": 16211,
+            "sha256": "9b7621547ad0725d89b84fea4654f2b6a2b3c2f8245fb77df96f6ec48fa4a76e",
+            "git_blob": "d081752c16d113824863f1c74c1fa4508b1bfaa7"
+          }
+        },
+        {
+          "path": "docs/architecture/result-output-budget.md",
+          "bytes": 21971,
+          "sha256": "c9f0afca5520b15fa97f5094cc48b47bf713e5620afb5af58dc0d4600ff08211",
+          "original": {
+            "bytes": 21699,
+            "sha256": "b0b98217aef28f2856f17d8590c4c2f498c2d2157b2b9fa737f02ba6765dc67e",
+            "git_blob": "99362e66777e0ae4b8d06fb2d9998a2e7ea28c58"
+          }
+        },
+        {
+          "path": "docs/architecture/v1-output-pool.md",
+          "bytes": 10607,
+          "sha256": "ba305ad76f09dfefdb30e4a0bb94f4c443763e9a203b53062239d3e4c61de9b2",
+          "original": null
+        },
+        {
+          "path": "experiments/resource-limits/src/main.rs",
+          "bytes": 11038,
+          "sha256": "36a26f728c8d143246d4becf1dd988f42d653f5bc16aa540caacb12bcd2699cd",
+          "original": {
+            "bytes": 10284,
+            "sha256": "daf3d7f39e0313e086f2759e4f0b92b3ce79baf872bc7e627259f8da2840349f",
+            "git_blob": "3864ec680d8ac744a6c861d2349def0d460976cc"
+          }
+        }
+      ],
+      "new_test_definitions_reviewed": [
+        {
+          "path": "crates/scap-service/src/config/tests.rs",
+          "name": "output_profile_is_explicit_and_checked_before_resolving_credentials",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/daemon/tests.rs",
+          "name": "output_validation_and_budgeted_factory_are_wired_into_actual_assembly",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/engine/tests.rs",
+          "name": "budgeted_engine_preserves_query_commit_resolution_and_small_head_shapes",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/engine/tests.rs",
+          "name": "exhausted_output_never_relabels_a_durable_write_or_retained_resolution_as_uncommitted",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/http/output_tests.rs",
+          "name": "output_admission_is_per_authenticated_tenant_before_job_and_protects_small_controls",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/http/output_tests.rs",
+          "name": "outgoing_large_frame_clones_keep_full_json_capacity_after_body_and_worker_drop",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/http/output_tests.rs",
+          "name": "real_http_finalizer_preserves_unknown_commit_proof_and_head_effect_uncertainty",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "defaults_fit_one_largest_durable_output_without_shrinking_the_wire_contract",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "both_scopes_are_atomic_and_data_cannot_spend_the_control_partition",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "global_and_tenant_increment_failures_never_leave_partial_credit",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "small_and_dynamic_allocations_are_charged_before_calling_the_real_allocator",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "poison_blocks_new_admission_but_does_not_leak_existing_owners",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "wire_base64_json_overlap_and_final_clone_capacity_are_all_retained",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "small_json_uses_prepared_backing_and_keeps_fixed_compact_bytes",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "maximum_receipt_projection_fits_the_prepared_fallback_without_new_backing",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "base64_allocation_refusal_refunds_only_its_new_backing",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "final_json_refusal_keeps_original_receipt_or_query_limit_and_never_replays",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "original_unknown_stays_unknown_and_head_only_encoding_failure_closes_reply",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "original_deadline_is_checked_before_and_after_complete_encoding",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "count_and_fixed_writer_share_the_same_borrowed_serializer_and_fail_without_growth",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/output/tests.rs",
+          "name": "oversized_safe_json_input_fails_counting_before_requesting_a_final_backing",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/scheduler/tests.rs",
+          "name": "encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/scheduler/tests.rs",
+          "name": "queued_expiration_and_response_loss_release_only_their_owned_output",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/scheduler/tests.rs",
+          "name": "send_boundary_uses_the_original_deadline_and_drops_failed_channel_backing",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/wire/tests.rs",
+          "name": "budgeted_result_counts_wire_and_base64_overlap_before_either_allocation",
+          "status": "DEFINED_NOT_RUN"
+        },
+        {
+          "path": "crates/scap-service/src/wire/tests.rs",
+          "name": "budgeted_noncommitted_resolutions_keep_the_existing_small_wire_contract",
+          "status": "DEFINED_NOT_RUN"
+        }
+      ],
+      "file_count": 21,
+      "new_test_count": 26,
+      "source_unchanged": true,
+      "source_edited": false,
+      "blocking_findings": [],
+      "documentation_precision": [
+        {
+          "path": "docs/architecture/v1-output-pool.md",
+          "finding": "Queued Job.fail may finalize a bounded small UNAVAILABLE reply from close/shutdown, rather than always on the original worker. Normal large encoding remains on the worker.",
+          "blocking": false,
+          "disposition": "Root reports a documentation-only composition clarification; no frozen source edit by reviewer."
+        }
+      ],
+      "execution": {
+        "cargo": "NOT_RUN",
+        "unit": "NOT_RUN",
+        "clippy": "NOT_RUN",
+        "coverage": "NOT_RUN",
+        "sdk": "NOT_RUN",
+        "actual_http_s3": "NOT_RUN",
+        "rss_performance": "NOT_RUN"
+      },
+      "prior_encoder_gate_does_not_accept_new_pool": true,
+      "started_monotonic_ns": 69450027359341,
+      "finished_monotonic_ns": 69957078747335
+    }
+  },
+  "root_review": {
+    "scope": "All eight production-file changes, daemon configuration, the resource Worker adapter, ownership/encoding paths, and output/HTTP regression definitions.",
+    "observations": [
+      "Authentication and Scope denial precede new output admission; trusted deployment/tenant and class are checked again at scheduler submission.",
+      "Global/tenant charge is atomic, allocator runs outside the lock, and dynamic buffers hold their base lease.",
+      "The actual Job retains WorkHold after caller timeout or failed send; final Bytes clones and slices retain the original backing charge.",
+      "OwnedValue drops Value before context charges; FinalOwner takes a base reference before the old Value/context are destroyed.",
+      "Query resource refusal returns LIMIT; trusted execute/Committed-resolution receipts retain COMMITTED_BUT_UNAVAILABLE; UNKNOWN and head-effect uncertainty are not upgraded.",
+      "The ordinary execution path finishes JSON in its worker before the original deadline and checks it again at send; queued close paths only finalize fixed small failures.",
+      "No inverse scheduler/pool lock order was found: admission releases pool locks before enqueue; output destruction never reenters the scheduler.",
+      "Old unmetered public Rust APIs remain explicitly separate; the new Worker capability defaults to UNAVAILABLE and the real Engine/ObservedWorker forward it."
+    ],
+    "result": "No static production correctness blocker identified. This is not compiled or actual-runtime acceptance."
+  },
+  "new_unit_definitions": [
+    {
+      "path": "crates/scap-service/src/config/tests.rs",
+      "name": "output_profile_is_explicit_and_checked_before_resolving_credentials",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/daemon/tests.rs",
+      "name": "output_validation_and_budgeted_factory_are_wired_into_actual_assembly",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/engine/tests.rs",
+      "name": "budgeted_engine_preserves_query_commit_resolution_and_small_head_shapes",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/engine/tests.rs",
+      "name": "exhausted_output_never_relabels_a_durable_write_or_retained_resolution_as_uncommitted",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/http/output_tests.rs",
+      "name": "output_admission_is_per_authenticated_tenant_before_job_and_protects_small_controls",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/http/output_tests.rs",
+      "name": "outgoing_large_frame_clones_keep_full_json_capacity_after_body_and_worker_drop",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/http/output_tests.rs",
+      "name": "real_http_finalizer_preserves_unknown_commit_proof_and_head_effect_uncertainty",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "defaults_fit_one_largest_durable_output_without_shrinking_the_wire_contract",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "both_scopes_are_atomic_and_data_cannot_spend_the_control_partition",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "global_and_tenant_increment_failures_never_leave_partial_credit",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "small_and_dynamic_allocations_are_charged_before_calling_the_real_allocator",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "poison_blocks_new_admission_but_does_not_leak_existing_owners",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "wire_base64_json_overlap_and_final_clone_capacity_are_all_retained",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "small_json_uses_prepared_backing_and_keeps_fixed_compact_bytes",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "maximum_receipt_projection_fits_the_prepared_fallback_without_new_backing",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "base64_allocation_refusal_refunds_only_its_new_backing",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "final_json_refusal_keeps_original_receipt_or_query_limit_and_never_replays",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "original_unknown_stays_unknown_and_head_only_encoding_failure_closes_reply",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "original_deadline_is_checked_before_and_after_complete_encoding",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "count_and_fixed_writer_share_the_same_borrowed_serializer_and_fail_without_growth",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/output/tests.rs",
+      "name": "oversized_safe_json_input_fails_counting_before_requesting_a_final_backing",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/scheduler/tests.rs",
+      "name": "encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/scheduler/tests.rs",
+      "name": "queued_expiration_and_response_loss_release_only_their_owned_output",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/scheduler/tests.rs",
+      "name": "send_boundary_uses_the_original_deadline_and_drops_failed_channel_backing",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "name": "budgeted_result_counts_wire_and_base64_overlap_before_either_allocation",
+      "status": "DEFINED_NOT_RUN"
+    },
+    {
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "name": "budgeted_noncommitted_resolutions_keep_the_existing_small_wire_contract",
+      "status": "DEFINED_NOT_RUN"
+    }
+  ],
+  "new_unit_definition_count": 26,
+  "static_checks": [
+    {
+      "name": "rustfmt",
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "crates/scap-service/src/config.rs",
+        "crates/scap-service/src/config/tests.rs",
+        "crates/scap-service/src/daemon.rs",
+        "crates/scap-service/src/daemon/tests.rs",
+        "crates/scap-service/src/engine.rs",
+        "crates/scap-service/src/engine/tests.rs",
+        "crates/scap-service/src/http.rs",
+        "crates/scap-service/src/http/intake_tests.rs",
+        "crates/scap-service/src/http/output_tests.rs",
+        "crates/scap-service/src/http/tests.rs",
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/output.rs",
+        "crates/scap-service/src/output/tests.rs",
+        "crates/scap-service/src/scheduler.rs",
+        "crates/scap-service/src/scheduler/tests.rs",
+        "crates/scap-service/src/wire.rs",
+        "crates/scap-service/src/wire/tests.rs",
+        "experiments/resource-limits/src/main.rs"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/scap-service-output-freeze01/rustfmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "rustfmt-check",
+      "argv": [
+        "rustfmt",
+        "--check",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "crates/scap-service/src/config.rs",
+        "crates/scap-service/src/config/tests.rs",
+        "crates/scap-service/src/daemon.rs",
+        "crates/scap-service/src/daemon/tests.rs",
+        "crates/scap-service/src/engine.rs",
+        "crates/scap-service/src/engine/tests.rs",
+        "crates/scap-service/src/http.rs",
+        "crates/scap-service/src/http/intake_tests.rs",
+        "crates/scap-service/src/http/output_tests.rs",
+        "crates/scap-service/src/http/tests.rs",
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/output.rs",
+        "crates/scap-service/src/output/tests.rs",
+        "crates/scap-service/src/scheduler.rs",
+        "crates/scap-service/src/scheduler/tests.rs",
+        "crates/scap-service/src/wire.rs",
+        "crates/scap-service/src/wire/tests.rs",
+        "experiments/resource-limits/src/main.rs"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/scap-service-output-freeze01/rustfmt-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/scap-service-output-freeze01/diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "config_default_bytes": {
+    "global_total": 536870912,
+    "tenant_total": 268435456,
+    "control_base_global": 8388608,
+    "control_base_tenant": 1048576,
+    "base_per_request": 65536,
+    "prepared_small_buffer": 2048,
+    "maximum_service_backing_peak_for_64_mib_wire": 179023223
+  },
+  "scope": "Ordinary /v1 service-created wire/Base64/final-JSON backing plus a conservative small projection allowance.",
+  "excluded_memory": [
+    "Core/native pre-publication wire and retained lookup input vectors",
+    "Typed result graphs and SQLite native allocation",
+    "S3/raw-frame inputs and HTTP/TCP/TLS/allocator overhead",
+    "Catalogue/discovery/health routes",
+    "Small HTTP errors before output admission or after a missing encoded reply",
+    "Unbudgeted direct Engine/Worker/Scheduler Rust APIs"
+  ],
+  "execution": {
+    "cargo_build": "NOT_RUN",
+    "strict_clippy": "NOT_RUN",
+    "stable_units": "NOT_RUN",
+    "fresh_nightly_units": "NOT_RUN",
+    "exact_per_production_file_4d": "NOT_RUN",
+    "sdk_runtime": "NOT_RUN",
+    "actual_service": "NOT_RUN",
+    "actual_resource": "NOT_RUN",
+    "actual_slow_consumer": "NOT_RUN",
+    "guarded_status_actual": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "remote_ci": "NOT_RUN"
+  },
+  "not_enabled": [
+    "New storage generations",
+    "Product GC/DELETE",
+    "PITR",
+    "Automatic owner controller"
+  ],
+  "old_evidence_policy": "Original unit/native/S3/resource/transport receipts retain their exact source identities and do not accept this new candidate."
+}

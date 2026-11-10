@@ -47,11 +47,14 @@ fn job(
     let (reply, receiver) = oneshot::channel();
     (
         Job {
+            _reservation: None,
+            output: None,
+            _output_hold: None,
             principal,
             call,
             key,
             deadline: until(),
-            reply,
+            reply: Reply::Value(reply),
         },
         receiver,
     )
@@ -87,6 +90,193 @@ fn receive(receiver: oneshot::Receiver<Result<Value, Failure>>) -> Result<Value,
                 .unwrap()
                 .unwrap()
         })
+}
+
+fn encoded_job(
+    pool: &Arc<crate::output::Pool>,
+    deadline: Instant,
+) -> (Job, oneshot::Receiver<crate::output::Reply>) {
+    let (mut job, old) = job(2, 3, 1, false);
+    drop(old);
+    let output = pool.acquire(&job.principal, false).unwrap();
+    let hold = output.work_hold();
+    let (sender, receiver) = oneshot::channel();
+    job.deadline = deadline;
+    job.reply = Reply::Encoded(sender);
+    job.output = Some(output);
+    job._output_hold = Some(hold);
+    (job, receiver)
+}
+
+#[test]
+fn encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker() {
+    use crate::intake::{Class, Intake};
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    struct Unmetered(Arc<AtomicUsize>);
+    impl Worker for Unmetered {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(json!("legacy"))
+        }
+    }
+    let executions = Arc::new(AtomicUsize::new(0));
+    let count = executions.clone();
+    let scheduler = Scheduler::new(
+        limits(),
+        Arc::new(move |_| Ok(Box::new(Unmetered(count.clone())))),
+    )
+    .unwrap();
+    let pool = small_pool(4 * BASE_BYTES, 2 * BASE_BYTES);
+    let intake = Arc::new(Intake::new(Class::Data, 4, 4096, None).unwrap());
+    let output = pool.acquire(&principal(), true).unwrap();
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                output
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    let mut other = principal();
+    other.tenant += 1;
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                pool.acquire(&other, false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    let controls = Arc::new(Intake::new(Class::Control, 1, 4096, None).unwrap());
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                controls.acquire(&principal()).unwrap(),
+                pool.acquire(&principal(), false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DENIED"
+    );
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let reply = scheduler
+        .submit_encoded(
+            principal(),
+            query(3),
+            until(),
+            intake.acquire(&principal()).unwrap(),
+            pool.acquire(&principal(), false).unwrap(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap();
+    assert_eq!(reply.status, axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&reply.bytes).unwrap()["error"]["code"],
+        "UNAVAILABLE"
+    );
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+    assert_eq!(send(&scheduler, query(3)).unwrap(), "legacy");
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+    scheduler.shared.close();
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                until(),
+                intake.acquire(&principal()).unwrap(),
+                pool.acquire(&principal(), false).unwrap()
+            )
+            .err()
+            .unwrap()
+            .code,
+        "UNAVAILABLE"
+    );
+    drop(scheduler);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    assert_eq!(intake.available_permits(), 4);
+}
+
+#[test]
+fn queued_expiration_and_response_loss_release_only_their_owned_output() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let mut worker = Echo::new(0);
+    let (job, receiver) = encoded_job(&pool, until());
+    drop(receiver);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    execute(&mut worker, job);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let (job, receiver) = encoded_job(&pool, Instant::now());
+    execute(&mut worker, job);
+    assert!(receiver.blocking_recv().is_err());
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let (job, receiver) = encoded_job(&pool, until());
+    job.fail(Failure::new("UNAVAILABLE"));
+    let reply = receiver.blocking_recv().unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&reply.bytes).unwrap()["error"]["code"],
+        "UNAVAILABLE"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+}
+
+#[test]
+fn send_boundary_uses_the_original_deadline_and_drops_failed_channel_backing() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let before = Instant::now();
+    let deadline = before + Duration::from_secs(5);
+    for (closed, now) in [(false, before), (false, deadline), (true, before)] {
+        let output = pool.acquire(&principal(), false).unwrap();
+        let reply = crate::output::OwnedValue::new(Ok(json!(1)), output)
+            .finish(deadline)
+            .unwrap();
+        let (sender, receiver) = oneshot::channel();
+        let receiver = if closed {
+            drop(receiver);
+            None
+        } else {
+            Some(receiver)
+        };
+        send_before(sender, reply, deadline, now);
+        if let Some(receiver) = receiver {
+            let delivered = receiver.blocking_recv();
+            assert_eq!(delivered.is_ok(), now < deadline);
+            drop(delivered);
+        }
+        assert_eq!(usage(&pool), (0, 0, 0));
+    }
 }
 
 fn send(scheduler: &Scheduler, call: Call) -> Result<Value, Failure> {
@@ -367,7 +557,16 @@ fn cold_database_does_not_block_a_warm_database_and_capacity_does_not_block_cont
         "BACKPRESSURE"
     );
     assert_eq!(
-        send(&scheduler, data(30, Action::Status {})).unwrap()["worker"],
+        send(
+            &scheduler,
+            data(
+                30,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )
+        )
+        .unwrap()["worker"],
         2
     );
     release.send(()).unwrap();
@@ -447,7 +646,16 @@ fn concurrent_first_calls_share_one_starting_actor_without_holding_the_registry_
             .code,
         "BACKPRESSURE"
     );
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     release.send(()).unwrap();
     for reply in replies {
         assert_eq!(receive(reply).unwrap()["worker"], 0);
@@ -592,7 +800,16 @@ fn idle_actor_exits_without_new_requests_and_draining_slots_wait_for_native_drop
         "BACKPRESSURE"
     );
     assert_eq!(
-        send(&scheduler, data(10, Action::Status {})).unwrap()["worker"],
+        send(
+            &scheduler,
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )
+        )
+        .unwrap()["worker"],
         1
     );
     release.send(()).unwrap();
@@ -646,8 +863,17 @@ fn first_request_never_joins_thread_local_cleanup_and_old_slots_stay_reserved() 
         let (sent, submitted) = mpsc::sync_channel(1);
         let scheduler = &scheduler;
         scope.spawn(move || {
-            sent.send(scheduler.submit(principal(), data(10, Action::Status {}), until()))
-                .unwrap();
+            sent.send(scheduler.submit(
+                principal(),
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                ),
+                until(),
+            ))
+            .unwrap();
         });
         submitted
             .recv_timeout(Duration::from_secs(1))
@@ -671,7 +897,16 @@ fn first_request_never_joins_thread_local_cleanup_and_old_slots_stay_reserved() 
             .code,
         "BACKPRESSURE"
     );
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     release.send(()).unwrap();
     wait_retired(&scheduler);
     send(&scheduler, query(10)).unwrap();
@@ -690,7 +925,16 @@ fn actor_start_failures_release_reservations_and_do_not_disable_control_workers(
     );
     assert!(lock(&scheduler.shared.state).actors.is_empty());
     assert_eq!(lock(&scheduler.shared.state).usage.all.total, 0);
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
     scheduler.spawn = spawn;
     scheduler.factory = Arc::new(|_| Err(Failure::new("FACTORY")));
     assert_eq!(send(&scheduler, query(10)).unwrap_err().code, "UNAVAILABLE");
@@ -736,7 +980,12 @@ fn control_panic_fails_pending_jobs_and_actor_panic_never_replays_them() {
         let mut scheduler = Scheduler::new(limits(), factory).unwrap();
         let make = || {
             if control {
-                data(10, Action::Status {})
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                )
             } else {
                 query(10)
             }
@@ -760,7 +1009,16 @@ fn control_panic_fails_pending_jobs_and_actor_panic_never_replays_them() {
             send(&scheduler, query(20)).unwrap();
         } else {
             wait_retired(&scheduler);
-            send(&scheduler, data(10, Action::Status {})).unwrap();
+            send(
+                &scheduler,
+                data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                ),
+            )
+            .unwrap();
         }
     }
 }
@@ -778,11 +1036,29 @@ fn shutdown_drains_control_work_and_poisoned_registry_can_close_waiting_threads(
     });
     let scheduler = Scheduler::new(limits(), blocked).unwrap();
     let first = scheduler
-        .submit(principal(), data(10, Action::Status {}), until())
+        .submit(
+            principal(),
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None,
+                },
+            ),
+            until(),
+        )
         .unwrap();
     started.recv_timeout(Duration::from_secs(5)).unwrap();
     let reply = scheduler
-        .submit(principal(), data(10, Action::Status {}), until())
+        .submit(
+            principal(),
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None,
+                },
+            ),
+            until(),
+        )
         .unwrap();
     scheduler.shared.close();
     assert_eq!(receive(reply).unwrap_err().code, "UNAVAILABLE");
@@ -800,5 +1076,14 @@ fn shutdown_drains_control_work_and_poisoned_registry_can_close_waiting_threads(
     })
     .join();
     send(&scheduler, query(10)).unwrap();
-    send(&scheduler, data(10, Action::Status {})).unwrap();
+    send(
+        &scheduler,
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+    )
+    .unwrap();
 }

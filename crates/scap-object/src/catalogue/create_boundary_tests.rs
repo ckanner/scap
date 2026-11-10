@@ -43,6 +43,42 @@ fn completion_requires_matching_bound_name_and_exact_provisioning_head() {
 }
 
 #[test]
+fn completing_provisioning_advances_serial_without_changing_business_revision_contract() {
+    for serial in [1, 40, u64::MAX] {
+        let (objects, catalog, creation) = stage(CreationPhase::Bound);
+        let key = format::head_key(&creation.scope);
+        let mut head = catalog
+            .read_slot(&creation.scope, deadline())
+            .unwrap()
+            .unwrap()
+            .head;
+        assert_eq!((head.revision, head.head_serial), (1, 1));
+        head.head_serial = serial;
+        let bytes = format::encode_head(&head).unwrap();
+        objects.set(&key, bytes.clone());
+        objects.clear_calls();
+        let result = catalog.resume_create(CREATOR, &creation, deadline());
+        if serial == u64::MAX {
+            assert_eq!(result, Err(CatalogueError::Limit));
+            assert_eq!(objects.get_value(&key).unwrap().bytes, bytes);
+            assert!(objects
+                .calls()
+                .iter()
+                .all(|call| !call.put || call.key != key));
+        } else {
+            assert_eq!(result.unwrap().phase, CreationPhase::Ready);
+            let next = catalog
+                .read_slot(&creation.scope, deadline())
+                .unwrap()
+                .unwrap()
+                .head;
+            assert_eq!((next.revision, next.head_serial), (2, serial + 1));
+            assert_eq!(next.transition.revision, 2);
+        }
+    }
+}
+
+#[test]
 fn completion_does_not_reinitialize_an_already_ready_database() {
     let (_, catalog, creation) = stage(CreationPhase::Ready);
     let source = descriptor(&catalog, &creation);

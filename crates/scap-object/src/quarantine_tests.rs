@@ -29,6 +29,14 @@ fn assert_publication_is_blocked(objects: &Memory, database: &Database, session:
         Err(Error::Corrupt)
     ));
     assert!(matches!(
+        database.takeover(7, head.revision, 88, deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert!(matches!(
+        database.set_policy(7, head.revision, 89, head.policy.clone(), deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert!(matches!(
         database.set_lifecycle(7, head.revision, 90, Lifecycle::Maintenance, deadline()),
         Err(Error::Corrupt)
     ));
@@ -62,7 +70,7 @@ fn observed_missing_corrupt_or_oversized_retained_objects_stop_warm_publication(
         assert!(Arc::ptr_eq(&observer.quarantined, &database.quarantined));
         objects.fail(
             false,
-            object_key(&scope(), &receipt.result_hash),
+            object_key(&scope(), 1, &receipt.result_hash),
             fault.clone(),
         );
         assert!(matches!(
@@ -84,7 +92,7 @@ fn malformed_retained_wire_stops_warm_publication_even_after_bytes_are_restored(
     let (objects, database) = fixture();
     let temporary = tempfile::tempdir().unwrap();
     let (mut session, receipt) = warm(&database, &temporary.path().join("warm"));
-    let key = object_key(&scope(), &receipt.result_hash);
+    let key = object_key(&scope(), 1, &receipt.result_hash);
     let original = objects.get(&key, MAX_OBJECT_BYTES, deadline()).unwrap();
     objects.set(key.clone(), b"broken immutable object".to_vec());
     assert!(matches!(
@@ -102,7 +110,9 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
         let temporary = tempfile::tempdir().unwrap();
         let (mut session, receipt) = warm(&database, &temporary.path().join("warm"));
         let original = database.read_head(deadline()).unwrap();
-        let Payload::Result(mut stored) = database.load(&receipt.result_hash, deadline()).unwrap()
+        let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+            .load(&receipt.result_hash, deadline())
+            .unwrap()
         else {
             panic!("committed receipt must reference its stored result");
         };
@@ -117,15 +127,17 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
             }
             Payload::Result(stored)
         };
-        let replacement = database.upload(payload, deadline()).unwrap();
+        let replacement = ObjectContext::bootstrap(&database)
+            .save(payload, deadline())
+            .unwrap();
         let mut entries =
             crate::tests::index_entries(&database, &original.head.windows[0], deadline()).unwrap();
         entries[0].outcome = OutcomeRef::Committed {
             result: replacement,
         };
         let mut damaged = original.head.clone();
-        damaged.windows[0].root = database
-            .upload(crate::tests::index_payload(1, entries), deadline())
+        damaged.windows[0].root = ObjectContext::bootstrap(&database)
+            .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
         if mutation == 4 {
@@ -169,17 +181,17 @@ fn failed_immutable_readback_and_colliding_corrupt_bytes_stop_existing_sessions(
             payload: payload.clone(),
         })
         .unwrap();
-        let key = object_key(&scope(), &digest(&bytes));
+        let key = object_key(&scope(), 1, &digest(&bytes));
         if collision {
             objects.set(key, b"not the immutable bytes".to_vec());
             assert!(matches!(
-                database.upload(payload, deadline()),
+                ObjectContext::bootstrap(&database).save(payload, deadline()),
                 Err(Error::Corrupt)
             ));
         } else {
             objects.fail(false, key, StoreError::Missing);
             assert!(matches!(
-                database.upload(payload, deadline()),
+                ObjectContext::bootstrap(&database).save(payload, deadline()),
                 Err(Error::Store(StoreError::Missing))
             ));
         }
@@ -196,7 +208,7 @@ fn transient_reads_and_unknown_or_conflicting_cas_do_not_poison_the_handle() {
         let observer = database.clone();
         objects.fail(
             false,
-            object_key(&scope(), &receipt.result_hash),
+            object_key(&scope(), 1, &receipt.result_hash),
             StoreError::Unknown,
         );
         assert!(matches!(
@@ -299,8 +311,8 @@ fn failure_observed_after_initial_publish_check_prevents_the_final_head_put() {
     let before = database.read_head(deadline()).unwrap();
     let puts = objects.head_puts.load(Ordering::Acquire);
     *objects.trip.lock().unwrap() = Some(Trip {
-        trigger_key: object_key(&scope(), &before.head.data_root),
-        retained_key: object_key(&scope(), &receipt.result_hash),
+        trigger_key: object_key(&scope(), 1, &before.head.data_root),
+        retained_key: object_key(&scope(), 1, &receipt.result_hash),
         observer: database.clone(),
         request: receipt.request,
     });

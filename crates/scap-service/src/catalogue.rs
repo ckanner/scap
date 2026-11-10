@@ -77,6 +77,7 @@ impl From<core::CatalogueError> for Failure {
             core::CatalogueError::Conflict => "CONFLICT",
             core::CatalogueError::IdentityConflict => "IDENTITY_CONFLICT",
             core::CatalogueError::Corrupt => "CORRUPT",
+            core::CatalogueError::SnapshotExpired => "SNAPSHOT_EXPIRED",
             core::CatalogueError::Limit => "LIMIT",
             core::CatalogueError::Unknown => "UNKNOWN",
         })

@@ -21,13 +21,21 @@ use crate::{
 pub struct Config {
     pub version: u8,
     pub listen: SocketAddr,
+    #[serde(default)]
+    pub transport: crate::transport::Profile,
+    /// Ordinary /v1 encoding backings only; not other routes or process RSS.
+    #[serde(default)]
+    pub output: crate::output::Profile,
     pub worker_instance: Decimal,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
+    /// Missing GC credentials leave physical deletion unavailable.
+    pub gc: Option<GarbageConfig>,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
     pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
+    pub execution: Option<ExecutionConfig>,
     pub credentials: Vec<Credential>,
 }
 
@@ -44,9 +52,23 @@ pub struct ObjectConfig {
     pub timeout_ms: u64,
 }
 
+/// Dedicated credentials for the same fixed object namespace. The API cannot
+/// select a backend, bucket, deployment or credential for physical deletion.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GarbageConfig {
+    pub deployment: Decimal,
+    pub access_key_env: String,
+    pub secret_key_env: String,
+    pub session_token_env: Option<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Admission {
+    pub data_profile: Option<crate::intake::Profile>,
+    pub control_profile: Option<crate::intake::Profile>,
+    pub recovery_profile: Option<crate::intake::Profile>,
     pub active_database_actors: usize,
     pub active_database_actors_per_tenant: usize,
     pub actor_idle_timeout_ms: u64,
@@ -83,6 +105,7 @@ impl Admission {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogueAdmission {
+    pub intake_profile: Option<crate::intake::Profile>,
     pub workers: usize,
     pub queued_total: usize,
     pub queued_per_tenant: usize,
@@ -104,18 +127,30 @@ impl CatalogueAdmission {
 
     pub fn validate(&self) -> Result<(), Failure> {
         self.limits().validate()?;
-        self.validate_transport()
+        self.build_intake().map(|_| ())
     }
 
-    pub(crate) fn validate_transport(&self) -> Result<(), Failure> {
-        if !(1..=4096).contains(&self.intake)
-            || !(1..=65536).contains(&self.max_body_bytes)
-            || !(1..=86400000).contains(&self.timeout_ms)
+    /// The same checked construction is used by parsed configuration and the
+    /// direct ServiceConfig entry point, before starting catalogue workers.
+    pub(crate) fn build_intake(&self) -> Result<crate::intake::Intake, Failure> {
+        if !(1..=65536).contains(&self.max_body_bytes) || !(1..=86400000).contains(&self.timeout_ms)
         {
             return Err(Failure::new("CONFIG"));
         }
-        Ok(())
+        crate::intake::Intake::new(
+            crate::intake::Class::Catalogue,
+            self.intake,
+            self.max_body_bytes,
+            self.intake_profile,
+        )
     }
+}
+
+/// Local execution limits do not change persisted result bytes or database quota.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionConfig {
+    pub result_memory_bytes: u64,
 }
 
 #[derive(Deserialize)]
@@ -136,15 +171,25 @@ pub struct DiscoveryConfig {
 pub struct Prepared {
     pub service: ServiceConfig,
     pub s3: S3Config,
+    pub gc: Option<PreparedGarbage>,
+}
+
+pub struct PreparedGarbage {
+    pub deployment: u64,
+    pub s3: S3Config,
 }
 
 pub struct ServiceConfig {
+    pub options: scap_object::Options,
     pub listen: SocketAddr,
+    pub transport: crate::transport::Profile,
+    pub output: crate::output::Profile,
     pub worker_instance: u64,
     pub cache_directory: PathBuf,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
     pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
+    pub gc_deployment: Option<u64>,
     pub cache: Cache,
     pub auth: Authenticator,
 }
@@ -192,6 +237,13 @@ impl Config {
             u64,
         ) -> Result<crate::discovery_cursor::CursorCodec, Failure>,
     ) -> Result<Prepared, Failure> {
+        self.transport.checked()?;
+        self.output.checked()?;
+        let mut options = scap_object::Options::default();
+        if let Some(execution) = self.execution {
+            options.result_memory_bytes = execution.result_memory_bytes;
+        }
+        options.validate().map_err(|_| Failure::new("CONFIG"))?;
         let admission = &self.admission;
         admission.limits().validate()?;
         // This listener has no TLS termination. It can only be exposed through
@@ -215,8 +267,39 @@ impl Config {
         {
             return Err(Failure::new("CONFIG"));
         }
+        for (total, profile) in [
+            (admission.data_intake, admission.data_profile),
+            (admission.control_intake, admission.control_profile),
+            (admission.recovery_intake, admission.recovery_profile),
+        ] {
+            crate::intake::Profile::resolve(total, admission.max_body_bytes, profile)?;
+        }
         if let Some(catalogue) = &self.catalogue {
             catalogue.validate()?;
+        }
+        if let Some(gc) = &self.gc {
+            let ordinary = [
+                Some(self.s3.access_key_env.as_str()),
+                Some(self.s3.secret_key_env.as_str()),
+                self.s3.session_token_env.as_deref(),
+            ];
+            let dedicated = [
+                Some(gc.access_key_env.as_str()),
+                Some(gc.secret_key_env.as_str()),
+                gc.session_token_env.as_deref(),
+            ];
+            if gc.deployment.0 == 0
+                || self
+                    .credentials
+                    .iter()
+                    .any(|credential| credential.deployment.0 != gc.deployment.0)
+                || dedicated
+                    .into_iter()
+                    .flatten()
+                    .any(|name| ordinary.contains(&Some(name)))
+            {
+                return Err(Failure::new("CONFIG"));
+            }
         }
         // Even a disposable execution image requires SQLite-compatible local
         // I/O. Reject unsupported mounts before credentials or workers are used.
@@ -230,6 +313,34 @@ impl Config {
             .as_ref()
             .map(|name| secret(name, environment))
             .transpose()?;
+        let gc_deployment = self.gc.as_ref().map(|gc| gc.deployment.0);
+        let gc = match self.gc {
+            Some(gc) => {
+                let gc_access_key = secret(&gc.access_key_env, environment)?;
+                if gc_access_key == access_key {
+                    return Err(Failure::new("CONFIG"));
+                }
+                Some(PreparedGarbage {
+                    deployment: gc.deployment.0,
+                    s3: S3Config {
+                        endpoint: self.s3.endpoint.clone(),
+                        region: self.s3.region.clone(),
+                        bucket: self.s3.bucket.clone(),
+                        access_key: gc_access_key,
+                        secret_key: secret(&gc.secret_key_env, environment)?,
+                        session_token: gc
+                            .session_token_env
+                            .as_ref()
+                            .map(|name| secret(name, environment))
+                            .transpose()?,
+                        timeout: Duration::from_millis(self.s3.timeout_ms),
+                        max_object_bytes: MAX_OBJECT_BYTES,
+                        allow_http: self.s3.allow_http,
+                    },
+                })
+            }
+            None => None,
+        };
         let discovery = match self.discovery {
             Some(config) => {
                 let key = crate::auth::decode_hash(&secret(&config.cursor_key_env, environment)?)?;
@@ -247,6 +358,7 @@ impl Config {
             None => None,
         };
         Ok(Prepared {
+            gc,
             s3: S3Config {
                 endpoint: self.s3.endpoint,
                 region: self.s3.region,
@@ -259,12 +371,16 @@ impl Config {
                 allow_http: self.s3.allow_http,
             },
             service: ServiceConfig {
+                options,
                 listen: self.listen,
+                transport: self.transport,
+                output: self.output,
                 worker_instance: self.worker_instance.0,
                 cache_directory: self.cache_directory,
                 admission: self.admission,
                 catalogue: self.catalogue,
                 discovery,
+                gc_deployment,
                 cache: self.cache,
                 auth: Authenticator::new(self.credentials)?,
             },

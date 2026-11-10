@@ -50,6 +50,16 @@ fn version_one_request_and_result_have_fixed_wire_vectors() {
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ];
     assert_eq!(encode_result(&result, limits()).unwrap(), wire);
+    let plan = plan_result(&result, limits()).unwrap();
+    assert_eq!(plan.encoded_len(), wire.len());
+    let mut destination = vec![0xa5; wire.len() + 2];
+    let backing = destination.as_ptr();
+    plan.write_exact(&mut destination[1..wire.len() + 1])
+        .unwrap();
+    assert_eq!(destination.as_ptr(), backing);
+    assert_eq!(destination[0], 0xa5);
+    assert_eq!(destination[wire.len() + 1], 0xa5);
+    assert_eq!(destination[1..wire.len() + 1], wire);
     assert_eq!(decode_result(&wire, limits()).unwrap(), result);
 }
 
@@ -93,7 +103,114 @@ fn typed_results_round_trip_exactly_and_keep_signed_zero() {
     let empty = TransactionResult { statements: vec![] };
     let encoded = encode_result(&empty, limits()).unwrap();
     assert_eq!(encoded, b"SCAPRES1\0\0\0\0");
+    assert_eq!(plan_result(&empty, limits()).unwrap().encoded_len(), 12);
     assert_eq!(decode_result(&encoded, limits()).unwrap(), empty);
+}
+
+#[test]
+fn counted_results_use_one_exact_reservation_after_complete_validation() {
+    let original = result();
+    // Header 12; first statement 93 (all five typed values, UTF-8 and NUL);
+    // second statement 24, including both result metadata integers.
+    assert_eq!(plan_result(&original, limits()).unwrap().encoded_len(), 129);
+    let mut allocations = 0;
+    let bytes = encode_result_with(&original, limits(), &mut |destination, required| {
+        allocations += 1;
+        assert!(destination.is_empty());
+        assert_eq!(destination.capacity(), 0);
+        assert_eq!(required, 129);
+        destination.try_reserve_exact(required)
+    })
+    .unwrap();
+    assert_eq!(allocations, 1);
+    assert_eq!(bytes.len(), 129);
+    // The repository pins Rust 1.90's exact RawVec reservation. This is a
+    // backing-capacity check, not a claim about malloc/RSS rounding.
+    assert_eq!(bytes.capacity(), bytes.len());
+    assert_eq!(decode_result(&bytes, limits()).unwrap(), original);
+
+    let mut invalid = original;
+    invalid.statements[0].rows[0].pop();
+    assert_eq!(
+        encode_result_with(&invalid, limits(), &mut |_, _| {
+            panic!("an invalid graph must fail before any output reservation")
+        }),
+        Err(SqlError::Invalid)
+    );
+}
+
+#[test]
+fn exact_destination_mismatch_never_writes_a_partial_prefix() {
+    let original = result();
+    let plan = plan_result(&original, limits()).unwrap();
+    for length in [0, plan.encoded_len() - 1, plan.encoded_len() + 1] {
+        let mut destination = vec![0xa5; length];
+        assert_eq!(plan.write_exact(&mut destination), Err(SqlError::Invalid));
+        assert!(destination.iter().all(|byte| *byte == 0xa5));
+    }
+    let mut destination = vec![0xa5; plan.encoded_len()];
+    plan.write_exact(&mut destination).unwrap();
+    assert_eq!(decode_result(&destination, limits()).unwrap(), original);
+}
+
+#[test]
+fn original_limit_and_invalid_precedence_also_holds_in_counting_pass() {
+    for row in [vec![Value::Real(f64::INFINITY)], vec![]] {
+        let original = TransactionResult {
+            statements: vec![StatementResult {
+                columns: vec!["x".into()],
+                rows: vec![row],
+                affected_rows: 0,
+                last_insert_rowid: 0,
+            }],
+        };
+        // The row-count field ends at byte 25. The old emitter hits the
+        // smaller wire limit before inspecting either malformed row/value.
+        for (maximum, expected) in [(24, SqlError::Limit), (25, SqlError::Invalid)] {
+            let mut configuration = limits();
+            configuration.max_result_bytes = maximum;
+            assert_eq!(plan_result(&original, configuration).err(), Some(expected));
+            assert_eq!(
+                encode_result_with(&original, configuration, &mut |_, _| {
+                    panic!("count/validation failure must precede allocation")
+                }),
+                Err(expected)
+            );
+        }
+    }
+    let malformed = TransactionResult {
+        statements: vec![StatementResult {
+            columns: vec![],
+            rows: vec![vec![]],
+            affected_rows: 0,
+            last_insert_rowid: 0,
+        }],
+    };
+    let mut configuration = limits();
+    configuration.max_result_bytes = 12;
+    // This shape was rejected before attempting even the first column count.
+    assert_eq!(
+        plan_result(&malformed, configuration).err(),
+        Some(SqlError::Invalid)
+    );
+}
+
+#[test]
+fn refused_result_allocation_is_resource_exhaustion_without_retry() {
+    let original = result();
+    let mut attempts = 0;
+    let encoded = encode_result_with(&original, limits(), &mut |destination, required| {
+        attempts += 1;
+        assert_eq!(required, 129);
+        assert!(destination.is_empty());
+        assert_eq!(destination.capacity(), 0);
+        // Capacity overflow returns a real TryReserveError without attempting
+        // a large allocation or changing any process/global allocator state.
+        Vec::<u8>::new().try_reserve_exact(usize::MAX)
+    });
+    assert_eq!(attempts, 1);
+    assert_eq!(encoded, Err(SqlError::ResourceExhausted));
+    assert_eq!(plan_result(&original, limits()).unwrap().encoded_len(), 129);
 }
 
 #[test]

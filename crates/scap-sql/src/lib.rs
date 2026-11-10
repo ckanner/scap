@@ -9,6 +9,12 @@ use sha2::{Digest, Sha256};
 
 mod result_validation;
 pub use result_validation::validate_result;
+mod result_memory;
+pub use result_memory::ResultMemoryBudget;
+
+/// Local typed-result allocation budget. It is independent of the durable
+/// SCAPRES1 byte limit and is not a process-wide allocator/RSS limit.
+pub const DEFAULT_RESULT_MEMORY_BYTES: u64 = 128 * 1024 * 1024;
 
 const REQUEST_MAGIC: &[u8; 8] = b"SCAPSQL1";
 const RESULT_MAGIC: &[u8; 8] = b"SCAPRES1";
@@ -61,6 +67,9 @@ pub enum SqlError {
     Invalid,
     Limit,
     Malformed,
+    /// A valid result cannot be materialized within the local allocation
+    /// budget, or a fallible allocation was refused. This is not corruption.
+    ResourceExhausted,
 }
 
 impl SqlLimits {
@@ -164,17 +173,19 @@ fn write_value(value: &Value, mut write: impl FnMut(&[u8])) {
     }
 }
 
-struct Encoder {
-    bytes: Vec<u8>,
+struct Encoder<F> {
+    write: F,
+    written: usize,
     limit: usize,
 }
 
-impl Encoder {
+impl<F: FnMut(&[u8])> Encoder<F> {
     fn put(&mut self, bytes: &[u8]) -> Result<(), SqlError> {
-        if bytes.len() > self.limit - self.bytes.len() {
+        if bytes.len() > self.limit - self.written {
             return Err(SqlError::Limit);
         }
-        self.bytes.extend_from_slice(bytes);
+        (self.write)(bytes);
+        self.written += bytes.len();
         Ok(())
     }
 
@@ -184,16 +195,92 @@ impl Encoder {
     }
 }
 
+/// A validated, allocation-free plan for one canonical SCAPRES1 result.
+///
+/// The immutable borrow keeps the counted graph unchanged until the caller
+/// writes it. This lets an output owner reserve its exact wire-byte credit
+/// before allocating a destination; it is not itself a memory reservation.
+pub struct ResultEncoding<'a> {
+    result: &'a TransactionResult,
+    limits: SqlLimits,
+    encoded_len: usize,
+}
+
+impl ResultEncoding<'_> {
+    pub fn encoded_len(&self) -> usize {
+        self.encoded_len
+    }
+
+    /// Write the original result into a destination of exactly `encoded_len`.
+    /// A wrong-sized destination is INVALID and remains entirely unchanged.
+    /// This never allocates or grows the caller's backing storage.
+    pub fn write_exact(&self, destination: &mut [u8]) -> Result<(), SqlError> {
+        if destination.len() != self.encoded_len {
+            return Err(SqlError::Invalid);
+        }
+        let mut offset = 0;
+        write_result(self.result, self.limits, |bytes| {
+            let end = offset + bytes.len();
+            destination[offset..end].copy_from_slice(bytes);
+            offset = end;
+        })
+        .expect("the immutably borrowed result was fully validated by this plan");
+        Ok(())
+    }
+}
+
+/// Validate and count using the same ordered emitter as `encode_result`.
+/// No result-sized scratch allocation is needed for validation alone.
+pub fn plan_result(
+    result: &TransactionResult,
+    limits: SqlLimits,
+) -> Result<ResultEncoding<'_>, SqlError> {
+    let encoded_len = write_result(result, limits, |_| {})?;
+    Ok(ResultEncoding {
+        result,
+        limits,
+        encoded_len,
+    })
+}
+
 pub fn encode_result(result: &TransactionResult, limits: SqlLimits) -> Result<Vec<u8>, SqlError> {
+    encode_result_with(result, limits, &mut Vec::try_reserve_exact)
+}
+
+type ResultAllocator<'a> =
+    dyn FnMut(&mut Vec<u8>, usize) -> Result<(), std::collections::TryReserveError> + 'a;
+
+fn encode_result_with(
+    result: &TransactionResult,
+    limits: SqlLimits,
+    allocate: &mut ResultAllocator<'_>,
+) -> Result<Vec<u8>, SqlError> {
+    let plan = plan_result(result, limits)?;
+    let mut bytes = Vec::new();
+    // The local seam has Vec::try_reserve_exact's contract: success reserves
+    // at least the requested capacity. Initializing/writing cannot grow it.
+    allocate(&mut bytes, plan.encoded_len()).map_err(|_| SqlError::ResourceExhausted)?;
+    bytes.resize(plan.encoded_len(), 0);
+    plan.write_exact(&mut bytes)
+        .expect("the initialized result buffer has the plan's exact length");
+    Ok(bytes)
+}
+
+fn write_result(
+    result: &TransactionResult,
+    limits: SqlLimits,
+    mut write: impl FnMut(&[u8]),
+) -> Result<usize, SqlError> {
     limits.validate()?;
     if result.statements.len() > limits.max_statements as usize {
         return Err(SqlError::Limit);
     }
     // The validated minimum includes this fixed 12-byte header.
-    let mut bytes = RESULT_MAGIC.to_vec();
-    bytes.extend_from_slice(&(result.statements.len() as u32).to_le_bytes());
+    write(RESULT_MAGIC);
+    write(&(result.statements.len() as u32).to_le_bytes());
     let mut encoder = Encoder {
-        bytes,
+        write,
+        written: 12,
         limit: limits.max_result_bytes as usize,
     };
     let mut remaining_rows = limits.max_rows as usize;
@@ -232,7 +319,7 @@ pub fn encode_result(result: &TransactionResult, limits: SqlLimits) -> Result<Ve
         encoder.put(&statement.affected_rows.to_le_bytes())?;
         encoder.put(&statement.last_insert_rowid.to_le_bytes())?;
     }
-    Ok(encoder.bytes)
+    Ok(encoder.written)
 }
 
 struct Decoder<'a> {
@@ -267,20 +354,35 @@ impl<'a> Decoder<'a> {
         self.take(count)
     }
 
-    fn text(&mut self, limits: SqlLimits) -> Result<String, SqlError> {
-        String::from_utf8(self.bytes(limits)?.to_vec()).map_err(|_| SqlError::Malformed)
+    fn text(
+        &mut self,
+        limits: SqlLimits,
+        memory: &mut ResultMemoryBudget,
+    ) -> Result<String, SqlError> {
+        // Materialization only runs after the allocation-free wire validator.
+        // The input slice is immutable during both passes.
+        let text = std::str::from_utf8(self.bytes(limits).expect("validated text extent"))
+            .expect("validated UTF-8");
+        memory.text(text)
     }
 
-    fn value(&mut self, limits: SqlLimits) -> Result<Value, SqlError> {
-        let value = match self.take(1)?[0] {
+    fn value(
+        &mut self,
+        limits: SqlLimits,
+        memory: &mut ResultMemoryBudget,
+    ) -> Result<Value, SqlError> {
+        let value = match self.take(1).expect("validated value tag")[0] {
             0 => Value::Null,
-            1 => Value::Integer(i64::from_le_bytes(self.number()?)),
-            2 => Value::Real(f64::from_bits(u64::from_le_bytes(self.number()?))),
-            3 => Value::Text(self.text(limits)?),
-            4 => Value::Blob(self.bytes(limits)?.to_vec()),
-            _ => return Err(SqlError::Malformed),
+            1 => Value::Integer(i64::from_le_bytes(
+                self.number().expect("validated integer"),
+            )),
+            2 => Value::Real(f64::from_bits(u64::from_le_bytes(
+                self.number().expect("validated finite real"),
+            ))),
+            3 => Value::Text(self.text(limits, memory)?),
+            // The validator rejects every other tag, leaving only Blob (4).
+            _ => Value::Blob(memory.blob(self.bytes(limits).expect("validated blob extent"))?),
         };
-        validate_value(&value, limits)?;
         Ok(value)
     }
 }
@@ -288,45 +390,60 @@ impl<'a> Decoder<'a> {
 /// Decode a retained result only after the caller has rechecked current
 /// authorization and semantic request identity in the current authoritative object snapshot.
 pub fn decode_result(bytes: &[u8], limits: SqlLimits) -> Result<TransactionResult, SqlError> {
-    limits.validate()?;
-    if bytes.len() > limits.max_result_bytes as usize {
-        return Err(SqlError::Limit);
-    }
+    decode_result_with_memory_limit(bytes, limits, DEFAULT_RESULT_MEMORY_BYTES)
+}
+
+/// Decode with a separate local typed-graph budget. Counts from the input do
+/// not trigger bulk row allocation: each value is parsed and each container
+/// growth is charged before its allocation. A resource error must never be
+/// interpreted as an invalid durable result or authorization to repeat SQL.
+pub fn decode_result_with_memory_limit(
+    bytes: &[u8],
+    limits: SqlLimits,
+    maximum_memory_bytes: u64,
+) -> Result<TransactionResult, SqlError> {
+    // Preserve format error precedence and reject forged counts before any
+    // result allocation. A valid graph may still need more memory than its
+    // compact encoding; only that second pass can return ResourceExhausted.
+    validate_result(bytes, limits)?;
     let mut decoder = Decoder { bytes };
-    if decoder.take(8)? != RESULT_MAGIC {
-        return Err(SqlError::Malformed);
-    }
-    let count = decoder.count(limits.max_statements)?;
+    decoder.take(8).expect("validated result magic");
+    let count = decoder
+        .count(limits.max_statements)
+        .expect("validated statement count");
+    let mut memory = ResultMemoryBudget::new(maximum_memory_bytes)?;
     let mut statements = Vec::new();
+    memory.reserve(&mut statements, count)?;
     let mut remaining_rows = limits.max_rows;
     for _ in 0..count {
-        let columns_count = decoder.count(limits.max_columns)?;
+        let columns_count = decoder
+            .count(limits.max_columns)
+            .expect("validated column count");
         let mut columns = Vec::new();
+        memory.reserve(&mut columns, columns_count)?;
         for _ in 0..columns_count {
-            columns.push(decoder.text(limits)?);
+            columns.push(decoder.text(limits, &mut memory)?);
         }
-        let rows_count = decoder.count(remaining_rows)?;
-        if columns_count == 0 && rows_count != 0 {
-            return Err(SqlError::Malformed);
-        }
+        let rows_count = decoder.count(remaining_rows).expect("validated row count");
         remaining_rows -= rows_count as u32;
         let mut rows = Vec::new();
         for _ in 0..rows_count {
+            memory.reserve(&mut rows, 1)?;
             let mut row = Vec::new();
+            memory.reserve(&mut row, columns_count)?;
             for _ in 0..columns_count {
-                row.push(decoder.value(limits)?);
+                row.push(decoder.value(limits, &mut memory)?);
             }
             rows.push(row);
         }
         statements.push(StatementResult {
             columns,
             rows,
-            affected_rows: u64::from_le_bytes(decoder.number()?),
-            last_insert_rowid: i64::from_le_bytes(decoder.number()?),
+            affected_rows: u64::from_le_bytes(decoder.number().expect("validated affected rows")),
+            last_insert_rowid: i64::from_le_bytes(
+                decoder.number().expect("validated insert rowid"),
+            ),
         });
-    }
-    if !decoder.bytes.is_empty() {
-        return Err(SqlError::Malformed);
     }
     Ok(TransactionResult { statements })
 }
@@ -336,3 +453,6 @@ mod tests;
 
 #[cfg(test)]
 mod result_validation_tests;
+
+#[cfg(test)]
+mod result_memory_decode_tests;

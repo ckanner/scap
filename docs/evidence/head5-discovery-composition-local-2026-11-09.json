@@ -1,0 +1,787 @@
+{
+  "schema_version": 1,
+  "status": "FIXTURE_UNITS_PASS_ACTUAL_DISCOVERY_PENDING",
+  "parent_head5": "1dbbc8bd531a12d3be2119a4c387c5db8272ee8c",
+  "integrated_fixture_commit": "0fe25446bcf47984d485feb3f9539916cf174987",
+  "applied_patch_sha256": "f8f3da217d2c0fbb192f5f8cfe6798b4a222275dde0c15dfca3e850b99f6361c",
+  "fixture_gate": {
+    "schema": 1,
+    "parent": "1dbbc8bd531a12d3be2119a4c387c5db8272ee8c",
+    "applied_fixture_commit": "0fe25446bcf47984d485feb3f9539916cf174987",
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "experiments/object-service",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "inputs": {
+      "experiments/object-service/discovery_contract.md": "3a6657660521d63aa7ffc48d9115098d99b1451aedc92ebc857be5767cf815d4",
+      "experiments/object-service/discovery_oracle.py": "aa8e3e593be94b0c0c30b6bc0f53db4d05a77d0fe4940a666ce6e9d4f5141f14",
+      "experiments/object-service/test_discovery_progress.py": "8ff381910d82f954f67bcace5fa3e0e5f09259085a1f1b9c3c76f0a6158f46be",
+      "experiments/object-service/test_discovery_reservations.py": "79ac64cbb90e078f8106bfe3cea8e3a746480868b6f0f728c7adaa8728a7ecc2"
+    },
+    "elapsed_seconds": 10.162461968,
+    "log_sha256": "9e0b23898ae57c0e32dcfaa88f714e29eb6682277a77c6bb6f5d8dc8f1948720",
+    "actual": "NOT_RUN"
+  },
+  "fixture_gate_file": {
+    "path": "/tmp/scap-head5-reservation-fixture-units-01/receipt.json",
+    "bytes": 1027,
+    "sha256": "dbafc925951c18bc108444fdc3f866f7e24fa5346e848848a90b086c6172fae8"
+  },
+  "fixture_units": 230,
+  "fixture_log": {
+    "path": "/tmp/scap-head5-reservation-fixture-units-01/units.log",
+    "bytes": 41220,
+    "sha256": "9e0b23898ae57c0e32dcfaa88f714e29eb6682277a77c6bb6f5d8dc8f1948720"
+  },
+  "head4_fixture_only_unit_count": 224,
+  "head5_extra_existing_tests": 6,
+  "compiled_inputs_equal_to": "f6c9073a924297f5cd1704fa3c677101ad451d3f",
+  "compiled_inputs_compared": [
+    {
+      "path": "Cargo.lock",
+      "bytes": 61903,
+      "sha256": "17cd1b840c3e16f252534dc5096a28c868b27c27130fc54bede1fe255e684de4"
+    },
+    {
+      "path": "Cargo.toml",
+      "bytes": 321,
+      "sha256": "6a033988afc9d389b6879bdf6d89e3e93eaeddcd17cd0bb804e4b6fa406c2b6d"
+    },
+    {
+      "path": "contracts/coverage-policy.json",
+      "bytes": 4248,
+      "sha256": "c0baa9a9a802f587158995b741f626679ea8df1be90a5bc5ecb772766ac61d6b"
+    },
+    {
+      "path": "contracts/design-contract.json",
+      "bytes": 1713,
+      "sha256": "582e24b2193afe2c76cf264c3f5cf201dc39a2f76cad33b4df8beb5cc20062fa"
+    },
+    {
+      "path": "crates/scap-object-sqlite/Cargo.toml",
+      "bytes": 448,
+      "sha256": "25aae897769e3b6912d082bc5d942f47f8dd2c24a2ea363b699ea9234fc608bc"
+    },
+    {
+      "path": "crates/scap-object-sqlite/README.md",
+      "bytes": 3406,
+      "sha256": "f92375b2552392ac91799aa0c264cf6ae1e15ed15b1165221410916bb92a2942"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/alter_tests.rs",
+      "bytes": 21130,
+      "sha256": "e6457e14e6da2ba86e76244814b4e4abcec97b75691d9eb502b3a2c5482a6604"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/capacity_tests.rs",
+      "bytes": 13435,
+      "sha256": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/config.rs",
+      "bytes": 7739,
+      "sha256": "0e271120f953cc9683470f5ccf3f59f2e839349b014b0a3790835dacd5ee12ee"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/config_tests.rs",
+      "bytes": 14058,
+      "sha256": "7095ab4d504565c41adf1c1b9b49a44671eeec9885416a531b1c4555feeed668"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/file.rs",
+      "bytes": 7050,
+      "sha256": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/file_tests.rs",
+      "bytes": 21251,
+      "sha256": "f72b221e396dd17547e4e2414b4e29d952489990c413792ecdb297f618752d45"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/gate.rs",
+      "bytes": 4944,
+      "sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/image.rs",
+      "bytes": 3163,
+      "sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/image_tests.rs",
+      "bytes": 6777,
+      "sha256": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/lib.rs",
+      "bytes": 9691,
+      "sha256": "f62af946aa34f87e0855e7384e585cc5887acbcec5295ca85075648729488fc2"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/query.rs",
+      "bytes": 2513,
+      "sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/query_tests.rs",
+      "bytes": 9037,
+      "sha256": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/result_memory_tests.rs",
+      "bytes": 9368,
+      "sha256": "b237a2394aa66dbca696100a987f7c7e609cb361b4b4878a57270ed073901577"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/sql.rs",
+      "bytes": 18224,
+      "sha256": "9c164bd72134118239da03142c6d08b49aeab77b70053c234d9ea3f8ac282df3"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/storage.rs",
+      "bytes": 5849,
+      "sha256": "7f852057de3797725f29f95b73cdbdf9bf81cc07aa3a26933312057eb1813782"
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/tests.rs",
+      "bytes": 32259,
+      "sha256": "9b38fb6af2121f43f80b106a6dcf3dc2a3e4a74f86f370f837fc814e1c95b9ad"
+    },
+    {
+      "path": "crates/scap-object-store/Cargo.toml",
+      "bytes": 655,
+      "sha256": "145d12a07b4570043d3078c787c5039ea8d6d89375cd2e5f043cfbdb6dc06abc"
+    },
+    {
+      "path": "crates/scap-object-store/src/gc.rs",
+      "bytes": 10993,
+      "sha256": "6289d722dbf2c609d971ea1ae1d272817c7530a19daa83854b4e469fe147d22e"
+    },
+    {
+      "path": "crates/scap-object-store/src/gc_tests.rs",
+      "bytes": 16559,
+      "sha256": "b757553e696c741b0806853779cdc9522de1df88257e97320c88eb8aaddb916e"
+    },
+    {
+      "path": "crates/scap-object-store/src/gc_xml.rs",
+      "bytes": 5230,
+      "sha256": "bc4ef60668dc40bde643a6ad477d443de3c871bd1240b78c86458f4466fa0228"
+    },
+    {
+      "path": "crates/scap-object-store/src/gc_xml_tests.rs",
+      "bytes": 5778,
+      "sha256": "2645ad8eb9a7190d7bfe05a5a3dd4bf4051211f8965895529b37ca23812d5c8c"
+    },
+    {
+      "path": "crates/scap-object-store/src/lib.rs",
+      "bytes": 10400,
+      "sha256": "e9a6aea619d11a42b90f2dd7dbba750132582542da7da768b00ebc14854e365c"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing.rs",
+      "bytes": 7539,
+      "sha256": "7324a3802e5f62e23b36ececb1e4cca0bd681084dcdd4e258a399171fe7779dd"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_guard.rs",
+      "bytes": 5160,
+      "sha256": "216d0acf7425faee9de01646576adde4e9d6dde6e10a1b8407af978d031114c8"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_guard_tests.rs",
+      "bytes": 6287,
+      "sha256": "a54052bcf20f82523bb0b356a6ca35172eaf3170bfeabb69e444b33db1a2d2d9"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_tests.rs",
+      "bytes": 14705,
+      "sha256": "6fb3f6be7ba9f882c417f4ffb859f49ad044a961a5adfe2aff0fd51ace91ba5d"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_xml.rs",
+      "bytes": 9460,
+      "sha256": "ab547a73cb0dad46e269a0ecd1f86a7887d7d0a5ccf9cf71c071de04097eefcc"
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_xml_tests.rs",
+      "bytes": 16366,
+      "sha256": "2ddab27b8208fda0cef0b24f078cefa3998749e978bcb359c5142f1fab5b3857"
+    },
+    {
+      "path": "crates/scap-object-store/src/tests.rs",
+      "bytes": 16656,
+      "sha256": "9cec6245287f59ff5d13959b097e2703e355b7cc50fdda5272a72faf29466c70"
+    },
+    {
+      "path": "crates/scap-object/Cargo.toml",
+      "bytes": 455,
+      "sha256": "db636ae50f8753e0e4d79756df0ec679faea75d1de7facbbb726c865141f2d49"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/boundary_tests.rs",
+      "bytes": 33150,
+      "sha256": "5ae54d819af03acf5977105ec8c0a8cb7b7a4f08bc0fd94541b8d8106dc8ec2c"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/control.rs",
+      "bytes": 19837,
+      "sha256": "60e9b9d9e571d3bb42521b368364cc8783284cb73f91ff4b1e238e480d7aee22"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/control_boundary_tests.rs",
+      "bytes": 16460,
+      "sha256": "59c09d8e9d4d20a3dbf458c7473f21f99e9c32616653d10f16082e8cdd9d9f8a"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/create.rs",
+      "bytes": 5916,
+      "sha256": "728b55d635bf07f500c63e678dd0ecf11552ae26bffe4869ec06c661c78b739f"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/create_boundary_tests.rs",
+      "bytes": 5866,
+      "sha256": "e6c86caff58e34193af53c3199ba65602b3a922b9c48de7939418a3814412831"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery.rs",
+      "bytes": 17723,
+      "sha256": "a1222b7348d29f61dd3faaebf876ad1c403631df771e486ac7a542fb4f51b66d"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_budget.rs",
+      "bytes": 4638,
+      "sha256": "280ee89a6d2dc76935a0e0c491baf1efcc9fe572a6c35d8446dca7aee4af6d35"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_names.rs",
+      "bytes": 6810,
+      "sha256": "d34043b9ebf8bfebee4b421255f84874ce70ca7386d1131440b885972a45d18e"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_record_tests.rs",
+      "bytes": 19498,
+      "sha256": "ba79cabcab8df9a8910cb9f1a4d9825b8a247aee5c32db806425b575bf2f45ec"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_records.rs",
+      "bytes": 13832,
+      "sha256": "02535cc7c81ca3f621ff2ad8aff0f733648a066b6cc45a8495268249c67520b4"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_tests.rs",
+      "bytes": 53485,
+      "sha256": "b3c13ec3af384d9e3ef4114455f11ba1aa08dc63931505e9cc40c804598e247e"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/fault_tests.rs",
+      "bytes": 20325,
+      "sha256": "1823d2c69634ee678b7535f318b91d8bd1bcef3d842833d5bd28118905c540d9"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/inspect.rs",
+      "bytes": 12777,
+      "sha256": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/inspect_boundary_tests.rs",
+      "bytes": 1271,
+      "sha256": "0a3465a927f04808f7d867dfc682be71a45ad12805fa8edb29d1465e3ea7fe07"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/mod.rs",
+      "bytes": 16428,
+      "sha256": "2e8968c1da7a250d4da3009053d5dd4d250e351a0a687b7a5f649264b79d1b1c"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/protocol_tests.rs",
+      "bytes": 21776,
+      "sha256": "e1c8368147b8767cacd22d3c04cfe40743c1d281e9618b991a66630c87703bd1"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/records.rs",
+      "bytes": 12662,
+      "sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/records_tests.rs",
+      "bytes": 18058,
+      "sha256": "80baa1a3b7778e80e483cd9717c934e215349b11e8bbda1fe2f61f4263f29edf"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_budget.rs",
+      "bytes": 8103,
+      "sha256": "72f24450760bbdfe91c621d1a54b8327b52223e266ddc2338da877e1e5f10d7a"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_budget_tests.rs",
+      "bytes": 9110,
+      "sha256": "c2b473ab235bb0d89204334284cd0e3c3142889adb2e1c45c89adf77b3316b01"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_job.rs",
+      "bytes": 14544,
+      "sha256": "e1091d21e4303bc7a315cd6b4a5236dbf164949fd17250095e0faf0c601bcdc6"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_job_tests.rs",
+      "bytes": 33003,
+      "sha256": "f7224fe8db9c4a3d16aa8501d38eed27cfdcea542abe769981991b47730183eb"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_tests.rs",
+      "bytes": 17141,
+      "sha256": "bb263d6686473ac1e845949be4d365555136af7ce0d0a6f029448b339176ae4a"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/tests.rs",
+      "bytes": 11521,
+      "sha256": "7cb0878ca203046f8b6ebba5000d5707a85a1ab7c67e3b53d2d987112ee5011a"
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/types.rs",
+      "bytes": 4466,
+      "sha256": "5dc0b8433dad203160f3466e37b84b4fae77713d2a0049dbce8883f5e9780e06"
+    },
+    {
+      "path": "crates/scap-object/src/data_tree.rs",
+      "bytes": 10824,
+      "sha256": "87f6a7ba40d237b4c43aba33d3ca0e6828c0d4d922129c74a86e3c972905bf43"
+    },
+    {
+      "path": "crates/scap-object/src/data_tree_tests.rs",
+      "bytes": 19377,
+      "sha256": "c46a94c059930ea08a22cebce5cffff0cfb1cf270af0a07df7a8faeb555e9490"
+    },
+    {
+      "path": "crates/scap-object/src/format.rs",
+      "bytes": 25412,
+      "sha256": "dea026c29d8d690bb262aa35e3e6498320435873f68123136ef42480f1c69f5f"
+    },
+    {
+      "path": "crates/scap-object/src/format_tests.rs",
+      "bytes": 44962,
+      "sha256": "08acf1d797913c15c4992f5b9dcb08757acdbb5c03e1d419b4b0b760c1acd3c8"
+    },
+    {
+      "path": "crates/scap-object/src/head_publication.rs",
+      "bytes": 2229,
+      "sha256": "397026efdd2769564afe02d575bff9f50910b5f3ea510e42085cd872999cf5fa"
+    },
+    {
+      "path": "crates/scap-object/src/head_publication_tests.rs",
+      "bytes": 10794,
+      "sha256": "ebb7675100dfa25173cc82c91e2312582dc70bbe10be8dff40ed738252d06db5"
+    },
+    {
+      "path": "crates/scap-object/src/lib.rs",
+      "bytes": 36479,
+      "sha256": "b5bdda652d8e86f19939e9f3898bb11940339b98933030440b9a49729f67e45e"
+    },
+    {
+      "path": "crates/scap-object/src/object_context.rs",
+      "bytes": 3774,
+      "sha256": "c90b67dbc39d62b597c16fbefcc38002df5b246f6c0532e586594537d859f198"
+    },
+    {
+      "path": "crates/scap-object/src/object_context_tests.rs",
+      "bytes": 12554,
+      "sha256": "ba8b191129ad4d3d4a0cd28fdb453f6d0ec725f14c5e9a4b28f73f22427d3ef4"
+    },
+    {
+      "path": "crates/scap-object/src/object_frame.rs",
+      "bytes": 3313,
+      "sha256": "9de8ae356896ad04b7c5ed35f568c05e0f83eb443702ce158d1352ceb4fe3930"
+    },
+    {
+      "path": "crates/scap-object/src/object_frame_tests.rs",
+      "bytes": 9530,
+      "sha256": "60a346e9f432d8422a8dedec2ed228f1248163094f5e74492402dbd4d5b7ce8f"
+    },
+    {
+      "path": "crates/scap-object/src/options.rs",
+      "bytes": 5821,
+      "sha256": "bccc0d7c8250308c98fef80a23a3a0a163c9595a403602677334f433697c5180"
+    },
+    {
+      "path": "crates/scap-object/src/options_tests.rs",
+      "bytes": 4691,
+      "sha256": "3cb3ae59ff961c7ea9a258230c9bf3d1148cea976ea70492765f656c6ec586b7"
+    },
+    {
+      "path": "crates/scap-object/src/quarantine_tests.rs",
+      "bytes": 12402,
+      "sha256": "26a7c224ff91188ca9eaa3198b4db576f11d8c00e1fa4fd1b6454631b2b0ee91"
+    },
+    {
+      "path": "crates/scap-object/src/request_index.rs",
+      "bytes": 7494,
+      "sha256": "a0fc07b0e3049152d4d93b32c7c9fdb96a2770852eccf093ef33827c3596ff1e"
+    },
+    {
+      "path": "crates/scap-object/src/request_index_tests.rs",
+      "bytes": 17706,
+      "sha256": "fa1d05494154f7d202a468f6ade9f9ca4450c6aa9082c3b35cefd1a93236a3bf"
+    },
+    {
+      "path": "crates/scap-object/src/result_validation_tests.rs",
+      "bytes": 18951,
+      "sha256": "1e5d6e12d9f4bdd8f68d5efb6844588e872b47f34a41d07f0b7c5fc49d8277b7"
+    },
+    {
+      "path": "crates/scap-object/src/review_tests.rs",
+      "bytes": 9302,
+      "sha256": "be6a0e18a7a24e23f96664c54faa72caa76597b8866d8f4fa0005cd2f5f93607"
+    },
+    {
+      "path": "crates/scap-object/src/session_tests.rs",
+      "bytes": 21272,
+      "sha256": "94b8fd92bfcd958a1d090a185e8a43dcecb7ceccb067daa6735347ec4c4bb867"
+    },
+    {
+      "path": "crates/scap-object/src/tests.rs",
+      "bytes": 49489,
+      "sha256": "ef01a044e315b0b7e49c334aaf6ed55e69ce324c8730d759c180797f70d75228"
+    },
+    {
+      "path": "crates/scap-service/Cargo.toml",
+      "bytes": 1168,
+      "sha256": "2e29d547937af00bb458b198602f641574b902959fc250e0b1bdcd3dc904eb09"
+    },
+    {
+      "path": "crates/scap-service/README.md",
+      "bytes": 12901,
+      "sha256": "1b258cc359c68b60e98235e330a9018111d86183d89570db7e3e9b82f37315fa"
+    },
+    {
+      "path": "crates/scap-service/catalogue.md",
+      "bytes": 5260,
+      "sha256": "89b0e2896f8c0bffa515ebcefbf235fff567429bf3217f51fb51c36487dc3640"
+    },
+    {
+      "path": "crates/scap-service/docs/bounded-transport.md",
+      "bytes": 6164,
+      "sha256": "b69704733f1851cde3b4c04caf6427ad4bddef067c409c404be3849da31630bc"
+    },
+    {
+      "path": "crates/scap-service/docs/intake-reservations.md",
+      "bytes": 5817,
+      "sha256": "b7b490d80ba8895b8a6b9cd65d0510390a583d1a8711ca733dddaa5e59cdea55"
+    },
+    {
+      "path": "crates/scap-service/src/auth.rs",
+      "bytes": 3580,
+      "sha256": "47521bd5e320ec0ecc74a49e85be0fd6be3ba17d0d358a58940f341630429d63"
+    },
+    {
+      "path": "crates/scap-service/src/auth/tests.rs",
+      "bytes": 3056,
+      "sha256": "d78fb649c2a487c35251151d9837c7bad44e4589de86f3236f6511d419283bed"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue.rs",
+      "bytes": 2705,
+      "sha256": "e2401b30ca33918c53565d9c62780c1c346ab29d775e0f0c76be581d076f3582"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue/tests.rs",
+      "bytes": 8418,
+      "sha256": "ae58c4ea368c33f35b97441b0f7cdde190b380bd38776d838530f05f9e843f7c"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_scheduler.rs",
+      "bytes": 9867,
+      "sha256": "83ccad815ce32348657ec9ab32c7b9f5f9911ca4cbec9617ad6ac6a4a90c6c00"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_scheduler/tests.rs",
+      "bytes": 9812,
+      "sha256": "fd8e21a5ffc381f0d1cfbecf1b27c2ffa95db991a923d13d30589b859f18d7f2"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_wire.rs",
+      "bytes": 12335,
+      "sha256": "d2680daa84bbe32fa5fb3fcfb523559aa5b0c750c1e3b2e11b2c160d6b1242af"
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_wire/tests.rs",
+      "bytes": 12666,
+      "sha256": "e94590580a4518930455deda10907eb34fb0a30b21bd824d168e4dd3144873d2"
+    },
+    {
+      "path": "crates/scap-service/src/config.rs",
+      "bytes": 10641,
+      "sha256": "eec1a631ae78aaa84dd652cd5a3690ad70bd5f69cbf2dc141d93f3f62ee782f5"
+    },
+    {
+      "path": "crates/scap-service/src/config/tests.rs",
+      "bytes": 14867,
+      "sha256": "f6eaabca201c6ff167b11ab4d24cb1c9957905ffca9c744c1b67238f03a7c73d"
+    },
+    {
+      "path": "crates/scap-service/src/daemon.rs",
+      "bytes": 7075,
+      "sha256": "032c6061ab937a5e941e1271d479da5b2b0ea06c6990369310501ca524e708b5"
+    },
+    {
+      "path": "crates/scap-service/src/daemon/tests.rs",
+      "bytes": 18741,
+      "sha256": "ad6d823a49daa7ba881f14c5093cf9e802cbc7e98ade9b9265cb94e027e5c284"
+    },
+    {
+      "path": "crates/scap-service/src/discovery.rs",
+      "bytes": 10203,
+      "sha256": "150ac43f2b58a46a33beea41fd2646f3e2c4e244a79c4d469037ee1910c01c2d"
+    },
+    {
+      "path": "crates/scap-service/src/discovery/tests.rs",
+      "bytes": 17101,
+      "sha256": "bde6c5cda90006ae737f381e2dd6ed80f8b4dc33a308c2e160e5e90d425e2745"
+    },
+    {
+      "path": "crates/scap-service/src/discovery_cursor.rs",
+      "bytes": 7164,
+      "sha256": "184e17a45d1f13be5267c2c980f387271f8708ed8a5fe0ca64e0a81a287b2c01"
+    },
+    {
+      "path": "crates/scap-service/src/discovery_cursor/tests.rs",
+      "bytes": 7398,
+      "sha256": "95a999b2696646ecd86487a54cd9eeebc2613a64ec471ce71df6f9ab0a196f9d"
+    },
+    {
+      "path": "crates/scap-service/src/discovery_wire.rs",
+      "bytes": 4854,
+      "sha256": "da7ee16f46e936bd7b4731637d362ce1fa463e21b56cdf51d11b19a162c085ae"
+    },
+    {
+      "path": "crates/scap-service/src/discovery_wire/tests.rs",
+      "bytes": 5270,
+      "sha256": "a1534ed78c00ab6f7cbd2ca7fc3677e66831b97b837098df13e7f3f1017a2508"
+    },
+    {
+      "path": "crates/scap-service/src/engine.rs",
+      "bytes": 12340,
+      "sha256": "d0cfadfcda666810e641f84af0d223f8f2c553de4288a4598d95856ad3735152"
+    },
+    {
+      "path": "crates/scap-service/src/engine/tests.rs",
+      "bytes": 24960,
+      "sha256": "61fa1b74174b6e5411c756ad8f63c8815cf656efffa66fdbd0214f2a79c98ca7"
+    },
+    {
+      "path": "crates/scap-service/src/http.rs",
+      "bytes": 11311,
+      "sha256": "1427161dac1078c02569cce798b6cb81ea2753219b86b5edb55ef289bdddce19"
+    },
+    {
+      "path": "crates/scap-service/src/http/catalogue_tests.rs",
+      "bytes": 13316,
+      "sha256": "903ed1374456fe7d972e693b15c080611b8e429dc159f63512e34c3dfb7f7cd4"
+    },
+    {
+      "path": "crates/scap-service/src/http/discovery.rs",
+      "bytes": 2428,
+      "sha256": "5c1e2921ea205e53b57eefa94677281b4126e0fd4a53466a4813d23eda15e3fd"
+    },
+    {
+      "path": "crates/scap-service/src/http/discovery/tests.rs",
+      "bytes": 8827,
+      "sha256": "8e1fed0cef209ca62deb7556a1aea18c33780c23d5240d8ccdaa32fe0812a04e"
+    },
+    {
+      "path": "crates/scap-service/src/http/intake_tests.rs",
+      "bytes": 13293,
+      "sha256": "774bc4e87ac4a658254ea66962155805033ef93aa27a608a4b612a9748a6b993"
+    },
+    {
+      "path": "crates/scap-service/src/http/tests.rs",
+      "bytes": 20556,
+      "sha256": "01eecc6d8f2cc652f5088a1da38c692f79c9988e6a180683805ecfff21e63be5"
+    },
+    {
+      "path": "crates/scap-service/src/intake.rs",
+      "bytes": 7085,
+      "sha256": "7ba5a48e61a07f12ac97ee89db950965fdaf1b6f0e742dd8f07fcbc5883d5739"
+    },
+    {
+      "path": "crates/scap-service/src/intake/tests.rs",
+      "bytes": 9823,
+      "sha256": "bea155b9b322f3553d8d8512eb299c204b600497442f704cf7e8650724707819"
+    },
+    {
+      "path": "crates/scap-service/src/lib.rs",
+      "bytes": 2756,
+      "sha256": "ec008fdcf91c6f9f78177d318eb3561d6f5c8ab89294ce8bca8c0a6bbb8b8113"
+    },
+    {
+      "path": "crates/scap-service/src/main.rs",
+      "bytes": 115,
+      "sha256": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8"
+    },
+    {
+      "path": "crates/scap-service/src/scheduler.rs",
+      "bytes": 22213,
+      "sha256": "956af0d7f228ee5e271422f30c6bd6fe81db017885b9df39a2d9f1865a3064e0"
+    },
+    {
+      "path": "crates/scap-service/src/scheduler/tests.rs",
+      "bytes": 26373,
+      "sha256": "4e1b5dee7565fb2d0ee0c4ff33ede8b12c13a64cba19dde0e2812a5ce1fa6a14"
+    },
+    {
+      "path": "crates/scap-service/src/tests.rs",
+      "bytes": 12112,
+      "sha256": "abea53eae2a5732ad69bd5105ed64f6c76998a1c9b9cd1ad3f92dbe608fc4dc9"
+    },
+    {
+      "path": "crates/scap-service/src/transport.rs",
+      "bytes": 4465,
+      "sha256": "565b7e620c4796ccbe9b9a9b4cbf6da29439974c435f66e266c55635c7b47040"
+    },
+    {
+      "path": "crates/scap-service/src/transport/tests.rs",
+      "bytes": 14584,
+      "sha256": "2357b636191e506b6c59dec95a7fd59ca2260673e980d393881ae5da6b5e7395"
+    },
+    {
+      "path": "crates/scap-service/src/wire.rs",
+      "bytes": 15823,
+      "sha256": "62cc59f56c3ab20a07502eab98b27888c879b672aa366d87432fbb0ac015fa59"
+    },
+    {
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "bytes": 14428,
+      "sha256": "9bcf477d6daa5f7c5d6d5b7343aae5316b295ba30052bf800fc13aa586f4b2c1"
+    },
+    {
+      "path": "crates/scap-sql/Cargo.toml",
+      "bytes": 185,
+      "sha256": "563918c2aecc0593d5623dfe51e0d702440fece22374b9ad029c4673f44dc472"
+    },
+    {
+      "path": "crates/scap-sql/src/lib.rs",
+      "bytes": 12873,
+      "sha256": "c10fe0a8a62e0fcab2a56d1b06d7cc4c23fabe440336ad7060fff7046b7d4078"
+    },
+    {
+      "path": "crates/scap-sql/src/result_memory.rs",
+      "bytes": 5411,
+      "sha256": "75e14884ce39552e54e683e33e8e72fe069a25a0b6dee80302d07bc295504afb"
+    },
+    {
+      "path": "crates/scap-sql/src/result_memory_decode_tests.rs",
+      "bytes": 5095,
+      "sha256": "b871abdd57050284f93aa7a3170f83d725efcafd5fbdc237fa44bac9feb2ff4f"
+    },
+    {
+      "path": "crates/scap-sql/src/result_memory_tests.rs",
+      "bytes": 9360,
+      "sha256": "980ee30f73d10988c8baf65ec8b6b39171eabba987289d0c9ce0c07ef51acef2"
+    },
+    {
+      "path": "crates/scap-sql/src/result_validation.rs",
+      "bytes": 2620,
+      "sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70"
+    },
+    {
+      "path": "crates/scap-sql/src/result_validation_tests.rs",
+      "bytes": 8540,
+      "sha256": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177"
+    },
+    {
+      "path": "crates/scap-sql/src/tests.rs",
+      "bytes": 12133,
+      "sha256": "203de22b8282c301c4842185e4556f308b40a81aaf656260879e9966a41cf32e"
+    },
+    {
+      "path": "experiments/object-discovery/Cargo.lock",
+      "bytes": 58740,
+      "sha256": "05dd750581f26e057f397f986ad60c0a751922e3c1977bb746014ebd8c5b84da"
+    },
+    {
+      "path": "experiments/object-discovery/Cargo.toml",
+      "bytes": 451,
+      "sha256": "5b61ccd47a26f8bc7745c071dfecc302a584da54465f514a04c9fa0d075947fd"
+    },
+    {
+      "path": "experiments/object-discovery/src/main.rs",
+      "bytes": 10254,
+      "sha256": "46dab9c63582da3d2bababdbfeefc933279fc66229d21ccf1bdb40cc423ea0d9"
+    },
+    {
+      "path": "experiments/object-gc-store/Cargo.lock",
+      "bytes": 48555,
+      "sha256": "ae0de30efaacbd3ef5a4fbbb1557329dbf1d6cda3ddeda4bd6ee6793f06400db"
+    },
+    {
+      "path": "experiments/object-gc-store/Cargo.toml",
+      "bytes": 352,
+      "sha256": "4be481653d94565f4c400e29503ccf6fc9a4b5e2e20a7440fa35b88f52af5513"
+    },
+    {
+      "path": "experiments/object-gc-store/src/main.rs",
+      "bytes": 3559,
+      "sha256": "1590b281caa644eb701478f871332cd668fe0a65c0b32e331f61a91c4a220a79"
+    },
+    {
+      "path": "experiments/object-network/Cargo.lock",
+      "bytes": 58738,
+      "sha256": "6f0ded6c8fd158fcb90970f0874c5040df57edc06928a5edeaccf607a720ee31"
+    },
+    {
+      "path": "experiments/object-network/Cargo.toml",
+      "bytes": 518,
+      "sha256": "761d2b6ccb8f68825a6506f229ff5e6dcd186d7005a86e5ee19664bf65f8a10c"
+    },
+    {
+      "path": "experiments/object-network/listing_worker.rs",
+      "bytes": 4009,
+      "sha256": "701b3a0c4b7fbeb8313ecab8965fc822bf3da8a73db5cd995050c08b38864e4d"
+    },
+    {
+      "path": "experiments/object-network/src/main.rs",
+      "bytes": 24481,
+      "sha256": "83a4481e223b5775cb5c68c5182983e55eb2ab75c477d5fc83ebbddc4452a0f5"
+    },
+    {
+      "path": "experiments/resource-limits/Cargo.lock",
+      "bytes": 62046,
+      "sha256": "491cd27660cc20e5559227fff3523808b46212a61619d94fe69c478ed18e199d"
+    },
+    {
+      "path": "experiments/resource-limits/Cargo.toml",
+      "bytes": 640,
+      "sha256": "eacab15cdde71cd3f5a03dcbfd293b9dbf8a59e85ec149815d52f715018d062c"
+    },
+    {
+      "path": "experiments/resource-limits/src/main.rs",
+      "bytes": 10284,
+      "sha256": "daf3d7f39e0313e086f2759e4f0b92b3ce79baf872bc7e627259f8da2840349f"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "bytes": 108,
+      "sha256": "ee78b1fc9a83b0654c9c6b091287b23535a7a41bc3e2fa2e66826d9dc5702406"
+    },
+    {
+      "path": "scripts/check_unit_coverage.py",
+      "bytes": 5260,
+      "sha256": "0ed298caaa0c1222935de2d6b5d73772a266daef1a4f5aa2cda8f3709f81b7a5"
+    }
+  ],
+  "inherited_rust_gate": "The original f6 513-test/55-file gate remains attached to its immutable input. Every first-party crate file, Rust/native source, Cargo manifest/lock and toolchain input listed here is byte-identical; no new Rust coverage collection is claimed.",
+  "existing_head5_shared_oracles_preserved": true,
+  "new_service_build_receipt": "REQUIRED_BEFORE_ACTUAL",
+  "new_actual": "NOT_RUN",
+  "full_negative_29_positive_1": "NOT_RUN",
+  "merge_ready": false
+}

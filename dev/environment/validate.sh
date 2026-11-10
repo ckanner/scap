@@ -72,6 +72,12 @@ python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/service-fixture-tests.log"
 python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v \
   2>&1 | tee "$SCAP_EVIDENCE/discovery-fixture-tests.log"
+python3 -m unittest discover -s experiments/object-gc-store -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/gc-fixture-tests.log"
+python3 -m unittest discover -s experiments/resource-limits -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/resource-fixture-tests.log"
+python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v \
+  2>&1 | tee "$SCAP_EVIDENCE/transport-fixture-tests.log"
 unset LLVM_PROFILE_FILE RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 export CARGO_TARGET_DIR="$target_root/network-release"
 cargo +1.90.0 fmt --manifest-path experiments/object-network/Cargo.toml --all -- --check
@@ -114,6 +120,16 @@ export CARGO_TARGET_DIR="$target_root/service-release"
 python3 experiments/object-service/build.py --target-dir "$CARGO_TARGET_DIR" --evidence "$SCAP_EVIDENCE/service-build"
 python3 experiments/object-service/run.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/service"
+python3 experiments/bounded-transport/run.py --binary "$CARGO_TARGET_DIR/release/scapd" \
+  --evidence "$SCAP_EVIDENCE/bounded-transport"
+python3 experiments/bounded-transport/oracle.py "$SCAP_EVIDENCE/bounded-transport/observations.json" \
+  > "$SCAP_EVIDENCE/bounded-transport-oracle.json"
+python3 experiments/object-service/owner_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
+  --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/owner"
+python3 experiments/object-service/owner_oracle.py --evidence "$SCAP_EVIDENCE/owner" \
+  > "$SCAP_EVIDENCE/owner-oracle.json"
+python3 experiments/object-service/owner_controls.py --evidence "$SCAP_EVIDENCE/owner" \
+  --output "$SCAP_EVIDENCE/owner-controls"
 python3 experiments/object-service/catalogue_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/catalogue-service"
 python3 experiments/object-service/isolation_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
@@ -128,3 +144,23 @@ python3 experiments/object-service/segmented_controls.py --evidence "$SCAP_EVIDE
   --output "$SCAP_EVIDENCE/segmented-controls"
 python3 experiments/object-service/discovery_contract.py --server "$CARGO_TARGET_DIR/release/scapd" --weed "$SCAP_WEED" \
   --build-record "$SCAP_EVIDENCE/service-build/build.json" --evidence "$SCAP_EVIDENCE/discovery-service"
+export CARGO_TARGET_DIR="$target_root/resource-check"
+cargo +1.90.0 fmt --manifest-path experiments/object-gc-store/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/object-gc-store/Cargo.toml --all-targets --frozen -- -D warnings
+cargo +1.90.0 fmt --manifest-path experiments/resource-limits/Cargo.toml --all -- --check
+cargo +1.90.0 clippy --manifest-path experiments/resource-limits/Cargo.toml --all-targets --frozen -- -D warnings
+# These builders require unused output directories outside the source checkout.
+python3 experiments/object-gc-store/build.py --target "$SCAP_EVIDENCE/gc-target" \
+  --evidence "$SCAP_EVIDENCE/gc-build"
+python3 experiments/object-gc-store/run.py --worker "$SCAP_EVIDENCE/gc-target/release/scap-object-gc-store" \
+  --build-receipt "$SCAP_EVIDENCE/gc-build/build.json" --weed "$SCAP_WEED" \
+  --evidence "$SCAP_EVIDENCE/gc-store"
+python3 experiments/resource-limits/build.py --target "$SCAP_EVIDENCE/resource-target" \
+  --evidence "$SCAP_EVIDENCE/resource-build"
+python3 experiments/resource-limits/run.py --worker "$SCAP_EVIDENCE/resource-target/release/scap-resource-limits" \
+  --build "$SCAP_EVIDENCE/resource-build/build.json" --weed "$SCAP_WEED" \
+  --evidence "$SCAP_EVIDENCE/resource-limits"
+python3 experiments/resource-limits/oracle.py "$SCAP_EVIDENCE/resource-limits" \
+  > "$SCAP_EVIDENCE/resource-oracle.json"
+python3 experiments/resource-limits/controls.py "$SCAP_EVIDENCE/resource-limits" \
+  > "$SCAP_EVIDENCE/resource-controls.json"

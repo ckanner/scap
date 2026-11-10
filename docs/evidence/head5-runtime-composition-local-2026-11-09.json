@@ -1,0 +1,334 @@
+{
+  "schema": 1,
+  "status": "COMPOSED_SOURCE_REVIEWED_FULL_GATES_NOT_RUN",
+  "base_commit": "7c1f8e460843fb57de367859361de7b86b93aed5",
+  "production_slices": [
+    {
+      "name": "closure",
+      "base": "1dbbc8bd531a12d3be2119a4c387c5db8272ee8c",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8"
+    },
+    {
+      "name": "metadata",
+      "base": "7c1f8e460843fb57de367859361de7b86b93aed5",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3"
+    },
+    {
+      "name": "response",
+      "base": "4329f307752ec40ce43d1fd9f52211cac65c8090",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa"
+    }
+  ],
+  "application": "Three sequential git apply --3way --index operations; no conflicts or manual resolution.",
+  "file_provenance": [
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "contracts/coverage-policy.json",
+      "slice_sha256": "93cb1613584ef2ddcb51af4cc0feb571be43b26f33516353c1802621d8979451",
+      "composed_sha256": "93cb1613584ef2ddcb51af4cc0feb571be43b26f33516353c1802621d8979451",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/catalogue/create.rs",
+      "slice_sha256": "373e6b269c83dabdfd324cfe5bc660d5835c7f12bfe2c5ddc81b90d060c7cba3",
+      "composed_sha256": "373e6b269c83dabdfd324cfe5bc660d5835c7f12bfe2c5ddc81b90d060c7cba3",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/closure.rs",
+      "slice_sha256": "2913ca11d00009d3c3d8d855fa844496b744db51d2f064cb3ab7dabb0d201eaa",
+      "composed_sha256": "2913ca11d00009d3c3d8d855fa844496b744db51d2f064cb3ab7dabb0d201eaa",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/closure_tests.rs",
+      "slice_sha256": "cf7488782f273cef880b1212c1d29196e06a9d3da11da33f2bf6fb4fdc1c2aa9",
+      "composed_sha256": "cf7488782f273cef880b1212c1d29196e06a9d3da11da33f2bf6fb4fdc1c2aa9",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/data_tree.rs",
+      "slice_sha256": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9",
+      "composed_sha256": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/format.rs",
+      "slice_sha256": "58336fcc17ff9eb1a2270ab67e80cdb70ed955a72b708a0fb8eca3efe1f72c68",
+      "composed_sha256": "58336fcc17ff9eb1a2270ab67e80cdb70ed955a72b708a0fb8eca3efe1f72c68",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/lib.rs",
+      "slice_sha256": "45f942aa740d93c64999c217f4049481c419d076adc54a46d79dce44f2e7833c",
+      "composed_sha256": "5098b1105e793f07aa308dedafe7f47b85cb27a00c4ba71f1e42bd6073a04da3",
+      "byte_identical": false,
+      "merge_note": "Combines both reviewed closure and closed management changes by clean three-way application."
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/object_context.rs",
+      "slice_sha256": "52bdacb6d13d3e4e22d392a0a7f2dd9574a526aa5ceb5d93b6f4bd7bce65fbbb",
+      "composed_sha256": "52bdacb6d13d3e4e22d392a0a7f2dd9574a526aa5ceb5d93b6f4bd7bce65fbbb",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/object_frame.rs",
+      "slice_sha256": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5",
+      "composed_sha256": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/object_frame_tests.rs",
+      "slice_sha256": "bdbad97080e22dad6f8aa7bc77edb94c4eef113da5c4cfa1e03c0039d9744679",
+      "composed_sha256": "bdbad97080e22dad6f8aa7bc77edb94c4eef113da5c4cfa1e03c0039d9744679",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/request_index.rs",
+      "slice_sha256": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063",
+      "composed_sha256": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "crates/scap-object/src/session_tests.rs",
+      "slice_sha256": "8b43674cbc7c4001ebb84fbf9d2311d53378a70ae14a3eca8d1ab6465be53e4e",
+      "composed_sha256": "8b43674cbc7c4001ebb84fbf9d2311d53378a70ae14a3eca8d1ab6465be53e4e",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "docs/architecture/raw-object-closure-cursor.md",
+      "slice_sha256": "1243adbdb66dd8aa81df44d36508f29c2e92be0979b525ea70a8be3942ef0965",
+      "composed_sha256": "1243adbdb66dd8aa81df44d36508f29c2e92be0979b525ea70a8be3942ef0965",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "closure",
+      "commit": "c516ceb1166bd1bf082da33697bef0ae074710e8",
+      "path": "docs/evidence/raw-object-closure-local-2026-11-09.json",
+      "slice_sha256": "00cf22c269bd607e6a0ce56dcee0ba468f38b479b0b566a59ea8c944d14407b0",
+      "composed_sha256": "00cf22c269bd607e6a0ce56dcee0ba468f38b479b0b566a59ea8c944d14407b0",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "metadata",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3",
+      "path": "crates/scap-object/src/head_publication_tests.rs",
+      "slice_sha256": "3efea11712a8e079c2d0dae2e170834d17e8ba42a0dff4d1264a26b0c754dc51",
+      "composed_sha256": "3efea11712a8e079c2d0dae2e170834d17e8ba42a0dff4d1264a26b0c754dc51",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "metadata",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3",
+      "path": "crates/scap-object/src/lib.rs",
+      "slice_sha256": "40be6c6e3ff753c45956585cf9c1e7e9765e396056bc3756e6a4356247726da9",
+      "composed_sha256": "5098b1105e793f07aa308dedafe7f47b85cb27a00c4ba71f1e42bd6073a04da3",
+      "byte_identical": false,
+      "merge_note": "Combines both reviewed closure and closed management changes by clean three-way application."
+    },
+    {
+      "slice": "metadata",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3",
+      "path": "crates/scap-object/src/quarantine_tests.rs",
+      "slice_sha256": "0ac22e12101eb9e8efa20adbc5c2c8a7407c9bd9d36c6bd90ecb74af8307b4e9",
+      "composed_sha256": "0ac22e12101eb9e8efa20adbc5c2c8a7407c9bd9d36c6bd90ecb74af8307b4e9",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "metadata",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3",
+      "path": "docs/architecture/metadata-management-publication.md",
+      "slice_sha256": "2f538a34493905e4e89c052501188fe240333d8678965d22edddec5ddf7a81f0",
+      "composed_sha256": "2f538a34493905e4e89c052501188fe240333d8678965d22edddec5ddf7a81f0",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "metadata",
+      "commit": "2ce579d9baf49a459d67db9dd2e50a6b0c41e5b3",
+      "path": "docs/evidence/metadata-management-local-2026-11-09.json",
+      "slice_sha256": "ee6ab85293168a5067a1b924ced6061f72e728d9e78ca4931381c01d1b593120",
+      "composed_sha256": "ee6ab85293168a5067a1b924ced6061f72e728d9e78ca4931381c01d1b593120",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "crates/scap-service/src/discovery.rs",
+      "slice_sha256": "84d3f694709c617b8b424547fa110344b5ebcf74cf6362bba65181741e167ec7",
+      "composed_sha256": "84d3f694709c617b8b424547fa110344b5ebcf74cf6362bba65181741e167ec7",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "crates/scap-service/src/engine.rs",
+      "slice_sha256": "fa5452766e80ffe42f5c420786c199e0778158516a759c6ef03190a5fd26b2c4",
+      "composed_sha256": "fa5452766e80ffe42f5c420786c199e0778158516a759c6ef03190a5fd26b2c4",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "crates/scap-service/src/http.rs",
+      "slice_sha256": "5f6dc2679687f31ce9d535c0616912c24f2773889fb98298137a66bf071bc17b",
+      "composed_sha256": "5f6dc2679687f31ce9d535c0616912c24f2773889fb98298137a66bf071bc17b",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "crates/scap-service/src/wire.rs",
+      "slice_sha256": "cac00d0d63d5220d565b8e5456f4680fea498872d6c3e871c29c7652780c75ee",
+      "composed_sha256": "cac00d0d63d5220d565b8e5456f4680fea498872d6c3e871c29c7652780c75ee",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "slice_sha256": "f38e970a5e93de48c4e22bcf8c42517ea8b1913259fec8eaaacf8b61e6d1fa69",
+      "composed_sha256": "f38e970a5e93de48c4e22bcf8c42517ea8b1913259fec8eaaacf8b61e6d1fa69",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "docs/architecture/http-result-copy-reduction.md",
+      "slice_sha256": "13436ea70b9eb9fe305f445c18a76dca7aaf7a90d6aa4f61dbf61a0fe241c411",
+      "composed_sha256": "13436ea70b9eb9fe305f445c18a76dca7aaf7a90d6aa4f61dbf61a0fe241c411",
+      "byte_identical": true,
+      "merge_note": null
+    },
+    {
+      "slice": "response",
+      "commit": "67bffa897d14c0105c369d3b02e6407ca201f2fa",
+      "path": "docs/evidence/http-result-copy-local-2026-11-09.json",
+      "slice_sha256": "f1aa6ee278216052a24deeb198a7d9ec32e4b3f7e2b8cff98aef753e74d8edaa",
+      "composed_sha256": "f1aa6ee278216052a24deeb198a7d9ec32e4b3f7e2b8cff98aef753e74d8edaa",
+      "byte_identical": true,
+      "merge_note": null
+    }
+  ],
+  "independent_composition_review": {
+    "path": "/tmp/scap-runtime-composition-review01/receipt.json",
+    "sha256": "edebff685b8a5ffcbc959c5f26255fad41b4e7b973b420a72a89c0c6eafc35c7",
+    "record": {
+      "inputs": [
+        {
+          "bytes": 37609,
+          "path": "crates/scap-object/src/lib.rs",
+          "sha256": "5098b1105e793f07aa308dedafe7f47b85cb27a00c4ba71f1e42bd6073a04da3"
+        },
+        {
+          "bytes": 5910,
+          "path": "crates/scap-object/src/catalogue/create.rs",
+          "sha256": "373e6b269c83dabdfd324cfe5bc660d5835c7f12bfe2c5ddc81b90d060c7cba3"
+        },
+        {
+          "bytes": 17569,
+          "path": "crates/scap-object/src/closure.rs",
+          "sha256": "2913ca11d00009d3c3d8d855fa844496b744db51d2f064cb3ab7dabb0d201eaa"
+        },
+        {
+          "bytes": 2229,
+          "path": "crates/scap-object/src/head_publication.rs",
+          "sha256": "397026efdd2769564afe02d575bff9f50910b5f3ea510e42085cd872999cf5fa"
+        }
+      ],
+      "limits": [
+        "No cargo/unit/coverage/actual run in this review; final combined whole-workspace gates still needed.",
+        "Metadata ACK is management HEAD only; activation/Complete still verify the complete closure and subsequently manifest.",
+        "Storage remains exactly1/1 and GC disabled; paused Provisioning safety under future deletion/expiry remains a separate prerequisite."
+      ],
+      "reviewed": [
+        "activate: original control ADMIN/revision/Ready/owner gate; captured ObjectContext and same Snapshot/deadline throughout cursor; complete proof then fresh exact HEAD equality barrier; next candidate active=true then original-condition publish_in",
+        "named Complete: exact Binding/Creation/Provisioning checks preserved; same original Snapshot/context/deadline enters closure proof; fresh equality barrier remains; next preserves roots/owner/policy and only Ready lifecycle change; publish_in unchanged",
+        "publish_in: initial healthy/quota/PreparedHead/manifest/quota retained; shared publish_healthy contains only final healthy and consuming PreparedHead.publish",
+        "publish_metadata: only closed Takeover/Policy constructors; next clones all identity/closure/lifecycle fields; two healthy checks, original conditional/deadline retained; only these two verbs skip manifest GET",
+        "Closure retained-result helpers remain shared between raw cursor and owned lookup; completion is not a grant to rebase or publish arbitrary Head"
+      ],
+      "schema": 1,
+      "status": "NO_ACTIONABLE_COMPOSITION_DEFECT_FOUND_STATIC_ONLY",
+      "worktree": "/workspace/scratch/591a71cb3372/head5-runtime-composed"
+    }
+  },
+  "fixture_freeze_sha256": "028908ddcd851b42e137296c11304334912146a9d81e39d769224b92d770e165",
+  "fixture_unit_receipt_sha256": "6fb86ab57ccae2f7877571bdc5dd1bf33f3f019adfd63fb5a224079bd8087221",
+  "fixture_unit_count": 11,
+  "workflow_change": "Run the frozen fixture Node tests in the existing object-network acceptance job.",
+  "cache_ownership_transfer_sha256": "106fbc94e22a26f0468ebe82e670bce87afd71902494d6329d2845d66fcede74",
+  "checks": {
+    "repository_docs": "PASS",
+    "workflow_actionlint": "PASS",
+    "diff_check": "PASS",
+    "workspace_clippy": "NOT_RUN",
+    "workspace_stable_units": "NOT_RUN",
+    "workspace_fresh_four_metric_units": "NOT_RUN",
+    "actual_native_s3_http_recovery": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN"
+  },
+  "not_enabled": [
+    "storage generations beyond 1/1",
+    "copy/promote",
+    "retained holds",
+    "SnapshotExpired",
+    "product GC DELETE",
+    "PITR",
+    "global output budget",
+    "automatic owner controller"
+  ],
+  "historical_failures_preserved": [
+    "bda discovery actual04",
+    "4329 discovery actual01",
+    "metadata dev01 and coverage01",
+    "unit target transfer verifier01 denominator assumption"
+  ]
+}

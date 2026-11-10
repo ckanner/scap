@@ -1,9 +1,186 @@
 use super::*;
 
+#[test]
+fn success_envelopes_keep_exact_wire_bytes_and_owned_backing() {
+    let value: Json = serde_json::from_str(
+        r#"{"empty":[],"escaped":"quote:\" slash:\\ newline:\n 中文","result":"AAH/AA=="}"#,
+    )
+    .unwrap();
+    let result_backing = value["result"].as_str().unwrap().as_ptr();
+    let owned = success(value);
+    assert_eq!(
+        owned.value["result"].as_str().unwrap().as_ptr(),
+        result_backing
+    );
+    let expected = r#"{"ok":true,"value":{"empty":[],"escaped":"quote:\" slash:\\ newline:\n 中文","result":"AAH/AA=="}}"#;
+    assert_eq!(serde_json::to_vec(&owned).unwrap(), expected.as_bytes());
+    assert_eq!(
+        serde_json::to_vec(&success(&owned.value)).unwrap(),
+        expected.as_bytes()
+    );
+}
+
+#[test]
+fn result_encoding_resource_failure_is_not_durable_corruption() {
+    for (error, expected) in [
+        (scap_sql::SqlError::ResourceExhausted, "LIMIT"),
+        (scap_sql::SqlError::Invalid, "CORRUPT"),
+        (scap_sql::SqlError::Limit, "CORRUPT"),
+        (scap_sql::SqlError::Malformed, "CORRUPT"),
+    ] {
+        let failure = result_encoding_failure(error);
+        assert_eq!(failure.code, expected);
+        assert!(failure.receipt.is_none());
+        assert_eq!(
+            failed(&failure),
+            json!({"ok":false,"error":{"code":expected,"message":expected}})
+        );
+    }
+    assert_eq!(
+        result(&TransactionResult { statements: vec![] }).unwrap(),
+        "U0NBUFJFUzEAAAAA"
+    );
+}
+
+#[test]
+fn budgeted_result_counts_wire_and_base64_overlap_before_either_allocation() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let empty = TransactionResult { statements: vec![] };
+    let pool = small_pool(BASE_BYTES + 12, BASE_BYTES + 12);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    // The 12-byte SCAPRES1 buffer fits, but its simultaneous 16-byte Base64
+    // backing does not. Returning must refund the already-created wire Vec.
+    assert_eq!(
+        budgeted_result(&empty, &mut output).unwrap_err().code,
+        "LIMIT"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(output);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    let pool = small_pool(BASE_BYTES + 28, BASE_BYTES + 28);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    let encoded = budgeted_result(&empty, &mut output).unwrap();
+    assert_eq!(encoded, "U0NBUFJFUzEAAAAA");
+    assert_eq!(encoded.capacity(), 16);
+    assert_eq!(usage(&pool), (BASE_BYTES + 16, 0, 1));
+    let reply = crate::output::OwnedValue::new(Ok(Json::String(encoded)), output)
+        .finish(crate::tests::until())
+        .unwrap();
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let mut output = pool.acquire(&crate::tests::principal(), false).unwrap();
+    let invalid = TransactionResult {
+        statements: vec![scap_sql::StatementResult {
+            columns: vec![],
+            rows: vec![vec![]],
+            affected_rows: 0,
+            last_insert_rowid: 0,
+        }],
+    };
+    assert_eq!(
+        budgeted_result(&invalid, &mut output).unwrap_err().code,
+        "CORRUPT"
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+}
+
+#[test]
+fn budgeted_noncommitted_resolutions_keep_the_existing_small_wire_contract() {
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let pool = small_pool(BASE_BYTES, BASE_BYTES);
+    for (resolution, expected) in [
+        (Resolution::Unknown, json!({"state":"unknown"})),
+        (Resolution::Closed, json!({"state":"closed"})),
+        (Resolution::Retired, json!({"state":"retired"})),
+        (
+            Resolution::Cancelled {
+                transition: scap_object::format::Transition {
+                    revision: 7,
+                    nonce: 9,
+                },
+            },
+            json!({"state":"cancelled","transition":{"revision":"7","nonce":"9"}}),
+        ),
+    ] {
+        let mut output = pool.acquire(&crate::tests::principal(), true).unwrap();
+        let value = budgeted_resolved(resolution, &mut output).unwrap();
+        assert_eq!(value, expected);
+        let reply = crate::output::OwnedValue::new(Ok(value), output)
+            .finish(crate::tests::until())
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Json>(&reply.bytes).unwrap(),
+            json!({"ok":true,"value":expected})
+        );
+        assert_eq!(usage(&pool), (0, BASE_BYTES, 1));
+        drop(reply);
+        assert_eq!(usage(&pool), (0, 0, 0));
+    }
+}
+
 fn call(extra: &str) -> String {
     format!(
         r#"{{"version":1,"scope":{{"deployment":"1","tenant":"2","database":"3","incarnation":"4","generation":"5"}},{extra}}}"#
     )
+}
+
+#[test]
+fn optional_worker_guard_is_canonical_nonzero_and_only_for_status_or_owner_actions() {
+    for base in [
+        r#""operation":"status""#,
+        r#""operation":"activate","expected_revision":"1","nonce":"2""#,
+        r#""operation":"takeover","expected_revision":"1","nonce":"2""#,
+    ] {
+        assert_eq!(
+            parse(call(base).as_bytes())
+                .unwrap()
+                .action
+                .expected_worker(),
+            None
+        );
+        for worker in ["1", "18446744073709551615"] {
+            let text = call(&format!(r#"{base},"expected_worker_instance":"{worker}""#));
+            assert_eq!(
+                parse(text.as_bytes()).unwrap().action.expected_worker(),
+                Some(worker.parse().unwrap())
+            );
+        }
+        for bad in [
+            "null",
+            "1",
+            "true",
+            "[]",
+            "{}",
+            "\"0\"",
+            "\"01\"",
+            "\"+1\"",
+            "\"18446744073709551616\"",
+        ] {
+            assert!(
+                parse(call(&format!(r#"{base},"expected_worker_instance":{bad}"#)).as_bytes())
+                    .is_err()
+            );
+        }
+    }
+    assert!(
+        parse(call(r#""operation":"open","expected_worker_instance":"1""#).as_bytes()).is_err()
+    );
+    assert_eq!(
+        Action::Status {
+            expected_worker_instance: None
+        }
+        .expected_worker(),
+        None
+    );
 }
 
 #[test]
@@ -172,7 +349,14 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         "cancelled"
     );
     let head = Head {
-        format: 4,
+        format: 6,
+        head_serial: 7,
+        storage: scap_object::format::Storage {
+            active_generation: 1,
+            allocated_through: 1,
+            plan: None,
+            sweep: None,
+        },
         creation: None,
         deletion: None,
         scope,
@@ -297,6 +481,7 @@ fn envelope_rejects_unknown_or_duplicate_fields_at_every_identity_boundary() {
     );
     assert_eq!(
         Action::Activate {
+            expected_worker_instance: None,
             expected_revision: Decimal(1),
             nonce: Decimal(1)
         }
@@ -317,6 +502,7 @@ fn invalid_transitions_quotas_and_policies_are_client_errors_before_object_acces
     );
     assert_eq!(
         Action::Takeover {
+            expected_worker_instance: None,
             expected_revision: Decimal(0),
             nonce: Decimal(1)
         }
@@ -411,4 +597,155 @@ fn nonnumeric_versions_are_rejected_without_coercion() {
         )
         .is_err());
     }
+}
+
+#[test]
+fn maintenance_actions_have_explicit_serials_bounded_frontiers_and_separate_admission() {
+    for (operation, fields, admission) in [
+        (
+            "compact_begin",
+            json!({"expected_head_serial":"1"}),
+            "control",
+        ),
+        ("compact_copy", json!({"plan_serial":"2"}), "recovery"),
+        ("compact_promote", json!({"plan_serial":"2"}), "control"),
+        ("compact_abort", json!({"plan_serial":"2"}), "control"),
+        (
+            "gc_prepare",
+            json!({"expected_head_serial":"3","generation":"1","after":null}),
+            "recovery",
+        ),
+        ("gc_resume", json!({"batch_serial":"4"}), "recovery"),
+    ] {
+        let mut value: Json =
+            serde_json::from_str(&call(&format!("\"operation\":\"{operation}\""))).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(fields.as_object().unwrap().clone());
+        let action = parse(value.to_string().as_bytes()).unwrap().action;
+        assert_eq!(action.admission(), admission);
+        assert!(action.priority());
+        assert_eq!(action.expected_worker(), None);
+        for field in fields.as_object().unwrap().keys() {
+            let mut bad = value.clone();
+            bad.as_object_mut().unwrap().remove(field);
+            assert!(
+                parse(bad.to_string().as_bytes()).is_err(),
+                "{operation}/{field}"
+            );
+        }
+        for field in fields
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|field| *field != "after")
+        {
+            let mut bad = value.clone();
+            bad[field] = json!("0");
+            assert_eq!(
+                parse(bad.to_string().as_bytes()).unwrap_err().code,
+                "INVALID"
+            );
+        }
+        value["key"] = json!("arbitrary/object");
+        assert!(parse(value.to_string().as_bytes()).is_err());
+    }
+    for after in [
+        json!("?"),
+        json!("A".repeat(64)),
+        json!("prefix/"),
+        json!(1),
+    ] {
+        let value = call(&format!(
+            r#""operation":"gc_prepare","expected_head_serial":"1","generation":"2","after":{after}"#
+        ));
+        assert_eq!(parse(value.as_bytes()).unwrap_err().code, "INVALID");
+    }
+    let value = call(&format!(
+        r#""operation":"gc_prepare","expected_head_serial":"1","generation":"2","after":"{}""#,
+        "a".repeat(64)
+    ));
+    assert!(parse(value.as_bytes()).is_ok());
+}
+
+#[test]
+fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
+    use scap_object::format::{
+        CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
+    };
+    let memory = std::sync::Arc::new(crate::tests::Memory::default());
+    let db =
+        scap_object::Database::new(memory, crate::tests::scope().native().unwrap(), 100).unwrap();
+    let mut head = db.create(3, 1, crate::tests::until()).unwrap();
+    assert_eq!(status(&head)["head_serial"], "1");
+    head.head_serial = 5;
+    head.storage = Storage {
+        active_generation: 1,
+        allocated_through: 2,
+        sweep: None,
+        plan: Some(CopyPlan {
+            serial: 2,
+            source: 1,
+            target: 2,
+            phase: CopyPhase::Copying,
+            basis: CopyBasis {
+                data_root: head.data_root.clone(),
+                windows: head.windows.clone(),
+                sequence: head.sequence,
+                revision: head.revision,
+                quota: head.quota.clone(),
+                retention: head.retention.clone(),
+                request_epoch: head.request_epoch,
+            },
+        }),
+    };
+    assert_eq!(
+        status(&head)["storage"]["plan"],
+        json!({"serial":"2","source":"1","target":"2","phase":"copying"})
+    );
+    head.storage.plan.as_mut().unwrap().phase = CopyPhase::Sealed;
+    assert_eq!(status(&head)["storage"]["plan"]["phase"], "sealed");
+    head.storage.plan = None;
+    head.storage.sweep = Some(SweepCheckpoint {
+        serial: 5,
+        generation: 2,
+        next_after: Some("f".repeat(64)),
+        exhausted: false,
+        entries: [
+            SweepDisposition::Pending,
+            SweepDisposition::Applied,
+            SweepDisposition::ObservedAbsent,
+            SweepDisposition::ConditionMismatch,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, disposition)| SweepEntry {
+            key: format!("private-key-{index}"),
+            hash: format!("{index:064x}"),
+            etag: format!("\"private-etag-{index}\""),
+            disposition,
+        })
+        .collect(),
+    });
+    let report = scap_object::SweepReport {
+        head,
+        generation: 2,
+        scanned: 4,
+        next_after: Some("f".repeat(64)),
+        exhausted: false,
+    };
+    let output = sweep(&report);
+    assert_eq!(
+        output["status"]["storage"]["sweep"],
+        json!({"serial":"5","generation":"2",
+        "next_after":"f".repeat(64),"exhausted":false,"pending":1,"applied":1,"observed_absent":1,"condition_mismatch":1})
+    );
+    assert_eq!(output["scanned"], 4);
+    let encoded = output.to_string();
+    assert!(
+        !encoded.contains("private-key")
+            && !encoded.contains("private-etag")
+            && !encoded.contains("basis")
+    );
 }

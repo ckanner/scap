@@ -4,7 +4,11 @@
 
 当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
 
-**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复和分段请求索引；生产发布仍有独立门禁。** 单元、真实 HTTP/S3、native 与恢复证据按冻结候选单独记录。没有真实 AWS 配置时不宣称 N1 整体通过；自动 owner 协调、读保护与物理 GC、PITR、真实 AWS 和生产 SLO 继续推进。单库默认 10 GiB、可调整或取消业务配额，实际容量验收与配置分开记录。最新范围见[实施状态](docs/engineering/status-2026-11-08.md)。
+**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**；原生故障、保留结果、生命周期、目录、新的 1 GiB 全量恢复，以及整栈 HTTP/资源/回收/负载和全部独立判定/负对照均通过，进入合入收尾。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。[PR #55](https://github.com/ckanner/scap/pull/55) 继续实现 Deleted 最后一代的显式永久退休，按新源码独立验收。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
+
+对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
+
+历史 [HEAD5 组合候选](docs/architecture/head5-runtime-composition.md)的冻结运行时 `778a4d2` 已通过完整538+538单位、发现/metadata专项以及[六个实际native/S3网络子门禁](docs/evidence/head5-runtime-network-local-2026-11-09.json)。本轮目录为116场景、1,000次ACK零错配，保留结果为12场景/72入口；这些使用Rust worker与真实签名S3，不替代仍待完成的HTTP服务、容量/部署恢复、owner和资源门禁，也不接受后续编码器/输出池源码。该历史候选由 PR #54 承接；新运行结果与新发现以顶部记录为准。
 
 [PR #35 的发现与恢复组合](docs/engineering/discovery-recovery-validation.md)包含 #34 的有界 LIST/单次 HTTP 传输，采用 HEAD format 4。冻结候选有 stable/nightly 各 416 项单元、47 个生产 Rust 文件四维逐文件精确覆盖、九个 HTTP/S3 组合阶段，以及无需预知名称或 Scope 的新部署恢复合同。完整恢复检查九个永久 HEAD 槽位和全部五个需要数据的数据库，独立 oracle 与 23 个拒绝负对照/一个正对照通过；目录原生和 1 GiB 全量恢复也通过，全部 16,384 行另从真实关闭镜像逐行二次哈希。原失败与输入等价复用另列；SQLite 所有已存在临时目录候选和 host-global override 的准入检查也已补齐。
 
@@ -41,7 +45,7 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
 | [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
-| [Node SDK](sdk/node/README.md) | 固定并保存原 SQL／目录意图、无损 typed SQL、验证原回执及结果、查证／取消；不自动重放 SQL |
+| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、验证回执及结果、查证／取消；静态 owner 路由与显式协调，不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -66,9 +70,15 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用，**当前不删除 S3 对象**。旧块、索引和 orphan 仍会增长；当前文件配额不限制 bucket 总量。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
+关闭窗口只变更引用。**HEAD6 的显式管理员 compaction 与退休世代 GC 已完成本批整栈本地验收，默认仍未启用 GC 权限。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。HEAD6 仍保护 Deleted 最后一代，PR #55 独立补齐该终态退休。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
 
 HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
+
+可选 `RoutedClient` 使用受信静态路由，fresh status 后最多派发一次原业务请求；独立 READ+ADMIN
+`OwnerClient` 保存固定意图，再显式协调 takeover 与 activation。每个管理步骤携带预期目标 worker，
+错绑地址在 S3/cache/恢复效果前拒绝。恢复的意图只供查证，UNKNOWN 不自动重发管理动作或 SQL。
+这一切片没有故障检测、后台自动接管或动态选主；整体 N2 和生产门禁继续独立推进，详见
+[owner 协调设计](docs/architecture/owner-reconciliation.md)与 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。
 

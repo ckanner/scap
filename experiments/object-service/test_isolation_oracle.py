@@ -22,7 +22,7 @@ def frame(kind, value, raw=b"", database=101):
                 "payload": {"kind": kind, "value": value}}
     encoded = json.dumps(metadata, separators=(",", ":")).encode()
     data = b"SCAPOBJ2" + struct.pack("<IQ", len(encoded), len(raw)) + encoded + raw
-    return "/scap-test/scap-object/v1/1/7/101/inc/1/gen/1/objects/" + hashlib.sha256(data).hexdigest(), data
+    return "/scap-test/scap-object/v1/1/7/101/inc/1/gen/1/storage/1/objects/" + hashlib.sha256(data).hexdigest(), data
 
 
 def synthetic_tree():

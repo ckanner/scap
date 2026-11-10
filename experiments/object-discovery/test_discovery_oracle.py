@@ -28,7 +28,7 @@ def raw(value):
 
 
 def authority(scope=None):
-    return {"format": 4, "scope": scope or {"deployment": 7, "tenant": 2, "database": 13, "incarnation": 1, "generation": 1},
+    return {"format": 6, "head_serial": 3, "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None}, "scope": scope or {"deployment": 7, "tenant": 2, "database": 13, "incarnation": 1, "generation": 1},
             "revision": 3, "transition": {"revision": 3, "nonce": 1}, "sequence": 1, "owner_epoch": 1,
             "owner_instance": 42, "active": True, "auth_epoch": 1,
             "policy": [{"principal": 17, "read": True, "write": True, "admin": True}], "lifecycle": "ready",
@@ -212,12 +212,26 @@ class FullDataAndResultControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing full graph dependency"):
             Trees(objects, h).index(window, h)
 
+    def test_object_key_uses_only_captured_head_storage_generation(self):
+        h = authority()
+        key, encoded = frame(h, "manifest", {"page_count": 0, "root": None})
+        self.assertIn("/storage/1/objects/", key)
+        self.assertEqual(envelope(encoded, key, h)[0], "manifest")
+        for changed in (key.replace("/storage/1/", "/storage/2/"),
+                        key.replace("/storage/1/", "/"),
+                        key.replace("/gen/1/", "/gen/2/")):
+            with self.subTest(key=changed), self.assertRaisesRegex(ValueError, "captured scope"):
+                envelope(encoded, changed, h)
+        changed = copy.deepcopy(h); changed["storage"]["active_generation"] = 2
+        with self.assertRaisesRegex(ValueError, "storage generation"):
+            object_prefix(changed)
+
     def test_strict_head_format_physical_slot_and_closed_windows(self):
         h = authority(); path = catalogue.head_path(h["scope"])
         self.assertEqual(head(raw(h), path), h)
         for fault in ("legacy", "future", "bool", "physical", "quota", "unclosed"):
             changed = copy.deepcopy(h)
-            if fault in ("legacy", "future", "bool"): changed["format"] = {"legacy": 3, "future": 5, "bool": True}[fault]
+            if fault in ("legacy", "future", "bool"): changed["format"] = {"legacy": 5, "future": 7, "bool": True}[fault]
             elif fault == "physical": changed["scope"]["database"] += 1
             elif fault == "quota": changed["quota"]["max_bytes"] += 1
             else:
@@ -297,7 +311,7 @@ class StableMetadataControls(unittest.TestCase):
         old, first = self.source(); new, second = self.source(42, 3)
         control = self.control(old, first, "delete")
         retired = authority(old["scope"])
-        retired.update(active=False, lifecycle="deleted", revision=4, transition={"revision": 4, "nonce": 88},
+        retired.update(active=False, lifecycle="deleted", revision=4, head_serial=4, transition={"revision": 4, "nonce": 88},
                        creation=catalogue.origin(first, raw(first)), deletion=catalogue.mark(control, raw(control)))
         current = authority(new["scope"]); current["creation"] = catalogue.origin(second, raw(second))
         binding = {"format": 1, "creation": new, "origin": current["creation"], "revision": 5,

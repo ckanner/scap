@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "status": "STATIC_REVIEWED_GATES_NOT_RUN",
+  "source_base_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+  "frozen_manifest_sha256": "807b11d927c1fd0496cb45ae7dd7a1d0b74d6dc96af43eb6365171992528c07a",
+  "freeze": {
+    "base_commit": "778a4d25dc186b3afc7958cbd522e5e0316703c8",
+    "changed_file_count": 17,
+    "checks": {
+      "direct_rustfmt": "PASS",
+      "git_diff_check": "PASS"
+    },
+    "classification": "STATIC_SOURCE_FREEZE_NOT_EXECUTED",
+    "not_run": [
+      "Node units/V8",
+      "TypeScript",
+      "Rust units",
+      "Cargo/Clippy",
+      "native",
+      "Rust exact coverage",
+      "actual HTTP/S3",
+      "remote CI"
+    ],
+    "original_handoff_and_source_inventory": "Preserved unchanged; binding is in docs/evidence/owner-controller-design-review-2026-11-09.json",
+    "production_file_count": 5,
+    "schema": 1,
+    "source_files": [
+      {
+        "bytes": 18933,
+        "path": "crates/scap-service/src/daemon/tests.rs",
+        "sha256": "bafd86a8868bfd3edd210582f311f053d00d1d2dadf2349ad6468d52f4465a36",
+        "status": " M"
+      },
+      {
+        "bytes": 12529,
+        "path": "crates/scap-service/src/engine.rs",
+        "sha256": "8aa6284a6b7763cc97d13a7c2955deb9e7f829e129d03718ba49ce84b224ef39",
+        "status": " M"
+      },
+      {
+        "bytes": 29414,
+        "path": "crates/scap-service/src/engine/tests.rs",
+        "sha256": "70a71536be8bd0d104555dbcd6597be9e6b2d97275f82ed452d0732f96527ad6",
+        "status": " M"
+      },
+      {
+        "bytes": 13361,
+        "path": "crates/scap-service/src/http/intake_tests.rs",
+        "sha256": "49c0ee7e131f18fdfd27fde914e31d589a370aba19fe8bb9770b99221793e153",
+        "status": " M"
+      },
+      {
+        "bytes": 28036,
+        "path": "crates/scap-service/src/scheduler/tests.rs",
+        "sha256": "826900a01db8e12ed4d0774f6e0769d0fdfdf647b9d80f082b0740a2fd4cff3d",
+        "status": " M"
+      },
+      {
+        "bytes": 16401,
+        "path": "crates/scap-service/src/wire.rs",
+        "sha256": "85e705192c91c3e27cb81093df71fe38dbc38c1a1e0690155906ab1b2788ac3d",
+        "status": " M"
+      },
+      {
+        "bytes": 15483,
+        "path": "crates/scap-service/src/wire/tests.rs",
+        "sha256": "94f377844545ff6e2d742b3bdfdb89d224705c247a45e2e233ca136dc4b41016",
+        "status": " M"
+      },
+      {
+        "bytes": 37297,
+        "path": "docs/architecture/owner-controller-plan.md",
+        "sha256": "8bfc55d0f4268cb9869218a08033cd807a0f2a38fe8eb9a3c0ed42eb50ab2796",
+        "status": "??"
+      },
+      {
+        "bytes": 6122,
+        "path": "docs/architecture/owner-guarded-status.md",
+        "sha256": "9e1ded48bf9ec241c478d7e15c3bec3a7323131ac94b69fd54b1e19d2288df25",
+        "status": "??"
+      },
+      {
+        "bytes": 11822,
+        "path": "docs/evidence/owner-controller-design-review-2026-11-09.json",
+        "sha256": "cf670ea7a617b3220641cf9c2f47cade126ea4a1508cf6749591ffdff67b7b5a",
+        "status": "??"
+      },
+      {
+        "bytes": 26657,
+        "path": "sdk/node/README.md",
+        "sha256": "29954a8f9279d91e0fe5ec973e35647b90fb5931d50dc44e516607b9097cbd11",
+        "status": " M"
+      },
+      {
+        "bytes": 18783,
+        "path": "sdk/node/src/client.d.ts",
+        "sha256": "cd15377f033549898793172d69be6a37639b917e4fd4eccd324a1115ae9fd805",
+        "status": " M"
+      },
+      {
+        "bytes": 6525,
+        "path": "sdk/node/src/client.js",
+        "sha256": "5bd3e807f95fdf3145a8e2e95beb72bab65c8976d1d160238954a2206ac50207",
+        "status": " M"
+      },
+      {
+        "bytes": 3941,
+        "path": "sdk/node/src/owner.js",
+        "sha256": "df72854a8f788ba150cfff5c6baba0d8a802db90705746a20fdfafe91cc63fe0",
+        "status": " M"
+      },
+      {
+        "bytes": 17347,
+        "path": "sdk/node/test/owner.test.js",
+        "sha256": "5bf13654897bca5b77e6fc30d81a451346feb6992bda1fb8be11d3d3911e526a",
+        "status": " M"
+      },
+      {
+        "bytes": 6932,
+        "path": "sdk/node/test/types.ts",
+        "sha256": "b77ae413f2f5d569c2b64216bce7d1051730b97dc4a484114cfbe5be87f5b009",
+        "status": " M"
+      },
+      {
+        "bytes": 34328,
+        "path": "sdk/node/test/unit.test.js",
+        "sha256": "a60f14fddc85dce165570f1377324df12393fb23344191c76dcca3cd4a9062e2",
+        "status": " M"
+      }
+    ],
+    "worktree": "/workspace/scratch/591a71cb3372/guarded-owner-status"
+  },
+  "root_review": {
+    "production_diff": "Read all five production diffs; no blocker found. Original worker/tenant validation order and fixed route/deadline retained.",
+    "rust_guard_and_node_tests": "Read wire/engine semantic additions and Node client/owner/type cases; test execution NOT_RUN.",
+    "owner_design": "Full original handoff reviewed; prioritize accepted HEAD-bound owner-plan protocol after this guarded probe. V1 journal does not close all UNKNOWN windows."
+  },
+  "not_implemented": [
+    "automatic failure detector",
+    "owner controller",
+    "S3 journal",
+    "accepted owner-plan protocol",
+    "restored intent dispatch"
+  ],
+  "source_production_changes": "Optional guard on existing status; no extra effect, recovery, or SQL retry."
+}

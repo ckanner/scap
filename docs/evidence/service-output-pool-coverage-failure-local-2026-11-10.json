@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "status": "FAILED_EXACT_COUNTERS",
+  "source_commit": "f074897403e7e85e7612584027bbbfd680353a43",
+  "source_tree": "b699f2d278ca983ed92276fcb122044f30db6b53",
+  "environment": "restored fresh environment, 2026-11-10; no old target/profile reuse",
+  "scope": "complete workspace unit-only (--lib --bins); stable1.90.0 and nightly2025-09-18; no integration profiles or coverage exclusions",
+  "results": {
+    "format": 0,
+    "strict_clippy": 0,
+    "stable_units": {
+      "passed": 572,
+      "failed": 0,
+      "per_program": [
+        259,
+        81,
+        40,
+        155,
+        0,
+        37
+      ]
+    },
+    "nightly_units": {
+      "passed": 572,
+      "failed": 0,
+      "per_program": [
+        259,
+        81,
+        40,
+        155,
+        0,
+        37
+      ]
+    },
+    "exact_counter_checker_exit": 1,
+    "driver_exit": 1,
+    "source_final_verify": 0
+  },
+  "production_files": 57,
+  "exact_counters": {
+    "lines": [
+      10766,
+      10766
+    ],
+    "functions": [
+      968,
+      968
+    ],
+    "regions": [
+      16356,
+      16358
+    ],
+    "branches": [
+      1948,
+      1948
+    ]
+  },
+  "true_zero_branch_files": 5,
+  "failure": {
+    "file": "crates/scap-service/src/output.rs",
+    "regions": [
+      462,
+      464
+    ],
+    "original_zero_regions": [
+      [
+        341,
+        46,
+        341,
+        47
+      ],
+      [
+        530,
+        37,
+        530,
+        58
+      ]
+    ],
+    "message": "FAIL: uncovered regions: crates/scap-service/src/output.rs: 462/464"
+  },
+  "raw_receipts": {
+    "gate": {
+      "path": "/tmp/scap-service-output-unit-f074897-fresh-20261110-01/completion.json",
+      "bytes": 14735,
+      "sha256": "3dda1b9dd597b268143e4d8f78fcc2b22a6ba4b8ea6228f89b909e18185bef73"
+    },
+    "checker": {
+      "path": "/tmp/scap-service-output-unit-f074897-fresh-20261110-01/exact-counters.log",
+      "bytes": 5900,
+      "sha256": "4756d9e0e2e5acefe13be5cd4533e90ad07d8a77d18e3637a6d69708a00248ce"
+    },
+    "binding": {
+      "path": "/tmp/scap-service-output-unit-f074897-fresh-20261110-01/artifact-binding/receipt.json",
+      "bytes": 308741,
+      "sha256": "67b384fb590244036626dc694ada931deee2403f4b692a4c0db2667c3475b8e6"
+    },
+    "archive_completion": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-f074897-fresh-20261110-01-archive/completion.json",
+      "bytes": 2147,
+      "sha256": "a0c1e2de40a7980fd5a68e57eee715a32c6bf48e34225a7ff053c96c61dbd334"
+    },
+    "archive": {
+      "path": "/workspace/scratch/591a71cb3372/evidence/scap-service-output-unit-f074897-fresh-20261110-01-archive/unit-evidence.tar.gz",
+      "bytes": 278081661,
+      "sha256": "597d5e77edbb6a427b474121fca58cf97b93169b1705fa75913c97e0d4f1993a"
+    }
+  },
+  "archived": {
+    "members": 815,
+    "raw_member_bytes": 934248970,
+    "tracked_sources": 450,
+    "actual_unit_elfs": 12,
+    "fresh_raw_profiles": 218,
+    "all_members_read_back": true,
+    "originals_unchanged": true
+  },
+  "historical_evidence": {
+    "availability": "Previous environment worktrees, targets and raw archives are unavailable in this restored environment. This receipt does not claim those old artifacts were re-read.",
+    "prior_f074_attempt_reported_state": "INCOMPLETE_EXECUTION_CONTROL_LOST",
+    "acceptance_or_profiles_transferred": false
+  },
+  "not_run": [
+    "native fault contracts",
+    "actual output-pool HTTP/S3 acceptance",
+    "AWS Standard acceptance"
+  ],
+  "new_candidate": "Two-file correction is separately STATIC_FROZEN_NOT_RUN; no result from it is attributed to the failed f074 attempt."
+}

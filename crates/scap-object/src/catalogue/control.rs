@@ -139,15 +139,10 @@ impl Catalogue {
                     database.create_head(&head, deadline).map_err(core_error)?;
                 }
                 AbortStep::Fence(base) => {
-                    let mut head = base.head.clone();
+                    let mut head = Database::next(&base.head, control.nonce).map_err(core_error)?;
                     // The plan checked the unique initial Provisioning state.
-                    head.revision = 2;
                     head.owner_epoch = 2;
                     head.active = false;
-                    head.transition = format::Transition {
-                        revision: 2,
-                        nonce: control.nonce,
-                    };
                     head.lifecycle = Lifecycle::Deleted;
                     head.deletion = Some(control.mark());
                     self.database(&source)
@@ -444,6 +439,9 @@ impl Catalogue {
         view: &'a View,
     ) -> Result<DeleteStep<'a>, CatalogueError> {
         let base = Self::admin(source, view, control.principal)?;
+        if base.head.storage.plan.is_some() || base.head.storage.sweep.is_some() {
+            return Err(CatalogueError::Conflict);
+        }
         let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
         if base.head.lifecycle != Lifecycle::Deleted {
             // admin verified any proof against this same own HEAD. An abort

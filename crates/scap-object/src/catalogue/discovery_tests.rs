@@ -174,7 +174,7 @@ fn deployment_discovery_enumerates_all_permanent_classes_without_an_inventory_in
             .create(7, 1, deadline())
             .unwrap();
         objects.set(
-            &format!("scap-object/v1/{tenant}/999/1/inc/1/gen/1/objects/orphan"),
+            &format!("scap-object/v1/{tenant}/999/1/inc/1/gen/1/storage/1/objects/orphan"),
             vec![1],
         );
     }
@@ -594,6 +594,10 @@ fn errors_and_configuration_are_explicit() {
         (CatalogueError::Unknown, DiscoveryError::Unknown),
         (CatalogueError::NotFound, DiscoveryError::Corrupt),
         (CatalogueError::Corrupt, DiscoveryError::Corrupt),
+        (
+            CatalogueError::SnapshotExpired,
+            DiscoveryError::SnapshotExpired,
+        ),
     ] {
         assert_eq!(DiscoveryError::from(source), expected);
     }
@@ -733,7 +737,7 @@ fn direct_slots_orphans_and_metadata_corruption_are_distinguished() {
     }
     let orphan = entry("scap-object/v1/1/2/18/".into(), ListKind::Prefix);
     objects.set(
-        "scap-object/v1/1/2/18/inc/9/gen/1/objects/unpublished",
+        "scap-object/v1/1/2/18/inc/9/gen/1/storage/1/objects/unpublished",
         vec![9],
     );
     assert_eq!(
@@ -1420,7 +1424,7 @@ fn failed_io_keeps_conservative_byte_reservations_and_quota_remains_distinct() {
             meter.failure(DiscoveryError::Corrupt),
             DiscoveryError::Corrupt
         );
-        assert_eq!(meter.get("any", 8, deadline()), Err(StoreError::Limit));
+        assert_eq!(meter.get("any", 8, deadline()), Err(StoreError::Budget));
         assert_eq!(meter.usage().exact_gets, 1);
         assert_eq!(
             meter.failure(DiscoveryError::Corrupt),

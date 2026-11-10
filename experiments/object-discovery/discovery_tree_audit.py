@@ -1,7 +1,7 @@
 """Independent complete typed closure decoder; never imports a controller.
 
-HEAD4 is deliberate. A storage-format upgrade must change this strict profile
-and be revalidated; this reader never silently accepts both HEAD4 and HEAD5.
+HEAD6 is deliberate. Storage generation comes from the captured HEAD; this
+reader never silently accepts HEAD4 or a later unsupported storage profile.
 """
 from __future__ import annotations
 
@@ -24,22 +24,12 @@ def sha(raw):
 
 
 def object_prefix(authority):
-    require(authority["format"] == 4, "strict HEAD4 profile changed")
-    return "/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/objects/".format(**authority["scope"])
+    catalogue.head5_audit.validate(authority)
+    return catalogue.object_prefix(authority["scope"], authority["storage"]["active_generation"])
 
 
 def head(raw, path):
-    value = catalogue.head_record(raw, path)
-    require(type(value["format"]) is int and value["format"] == 4 and len(value["policy"]) <= 4096,
-            "strict HEAD4 format/policy bound")
-    maximum = value["quota"]["max_bytes"]
-    require(maximum is None or maximum <= (2**32 - 2) * 4096 and maximum % 4096 == 0,
-            "quota page alignment/bound")
-    for window in value["windows"][1:]:
-        require(window["count"] == value["retention"]["max_entries"] or
-                window["result_bytes"] > value["retention"]["max_result_bytes"] - MAX_RESULT,
-                "historical request window was not closed")
-    return value
+    return catalogue.head_record(raw, path)
 
 
 def envelope(raw, key, authority):

@@ -12,10 +12,10 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
-use tokio::sync::Semaphore;
 
 use crate::{
     auth::{Authenticator, Principal},
+    intake::{Class, Intake, Lease},
     scheduler::Scheduler,
     wire, Failure,
 };
@@ -23,21 +23,22 @@ use crate::{
 pub struct HttpState {
     pub auth: Authenticator,
     pub scheduler: Arc<Scheduler>,
+    pub output: Arc<crate::output::Pool>,
     pub catalogue: Option<CatalogueState>,
     pub discovery: Option<Arc<crate::discovery::Discovery>>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
     pub recovery_timeout: Duration,
-    pub intake: Arc<Semaphore>,
-    pub control_intake: Arc<Semaphore>,
-    pub recovery_intake: Arc<Semaphore>,
+    pub intake: Arc<Intake>,
+    pub control_intake: Arc<Intake>,
+    pub recovery_intake: Arc<Intake>,
 }
 
 pub struct CatalogueState {
     pub scheduler: Arc<crate::catalogue_scheduler::Scheduler>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
-    pub intake: Arc<Semaphore>,
+    pub intake: Arc<Intake>,
 }
 
 pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
@@ -46,20 +47,26 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
         || state.timeout > Duration::from_secs(86400)
         || state.recovery_timeout.is_zero()
         || state.recovery_timeout > Duration::from_secs(7 * 86400)
-        || state.intake.available_permits() == 0
-        || state.control_intake.available_permits() == 0
-        || state.recovery_intake.available_permits() == 0
     {
         return Err(Failure::new("CONFIG"));
     }
+    state.intake.validate(Class::Data, state.max_body_bytes)?;
+    state
+        .control_intake
+        .validate(Class::Control, state.max_body_bytes)?;
+    state
+        .recovery_intake
+        .validate(Class::Recovery, state.max_body_bytes)?;
     if let Some(catalogue) = &state.catalogue {
         if !(1..=65536).contains(&catalogue.max_body_bytes)
             || catalogue.timeout.is_zero()
             || catalogue.timeout > Duration::from_secs(86400)
-            || !(1..=4096).contains(&catalogue.intake.available_permits())
         {
             return Err(Failure::new("CONFIG"));
         }
+        catalogue
+            .intake
+            .validate(Class::Catalogue, catalogue.max_body_bytes)?;
     }
     Ok(Router::new()
         .route("/healthz", get(health))
@@ -74,8 +81,8 @@ async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "alive", "protocol": 1 }))
 }
 
-fn failure(error: Failure) -> Response {
-    let status = match error.code {
+pub(crate) fn failure_status(error: &Failure) -> StatusCode {
+    match error.code {
         "UNAUTHENTICATED" => StatusCode::UNAUTHORIZED,
         "DENIED" => StatusCode::FORBIDDEN,
         "NOT_FOUND" => StatusCode::NOT_FOUND,
@@ -86,8 +93,11 @@ fn failure(error: Failure) -> Response {
             StatusCode::SERVICE_UNAVAILABLE
         }
         _ => StatusCode::CONFLICT,
-    };
-    (status, Json(wire::failed(&error))).into_response()
+    }
+}
+
+fn failure(error: Failure) -> Response {
+    (failure_status(&error), Json(wire::failed(&error))).into_response()
 }
 
 fn single<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -171,11 +181,19 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
         "recovery" => &state.recovery_intake,
         _ => &state.intake,
     };
-    let reservation = match slots.clone().try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => return failure(Failure::new("BACKPRESSURE")),
+    let reservation = match slots.acquire(&principal) {
+        Ok(reservation) => reservation,
+        Err(error) => return failure(error),
     };
-    let response = admitted(&state, principal, class, received, request).await;
+    let response = admitted(
+        &state,
+        principal,
+        class,
+        reservation.clone(),
+        received,
+        request,
+    )
+    .await;
     reserved(response, reservation)
 }
 
@@ -206,17 +224,19 @@ async fn catalogue_call(State(state): State<Arc<HttpState>>, request: Request) -
         Some(catalogue) => catalogue,
         None => return failure(Failure::new("UNAVAILABLE")),
     };
-    let reservation = match catalogue.intake.clone().try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => return failure(Failure::new("BACKPRESSURE")),
+    let reservation = match catalogue.intake.acquire(&principal) {
+        Ok(reservation) => reservation,
+        Err(error) => return failure(error),
     };
-    let response = catalogue_admitted(catalogue, principal, received, request).await;
+    let response =
+        catalogue_admitted(catalogue, principal, reservation.clone(), received, request).await;
     reserved(response, reservation)
 }
 
 async fn catalogue_admitted(
     state: &CatalogueState,
     principal: Principal,
+    reservation: Arc<Lease>,
     received: Instant,
     request: Request,
 ) -> Response {
@@ -234,16 +254,22 @@ async fn catalogue_admitted(
         Ok(Err(_)) => return failure(Failure::new("LIMIT")),
         Err(_) => return failure(Failure::new("DEADLINE")),
     };
+    if let Err(error) = reservation.shrink_body(bytes.len()) {
+        return failure(error);
+    }
     let call = match parse_catalogue_before(&bytes, deadline) {
         Ok(call) => call,
         Err(error) => return failure(error),
     };
-    let receiver = match state.scheduler.submit(principal, call, deadline) {
+    let receiver = match state
+        .scheduler
+        .submit_reserved(principal, call, deadline, reservation)
+    {
         Ok(receiver) => receiver,
         Err(error) => return failure(error),
     };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(Ok(value))) => Json(json!({"ok":true,"value":value})).into_response(),
+        Ok(Ok(Ok(value))) => Json(wire::success(value)).into_response(),
         Ok(Ok(Err(error))) => failure(error),
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
     }
@@ -264,6 +290,7 @@ async fn admitted(
     state: &HttpState,
     principal: Principal,
     class: &str,
+    reservation: Arc<Lease>,
     received: Instant,
     request: Request,
 ) -> Response {
@@ -282,6 +309,9 @@ async fn admitted(
         Ok(Err(_)) => return failure(Failure::new("LIMIT")),
         Err(_) => return failure(Failure::new("DEADLINE")),
     };
+    if let Err(error) = reservation.shrink_body(bytes.len()) {
+        return failure(error);
+    }
     let call = match parse_before(&bytes, received + state.timeout) {
         Ok(call) => call,
         Err(error) => return failure(error),
@@ -289,19 +319,36 @@ async fn admitted(
     if call.action.admission() != class {
         return failure(Failure::new("INVALID"));
     }
+    // Preserve scope-denial precedence over the new output-admission limit.
+    // parse_before has already validated this unchanged Scope.
+    if let Err(error) = principal.authorize(&call.scope.native().expect("validated parsed scope")) {
+        return failure(error);
+    }
     let duration = if class == "recovery" {
         state.recovery_timeout
     } else {
         state.timeout
     };
     let deadline = received + duration;
-    let receiver = match state.scheduler.submit(principal, call, deadline) {
-        Ok(receiver) => receiver,
+    let output = match state.output.acquire(&principal, class != "data") {
+        Ok(output) => output,
         Err(error) => return failure(error),
     };
+    let receiver =
+        match state
+            .scheduler
+            .submit_encoded(principal, call, deadline, reservation, output)
+        {
+            Ok(receiver) => receiver,
+            Err(error) => return failure(error),
+        };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(Ok(value))) => Json(json!({ "ok": true, "value": value })).into_response(),
-        Ok(Ok(Err(error))) => failure(error),
+        Ok(Ok(reply)) => (
+            reply.status,
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            reply.bytes,
+        )
+            .into_response(),
         // A missing response never proves that publication rolled back.
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
     }
@@ -322,5 +369,11 @@ mod tests;
 
 #[cfg(test)]
 mod catalogue_tests;
+
+#[cfg(test)]
+mod intake_tests;
+
+#[cfg(test)]
+mod output_tests;
 
 mod discovery;

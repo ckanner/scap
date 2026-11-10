@@ -18,6 +18,18 @@ pub trait Worker {
         call: Call,
         deadline: Instant,
     ) -> Result<Value, Failure>;
+
+    /// Opt in explicitly before serving budgeted HTTP work. A custom worker
+    /// must forward/obey the context; the default never runs an unmetered call.
+    fn execute_budgeted(
+        &mut self,
+        _principal: &Principal,
+        _call: Call,
+        _deadline: Instant,
+        _output: &mut crate::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        Err(Failure::new("UNAVAILABLE"))
+    }
 }
 
 impl Worker for crate::engine::Engine {
@@ -28,6 +40,16 @@ impl Worker for crate::engine::Engine {
         deadline: Instant,
     ) -> Result<Value, Failure> {
         self.execute(principal, call, deadline)
+    }
+
+    fn execute_budgeted(
+        &mut self,
+        principal: &Principal,
+        call: Call,
+        deadline: Instant,
+        output: &mut crate::output::OutputContext,
+    ) -> Result<Value, Failure> {
+        self.execute_budgeted(principal, call, deadline, output)
     }
 }
 
@@ -80,7 +102,24 @@ struct Job {
     call: Call,
     key: String,
     deadline: Instant,
-    reply: oneshot::Sender<Result<Value, Failure>>,
+    reply: Reply,
+    _reservation: Option<Arc<crate::intake::Lease>>,
+    output: Option<crate::output::OutputContext>,
+    _output_hold: Option<crate::output::WorkHold>,
+}
+
+enum Reply {
+    Value(oneshot::Sender<Result<Value, Failure>>),
+    Encoded(oneshot::Sender<crate::output::Reply>),
+}
+
+impl Reply {
+    fn is_closed(&self) -> bool {
+        match self {
+            Self::Value(sender) => sender.is_closed(),
+            Self::Encoded(sender) => sender.is_closed(),
+        }
+    }
 }
 
 impl Job {
@@ -90,6 +129,22 @@ impl Job {
 
     fn control(&self) -> bool {
         self.call.action.admission() == "control"
+    }
+
+    fn fail(mut self, error: Failure) {
+        match self.reply {
+            Reply::Value(sender) => {
+                let _ = sender.send(Err(error));
+            }
+            Reply::Encoded(sender) => {
+                let output = self.output.take().expect("encoded job output context");
+                finish_encoded(
+                    sender,
+                    crate::output::OwnedValue::new(Err(error), output),
+                    self.deadline,
+                );
+            }
+        }
     }
 }
 
@@ -341,7 +396,7 @@ impl Shared {
             .pop()
         {
             state.usage.remove(&job);
-            let _ = job.reply.send(Err(Failure::new("UNAVAILABLE")));
+            job.fail(Failure::new("UNAVAILABLE"));
         }
         self.reaping.notify_all();
     }
@@ -351,7 +406,7 @@ impl Shared {
         state.controls[index].closed = true;
         while let Some(job) = state.controls[index].queue.pop() {
             state.usage.remove(&job);
-            let _ = job.reply.send(Err(Failure::new("UNAVAILABLE")));
+            job.fail(Failure::new("UNAVAILABLE"));
         }
         state.controls[index].changed.notify_all();
     }
@@ -372,7 +427,7 @@ impl Shared {
         }
         for job in jobs {
             state.usage.remove(&job);
-            let _ = job.reply.send(Err(Failure::new("UNAVAILABLE")));
+            job.fail(Failure::new("UNAVAILABLE"));
         }
         self.reaping.notify_all();
     }
@@ -433,16 +488,56 @@ impl Drop for Exit {
     }
 }
 
-fn execute(worker: &mut dyn Worker, job: Job) {
+fn execute(worker: &mut dyn Worker, mut job: Job) {
     if job.reply.is_closed() {
         return;
     }
-    let result = if Instant::now() >= job.deadline {
-        Err(Failure::new("DEADLINE"))
-    } else {
-        worker.execute(&job.principal, job.call, job.deadline)
-    };
-    let _ = job.reply.send(result);
+    match job.reply {
+        Reply::Value(reply) => {
+            let result = if Instant::now() >= job.deadline {
+                Err(Failure::new("DEADLINE"))
+            } else {
+                worker.execute(&job.principal, job.call, job.deadline)
+            };
+            let _ = reply.send(result);
+        }
+        Reply::Encoded(sender) => {
+            let mut output = job.output.take().expect("encoded job output context");
+            let result = if Instant::now() >= job.deadline {
+                Err(Failure::new("DEADLINE"))
+            } else {
+                worker.execute_budgeted(&job.principal, job.call, job.deadline, &mut output)
+            };
+            finish_encoded(
+                sender,
+                crate::output::OwnedValue::new(result, output),
+                job.deadline,
+            );
+        }
+    }
+}
+
+fn finish_encoded(
+    sender: oneshot::Sender<crate::output::Reply>,
+    value: crate::output::OwnedValue,
+    deadline: Instant,
+) {
+    if let Some(reply) = value.finish(deadline) {
+        // The same deadline includes final serialization. The job's
+        // independent hold survives even a successful send/wakeup.
+        send_before(sender, reply, deadline, Instant::now());
+    }
+}
+
+fn send_before(
+    sender: oneshot::Sender<crate::output::Reply>,
+    reply: crate::output::Reply,
+    deadline: Instant,
+    now: Instant,
+) {
+    if now < deadline {
+        let _ = sender.send(reply);
+    }
 }
 
 pub struct Scheduler {
@@ -578,16 +673,55 @@ impl Scheduler {
         call: Call,
         deadline: Instant,
     ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
+        let (reply, receiver) = oneshot::channel();
+        self.enqueue(principal, call, deadline, None, Reply::Value(reply), None)?;
+        Ok(receiver)
+    }
+
+    pub(crate) fn submit_encoded(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Arc<crate::intake::Lease>,
+        output: crate::output::OutputContext,
+    ) -> Result<oneshot::Receiver<crate::output::Reply>, Failure> {
+        reservation.claim(&principal, call.action.admission())?;
+        output.claim(&principal, call.action.admission() != "data")?;
+        let (sender, receiver) = oneshot::channel();
+        self.enqueue(
+            principal,
+            call,
+            deadline,
+            Some(reservation),
+            Reply::Encoded(sender),
+            Some(output),
+        )?;
+        Ok(receiver)
+    }
+
+    fn enqueue(
+        &self,
+        principal: Principal,
+        call: Call,
+        deadline: Instant,
+        reservation: Option<Arc<crate::intake::Lease>>,
+        reply: Reply,
+        output: Option<crate::output::OutputContext>,
+    ) -> Result<(), Failure> {
         let scope = call.scope.native()?;
         principal.authorize(&scope)?;
         let key = scap_object::format::head_key(&scope);
-        let (reply, receiver) = oneshot::channel();
+        let hold = output.as_ref().map(crate::output::OutputContext::work_hold);
         let job = Job {
             principal,
             call,
             key: key.clone(),
             deadline,
             reply,
+            _reservation: reservation,
+            _output_hold: hold,
+            output,
         };
         let mut state = lock(&self.shared.state);
         if state.closed {
@@ -604,7 +738,7 @@ impl Scheduler {
             state.usage.add(&job);
             state.controls[index].queue.push(job);
             state.controls[index].changed.notify_one();
-            return Ok(receiver);
+            return Ok(());
         }
         if let Some(actor) = state.actors.get(&key) {
             if actor.phase == Phase::Draining {
@@ -614,7 +748,7 @@ impl Scheduler {
             let actor = state.actors.get_mut(&key).expect("existing actor");
             actor.jobs.push(job);
             actor.changed.notify_one();
-            return Ok(receiver);
+            return Ok(());
         }
         let tenant = job.tenant();
         if state.actors.len() >= self.limits.active_database_actors
@@ -647,7 +781,7 @@ impl Scheduler {
         );
         drop(state);
         self.start_actor(key, slot, changed)?;
-        Ok(receiver)
+        Ok(())
     }
 }
 

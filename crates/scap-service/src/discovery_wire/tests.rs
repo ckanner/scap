@@ -52,6 +52,7 @@ fn all_classifications_and_failures_have_lossless_explicit_wire_values() {
         (E::Limit, "LIMIT"),
         (E::Conflict, "CONFLICT"),
         (E::Unknown, "UNKNOWN"),
+        (E::SnapshotExpired, "SNAPSHOT_EXPIRED"),
         (E::Corrupt, "CORRUPT"),
     ] {
         assert_eq!(error(e).code, code);

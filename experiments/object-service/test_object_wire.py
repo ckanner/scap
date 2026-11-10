@@ -11,7 +11,16 @@ HEAD = "/scap-test/scap-object/v1/1/7/10/head"
 
 
 def body(revision):
-    return json.dumps({"format":4,"revision":revision},separators=(",",":")).encode()
+    value = {"format": 6, "head_serial": revision,
+             "storage": {"active_generation": 1, "allocated_through": 1, "plan": None, "sweep": None},
+             "scope": {"deployment": 1, "tenant": 7, "database": 10, "incarnation": 1, "generation": 1},
+             "revision": revision, "transition": {"revision": revision, "nonce": revision}, "sequence": 0,
+             "owner_epoch": 1, "owner_instance": 7, "active": False, "auth_epoch": 1,
+             "policy": [{"principal": 11, "read": True, "write": True, "admin": True}],
+             "lifecycle": "ready", "creation": None, "deletion": None, "data_root": "a" * 64,
+             "quota": {"max_bytes": None}, "retention": {"max_entries": 4096, "max_result_bytes": 2**28},
+             "request_epoch": 1, "windows": [{"epoch": 1, "root": "b" * 64, "count": 0, "result_bytes": 0}]}
+    return json.dumps(value, separators=(",", ":")).encode()
 
 
 class Trace:
@@ -145,17 +154,17 @@ class VersionIntervalControls(unittest.TestCase):
 
     def test_successful_and_failed_cas_follow_the_observed_predecessor_version(self):
         trace=version_trace()
-        trace.exchange("PUT",begin=80,end=90,status=412,request=body(3),match='"opaque-v1"')
-        trace.exchange("PUT",begin=100,end=110,status=412,request=body(3),create="*")
+        trace.exchange("PUT",begin=80,end=90,status=412,request=body(2),match='"opaque-v1"')
+        trace.exchange("PUT",begin=100,end=110,status=412,request=body(1),create="*")
         trace.audit()
         for fault in ("reject_current","reject_empty","accept_stale","wrong_etag","reject_before_successor"):
             changed=version_trace()
             if fault=="reject_current":changed.exchange("PUT",begin=80,end=90,status=412,request=body(3),match='"opaque-v2"')
             elif fault=="reject_empty":
                 changed=Trace();changed.exchange("PUT",begin=10,end=20,status=412,request=body(1),create="*")
-            elif fault=="accept_stale":changed.exchange("PUT",begin=80,end=90,request=body(3),match='"opaque-v1"',etag='"v3"')
+            elif fault=="accept_stale":changed.exchange("PUT",begin=80,end=90,request=body(2),match='"opaque-v1"',etag='"v3"')
             elif fault=="wrong_etag":changed.exchange("PUT",begin=80,end=90,request=body(3),match='"missing"',etag='"v3"')
-            else:changed.exchange("PUT",begin=46,end=49,status=412,request=body(3),match='"opaque-v1"')
+            else:changed.exchange("PUT",begin=46,end=49,status=412,request=body(2),match='"opaque-v1"')
             with self.subTest(fault=fault),self.assertRaises(ValueError):changed.audit()
 
     def test_cas_cannot_borrow_an_exact_get_from_another_http_call(self):
@@ -177,6 +186,107 @@ class VersionIntervalControls(unittest.TestCase):
         response=next(row for row in trace.history if row["request_serial"]==5 and row["event"]=="object_response")
         response["monotonic_ns"]=105
         with self.assertRaisesRegex(ValueError,"backend response"):trace.audit(calls=calls)
+
+
+class HeadFiveBoundaryControls(unittest.TestCase):
+    def test_strict_required_metadata_rejects_legacy_missing_null_bool_and_future_storage(self):
+        original = wire.parse(body(2))
+        wire.head5_profile(original)
+        changes = [
+            ("legacy", lambda h: h.update(format=5), "HEAD is not format 6"),
+            ("future", lambda h: h.update(format=7), "HEAD is not format 6"),
+            ("serial_missing", lambda h: h.pop("head_serial"), "HEAD6 fields"),
+            ("storage_missing", lambda h: h.pop("storage"), "HEAD6 fields"),
+            ("storage_null", lambda h: h.update(storage=None), "incomplete HEAD6 storage"),
+            ("storage_empty", lambda h: h.update(storage={}), "incomplete HEAD6 storage"),
+            ("unsupported_pins", lambda h: h.update(pins=[]), "HEAD6 fields"),
+            ("unsupported_stage", lambda h: h["storage"].update(staging=None), "incomplete HEAD6 storage"),
+            ("active_zero", lambda h: h["storage"].update(active_generation=0), "invalid HEAD unsigned integer"),
+            ("active_bool", lambda h: h["storage"].update(active_generation=True), "invalid HEAD unsigned integer"),
+            ("allocated_two", lambda h: h["storage"].update(allocated_through=2), "unsupported HEAD6 storage generation"),
+            ("both_two", lambda h: h.update(storage={"active_generation": 2, "allocated_through": 2, "plan": None, "sweep": None}), "unsupported HEAD6 storage generation"),
+            ("serial_zero", lambda h: h.update(head_serial=0), "invalid HEAD unsigned integer"),
+            ("serial_bool", lambda h: h.update(head_serial=True), "invalid HEAD unsigned integer"),
+            ("serial_overflow", lambda h: h.update(head_serial=2**64), "invalid HEAD unsigned integer"),
+            ("serial_behind", lambda h: h.update(head_serial=1), "serial precedes logical revision"),
+        ]
+        for name, change, reason in changes:
+            candidate = copy.deepcopy(original); change(candidate)
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, reason):
+                wire.head5_profile(candidate)
+
+    def test_acl_bound_matches_production_1024_without_lowering_it(self):
+        head = wire.parse(body(1))
+        head["policy"] = [{"principal": n, "read": True, "write": False, "admin": n == 1}
+                          for n in range(1, 1025)]
+        wire.head5_profile(head)
+        head["policy"].append({"principal": 1025, "read": True, "write": False, "admin": False})
+        with self.assertRaisesRegex(ValueError, "1024-principal bound"):
+            wire.head5_profile(head)
+
+    def test_serial_and_business_revision_are_checked_separately_against_original_base(self):
+        previous = wire.parse(body(2)); previous["head_serial"] = 8
+        candidate = wire.parse(body(3)); candidate["head_serial"] = 9
+        wire.head5_publication(candidate, previous)
+        for serial in (8, 10):
+            changed = copy.deepcopy(candidate); changed["head_serial"] = serial
+            with self.subTest(serial=serial), self.assertRaisesRegex(ValueError, "original head serial"):
+                wire.head5_publication(changed, previous)
+        changed = copy.deepcopy(candidate); changed["revision"] = 4
+        changed["transition"]["revision"] = 4
+        with self.assertRaisesRegex(ValueError, "business publication revision"):
+            wire.head5_publication(changed, previous)
+        changed = copy.deepcopy(candidate); changed["scope"]["generation"] = 2
+        with self.assertRaisesRegex(ValueError, "logical Scope"):
+            wire.head5_publication(changed, previous)
+        with self.assertRaisesRegex(ValueError, "initial authority"):
+            wire.head5_publication(candidate)
+
+    def test_consistent_raw_wire_hashes_do_not_hide_a_skipped_head_serial(self):
+        trace = version_trace()
+        modified = wire.parse(body(2)); modified["head_serial"] = 3
+        raw = json.dumps(modified, separators=(",", ":")).encode()
+        for row in trace.history:
+            if row["request_serial"] == 4:
+                row.update(request_bytes=len(raw), request_sha256=hashlib.sha256(raw).hexdigest(),
+                           head_request_bytes=list(raw))
+            if row["request_serial"] == 5 and row["event"] in ("object_response", "object_response_delivered"):
+                row.update(response_bytes=len(raw), response_sha256=hashlib.sha256(raw).hexdigest(),
+                           head_response_bytes=list(raw))
+        with self.assertRaisesRegex(ValueError, "original head serial"):
+            trace.audit()
+
+    def test_consistent_raw_wire_hashes_do_not_bypass_nested_head_schema(self):
+        for name, change, reason in (
+            ("scope", lambda h: h["scope"].update(incarnation=0), "invalid HEAD unsigned integer"),
+            ("transition", lambda h: h["transition"].update(revision=1), "revision/transition mismatch"),
+            ("policy", lambda h: h["policy"][0].update(admin=False), "HEAD has no ADMIN"),
+            ("duplicate_principal", lambda h: h["policy"].append(copy.deepcopy(h["policy"][0])),
+             "invalid or duplicate HEAD permission"),
+            ("window", lambda h: h["windows"][0].update(epoch=2), "HEAD window epoch changed"),
+            ("quota", lambda h: h["quota"].update(max_bytes=4097), "quota page alignment/bound"),
+        ):
+            trace = version_trace()
+            modified = wire.parse(body(2)); change(modified)
+            raw = json.dumps(modified, separators=(",", ":")).encode()
+            for row in trace.history:
+                if row["request_serial"] == 4:
+                    row.update(request_bytes=len(raw), request_sha256=hashlib.sha256(raw).hexdigest(),
+                               head_request_bytes=list(raw))
+                if row["request_serial"] == 5 and row["event"] in ("object_response", "object_response_delivered"):
+                    row.update(response_bytes=len(raw), response_sha256=hashlib.sha256(raw).hexdigest(),
+                               head_response_bytes=list(raw))
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, reason):
+                trace.audit()
+
+    def test_flat_or_unimplemented_storage_paths_are_not_valid_object_witnesses(self):
+        path = "/scap-test/scap-object/v1/1/7/10/inc/1/gen/1/storage/1/objects/" + hashlib.sha256(b"frame").hexdigest()
+        good = Trace(); good.exchange("PUT", begin=10, end=20, path=path, request=b"frame", create="*", etag='"obj"')
+        good.audit()
+        for invalid in (path.replace("/storage/1", ""), path.replace("/storage/1", "/storage/2")):
+            trace = Trace(); trace.exchange("PUT", begin=10, end=20, path=invalid, request=b"frame", create="*", etag='"obj"')
+            with self.subTest(path=invalid), self.assertRaisesRegex(ValueError, "physical namespace"):
+                trace.audit()
 
 
 if __name__=="__main__":unittest.main()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent original-wire/process/build audit for the HEAD4 index contract."""
+"""Independent original-wire/process/build audit for the HEAD6 index contract."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ import re
 import signal
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, equal, fingerprint, parse, require, result
+from audit_wire import b64, committed, equal, fingerprint, head5_publication, parse, require, result
 from service_oracle import build_receipt, exchanges, exited, identity, only, rows, stamp, value_of
 from segmented_spec import BACKEND_VERSION, CALLS, DEADLINES, LAST_ID, PHASES, PLAN, SCOPE
 from segmented_tree_audit import HEAD, PREFIX, SCOPE as NATIVE_SCOPE, Trees, digest, envelope, head, sha
@@ -288,6 +288,7 @@ def semantic_network(ordered, by_call, fixture, expected, originals, observed):
             continue
         if item["fixture"]: continue
         label = item["label"]; candidate = head(item["sent"])
+        head5_publication(candidate, publications[-1]["head"] if publications else None)
         require(label in seed_labels and label not in heads, "extra runtime HEAD publication")
         if label == "create": count, revision, nonce, sequence, active = 0, 1, 701, 0, False
         elif label == "activate": count, revision, nonce, sequence, active = 0, 2, 702, 0, True
@@ -312,7 +313,7 @@ def semantic_network(ordered, by_call, fixture, expected, originals, observed):
             require(candidate["data_root"] == root, "HEAD lost original SQL data root")
         if publications:
             previous = publications[-1]["head"]
-            excluded = {"revision", "transition", "sequence", "active", "data_root", "windows"}
+            excluded = {"head_serial", "revision", "transition", "sequence", "active", "data_root", "windows"}
             equal({k: v for k, v in candidate.items() if k not in excluded}, {k: v for k, v in previous.items() if k not in excluded},
                   "publication silently changed unrelated authority fields")
         heads[label] = (candidate, item["sent"]); levels[count] = proof["level"]
@@ -406,7 +407,7 @@ def semantic_network(ordered, by_call, fixture, expected, originals, observed):
             expected_count = 4 if name == "cancelled" else 5
             require(len(items) == expected_count and all(item["request"]["method"] == "GET" for item in items),
                     "three-level point lookup did not stay on one bounded path")
-    return {"accepted_runtime_HEADs": len(publications), "head_format": 4, "observed_split_counts": [129, 2113],
+    return {"accepted_runtime_HEADs": len(publications), "head_format": 6, "observed_split_counts": [129, 2113],
             "retained_entries": len(proof["entries"]), "current_index_nodes": len(proof["dependencies"]) - 2,
             "current_complete_dependencies": len(complete), "original_result_bytes": proof["summary"]["result_bytes"],
             "cold_complete_graph_checks": 2, "rejected_non_target_checks": 6, "resident_HEAD_only_queries": 3,

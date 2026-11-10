@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "status": "STATIC_SOURCE_FROZEN_RUNTIME_GATES_NOT_RUN",
+  "source_base_commit": "4329f307752ec40ce43d1fd9f52211cac65c8090",
+  "scope": "Move three Base64 Strings into Value; owned and borrowed success envelopes avoid outer Value deep copies. No output pool, codec, budget, error, deadline, or public Engine/Worker return-type change.",
+  "frozen_manifest_sha256": "ff7749549549979519ca8c03c12e5216d8cb74414f1c1cba7266d9e099d8fcbe",
+  "frozen_patch_sha256": "08e434c82b9f1fc243e0fab57c4c10077797abdb91394438e33fb04bfd76ec76",
+  "files": [
+    {
+      "base_sha256": "d0cfadfcda666810e641f84af0d223f8f2c553de4288a4598d95856ad3735152",
+      "bytes": 12525,
+      "path": "crates/scap-service/src/engine.rs",
+      "sha256": "fa5452766e80ffe42f5c420786c199e0778158516a759c6ef03190a5fd26b2c4"
+    },
+    {
+      "base_sha256": "62cc59f56c3ab20a07502eab98b27888c879b672aa366d87432fbb0ac015fa59",
+      "bytes": 16197,
+      "path": "crates/scap-service/src/wire.rs",
+      "sha256": "cac00d0d63d5220d565b8e5456f4680fea498872d6c3e871c29c7652780c75ee"
+    },
+    {
+      "base_sha256": "1427161dac1078c02569cce798b6cb81ea2753219b86b5edb55ef289bdddce19",
+      "bytes": 11282,
+      "path": "crates/scap-service/src/http.rs",
+      "sha256": "5f6dc2679687f31ce9d535c0616912c24f2773889fb98298137a66bf071bc17b"
+    },
+    {
+      "base_sha256": "150ac43f2b58a46a33beea41fd2646f3e2c4e244a79c4d469037ee1910c01c2d",
+      "bytes": 10219,
+      "path": "crates/scap-service/src/discovery.rs",
+      "sha256": "84d3f694709c617b8b424547fa110344b5ebcf74cf6362bba65181741e167ec7"
+    },
+    {
+      "base_sha256": "9bcf477d6daa5f7c5d6d5b7343aae5316b295ba30052bf800fc13aa586f4b2c1",
+      "bytes": 15181,
+      "path": "crates/scap-service/src/wire/tests.rs",
+      "sha256": "f38e970a5e93de48c4e22bcf8c42517ea8b1913259fec8eaaacf8b61e6d1fa69"
+    }
+  ],
+  "static_reviews": [
+    "author scope review",
+    "independent service_resources review",
+    "root complete patch review; no concrete blocker found"
+  ],
+  "checks": {
+    "git_diff_check": "PASS",
+    "rustfmt": "NOT_RUN",
+    "compilation": "NOT_RUN",
+    "service_unit": "NOT_RUN",
+    "strict_clippy": "NOT_RUN",
+    "fresh_unit_four_metric_coverage": "NOT_RUN",
+    "actual_http_s3": "NOT_RUN",
+    "global_output_budget": "NOT_IMPLEMENTED",
+    "throughput_slo": "NOT_RUN"
+  },
+  "limitations": [
+    "The change removes copies; it does not account for global response allocation or process RSS.",
+    "No change to SDK fields, budgets, deadlines, original receipt, UNKNOWN, CBU or SQL replay rules.",
+    "Unverified production changes remain draft and are not eligible to merge."
+  ],
+  "raw_evidence_directory": "/tmp/scap-output-copy-freeze-01"
+}

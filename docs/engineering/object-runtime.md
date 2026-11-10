@@ -1,6 +1,6 @@
-# 对象原生运行时：HEAD 4 与 v2 不可变对象
+# 对象原生运行时：HEAD 5 与 v2 不可变对象
 
-本分支使用 HEAD format 4 与有界分段请求索引；不可变 `SCAPOBJ2` 帧仍为 format 2。HEAD 3 的正式名称目录历史验收见 [PR #31/#32 记录](catalogue-actors-validation.md)与 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)。分段索引的设计和候选证据见[独立说明](../architecture/segmented-request-index.md)；历史结果只认证其各自记录的源码，不能替代当前组合候选验收。
+本候选使用 HEAD format 5，增加单调技术序号与独立物理世代地址；有界分段请求索引和不可变 `SCAPOBJ2` 帧仍保持原格式。当前仅接受物理世代 `1/1`，尚不接受 pin、freeze、迁移或 DELETE；具体边界见 [HEAD 5 基础切片](../architecture/head5-foundation.md)。HEAD 3 的正式名称目录历史验收见 [PR #31/#32 记录](catalogue-actors-validation.md)与 [ADR-0024](../adr/0024-named-catalogue-and-permanent-identities.md)，HEAD 4 记录见[发现与恢复组合](discovery-recovery-validation.md)。这些历史结果只认证各自的源码，HEAD 5 必须重新完成受影响的单元、native 和真实 S3 门禁。
 
 主入口是 `scap_object::Database`，用 `Arc<dyn scap_object_store::Objects>`、不可变 Scope、非零 worker identity 和 `Options` 装配。`Database::new` 使用默认配置；`with_options` 在构造时校验显式配置。S3 adapter 拥有异步 runtime，给独立阻塞 SQL 线程提供同步对象 port，不应从同一异步 executor 直接阻塞调用。
 
@@ -38,9 +38,13 @@ let database = scap_object::Database::with_options(objects, scope, worker_id, op
 
 ## 权威与数据布局
 
-HEAD key 固定绑定 deployment/tenant/database；incarnation 和 authority generation 放入 body，每次读取校验。key 的既有 `scap-object/v1/.../head` 命名空间不随版本迁移，避免通过换 key 绕过既有身份或删除屏障。HEAD 4 继续显式要求 nullable creation/deletion 来源，直接按 Scope 创建时两者均为 null；命名库严格绑定创建/删除来源。不可变 v2 帧不兼容 v1 对象，不自动迁移旧库或 HEAD，也不自动重新初始化缺失或不兼容 HEAD。
+HEAD key 固定绑定 deployment/tenant/database；incarnation 和 authority generation 放入 body，每次读取校验。key 的既有 `scap-object/v1/.../head` 命名空间不随格式升级，避免通过换 key 绕过既有身份或删除屏障。HEAD 5 继续显式要求 nullable creation/deletion 来源，直接按 Scope 创建时两者均为 null；命名库严格绑定创建/删除来源。旧 HEAD 4 和缺少新增字段的对象严格拒绝；不存在自动迁移、旧路径 fallback 或缺失时重新建空库。
 
-不可变对象 key 包含全部 scope 和 SHA-256。GET 的 ETag 是 opaque 条件比较令牌，不当成内容摘要。HEAD 包含 revision/transition、SQL sequence、owner、policy、lifecycle、quota、retention、数据根和三个以内的请求世代索引 root。内部 u64 JSON 字段保持精确；现有 HTTP/Node 入口以规范十进制字符串传递身份，类型化 SQL 另有无损编码，见 [ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
+不可变对象 key 包含全部逻辑 Scope、捕获的物理世代和 SHA-256：`.../inc/{incarnation}/gen/{logical_generation}/storage/{physical_generation}/objects/{hash}`。物理世代不进入 SCAPOBJ2 frame，因此原对象字节、hash 和 receipt 身份不改变。当前 `storage.active_generation` 与 `allocated_through` 必须都等于 1；非平凡状态在准入协议实现前拒绝。一次 ObjectContext 固定原 backend、Scope 和物理世代，中途不能随新 HEAD 改写目的地。
+
+每次成功 HEAD 条件替换严格推进 `head_serial`；业务 `revision/transition` 保持其原 API 含义，两类计数独立检查且溢出拒绝。初次条件创建要求 serial/revision 均为 1。私有 PreparedHead 只保存原 Snapshot 的 ETag、已编码候选、后端、永久 key 和绝对 deadline，执行一次条件 PUT；它不读取 immutable 对象，也不把 PUT 回执合成为新 Snapshot。普通业务发布仍在它外面完成 manifest、quota 和共享隔离检查。此原语本身不授予 pin 或 GC 权限。
+
+GET 的 ETag 是 opaque 条件比较令牌，不当成内容摘要。HEAD 还包含 SQL sequence、owner、policy、lifecycle、quota、retention、数据根和三个以内的请求世代索引 root。内部 u64 JSON 字段保持精确；现有 HTTP/Node 入口以规范十进制字符串传递身份，不暴露技术序号或 storage 字段，类型化 SQL 另有无损编码，见 [ADR-0023](../adr/0023-authenticated-http-and-node-sdk.md)。
 
 数据 Manifest 只保存 `page_count` 和树根。每块最多 **32 页 / 128 KiB**，树节点最多 256 个子引用，零起始 level 最高为 3，足以覆盖整个原生页号空间。节点的 level、范围、子引用数量和块的起始页、长度逐项绑定。增长必须提供所有新页，不能用空洞或补零掩盖缺失页。唯一的引擎格式例外是 SQLite 第 262145 页锁字节保留页：原生适配器只在首次跨越时显式提供该页的确定零字节，计入变化页预算；已存在的权威字节不被覆盖。数据树本身仍要求页齐全。截断只改变引用，不删除远端对象。热修改只加载受影响块和祖先路径，未变化子树继续引用原不可变对象。
 
@@ -87,3 +91,12 @@ cache spill 开启，尚未提交的 `xFrames` 在当前 adapter 中安全拒绝
 相关决定及官方产品容量对照见 [ADR-0022](../adr/0022-production-capacity.md)。
 
 本地执行镜像及 WAL/SHM 必须使用可靠的私有本地存储。Linux 目录类型防护已通过 [PR #28 的独立本地验收](local-storage-validation.md)，支持边界见[SQLite 存储安全](../operations/sqlite-storage-safety.md)。目录防护不能证明任意 overlay 底层、设备或真实网络挂载的 I/O 正确性；后续运行时变更仍重新执行受影响门禁。
+
+## 私有连接不变量与 native 版本维护
+
+每个活动 SQLite cache 文件只允许一个 SCAP 控制的 native 连接；运维 sidecar、
+SQLite CLI、备份程序或 embedding host 不得另外打开该文件。查询、写入及
+checkpoint 使用原连接串行执行；其他数据库或 owner 候选使用不同私有文件。
+这一约束也排除了当前固定 native 的 WAL-reset 多连接触发拓扑，但不能宣称引擎
+已经修补。已发现的上游修复、当前 pin 的源码核对及升级所需验证见
+[WAL-reset 评估](../architecture/sqlite-wal-reset-assessment.md)。

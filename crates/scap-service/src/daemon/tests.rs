@@ -3,15 +3,73 @@ use crate::tests::{call, principal, sample_config, until, Memory};
 use crate::wire::{Action, Decimal};
 
 fn prepared(parent: &std::path::Path) -> Prepared {
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
-    let prepared = Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
+    let _credentials = crate::tests::test_credentials();
+    Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
         .unwrap()
         .prepare()
+        .unwrap()
+}
+
+#[test]
+fn output_validation_and_budgeted_factory_are_wired_into_actual_assembly() {
+    use crate::output::{tests::usage, BASE_BYTES};
+    let directory = tempfile::tempdir().unwrap();
+    let mut invalid = prepared(directory.path());
+    invalid.service.output.version = 2;
+    assert_eq!(
+        assemble(invalid.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    let mut invalid = prepared(directory.path());
+    invalid.service.output.control_bytes = 0;
+    assert_eq!(
+        serve(invalid, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+
+    let (_, state) = assemble(
+        prepared(directory.path()).service,
+        Arc::new(Memory::default()),
+    )
+    .unwrap();
+    let pool = state.output.clone();
+    let reply = state
+        .scheduler
+        .submit_encoded(
+            principal(),
+            call(Action::Create { nonce: Decimal(1) }),
+            until(),
+            state.intake.acquire(&principal()).unwrap(),
+            pool.acquire(&principal(), false).unwrap(),
+        )
+        .unwrap()
+        .blocking_recv()
         .unwrap();
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
-    prepared
+    assert_eq!(reply.status, axum::http::StatusCode::OK);
+    let value: serde_json::Value = serde_json::from_slice(&reply.bytes).unwrap();
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["value"]["revision"], "1");
+    // Joining the actual workers removes the send/wakeup race. The final
+    // response still independently owns the base output allowance.
+    drop(state);
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
 }
 
 #[test]
@@ -37,6 +95,7 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
         .submit(
             principal(),
             call(Action::Activate {
+                expected_worker_instance: None,
                 expected_revision: Decimal(1),
                 nonce: Decimal(2),
             }),
@@ -52,6 +111,125 @@ fn service_factory_calls_the_real_engine_and_drops_all_private_cache_files() {
         .next()
         .is_some());
     drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
+fn configured_graph_allowance_reaches_the_actual_native_worker_and_preserves_control_access() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut configuration = prepared(directory.path());
+    configuration.service.options.result_memory_bytes =
+        std::mem::size_of::<scap_sql::TransactionResult>() as u64;
+    let (_, state) = assemble(configuration.service, Arc::new(Memory::default())).unwrap();
+    for action in [
+        Action::Create { nonce: Decimal(1) },
+        Action::Activate {
+            expected_worker_instance: None,
+            expected_revision: Decimal(1),
+            nonce: Decimal(2),
+        },
+    ] {
+        state
+            .scheduler
+            .submit(principal(), call(action), until())
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap();
+    }
+    let error = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Query {
+                statements: vec![crate::wire::WireStatement {
+                    sql: "SELECT 1".into(),
+                    params: vec![],
+                }],
+            }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.code, "LIMIT");
+    assert!(error.receipt.is_none());
+    let status = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Status {
+                expected_worker_instance: None,
+            }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(status["active"], true);
+    drop(state);
+    let mut invalid = prepared(directory.path());
+    invalid.service.options.result_memory_bytes = 0;
+    assert_eq!(
+        assemble(invalid.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}
+
+#[test]
+fn direct_assembly_rejects_each_invalid_intake_profile_without_leaking_private_workers() {
+    let directory = tempfile::tempdir().unwrap();
+    let invalid = Some(crate::intake::Profile {
+        version: 1,
+        requests_per_tenant: 1,
+        body_bytes: 0,
+        body_bytes_per_tenant: 0,
+    });
+    for set in [
+        |admission: &mut crate::config::Admission, profile| admission.data_profile = profile,
+        |admission: &mut crate::config::Admission, profile| admission.control_profile = profile,
+        |admission: &mut crate::config::Admission, profile| admission.recovery_profile = profile,
+    ] {
+        let mut configuration = prepared(directory.path());
+        set(&mut configuration.service.admission, invalid);
+        assert_eq!(
+            assemble(configuration.service, Arc::new(Memory::default()))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+    let mut configuration = prepared(directory.path());
+    configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+        intake_profile: invalid,
+    });
+    assert_eq!(
+        assemble(configuration.service, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
     assert!(std::fs::read_dir(directory.path())
         .unwrap()
         .next()
@@ -144,6 +322,7 @@ fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object
             &state,
             database,
             Action::Activate {
+                expected_worker_instance: None,
                 expected_revision: Decimal(1),
                 nonce: Decimal(2),
             },
@@ -199,7 +378,13 @@ fn real_native_hot_session_runs_while_another_database_is_blocked_in_cold_object
         cold.try_recv(),
         Err(tokio::sync::oneshot::error::TryRecvError::Empty)
     ));
-    receive(submit(&state, 10, Action::Status {}));
+    receive(submit(
+        &state,
+        10,
+        Action::Status {
+            expected_worker_instance: None,
+        },
+    ));
     release.send(()).unwrap();
     receive(cold);
     objects.memory.calls.lock().unwrap().clear();
@@ -220,6 +405,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
     let directory = tempfile::tempdir().unwrap();
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 1,
         queued_total: 4,
         queued_per_tenant: 3,
@@ -248,6 +434,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
         .is_none());
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 0,
         queued_total: 4,
         queued_per_tenant: 3,
@@ -259,6 +446,7 @@ fn enabled_catalogue_has_a_separate_worker_pool_and_rejects_invalid_direct_confi
     assert!(assemble(configuration.service, Arc::new(Memory::default())).is_err());
     let mut configuration = prepared(directory.path());
     configuration.service.catalogue = Some(crate::config::CatalogueAdmission {
+        intake_profile: None,
         workers: 1,
         queued_total: 4,
         queued_per_tenant: 3,
@@ -310,6 +498,7 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         run(
             "127.0.0.1:0".parse().unwrap(),
             state,
+            crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             failed_runtime
         )
@@ -327,6 +516,7 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         run(
             "127.0.0.1:0".parse().unwrap(),
             state,
+            crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             runtime
         )
@@ -334,13 +524,16 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         .code,
         "CONFIG"
     );
+    let mut configuration = prepared(directory.path());
+    configuration.service.transport.max_connections = 0;
     assert_eq!(
-        http_result(Err(std::io::Error::other("unit accept failure")))
-            .unwrap_err()
-            .code,
-        "HTTP"
+        serve(configuration, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
     );
-    assert!(http_result(Ok(())).is_ok());
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
 }
 
 #[test]
@@ -389,14 +582,13 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
         Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
     config.version = 2;
     assert_eq!(launch(config).unwrap_err().code, "CONFIG");
-    std::env::set_var("SCAP_TEST_ACCESS", "access");
-    std::env::set_var("SCAP_TEST_SECRET", "secret");
-    let mut config =
-        Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
-    config.s3.endpoint = "bad".into();
-    assert_eq!(launch(config).unwrap_err().code, "CONFIG");
-    std::env::remove_var("SCAP_TEST_ACCESS");
-    std::env::remove_var("SCAP_TEST_SECRET");
+    {
+        let _credentials = crate::tests::test_credentials();
+        let mut config =
+            Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
+        config.s3.endpoint = "bad".into();
+        assert_eq!(launch(config).unwrap_err().code, "CONFIG");
+    }
     runtime().unwrap().block_on(async {
         assert!(tokio::time::timeout(
             Duration::from_millis(1),
@@ -447,4 +639,149 @@ fn discovery_startup_requires_a_listing_transport_and_validates_the_direct_worke
     let (_, state) = assemble_with_listings(p, memory.clone(), Some(memory)).unwrap();
     assert!(state.discovery.is_some());
     drop(state);
+}
+
+fn gc_prepared(parent: &std::path::Path) -> Prepared {
+    let mut value = prepared(parent);
+    value.service.gc_deployment = Some(1);
+    value.gc = Some(PreparedGarbage {
+        deployment: 1,
+        s3: S3Config {
+            endpoint: value.s3.endpoint.clone(),
+            region: value.s3.region.clone(),
+            bucket: value.s3.bucket.clone(),
+            access_key: "collector-access".into(),
+            secret_key: "collector-secret".into(),
+            session_token: None,
+            timeout: value.s3.timeout,
+            max_object_bytes: value.s3.max_object_bytes,
+            allow_http: value.s3.allow_http,
+        },
+    });
+    value
+}
+
+#[test]
+fn direct_prepared_gc_cannot_rebind_authority_or_silently_enable_delete() {
+    let directory = tempfile::tempdir().unwrap();
+    let changes: [fn(&mut Prepared); 10] = [
+        |p| p.service.gc_deployment = None,
+        |p| p.gc.as_mut().unwrap().s3.endpoint = "http://127.0.0.1:8".into(),
+        |p| p.gc.as_mut().unwrap().s3.region = "elsewhere".into(),
+        |p| p.gc.as_mut().unwrap().s3.bucket = "other-bucket".into(),
+        |p| p.gc.as_mut().unwrap().s3.timeout += Duration::from_secs(1),
+        |p| p.gc.as_mut().unwrap().s3.allow_http = !p.s3.allow_http,
+        |p| p.gc.as_mut().unwrap().s3.max_object_bytes += 1,
+        |p| p.gc.as_mut().unwrap().s3.access_key = p.s3.access_key.clone(),
+        |p| {
+            p.gc.as_mut().unwrap().deployment = 0;
+            p.service.gc_deployment = Some(0);
+        },
+        |p| p.gc.as_mut().unwrap().s3.secret_key.clear(),
+    ];
+    for change in changes {
+        let mut value = gc_prepared(directory.path());
+        change(&mut value);
+        assert_eq!(
+            gc_backend(value.gc, value.service.gc_deployment, &value.s3)
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    let value = gc_prepared(directory.path());
+    assert_eq!(
+        gc_backend(None, value.service.gc_deployment, &value.s3)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    assert!(gc_backend(value.gc, value.service.gc_deployment, &value.s3)
+        .unwrap()
+        .is_some());
+    let mut missing = gc_prepared(directory.path());
+    missing.gc = None;
+    assert_eq!(
+        serve(missing, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
+    );
+    // Production construction/drop remains outside its request runtime even when
+    // both ordinary and dedicated S3 adapters are present.
+    serve(gc_prepared(directory.path()), Box::pin(async {})).unwrap();
+}
+
+#[test]
+fn gc_assembly_requires_exact_capabilities_and_wires_the_collector_into_workers() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    for (deployment, listing, garbage) in [
+        (Some(0), true, true),
+        (Some(1), false, true),
+        (Some(1), true, false),
+        (None, true, true),
+    ] {
+        let mut value = prepared(directory.path()).service;
+        value.gc_deployment = deployment;
+        assert_eq!(
+            assemble_with_storage(
+                value,
+                memory.clone(),
+                listing.then(|| memory.clone() as Arc<dyn Listings>),
+                garbage.then(|| memory.clone() as Arc<dyn Garbage>)
+            )
+            .err()
+            .unwrap()
+            .code,
+            "CONFIG"
+        );
+    }
+    let (_, state) = assemble_with_storage(
+        gc_prepared(directory.path()).service,
+        memory.clone(),
+        Some(memory.clone()),
+        Some(memory.clone()),
+    )
+    .unwrap();
+    let submit = |action| {
+        state
+            .scheduler
+            .submit(principal(), call(action), until())
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap()
+    };
+    let first = submit(Action::Create { nonce: Decimal(1) });
+    let begun = submit(Action::CompactBegin {
+        expected_head_serial: Decimal(first["head_serial"].as_str().unwrap().parse().unwrap()),
+    });
+    let plan = Decimal(
+        begun["storage"]["plan"]["serial"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap(),
+    );
+    let aborted = submit(Action::CompactAbort { plan_serial: plan });
+    let empty = submit(Action::GcPrepare {
+        expected_head_serial: Decimal(aborted["head_serial"].as_str().unwrap().parse().unwrap()),
+        generation: Decimal(2),
+        after: None,
+    });
+    assert_eq!(empty["scanned"], 0);
+    assert_eq!(empty["exhausted"], true);
+    assert!(empty["status"]["storage"]["sweep"].is_null());
+    assert!(memory
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|call| call.starts_with("LIST ")));
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
 }

@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use libsql_sys::ffi;
 use libsql_sys::rusqlite::hooks::{AuthAction, AuthContext, Authorization, TransactionOperation};
 use libsql_sys::rusqlite::types::ValueRef;
-use scap_sql::{SqlError, Value};
+use scap_sql::{ResultMemoryBudget, SqlError, Value};
 
 #[path = "capacity_tests.rs"]
 mod capacity_tests;
@@ -12,6 +12,8 @@ mod capacity_tests;
 mod image_tests;
 #[path = "query_tests.rs"]
 mod query_tests;
+#[path = "result_memory_tests.rs"]
+mod result_memory_tests;
 
 #[derive(Default)]
 struct Plan {
@@ -42,6 +44,7 @@ fn limits() -> WriterLimits {
             max_result_bytes: 1_048_576,
             max_value_bytes: 65_536,
         },
+        result_memory_bytes: 4 * 1024 * 1024,
         max_vm_steps: 1_000_000,
         max_changed_pages: 1024,
         max_database_pages: 4096,
@@ -589,6 +592,92 @@ fn input_and_sql_failures_stop_and_rollback_the_whole_attempt() {
 }
 
 #[test]
+fn encoding_failure_after_sql_rolls_back_without_publication_or_replay() {
+    for refused in [
+        SqlError::ResourceExhausted,
+        SqlError::Limit,
+        SqlError::Invalid,
+        SqlError::Malformed,
+    ] {
+        let (_root, mut writer, plan) = setup();
+        let mut attempts = 0;
+        let outcome = writer.execute_with_encoder(
+            &[
+                statement("CREATE TABLE encoding_attempt(n INTEGER PRIMARY KEY)"),
+                statement("INSERT INTO encoding_attempt VALUES(7) RETURNING n"),
+            ],
+            uninterrupted(),
+            &mut |result, configuration| {
+                attempts += 1;
+                assert_eq!(result.statements[1].rows, vec![vec![Value::Integer(7)]]);
+                assert_eq!(result.statements[1].affected_rows, 1);
+                assert_eq!(result.statements[1].last_insert_rowid, 7);
+                // SQL really produced a valid retained result; the failure is
+                // deliberately at its one local encoding boundary, before CAS.
+                scap_sql::plan_result(result, configuration).unwrap();
+                Err(refused)
+            },
+        );
+        assert_eq!(attempts, 1);
+        match refused {
+            SqlError::ResourceExhausted => {
+                assert!(matches!(outcome, Err(Error::ResourceExhausted)));
+            }
+            other => assert!(matches!(outcome, Err(Error::Sql(error)) if error == other)),
+        }
+        assert!(writer.is_stopped());
+        assert!(writer.connection.is_autocommit());
+        assert!(writer.state.borrow().attempt.is_none());
+        assert!(writer.state.borrow().resolution.is_none());
+        assert!(plan.borrow().writes.is_empty());
+        let tables: u64 = writer
+            .connection
+            .query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE name='encoding_attempt'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tables, 0, "the complete native transaction was rolled back");
+        assert!(matches!(
+            writer.execute_with_encoder(
+                &[statement("SELECT 1")],
+                uninterrupted(),
+                &mut |_, _| panic!("a stopped attempt must not execute or encode again"),
+            ),
+            Err(Error::Stopped)
+        ));
+        assert_eq!(attempts, 1);
+        assert!(plan.borrow().writes.is_empty());
+    }
+}
+
+#[test]
+fn read_validation_counts_the_complete_wire_without_publishing() {
+    // SCAPRES1 header12 + column-count4 + name-length4 + x1 + row-count4
+    // + NULL tag1 + affected_rows8 + last_insert_rowid8 = 42 bytes.
+    for maximum in [41, 42] {
+        let (_root, mut writer, plan) = setup();
+        writer.limits.sql.max_result_bytes = maximum;
+        let result = writer.query(&[statement("SELECT NULL AS x")], uninterrupted());
+        if maximum == 41 {
+            assert!(matches!(result, Err(Error::Sql(SqlError::Limit))));
+            assert!(writer.is_stopped());
+        } else {
+            let result = result.unwrap();
+            assert_eq!(result.statements[0].columns, ["x"]);
+            assert_eq!(result.statements[0].rows, vec![vec![Value::Null]]);
+            assert_eq!(result.statements[0].affected_rows, 0);
+            assert_eq!(result.statements[0].last_insert_rowid, 0);
+            assert!(!writer.is_stopped());
+        }
+        assert!(plan.borrow().writes.is_empty());
+        assert!(writer.connection.is_autocommit());
+        assert_eq!(writer.page_count(), 0);
+    }
+}
+
+#[test]
 fn result_limits_and_vm_budget_prevent_unbounded_buffering() {
     let (_root, mut writer, plan) = setup();
     writer.limits.sql.max_columns = 1;
@@ -887,6 +976,7 @@ fn authorizer_rejects_side_effect_surfaces_and_non_main_schemas() {
 
 #[test]
 fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
+    let memory = &mut ResultMemoryBudget::new(4096).unwrap();
     let cases = [
         (ValueRef::Null, Value::Null),
         (ValueRef::Integer(-1), Value::Integer(-1)),
@@ -896,23 +986,23 @@ fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
     ];
     for (input, expected) in cases {
         assert_eq!(
-            sql::copy_value(input, &mut 100, limits()).unwrap(),
+            sql::copy_value(input, &mut 100, limits(), memory).unwrap(),
             expected
         );
         assert!(matches!(
-            sql::copy_value(input, &mut 0, limits()),
+            sql::copy_value(input, &mut 0, limits(), memory),
             Err(Error::ResultLimit)
         ));
     }
     assert!(matches!(
-        sql::copy_value(ValueRef::Text(&[255]), &mut 100, limits()),
+        sql::copy_value(ValueRef::Text(&[255]), &mut 100, limits(), memory),
         Err(Error::InvalidSql)
     ));
     let mut small = limits();
     small.sql.max_value_bytes = 1;
     for value in [ValueRef::Text(b"xx"), ValueRef::Blob(b"yy")] {
         assert!(matches!(
-            sql::copy_value(value, &mut 100, small),
+            sql::copy_value(value, &mut 100, small, memory),
             Err(Error::ResultLimit)
         ));
     }
@@ -930,7 +1020,7 @@ fn value_copy_checks_lengths_budgets_and_utf8_before_allocating() {
         ValueRef::Blob(b"x"),
     ] {
         assert!(matches!(
-            sql::copy_value(value, &mut 1, limits()),
+            sql::copy_value(value, &mut 1, limits(), memory),
             Err(Error::ResultLimit)
         ));
     }

@@ -482,7 +482,7 @@ fn foreign_named_source_requires_exact_descriptor_but_not_business_closure_or_cu
     )
     .unwrap();
     let head = database.create(90, 1, deadline()).unwrap();
-    objects.remove(&format::object_key(&foreign_scope, &head.data_root));
+    objects.remove(&format::object_key(&foreign_scope, 1, &head.data_root));
     objects.clear_calls();
     assert_eq!(
         catalogue

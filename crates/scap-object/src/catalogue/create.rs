@@ -1,5 +1,6 @@
 use super::inspect::CreateStep;
 use super::*;
+use crate::object_context::ObjectContext;
 use records::BindingState;
 
 impl Catalogue {
@@ -117,8 +118,9 @@ impl Catalogue {
         require(binding.body.creation == source.creation && binding.stage == NameStage::Bound)?;
         Self::provisioning(source, &base.head)?;
         let database = self.database(source);
+        let objects = ObjectContext::from_snapshot(&database, base, deadline);
         database
-            .verify_closure(&base.head, deadline)
+            .verify_closure(&objects, base, deadline)
             .map_err(core_error)?;
         let current = database.read_head(deadline).map_err(core_error)?;
         if current.etag != base.etag || current.head != base.head {
@@ -126,14 +128,11 @@ impl Catalogue {
         }
         // A verified Provisioning HEAD is always its first revision. Completing
         // it preserves the initial owner, policy and inactive state.
-        let mut head = base.head.clone();
-        head.revision = 2;
-        head.transition = format::Transition {
-            revision: 2,
-            nonce: source.creation.operation,
-        };
+        let mut head = Database::next(&base.head, source.creation.operation).map_err(core_error)?;
         head.lifecycle = Lifecycle::Ready;
-        database.publish(base, &head, deadline).map_err(core_error)
+        database
+            .publish_in(&objects, base, &head, deadline)
+            .map_err(core_error)
     }
 }
 

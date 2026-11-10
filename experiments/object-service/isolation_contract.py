@@ -150,7 +150,7 @@ class Suite:
         # Select from actual original committed immutable bytes, never a later
         # HEAD refresh. The independent oracle reconstructs the same tree itself.
         state = json.loads((self.evidence / "isolation-state.json").read_text())
-        prefix = "/scap-test/scap-object/v1/1/7/101/inc/1/gen/1/objects/"
+        prefix = "/scap-test/scap-object/v1/1/7/101/inc/1/gen/1/storage/1/objects/"
         key = prefix + state["a"]["receipt"]["data_root"]
         while True:
             raw = self.proxy.objects[key]

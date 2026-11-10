@@ -11,12 +11,16 @@
 | 权限撤销 | 下一请求新鲜HEAD拒绝；在途提交与撤销按CAS排序 |
 | 全部计算和本地盘丢失 | 以对象根重建页面、结果、权限和owner，不依赖本地唯一状态 |
 | 权威HEAD缺失 | 失败关闭，不自动初始化 |
-| 页/索引/结果缺失或摘要错误 | 拒绝服务，不回退旧根或造空页 |
+| 页/索引/结果缺失或摘要错误 | 关闭原读取前缀，不回退旧根或造空页；只有一次原期限内 exact HEAD 调查严格证明原物理世代已退休，才可返回 SnapshotExpired |
 | S3不可用 | 新强读与新写均失败；无缓存成功降级 |
 | 已退休身份 | 返回retired，不声明原业务未提交或自动换ID |
-| Deleted | 拒绝后继，保留身份屏障；物理删除尚未实现 |
+| Deleted | 拒绝普通后继，永久保留身份屏障；HEAD6 最后 active generation 仍保护，不能因 Deleted 直接清空 |
+| 复制期间旧读取/旧写入 | 始终使用原 namespace；旧 CAS 保留原条件；普通旧读可因严格退休证明而中止，不自动换根 |
+| GC DELETE 响应丢失 | checkpoint 原项保持 pending；新 exact inspect 的 typed NoSuchKey 可成为新 absence 证据，不能倒改原 UNKNOWN |
+| GC inspect 看到新 ETag | 仍按 checkpoint 的原 ETag DELETE；只有实际条件冲突才结束原项，新候选另建批次 |
+| sweep 完成后迟到 PUT | 永久退休不变；下一轮从起点重新扫描并回收 orphan |
 
-AWS端点、区域持久性和生产故障域未通过本地兼容服务测试自动认证。物理GC关闭，orphan和存储费用可增长。
+AWS端点、区域持久性和生产故障域未通过本地兼容服务测试自动认证。HEAD6 GC 默认无删除凭据；显式启用仍须通过本候选门禁并遵守[退休与 checkpoint 协议](../architecture/head6-compaction-gc.md)。未回收的 orphan 和永久身份元数据仍有存储成本。
 
 ## 本地故障证据的划分
 

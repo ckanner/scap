@@ -1,5 +1,6 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, UnknownError, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, RouteError, OwnerReconcileError, UnknownError,
+  type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
@@ -38,6 +39,52 @@ async function contract() {
   // @ts-expect-error Normal deletion preserves its explicit original HEAD revision.
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
+  const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
+  const plan: DatabaseStatus = await db.compactBegin({ expectedHeadSerial: guarded.head_serial });
+  await db.compactCopy({ planSerial: plan.storage.plan!.serial });
+  await db.compactPromote({ planSerial: plan.storage.plan!.serial });
+  await db.compactAbort({ planSerial: '11' });
+  const batch: SweepReport = await db.gcPrepare({ expectedHeadSerial: '13', generation: '1', after: null });
+  await db.gcResume({ batchSerial: batch.status.storage.sweep!.serial });
+  // @ts-expect-error Physical collector identities are decimal strings.
+  db.gcResume({ batchSerial: 1 });
+  // @ts-expect-error No public operation accepts arbitrary object keys.
+  db.gcPrepare({ expectedHeadSerial: '1', generation: '2', after: null, keys: ['unsafe'] });
+  // @ts-expect-error An explicit hash frontier or null is required.
+  db.gcPrepare({ expectedHeadSerial: '1', generation: '2' });
+  // @ts-expect-error Observed checkpoint metadata is immutable.
+  batch.status.storage.sweep!.pending = 0;
+  await db.takeover({ expectedRevision: '1', nonce: '2', expectedWorkerInstance: '10' });
+  const routing = { bootstrapEndpoint: 'https://example.invalid/v1',
+    routes: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1' }],
+    token: 'synthetic-typecheck-only-credential', scope, principal: '7' };
+  const routed = new RoutedClient(routing), owner = new OwnerClient(routing);
+  const probed: DatabaseStatus = await owner.probe('10');
+  // @ts-expect-error Worker identities are canonical decimal strings, never JavaScript numbers.
+  db.guardedStatus(10);
+  // @ts-expect-error Probes require an explicit trusted worker identity.
+  owner.probe();
+  // @ts-expect-error Probe options retain the ordinary CallOptions shape.
+  owner.probe('10', { retry: true });
+  const original = routed.prepare([{ sql: 'SELECT 1', parameters: [] }], { epoch: '1', id: '3' });
+  await routed.execute(routed.restore(routed.save(original)));
+  await routed.lookup(original); await routed.cancel(original); await routed.query([]); await routed.status();
+  const ownerIntent = owner.prepareActivation(await owner.observe(), { activateNonce: '4' });
+  const savedOwner: string = owner.saveIntent(ownerIntent);
+  const restoredOwner: OwnerIntent = owner.restoreIntent(savedOwner);
+  const inspection: OwnerInspection = await owner.inspect(restoredOwner);
+  const activeOwner: ActiveOwner = await owner.reconcile(ownerIntent);
+  owner.prepareTakeover(activeOwner.status, { targetWorker: '11', takeoverNonce: '5', activateNonce: '6' });
+  // @ts-expect-error Owner intent identity is immutable.
+  ownerIntent.targetWorker = '11';
+  // @ts-expect-error Existing owner controls accept canonical decimal strings only.
+  db.activate({ expectedRevision: '1', nonce: '2', expectedWorkerInstance: 10 });
+  // @ts-expect-error Routed business clients do not expose owner mutation methods.
+  routed.takeover({ expectedRevision: '1', nonce: '2' });
+  try { await owner.reconcile(ownerIntent); } catch (error) {
+    if (error instanceof OwnerReconcileError) owner.saveIntent(error.intent);
+    if (error instanceof RouteError) { const notSent: 'not_sent' = error.outcome; void notSent; }
+  }
   const discovery = new DiscoveryClient({ endpoint: 'https://example.invalid/v1/discovery', token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
   const names: NamePage = await discovery.listNames();
   const inventory: InventoryPage = await discovery.deploymentInventory(names.cursor);
@@ -51,6 +98,7 @@ async function contract() {
   try { await client.submit(create); } catch (error) {
     if (error instanceof UnknownError && 'intent' in error.reference) client.saveIntent(error.reference.intent);
   }
-  return { prepared, observed, progress, inspected, named, aborted, deleted, alsoDeleted, forged, incomplete, recovered };
+  return { prepared, observed, progress, inspected, named, aborted, deleted, alsoDeleted, forged, incomplete, recovered,
+    inspection, activeOwner, guarded, probed };
 }
 void contract;
