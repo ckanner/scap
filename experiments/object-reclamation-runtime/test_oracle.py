@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import copy
 import base64
+import http.server
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import struct
 import subprocess
 import tempfile
+import threading
+from types import SimpleNamespace
 import unittest
 import os
 import shutil
@@ -18,6 +21,7 @@ import controls
 import oracle
 import support
 import spec
+import harness
 
 
 def base():
@@ -106,6 +110,90 @@ class SdkInputTests(unittest.TestCase):
                     'fingerprint': oracle.wire.fingerprint(row['statements'])})
             events = [json.loads(line) for line in (root / 'sdk-A.jsonl').read_text().splitlines()]
             self.assertFalse(any(row['event'].startswith('http_') for row in events))
+
+
+class OperatorInputTests(unittest.TestCase):
+    def test_real_http_helper_nested_body_and_multipart_adapter(self):
+        data = b'\x00\xffunit-only original immutable bytes\x80\x00'
+        key = '/scap-test/unit/objects/' + 'a' * 64
+        absent = b'<Error><Code>NoSuchKey</Code></Error>'
+        calls = []
+        state = {'complete': False}
+        access, secret = 'unit-only-access', 'unit-only-secret'
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_GET(self):
+                self.dispatch()
+
+            def do_PUT(self):
+                self.dispatch()
+
+            def do_POST(self):
+                self.dispatch()
+
+            def dispatch(self):
+                payload = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+                calls.append((self.command, self.path, payload))
+                valid = support.signing.verify_signature(self.command, self.path,
+                    dict(self.headers), payload, access, secret)
+                if not valid:
+                    self.send_error(403)
+                    return
+                tag = None
+                if self.command == 'GET':
+                    status, body = (200, data) if state['complete'] else (404, absent)
+                    if state['complete']:
+                        tag = '"unit-multipart"'
+                elif self.command == 'POST' and self.path.endswith('?uploads'):
+                    status, body = 200, b'<InitiateMultipartUploadResult><UploadId>unit-upload</UploadId></InitiateMultipartUploadResult>'
+                elif self.command == 'PUT':
+                    status, body, tag = 200, b'', '"unit-part"'
+                else:
+                    state['complete'] = True
+                    status, body = 200, b'<CompleteMultipartUploadResult/>'
+                self.send_response(status)
+                self.send_header('Content-Length', str(len(body)))
+                if tag is not None:
+                    self.send_header('ETag', tag)
+                self.end_headers()
+                self.wfile.write(body)
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                suite = harness.Harness.__new__(harness.Harness)
+                suite.backend = SimpleNamespace(port=server.server_port, access=access, secret=secret)
+                suite.trace = support.Trace(root)
+                response = suite.operator('unit-absent', 'GET', key)
+                self.assertEqual(response['status'], 404)
+                self.assertEqual(support.signing.body_value(response['body']), absent)
+                self.assertEqual(suite.multipart_recreate(key, data), '"unit-multipart"')
+                recorded = oracle.rows(root / 'events.jsonl')
+                responses = [row for row in recorded if row['event'] == 'operator_response']
+                self.assertEqual(len(responses), 5)
+                self.assertEqual([row['status'] for row in responses], [404, 200, 200, 200, 200])
+                self.assertEqual(oracle.raw(root, responses[0]['response']), absent)
+                self.assertEqual(oracle.raw(root, responses[1]['response']),
+                    b'<InitiateMultipartUploadResult><UploadId>unit-upload</UploadId></InitiateMultipartUploadResult>')
+                self.assertEqual(oracle.raw(root, responses[2]['response']), b'')
+                self.assertEqual(responses[2]['headers']['etag'], '"unit-part"')
+                self.assertEqual(oracle.raw(root, responses[3]['response']), b'<CompleteMultipartUploadResult/>')
+                self.assertEqual(oracle.raw(root, responses[-1]['response']), data)
+                self.assertEqual(responses[-1]['headers']['etag'], '"unit-multipart"')
+            self.assertEqual([method for method, _, _ in calls], ['GET', 'POST', 'PUT', 'POST', 'GET'])
+            self.assertEqual(calls[2], ('PUT', key + '?partNumber=1&uploadId=unit-upload', data))
+            self.assertEqual(calls[3][2], b'<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"unit-part"</ETag></Part></CompleteMultipartUpload>')
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+            self.assertFalse(thread.is_alive())
 
 
 class ModelTests(unittest.TestCase):

@@ -329,14 +329,14 @@ class Harness:
         result = io.signing.signed_request(self.backend, method, path, payload, extra)
         self.trace.emit('operator_response', id=label, status=result['status'],
                         headers={k.lower(): v for k, v in result['headers'].items()},
-                        response=self.trace.raw(io.signing.body_value(result)))
+                        response=self.trace.raw(io.signing.body_value(result['body'])))
         return result
 
     def multipart_recreate(self, key, original):
         assert len(original) < 1024 * 1024
         started = self.operator('multipart-create', 'POST', key + '?uploads')
         assert started['status'] == 200
-        document = ET.fromstring(io.signing.body_value(started))
+        document = ET.fromstring(io.signing.body_value(started['body']))
         upload = next(child.text for child in document.iter() if child.tag.rsplit('}', 1)[-1] == 'UploadId')
         suffix = 'uploadId=' + quote(upload, safe='')
         part = self.operator('multipart-part', 'PUT', key + '?partNumber=1&' + suffix, original)
@@ -348,7 +348,7 @@ class Harness:
                                   xml, {'content-type': 'application/xml'})
         assert completed['status'] == 200
         actual = self.operator('multipart-readback', 'GET', key)
-        assert actual['status'] == 200 and io.signing.body_value(actual) == original
+        assert actual['status'] == 200 and io.signing.body_value(actual['body']) == original
         return io.signing.header(actual, 'etag')
 
     def cleanup(self, successful):

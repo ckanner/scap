@@ -147,7 +147,7 @@ def aborted_scenario(suite):
     pending = suite.status('aborted', 'aborted-after-unknown')
     assert pending['storage']['sweep']['serial'] == batch and pending['storage']['sweep']['pending'] > 0
     absent = suite.operator('accepted-delete-observed-absent', 'GET', key)
-    assert absent['status'] == 404 and b'<Code>NoSuchKey</Code>' in io.signing.body_value(absent)
+    assert absent['status'] == 404 and b'<Code>NoSuchKey</Code>' in io.signing.body_value(absent['body'])
     new_etag = suite.multipart_recreate(key, original)
     assert new_etag and new_etag != old_etag
     suite.trace.emit('same_bytes_new_backend_etag', key=key, original=suite.trace.raw(original),
@@ -156,7 +156,7 @@ def aborted_scenario(suite):
     suite.phase('aborted-original-etag-conflict')
     suite.call('B', 'aborted-old-batch-resume', 'gc_resume', 'aborted', input={'batchSerial': batch})
     current = suite.operator('conflict-preserved-new-object', 'GET', key)
-    assert current['status'] == 200 and io.signing.body_value(current) == original
+    assert current['status'] == 200 and io.signing.body_value(current['body']) == original
     assert io.signing.header(current, 'etag') == new_etag
     fresh = suite.prepare('aborted', 2, 'aborted-fresh-new-etag')
     new_batch = fresh['status']['storage']['sweep']['serial']

@@ -140,6 +140,17 @@ statements and independently recomputed fingerprints, and requires zero HTTP
 observations. It does not substitute for a new actual run. The workload,
 production binaries, and original deadlines are unchanged.
 
+The second attempt, using fixture commit `f8a40d7` with the same runtime,
+reached the independent observation after an accepted DELETE whose response
+was lost. Its operator adapter passed the complete signed HTTP response to
+the shared body decoder, which requires the nested `body` record, and raised
+`KeyError('base64')`. The preceding raw scenarios remain available, but this
+failed run has no complete oracle verdict. All owned processes were reaped
+and its original evidence and private directory were retained. The nested
+body adaptation is now covered by an owned local HTTP helper test, including
+multipart request construction and complete response-byte capture. This test
+does not claim actual S3 multipart or product GC acceptance.
+
 ## Scope of the result
 
 This is a bounded local compatible-backend acceptance contract. It is not AWS
