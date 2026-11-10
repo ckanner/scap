@@ -119,7 +119,8 @@ foreign proof、held/active expiry、raw frame/完整物化、metadata 字段越
 target 再 hold。合法的另一种管理/技术候选也不能替换原 command 的动词；技术 capture
 必须逐字段绑定它自己刚观察的 HEAD，失败原 attempt 的普通门禁不能删掉专用 probe。
 当前修正版定义 **47 个语义负控、2 个图级负控和 35 个 focused unit tests**；
-新增定义尚未执行，不能继承原 `e396d48` 的 19 项单位通过结果。图级负控删掉关闭 caller 后仍 enabled 的 delivery，或重复一个 choice。
+当前执行结果见下文，不能继承原 `e396d48` 的 19 项单位通过结果。
+图级负控删掉关闭 caller 后仍 enabled 的 delivery，或重复一个 choice。
 每个负控的原 edge 先作为正例验证，另保留一个原完整 choice 集合正控。控制只调用
 实际独立规则，不提供绕过 source/identity 检查的“接受覆盖”模式。
 
@@ -128,7 +129,9 @@ target 再 hold。合法的另一种管理/技术候选也不能替换原 comman
 原冻结源码 `e396d48011a69628fe47186549a390aad1f145b6` 的全部 46 份输入完成
 BFS：57,420 states / 136,266 edges。其独立审计在 K05 的
 `fixture_remove_live_generation` 拒绝边停止，**整个模型门禁 FAILED**；原始
-图、completion、错误日志及源码身份保留，controls 当时 NOT_RUN。
+图、completion、错误日志及源码身份当时已保存，controls 当时 NOT_RUN。
+2026-11-10 环境恢复后，旧完整图及原临时目录在当前环境不可用；仓库中的历史失败
+摘要和身份记录保持不变，不从摘要重造原图，也不重新解释原失败。
 producer 的 ENUMERATED 不能覆盖这个失败。
 
 该边来自原 Promote CAS 被后端 discard 后的原始 fixture 删除指令。generation
@@ -148,9 +151,35 @@ lineage 知识或本 actor 除 pc/stopped/outcome 外的字段。
 Applied writer 后的合法 GET/Missing 及既有 ACK；负控分别伪造拒绝、删除 active
 对象、修改 foreign authority，或在拒绝时偷换 context、授予读取权、发出 GET。
 这不是把所有安全失败加入白名单。两轮静态审阅无阻塞；本修正的单位、完整 BFS、
-独立 oracle 和 controls **NOT_RUN**，须绑定新冻结源码重新执行。
+独立 oracle 和 controls 在该静态记录形成时 **NOT_RUN**。其后首次执行的单位
+失败及本次测试窄修见下节；静态审阅不替代运行验收。
 
 原失败、静态源、精确增量和原图边身份见[修正证据](../../docs/evidence/handle-knowledge-rejections-static-local-2026-11-09.json)。
+
+## 2026-11-10 单位失败与测试路径修正
+
+在恢复并验证完整 commit/tree 后，冻结源码
+`bc9f9e6af7a9024a39a39ced7b59969ffe66cfda` 实际运行全部 35 项 focused units：
+**34 通过、1 失败，退出码 1**。前后源码校验通过。按首失败停止规则，本轮完整
+BFS、独立 oracle 和 47+2 controls 均 **NOT_RUN**；不能据此把模型门禁记为通过。
+
+失败测试选用了 `K05_materialized_return`，却断言 foreign authority D1 的 active
+generation 为 1。固定输入中 D1 初态已经为 2，且该程序不会修改 D1。D0 成功
+Promote 后 G1 在两域都退休，所以仅把断言改成 2 不能保持原来要检验的域间差异。
+
+本次只改该测试函数，使用已有的 `K06_aborted_target`：原 `m:6` Abort CAS
+使用 `m:2` 的原 ETag，成功后 `m:8` exact GET 提供下一次原 Snapshot；原
+`m:12` Freeze CAS 使用 `m:8` 的原 ETag。两次 Applied 后，D0 为 A1/M3/T3、
+无 hold，G2 已退休；D1 仍为 A2，同一个 G2 仍 active。测试先检查合法删除，
+再构造假拒绝，要求独立 oracle 拒绝借用 D1 权威，命中
+`fixture rejected already retired generation`。上述新路径仍待单位执行确认。
+
+35 个测试名称、46 个固定输入及全部 caps、producer、独立 oracle 和 controls
+保持不变。本次测试修正只有静态审阅，**新源码的单位、完整 BFS、独立 oracle 和
+controls 均 NOT_RUN**，须在新干净 commit 上依次执行。原 bc9 单位失败和更早的
+e396 完整门禁失败各自保留。原 driver、日志、exit、源码及输入身份见
+[本次失败摘要](../../docs/evidence/handle-knowledge-units-failure-local-2026-11-10.json)；
+原始运行日志不提交到仓库。
 
 ## 运行命令与证据
 

@@ -363,11 +363,22 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(trace.state['actors']['a']['materialized'], original)
 
     def test_oracle_cannot_use_foreign_live_authority_to_reject_retired_original_generation(self):
-        trace = self.materialized_remove_trace('apply')
+        trace = self.freeze_after_abort_trace('K06_aborted_target', 'apply')
+        trace.until_op('m', 'remove_retired')
+        trace.step('m')
         before, event, honest = trace.steps[-1]
         key = authority_slot(SPEC['scope'])
-        self.assertEqual(before['world']['heads']['D0'][key]['A'], 2)
-        self.assertEqual(before['world']['heads']['D1'][key]['A'], 1)
+        command = trace.profile['actors']['m']['program'][event['pc']]
+        self.assertEqual(command, {'op': 'remove_retired', 'generation': 2, 'name': 'M0'})
+        original, foreign = (before['world']['heads'][domain][key] for domain in ('D0', 'D1'))
+        self.assertEqual((original['A'], original['M'], original['plan']['target']), (1, 3, 3))
+        self.assertIsNone(original['hold'])
+        self.assertEqual(foreign['A'], command['generation'])
+        self.assertIsNone(honest['actors']['m']['stopped'])
+        for token, purpose, view in (('m:6', 'abort_plan', 'm:2'), ('m:12', 'freeze', 'm:8')):
+            self.assertEqual(before['tokens'][token]['request']['purpose'], purpose)
+            self.assertEqual(before['tokens'][token]['request']['etag'], before['tokens'][view]['observation']['etag'])
+            self.assertEqual(before['tokens'][token]['observation']['kind'], 'Applied')
         changed = copy.deepcopy(honest)
         falsely_reject_retired_removal(before, event, changed, SPEC, trace.profile)
         with self.assertRaisesRegex(Violation, 'fixture rejected already retired generation'):
