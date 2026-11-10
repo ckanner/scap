@@ -1,9 +1,8 @@
 # 普通 `/v1` 编码缓冲池
 
-状态：**已接入 daemon。新环境中冻结运行时 `f074897` 的格式检查、严格 Clippy 和
-stable/nightly 各572项单位测试通过；完整门禁为 FAILED_EXACT_COUNTERS，
-`output.rs` 的 region 为462/464。本提交两文件窄修只有静态格式检查，完整重测和
-实际服务合同仍 NOT_RUN。** 基线为
+状态：**已接入 daemon。冻结运行时 `6c15bcf` 的格式检查、严格 Clippy 和
+stable/nightly 各573项单位测试通过；57个生产文件的四维原始计数全部覆盖，
+5个真实 branch 0/0 保持原值。真实输出池 HTTP/S3 合同仍 NOT_RUN。** 基线为
 `acec129c51c7d51f019fbaf34ff4ea0bd0509cb0`；基础编码器的独立门禁不替代本片验收。
 本片落实[结果输出预算](result-output-budget.md)第1、3–7节；不打开新存储世代或 GC。
 
@@ -205,3 +204,27 @@ slice/plan，不改变 JSON 编码、额度或错误码，也不排除生产文�
 下一步须在发布后的精确新提交上，以 workspace 磁盘上的全新 target/profile 运行原完整
 门禁，再绑定实际 ELF/native/profile并归档读回。真实输出池 HTTP/S3 合同与 AWS
 Standard 验收继续单独列为 NOT_RUN；本次失败和修正都不能代替这些验收。
+
+## 8. 2026-11-10：修正候选的完整单位门禁通过
+
+在精确提交 `6c15bcf73b9276d9079a4c93513dd938a29c7a28`、tree
+`baa5be5e3918ec35721214df74d0ca9e21b8a2b4` 上重新运行原完整 workspace 门禁。
+使用工作区磁盘上的全新 stable/nightly target；collection 前确认没有 raw 或 merged
+profile，没有复用第7节失败的 target、profile 或验收结论。
+
+format、严格 Clippy、stable573项、nightly573项、原精确检查器和最终源码核验全部
+exit0。57个生产文件的原始合计为 lines10766/10766、functions968/968、
+regions16359/16359、branches1948/1948；5个真实 branch 0/0 保持原值。
+`output.rs` 的 regions 为465/465，包含合法过长 JSON 目标触发原精确长度断言的回归。
+编译器的 region 分母确有变化；本轮仍读取原完整计数，没有排除生产文件或过滤缺口。
+
+实际两轮12个单位 ELF、原 Cargo/native 链、218个本轮 raw profile 与 merged/list、
+LLVM JSON、452个 tracked source及原日志共815个归档成员全部读回。归档为
+278,095,181 B；原源码、completion和被绑定 target 身份均未变，完整 Git tree/commit
+按原字节核验。SHA、工具版本、逐项范围与限制见
+[本轮单位通过回执](../evidence/service-output-pool-unit-local-2026-11-10.json)。
+
+第6节的历史中断与旧环境不可用、第7节的真实四维失败均保留，不被这次通过改写。
+本次后续提交只更新文档和回执；它不修改运行时或单位输入。release 二进制及原生归档
+另行构建、绑定和审计；真实输出池 HTTP/S3、原生故障与 AWS Standard 验收仍须独立
+完成。单位通过不是资源/SLO或所有实际合同通过。
