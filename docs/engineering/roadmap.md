@@ -5,9 +5,9 @@
 | 阶段 | 当前工作与退出条件 |
 | --- | --- |
 | N0 协议与格式 | 已有严格 SCAPOBJ2 格式、有界模型与独立历史判定；主线 #35 为 HEAD4。PR #54 的 HEAD6 生产候选已接通可中止普通操作、多世代复制与持久 GC checkpoint，按新源码单独验收 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读/取消/接管、默认 10 GiB 配额、增量页树与 Session 已实现。#54 的 d60 候选完成新的 native 故障、原结果、生命周期和 1 GiB 全计算丢失恢复；后续发现的 retained nonce 校验缺口须修复重验。完整 OT-01–OT-08 与 AWS Standard 仍有独立退出门禁 |
-| N2 多库接入 | 鉴权 HTTP/SDK、名称目录、有界 actor、独立控制/恢复、全目录发现、显式 owner 协调、intake/output/HTTP 期限已实现。#54 新实际负载覆盖输出竞争、慢消费者、HTTP discovery、guarded status 和 owner 故障；自动故障探测/controller、完整资源总账和负载活性仍待完成 |
-| N3 可持续存储 | 分段请求索引与 HEAD5 物理命名空间已有真实合同。HEAD6 core/store/service/SDK 已实现完整复制、单调退休、专用有界 GC 与重启 checkpoint；新单位已通过，真实暂停故障与独立判定正在完成。Deleted 最后 active generation、显式 retained roots/PITR、增量冷恢复和长期成本收敛仍未完成 |
+| N1 单库真实提交 | Rust/S3/native commit gate、强读/取消/接管、默认 10 GiB 配额、增量页树与 Session 已实现。#54 的 HEAD6 修复 retained nonce 校验缺口，完成全部新单位、native 故障、原结果、生命周期和 1 GiB 全计算丢失恢复；目标 AWS Standard 与完整阶段退出仍单列 |
+| N2 多库接入 | 鉴权 HTTP/SDK、名称目录、有界 actor、独立控制/恢复、全目录发现、显式 owner 协调、intake/output/HTTP 期限已实现。#54 输出竞争、慢消费者、HTTP discovery、guarded status、owner 故障与固定多库负载全部本地门禁已通过；自动故障探测/controller、完整资源总账、开放到达/长期压力仍待完成 |
+| N3 可持续存储 | HEAD6 core/store/service/SDK 已实现完整复制、单调退休、专用有界 GC 与重启 checkpoint，新单位、真实暂停故障、独立判定与23反例全部完成。PR #55 已提交 Deleted 最后 active generation 的终态退休实现，继续独立验收；显式 retained roots/PITR、增量冷恢复和长期成本收敛仍未完成 |
 | N4 首发 | 真实目标 backend/IAM/故障域、MB/GiB、长尾/热点/唤醒风暴、长运行与性能/恢复/成本 SLO；另行获准后用非关键数据试运行 |
 
 本轮不以原 Raft 的 538 测试或旧 SLO 认证新实现。门禁失败与新发现都保留，
@@ -16,18 +16,18 @@
 ## 2026-11-10 当前实施顺序
 
 当前提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
-最新 HEAD6 `66f452e` 的 632+632 单位、59 文件精确覆盖、新 native/1 GiB 与剩余实际门禁
-见[独立新记录](head6-runtime-validation.md)；下述 d60 是已完成但后来发现语义缺口的历史基线。
+最新 HEAD6 `66f452e` 的 632+632 单位、59 文件精确覆盖、新 native/1 GiB、HTTP/资源/GC与负载
+全部本地门禁见[独立新记录](head6-runtime-validation.md)；下述 d60 是已完成但后来发现语义缺口的历史基线。
 PR #54 已承接 HEAD5 运行时组合，冻结 `d60ea98` 完成 580+580 单位、57 个生产文件的
 逐文件四维精确覆盖和新的 native/HTTP/S3/1 GiB 合同。`6e107a1` 只修正 owner/discovery
 反例构造，原实际历史和正向 verdict 不变。旧失败继续保留；不是把失败标记改为成功。
 
-独立审查发现核心 retained nonce 语义验证缺口，因此旧候选暂不合并。修复与 HEAD6
-核心共享 verifier 一起进入新冻结候选，再运行精确单位与受影响真实合同；不复制旧
-profile 或用 SDK 拒绝代替 core fail-closed。产品 GC 只有在完整世代、闭包、checkpoint、
-迟到 GET/PUT/CAS/DELETE 和原结果合同通过后才作为可交付能力。
+独立审查发现的核心 retained nonce 语义验证缺口，已与 HEAD6 共享 verifier 一起修复，
+并在新冻结候选完成精确单位与受影响真实合同；没有复制旧 profile 或用 SDK 拒绝代替
+core fail-closed。完整世代、闭包、checkpoint、迟到 GET/PUT/CAS/DELETE 和原结果合同
+均已通过，PR #54 进入合入收尾。
 
-之后依次完成 Deleted 终态退休、可恢复 owner controller、显式快照/PITR、完整资源和
+当前 PR #55 正在独立验收 Deleted 终态退休；之后依次完成可恢复 owner controller、显式快照/PITR、完整资源和
 冷恢复压力，再进入真实 AWS 与预先冻结的生产 SLO。执行存储始终为经过准入的本地
 私有镜像，不把 SQLite 活动文件挂载到 NFS/EFS/S3 FUSE。
 
