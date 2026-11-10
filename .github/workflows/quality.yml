@@ -221,6 +221,9 @@ jobs:
           python3 -m unittest discover -s experiments/object-network -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/object-service -p 'test_*.py' -v
           python3 -B -m unittest discover -s experiments/object-metadata -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/guarded-status -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/output-pool -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/bounded-transport/response -p 'test_*.py' -v
           node --test experiments/object-service/test_client_ledger.mjs
           python3 -m unittest discover -s experiments/object-discovery -p 'test_*.py' -v
           python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v
@@ -340,6 +343,43 @@ jobs:
           python3 experiments/object-service/owner_controls.py \
             --evidence "$RUNNER_TEMP/scap-owner-evidence/owner" \
             --output "$RUNNER_TEMP/scap-owner-evidence/controls"
+      - name: Verify guarded status across an actual endpoint replacement
+        run: |
+          python3 -B experiments/guarded-status/run.py \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run"
+          python3 -B experiments/guarded-status/oracle.py \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run" \
+            --output "$RUNNER_TEMP/scap-guarded-evidence/oracle.json"
+          python3 -B experiments/guarded-status/controls.py \
+            --evidence "$RUNNER_TEMP/scap-guarded-evidence/run" \
+            --output "$RUNNER_TEMP/scap-guarded-evidence/controls"
+      - name: Verify output budgets with real slow clients and original-result lookup
+        run: |
+          python3 -B experiments/output-pool/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --transport-profile bounded --evidence "$RUNNER_TEMP/scap-output-evidence/run"
+          python3 -B experiments/output-pool/oracle.py "$RUNNER_TEMP/scap-output-evidence/run" \
+            > "$RUNNER_TEMP/scap-output-evidence/oracle.json"
+          python3 -B experiments/output-pool/controls.py "$RUNNER_TEMP/scap-output-evidence/run" \
+            > "$RUNNER_TEMP/scap-output-evidence/controls.json"
+      - name: Verify response expiry and bounded connection shutdown over actual TCP
+        run: |
+          python3 -B experiments/bounded-transport/response/run.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --server "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
+            --build-record "$GITHUB_WORKSPACE/target/evidence/object-service-build/build.json" \
+            --evidence "$RUNNER_TEMP/scap-response-evidence/run"
+          python3 -B experiments/bounded-transport/response/oracle.py "$RUNNER_TEMP/scap-response-evidence/run" \
+            > "$RUNNER_TEMP/scap-response-evidence/oracle.json"
+          python3 -B experiments/bounded-transport/response/controls.py "$RUNNER_TEMP/scap-response-evidence/run" \
+            > "$RUNNER_TEMP/scap-response-evidence/controls.json"
       - name: Verify management HEAD-only I/O and exact original publication outcomes
         # Separate dedicated M listener; no timestamp-based shared S3 attribution.
         run: |
@@ -397,6 +437,15 @@ jobs:
         with:
           name: object-network-local-s3
           path: |
+            ${{ runner.temp }}/scap-guarded-evidence/run/**
+            ${{ runner.temp }}/scap-guarded-evidence/oracle.json
+            ${{ runner.temp }}/scap-guarded-evidence/controls/**
+            ${{ runner.temp }}/scap-output-evidence/run/**
+            ${{ runner.temp }}/scap-output-evidence/oracle.json
+            ${{ runner.temp }}/scap-output-evidence/controls.json
+            ${{ runner.temp }}/scap-response-evidence/run/**
+            ${{ runner.temp }}/scap-response-evidence/oracle.json
+            ${{ runner.temp }}/scap-response-evidence/controls.json
             ${{ runner.temp }}/scap-metadata-evidence/run/**
             ${{ runner.temp }}/scap-metadata-evidence/oracle.json
             ${{ runner.temp }}/scap-metadata-evidence/controls.json

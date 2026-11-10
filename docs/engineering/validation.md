@@ -2,6 +2,17 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #54 的运行时组合（2026-11-10）
+
+[组合验收记录](runtime-completion-validation.md)绑定 d60 冻结生产候选与 6e 离线控制
+修正：stable/nightly 各 580 单位、57 个生产文件四维精确计数，新的 native/HTTP/S3
+合同和 1 GiB 恢复均按原始回执归属。最后的 discovery 反例审计状态见该记录。
+
+独立审查随后发现 retained-result/cancelled 的 nonce 与 request.id 绑定缺口；即使
+上述实际合法负载通过，也不能将此候选当作完整 fail-closed 交付。修复随 HEAD6
+共享校验进入新冻结候选，必须重新取得受影响源码的单位与真实合同证据。PR 继续
+保持草稿，原失败、后续发现和新通过结果分别保留。
+
 ## PR #35 的全目录发现、分段索引与部署恢复
 
 [本批验收说明](discovery-recovery-validation.md)绑定发布 `5a04716` 与本地冻结 `94e6d51` 的同一 tree；323 个文件逐字节相同。stable 416 单元及 strict Clippy 在修正版上通过；nightly 416 单元、47 个生产文件逐文件四维精确 100% 来自 Rust/单元输入完全相同的 e8 原候选，不混入集成 profile。

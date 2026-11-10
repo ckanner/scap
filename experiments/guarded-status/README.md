@@ -6,10 +6,11 @@
 
 ## 当前状态
 
-当前为可审阅实现，**fixture 单位、真实运行、独立 oracle、语义负控和完整副本正控均 NOT_RUN**。
-Python解析与固定Node22语法检查不替代任何实际HTTP/S3验收。原未提交guard fixture在环境
-重建中不可读；本实现是新的固定输入版本，不能继承旧输入SHA或不存在的运行结果。
-生产源码使用 `6c15bcf73b9276d9079a4c93513dd938a29c7a28` 的正式服务和SDK。
+冻结生产候选 `d60ea98eab8d073cfe118f3176c41ba6e2a4ab02` 已完成本合同：
+fixture 单位、真实运行、独立 oracle、31 个语义负控和完整副本正控全部通过。
+30 个原操作/29 个 POST、46 次 signed S3、五次 HEAD 发布和唯一 SQL 执行身份均由
+原始账本核对。该结果只认证此冻结候选，不自动认证后续 HEAD6。
+完整来源和先前失败见[组合验收](../../docs/engineering/runtime-completion-validation.md)。
 
 该程序固定30个操作/29个POST、三个一次性故障、五次HEAD发布和唯一SQL执行身份。
 P/Q的完整S3流量只能是HEAD GET；错误guard不能触碰S3、SQLite payload或旧cache。
@@ -42,7 +43,7 @@ oracle重新读取原POST、SDK Fetch、同一次S3 GET body/ETag、每个完整
 核对原SQL receipt、固定查询结果、readback-before-publication和全部owned child/listener退出。
 只读取已完成的证据，不重试产品操作，不从runner的成功标记推导协议正确性。
 
-29个负控针对请求删减/追加、guard或身份被改、跟随不可信地址、错误目标访问S3、stale ACL、
+31个负控针对请求删减/追加、guard或身份被改、跟随不可信地址、错误目标访问S3、stale ACL、
 body/ETag错配、metadata路径写S3、伪造wait4、worker identity复用、旧client重建、期限提前释放、
 UNKNOWN被升级、原receipt改写、payload cache、错误binary和handler未join。
 它们也检查实际接收进程/监听器的生命周期、Node时钟、fault原请求与hold切点；每个变体

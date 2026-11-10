@@ -4,24 +4,37 @@
 
 | 阶段 | 当前工作与退出条件 |
 | --- | --- |
-| N0 协议与格式 | 已有有界模型、独立历史判定及 v2 严格分块格式；主线 #35 使用 HEAD4，候选 #42 使用 HEAD5 与固定 storage/1，不可变帧仍为 SCAPOBJ2；冻结预算和真实 API，保持语义与实现一致 |
-| N1 单库真实提交 | Rust 权威、S3 adapter、native gate、强读/取消/接管、可配置 10 GiB 默认及 Session 已合入；已有本地精确单元、兼容 S3、全计算丢失、1/10 GiB 容量及选定提交／冷恢复故障验收。完整 OT-01–OT-08 与 AWS Standard 仍待完成，尚未达到 N1 整体退出 |
-| N2 多库接入 | token 主体鉴权、严格 HTTP/Node SDK、名称目录、有界 actor、独立控制及全目录发现已合入；PR #37–#39 增加资源生命周期、HTTP 传输上界、静态 owner 路由和显式接管意图。自动故障探测与 controller、更多负载下的公平性及活性仍待完成，尚未达到 N2 整体退出 |
-| N3 可持续存储 | 数据树增量路径、分段请求索引、原 Snapshot 对象上下文与 HEAD5 技术 serial/物理命名空间基础已有可取得候选；#42 的 f6 组合通过 513 单元/55 文件精确计数、六组网络合同及新 1 GiB 恢复。#43 可中止世代模型与 #44 原始闭包游标分别验证，尚未组合启用。新 discovery actual01 失败，仍阻止合并。多世代 copy/promote、retained hold、退休判定、增量冷恢复、产品 GC、PITR 及长期成本收敛待完成；普通读写不默认写不可撤销 durable pin |
-| N4 首发 | MB/GiB、长尾/热点/唤醒风暴、长运行、故障域、性能恢复成本与运维；另行获准后用非关键数据试运行 |
+| N0 协议与格式 | 已有严格 SCAPOBJ2 格式、有界模型与独立历史判定；主线 #35 为 HEAD4，PR #54 的实际候选为 HEAD5。HEAD6 正在加入可中止普通操作、多世代复制与持久 GC checkpoint，不继承旧源码验收 |
+| N1 单库真实提交 | Rust/S3/native commit gate、强读/取消/接管、默认 10 GiB 配额、增量页树与 Session 已实现。#54 的 d60 候选完成新的 native 故障、原结果、生命周期和 1 GiB 全计算丢失恢复；后续发现的 retained nonce 校验缺口须修复重验。完整 OT-01–OT-08 与 AWS Standard 仍有独立退出门禁 |
+| N2 多库接入 | 鉴权 HTTP/SDK、名称目录、有界 actor、独立控制/恢复、全目录发现、显式 owner 协调、intake/output/HTTP 期限已实现。#54 新实际负载覆盖输出竞争、慢消费者、HTTP discovery、guarded status 和 owner 故障；自动故障探测/controller、完整资源总账和负载活性仍待完成 |
+| N3 可持续存储 | 分段请求索引与 HEAD5 物理命名空间已有真实合同。HEAD6 core/store/service/SDK 正在实现完整复制、单调退休、专用有界 GC 与重启 checkpoint；新单位和真实暂停故障分别验收。Deleted 最后 active generation、显式 retained roots/PITR、增量冷恢复和长期成本收敛仍未完成 |
+| N4 首发 | 真实目标 backend/IAM/故障域、MB/GiB、长尾/热点/唤醒风暴、长运行与性能/恢复/成本 SLO；另行获准后用非关键数据试运行 |
 
-本轮不以原Raft的538测试或旧SLO观测认证新实现。实际门禁失败保持阻塞，缺失环境记NOT_RUN；不将单库或本地兼容后端的容量实测包装为整个阶段完成。
+本轮不以原 Raft 的 538 测试或旧 SLO 认证新实现。门禁失败与新发现都保留，
+缺失环境记 NOT_RUN；不将本地兼容后端的容量实测包装为整个阶段完成。
 
-## 2026-11-09 当前实施顺序
+## 2026-11-10 当前实施顺序
 
-当前可取得的提交、已通过的精确源码门禁及缺项见[实施状态](status-2026-11-09.md)。
-先完成 HEAD5 的部署、service/TCP、owner、资源、GC transport 与 discovery 组合验收，
-新的[运行时组合](../architecture/head5-runtime-composition.md)将同时验证 #44/#45/#46，
-通过后由该独立草稿承接整个生产栈，不再单独合并被其替代的中间候选。
-`4329f30` discovery actual01 在续页传输边界失败，原始失败保持阻塞；补充诊断不等于通过。
-同步完成按实际 handle 知识域划分的模型细化，
-再实现 copy/promote、retained hold、退休及故障投影。删除传输 capability 与产品 GC 分开，
-没有完成全部世代安全和真实故障门禁之前，产品 DELETE 保持关闭。
+当前提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
+PR #54 已承接 HEAD5 运行时组合，冻结 `d60ea98` 完成 580+580 单位、57 个生产文件的
+逐文件四维精确覆盖和新的 native/HTTP/S3/1 GiB 合同。`6e107a1` 只修正 owner/discovery
+反例构造，原实际历史和正向 verdict 不变。旧失败继续保留；不是把失败标记改为成功。
+
+独立审查发现核心 retained nonce 语义验证缺口，因此旧候选暂不合并。修复与 HEAD6
+核心共享 verifier 一起进入新冻结候选，再运行精确单位与受影响真实合同；不复制旧
+profile 或用 SDK 拒绝代替 core fail-closed。产品 GC 只有在完整世代、闭包、checkpoint、
+迟到 GET/PUT/CAS/DELETE 和原结果合同通过后才作为可交付能力。
+
+之后依次完成 Deleted 终态退休、可恢复 owner controller、显式快照/PITR、完整资源和
+冷恢复压力，再进入真实 AWS 与预先冻结的生产 SLO。执行存储始终为经过准入的本地
+私有镜像，不把 SQLite 活动文件挂载到 NFS/EFS/S3 FUSE。
+
+## 历史：2026-11-09 实施顺序
+
+当日状态见[历史记录](status-2026-11-09.md)。HEAD5 的部署、service/TCP、owner、资源、
+GC transport 与 discovery 当时尚未完成组合；`4329f30` discovery actual01 在续页传输
+边界失败。该失败保持原样，后续精确构造修正与新实际候选由 2026-11-10 记录承接，
+不能把新结果回填为旧候选成功。
 
 ## 历史：2026-11-08 实施顺序
 
