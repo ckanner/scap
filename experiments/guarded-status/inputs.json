@@ -1,0 +1,473 @@
+{
+  "bounds": {
+    "event_count": 50000,
+    "handlers_active_per_listener": 16,
+    "handlers_total_per_listener": 4096,
+    "node_response_bytes": 1048576,
+    "readiness_pause_seconds": 0.15,
+    "readiness_request_seconds": 1,
+    "readiness_rounds": 80,
+    "readiness_seconds": 40,
+    "relay_response_bytes": 4194304,
+    "request_bytes": 65536,
+    "trace_bytes": 268435456,
+    "whole_run_seconds": 300
+  },
+  "claims": {
+    "automatic_failover": false,
+    "aws_standard": "NOT_RUN",
+    "native_restore_on_status": false,
+    "production_slo": "NOT_RUN",
+    "status_proves_payload_health": false
+  },
+  "commands": [
+    {
+      "arguments": {
+        "nonce": "31001"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "seed_create",
+      "kind": "create",
+      "role": "writer",
+      "worker": "s"
+    },
+    {
+      "arguments": {
+        "expectedRevision": "1",
+        "expectedWorkerInstance": "9101",
+        "nonce": "31002"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "seed_activate",
+      "kind": "activate",
+      "role": "writer",
+      "worker": "s"
+    },
+    {
+      "arguments": {},
+      "error_code": null,
+      "http_status": 200,
+      "id": "seed_sql",
+      "kind": "execute",
+      "role": "writer",
+      "worker": "s"
+    },
+    {
+      "arguments": {
+        "expectedRevision": "3",
+        "nonce": "31003"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "seed_policy",
+      "kind": "policy",
+      "role": "writer",
+      "worker": "s"
+    },
+    {
+      "arguments": {},
+      "error_code": null,
+      "http_status": 200,
+      "id": "legacy_status",
+      "kind": "status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "guarded_nonowner",
+      "kind": "guarded",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "copied_route",
+      "kind": "copy_probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9999"
+      },
+      "error_code": "UNROUTABLE",
+      "http_status": null,
+      "id": "unroutable",
+      "kind": "probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9101"
+      },
+      "error_code": "TARGET_MISMATCH",
+      "http_status": 409,
+      "id": "wrong_worker",
+      "kind": "guarded",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": null
+      },
+      "error_code": "INVALID",
+      "http_status": 400,
+      "id": "null_guard",
+      "kind": "raw_status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "0"
+      },
+      "error_code": "INVALID",
+      "http_status": 400,
+      "id": "zero_guard",
+      "kind": "raw_status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "09202"
+      },
+      "error_code": "INVALID",
+      "http_status": 400,
+      "id": "leading_zero_guard",
+      "kind": "raw_status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": 9202
+      },
+      "error_code": "INVALID",
+      "http_status": 400,
+      "id": "number_guard",
+      "kind": "raw_status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "18446744073709551616"
+      },
+      "error_code": "INVALID",
+      "http_status": 400,
+      "id": "overflow_guard",
+      "kind": "raw_status",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "18446744073709551615"
+      },
+      "error_code": "TARGET_MISMATCH",
+      "http_status": 409,
+      "id": "max_guard",
+      "kind": "guarded",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9101"
+      },
+      "error_code": "UNAUTHENTICATED",
+      "http_status": 401,
+      "id": "invalid_token",
+      "kind": "guarded",
+      "role": "invalid",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9101"
+      },
+      "error_code": "DENIED",
+      "http_status": 403,
+      "id": "foreign_scope",
+      "kind": "guarded",
+      "role": "foreign",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "expectedRevision": "4",
+        "nonce": "31004"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "revoke_reader",
+      "kind": "revoke",
+      "role": "manager",
+      "worker": "s"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": "DENIED",
+      "http_status": 403,
+      "id": "reader_denied",
+      "kind": "guarded",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9101"
+      },
+      "error_code": "TARGET_MISMATCH",
+      "http_status": 409,
+      "id": "reader_wrong_target",
+      "kind": "guarded",
+      "role": "reader",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": "DENIED",
+      "http_status": 403,
+      "id": "blind_denied",
+      "kind": "guarded",
+      "role": "blind",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "manager_fresh",
+      "kind": "probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": "UNKNOWN",
+      "http_status": 503,
+      "id": "authority_unavailable",
+      "kind": "probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": "TRANSPORT",
+      "http_status": 200,
+      "id": "response_lost",
+      "kind": "probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202",
+        "timeoutMs": 250
+      },
+      "error_code": "DEADLINE",
+      "http_status": 200,
+      "id": "deadline_probe",
+      "kind": "probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9202"
+      },
+      "error_code": "TARGET_MISMATCH",
+      "http_status": 409,
+      "id": "replaced_old_route",
+      "kind": "reuse_probe",
+      "role": "manager",
+      "worker": "p"
+    },
+    {
+      "arguments": {
+        "guard": "9303"
+      },
+      "error_code": null,
+      "http_status": 200,
+      "id": "replacement_new_registry",
+      "kind": "new_probe",
+      "role": "manager",
+      "worker": "q"
+    },
+    {
+      "arguments": {},
+      "error_code": null,
+      "http_status": 200,
+      "id": "replacement_legacy_status",
+      "kind": "status",
+      "role": "manager",
+      "worker": "q"
+    },
+    {
+      "arguments": {},
+      "error_code": null,
+      "http_status": 200,
+      "id": "final_seed_lookup",
+      "kind": "lookup",
+      "role": "writer",
+      "worker": "s"
+    },
+    {
+      "arguments": {},
+      "error_code": null,
+      "http_status": 200,
+      "id": "final_query",
+      "kind": "query",
+      "role": "writer",
+      "worker": "s"
+    }
+  ],
+  "deadlines": {
+    "actor_idle_ms": 5000,
+    "child_seconds": 40,
+    "client_ms": 20000,
+    "gate_seconds": 10,
+    "ordinary_ms": 15000,
+    "owner_ms": 35000,
+    "ready_seconds": 20,
+    "recovery_ms": 30000,
+    "s3_ms": 10000,
+    "short_ms": 250
+  },
+  "denominators": {
+    "commands": 30,
+    "head_publications": 5,
+    "listeners": 6,
+    "p_forwarded_head_gets": 8,
+    "p_head_gets": 9,
+    "posts": 29,
+    "probe_slot_posts": 22,
+    "q_head_gets": 2,
+    "seed_posts": 7,
+    "sql_execute_identities": 1,
+    "version_children": 2,
+    "workload_children": 8
+  },
+  "faults": [
+    {
+      "channel": "s3",
+      "command": "authority_unavailable",
+      "id": "authority_blackhole",
+      "kind": "blackhole",
+      "method": "GET",
+      "worker": "p"
+    },
+    {
+      "channel": "http",
+      "command": "response_lost",
+      "id": "response_loss",
+      "kind": "drop",
+      "worker": "p"
+    },
+    {
+      "channel": "http",
+      "command": "deadline_probe",
+      "discard_after_release": true,
+      "id": "deadline_hold",
+      "kind": "hold",
+      "worker": "p"
+    }
+  ],
+  "policy": [
+    {
+      "admin": false,
+      "principal": "11",
+      "read": true,
+      "write": true
+    },
+    {
+      "admin": true,
+      "principal": "12",
+      "read": true,
+      "write": false
+    },
+    {
+      "admin": false,
+      "principal": "13",
+      "read": true,
+      "write": false
+    },
+    {
+      "admin": true,
+      "principal": "14",
+      "read": false,
+      "write": false
+    }
+  ],
+  "principals": {
+    "blind": "14",
+    "foreign": "21",
+    "manager": "12",
+    "reader": "13",
+    "writer": "11"
+  },
+  "profile": "guarded-status-real-transport-recovered-v1",
+  "query_sql": "SELECT n FROM witness ORDER BY n",
+  "replacement": {
+    "after": "deadline_probe",
+    "kill": "p",
+    "old_registry_reused": true,
+    "remove_private_cache": true,
+    "same_daemon_port": true,
+    "signal": "SIGKILL",
+    "start": "q"
+  },
+  "request": {
+    "epoch": "1",
+    "id": "1"
+  },
+  "schema": 1,
+  "scope": {
+    "database": "3101",
+    "deployment": "1",
+    "generation": "1",
+    "incarnation": "1",
+    "tenant": "7"
+  },
+  "seed_sql": [
+    "CREATE TABLE witness(n INTEGER PRIMARY KEY)",
+    "INSERT INTO witness(n) VALUES(1) RETURNING n"
+  ],
+  "source_recovery": {
+    "changed_preparation": "two explicitly owned version checks; in-process bounded signed readiness, no readiness curl children",
+    "logical_command_contract": "30-command prior plan reconstructed before executing new fixture; no prior actual acceptance",
+    "old_input_bytes_available": false,
+    "old_input_sha256": "6d2d1b6150ca580bdfcde9fbd98f06f4ee5cb3b702bb35ac3dc71413b3e21927",
+    "old_unexecuted_fixture_available": false
+  },
+  "workers": {
+    "p": "9202",
+    "q": "9303",
+    "s": "9101"
+  }
+}
