@@ -162,7 +162,9 @@ def original_inputs(directory, inputs):
     for name, entry in originals.items():
         value = wire.parse(entry['serialized'])
         original = specifications[name]
-        need(entry['scope_name'] == original['scope_name'] and value['version'] == 1
+        need(set(entry) == {'scope_name', 'serialized'}
+             and set(value) == {'scope', 'request', 'statements'}
+             and entry['scope_name'] == original['scope_name']
              and value['scope'] == inputs['scopes'][original['scope_name']]
              and value['statements'] == original['statements']
              and value['request'] == {'epoch': original['epoch'], 'id': original['request_id'], 'principal': '11',

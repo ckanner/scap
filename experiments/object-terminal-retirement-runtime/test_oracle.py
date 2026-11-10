@@ -351,11 +351,28 @@ class ObserverBoundaries(unittest.TestCase):
             saved = json.loads((directory / 'intents.json').read_bytes())
             for original in spec.inputs():
                 value = json.loads(saved[original['name']]['serialized'])
+                self.assertEqual(set(value), {'scope', 'request', 'statements'})
                 self.assertEqual(value['scope'], spec.SCOPES[original['scope_name']])
                 self.assertEqual(value['statements'], original['statements'])
                 self.assertEqual(value['request'], {'epoch': original['epoch'], 'id': original['request_id'],
                     'principal': '11', 'fingerprint': model.wire.fingerprint(original['statements'])})
             self.assertFalse([row for row in evidence.rows(directory / 'sdk-A.jsonl') if row['event'] == 'http_request'])
+            catalogue = {'version': 1, 'deployment': '1', 'tenant': '7', 'principal': '11',
+                         'action': {'operation': 'named_storage_status', 'creation': spec.creation('before')}}
+            (directory / 'named-intents.jsonl').write_bytes(encoded({'name': 'catalogue-test',
+                'principal': '11', 'serialized': json.dumps(catalogue)}) + b'\n')
+            inputs = {'specs': spec.inputs(), 'scopes': spec.SCOPES,
+                      'named': {name: spec.creation(name) for name in spec.NAMED}}
+            specifications, decoded, named = evidence.original_inputs(directory, inputs)
+            self.assertEqual(set(specifications), set(decoded))
+            self.assertEqual(len(decoded), 23)
+            self.assertEqual(set(named), {'catalogue-test'})
+            extra = json.loads(saved['late-1']['serialized']); extra['version'] = 1
+            saved['late-1']['serialized'] = json.dumps(extra)
+            (directory / 'intents.json').write_bytes(encoded(saved))
+            with self.assertRaises(model.Rejected) as error:
+                evidence.original_inputs(directory, inputs)
+            self.assertEqual(error.exception.rule, 'original-sql-fingerprint')
 
     def test_real_signed_operator_uses_nested_response_body_and_original_etag(self):
         for scope_name in ('stale', 'bad_sweep'):
