@@ -255,6 +255,47 @@ class MutationMechanismTests(unittest.TestCase):
         controls.save(destination, b'changed')
         self.assertEqual(source.read_bytes(), b'original'); self.assertEqual(destination.read_bytes(), b'changed')
 
+    def test_etag_rebound_passes_head_schema_but_lacks_original_exact_get(self):
+        from test_object_wire import Trace, body
+        trace = Trace()
+        path = '/scap-test/scap-object/v1/1/7/1004/head'
+        def head(revision):
+            value = json.loads(body(revision)); value['scope']['database'] = 1004
+            return encoded(value)
+        trace.exchange('PUT', begin=10, end=15, path=path, request=head(1), etag='"v1"', create='*')
+        for revision in range(2, 7):
+            trace.exchange('GET', begin=revision*20, end=revision*20+3, path=path,
+                           response=head(revision-1), etag=f'"v{revision-1}"')
+            trace.exchange('PUT', begin=revision*20+5, end=revision*20+8, path=path,
+                           request=head(revision), etag=f'"v{revision}"', match=f'"v{revision-1}"')
+        victim = trace.exchange('PUT', begin=200, end=210, status=412, path=path,
+                                request=head(5), match='"v4"')
+        for row in trace.history:
+            raw = bytes(row['head_request_bytes'])
+            row['request_body'] = base64.b64encode(raw).decode()
+            row['signing'] = {'payload_sha256': oracle.sha(raw)}
+        trace.audit()
+        source = self.directory / 'original-history.jsonl'
+        original = b''.join(controls.encoded(row) for row in trace.history)
+        source.write_bytes(original); os.link(source, self.directory / 'history.jsonl')
+        controls.etag_rebound(self.directory)
+        self.assertEqual(source.read_bytes(), original)
+        changed = oracle.rows(self.directory, 'history.jsonl')
+        for before, after in zip(trace.history, changed):
+            if after['request_serial'] != victim:
+                self.assertEqual(after, before); continue
+            raw = oracle.b64(after['request_body']); value = oracle.parse(raw)
+            self.assertEqual((value['head_serial'], value['revision'], value['transition']['revision']), (7, 7, 7))
+            self.assertEqual(value['transition']['nonce'], 5)
+            self.assertEqual(after['head_request_bytes'], list(raw))
+            self.assertEqual(after['request_bytes'], len(raw))
+            self.assertEqual(after['request_sha256'], oracle.sha(raw))
+            self.assertEqual(after['signing']['payload_sha256'], oracle.sha(raw))
+            self.assertEqual(after['if_match'], '"v6"')
+        trace.history = changed
+        with self.assertRaisesRegex(ValueError, 'preceding same-call exact GET'):
+            trace.audit()
+
     def test_node_edit_updates_original_stdout_mirror_and_final_ledger_hash(self):
         row = {'schema': 1, 'sequence': 1, 'monotonic_ns': '10', 'event': 'command_finished', 'command': 'claim_lost',
                'ok': False, 'error': {'outcome': 'unknown'}}

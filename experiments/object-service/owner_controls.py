@@ -195,8 +195,22 @@ def etag_rebound(directory):
                           oracle.parse(bytes(row['head_request_bytes']))['revision'] == 6], 'control late new version')
     victim = oracle.only([row for row in values if row['event'] == 'object_response' and row['method'] == 'PUT'
                           and row['path'].endswith('/1004/head') and row['status'] == 412], 'control old candidate')
-    ledger(directory / 'history.jsonl', lambda rows: [row.update(if_match=winner['etag']) for row in rows
-                                                     if row.get('request_serial') == victim['request_serial']])
+    # Keep the forged replacement structurally valid so this control reaches
+    # the original-observation rule, rather than a serial/revision schema check.
+    # This is a mutation of an audit copy, never a product request or a retry.
+    predecessor = oracle.parse(bytes(winner['head_request_bytes']))
+    candidate = oracle.parse(bytes(victim['head_request_bytes']))
+    candidate['head_serial'] = predecessor['head_serial'] + 1
+    candidate['revision'] = predecessor['revision'] + 1
+    candidate['transition']['revision'] = candidate['revision']
+    raw = encoded(candidate)
+    def change(rows):
+        for row in rows:
+            if row.get('request_serial') != victim['request_serial']: continue
+            row.update(if_match=winner['etag'], request_body=base64.b64encode(raw).decode(),
+                       request_bytes=len(raw), request_sha256=oracle.sha(raw), head_request_bytes=list(raw))
+            row['signing']['payload_sha256'] = oracle.sha(raw)
+    ledger(directory / 'history.jsonl', change)
 
 
 def release_early(directory, fault, *, before_command=None):

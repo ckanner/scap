@@ -227,6 +227,41 @@ def consumed_phase_fixture():
 
 
 class ZeroProgressControls(unittest.TestCase):
+    def test_deadline_controls_preserve_full_get_budget_and_original_bytes(self):
+        for kind in ("non_final", "multiple", "prior_response"):
+            evidence = Evidence()
+            evidence.listing('scap-object/v1/1/7/', [], truncated=True)
+            for index in range(512): evidence.get(f'scap-object/v1/1/7/key-{index}', str(index).encode())
+            original_ids = set(evidence.objects)
+            previous_id, completed_id = 512, 513
+            groups = {}
+            for serial in (previous_id, completed_id):
+                obj = evidence.objects[serial]
+                groups[serial] = [
+                    {**copy.deepcopy(obj['request']), 'event': 'request'},
+                    {'event': 'forwarded', 'request_serial': serial, 'monotonic_ns': obj['request']['monotonic_ns']+1},
+                    {**copy.deepcopy(obj['backend']), 'event': 'backend_response', 'request_serial': serial, 'body': obj['upstream']},
+                    {**copy.deepcopy(obj['delivery']), 'event': 'delivery_started', 'request_serial': serial, 'body': obj['outgoing']},
+                    {**copy.deepcopy(obj['terminal']), 'request_serial': serial}]
+            before = copy.deepcopy(groups)
+            replacements = audit.control_causal_pair(groups, previous_id, completed_id, 1_000, kind)
+            self.assertEqual(groups, before)
+            self.assertEqual(set(replacements), {previous_id, completed_id})
+            for serial, group in replacements.items():
+                for original, changed in zip(groups[serial], group):
+                    self.assertEqual({k:v for k,v in changed.items() if k not in ('event','monotonic_ns')},
+                                     {k:v for k,v in original.items() if k not in ('event','monotonic_ns')})
+                obj = evidence.objects[serial]
+                for key, row in zip(('request','backend','delivery','terminal'), (group[0],group[2],group[3],group[4])):
+                    obj[key]['monotonic_ns'] = row['monotonic_ns']
+                obj['terminal']['event'] = group[-1]['event']
+            self.assertEqual(set(evidence.objects), original_ids)
+            invocation = call(1_000, 4_500_000_000, None, {'stopped':'UNKNOWN','cursor':'original-token'})
+            self.assertEqual(sum(not x['request']['query'] for x in audit.page_requests(evidence.objects, invocation)), 512)
+            boundary = 'causally enabling response exceeded' if kind == 'prior_response' else 'non-final work beyond'
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, boundary):
+                audit.page_budget(evidence.objects, invocation)
+
     def test_request_index_preserves_strict_windows_and_late_body_identity(self):
         evidence, _, scan, _, final = zero_progress_fixture()
         indexed = audit.ObjectHistory(evidence.objects)

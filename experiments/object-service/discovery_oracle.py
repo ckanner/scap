@@ -1784,6 +1784,34 @@ def control_tail_history(data, call, originals, replacements, removed=()):
     control_renumber(trace)
 
 
+def control_retime_group(original, started, *, disconnected=True, delivered=None):
+    """Retain one original GET identity and bytes while changing only clocks."""
+    group = copy.deepcopy(original)
+    require([row["event"] for row in group[:-1]] == ["request", "forwarded", "backend_response", "delivery_started"]
+            and group[-1]["event"] in ("delivery_finished", "delivery_disconnected")
+            and group[0]["method"] == "GET" and not group[0]["query"],
+            "causal negative lacks an original complete unfaulted GET")
+    for index, row in enumerate(group):
+        row["monotonic_ns"] = started + index * 1000
+    if delivered is not None:
+        for row, offset in zip(group[2:], (-1000, 0, 1000)):
+            row["monotonic_ns"] = delivered + offset
+    group[-1]["event"] = "delivery_disconnected" if disconnected else "delivery_finished"
+    return group
+
+
+def control_causal_pair(originals, previous_id, completed_id, start, kind):
+    """Keep the original GET denominator even when the page used all 512 slots."""
+    require(previous_id != completed_id and kind in ("non_final", "multiple", "prior_response"),
+            "causal pair must use two distinct original GETs")
+    previous = control_retime_group(originals[previous_id],
+        start + (100_000_000 if kind == "prior_response" else 4_110_000_000),
+        disconnected=kind == "multiple",
+        delivered=start + 4_110_000_000 if kind == "prior_response" else None)
+    completed = control_retime_group(originals[completed_id], start + 4_120_000_000)
+    return {previous_id: previous, completed_id: completed}
+
+
 def metadata_control_counts(options, early):
     require(len(early) == 2 and len({obj["request"]["request_serial"] for obj in early}) == 2,
             "refund controls reused one earlier GET as two observations")
@@ -1966,38 +1994,21 @@ def controls(directory):
     removed_ids = {obj["request"]["request_serial"] for obj in original_objects
                    if stamp(obj["request"]) > stamp(completed["request"])}
     extra_id = max(base_objects) + 1
-
-    def copied_group(serial, started, *, disconnected=True, delivered=None):
-        group = copy.deepcopy(original_rows[completed_id])
-        require([row["event"] for row in group[:-1]] == ["request", "forwarded", "backend_response", "delivery_started"]
-                and group[-1]["event"] in ("delivery_finished", "delivery_disconnected"),
-                "causal negative lacks an original complete unfaulted GET")
-        for index, row in enumerate(group):
-            row["request_serial"], row["monotonic_ns"] = serial, started + index * 1000
-        if delivered is not None:
-            for row, offset in zip(group[2:], (-1000, 0, 1000)):
-                row["monotonic_ns"] = delivered + offset
-        group[-1]["event"] = "delivery_disconnected" if disconnected else "delivery_finished"
-        return group
+    completed_index = original_objects.index(completed)
+    require(completed_index > 0, "causal negative lacks a preceding original GET")
+    previous_id = original_objects[completed_index - 1]["request"]["request_serial"]
 
     def causal_tail_change(data, kind):
         # Every valid completed scan provides this earlier classification GET;
         # none of these mutations depends on naturally observing a late tail.
         start = stamp(first["request"])
         if kind in ("classified", "missing_disconnect"):
-            replacements = {completed_id: copied_group(completed_id, start + 4_110_000_000,
+            replacements = {completed_id: control_retime_group(original_rows[completed_id], start + 4_110_000_000,
                                                        disconnected=kind != "missing_disconnect")}
-        elif kind == "non_final":
-            replacements = {completed_id: copied_group(completed_id, start + 4_110_000_000),
-                            extra_id: copied_group(extra_id, start + 4_120_000_000)}
-        elif kind == "multiple":
-            replacements = {extra_id: copied_group(extra_id, start + 4_110_000_000),
-                            extra_id + 1: copied_group(extra_id + 1, start + 4_120_000_000)}
         else:
-            require(kind == "prior_response", "unknown causal negative construction")
-            replacements = {completed_id: copied_group(completed_id, start + 100_000_000,
-                                                       delivered=start + 4_110_000_000),
-                            extra_id: copied_group(extra_id, start + 4_120_000_000)}
+            # Do not append requests: a valid partial page may already use all
+            # 512 GETs. Preserve both original dependency bodies and ordering.
+            replacements = control_causal_pair(original_rows, previous_id, completed_id, start, kind)
         mutate_response(data, first["label"], lambda value: value["value"].update(stopped="UNKNOWN"))
         control_tail_history(data, first, original_rows, replacements, removed_ids)
 
