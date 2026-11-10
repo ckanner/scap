@@ -99,6 +99,13 @@ pub enum Action {
         expected_head_revision: Decimal,
         nonce: Decimal,
     },
+    NamedStorageStatus {
+        creation: Creation,
+    },
+    RetireNamedStorage {
+        creation: Creation,
+        expected_head_serial: Decimal,
+    },
 }
 
 /// Validated public inputs projected once into the formal runtime's types.
@@ -110,6 +117,8 @@ pub(crate) enum NativeAction {
     Inspect(u64),
     Resolve(String),
     Delete(core::DeleteNamed),
+    StorageStatus(core::Creation),
+    RetireStorage(core::RetireNamedStorage),
 }
 
 impl Action {
@@ -120,7 +129,9 @@ impl Action {
             Self::PrepareCreate { name, .. } | Self::ResolveName { name } => Some(name),
             Self::ResumeCreate { creation }
             | Self::AbortCreate { creation, .. }
-            | Self::DeleteName { creation, .. } => Some(&creation.name),
+            | Self::DeleteName { creation, .. }
+            | Self::NamedStorageStatus { creation }
+            | Self::RetireNamedStorage { creation, .. } => Some(&creation.name),
             Self::InspectCreateOperation { .. } => None,
         }
     }
@@ -195,6 +206,20 @@ impl Action {
                     nonce: nonce.0,
                 })
             }
+            Self::NamedStorageStatus { creation } => {
+                NativeAction::StorageStatus(creation.native()?)
+            }
+            Self::RetireNamedStorage {
+                creation,
+                expected_head_serial,
+            } => {
+                let creation = creation.native()?;
+                nonzero(expected_head_serial.0)?;
+                NativeAction::RetireStorage(core::RetireNamedStorage {
+                    creation,
+                    expected_head_serial: expected_head_serial.0,
+                })
+            }
         })
     }
 
@@ -210,7 +235,9 @@ impl Action {
                 }
                 principal.authorize(&creation.scope.native()?)?;
             }
-            Self::DeleteName { creation, .. } => {
+            Self::DeleteName { creation, .. }
+            | Self::NamedStorageStatus { creation }
+            | Self::RetireNamedStorage { creation, .. } => {
                 // Deleting ADMIN may differ from creator and need not provision.
                 // Only the core's fresh HEAD read can grant this permission.
                 principal.authorize(&creation.scope.native()?)?;

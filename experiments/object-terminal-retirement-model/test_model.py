@@ -314,6 +314,18 @@ class Protocol(unittest.TestCase):
         self.rejected(m, "invalid_head", lambda: m.prepare_terminal("again"))
         self.assertTrue(m.semantic_latch)
 
+    def test_terminal_serial_must_follow_final_business_revision(self):
+        m = Model()
+        seal(m)
+        malformed = deepcopy(m.store[head_key()]["body"])
+        malformed["revision"] = malformed["terminal"]["serial"]
+        self.assertLess(malformed["allocated"], malformed["terminal"]["serial"])
+        self.assertLessEqual(malformed["terminal"]["serial"], malformed["serial"])
+        m.corrupt_authority(head_key(), malformed)
+        self.rejected(m, "invalid_head", lambda: m.prepare_terminal("again"))
+        self.assertTrue(m.semantic_latch)
+        audit(m.history())
+
     def test_abort_proof_before_or_after_seal_survives_gc(self):
         for mode in ("abort", "abort_absent"):
             for before in (True, False):

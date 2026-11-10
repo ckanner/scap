@@ -183,6 +183,10 @@ pub enum Action {
         #[serde(default, deserialize_with = "present_worker")]
         expected_worker_instance: Option<Decimal>,
     },
+    StorageStatus {},
+    RetireStorage {
+        expected_head_serial: Decimal,
+    },
     Open {},
     Query {
         statements: Vec<WireStatement>,
@@ -346,6 +350,9 @@ impl Action {
         }
         let serial = match self {
             Self::CompactBegin {
+                expected_head_serial,
+            }
+            | Self::RetireStorage {
                 expected_head_serial,
             }
             | Self::GcPrepare {
@@ -530,7 +537,8 @@ fn storage(storage: &scap_object::format::Storage) -> Json {
             "observed_absent": counts[2], "condition_mismatch": counts[3]})
     });
     json!({"active_generation": Decimal(storage.active_generation),
-        "allocated_through": Decimal(storage.allocated_through), "plan": plan, "sweep": sweep})
+        "allocated_through": Decimal(storage.allocated_through), "plan": plan, "sweep": sweep,
+        "terminal": storage.terminal.as_ref().map(|terminal| json!({"serial": Decimal(terminal.serial)}))})
 }
 
 pub fn sweep(report: &scap_object::SweepReport) -> Json {

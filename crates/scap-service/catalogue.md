@@ -55,8 +55,22 @@ quota 的三态分别为 `{"mode":"default"}`、`{"mode":"unlimited"}`、`{"mode
 | `resolve_name` | `name` |
 | `abort_create` | `creation`、`control_operation`、`expected_name_revision`、`nonce` |
 | `delete_name` | `creation`、`control_operation`、`expected_name_revision`、`expected_head_revision`、`nonce` |
+| `named_storage_status` | `creation` |
+| `retire_named_storage` | `creation`、`expected_head_serial` |
 
 创建、续作、取消和原创建操作查证要求当前服务凭据仍有 provision，且调用者是原 creator。resolve 需要当前 HEAD 的 READ。正常删除要求当前 HEAD 的 ADMIN，可以由不同于 creator 的主体执行，也不要求 provision；ADMIN-only 调用者使用已经知道的完整 Creation 和预期 revisions，服务不会把 ADMIN 自动等同于 READ 或帮它绕过发现权限。
+
+`named_storage_status` 与 `retire_named_storage` 也只要求当前 ADMIN，并使用原 Creation，
+不把 name 重新解析到后来创建的库。这两个入口专用于已删除或已取消且确实拥有 Deleted
+HEAD 的原库；core 会核对原 descriptor、控制意图、名称屏障与 HEAD 身份。ForeignOccupied
+可以让原创建取消完成，但它不授予删除另一个库 payload 的权限。
+
+查询返回既有 DatabaseStatus 投影，含必填 `storage.terminal`：未退休为 `null`，退休后为
+`{serial}`。退休只在精确 `expected_head_serial` 上发布永久 seal；成功的 head serial 和
+terminal serial 都等于原值加一。序号不符或已有 seal 返回 `CONFLICT`。它不重新解释原
+`delete_name` / `abort_create` 意图，不推进业务 revision，也不执行 SQL 或 DELETE。
+GC 能力与凭据仍独立，见[压缩与回收](docs/reclamation.md)。普通 `status`、`lookup` 与
+resolve 不因为增加了管理查询就恢复 Deleted 数据访问。
 
 创建进度完整返回 `not_reserved`、`reserved`、`provisioning`、`bound`、`ready`、`aborting`、`aborted`、`deleting`、`deleted`、`name_conflict`、`identity_conflict`。取消另有 `cannot_abort_bound`，删除另有 `not_deleted`。中间状态不能当作完成。名字已经重用时，原创建操作的 `binding_revision` 是 `null`，不会把新绑定 revision 冒充为旧操作的可用条件。
 
@@ -64,4 +78,6 @@ quota 的三态分别为 `{"mode":"default"}`、`{"mode":"unlimited"}`、`{"mode
 
 客户端需要在发送前保存完整原意图。`UNKNOWN` 后只显式查证或重入相同意图；更换 control operation、Scope、revision、nonce 或名称属于新的用户决定。固定 SQL 请求始终绑定原 Scope，名称重用不会使旧 SQL 自动指向新库。
 
-此接口只提供精确名称及原创建操作查证。全目录枚举、分页完整性、冷启动完整 inventory 和物理 GC 仍有各自的实现与验收合同。
+目录发现、分页完整性与冷启动 inventory 有独立接口和验收合同；终态退休也须单独验证，
+不能由原创建/删除流程的通过记录代替。以上管理调用均使用现有目录队列、原始 deadline
+与一次 POST；不引入后台自动退休或自动删除。

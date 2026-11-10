@@ -58,4 +58,13 @@ export class CatalogueClient {
     wire.record(input, ['creation', 'control_operation', 'expected_name_revision', 'expected_head_revision', 'nonce']);
     return this.submit(this.prepareIntent({ operation: 'delete_name', ...input }), options);
   }
+
+  storageStatus(creation, options) {
+    return this.submit(this.prepareIntent({ operation: 'named_storage_status', creation }), options);
+  }
+
+  retireStorage(input, options) {
+    wire.record(input, ['creation', 'expected_head_serial']);
+    return this.submit(this.prepareIntent({ operation: 'retire_named_storage', ...input }), options);
+  }
 }

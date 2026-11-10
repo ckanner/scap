@@ -1,4 +1,4 @@
-//! Strict v6 HEAD values and unchanged v2 immutable object frames.
+//! Strict live v6 / terminal v7 HEADs and unchanged v2 immutable frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -13,7 +13,7 @@ pub(crate) use object_frame::ValidatedFrame;
 mod storage;
 pub use storage::{
     CopyBasis, CopyPhase, CopyPlan, Storage, SweepCheckpoint, SweepDisposition, SweepEntry,
-    MAX_SWEEP_ENTRIES,
+    TerminalSeal, MAX_SWEEP_ENTRIES,
 };
 
 pub const PAGE_SIZE: usize = 4096;
@@ -260,7 +260,7 @@ pub struct Head {
 
 impl Head {
     pub(crate) fn validate(&self) -> Result<(), FormatError> {
-        check(self.format == 6)?;
+        check(self.format == 6 || self.format == 7)?;
         self.scope.validate()?;
         nonzero(&[
             self.head_serial,

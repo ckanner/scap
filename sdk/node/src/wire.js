@@ -203,7 +203,7 @@ export function status(value, expectedScope) {
   result.retention = Object.freeze({ ...value.retention });
   decimal(value.head_serial);
   requireValue(BigInt(value.head_serial) >= BigInt(value.revision), 'Physical HEAD serial precedes logical revision');
-  result.storage = storage(value.storage, value.head_serial, value.active, value.lifecycle);
+  result.storage = storage(value.storage, value.head_serial, value.revision, value.active, value.lifecycle);
   return Object.freeze(result);
 }
 
@@ -212,13 +212,22 @@ export function afterHash(value) {
   return value === null ? null : hash(value);
 }
 
-function storage(value, serial, activeOwner, lifecycleState) {
-  record(value, ['active_generation', 'allocated_through', 'plan', 'sweep']);
+function storage(value, serial, revision, activeOwner, lifecycleState) {
+  record(value, ['active_generation', 'allocated_through', 'plan', 'sweep', 'terminal']);
   const active = decimal(value.active_generation), allocated = decimal(value.allocated_through);
   requireValue(BigInt(active) <= BigInt(allocated), 'Active physical generation was not allocated');
   requireValue(BigInt(allocated) <= BigInt(serial), 'Physical allocation precedes its HEAD publication');
   requireValue(value.plan === null || value.sweep === null, 'Copy and deletion checkpoints cannot overlap');
-  let plan = null, sweep = null;
+  let plan = null, sweep = null, terminal = null;
+  if (value.terminal !== null) {
+    record(value.terminal, ['serial']);
+    const terminalSerial = decimal(value.terminal.serial);
+    requireValue(lifecycleState === 'deleted' && activeOwner === false && value.plan === null,
+      'Terminal storage requires an inactive deleted database without a copy plan');
+    requireValue(BigInt(allocated) < BigInt(terminalSerial) && BigInt(terminalSerial) <= BigInt(serial) &&
+      BigInt(revision) < BigInt(terminalSerial), 'Terminal storage serial contradicts its frozen history');
+    terminal = Object.freeze({ serial: terminalSerial });
+  }
   if (value.plan !== null) {
     requireValue(activeOwner === false && lifecycleState === 'ready', 'Copy requires an inactive ready owner');
     record(value.plan, ['serial', 'source', 'target', 'phase']);
@@ -230,13 +239,15 @@ function storage(value, serial, activeOwner, lifecycleState) {
     plan = Object.freeze({ ...p });
   }
   if (value.sweep !== null) {
-    requireValue(lifecycleState === 'ready', 'Deletion checkpoint requires ready lifecycle');
+    requireValue(lifecycleState === 'ready' || terminal !== null, 'Deletion checkpoint requires ready or terminal lifecycle');
     record(value.sweep, ['serial', 'generation', 'next_after', 'exhausted',
       'pending', 'applied', 'observed_absent', 'condition_mismatch']);
     const s = value.sweep;
     decimal(s.serial); decimal(s.generation); afterHash(s.next_after);
-    requireValue(BigInt(s.serial) <= BigInt(serial) && s.generation !== active &&
+    requireValue(BigInt(s.serial) <= BigInt(serial) && (terminal !== null || s.generation !== active) &&
       BigInt(s.generation) <= BigInt(allocated), 'Invalid retired generation checkpoint');
+    if (terminal !== null) requireValue(BigInt(s.serial) > BigInt(terminal.serial),
+      'Terminal checkpoint precedes its retirement barrier');
     requireValue(typeof s.exhausted === 'boolean', 'Expected listing completion state');
     requireValue(s.exhausted === (s.next_after === null), 'Checkpoint frontier contradicts listing completion');
     const counts = ['pending', 'applied', 'observed_absent', 'condition_mismatch'].map((key) => s[key]);
@@ -245,19 +256,34 @@ function storage(value, serial, activeOwner, lifecycleState) {
       counts.reduce((total, count) => total + count, 0) <= 32, 'Invalid bounded checkpoint counts');
     sweep = Object.freeze({ ...s });
   }
-  return Object.freeze({ active_generation: active, allocated_through: allocated, plan, sweep });
+  return Object.freeze({ active_generation: active, allocated_through: allocated, plan, sweep, terminal });
+}
+
+export function storageStatus(value, expectedScope) {
+  const head = status(value, expectedScope);
+  requireValue(head.lifecycle === 'deleted', 'Storage retirement management requires deleted lifecycle');
+  return head;
+}
+
+export function retiredStorage(value, expectedScope, expectedSerial) {
+  const head = storageStatus(value, expectedScope);
+  requireValue(BigInt(head.head_serial) === BigInt(expectedSerial) + 1n &&
+    head.storage.terminal?.serial === head.head_serial,
+  'Terminal seal does not match the requested physical HEAD');
+  return head;
 }
 
 export function sweepReport(value, expectedScope) {
   record(value, ['status', 'generation', 'scanned', 'next_after', 'exhausted']);
   const head = status(value.status, expectedScope), generation = decimal(value.generation);
-  requireValue(head.lifecycle === 'ready', 'Sweep report requires ready lifecycle');
+  requireValue(head.lifecycle === 'ready' || head.storage.terminal !== null,
+    'Sweep report requires ready or terminal lifecycle');
   afterHash(value.next_after);
   requireValue(Number.isSafeInteger(value.scanned) && value.scanned >= 0 && value.scanned <= 32,
     'Invalid scanned object count');
   requireValue(typeof value.exhausted === 'boolean', 'Expected listing completion state');
   requireValue(value.exhausted === (value.next_after === null), 'Report frontier contradicts listing completion');
-  requireValue(generation !== head.storage.active_generation &&
+  requireValue((head.storage.terminal !== null || generation !== head.storage.active_generation) &&
     BigInt(generation) <= BigInt(head.storage.allocated_through) &&
     (head.storage.plan === null || generation !== head.storage.plan.target), 'Sweep targets an unretired generation');
   if (head.storage.sweep !== null) {

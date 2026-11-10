@@ -21,7 +21,23 @@ pub(super) struct PreparedHead {
     bytes: Vec<u8>,
     etag: String,
     deadline: Instant,
-    generation: u64,
+    domain: PublicationDomain,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum PublicationDomain {
+    Live(u64),
+    TerminalMetadata,
+}
+
+impl PublicationDomain {
+    pub(super) fn original(head: &Head) -> Self {
+        if head.storage.terminal.is_some() {
+            Self::TerminalMetadata
+        } else {
+            Self::Live(head.storage.active_generation)
+        }
+    }
 }
 
 impl PreparedHead {
@@ -31,7 +47,7 @@ impl PreparedHead {
         next: &Head,
         deadline: Instant,
     ) -> Result<Self, Error> {
-        if next.storage != base.head.storage {
+        if next.storage != base.head.storage || base.head.storage.terminal.is_some() {
             return Err(Error::Format(FormatError::Invalid));
         }
         Self::bound(database, base, next, deadline)
@@ -46,8 +62,8 @@ impl PreparedHead {
         Self::bound(database, &base, &next, deadline)
     }
 
-    pub(super) fn generation(&self) -> u64 {
-        self.generation
+    pub(super) fn domain(&self) -> PublicationDomain {
+        self.domain
     }
 
     fn bound(
@@ -74,7 +90,7 @@ impl PreparedHead {
             bytes,
             etag: base.etag.clone(),
             deadline,
-            generation: base.head.storage.active_generation,
+            domain: PublicationDomain::original(&base.head),
         })
     }
 

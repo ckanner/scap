@@ -12,6 +12,8 @@ const ACTIONS = Object.freeze({
   inspect_create_operation: ['create_operation'],
   resolve_name: ['name'],
   delete_name: ['creation', 'control_operation', 'expected_name_revision', 'expected_head_revision', 'nonce'],
+  named_storage_status: ['creation'],
+  retire_named_storage: ['creation', 'expected_head_serial'],
 });
 const FIELDS = [...new Set(Object.values(ACTIONS).flat())];
 const CREATE_PHASES = ['not_reserved', 'reserved', 'provisioning', 'bound', 'ready',
@@ -83,7 +85,7 @@ function action(value, caller) {
   }
   if (Object.hasOwn(value, 'creation')) {
     result.creation = creation(value.creation, caller);
-    if (operation !== 'delete_name') {
+    if (operation === 'resume_create' || operation === 'abort_create') {
       wire.requireValue(result.creation.creator === caller.principal, 'Only the original creator may resume or abort creation');
     }
   }
@@ -93,6 +95,7 @@ function action(value, caller) {
     result.nonce = wire.decimal(value.nonce);
   }
   if (operation === 'delete_name') result.expected_head_revision = wire.decimal(value.expected_head_revision);
+  if (operation === 'retire_named_storage') result.expected_head_serial = wire.decimal(value.expected_head_serial);
   return Object.freeze(result);
 }
 
@@ -139,6 +142,8 @@ function progress(value, phases) {
 export function decode(value, intent) {
   const input = intent.action;
   const operation = input.operation;
+  if (operation === 'named_storage_status') return wire.storageStatus(value, input.creation.scope);
+  if (operation === 'retire_named_storage') return wire.retiredStorage(value, input.creation.scope, input.expected_head_serial);
   if (operation === 'resolve_name') {
     wire.record(value, ['creation', 'binding_revision', 'head']);
     const result = { creation: creation(value.creation, intent), binding_revision: wire.decimal(value.binding_revision) };

@@ -1,11 +1,11 @@
-//! HEAD6 physical namespaces. Only the current active/copy namespaces are live.
-//! Explicit retained roots are not admitted by this format.
+//! Live HEAD6 namespaces and permanently sealed HEAD7 Deleted namespaces.
+//! Explicit retained roots are not admitted by either format.
 
 use super::{
     budget, check, hash_valid, object_key, DatabaseQuota, FormatError, Head, Lifecycle, Retention,
     Window,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const MAX_SWEEP_ENTRIES: usize = 32;
 
@@ -18,6 +18,25 @@ pub struct Storage {
     pub plan: Option<CopyPlan>,
     #[serde(deserialize_with = "super::required_option")]
     pub sweep: Option<SweepCheckpoint>,
+    /// Absent only in HEAD6. Explicit null is never a valid persisted value.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present_terminal"
+    )]
+    pub terminal: Option<TerminalSeal>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalSeal {
+    pub serial: u64,
+}
+
+fn present_terminal<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<TerminalSeal>, D::Error> {
+    TerminalSeal::deserialize(deserializer).map(Some)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -104,15 +123,16 @@ pub struct SweepCheckpoint {
 
 impl Storage {
     /// Retirement does not depend on LIST, clocks, process death or g < A.
-    /// Deleted's final active generation deliberately remains protected.
+    /// Deleted's final active generation stays protected until a HEAD7 seal.
     pub fn retired(&self, generation: u64) -> bool {
         generation != 0
             && generation <= self.allocated_through
-            && generation != self.active_generation
-            && self
-                .plan
-                .as_ref()
-                .is_none_or(|plan| generation != plan.target)
+            && (self.terminal.is_some()
+                || (generation != self.active_generation
+                    && self
+                        .plan
+                        .as_ref()
+                        .is_none_or(|plan| generation != plan.target)))
     }
 
     pub(crate) fn validate(&self, head: &Head) -> Result<(), FormatError> {
@@ -122,6 +142,18 @@ impl Storage {
                 && self.allocated_through <= head.head_serial,
         )?;
         check(self.plan.is_none() || self.sweep.is_none())?;
+        // Head::validate admitted exactly versions 6 and 7. A missing field is
+        // legal only for v6; present_terminal rejected an explicit JSON null.
+        check((head.format == 6) == self.terminal.is_none())?;
+        if let Some(terminal) = &self.terminal {
+            check(head.lifecycle == Lifecycle::Deleted && !head.active)?;
+            check(self.plan.is_none())?;
+            check(
+                self.allocated_through < terminal.serial
+                    && head.revision < terminal.serial
+                    && terminal.serial <= head.head_serial,
+            )?;
+        }
         if let Some(plan) = &self.plan {
             check(head.lifecycle == Lifecycle::Ready && !head.active)?;
             check(plan.serial != 0 && plan.serial <= head.head_serial)?;
@@ -137,8 +169,16 @@ impl Storage {
             )?;
         }
         if let Some(sweep) = &self.sweep {
-            check(head.lifecycle == Lifecycle::Ready && self.retired(sweep.generation))?;
+            let lifecycle = if self.terminal.is_some() {
+                Lifecycle::Deleted
+            } else {
+                Lifecycle::Ready
+            };
+            check(head.lifecycle == lifecycle && self.retired(sweep.generation))?;
             check(sweep.serial != 0 && sweep.serial <= head.head_serial)?;
+            if let Some(terminal) = &self.terminal {
+                check(sweep.serial > terminal.serial)?;
+            }
             check(sweep.exhausted == sweep.next_after.is_none())?;
             check(!sweep.entries.is_empty())?;
             budget(sweep.entries.len(), MAX_SWEEP_ENTRIES)?;

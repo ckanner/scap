@@ -13,12 +13,14 @@ mod inspect;
 mod records;
 mod recovery_budget;
 mod recovery_job;
+mod terminal;
 mod types;
 
 pub use discovery::*;
 pub use discovery_names::*;
 pub use recovery_budget::{RecoveryBudget, RecoveryUsage};
 pub use recovery_job::*;
+pub(crate) use terminal::VerifiedDeletionSource;
 pub use types::*;
 
 use std::sync::Arc;

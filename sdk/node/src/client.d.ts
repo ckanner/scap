@@ -75,6 +75,7 @@ export interface StorageStatus {
   readonly allocated_through: Decimal;
   readonly plan: CopyPlanStatus | null;
   readonly sweep: SweepStatus | null;
+  readonly terminal: { readonly serial: Decimal } | null;
 }
 export interface DatabaseStatus {
   readonly scope: Scope;
@@ -266,13 +267,19 @@ export interface AbortCreateInput {
 export interface DeleteNameInput extends AbortCreateInput {
   readonly expected_head_revision: Decimal;
 }
+export interface RetireNamedStorageInput {
+  readonly creation: Creation;
+  readonly expected_head_serial: Decimal;
+}
 export type CatalogueAction =
   ({ readonly operation: 'prepare_create' } & PrepareCreateInput) |
   { readonly operation: 'resume_create'; readonly creation: Creation } |
   ({ readonly operation: 'abort_create' } & AbortCreateInput) |
   { readonly operation: 'inspect_create_operation'; readonly create_operation: Decimal } |
   { readonly operation: 'resolve_name'; readonly name: string } |
-  ({ readonly operation: 'delete_name' } & DeleteNameInput);
+  ({ readonly operation: 'delete_name' } & DeleteNameInput) |
+  { readonly operation: 'named_storage_status'; readonly creation: Creation } |
+  ({ readonly operation: 'retire_named_storage' } & RetireNamedStorageInput);
 
 declare const preparedCatalogueIntent: unique symbol;
 type FrozenCatalogueValue<T> = T extends object ? { readonly [K in keyof T]: FrozenCatalogueValue<T[K]> } : T;
@@ -334,7 +341,8 @@ export type CatalogueResult<A extends CatalogueAction = CatalogueAction> =
   A extends { readonly operation: 'prepare_create' } ? PreparedCreate :
   A extends { readonly operation: 'resume_create' | 'inspect_create_operation' } ? CreationProgress :
   A extends { readonly operation: 'abort_create' } ? AbortProgress :
-  A extends { readonly operation: 'delete_name' } ? DeletionProgress : Named;
+  A extends { readonly operation: 'delete_name' } ? DeletionProgress :
+  A extends { readonly operation: 'named_storage_status' | 'retire_named_storage' } ? DatabaseStatus : Named;
 export interface CatalogueClientOptions extends Omit<ClientOptions, 'scope' | 'resultLimits' | 'allocation'> {
   /** Expected server authority, used locally and never sent as caller-supplied authorization. */
   readonly deployment: Decimal;
@@ -357,6 +365,10 @@ export class CatalogueClient {
   inspectCreateOperation(createOperation: Decimal, options?: CallOptions): Promise<CreationProgress>;
   resolveName(name: string, options?: CallOptions): Promise<Named>;
   deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
+  /** Deleted metadata only; verifies the original named deletion or abort intent. */
+  storageStatus(creation: Creation, options?: CallOptions): Promise<DatabaseStatus>;
+  /** One original-serial CAS; does not require or grant physical DELETE credentials. */
+  retireStorage(input: RetireNamedStorageInput, options?: CallOptions): Promise<DatabaseStatus>;
 }
 
 export type DiscoveryStop = 'INVALID' | 'DENIED' | 'LIMIT' | 'CONFLICT' | 'UNKNOWN' | 'CORRUPT' | 'SNAPSHOT_EXPIRED' | null;
@@ -462,6 +474,10 @@ export class Client {
   setLifecycle(input: AdministrativeInput & { readonly lifecycle: Lifecycle }, options?: CallOptions): Promise<DatabaseStatus>;
   /** Freeze a closure at the exact physical HEAD; does not retry an uncertain begin. */
   compactBegin(input: { readonly expectedHeadSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
+  /** Direct Deleted databases only; ordinary status and lookup remain lifecycle errors. */
+  storageStatus(options?: CallOptions): Promise<DatabaseStatus>;
+  /** Permanently retire every allocated physical generation; never deletes the HEAD. */
+  retireStorage(input: { readonly expectedHeadSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
   compactCopy(input: { readonly planSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;
   /** Publishes the new generation inactive; never activates or replays SQL. */
   compactPromote(input: { readonly planSerial: Decimal }, options?: CallOptions): Promise<DatabaseStatus>;

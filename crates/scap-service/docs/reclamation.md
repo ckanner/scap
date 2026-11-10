@@ -1,6 +1,6 @@
 # 显式压缩与已退休物理代回收
 
-此接口把 HEAD6 的 compaction 与 checkpoint GC 接入正式 HTTP 和 Node SDK。
+此接口把 HEAD6 的 compaction、checkpoint GC 和 HEAD7 的终态存储退休接入 HTTP 与 Node SDK。
 它提供管理员手动控制：每次调用只执行一个阶段或一个最多 32 项的删除批，不自动重放 SQL、
 更新旧候选 ETag、重新分配 plan/batch 身份，也不根据 LIST、进程消失或等待时长推定退休。
 
@@ -17,8 +17,13 @@
 - `plan`：`null` 或 `{serial,source,target,phase}`，phase 为 `copying` / `sealed`。
 - `sweep`：`null` 或 `{serial,generation,next_after,exhausted,pending,applied,observed_absent,condition_mismatch}`。
   四个 disposition 计数之和为 1..32；不返回对象 key、ETag 或捕获的请求窗口。
+- `terminal`：`null` 或 `{serial}`，表示已发布的永久终态存储屏障。响应中始终带此字段；
+  未退休的 HEAD6 状态也投影为 `terminal: null`。
 
-plan 与 sweep 互斥。公开 serial、代号和其他 u64 都是规范十进制字符串；计数是小整数。
+plan 与 sweep 互斥。terminal 只能出现在 inactive、Deleted、无 plan 的状态，且满足
+`M < terminal.serial <= head_serial` 且 `revision < terminal.serial`；其后安装的 sweep 必须有
+更大的 serial。终态屏障晚于最后一次业务转换，不能接受在屏障之后又推进业务 revision 的历史。
+公开 serial、代号和其他 u64 都是规范十进制字符串；计数是小整数。
 删除能力只接受 core 从退休证明和当前 checkpoint 推导出的物理对象。
 客户端没有 bucket、endpoint、prefix、key、ETag 或批量任意删除参数。
 
@@ -46,6 +51,35 @@ owner；若更换 worker，先按原 owner 协议显式 takeover，再 activate�
 COPY 与 GC 共用 `cache.parallel_recoveries` 的全局 semaphore，使用 recovery intake、原
 recovery deadline 和数据库 actor；不会消耗为短 control 操作预留的队列名额与执行线程。
 实际工作未结束时，HTTP 超时或断连不会提前归还工作配额，也不取消已接受的 authority 转换。
+
+## 删除后的终态退休
+
+`lifecycle: deleted` 会拒绝普通 SQL、`lookup`、`open` 与 `status`，但它本身不允许删除最后
+一个 A。管理员须显式发布 terminal seal；后台对象读取或丢失不会代替这一步。
+
+| 路径 / operation | 额外 JSON 字段 | admission | 作用 |
+| --- | --- | --- | --- |
+| `/v1` / `storage_status` | 无 | `control` | 查询直接创建库的 Deleted 元数据和终态状态 |
+| `/v1` / `retire_storage` | `expected_head_serial` | `control` | 在精确原序号上发布永久终态屏障 |
+| `/v1/catalogue` / `named_storage_status` | 完整 `creation` | `catalogue` | 核实原目录创建和删除/取消意图后查询 Deleted 状态 |
+| `/v1/catalogue` / `retire_named_storage` | 完整 `creation`、`expected_head_serial` | `catalogue` | 在相同目录证明下退休原物理库 |
+
+四个入口都校验 fresh HEAD 的当前 ADMIN；目录入口不要求 provision，也不要求管理员等于
+原 creator。直接入口只接受 `creation: None` 的库；命名库必须携带原 Creation 走目录入口。
+名称后来重用不会把新库当成旧库，也不能把只属于另一个 HEAD 的 ForeignOccupied 取消屏障
+用作本库的退休授权。详细目录身份约束见[名称目录接口](../catalogue.md)。
+
+退休调用不读取 SQLite 数据闭包、不执行 SQL，也不需要启用 GC。成功只将 `head_serial`
+推进一位并写入 `terminal.serial = head_serial`，同时保持 owner inactive；业务 revision、
+transition、请求窗口、数据根、权限与原创建/删除身份保持原值。调用前应保存完整 scope 或
+Creation 和原 expected serial。序号不符或已经存在 terminal seal 返回 `CONFLICT`，不会把
+再次提交解释成同一次成功。响应丢失后用 `storage_status` / `named_storage_status` 查证；
+SDK 不自动重发退休请求。
+
+终态屏障发布后 A、M 和 terminal serial 永久固定，HEAD 本身不会被删除，旧 scope 不复用。
+GC 才能扫描 `1..M` 中的物理代，包括原最后一个 A。长期保留的 HEAD 以及目录 descriptor、
+control 和 proof 是身份与退休依据，不属于此 payload GC 的删除范围。服务缓存不是退休授权；
+旧读取得到确切退休证明时返回 `SNAPSHOT_EXPIRED`，不返回一个由缺页拼成的成功结果。
 
 ## 独立可选 GC 凭据
 
@@ -81,8 +115,9 @@ deployment 时使用分别绑定的服务配置。GC 的环境变量名和 acces
 | `gc_prepare` | `expected_head_serial`, `generation`, `after` | `recovery` | 最多一个 LIST 页、32 次精确 inspect，保存原 ETag checkpoint；不 DELETE |
 | `gc_resume` | `batch_serial` | `recovery` | 精确观察同一 checkpoint 与退休证明，条件删除/分类，再持久 disposition 并清 checkpoint |
 
-`generation` 指物理代，不能是 A、当前复制目标或未分配代。已经中止的目标可能大于 A，仍可
-由 core 证明已退休。`after` 必须显式给出 `null` 或上一页的 64 位小写 hash；它不是任意 key。
+`generation` 指物理代。Ready 状态不能扫描 A、当前复制目标或未分配代；已经中止的目标
+可能大于 A，仍可由 core 证明已退休。Deleted 状态须先有 terminal seal，才允许扫描包括 A
+在内的已分配代。`after` 必须显式给出 `null` 或上一页的 64 位小写 hash；它不是任意 key。
 每次返回：
 
 ```json
@@ -106,12 +141,14 @@ RESUME 只使用持久候选的原 ETag。当前对象已不存在记录 `observ
 
 `exhausted` 只表示这次遍历到达当前 listing 边界。延迟旧 PUT 仍可能在退休 namespace 产生
 orphan；一次清扫不证明 prefix 永久为空，也不证明总体存储永不增长。迟到对象需要后续显式
-扫描。Deleted 最后一个 A 继续受保护，完整库物理 purge 尚未包含；retained snapshot、持久
-reader pin 和 PITR 也未开放。HEAD6 不接受非空 holds。
+扫描。HEAD6 的未封口 Deleted 最后一个 A 仍受保护；HEAD7 必须经上述显式终态退休才能
+回收其 payload。永久权威元数据不随 payload 删除。retained snapshot、持久 reader pin 和
+PITR 尚未开放，当前格式不接受非空 holds。
 
 ## UNKNOWN、快照过期与原业务结果
 
-管理响应丢失后先保存原 serial，再显式 `status` 检查 plan/sweep；不要自动换新的 serial
+管理响应丢失后先保存原 serial，再显式 `status` 检查 Ready 的 plan/sweep，或用专用
+`storage_status` / `named_storage_status` 检查 Deleted 的 terminal/sweep；不要自动换新的 serial
 重发。观察到同一未完成 batch 时，可以明确调用 `gc_resume`；batch 已消失或被替换时返回
 CONFLICT，不能据此断言旧 UNKNOWN 从未执行。SDK 的 `UnknownError.reference` 保留操作、
 原 serial、物理代和 frontier，每个新方法最多一个 POST。
@@ -123,3 +160,4 @@ CONFLICT，不能据此断言旧 UNKNOWN 从未执行。SDK 的 `UnknownError.re
 
 本地兼容 S3 和原生进程验收与单元覆盖分开；实际运行与失败证据由
 `experiments/object-reclamation-runtime` 独立记录，不能由状态字段或单元 profile 代替。
+HEAD6 的通过记录不自动证明新增 HEAD7 终态路径；后者仍需固定新候选的独立验收。

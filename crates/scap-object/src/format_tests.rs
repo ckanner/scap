@@ -242,6 +242,7 @@ fn head() -> Head {
             allocated_through: 1,
             plan: None,
             sweep: None,
+            terminal: None,
         },
         revision: 1,
         transition: transition(),
@@ -274,6 +275,123 @@ fn head() -> Head {
             count: 0,
             result_bytes: 0,
         }],
+    }
+}
+
+#[test]
+fn terminal_wire_versions_preserve_field_presence_and_reject_cross_version_aliases() {
+    let live = head();
+    let live_json = serde_json::to_value(&live).unwrap();
+    assert!(live_json["storage"].get("terminal").is_none());
+    let mut terminal = live.clone();
+    terminal.format = 7;
+    terminal.lifecycle = Lifecycle::Deleted;
+    terminal.head_serial = 2;
+    terminal.storage.terminal = Some(TerminalSeal { serial: 2 });
+    let bytes = encode_head(&terminal).unwrap();
+    assert_eq!(decode_head(&bytes, &scope()).unwrap(), terminal);
+    assert!(terminal.storage.retired(1));
+    assert!(!terminal.storage.retired(0));
+    assert!(!terminal.storage.retired(2));
+    let terminal_json = serde_json::to_value(&terminal).unwrap();
+    for value in [serde_json::Value::Null, serde_json::json!({"serial": 2})] {
+        let mut invalid = live_json.clone();
+        invalid["storage"]["terminal"] = value;
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&invalid).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    for value in [
+        serde_json::Value::Null,
+        serde_json::json!({}),
+        serde_json::json!({"serial": 2, "extra": 1}),
+        serde_json::json!({"serial": "2"}),
+    ] {
+        let mut invalid = terminal_json.clone();
+        invalid["storage"]["terminal"] = value;
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&invalid).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    let mut missing = terminal_json.clone();
+    missing["storage"]
+        .as_object_mut()
+        .unwrap()
+        .remove("terminal");
+    assert_eq!(
+        decode_head(&serde_json::to_vec(&missing).unwrap(), &scope()),
+        Err(FormatError::Corrupt)
+    );
+    let wire = String::from_utf8(bytes).unwrap();
+    for duplicate in [
+        wire.replace(
+            "\"terminal\":{\"serial\":2}",
+            "\"terminal\":{\"serial\":2},\"terminal\":{\"serial\":2}",
+        ),
+        wire.replace(
+            "\"terminal\":{\"serial\":2}",
+            "\"terminal\":{\"serial\":2,\"serial\":2}",
+        ),
+    ] {
+        assert_ne!(duplicate, wire);
+        assert_eq!(
+            decode_head(duplicate.as_bytes(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    for change in 0..8 {
+        let mut invalid = terminal.clone();
+        match change {
+            0 => invalid.active = true,
+            1 => invalid.lifecycle = Lifecycle::Ready,
+            2 => invalid.storage.terminal.as_mut().unwrap().serial = 0,
+            3 => invalid.storage.terminal.as_mut().unwrap().serial = 1,
+            4 => invalid.storage.terminal.as_mut().unwrap().serial = 3,
+            5 => invalid.format = 6,
+            6 => {
+                invalid.storage.plan = Some(CopyPlan {
+                    serial: 1,
+                    source: 1,
+                    target: 2,
+                    phase: CopyPhase::Copying,
+                    basis: CopyBasis::capture(&terminal),
+                })
+            }
+            _ => {
+                // M < seal <= HEAD still holds; only R < seal is violated.
+                invalid.revision = 2;
+                invalid.transition.revision = 2;
+            }
+        }
+        assert_eq!(encode_head(&invalid), Err(FormatError::Invalid));
+        assert_eq!(
+            decode_head(&serde_json::to_vec(&invalid).unwrap(), &scope()),
+            Err(FormatError::Corrupt)
+        );
+    }
+    terminal.head_serial = 3;
+    terminal.storage.sweep = Some(SweepCheckpoint {
+        serial: 3,
+        generation: 1,
+        next_after: None,
+        exhausted: true,
+        entries: vec![SweepEntry {
+            key: object_key(&scope(), 1, &terminal.data_root),
+            hash: terminal.data_root.clone(),
+            etag: "\"original\"".into(),
+            disposition: SweepDisposition::Pending,
+        }],
+    });
+    assert_eq!(
+        decode_head(&encode_head(&terminal).unwrap(), &scope()).unwrap(),
+        terminal
+    );
+    for serial in [1, 2, 4] {
+        let mut invalid = terminal.clone();
+        invalid.storage.sweep.as_mut().unwrap().serial = serial;
+        assert_eq!(encode_head(&invalid), Err(FormatError::Invalid));
     }
 }
 

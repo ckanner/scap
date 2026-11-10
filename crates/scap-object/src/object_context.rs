@@ -94,7 +94,6 @@ pub(super) struct ObjectContext {
     basis: Option<AuthorityBasis>,
     quarantined: Arc<AtomicBool>,
     knowledge: Arc<Knowledge>,
-    registered: bool,
     failed: AtomicBool,
     deadline: OnceLock<Instant>,
 }
@@ -104,7 +103,7 @@ impl ObjectContext {
         database: &Database,
         snapshot: &Snapshot,
         deadline: Instant,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         Self::bound(
             database,
             snapshot,
@@ -113,7 +112,15 @@ impl ObjectContext {
         )
     }
 
-    fn bound(database: &Database, snapshot: &Snapshot, generation: u64, deadline: Instant) -> Self {
+    fn bound(
+        database: &Database,
+        snapshot: &Snapshot,
+        generation: u64,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        if snapshot.head.storage.terminal.is_some() {
+            return Err(Error::Lifecycle);
+        }
         let context = Self::new(
             database,
             &snapshot.head.scope,
@@ -125,16 +132,19 @@ impl ObjectContext {
                 etag: snapshot.etag.clone(),
                 fingerprint: head_fingerprint(&snapshot.head),
             }),
-        );
+        )?;
         context
             .deadline
             .set(deadline)
             .expect("new context deadline");
-        context
+        Ok(context)
     }
 
     #[cfg(test)]
-    pub(super) fn capture(database: &Database, head: &Head) -> Self {
+    pub(super) fn capture(database: &Database, head: &Head) -> Result<Self, Error> {
+        if head.storage.terminal.is_some() {
+            return Err(Error::Lifecycle);
+        }
         Self::new(database, &head.scope, head.storage.active_generation, None)
     }
 
@@ -148,20 +158,20 @@ impl ObjectContext {
         {
             return Err(Error::Conflict);
         }
-        Ok(Self::bound(database, snapshot, plan.target, deadline))
+        Self::bound(database, snapshot, plan.target, deadline)
     }
 
-    pub(super) fn bootstrap(database: &Database) -> Self {
+    pub(super) fn bootstrap(database: &Database) -> Result<Self, Error> {
         Self::new(database, &database.scope, INITIAL_STORAGE_GENERATION, None)
     }
 
-    pub(super) fn bootstrap_at(database: &Database, deadline: Instant) -> Self {
-        let context = Self::bootstrap(database);
+    pub(super) fn bootstrap_at(database: &Database, deadline: Instant) -> Result<Self, Error> {
+        let context = Self::bootstrap(database)?;
         context
             .deadline
             .set(deadline)
             .expect("new bootstrap deadline");
-        context
+        Ok(context)
     }
 
     fn new(
@@ -169,28 +179,29 @@ impl ObjectContext {
         scope: &Scope,
         storage_generation: u64,
         basis: Option<AuthorityBasis>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Error> {
+        if !database.knowledge.acquire(storage_generation) {
+            return Err(Error::Store(StoreError::Budget));
+        }
+        Ok(Self {
             objects: database.objects.clone(),
             scope: scope.clone(),
             storage_generation,
             basis,
             quarantined: database.quarantined.clone(),
             knowledge: database.knowledge.clone(),
-            registered: database.knowledge.acquire(storage_generation),
             failed: AtomicBool::new(false),
             deadline: OnceLock::new(),
-        }
+        })
     }
 
     pub(super) fn matches(&self, head: &Head) -> bool {
-        self.scope == head.scope && self.storage_generation == head.storage.active_generation
+        head.storage.terminal.is_none()
+            && self.scope == head.scope
+            && self.storage_generation == head.storage.active_generation
     }
 
     fn check(&self, deadline: Instant) -> Result<Instant, Error> {
-        if !self.registered {
-            return Err(Error::Store(StoreError::Budget));
-        }
         let deadline = deadline.min(*self.deadline.get_or_init(|| deadline));
         if self.failed.load(Ordering::Acquire) || Instant::now() >= deadline {
             return Err(Error::Unknown);
@@ -199,9 +210,6 @@ impl ObjectContext {
     }
 
     pub(super) fn healthy(&self) -> Result<(), Error> {
-        if !self.registered {
-            return Err(Error::Store(StoreError::Budget));
-        }
         if self.failed.load(Ordering::Acquire) {
             return Err(Error::Unknown);
         }
@@ -250,6 +258,11 @@ impl ObjectContext {
                 || (head.head_serial == basis.serial
                     && (stored.etag != basis.etag || head_fingerprint(&head) != basis.fingerprint))
                 || (head.head_serial > basis.serial && stored.etag == basis.etag)
+                || head
+                    .storage
+                    .terminal
+                    .as_ref()
+                    .is_some_and(|terminal| terminal.serial <= basis.serial)
             {
                 self.quarantined.store(true, Ordering::Release);
                 return error;
@@ -333,9 +346,9 @@ impl ObjectContext {
 
 impl Drop for ObjectContext {
     fn drop(&mut self) {
-        if self.registered {
-            self.knowledge.release(self.storage_generation);
-        }
+        // Every constructed context owns one successful admission; failed
+        // admission returned Budget without producing a usable capability.
+        self.knowledge.release(self.storage_generation);
     }
 }
 

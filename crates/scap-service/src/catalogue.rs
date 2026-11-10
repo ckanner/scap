@@ -64,6 +64,12 @@ impl Worker {
             NativeAction::Delete(input) => {
                 wire::deleted(catalogue.delete(caller, &input, deadline)?)
             }
+            NativeAction::StorageStatus(creation) => {
+                crate::wire::status(&catalogue.storage_status(caller, &creation, deadline)?)
+            }
+            NativeAction::RetireStorage(input) => {
+                crate::wire::status(&catalogue.retire_storage(caller, &input, deadline)?)
+            }
         })
     }
 }

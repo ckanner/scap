@@ -122,13 +122,14 @@ fn missing_retained_result_blocks_target_lookup_and_cold_publication() {
 fn missing_closed_epoch_blocks_cold_activation_and_first_session_write() {
     let (objects, database) = fixture();
     let closed = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             crate::tests::index_payload(1, full_cancelled_index(1)),
             deadline(),
         )
         .unwrap();
     let current =
-        request_index::empty(&ObjectContext::bootstrap(&database), 2, deadline()).unwrap();
+        request_index::empty(&ObjectContext::bootstrap(&database).unwrap(), 2, deadline()).unwrap();
     replace_head(&objects, &database, |head| {
         head.revision = 3;
         head.head_serial = 3;

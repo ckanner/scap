@@ -10,7 +10,7 @@
 | --- | --- |
 | `model.py` | 有限对象存储、固定候选、网络四阶段、原 ETag、目录来源、旧读与知识谱系；不导入生产代码。 |
 | `oracle.py` | 仅消费 JSON history，从原始 GET/request/condition/effect/response 重放存储与客户端知识；不导入 model、scheduler、candidate 构造器或产品。 |
-| `counterexamples.py` | 生成 14 个故意违反协议的可执行变体、5 个独立 observer 观测变异；保留导致拒绝的具体请求/证据。 |
+| `counterexamples.py` | 生成 14 个故意违反协议的可执行变体、6 个独立 observer 观测变异；保留导致拒绝的具体请求/证据。 |
 | `explore.py` | 穷举列出的两条有序 action chain 的全部交织，另加确定的重启次序；每条完整 history 交给独立 oracle。 |
 | `test_model.py`、`test_oracle.py`、`test_explore.py` | 定向协议正例、反例敏感性、observer 隔离和有限调度器自测；不进入生产单位覆盖分母/分子。 |
 
@@ -33,7 +33,7 @@
 - Catalogue 原 descriptor/control/proof 永久存在，Name revision 单调。模型记录 Proof→HEAD 与 Name 双读顺序，但同步 view 内每个 GET 的交织没有穷举。初始状态已经完成旧 control admission 与必要的 Name 接受；不重建整个 admission 状态机。
 - successor 创建是已验证完成的抽象原子步骤。ForeignOccupied 原取消可以独立完成元数据 Release/Done，但始终没有 own terminal 权限；losing Scope bootstrap orphan 不在清扫范围内。
 
-模型把格式 6/7 归一为一个内存结构，`terminal=None` 的字段会出现在模拟 JSON 中。这不是提议给真实 HEAD6 wire 添加字段；产品提案仍要求两个严格版本 schema。
+模型把格式 6/7 归一为一个内存结构，`terminal=None` 的字段会出现在模拟 JSON 中。这不是提议给真实 HEAD6 wire 添加字段；产品仍要求两个严格版本 schema 的字段存在性合同。终态格式还要求 `M < terminal.serial`、`revision < terminal.serial` 以及有 checkpoint 时的 `terminal.serial < checkpoint.serial`；模型与独立 observer 分别检查这些关系。
 
 当前树里的旧 [`object-authority-model`](../object-authority-model/README.md) 是另一个实验。PR43/49 的 GC/handle 模型没有在本目录取回或验证，因此此处不声称沿用了它们的完整模型证明，也不把新模型与冻结 HEAD6 的 unit 结果解释为实现等价性证明。
 
@@ -52,7 +52,7 @@
 | foreign-abort | 已有 ForeignOccupied proof，Name Release 四个阶段后 crash，原取消恢复且 foreign HEAD 不变 | 4 |
 | 合计 | 有限参数域的全部上述次序 | 1,212 |
 
-此外保存 19 条预期被拒绝的 counterexamples。`--smoke` 只取每组参数的第一种交织，得到 53 条正例；它明确不是完整探索。1,212 是计划矩阵的基数，必须以一次实际完整运行 manifest 验证后才能声称已经穷举。
+此外保存 20 条预期被拒绝的 counterexamples。`--smoke` 只取每组参数的第一种交织，得到 53 条正例；它明确不是完整探索。1,212 是计划矩阵的基数，必须以一次实际完整运行 manifest 验证后才能声称已经穷举。
 
 `distinct_macro_states/edges` 是每次明确宏步骤前后完整 `snapshot()` 的 JSON 摘要去重计数，包含 call/observation provenance；不是逐条 raw event 的状态数，更不是生产程序状态空间大小。调度器不使用这个去重集合跳过未探索分支。
 
@@ -79,8 +79,9 @@
 | unknown-head-labelled-retirement-proof | strict_expiry_proof | 不可得的 HEAD 被显示成退休证明。 |
 | known-commit-converted-to-expired | known_receipt_preserved | 已知原提交回执被终态错误覆盖。 |
 | unknown-inspect-forged-as-key-absence | exact_get | 原 inspect Unknown 被伪造为与实际对象状态矛盾的 Missing。 |
+| terminal-seal-not-after-business-revision | strict_expiry_proof | 实际 GET 的 malformed HEAD 满足 M < seal、seal <= HEAD，却声称 revision == seal；错误 observer 仍把它显示成退休证明。 |
 
-前 14 条改变具体协议执行，后 5 条是 observer 输入变异。只有每条都被自身预期规则拒绝，才通过负控；单纯 JSON 解析失败或任意其他错误不算命中。某些反例暴露的是请求合同或证据错误，不一定导致退休 payload 的实际损坏，二者不混称。
+前 14 条改变具体协议执行，后 6 条是 observer 输入变异。最后一条明确包含故障元数据输入，再改变诊断 outcome，不声称合法产品 API 能产生该 HEAD。只有每条都被自身预期规则拒绝，才通过负控；单纯 JSON 解析失败或任意其他错误不算命中。某些反例暴露的是请求合同或证据错误，不一定导致退休 payload 的实际损坏，二者不混称。
 
 ## 运行与证据
 
@@ -99,7 +100,7 @@ python3 experiments/object-terminal-retirement-model/explore.py \
 
 每次 manifest 记录产品基线、当前 source HEAD、全部 Python 源 SHA256、Python 版本、参数、每份原始 history 的 SHA256/字节数、observer 计数、反例具体拒绝事件、宏状态/边、运行状态与时间。结束时再次核对所有 Python 源，运行中修改源码直接失败。
 
-2026-11-10 最终绑定源码的验证已执行：
+2026-11-10 已发布 `1219d35700c0a634f5876ae033bbeb9e0a6b79f8` 的历史有限域验证如下；它没有覆盖后来新增的 `revision < terminal.serial`，以下数字与指纹不能替代 HEAD7 修正后的新门禁：
 
 - **43 个模型/observer/scheduler 自测通过**，0.621 秒，包含 53 个 smoke 参数例、19 条预期反例、严格终态 serial/ checkpoint 时序以及独立 observer 隔离。
 - **完整 1,212 条正向 histories 通过**，共 51,571 个记录事件；19 条 counterexamples 均由自身预期规则拒绝。有限矩阵全部完成，不是只跑 smoke。
@@ -109,4 +110,11 @@ python3 experiments/object-terminal-retirement-model/explore.py \
 
 原诊断没有覆盖或删除：`terminal-model-pre-ready-diagnostic-01` 保存先前源码和一条错误允许 Provisioning ordinary read 的实际模拟 trace，明确标为不可达产品前缀；旧 38-test 交互输出不是最终证明。修正后，只有 Ready direct/delete 可创建 ordinary read，取消来源也不再预置不可能的 SQL 已知回执。`terminal-model-validation-20261110-01` 保存首次 42-test 与完整矩阵结果；增加 `sweep.serial > terminal.serial` 校验后，另开 02 重新验证最终源码。
 
-下一门禁仍是产品实现：严格 HEAD7 解码、完整 core/service/SDK 消费者、每个受影响生产文件精确单位覆盖，以及真实 native/HTTP/S3/目录恢复/进程退出的独立验收。这个实验不提前打开任何生产 DELETE 路径。
+HEAD7 工作树新增 `revision < terminal.serial` 后，2026-11-10 在新证据目录 `terminal-model-validation-20261110-03` 重新运行：
+
+- **44 个自测通过**，0.704 秒；model 与独立 observer 分别拒绝单份自相矛盾的权威 HEAD，包含第 20 条 metadata/observer 变异。
+- **完整 1,212 条正向 histories 与 20 条预期反例通过**，51,571 个正向事件、3,697 个宏状态、3,778 条宏边；原始 histories 共 29,416,044 bytes，运行约 16.85 秒。
+- `exploration/manifest.json` SHA256：`5bedcd44de4ef6e3b1d1b15147e65c98576772b9beae7e944b2d82774b416ef8`；`unit-manifest.json` SHA256：`aaec4a1eb3979b4e28b6829c0fb17bf55884e7c997f00c59e43ffed32346fbda`。
+- 七个 Python 源的同口径聚合指纹：`b2983de5c95241bacb6e5bbae1b97c1a8619390615f4c17340bd3d8d8b1f52ea`。单位与完整探索的逐文件 source map 相同；原 43/1,212/19 结果与源码不变，保留为旧有限域证据。
+
+产品实现仍须另过完整门禁：严格 HEAD7 解码、完整 core/service/SDK 消费者、每个受影响生产文件精确单位覆盖，以及真实 native/HTTP/S3/目录恢复/进程退出的独立验收。这个实验不提前打开任何生产 DELETE 路径。

@@ -108,7 +108,7 @@ fn captured_namespace_backend_and_quarantine_outlive_the_source_handle() {
     let (objects, mut database) = traced();
     let observer = database.clone();
     let mut head = database.read_head(deadline()).unwrap().head;
-    let context = ObjectContext::capture(&database, &head);
+    let context = ObjectContext::capture(&database, &head).unwrap();
     objects.calls.lock().unwrap().clear();
 
     // Mutate the private source only in the fixture. ObjectContext owns copies

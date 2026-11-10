@@ -1,0 +1,193 @@
+{
+  "audited_counts": {
+    "catalogue": {
+      "controls": 6,
+      "descriptors": 8,
+      "name_mutations": 22,
+      "proofs": 4
+    },
+    "cold_survivor_lookups": 6,
+    "copy_closures": [
+      {
+        "dependencies": 6,
+        "retained_results": 2,
+        "scope": {
+          "database": 6101,
+          "deployment": 1,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 7
+        },
+        "source": 1,
+        "target": 2
+      },
+      {
+        "dependencies": 6,
+        "retained_results": 2,
+        "scope": {
+          "database": 6191,
+          "deployment": 1,
+          "generation": 1,
+          "incarnation": 1,
+          "tenant": 7
+        },
+        "source": 1,
+        "target": 2
+      }
+    ],
+    "faults": {
+      "admin_only_retirement_without_read": 1,
+      "committed_original_reply_after_collection": 1,
+      "faults": 19,
+      "named_source_recovery_with_pending_gc": 4,
+      "old_context_expired": 1,
+      "original_unknowns": 13,
+      "stale_terminal_context_rejected_as_missing": 1
+    },
+    "gc": {
+      "actual_accepted_deletes": 103,
+      "delete_requests": 103
+    },
+    "head_transitions": {
+      "abort": 2,
+      "begin": 2,
+      "business": 53,
+      "clear": 13,
+      "copy_seal": 2,
+      "create": 13,
+      "explicit_fault": 2,
+      "prepare": 14,
+      "progress": 13,
+      "terminal": 10
+    },
+    "http_posts": 235,
+    "native_original_acks": 21,
+    "original_sql_inputs": 23,
+    "processes": {
+      "backend": 4,
+      "cache_losses": 10,
+      "owned_wait4": 21,
+      "sdk": 4,
+      "services": 11
+    },
+    "public_status_observations": 141,
+    "s3_requests": 2627,
+    "terminal_seals": 10
+  },
+  "boundaries": {
+    "automatic_gc_and_pitr_holds": "NOT_CLAIMED",
+    "aws_standard": "NOT_RUN",
+    "losing_foreign_scope_orphans": "NOT_RECLAIMED",
+    "permanent_prefix_emptiness": "NOT_CLAIMED",
+    "post_delete_payload_lookup": "LIFECYCLE",
+    "production_slo": "NOT_RUN",
+    "whole_history_multigeneration_gc": "separate contract, next actual pending"
+  },
+  "contract": "HEAD7 terminal storage retirement native HTTP signed S3 bounded actual",
+  "control_command_summary": {
+    "path": "evidence/terminal-head7-control-commands-01/summary.json",
+    "sha256": "0c151a3e2cd6501317419dfb56ea16836e0fcf676389d11126775913ba3608b5"
+  },
+  "control_counts": {
+    "negative": 25,
+    "positive": 1
+  },
+  "durations": {
+    "controls_seconds": 52.823941442,
+    "max_original_hold": {
+      "id": "late-original-put",
+      "seconds": 5.523979187
+    },
+    "oracle_seconds": 1.720742003,
+    "original_observation_intervals": [
+      {
+        "event": "old_read_finished",
+        "expected": "SNAPSHOT_EXPIRED",
+        "scope_name": "late",
+        "seconds": 2.338783160001185
+      },
+      {
+        "event": "delayed_commit_finished",
+        "original": "receipt-3",
+        "seconds": 1.2667327790004492
+      },
+      {
+        "event": "old_read_finished",
+        "expected": "MISSING",
+        "scope_name": "stale",
+        "seconds": 1.5260221999997157
+      }
+    ],
+    "raw_seconds": 59.80478080699868
+  },
+  "final_independent_oracle": {
+    "path": "evidence/terminal-head7-control-commands-01/terminal-controls-final-1.stdout",
+    "sha256": "7a4bee2fd59ebb2250c26794eb5fb3feb7bc7ef9a4c2a6eb1d3ae1c5fa81287f"
+  },
+  "fixture_units": 43,
+  "formal_controls": {
+    "path": "evidence/terminal-head7-02-controls-fixed01/controls.json",
+    "sha256": "b7edfbea8253d8638fbd6c3a1f5b8171425ed767256dfcf67fcfc8ed9d7e97da"
+  },
+  "identities": {
+    "actual_fixture_commit": "4601297a0949fd505ad855928db1bcff5b18bf89",
+    "final_control_fixture_commit": "4512e318af7ef8e0872c4712048af238a0a4d731",
+    "runtime_commit": "7b757f7ec184af96d81ca5cd700bf3bc65d0f741"
+  },
+  "identity_equivalence": {
+    "path": "evidence/terminal-control-readiness-4512-01/identity-equivalence.json",
+    "sha256": "b3b1cbe9834ca65111134e9bfb2fe4b4d82007d5b24c91b14213ab6139b989e4"
+  },
+  "original_actual_bytes_unchanged": true,
+  "original_independent_oracle": {
+    "path": "evidence/terminal-head7-commands-02/terminal-oracle.stdout",
+    "sha256": "7a4bee2fd59ebb2250c26794eb5fb3feb7bc7ef9a4c2a6eb1d3ae1c5fa81287f"
+  },
+  "original_limits": {
+    "hold_seconds": 180,
+    "known_commit_observation_ms": 30000,
+    "old_read_observation_ms": 30000,
+    "s3_http_ms": 120000,
+    "whole_seconds": 1200
+  },
+  "preserved_failures": [
+    {
+      "path": "evidence/terminal-head7-01-failure-audit.json",
+      "sha256": "73e17e89ef658ca188cb9bab1966c2fdd6e8130304bdb0da19025eaa6cebbe75"
+    },
+    {
+      "path": "evidence/terminal-head7-02-control-failure-audit.json",
+      "sha256": "82381f864f24a46720006be32d89f54af709433878c1b695e62fb2df12dfaac3"
+    }
+  ],
+  "raw_directory": "evidence/terminal-head7-02",
+  "raw_receipt": {
+    "path": "evidence/terminal-head7-commands-02/terminal-raw.json",
+    "sha256": "2d6527612fc13dd893e155e0ec250b404ec183d10ca81e28e0f00aa5265efcd0"
+  },
+  "raw_replayed_for_control_fix": false,
+  "raw_summary": {
+    "path": "evidence/terminal-head7-02/summary.json",
+    "sha256": "284655bf927a2776acb33baadc75ebc2559bf36075d38239772344e87c1ec444"
+  },
+  "schema": 1,
+  "service_build": {
+    "path": "evidence/service-build-head7/build.json",
+    "sha256": "6c59e0092390120d225fe50e6c782bef00cc82616e69a71df55319d704d70a05"
+  },
+  "source_manifests": [
+    {
+      "path": "evidence/head7-source.json",
+      "sha256": "540e99aadc8d02b14ee9efa00ae95441e7a099d34c86ac45ae4377b976e53188"
+    },
+    {
+      "path": "evidence/terminal-fixture-source-4601.json",
+      "sha256": "ec9b55e40fe12d18c69f4b32166a4594abbcf7e2bbd601035a899dba5d4c54e4"
+    },
+    {
+      "path": "evidence/terminal-control-source-4512.json",
+      "sha256": "19e40604952a8e66571ae041fc6e7479a3b28956a755045e6c01ce98f78d7f45"
+    }
+  ],
+  "status": "PASSED"
+}

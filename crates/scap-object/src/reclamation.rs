@@ -2,7 +2,7 @@
 //! Ordinary readers have no durable pins. This module admits no retained roots.
 
 use crate::format::*;
-use crate::head_publication::PreparedHead;
+use crate::head_publication::{PreparedHead, PublicationDomain};
 use crate::object_context::ObjectContext;
 use crate::{closure, Database, Error, Snapshot};
 use scap_object_store::{
@@ -82,13 +82,89 @@ impl Database {
         Ok(base)
     }
 
+    fn gc_base(&self, principal: u64, deadline: Instant) -> Result<Snapshot, Error> {
+        let base = self.read_head(deadline)?;
+        Self::permission(&base.head, principal, false, false, true)?;
+        if base.head.lifecycle != Lifecycle::Ready && base.head.storage.terminal.is_none() {
+            return Err(Error::Lifecycle);
+        }
+        // Strict decoding proves a terminal HEAD is Deleted and inactive.
+        Ok(base)
+    }
+
+    fn direct_deleted_base(&self, principal: u64, deadline: Instant) -> Result<Snapshot, Error> {
+        let base = self.read_head(deadline)?;
+        Self::permission(&base.head, principal, false, false, true)?;
+        if base.head.lifecycle != Lifecycle::Deleted || base.head.creation.is_some() {
+            return Err(Error::Lifecycle);
+        }
+        Ok(base)
+    }
+
+    /// Deleted metadata only. Ordinary status/lookup keep their lifecycle gate.
+    pub fn storage_status(&self, principal: u64, deadline: Instant) -> Result<Head, Error> {
+        Ok(self.direct_deleted_base(principal, deadline)?.head)
+    }
+
+    /// One original-ETag seal; observing the resulting state never resolves a
+    /// previous Unknown response or reuses its candidate under a new ETag.
+    pub fn retire_storage(
+        &self,
+        principal: u64,
+        expected_head_serial: u64,
+        deadline: Instant,
+    ) -> Result<Head, Error> {
+        let base = self.direct_deleted_base(principal, deadline)?;
+        self.retire_deleted(base, expected_head_serial, deadline)
+    }
+
+    pub(crate) fn retire_named_storage(
+        &self,
+        source: crate::catalogue::VerifiedDeletionSource,
+        expected_head_serial: u64,
+        deadline: Instant,
+    ) -> Result<Head, Error> {
+        self.retire_deleted(source.into_snapshot(), expected_head_serial, deadline)
+    }
+
+    fn retire_deleted(
+        &self,
+        base: Snapshot,
+        expected_head_serial: u64,
+        deadline: Instant,
+    ) -> Result<Head, Error> {
+        if base.head.head_serial != expected_head_serial
+            || base.head.storage.terminal.is_some()
+            || base.head.storage.plan.is_some()
+            || base.head.storage.sweep.is_some()
+        {
+            return Err(Error::Conflict);
+        }
+        let mut next = technical_next(&base.head)?;
+        next.format = 7;
+        next.active = false;
+        next.storage.terminal = Some(TerminalSeal {
+            serial: next.head_serial,
+        });
+        self.publish_technical(&base, &next, deadline)?;
+        Ok(next)
+    }
+
     fn publish_technical(
         &self,
         base: &Snapshot,
         next: &Head,
         deadline: Instant,
     ) -> Result<(), Error> {
-        self.healthy_in(base.head.storage.active_generation)?;
+        if base.head.storage.terminal.is_some() {
+            let mut expected = base.head.clone();
+            expected.head_serial = next.head_serial;
+            expected.storage.sweep = next.storage.sweep.clone();
+            if expected != *next {
+                return Err(Error::Format(FormatError::Invalid));
+            }
+        }
+        self.healthy_domain(PublicationDomain::original(&base.head))?;
         let candidate = TechnicalHead {
             base: base.clone(),
             next: next.clone(),
@@ -140,9 +216,8 @@ impl Database {
         if original.phase == CopyPhase::Sealed {
             return Ok(base.head);
         }
-        let source = ObjectContext::from_snapshot(self, &base, deadline);
-        let target = ObjectContext::target(self, &base, &original, deadline)
-            .expect("plan cloned from this immutable, validated original HEAD");
+        let source = ObjectContext::from_snapshot(self, &base, deadline)?;
+        let target = ObjectContext::target(self, &base, &original, deadline)?;
         source.healthy()?;
         target.healthy()?;
         copy_closure(&source, &target, &base, &original, deadline, &|| false)?;
@@ -219,7 +294,7 @@ impl Database {
         garbage: &dyn Garbage,
         deadline: Instant,
     ) -> Result<SweepReport, Error> {
-        let base = self.maintenance_base(principal, deadline)?;
+        let base = self.gc_base(principal, deadline)?;
         if base.head.head_serial != expected_head_serial
             || base.head.storage.plan.is_some()
             || base.head.storage.sweep.is_some()
@@ -323,7 +398,7 @@ impl Database {
         garbage: &dyn Garbage,
         deadline: Instant,
     ) -> Result<SweepReport, Error> {
-        let mut base = self.maintenance_base(principal, deadline)?;
+        let mut base = self.gc_base(principal, deadline)?;
         let checkpoint = base
             .head
             .storage
@@ -358,7 +433,7 @@ impl Database {
             let mut next = technical_next(&base.head)?;
             next.storage.sweep = Some(disposed.clone());
             self.publish_technical(&base, &next, deadline)?;
-            base = self.maintenance_base(principal, deadline)?;
+            base = self.gc_base(principal, deadline)?;
             if base.head.storage.sweep.as_ref() != Some(&disposed) {
                 return Err(Error::Conflict);
             }
@@ -368,7 +443,7 @@ impl Database {
         let mut next = technical_next(&base.head)?;
         next.storage.sweep = None;
         self.publish_technical(&base, &next, deadline)?;
-        let current = self.maintenance_base(principal, deadline)?;
+        let current = self.gc_base(principal, deadline)?;
         if current.head.head_serial < next.head_serial || current.head.storage.sweep.is_some() {
             return Err(Error::Conflict);
         }

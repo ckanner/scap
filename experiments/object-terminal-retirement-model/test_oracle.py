@@ -22,7 +22,7 @@ class IndependentObserver(unittest.TestCase):
                 self.assertEqual(result.exception.rule, case["expected_rule"])
                 self.assertLessEqual(result.exception.sequence, len(case["history"]["events"]))
                 count += 1
-        self.assertEqual(count, 19)
+        self.assertEqual(count, 20)
 
     def test_provisioning_observation_cannot_admit_ordinary_read(self):
         m = Model("abort")

@@ -1003,7 +1003,7 @@ fn abort_never_reuses_target_and_old_target_failure_expires_without_current_pois
 fn local_budget_closes_attempt_without_probe_or_lineage_incident() {
     let (objects, database) = fixture();
     let base = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &base, deadline());
+    let context = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
     objects.fail(
         false,
         object_key(&scope(), 1, &base.head.data_root),
@@ -1027,7 +1027,7 @@ fn local_budget_closes_attempt_without_probe_or_lineage_incident() {
 fn unresolved_old_generation_incident_does_not_poison_fresh_current_attempts() {
     let (objects, database) = fixture();
     let original = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &original, deadline());
+    let context = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
     let head = promote(&database);
     objects.remove(&object_key(&scope(), 1, &original.head.data_root));
     objects.fail(false, head_key(&scope()), StoreError::Unknown);
@@ -1330,7 +1330,7 @@ fn failure_probe_rejects_serial_body_etag_and_allocation_contradictions() {
             .compact_abort(7, begin.storage.plan.as_ref().unwrap().serial, deadline())
             .unwrap();
         let original = database.read_head(deadline()).unwrap();
-        let context = ObjectContext::from_snapshot(&database, &original, deadline());
+        let context = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
         let mut changed = original.head.clone();
         match mutation {
             0 => changed.head_serial -= 1,
@@ -1483,33 +1483,40 @@ fn prepared_batch_and_copy_are_mutually_exclusive_and_current_generations_cannot
 }
 
 #[test]
-fn lineage_context_capacity_is_bounded_and_a_rejected_attempt_does_not_revive() {
+fn lineage_context_capacity_rejects_admission_without_creating_a_capability() {
     let (objects, database) = fixture();
     let base = database.read_head(deadline()).unwrap();
     let mut live: Vec<_> = (0..64)
-        .map(|_| ObjectContext::from_snapshot(&database, &base, deadline()))
+        .map(|_| ObjectContext::from_snapshot(&database, &base, deadline()).unwrap())
         .collect();
-    let rejected = ObjectContext::from_snapshot(&database, &base, deadline());
-    let before = objects.gets_for(&object_key(&scope(), 1, &base.head.data_root));
+    let before = objects.operation_count();
+    let cloned = database.clone();
     assert!(matches!(
-        rejected.load(&base.head.data_root, deadline()),
+        ObjectContext::from_snapshot(&cloned, &base, deadline()),
         Err(Error::Store(StoreError::Budget))
     ));
     assert!(matches!(
-        rejected.healthy(),
+        ObjectContext::capture(&cloned, &base.head),
         Err(Error::Store(StoreError::Budget))
     ));
-    assert_eq!(
-        objects.gets_for(&object_key(&scope(), 1, &base.head.data_root)),
-        before
-    );
+    assert!(matches!(
+        ObjectContext::bootstrap(&cloned),
+        Err(Error::Store(StoreError::Budget))
+    ));
+    assert!(matches!(
+        cloned.create(7, 50, deadline()),
+        Err(Error::Store(StoreError::Budget))
+    ));
+    assert_eq!(objects.operation_count(), before);
     live.pop();
+    let fresh = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
+    assert!(fresh.load(&base.head.data_root, deadline()).is_ok());
     assert!(matches!(
-        rejected.load(&base.head.data_root, deadline()),
+        ObjectContext::from_snapshot(&cloned, &base, deadline()),
         Err(Error::Store(StoreError::Budget))
     ));
-    let fresh = ObjectContext::from_snapshot(&database, &base, deadline());
-    assert!(fresh.load(&base.head.data_root, deadline()).is_ok());
+    drop(fresh);
+    assert!(ObjectContext::from_snapshot(&cloned, &base, deadline()).is_ok());
     assert!(database.healthy().is_ok());
 }
 
@@ -1527,7 +1534,7 @@ fn unresolved_generation_slots_are_bounded_and_only_proven_retirement_releases_o
         if generation == 1 {
             first = Some(snapshot.clone());
         }
-        let context = ObjectContext::from_snapshot(&database, &snapshot, deadline());
+        let context = ObjectContext::from_snapshot(&database, &snapshot, deadline()).unwrap();
         objects.fail(
             false,
             object_key(&scope(), generation, &head.data_root),
@@ -1545,19 +1552,18 @@ fn unresolved_generation_slots_are_bounded_and_only_proven_retirement_releases_o
     head.storage.allocated_through = 65;
     objects.set(head_key(&scope()), encode_head(&head).unwrap());
     let current = database.read_head(deadline()).unwrap();
-    let rejected = ObjectContext::from_snapshot(&database, &current, deadline());
     assert!(matches!(
-        rejected.healthy(),
+        ObjectContext::from_snapshot(&database, &current, deadline()),
         Err(Error::Store(StoreError::Budget))
     ));
-    let old = ObjectContext::from_snapshot(&database, &first.unwrap(), deadline());
+    let old = ObjectContext::from_snapshot(&database, &first.unwrap(), deadline()).unwrap();
     objects.remove(&object_key(&scope(), 1, &head.data_root));
     assert!(matches!(
         old.load(&head.data_root, deadline()),
         Err(Error::SnapshotExpired)
     ));
     drop(old);
-    let fresh = ObjectContext::from_snapshot(&database, &current, deadline());
+    let fresh = ObjectContext::from_snapshot(&database, &current, deadline()).unwrap();
     assert!(fresh.healthy().is_ok());
     assert!(matches!(database.healthy_in(2), Err(Error::Corrupt)));
     assert!(!database.quarantined.load(Ordering::Acquire));
@@ -1568,7 +1574,7 @@ fn active_generation_rollback_is_an_authority_fault_not_retirement() {
     let (objects, database) = fixture();
     let head = promote(&database);
     let base = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &base, deadline());
+    let context = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
     let mut rollback = head.clone();
     rollback.head_serial += 1;
     rollback.storage.active_generation = 1;
@@ -1589,7 +1595,7 @@ fn active_generation_rollback_is_an_authority_fault_not_retirement() {
 fn context_deadline_cannot_be_extended_and_callback_failure_closes_only_the_prefix() {
     let (objects, database) = fixture();
     let base = database.read_head(deadline()).unwrap();
-    let expired = ObjectContext::from_snapshot(&database, &base, Instant::now());
+    let expired = ObjectContext::from_snapshot(&database, &base, Instant::now()).unwrap();
     let before = objects.operation_count();
     assert!(matches!(
         expired.load(&base.head.data_root, deadline()),
@@ -1601,7 +1607,7 @@ fn context_deadline_cannot_be_extended_and_callback_failure_closes_only_the_pref
         Err(Error::Unknown)
     ));
     assert_eq!(objects.operation_count(), before);
-    let context = ObjectContext::from_snapshot(&database, &base, deadline());
+    let context = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
     assert!(matches!(
         context.with_raw(&base.head.data_root, deadline(), |_, _| Err::<(), _>(
             Error::Limit
@@ -1678,7 +1684,7 @@ fn every_technical_transition_refuses_serial_exhaustion_without_resetting_it() {
 fn physical_hash_failure_can_expire_but_a_hash_valid_contract_violation_cannot() {
     let (objects, database) = fixture();
     let old = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &old, deadline());
+    let context = ObjectContext::from_snapshot(&database, &old, deadline()).unwrap();
     promote(&database);
     objects.set(object_key(&scope(), 1, &old.head.data_root), vec![0]);
     assert!(matches!(
@@ -1688,7 +1694,7 @@ fn physical_hash_failure_can_expire_but_a_hash_valid_contract_violation_cannot()
     assert!(!database.quarantined.load(Ordering::Acquire));
     drop(context);
     let current = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &current, deadline());
+    let context = ObjectContext::from_snapshot(&database, &current, deadline()).unwrap();
     // Internal raw-save ports also detect a caller violating its hash/bytes
     // contract: an already stored hash-valid object cannot be replaced.
     assert!(matches!(
@@ -1765,7 +1771,7 @@ fn diagnostic_response_bounds_tokens_and_original_time_are_enforced() {
         } else {
             deadline()
         };
-        let context = ObjectContext::from_snapshot(&database, &base, until);
+        let context = ObjectContext::from_snapshot(&database, &base, until).unwrap();
         if fault == 0 {
             port.oversized.store(true, Ordering::Release);
         }
@@ -1811,7 +1817,7 @@ fn source_and_target_incidents_block_copy_and_invalid_gc_tokens_never_publish() 
         let context = if target_incident {
             ObjectContext::target(&database, &base, plan, deadline()).unwrap()
         } else {
-            ObjectContext::from_snapshot(&database, &base, deadline())
+            ObjectContext::from_snapshot(&database, &base, deadline()).unwrap()
         };
         objects.fail(
             false,
@@ -1968,7 +1974,7 @@ fn copy_rechecks_source_and_target_lineage_after_the_complete_raw_traversal() {
         let context = if target {
             ObjectContext::target(&database, &base, plan, deadline()).unwrap()
         } else {
-            ObjectContext::from_snapshot(&database, &base, deadline())
+            ObjectContext::from_snapshot(&database, &base, deadline()).unwrap()
         };
         let root = head.data_root.clone();
         let fail_objects = objects.clone();
@@ -2005,7 +2011,7 @@ fn every_copy_prefix_stop_including_after_completion_withholds_seal() {
             .unwrap();
         let original = database.read_head(deadline()).unwrap();
         let plan = original.head.storage.plan.as_ref().unwrap();
-        let source = ObjectContext::from_snapshot(&database, &original, deadline());
+        let source = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
         let target = ObjectContext::target(&database, &original, plan, deadline()).unwrap();
         let calls = Cell::new(0);
         let stop = || {
@@ -2069,7 +2075,7 @@ fn concurrent_failures_on_one_prefix_have_only_one_original_diagnostic_probe() {
     )
     .unwrap();
     let base = database.read_head(deadline()).unwrap();
-    let context = ObjectContext::from_snapshot(&database, &base, deadline());
+    let context = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
     let before = objects.gets_for(&head_key(&scope()));
     std::thread::scope(|threads| {
         let left = threads.spawn(|| context.load(&base.head.data_root, deadline()));
@@ -2091,11 +2097,11 @@ fn concurrent_failures_on_one_prefix_have_only_one_original_diagnostic_probe() {
 fn old_validated_value_remains_usable_and_current_incident_survives_old_retirement() {
     let (objects, database) = fixture();
     let original = database.read_head(deadline()).unwrap();
-    let old = ObjectContext::from_snapshot(&database, &original, deadline());
+    let old = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
     let materialized = old.load(&original.head.data_root, deadline()).unwrap();
     let head = promote(&database);
     let current = database.read_head(deadline()).unwrap();
-    let current_context = ObjectContext::from_snapshot(&database, &current, deadline());
+    let current_context = ObjectContext::from_snapshot(&database, &current, deadline()).unwrap();
     objects.fail(
         false,
         object_key(&scope(), 2, &head.data_root),
@@ -2116,4 +2122,532 @@ fn old_validated_value_remains_usable_and_current_incident_survives_old_retireme
         materialized,
         Payload::Manifest(Manifest { page_count: 0, .. })
     ));
+}
+
+fn deleted_direct(database: &Database) -> Head {
+    let current = database.status(7, deadline()).unwrap();
+    database
+        .set_lifecycle(7, current.revision, 900, Lifecycle::Deleted, deadline())
+        .unwrap()
+}
+
+#[test]
+fn terminal_seal_preserves_business_identity_and_collects_final_active_generation() {
+    let (objects, database) = fixture();
+    let original = database.read_head(deadline()).unwrap();
+    let old_context = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
+    let materialized = old_context
+        .load(&original.head.data_root, deadline())
+        .unwrap();
+    let candidate = Database::next(&original.head, 800).unwrap();
+    let late = PreparedHead::new(&database, &original, &candidate, deadline()).unwrap();
+    let deleted = deleted_direct(&database);
+    let garbage = GarbageMemory::new(objects.clone());
+    assert!(matches!(
+        database.status(7, deadline()),
+        Err(Error::Lifecycle)
+    ));
+    assert!(matches!(
+        database.lookup(7, &identity(1), deadline()),
+        Err(Error::Lifecycle)
+    ));
+    assert!(matches!(
+        database.gc_prepare(
+            7,
+            deleted.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline()
+        ),
+        Err(Error::Lifecycle)
+    ));
+    let sealed = database
+        .retire_storage(7, deleted.head_serial, deadline())
+        .unwrap();
+    let mut expected = deleted.clone();
+    expected.head_serial += 1;
+    expected.format = 7;
+    expected.active = false;
+    expected.storage.terminal = Some(TerminalSeal {
+        serial: expected.head_serial,
+    });
+    assert_eq!(sealed, expected);
+    assert!(matches!(late.publish(), Err(Error::Conflict)));
+    assert!(matches!(
+        database.create(7, 901, deadline()),
+        Err(Error::Store(StoreError::Conflict))
+    ));
+    let prepared = database
+        .gc_prepare(
+            7,
+            sealed.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let checkpoint = prepared.head.storage.sweep.as_ref().unwrap();
+    assert!(checkpoint.serial > sealed.storage.terminal.as_ref().unwrap().serial);
+    let done = database
+        .gc_resume(7, checkpoint.serial, &garbage, deadline())
+        .unwrap();
+    assert!(done.head.storage.sweep.is_none());
+    assert_eq!(done.head.storage.terminal, sealed.storage.terminal);
+    assert!(objects
+        .entries()
+        .iter()
+        .all(|(key, _)| key == &head_key(&scope())));
+    let before = objects.operation_count();
+    assert_eq!(database.storage_status(7, deadline()).unwrap(), done.head);
+    assert_eq!(objects.operation_count(), before + 1);
+    assert!(matches!(
+        old_context.load(&original.head.data_root, deadline()),
+        Err(Error::SnapshotExpired)
+    ));
+    assert!(!database.quarantined.load(Ordering::Acquire));
+    assert!(matches!(
+        materialized,
+        Payload::Manifest(Manifest { page_count: 0, .. })
+    ));
+    let terminal = database.read_head(deadline()).unwrap();
+    assert!(!old_context.matches(&terminal.head));
+    assert!(matches!(
+        ObjectContext::from_snapshot(&database, &terminal, deadline()),
+        Err(Error::Lifecycle)
+    ));
+    assert!(matches!(
+        ObjectContext::capture(&database, &terminal.head),
+        Err(Error::Lifecycle)
+    ));
+    let plan = CopyPlan {
+        serial: terminal.head.head_serial,
+        source: 1,
+        target: 2,
+        phase: CopyPhase::Copying,
+        basis: CopyBasis::capture(&terminal.head),
+    };
+    assert!(matches!(
+        ObjectContext::target(&database, &terminal, &plan, deadline()),
+        Err(Error::Conflict)
+    ));
+    assert!(matches!(
+        PreparedHead::new(
+            &database,
+            &terminal,
+            &Database::next(&terminal.head, 902).unwrap(),
+            deadline()
+        ),
+        Err(Error::Format(FormatError::Invalid))
+    ));
+    assert!(matches!(
+        database.compact_begin(7, terminal.head.head_serial, deadline()),
+        Err(Error::Lifecycle)
+    ));
+}
+
+#[test]
+fn terminal_admission_failures_and_unknown_cas_never_rebase_or_reclassify_state() {
+    let (objects, database) = fixture();
+    assert!(matches!(
+        database.storage_status(7, deadline()),
+        Err(Error::Lifecycle)
+    ));
+    assert!(matches!(
+        database.retire_storage(7, 2, deadline()),
+        Err(Error::Lifecycle)
+    ));
+    let deleted = deleted_direct(&database);
+    assert!(matches!(
+        database.storage_status(8, deadline()),
+        Err(Error::Denied)
+    ));
+    assert!(matches!(
+        database.retire_storage(8, deleted.head_serial, deadline()),
+        Err(Error::Denied)
+    ));
+    assert!(matches!(
+        database.retire_storage(7, deleted.head_serial - 1, deadline()),
+        Err(Error::Conflict)
+    ));
+    for put in [false, true] {
+        objects.fail(put, head_key(&scope()), StoreError::Unknown);
+        assert!(matches!(
+            database.retire_storage(7, deleted.head_serial, deadline()),
+            Err(Error::Store(StoreError::Unknown))
+        ));
+        assert_eq!(database.storage_status(7, deadline()).unwrap(), deleted);
+    }
+    objects.fail(false, head_key(&scope()), StoreError::Unknown);
+    assert!(matches!(
+        database.storage_status(7, deadline()),
+        Err(Error::Store(StoreError::Unknown))
+    ));
+    objects.lose_next_cas();
+    let before = objects.operation_count();
+    assert!(matches!(
+        database.retire_storage(7, deleted.head_serial, deadline()),
+        Err(Error::Store(StoreError::Unknown))
+    ));
+    assert_eq!(objects.operation_count(), before + 2);
+    let observed = database.storage_status(7, deadline()).unwrap();
+    assert_eq!(
+        observed.storage.terminal.as_ref().unwrap().serial,
+        deleted.head_serial + 1
+    );
+    for expected in [deleted.head_serial, observed.head_serial] {
+        let before = objects.operation_count();
+        assert!(matches!(
+            database.retire_storage(7, expected, deadline()),
+            Err(Error::Conflict)
+        ));
+        assert_eq!(objects.operation_count(), before + 1);
+    }
+}
+
+#[test]
+fn terminal_metadata_ignores_only_retired_physical_incidents_and_never_semantic_knowledge() {
+    let (objects, database) = fixture();
+    let original = database.read_head(deadline()).unwrap();
+    let old = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
+    let semantic = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
+    let deleted = deleted_direct(&database);
+    let sealed = database
+        .retire_storage(7, deleted.head_serial, deadline())
+        .unwrap();
+    objects.fail(
+        false,
+        object_key(&scope(), 1, &original.head.data_root),
+        StoreError::Missing,
+    );
+    objects.fail(false, head_key(&scope()), StoreError::Unknown);
+    assert!(matches!(
+        old.load(&original.head.data_root, deadline()),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    assert!(matches!(database.healthy_in(1), Err(Error::Corrupt)));
+    let garbage = GarbageMemory::new(objects.clone());
+    let prepared = database
+        .gc_prepare(
+            7,
+            sealed.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let done = database
+        .gc_resume(
+            7,
+            prepared.head.storage.sweep.as_ref().unwrap().serial,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    assert!(database
+        .healthy_domain(PublicationDomain::TerminalMetadata)
+        .is_ok());
+    let _ = semantic.observe(Error::Engine(scap_object_sqlite::Error::InvalidImage));
+    assert!(database.quarantined.load(Ordering::Acquire));
+    let base = database.read_head(deadline()).unwrap();
+    let next = technical_next(&base.head).unwrap();
+    assert!(matches!(
+        database.publish_technical(&base, &next, deadline()),
+        Err(Error::Corrupt)
+    ));
+    assert_eq!(database.storage_status(7, deadline()).unwrap(), done.head);
+}
+
+#[test]
+fn terminal_requires_healthy_original_lineage_and_never_reopens_or_changes_business_fields() {
+    let (objects, database) = fixture();
+    let original = database.read_head(deadline()).unwrap();
+    let old = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
+    let deleted = deleted_direct(&database);
+    objects.fail(
+        false,
+        object_key(&scope(), 1, &original.head.data_root),
+        StoreError::Missing,
+    );
+    assert!(matches!(
+        old.load(&original.head.data_root, deadline()),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    assert!(matches!(
+        database.retire_storage(7, deleted.head_serial, deadline()),
+        Err(Error::Corrupt)
+    ));
+    let independent = Database::new(objects.clone(), scope(), 10).unwrap();
+    independent
+        .retire_storage(7, deleted.head_serial, deadline())
+        .unwrap();
+    let base = independent.read_head(deadline()).unwrap();
+    for change in 0..4 {
+        let mut next = technical_next(&base.head).unwrap();
+        match change {
+            0 => {
+                next.format = 6;
+                next.storage.terminal = None;
+            }
+            1 => next.storage.allocated_through += 1,
+            2 => next.revision += 1,
+            _ => next.policy[0].read = false,
+        }
+        let before = objects.operation_count();
+        assert!(matches!(
+            independent.publish_technical(&base, &next, deadline()),
+            Err(Error::Format(FormatError::Invalid))
+        ));
+        assert_eq!(objects.operation_count(), before);
+    }
+    let mut full = deleted;
+    full.head_serial = u64::MAX;
+    objects.set(head_key(&scope()), encode_head(&full).unwrap());
+    assert!(matches!(
+        independent.retire_storage(7, u64::MAX, deadline()),
+        Err(Error::Limit)
+    ));
+}
+
+#[test]
+fn terminal_diagnostic_rejects_a_seal_that_predates_the_original_live_context() {
+    for old_seal in [false, true] {
+        let (objects, database) = fixture();
+        let mut before = database.status(7, deadline()).unwrap();
+        before.head_serial = 100;
+        objects.set(head_key(&scope()), encode_head(&before).unwrap());
+        let original = database.read_head(deadline()).unwrap();
+        let context = ObjectContext::from_snapshot(&database, &original, deadline()).unwrap();
+        let mut fresh = before;
+        fresh.format = 7;
+        fresh.lifecycle = Lifecycle::Deleted;
+        fresh.active = false;
+        fresh.head_serial = 102;
+        fresh.storage.terminal = Some(TerminalSeal {
+            serial: if old_seal { 3 } else { 101 },
+        });
+        objects.set(head_key(&scope()), encode_head(&fresh).unwrap());
+        objects.remove(&object_key(&scope(), 1, &fresh.data_root));
+        let result = context.load(&fresh.data_root, deadline());
+        if old_seal {
+            assert!(matches!(result, Err(Error::Store(StoreError::Missing))));
+            assert!(database.quarantined.load(Ordering::Acquire));
+        } else {
+            assert!(matches!(result, Err(Error::SnapshotExpired)));
+            assert!(!database.quarantined.load(Ordering::Acquire));
+        }
+    }
+}
+
+#[test]
+fn terminal_collection_preserves_a_real_known_sql_receipt_and_committed_unavailable() {
+    let (objects, database) = fixture();
+    let statements: Vec<_> = sql("CREATE TABLE terminal_result(v BLOB)")
+        .into_iter()
+        .chain(sql(
+            "INSERT INTO terminal_result VALUES(randomblob(8)) RETURNING hex(v)",
+        ))
+        .collect();
+    let identity = request(1, 41, 7, &statements).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("receipt.sqlite");
+    let (receipt, result) = database
+        .execute(7, &identity, &statements, &file, deadline())
+        .unwrap();
+    let original = receipt.clone();
+    let deleted = deleted_direct(&database);
+    let sealed = database
+        .retire_storage(7, deleted.head_serial, deadline())
+        .unwrap();
+    let garbage = GarbageMemory::new(objects.clone());
+    let prepared = database
+        .gc_prepare(
+            7,
+            sealed.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    database
+        .gc_resume(
+            7,
+            prepared.head.storage.sweep.as_ref().unwrap().serial,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let success = Database::finish(Some(Ok(receipt.clone())), Ok(result)).unwrap();
+    assert_eq!(success.0, original);
+    match Database::finish(
+        Some(Ok(receipt)),
+        Err(scap_object_sqlite::Error::InvalidImage),
+    ) {
+        Err(Error::CommittedButUnavailable(saved)) => assert_eq!(*saved, original),
+        other => panic!("known commit lost its receipt: {other:?}"),
+    }
+    assert!(matches!(
+        database.execute(7, &identity, &statements, &file, deadline()),
+        Err(Error::Lifecycle)
+    ));
+    assert_eq!(database.storage_status(7, deadline()).unwrap().sequence, 1);
+}
+
+#[test]
+fn exhausted_context_admission_propagates_budget_through_real_public_entrypoints() {
+    for case in 0..9 {
+        let (objects, database) = fixture();
+        if matches!(case, 6 | 7) {
+            database.takeover(7, 2, 60, deadline()).unwrap();
+        }
+        if case == 8 {
+            for id in 1..=crate::tests::TEST_WINDOW {
+                database
+                    .cancel(7, &identity(id as u64), deadline())
+                    .unwrap();
+            }
+        }
+        let base = database.read_head(deadline()).unwrap();
+        let contexts: Vec<_> = (0..64)
+            .map(|_| ObjectContext::from_snapshot(&database, &base, deadline()).unwrap())
+            .collect();
+        let caller = database.clone();
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("unadmitted.sqlite");
+        let statements = sql("SELECT 1");
+        let request = request(1, 77, 7, &statements).unwrap();
+        let before = objects.operation_count();
+        let result = match case {
+            0 => caller.lookup(7, &request, deadline()).map(|_| ()),
+            1 => caller.cancel(7, &request, deadline()).map(|_| ()),
+            2 => caller
+                .execute(7, &request, &statements, &file, deadline())
+                .map(|_| ()),
+            3 => caller.session(7, &file, deadline()).map(|_| ()),
+            4 => caller.query(7, &statements, &file, deadline()).map(|_| ()),
+            5 => caller
+                .set_quota(
+                    7,
+                    base.head.revision,
+                    80,
+                    base.head.quota.clone(),
+                    deadline(),
+                )
+                .map(|_| ()),
+            6 => caller
+                .activate(7, base.head.revision, 80, deadline())
+                .map(|_| ()),
+            7 => caller
+                .activate_session(7, base.head.revision, 80, &file, deadline())
+                .map(|_| ()),
+            _ => caller
+                .close_full(7, base.head.revision, 80, deadline())
+                .map(|_| ()),
+        };
+        assert!(
+            matches!(result, Err(Error::Store(StoreError::Budget))),
+            "case {case}: {result:?}"
+        );
+        assert_eq!(
+            objects.operation_count(),
+            before + 1,
+            "only the original admission HEAD GET"
+        );
+        assert!(!file.exists());
+        assert!(database.healthy().is_ok());
+        // The private generic publication path is also reached by a real
+        // lifecycle mutation; it cannot manufacture an unregistered context.
+        let before = objects.operation_count();
+        assert!(matches!(
+            caller.set_lifecycle(
+                7,
+                base.head.revision,
+                81,
+                Lifecycle::Maintenance,
+                deadline()
+            ),
+            Err(Error::Store(StoreError::Budget))
+        ));
+        assert_eq!(objects.operation_count(), before + 1);
+        drop(contexts);
+        assert!(ObjectContext::from_snapshot(&caller, &base, deadline()).is_ok());
+    }
+}
+
+#[test]
+fn copy_context_admission_bounds_both_namespaces_and_releases_a_partial_acquisition() {
+    for held in [63, 64] {
+        let (objects, database) = fixture();
+        let started = database.compact_begin(7, 2, deadline()).unwrap();
+        let serial = started.storage.plan.as_ref().unwrap().serial;
+        let base = database.read_head(deadline()).unwrap();
+        let contexts: Vec<_> = (0..held)
+            .map(|_| ObjectContext::from_snapshot(&database, &base, deadline()).unwrap())
+            .collect();
+        let before = objects.operation_count();
+        assert!(matches!(
+            database.compact_copy(7, serial, deadline()),
+            Err(Error::Store(StoreError::Budget))
+        ));
+        assert_eq!(objects.operation_count(), before + 1);
+        assert!(database.healthy().is_ok());
+        if held == 63 {
+            // The source acquired slot 64 before target admission failed. Its
+            // dropped prefix must return that slot, without touching any frame.
+            let remaining = ObjectContext::from_snapshot(&database, &base, deadline()).unwrap();
+            assert!(matches!(
+                ObjectContext::from_snapshot(&database, &base, deadline()),
+                Err(Error::Store(StoreError::Budget))
+            ));
+            drop(remaining);
+        }
+        drop(contexts);
+        let copied = database.compact_copy(7, serial, deadline()).unwrap();
+        assert_eq!(
+            copied.storage.plan.as_ref().unwrap().phase,
+            CopyPhase::Sealed
+        );
+    }
+}
+
+#[test]
+fn terminal_candidate_defends_against_busy_live_maintenance_inputs() {
+    let (objects, database) = fixture();
+    let begun = database.compact_begin(7, 2, deadline()).unwrap();
+    let serial = begun.storage.plan.as_ref().unwrap().serial;
+    database.compact_copy(7, serial, deadline()).unwrap();
+    let base = database.read_head(deadline()).unwrap();
+    let before = objects.operation_count();
+    assert!(matches!(
+        database.retire_deleted(base.clone(), base.head.head_serial, deadline()),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(objects.operation_count(), before);
+    let abandoned = database.compact_abort(7, serial, deadline()).unwrap();
+    let garbage = GarbageMemory::new(objects.clone());
+    database
+        .gc_prepare(
+            7,
+            abandoned.head_serial,
+            2,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let base = database.read_head(deadline()).unwrap();
+    let before = objects.operation_count();
+    assert!(matches!(
+        database.retire_deleted(base.clone(), base.head.head_serial, deadline()),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(objects.operation_count(), before);
 }

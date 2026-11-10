@@ -88,7 +88,9 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 
 ## 显式物理代压缩与 GC
 
-`status()` 还返回物理 `head_serial` 和有界 `storage` 状态。`scope.generation` 仍是原逻辑
+`status()` 还返回物理 `head_serial` 和有界 `storage` 状态。`storage.terminal` 是必填字段，
+未退休时为 `null`，退休后为 `{serial}`；新 SDK 需与提供该投影的服务一起部署。
+`scope.generation` 仍是原逻辑
 身份；业务 receipt、请求 ID 和原结果 hash 不随物理搬迁改变。六个管理员方法均只有一次 POST：
 
 | 方法 | 含义 |
@@ -130,9 +132,57 @@ if (page.status.storage.sweep !== null) {
 重发。`SNAPSHOT_EXPIRED`、`GC_DISABLED` 和 `GC_UNSUPPORTED` 保留为未决的 RemoteError。
 快照过期不是业务请求窗口的 RETIRED，不授权重做已提交 SQL。
 
-服务默认不授予 GC，需配置与普通读写身份分离的固定 namespace 凭据。HEAD6 本片没有
-retained snapshot/持久 reader pin；Deleted 的最后 active 代也不会被清扫。完整 HTTP 字段、
+服务默认不授予 GC，需配置与普通读写身份分离的固定 namespace 凭据。当前没有 retained
+snapshot/持久 reader pin；未退休 Deleted 的最后 active 代仍受保护。完整 HTTP 字段、
 32 项预算、重启/UNKNOWN 处理及部署约束见[服务文档](../../crates/scap-service/docs/reclamation.md)。
+
+## 删除后的显式存储退休
+
+逻辑删除后，普通 SQL、`lookup` 和 `status` 仍返回生命周期错误。专用管理入口只查询
+Deleted 元数据，或发布不可逆的终态存储屏障；两者都要求 fresh HEAD 的当前 ADMIN。
+
+| 客户端 / 方法 | 输入与结果 |
+| --- | --- |
+| `Client.storageStatus(options?)` | 直接创建库的 Deleted `DatabaseStatus`；使用 control 准入 |
+| `Client.retireStorage({expectedHeadSerial}, options?)` | 同一直接创建库的终态 status；使用 control 准入 |
+| `CatalogueClient.storageStatus(creation, options?)` | 核实原 Creation 后返回 Deleted status；使用 catalogue 准入 |
+| `CatalogueClient.retireStorage({creation,expected_head_serial}, options?)` | 同一命名库的终态 status；使用 catalogue 准入 |
+
+直接入口只适用于没有目录 Creation 的库。命名库要保留原 Creation，使用目录客户端；
+当前管理员可以不同于 creator，也不要求 provision。目录入口不会把已重用的名称解析成
+另一个新库。四个方法都使用普通请求预算，每次最多一个 POST。
+
+```javascript
+const deleted = await db.storageStatus();
+const original = { expectedHeadSerial: deleted.head_serial };
+// 应用先持久保存 scope 和 original，再显式授权退休。
+const terminal = await db.retireStorage(original);
+console.log(terminal.storage.terminal.serial);
+
+// 命名库先保存可恢复的原管理意图；此处 catalogue 为 CatalogueClient。
+const named = await catalogue.storageStatus(creation);
+const intent = catalogue.prepareIntent({
+  operation: 'retire_named_storage',
+  creation,
+  expected_head_serial: named.head_serial,
+});
+const saved = catalogue.saveIntent(intent);
+// 应用持久保存 saved 后，才发送这一次原意图。
+const retired = await catalogue.submit(catalogue.restoreIntent(saved));
+```
+
+成功要求 `terminal.serial === head_serial === 原 expected serial + 1`。封口只推进物理序号，
+保持原业务 revision、请求身份、结果与目录删除意图不变；它不会执行 SQL 或对象 DELETE，
+也不要求启用 GC。已存在 seal 或 serial 不符返回 `CONFLICT`，不能把冲突当作旧调用未发生。
+所有终态响应都严格要求 `M < terminal.serial <= head_serial` 和 `revision < terminal.serial`；
+后续 checkpoint 的 serial 也必须晚于 seal。
+`UnknownError.reference` 在直接调用中保存 `expectedHeadSerial`，在目录调用中保存完整
+`intent.action`。UNKNOWN 后显式调用对应的 `storageStatus` 查证，不自动更换 serial 重发。
+
+seal 之后，既有 `gcPrepare` / `gcResume` 才能扫描已分配代中的最后一个 A。GC 继续使用
+独立凭据、recovery 准入、最多 32 项的原 ETag checkpoint；seal、A 和 M 永不回退，永久 HEAD
+与目录证明不被删除。一轮 `exhausted` 不代表 prefix 永久为空，迟到旧 PUT 仍需后续扫描。
+HEAD7 终态接口需要新候选的独立原生/HTTP/S3 验收，不能沿用 HEAD6 的通过结论。
 
 ## 受信 owner 路由
 

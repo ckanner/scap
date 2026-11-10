@@ -21,7 +21,7 @@ use std::time::Instant;
 
 use data_tree::DataObjects;
 use format::*;
-use head_publication::PreparedHead;
+use head_publication::{PreparedHead, PublicationDomain};
 use object_context::ObjectContext;
 use scap_object_sqlite::{CommitGate, GateDecision, ImageBuilder, PageBatch, SqliteWriter};
 use scap_object_store::{Condition, Objects, StoreError};
@@ -193,6 +193,22 @@ impl Database {
         Ok(())
     }
 
+    fn healthy_domain(&self, domain: PublicationDomain) -> Result<(), Error> {
+        match domain {
+            PublicationDomain::Live(generation) => self.healthy_in(generation),
+            PublicationDomain::TerminalMetadata => {
+                // Historical physical-generation incidents stay recorded, but
+                // none of those namespaces is protected after a permanent seal.
+                // Never clear the shared authority/content-semantic latch.
+                if self.quarantined.load(Ordering::Acquire) {
+                    Err(Error::Corrupt)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
+
     fn no_copy(head: &Head) -> Result<(), Error> {
         if head.storage.plan.is_some() {
             Err(Error::Fenced)
@@ -266,7 +282,7 @@ impl Database {
     }
 
     fn publish(&self, base: &Snapshot, head: &Head, deadline: Instant) -> Result<(), Error> {
-        let objects = ObjectContext::from_snapshot(self, base, deadline);
+        let objects = ObjectContext::from_snapshot(self, base, deadline)?;
         self.publish_in(&objects, base, head, deadline)
     }
 
@@ -300,7 +316,7 @@ impl Database {
     }
 
     fn publish_healthy(&self, publication: PreparedHead) -> Result<(), Error> {
-        self.healthy_in(publication.generation())?;
+        self.healthy_domain(publication.domain())?;
         publication.publish()
     }
 
@@ -346,7 +362,7 @@ impl Database {
     }
 
     fn initial_head(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
-        let objects = ObjectContext::bootstrap_at(self, deadline);
+        let objects = ObjectContext::bootstrap_at(self, deadline)?;
         let data_root = data_tree::empty(&objects, deadline)?;
         let index = request_index::empty(&objects, 1, deadline)?;
         let head = Head {
@@ -358,6 +374,7 @@ impl Database {
                 allocated_through: INITIAL_STORAGE_GENERATION,
                 plan: None,
                 sweep: None,
+                terminal: None,
             },
             revision: 1,
             transition: Transition { revision: 1, nonce },
@@ -538,7 +555,7 @@ impl Database {
         if request.principal != principal {
             return Err(Error::Denied);
         }
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         self.resolve(&objects, &base.head, request, deadline)
     }
 
@@ -582,7 +599,7 @@ impl Database {
         if base.head.owner_instance != self.worker || base.head.active {
             return Err(Error::Fenced);
         }
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         self.verify_closure(&objects, &base, deadline)?;
         let current = self.read_head(deadline)?;
         if current.etag != base.etag || current.head != base.head {
@@ -643,7 +660,7 @@ impl Database {
         let base = self.control(principal, expected_revision, deadline)?;
         Self::no_copy(&base.head)?;
         let maximum = quota.max_pages().map_err(Error::Format)?;
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let manifest = data_tree::manifest(&objects, &base.head.data_root, deadline)
             .map_err(|error| objects.observe(error))?;
         if manifest.page_count > maximum {
@@ -671,7 +688,7 @@ impl Database {
         }
         let mut head = Self::next(&base.head, nonce)?;
         head.request_epoch = head.request_epoch.checked_add(1).ok_or(Error::Limit)?;
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let root = request_index::empty(&objects, head.request_epoch, deadline)?;
         head.windows.insert(
             0,
@@ -720,7 +737,7 @@ impl Database {
         if principal != request.principal {
             return Err(Error::Denied);
         }
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let resolution = self.resolve(&objects, &base.head, request, deadline)?;
         if resolution != Resolution::Unknown {
             return Ok(resolution);
@@ -856,7 +873,7 @@ impl Database {
         }
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, true, true, false)?;
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         match self.resolve(&objects, &base.head, identity, deadline)? {
             Resolution::Committed { receipt, bytes } => {
                 return self.decode_retained_admission(receipt, &bytes);
@@ -891,7 +908,7 @@ impl Database {
         let deadline = self.options.deadline(deadline, true);
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, true, false, false)?;
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let mut session = self.restore(&objects, &base, directory, deadline)?;
         // Prepare retained history within the recovery budget, so the first
         // hot SQL operation does not hide a full historical result scan.
@@ -959,7 +976,7 @@ impl Database {
         if base.head.owner_instance != self.worker || base.head.active {
             return Err(Error::Fenced);
         }
-        let objects = ObjectContext::from_snapshot(self, &base, deadline);
+        let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let mut session = self.restore(&objects, &base, directory, deadline)?;
         self.verify_results(&objects, &base.head, deadline)?;
         session.history_verified = true;
@@ -1002,7 +1019,7 @@ impl Database {
         Self::authorize(&snapshot.head, principal, true, false, false)?;
         input_budget(statements, self.options.max_input_bytes)?;
         scap_sql::validate_statements(statements, self.options.sql).map_err(Error::Sql)?;
-        let objects = ObjectContext::from_snapshot(self, &snapshot, deadline);
+        let objects = ObjectContext::from_snapshot(self, &snapshot, deadline)?;
         let mut session = self.restore(&objects, &snapshot, directory, deadline)?;
         // Direct cold queries, like Open, validate the entire retained history.
         // Warm Session::query remains a fresh HEAD plus local SQLite operation.
