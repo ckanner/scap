@@ -132,6 +132,8 @@ seal 不等 Name Release，避免把目录进度引入物理安全条件；但�
 
 知识谱系仍遵守 HEAD6：Database clones/Session/context 共享知识；独立构造是新谱系，必须从新鲜 authority 开始新的尝试。每-g 物理 incident 不能升级成所有新 namespace 的损坏，也不能凭“terminal 已观察到”清掉无关 semantic latch。
 
+本片同时收紧真实的本地 context admission：64 个在用引用或 64 个尚未释放的故障世代槽耗尽时，工厂立即返回原 typed `StoreError::Budget`，不再构造 `registered=false`、等到访问才失败的对象。所有成功 context 都持有且仅释放自己的一个槽；Database clone 共享同一计数，COPY 的 source 成功但 target 失败时也必须归还 source 槽。这个失败不进行 payload I/O、额外 HEAD 调查或损坏标记，不删除任何终态或权限检查。它是产品资源行为的收紧，使用真实 63/64 个上下文与公开入口验证，不是覆盖豁免。
+
 这里需要一个明确的健康检查差别：
 
 - **安装 seal** 是从原 protected A 退出的发布，仍执行原 A 与全局知识门禁。

@@ -217,8 +217,7 @@ impl Database {
             return Ok(base.head);
         }
         let source = ObjectContext::from_snapshot(self, &base, deadline)?;
-        let target = ObjectContext::target(self, &base, &original, deadline)
-            .expect("plan cloned from this immutable, validated original HEAD");
+        let target = ObjectContext::target(self, &base, &original, deadline)?;
         source.healthy()?;
         target.healthy()?;
         copy_closure(&source, &target, &base, &original, deadline, &|| false)?;

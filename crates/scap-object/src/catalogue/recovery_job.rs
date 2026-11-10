@@ -400,8 +400,11 @@ impl RecoveryJob {
         };
         let deadline = self.options.deadline(deadline, true);
         self.meter.check(deadline)?;
-        let objects =
-            ObjectContext::from_snapshot(&database, &snapshot, deadline).map_err(recovery_error)?;
+        // authorize() rejected Deleted, so this strict snapshot is nonterminal.
+        // The local Database above has fresh empty Knowledge and no other clone
+        // or context; its first context cannot exhaust the admission allowance.
+        let objects = ObjectContext::from_snapshot(&database, &snapshot, deadline)
+            .expect("authorized nonterminal authority and a fresh unshared lineage");
         let mut session = database
             .restore(&objects, &snapshot, directory, deadline)
             .map_err(recovery_error)?;

@@ -118,8 +118,11 @@ impl Catalogue {
         require(binding.body.creation == source.creation && binding.stage == NameStage::Bound)?;
         Self::provisioning(source, &base.head)?;
         let database = self.database(source);
-        let objects =
-            ObjectContext::from_snapshot(&database, base, deadline).map_err(core_error)?;
+        // The strict original HEAD was verified Provisioning, hence nonterminal.
+        // database() just created an empty Knowledge with no other clone/context,
+        // so the first context cannot exhaust its local admission allowance.
+        let objects = ObjectContext::from_snapshot(&database, base, deadline)
+            .expect("verified nonterminal authority and a fresh unshared lineage");
         database
             .verify_closure(&objects, base, deadline)
             .map_err(core_error)?;

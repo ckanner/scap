@@ -111,6 +111,7 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
         let (mut session, receipt) = warm(&database, &temporary.path().join("warm"));
         let original = database.read_head(deadline()).unwrap();
         let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+            .unwrap()
             .load(&receipt.result_hash, deadline())
             .unwrap()
         else {
@@ -128,6 +129,7 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
             Payload::Result(stored)
         };
         let replacement = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(payload, deadline())
             .unwrap();
         let mut entries =
@@ -137,6 +139,7 @@ fn decoded_result_kind_identity_ordering_and_codec_failures_stop_warm_publicatio
         };
         let mut damaged = original.head.clone();
         damaged.windows[0].root = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&damaged).unwrap());
@@ -185,13 +188,17 @@ fn failed_immutable_readback_and_colliding_corrupt_bytes_stop_existing_sessions(
         if collision {
             objects.set(key, b"not the immutable bytes".to_vec());
             assert!(matches!(
-                ObjectContext::bootstrap(&database).save(payload, deadline()),
+                ObjectContext::bootstrap(&database)
+                    .unwrap()
+                    .save(payload, deadline()),
                 Err(Error::Corrupt)
             ));
         } else {
             objects.fail(false, key, StoreError::Missing);
             assert!(matches!(
-                ObjectContext::bootstrap(&database).save(payload, deadline()),
+                ObjectContext::bootstrap(&database)
+                    .unwrap()
+                    .save(payload, deadline()),
                 Err(Error::Store(StoreError::Missing))
             ));
         }

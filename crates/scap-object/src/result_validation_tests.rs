@@ -44,6 +44,7 @@ fn install(
     head.active = !inactive;
     let length = bytes.len() as u64;
     let root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Result(StoredResult {
                 request: request.clone(),
@@ -56,6 +57,7 @@ fn install(
         )
         .unwrap();
     let root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             crate::tests::index_payload(
                 1,
@@ -78,6 +80,7 @@ fn install(
         head.retention.max_entries = 1;
         head.request_epoch = 2;
         let empty = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(crate::tests::index_payload(2, vec![]), deadline())
             .unwrap();
         head.windows.insert(
@@ -118,6 +121,7 @@ fn original_result_length_is_verified_against_each_leaf_claim() {
         entries[0].result_bytes += 1;
         head.windows[0].result_bytes += 1;
         head.windows[0].root = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         objects.set(head_key(&scope()), encode_head(&head).unwrap());
@@ -170,6 +174,7 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
             };
             let summary = index.summary();
             let hash = ObjectContext::bootstrap(&database)
+                .unwrap()
                 .save(Payload::Index(index), deadline())
                 .unwrap();
             children.push(IndexChild { hash, summary });
@@ -177,6 +182,7 @@ fn direct_cold_query_and_open_validate_the_branch_a_point_lookup_does_not_visit(
         let missing = object_key(&scope(), 1, &children[1].hash);
         head.windows[0].count = 128;
         head.windows[0].root = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(
                 Payload::Index(RequestIndex::Branch {
                     epoch: 1,
@@ -278,6 +284,7 @@ fn retained_nonce_is_bound_to_request_id_in_lookup_activation_and_compaction() {
                     panic!()
                 };
                 let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+                    .unwrap()
                     .load(result, deadline())
                     .unwrap()
                 else {
@@ -286,11 +293,13 @@ fn retained_nonce_is_bound_to_request_id_in_lookup_activation_and_compaction() {
                 stored.transition.nonce = request.id + 1;
                 entries[0].outcome = OutcomeRef::Committed {
                     result: ObjectContext::bootstrap(&database)
+                        .unwrap()
                         .save(Payload::Result(stored), deadline())
                         .unwrap(),
                 };
             }
             head.windows[0].root = ObjectContext::bootstrap(&database)
+                .unwrap()
                 .save(crate::tests::index_payload(1, entries), deadline())
                 .unwrap();
             objects.set(head_key(&scope()), encode_head(&head).unwrap());
@@ -365,6 +374,7 @@ fn lookup_rejects_semantically_invalid_results_despite_correct_object_hashes() {
             };
             assert!(matches!(
                 ObjectContext::bootstrap(&database)
+                    .unwrap()
                     .load(result, deadline())
                     .unwrap(),
                 Payload::Result(_)
@@ -482,6 +492,7 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
         .unwrap();
     let original = database.read_head(deadline()).unwrap();
     let Payload::Result(mut stored) = ObjectContext::bootstrap(&database)
+        .unwrap()
         .load(&receipt.result_hash, deadline())
         .unwrap()
     else {
@@ -489,6 +500,7 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
     };
     stored.bytes[0] ^= 1;
     let corrupt_result = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(Payload::Result(stored), deadline())
         .unwrap();
     let mut entries =
@@ -498,6 +510,7 @@ fn decoded_corruption_blocks_warm_publication_even_after_head_is_restored() {
     };
     let mut damaged = original.head.clone();
     damaged.windows[0].root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(crate::tests::index_payload(1, entries), deadline())
         .unwrap();
     objects.set(head_key(&scope()), encode_head(&damaged).unwrap());

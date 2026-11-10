@@ -362,7 +362,7 @@ impl Database {
     }
 
     fn initial_head(&self, principal: u64, nonce: u64, deadline: Instant) -> Result<Head, Error> {
-        let objects = ObjectContext::bootstrap_at(self, deadline);
+        let objects = ObjectContext::bootstrap_at(self, deadline)?;
         let data_root = data_tree::empty(&objects, deadline)?;
         let index = request_index::empty(&objects, 1, deadline)?;
         let head = Head {

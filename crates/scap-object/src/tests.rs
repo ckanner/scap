@@ -696,6 +696,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         Err(Error::Format(_))
     ));
     let wrong = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(crate::tests::index_payload(1, vec![]), deadline())
         .unwrap();
     let mut head = base.head.clone();
@@ -705,6 +706,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         Err(Error::Corrupt)
     ));
     let page = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Chunk {
                 first_page: 1,
@@ -714,6 +716,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         )
         .unwrap();
     head.data_root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
@@ -727,6 +730,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
         Err(Error::Corrupt)
     ));
     head.data_root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
@@ -754,6 +758,7 @@ fn corrupt_missing_and_wrong_kind_objects_fail_closed() {
     let mut foreign = identity(3);
     foreign.epoch = 2;
     window.root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             crate::tests::index_payload(
                 2,
@@ -782,7 +787,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     let (objects, database) = fixture();
     objects.fail(true, "*".into(), StoreError::Unknown);
     assert!(matches!(
-        ObjectContext::bootstrap(&database).save(
+        ObjectContext::bootstrap(&database).unwrap().save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![1; PAGE_SIZE]
@@ -793,7 +798,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     ));
     objects.inner.lock().unwrap().corrupt_create = true;
     assert!(matches!(
-        ObjectContext::bootstrap(&database).save(
+        ObjectContext::bootstrap(&database).unwrap().save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![2; PAGE_SIZE]
@@ -805,7 +810,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
     objects.inner.lock().unwrap().corrupt_create = false;
     objects.fail(false, "*".into(), StoreError::Missing);
     assert!(matches!(
-        ObjectContext::bootstrap(&database).save(
+        ObjectContext::bootstrap(&database).unwrap().save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![3; PAGE_SIZE]
@@ -815,7 +820,7 @@ fn uploads_are_immutable_verified_and_fail_without_head_publication() {
         Err(Error::Store(StoreError::Missing))
     ));
     assert!(matches!(
-        ObjectContext::bootstrap(&database).save(
+        ObjectContext::bootstrap(&database).unwrap().save(
             Payload::Chunk {
                 first_page: 1,
                 bytes: vec![0]
@@ -1117,6 +1122,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
         // Recovery must include a retained result, not just empty metadata.
         let mut head = database.read_head(deadline()).unwrap().head;
         let result = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(
                 Payload::Result(StoredResult {
                     request: identity(1),
@@ -1162,6 +1168,7 @@ fn prepare_operation(name: &str) -> (Arc<Memory>, Database) {
             })
             .collect();
         head.windows[0].root = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(crate::tests::index_payload(1, entries), deadline())
             .unwrap();
         head.windows[0].count = TEST_WINDOW;
@@ -1384,6 +1391,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     let (objects, database) = fixture();
     let head = database.read_head(deadline()).unwrap().head;
     let wrong_kind = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(crate::tests::index_payload(1, vec![]), deadline())
         .unwrap();
     assert!(matches!(
@@ -1416,6 +1424,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
             _ => bad.transition.revision = 3,
         }
         let result = ObjectContext::bootstrap(&database)
+            .unwrap()
             .save(Payload::Result(bad), deadline())
             .unwrap();
         assert!(matches!(
@@ -1446,6 +1455,7 @@ fn retained_result_content_is_bound_to_identity_sequence_and_transition() {
     ));
     stored.sequence = 1;
     let result = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(Payload::Result(stored), deadline())
         .unwrap();
     database
@@ -1529,6 +1539,7 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
     replace_head(&objects, &database, |h| h.lifecycle = Lifecycle::Ready);
     let page = vec![42; PAGE_SIZE];
     let page_root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Chunk {
                 first_page: 1,
@@ -1538,11 +1549,13 @@ fn admission_and_physical_failure_boundaries_are_explicit() {
         )
         .unwrap();
     let root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Manifest(Manifest {
                 page_count: 1,
                 root: Some(
                     ObjectContext::bootstrap(&database)
+                        .unwrap()
                         .save(
                             Payload::Node {
                                 level: 0,
@@ -1617,7 +1630,7 @@ pub(crate) fn index_entries(
     end: Instant,
 ) -> Result<Vec<Entry>, Error> {
     let mut entries = Vec::new();
-    let objects = ObjectContext::bootstrap(database);
+    let objects = ObjectContext::bootstrap(database).unwrap();
     request_index::walk(&objects, window, end, |entry| {
         entries.push(entry);
         Ok(())

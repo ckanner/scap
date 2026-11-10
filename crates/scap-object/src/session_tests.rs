@@ -521,6 +521,7 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
     let mut over = Database::next(&base.head, 99).unwrap();
     over.quota.max_bytes = Some(PAGE_SIZE as u64);
     over.data_root = ObjectContext::bootstrap(&database)
+        .unwrap()
         .save(
             Payload::Manifest(Manifest {
                 page_count: 2,
