@@ -140,15 +140,35 @@ def missing_control(directory):
 
 
 def unstable_success(directory):
-    ledger = rows(directory / 'sdk-R.jsonl')
-    start = next(row for row in ledger if row['event'] == 'http_request' and row['command'] == 'before-unstable-observation')
+    ledger = rows(directory / 'sdk-C.jsonl')
+    start = next(row for row in ledger if row['event'] == 'http_request' and row['command'] == 'after-seal-unknown')
+    done = next(row for row in ledger if row['event'] == 'command_finished' and row['command'] == 'after-seal-unknown')
+    creation = wire.parse(raw(directory, start['request']))['creation']
     history = rows(directory / 'events.jsonl')
-    response = next(row for row in history if row['event'] == 's3_backend_response' and row['role'] == 'R'
-                    and row['path'].endswith('/head') and row['status'] == 200 and moment(row) > moment(start))
-    status = oracle.projection(wire.parse(raw(directory, response['response'])))
-    update_command_result(directory, 'R', 'before-unstable-observation',
-        lambda result: (result.clear(), result.update(id='before-unstable-observation', ok=True, value=status)),
-        lambda _status, body: (200, {**{key: value for key, value in body.items() if key not in ('error', 'value')}, 'ok': True, 'value': status}))
+    names = [row for row in history if row['event'] == 's3_request' and row['role'] == 'C'
+             and row['method'] == 'GET' and '/catalogue/v1/name/' in row['path']
+             and moment(start) < moment(row) < moment(done)]
+    assert len(names) == 2 and names[0]['path'] == names[1]['path']
+    original = []
+    for row in history:
+        if row['event'] != 's3_backend_response' or row['method'] != 'GET' or row['status'] != 200 \
+                or row['path'] != names[0]['path'] or moment(row) >= moment(start):
+            continue
+        value = wire.parse(raw(directory, row['response']))
+        if value['state'] == 'tombstone' and value['creation']['creator'] == int(creation['creator']) \
+                and value['creation']['operation'] == int(creation['operation']):
+            original.append(row)
+    assert original
+    previous = original[-1]
+    target = [row for row in history if row.get('role') == 'C' and row.get('serial') == names[0]['serial']
+              and row['event'] in ('s3_backend_response', 's3_delivery_started')]
+    assert len(target) == 2 and all(row['response'] != previous['response'] for row in target)
+    # Keep every original request and clock. Both Name versions already exist in
+    # the same actual history; only the first observed response becomes stale.
+    for row in target:
+        row['response'] = copy.deepcopy(previous['response'])
+        row['headers'] = copy.deepcopy(previous['headers'])
+    save_rows(directory / 'events.jsonl', history)
 
 
 def old_read_too_early(directory):

@@ -328,6 +328,41 @@ class ObserverBoundaries(unittest.TestCase):
             self.assertEqual(original.read_bytes(), b'original')
             self.assertEqual(changed.read_bytes(), b'counterfactual')
 
+    def test_unstable_name_control_keeps_requests_and_mirrors_prior_real_version(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name); (directory / 'raw').mkdir()
+            previous = controls.put_raw(directory, encoded({'state': 'tombstone',
+                'creation': {'creator': 11, 'operation': 7103}}))
+            current = controls.put_raw(directory, encoded({'state': 'bound',
+                'creation': {'creator': 11, 'operation': 7104}}))
+            action = controls.put_raw(directory, encoded({'creation': {'creator': '11', 'operation': '7103'}}))
+            controls.save_rows(directory / 'sdk-C.jsonl', [
+                {'event': 'http_request', 'command': 'after-seal-unknown', 'monotonic_ns': 10, 'request': action},
+                {'event': 'command_finished', 'command': 'after-seal-unknown', 'monotonic_ns': 40}])
+            history = []
+            for role, serial, start, response, etag in (('B', 1, 1, previous, '"old"'),
+                                                       ('C', 1, 15, current, '"new"'),
+                                                       ('C', 2, 25, current, '"new"')):
+                identity = {'role': role, 'serial': serial, 'method': 'GET', 'path': '/catalogue/v1/name/original'}
+                history.append({**identity, 'event': 's3_request', 'monotonic_ns': start})
+                for offset, event in enumerate(('s3_backend_response', 's3_delivery_started'), 1):
+                    history.append({**identity, 'event': event, 'monotonic_ns': start + offset,
+                                    'status': 200, 'response': response,
+                                    'headers': {'etag': etag, 'content-length': str(response['bytes'])}})
+            controls.save_rows(directory / 'events.jsonl', history)
+            before = evidence.rows(directory / 'events.jsonl')
+            controls.unstable_success(directory)
+            after = evidence.rows(directory / 'events.jsonl')
+            self.assertEqual(len(after), len(before))
+            for old, new in zip(before, after):
+                if old['role'] == 'C' and old['serial'] == 1 and old['event'] != 's3_request':
+                    self.assertEqual(new['response'], previous)
+                    self.assertEqual(new['headers'], before[1]['headers'])
+                    self.assertEqual({k: v for k, v in new.items() if k not in ('response', 'headers')},
+                                     {k: v for k, v in old.items() if k not in ('response', 'headers')})
+                else:
+                    self.assertEqual(new, old)
+
     def test_all_control_cases_have_unique_named_boundaries(self):
         cases = controls.cases()
         self.assertEqual(len(cases), 25)

@@ -87,7 +87,7 @@ python3 -B experiments/object-terminal-retirement-runtime/controls.py \
   /absolute/new-terminal-controls-directory
 ```
 
-42 个边界单位包含严格字段、terminal/revision/checkpoint 边界、完整 Scope、原 ETag、永久元数据
+43 个边界单位包含严格字段、terminal/revision/checkpoint 边界、完整 Scope、原 ETag、永久元数据
 格式、闭合观察分母、硬链接副本隔离，以及真实 SDK 的全部 23 次离线 prepare/restore
 指纹，以及 8 个 Creation 的全部 48 种目录 action prepare/save/restore。另有 owned
 loopback HTTP 验证真实签名 helper 的嵌套 body、原 ETag 条件和两个
