@@ -1,0 +1,1335 @@
+{
+  "schema_version": 1,
+  "status": "PASSED_UNIT_ONLY_REAL_ACCEPTANCE_SEPARATE",
+  "runtime_commit": "7b757f7ec184af96d81ca5cd700bf3bc65d0f741",
+  "tree": "684d8b97e46acc4b61ed8f213cfd8923bf018b9f",
+  "source_sha256": "781b2feef2d814bc913382a7bf64b8a56a95979c829d51013ef4ddd822fac508",
+  "source_manifest_sha256": "540e99aadc8d02b14ee9efa00ae95441e7a099d34c86ac45ae4377b976e53188",
+  "source_files": 545,
+  "rust": {
+    "source_commit": "7b757f7ec184af96d81ca5cd700bf3bc65d0f741",
+    "unit_tests": {
+      "stable": 652,
+      "nightly": 652
+    },
+    "production_files": 60,
+    "metrics": {
+      "lines": [
+        12083,
+        12083
+      ],
+      "functions": [
+        1091,
+        1091
+      ],
+      "regions": [
+        18418,
+        18418
+      ],
+      "branches": [
+        2288,
+        2288
+      ]
+    },
+    "status": "PASSED_EXACT_UNIT_ONLY",
+    "integration_profile_used": false,
+    "zero_denominator_policy": "A measured 0/0 branch map is not reported as an independently measured 100 percent branch rate."
+  },
+  "per_file": [
+    {
+      "path": "crates/scap-object-sqlite/src/config.rs",
+      "source_sha256": "0e271120f953cc9683470f5ccf3f59f2e839349b014b0a3790835dacd5ee12ee",
+      "lines": [
+        129,
+        129
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "regions": [
+        205,
+        205
+      ],
+      "branches": [
+        16,
+        16
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/file.rs",
+      "source_sha256": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+      "lines": [
+        131,
+        131
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "regions": [
+        163,
+        163
+      ],
+      "branches": [
+        24,
+        24
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/gate.rs",
+      "source_sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+      "lines": [
+        104,
+        104
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "regions": [
+        123,
+        123
+      ],
+      "branches": [
+        20,
+        20
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/image.rs",
+      "source_sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+      "lines": [
+        64,
+        64
+      ],
+      "functions": [
+        3,
+        3
+      ],
+      "regions": [
+        74,
+        74
+      ],
+      "branches": [
+        38,
+        38
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/lib.rs",
+      "source_sha256": "ccf265866e1fdf8761ee331c5fe28a7a7c831a9b59aa1072377bea18449dbcbb",
+      "lines": [
+        130,
+        130
+      ],
+      "functions": [
+        8,
+        8
+      ],
+      "regions": [
+        181,
+        181
+      ],
+      "branches": [
+        12,
+        12
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/query.rs",
+      "source_sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+      "lines": [
+        46,
+        46
+      ],
+      "functions": [
+        6,
+        6
+      ],
+      "regions": [
+        75,
+        75
+      ],
+      "branches": [
+        6,
+        6
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/sql.rs",
+      "source_sha256": "9c164bd72134118239da03142c6d08b49aeab77b70053c234d9ea3f8ac282df3",
+      "lines": [
+        392,
+        392
+      ],
+      "functions": [
+        21,
+        21
+      ],
+      "regions": [
+        476,
+        476
+      ],
+      "branches": [
+        72,
+        72
+      ]
+    },
+    {
+      "path": "crates/scap-object-sqlite/src/storage.rs",
+      "source_sha256": "7f852057de3797725f29f95b73cdbdf9bf81cc07aa3a26933312057eb1813782",
+      "lines": [
+        70,
+        70
+      ],
+      "functions": [
+        10,
+        10
+      ],
+      "regions": [
+        100,
+        100
+      ],
+      "branches": [
+        10,
+        10
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/gc.rs",
+      "source_sha256": "c16af1daeb1896dd57db18d24050c156427005464bfce57f981943c356fcc1ac",
+      "lines": [
+        321,
+        321
+      ],
+      "functions": [
+        31,
+        31
+      ],
+      "regions": [
+        461,
+        461
+      ],
+      "branches": [
+        114,
+        114
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/gc_xml.rs",
+      "source_sha256": "bc4ef60668dc40bde643a6ad477d443de3c871bd1240b78c86458f4466fa0228",
+      "lines": [
+        118,
+        118
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "regions": [
+        188,
+        188
+      ],
+      "branches": [
+        44,
+        44
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/lib.rs",
+      "source_sha256": "84b63ccb39c14e2e8c457d1868036570efbcd9bbe23279f59cf2a438dd5f03fd",
+      "lines": [
+        207,
+        207
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "regions": [
+        289,
+        289
+      ],
+      "branches": [
+        68,
+        68
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/listing.rs",
+      "source_sha256": "7324a3802e5f62e23b36ececb1e4cca0bd681084dcdd4e258a399171fe7779dd",
+      "lines": [
+        121,
+        121
+      ],
+      "functions": [
+        12,
+        12
+      ],
+      "regions": [
+        186,
+        186
+      ],
+      "branches": [
+        46,
+        46
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_guard.rs",
+      "source_sha256": "216d0acf7425faee9de01646576adde4e9d6dde6e10a1b8407af978d031114c8",
+      "lines": [
+        79,
+        79
+      ],
+      "functions": [
+        11,
+        11
+      ],
+      "regions": [
+        143,
+        143
+      ],
+      "branches": [
+        16,
+        16
+      ]
+    },
+    {
+      "path": "crates/scap-object-store/src/listing_xml.rs",
+      "source_sha256": "ab547a73cb0dad46e269a0ecd1f86a7887d7d0a5ccf9cf71c071de04097eefcc",
+      "lines": [
+        216,
+        216
+      ],
+      "functions": [
+        14,
+        14
+      ],
+      "regions": [
+        379,
+        379
+      ],
+      "branches": [
+        66,
+        66
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/control.rs",
+      "source_sha256": "9005fdf4783e450114bc77cf4edbebf785fa81e3572ef7aaaf47d855d0695fe0",
+      "lines": [
+        402,
+        402
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "regions": [
+        666,
+        666
+      ],
+      "branches": [
+        78,
+        78
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/create.rs",
+      "source_sha256": "86614901b0f4cc9cecf77e2591bca4e99c68b3f7cd01541a2a1a1b1ceef615fa",
+      "lines": [
+        112,
+        112
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "regions": [
+        224,
+        224
+      ],
+      "branches": [
+        10,
+        10
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery.rs",
+      "source_sha256": "93005f12a3234c3a1fc2a3656aaac3a86f4605bed4840dcc94492c31a85afe4d",
+      "lines": [
+        294,
+        294
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "regions": [
+        398,
+        398
+      ],
+      "branches": [
+        76,
+        76
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_budget.rs",
+      "source_sha256": "ed2a8bd91615dd6ddade16e9a35078f3f389e20d77b5851a84ec0de59f2cfa4d",
+      "lines": [
+        97,
+        97
+      ],
+      "functions": [
+        10,
+        10
+      ],
+      "regions": [
+        127,
+        127
+      ],
+      "branches": [
+        24,
+        24
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_names.rs",
+      "source_sha256": "d34043b9ebf8bfebee4b421255f84874ce70ca7386d1131440b885972a45d18e",
+      "lines": [
+        143,
+        143
+      ],
+      "functions": [
+        7,
+        7
+      ],
+      "regions": [
+        167,
+        167
+      ],
+      "branches": [
+        30,
+        30
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/discovery_records.rs",
+      "source_sha256": "02535cc7c81ca3f621ff2ad8aff0f733648a066b6cc45a8495268249c67520b4",
+      "lines": [
+        279,
+        279
+      ],
+      "functions": [
+        16,
+        16
+      ],
+      "regions": [
+        555,
+        555
+      ],
+      "branches": [
+        48,
+        48
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/inspect.rs",
+      "source_sha256": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252",
+      "lines": [
+        247,
+        247
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "regions": [
+        403,
+        403
+      ],
+      "branches": [
+        26,
+        26
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/mod.rs",
+      "source_sha256": "3579e9b3a48ca2ff3c5b5a0fbfc600c697be9156c04b75d70252d3d9eaaba108",
+      "lines": [
+        327,
+        327
+      ],
+      "functions": [
+        34,
+        34
+      ],
+      "regions": [
+        526,
+        526
+      ],
+      "branches": [
+        52,
+        52
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/records.rs",
+      "source_sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe",
+      "lines": [
+        230,
+        230
+      ],
+      "functions": [
+        23,
+        23
+      ],
+      "regions": [
+        350,
+        350
+      ],
+      "branches": [
+        54,
+        54
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_budget.rs",
+      "source_sha256": "46f12f2296245188271a1fd4fa249017d51d069e2b085e8956c4424187ab97ad",
+      "lines": [
+        162,
+        162
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "regions": [
+        207,
+        207
+      ],
+      "branches": [
+        52,
+        52
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/recovery_job.rs",
+      "source_sha256": "b069985adfdc0450f19103960dc8c05261631ca9fb35f0a5e3ceeac105b93ee7",
+      "lines": [
+        292,
+        292
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "regions": [
+        398,
+        398
+      ],
+      "branches": [
+        32,
+        32
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/terminal.rs",
+      "source_sha256": "6de5dfc8b672b6167fe1662d5970b12fe73fe2e0b7bfdea4361f8b470683c1db",
+      "lines": [
+        46,
+        46
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "regions": [
+        81,
+        81
+      ],
+      "branches": [
+        2,
+        2
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/catalogue/types.rs",
+      "source_sha256": "f0f28940542f71f283fe0cbc010ca20b0d08553806888a966ee990286a502e3a",
+      "lines": [
+        8,
+        8
+      ],
+      "functions": [
+        1,
+        1
+      ],
+      "regions": [
+        8,
+        8
+      ],
+      "branches": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/closure.rs",
+      "source_sha256": "86394cf0a18a93131bfb8cac06a5d0406bee4eb4acdb4893f1852a236ebf9dad",
+      "lines": [
+        361,
+        361
+      ],
+      "functions": [
+        20,
+        20
+      ],
+      "regions": [
+        490,
+        490
+      ],
+      "branches": [
+        56,
+        56
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/data_tree.rs",
+      "source_sha256": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9",
+      "lines": [
+        291,
+        291
+      ],
+      "functions": [
+        23,
+        23
+      ],
+      "regions": [
+        434,
+        434
+      ],
+      "branches": [
+        60,
+        60
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/format.rs",
+      "source_sha256": "af8cfc5b8a25e36d40054f24aee6f84f7292e58f43f89b94016f043dd91d1fee",
+      "lines": [
+        364,
+        364
+      ],
+      "functions": [
+        41,
+        41
+      ],
+      "regions": [
+        662,
+        662
+      ],
+      "branches": [
+        54,
+        54
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/head_publication.rs",
+      "source_sha256": "4e2c0321ea0c13be021fa6c94981b45933467de774cde264ac5249897b26f3e4",
+      "lines": [
+        63,
+        63
+      ],
+      "functions": [
+        6,
+        6
+      ],
+      "regions": [
+        77,
+        77
+      ],
+      "branches": [
+        14,
+        14
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/lib.rs",
+      "source_sha256": "c0833e3a60dae55807c9d38949c9d14459494d2353bca1840842c3dc51f852a6",
+      "lines": [
+        912,
+        912
+      ],
+      "functions": [
+        78,
+        78
+      ],
+      "regions": [
+        1459,
+        1459
+      ],
+      "branches": [
+        128,
+        128
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/object_context.rs",
+      "source_sha256": "3de4bcce2131f1e30fb39ab090413f46eb5e01544aec4a12ec05def82a64ace7",
+      "lines": [
+        287,
+        287
+      ],
+      "functions": [
+        36,
+        36
+      ],
+      "regions": [
+        405,
+        405
+      ],
+      "branches": [
+        76,
+        76
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/object_frame.rs",
+      "source_sha256": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5",
+      "lines": [
+        60,
+        60
+      ],
+      "functions": [
+        5,
+        5
+      ],
+      "regions": [
+        101,
+        101
+      ],
+      "branches": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/options.rs",
+      "source_sha256": "bccc0d7c8250308c98fef80a23a3a0a163c9595a403602677334f433697c5180",
+      "lines": [
+        98,
+        98
+      ],
+      "functions": [
+        6,
+        6
+      ],
+      "regions": [
+        113,
+        113
+      ],
+      "branches": [
+        38,
+        38
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/reclamation.rs",
+      "source_sha256": "1c743799d04a17f07f8268a5ea163fd44af7869eb5be9503cde2c0251e8fc986",
+      "lines": [
+        388,
+        388
+      ],
+      "functions": [
+        28,
+        28
+      ],
+      "regions": [
+        612,
+        612
+      ],
+      "branches": [
+        74,
+        74
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/request_index.rs",
+      "source_sha256": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063",
+      "lines": [
+        221,
+        221
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "regions": [
+        298,
+        298
+      ],
+      "branches": [
+        28,
+        28
+      ]
+    },
+    {
+      "path": "crates/scap-object/src/storage.rs",
+      "source_sha256": "053245d57092265530bd1ce6544f6f608d2c2d93cd7d1f7c89245ad133953486",
+      "lines": [
+        103,
+        103
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "regions": [
+        177,
+        177
+      ],
+      "branches": [
+        70,
+        70
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/auth.rs",
+      "source_sha256": "47521bd5e320ec0ecc74a49e85be0fd6be3ba17d0d358a58940f341630429d63",
+      "lines": [
+        69,
+        69
+      ],
+      "functions": [
+        11,
+        11
+      ],
+      "regions": [
+        102,
+        102
+      ],
+      "branches": [
+        28,
+        28
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/catalogue.rs",
+      "source_sha256": "f03b8e39995cc84fdb3ba5494ed54fab4d7d65e604eef712c5480f03b36c2d99",
+      "lines": [
+        55,
+        55
+      ],
+      "functions": [
+        3,
+        3
+      ],
+      "regions": [
+        103,
+        103
+      ],
+      "branches": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_scheduler.rs",
+      "source_sha256": "83ccad815ce32348657ec9ab32c7b9f5f9911ca4cbec9617ad6ac6a4a90c6c00",
+      "lines": [
+        222,
+        222
+      ],
+      "functions": [
+        32,
+        32
+      ],
+      "regions": [
+        309,
+        309
+      ],
+      "branches": [
+        32,
+        32
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/catalogue_wire.rs",
+      "source_sha256": "5ae70d66f675ddb7dbae0d6b563c6c385fdb5cbd6b5479ea989a5574b25244a9",
+      "lines": [
+        214,
+        214
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "regions": [
+        386,
+        386
+      ],
+      "branches": [
+        24,
+        24
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/config.rs",
+      "source_sha256": "753f200b031323b3cce329a89f94c55c66133967340d38719e54558372ae0f5a",
+      "lines": [
+        210,
+        210
+      ],
+      "functions": [
+        21,
+        21
+      ],
+      "regions": [
+        277,
+        277
+      ],
+      "branches": [
+        60,
+        60
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/daemon.rs",
+      "source_sha256": "a33a3dcaa071f2f9902624bdb5a88b641d9293d601445a6b505e08e1a8e7cbc5",
+      "lines": [
+        211,
+        211
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "regions": [
+        317,
+        317
+      ],
+      "branches": [
+        24,
+        24
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/discovery.rs",
+      "source_sha256": "d061985a7191f828d7bf49a9953a3125ed2089541f57ea89e709fb37546c8091",
+      "lines": [
+        206,
+        206
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "regions": [
+        273,
+        273
+      ],
+      "branches": [
+        32,
+        32
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/discovery_cursor.rs",
+      "source_sha256": "184e17a45d1f13be5267c2c980f387271f8708ed8a5fe0ca64e0a81a287b2c01",
+      "lines": [
+        165,
+        165
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "regions": [
+        258,
+        258
+      ],
+      "branches": [
+        20,
+        20
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/discovery_wire.rs",
+      "source_sha256": "815f667ed8c5a2825d33d60a4024c6e5c145b92b08125cd1fefc8db9aba794cb",
+      "lines": [
+        95,
+        95
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "regions": [
+        160,
+        160
+      ],
+      "branches": [
+        2,
+        2
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/engine.rs",
+      "source_sha256": "915a7c22ae205146746cff02f11d05cebe6c28f805ac5d70e218bad56a781f8c",
+      "lines": [
+        396,
+        396
+      ],
+      "functions": [
+        30,
+        30
+      ],
+      "regions": [
+        583,
+        583
+      ],
+      "branches": [
+        32,
+        32
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/http.rs",
+      "source_sha256": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+      "lines": [
+        256,
+        256
+      ],
+      "functions": [
+        25,
+        25
+      ],
+      "regions": [
+        427,
+        427
+      ],
+      "branches": [
+        42,
+        42
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/http/discovery.rs",
+      "source_sha256": "5c1e2921ea205e53b57eefa94677281b4126e0fd4a53466a4813d23eda15e3fd",
+      "lines": [
+        57,
+        57
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "regions": [
+        101,
+        101
+      ],
+      "branches": [
+        4,
+        4
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/intake.rs",
+      "source_sha256": "7ba5a48e61a07f12ac97ee89db950965fdaf1b6f0e742dd8f07fcbc5883d5739",
+      "lines": [
+        137,
+        137
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "regions": [
+        183,
+        183
+      ],
+      "branches": [
+        36,
+        36
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/lib.rs",
+      "source_sha256": "60d57990bb0463498fab77489ed5468d58b4b923fed48017ac3484fe0809c9b8",
+      "lines": [
+        44,
+        44
+      ],
+      "functions": [
+        2,
+        2
+      ],
+      "regions": [
+        42,
+        42
+      ],
+      "branches": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/main.rs",
+      "source_sha256": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+      "lines": [
+        3,
+        3
+      ],
+      "functions": [
+        1,
+        1
+      ],
+      "regions": [
+        6,
+        6
+      ],
+      "branches": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/output.rs",
+      "source_sha256": "fdbb3b8e2e858d15c97eff73b88cd195de0293a75bc61da120130f5635ee587f",
+      "lines": [
+        333,
+        333
+      ],
+      "functions": [
+        45,
+        45
+      ],
+      "regions": [
+        465,
+        465
+      ],
+      "branches": [
+        54,
+        54
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/scheduler.rs",
+      "source_sha256": "b3a23d1fb19afbf6f05ab055fc325ff0bc8f5546724625d9de78e41aff7bb7dc",
+      "lines": [
+        557,
+        557
+      ],
+      "functions": [
+        55,
+        55
+      ],
+      "regions": [
+        860,
+        860
+      ],
+      "branches": [
+        110,
+        110
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/transport.rs",
+      "source_sha256": "ea0fc43e0b77a1538829b188ed8974d9e52860659ce6afc88b69f608b1c3c77e",
+      "lines": [
+        193,
+        193
+      ],
+      "functions": [
+        25,
+        25
+      ],
+      "regions": [
+        279,
+        279
+      ],
+      "branches": [
+        36,
+        36
+      ]
+    },
+    {
+      "path": "crates/scap-service/src/wire.rs",
+      "source_sha256": "57d9f02cfe971ba7b23ee22b9ffc88fef80b0829719a26f2f59decd8ca424faf",
+      "lines": [
+        351,
+        351
+      ],
+      "functions": [
+        46,
+        46
+      ],
+      "regions": [
+        587,
+        587
+      ],
+      "branches": [
+        50,
+        50
+      ]
+    },
+    {
+      "path": "crates/scap-sql/src/lib.rs",
+      "source_sha256": "f2a1f8ec2be3f0f88392c748e51faab46e155f0220294366985aa64b5e5c7f78",
+      "lines": [
+        279,
+        279
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "regions": [
+        494,
+        494
+      ],
+      "branches": [
+        52,
+        52
+      ]
+    },
+    {
+      "path": "crates/scap-sql/src/result_memory.rs",
+      "source_sha256": "75e14884ce39552e54e683e33e8e72fe069a25a0b6dee80302d07bc295504afb",
+      "lines": [
+        73,
+        73
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "regions": [
+        133,
+        133
+      ],
+      "branches": [
+        4,
+        4
+      ]
+    },
+    {
+      "path": "crates/scap-sql/src/result_validation.rs",
+      "source_sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+      "lines": [
+        42,
+        42
+      ],
+      "functions": [
+        2,
+        2
+      ],
+      "regions": [
+        92,
+        92
+      ],
+      "branches": [
+        12,
+        12
+      ]
+    }
+  ],
+  "gates": {
+    "head7-stable-gates-01": {
+      "clippy": true,
+      "fmt": true,
+      "source-after": true,
+      "stable-units": true
+    },
+    "head7-coverage-gates-01": {
+      "source-after": true,
+      "unit-coverage": true
+    },
+    "head7-client-tooling-gates-01": {
+      "actionlint": true,
+      "codec-unit": true,
+      "discovery-fixture-units": true,
+      "gc-store-fixture-units": true,
+      "guarded-fixture-units": true,
+      "metadata-fixture-units": true,
+      "network-fixture-units": true,
+      "object-load-units": true,
+      "object-reclamation-runtime-units": true,
+      "object-terminal-retirement-model-units": true,
+      "output-fixture-units": true,
+      "repo-docs": true,
+      "resource-fixture-units": true,
+      "response-fixture-units": true,
+      "sdk-real-fetch": true,
+      "sdk-types": true,
+      "sdk-unit": true,
+      "service-fixture-units": true,
+      "source-after": true,
+      "tooling-unit": true
+    },
+    "head7-harness-lint-gates-01": {
+      "object-discovery": true,
+      "object-gc-store": true,
+      "object-network": true,
+      "resource-limits": true,
+      "source-after": true
+    }
+  },
+  "reports": [
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-source.json",
+      "sha256": "540e99aadc8d02b14ee9efa00ae95441e7a099d34c86ac45ae4377b976e53188",
+      "bytes": 144004
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-unit-coverage.json",
+      "sha256": "e1fbe0ddfddc2cf2f79ef31e8fe5bdc8ed308fe90c4d1618e84a2ce921dc5ee1",
+      "bytes": 50294683
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-unit-exact-summary.json",
+      "sha256": "877a6eb1a39488196927f92a41224dac5c00dbc73ccde791ce35a09868a8a5ac",
+      "bytes": 22051
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-tooling.coverage",
+      "sha256": "10219ba308d23b5df70e73c699b2882f0598b59b51428b0fc2433d4b3bdc3864",
+      "bytes": 77824
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-tooling.json",
+      "sha256": "e69039576b0ec5e44c350c364d5074bbb681f2b17b3042b7da59ea697e6083d3",
+      "bytes": 24744
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-stable-gates-01/summary.json",
+      "sha256": "a26b6ecac6fc94f11db34e7faa8c5e7f46c79eb31fe3dc342c5848f14094ea2a",
+      "bytes": 375
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-coverage-gates-01/summary.json",
+      "sha256": "57615f113deac5f6d16f6a11207bc79c321501411f8a37fcce39287c846ccdea",
+      "bytes": 339
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-client-tooling-gates-01/summary.json",
+      "sha256": "46e2cb87b305338252475b6a472acc1ebacf085a773a310f5a5cfc01b973c1ca",
+      "bytes": 931
+    },
+    {
+      "path": "/workspace/scratch/3ff9bab58e00/scap-evidence/head7-harness-lint-gates-01/summary.json",
+      "sha256": "f9d89ee84d27417572a2b2af68cd34cfe30f325b559e8a32ae79bf1dac2146fe",
+      "bytes": 428
+    }
+  ],
+  "limitations": [
+    "Fresh unit-only counters do not certify native, HTTP, S3, GC, load, or real deployment acceptance.",
+    "Raw SDK and codec V8 profiles are in head7-sdk-v8 and head7-codec-v8; real Fetch profiles are excluded from unit coverage.",
+    "The source identity is the frozen HEAD7 product 7b757. Later terminal-retirement fixture commits retain separate source identities.",
+    "HEAD8 owner-plan changes are outside this evidence and require a fresh frozen source and new acceptance gates.",
+    "These are local gates. No AWS account execution, production SLO, or GitHub Actions result is inferred."
+  ]
+}
