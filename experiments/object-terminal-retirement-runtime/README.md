@@ -5,7 +5,10 @@ GC checkpoint，同时永久 HEAD、名称和来源记录不会被删除。它�
 Node SDK、服务内链接的 native SQLite 和要求 SigV4 的 SeaweedFS S3，不新增产品接口，
 不实现替代数据库或替代 GC。
 
-**当前状态：实现与边界单位已完成，尚未冻结、尚未运行 HEAD7 实际合同。** 现有 HEAD6
+**当前状态：actual01 未完成；夹具权限前置已修正，等待新冻结源的完整重验。** 产品
+`7b757f7` / 夹具 `430f7a3` 的原失败保留：撤回 READ/WRITE 后普通 status 正确返回
+DENIED，旧 runner 错误要求成功。现保留该拒绝，并使用原 policy 成功响应的 revision
+执行管理删除；没有恢复读写权限。原 actual01 不作为完整合同通过。现有 HEAD6
 三保留窗口、COPY 完整闭包和晚到请求合同仍由相邻 `object-reclamation-runtime` 独立
 承担；本目录不使用缩小的终态场景代替那份合同。
 
@@ -84,13 +87,14 @@ python3 -B experiments/object-terminal-retirement-runtime/controls.py \
   /absolute/new-terminal-controls-directory
 ```
 
-37 个边界单位包含严格字段、terminal/revision/checkpoint 边界、完整 Scope、原 ETag、永久元数据
+42 个边界单位包含严格字段、terminal/revision/checkpoint 边界、完整 Scope、原 ETag、永久元数据
 格式、闭合观察分母、硬链接副本隔离，以及真实 SDK 的全部 23 次离线 prepare/restore
 指纹，以及 8 个 Creation 的全部 48 种目录 action prepare/save/restore。另有 owned
 loopback HTTP 验证真实签名 helper 的嵌套 body、原 ETag 条件和两个
 限定 operator 字段；它不算 S3 或数据库实际验收。原始 S3 观察按 path、role、serial 和
 请求时间一次建立索引；每个反例仍从自己的完整原始历史重建索引，不复用任何 PASS
-缓存，也不减少原始分母或判定步骤。
+缓存，也不减少原始分母或判定步骤。权限回归核对原 policy 响应版本与仅 ADMIN 的
+完整历史；名称变化回归要求读取发生在原调用内、变更前，并过滤原方法和路径。
 
 `run.py` 成功只输出 `OBSERVED_NOT_AUDITED`。只有独立 oracle、所有命名反例、原样
 正控和最终 source verify 都完成，才报告该次实际合同通过。反例必须命中指定语义

@@ -61,6 +61,29 @@ def native_creation(name):
             for key, value in original.items()}
 
 
+def admin_only_history():
+    names = ('bad-sweep-admin-only', 'bad-sweep-delete-status', 'bad-sweep-delete',
+             'bad-sweep-seal-without-read-or-provision')
+    calls = {name: {'request': {'principal': '11', 'monotonic_ns': 10 + 10 * index},
+                    'done': {'monotonic_ns': 19 + 10 * index}, 'result': {'ok': True}}
+             for index, name in enumerate(names)}
+    policy, denied, deletion, _seal = (calls[name] for name in names)
+    permissions = [{'principal': '11', 'read': False, 'write': False, 'admin': True}]
+    policy.update(body={'permissions': permissions, 'scope': spec.SCOPES['bad_sweep']},
+                  response_body={'value': {'revision': '5'}})
+    denied['result'] = {'ok': False, 'error': {'code': 'DENIED'}}
+    deletion['body'] = {'expected_revision': '5'}
+    history = []
+    for revision, serial, timestamp, terminal in ((5, 5, 15, False), (6, 6, 35, False), (6, 7, 45, True)):
+        head = fixture_head(terminal)
+        head.update(revision=revision, head_serial=serial)
+        head['policy'] = [{**permissions[0], 'principal': 11}]
+        if terminal:
+            head['storage']['terminal']['serial'] = serial
+        history.append({'head': head, 'exchange': {'backend': {'monotonic_ns': timestamp}}})
+    return calls, {int(spec.SCOPES['bad_sweep']['database']): history}
+
+
 class ModelBoundaries(unittest.TestCase):
     def parse(self, value):
         return model.head(encoded(value), {model.scope_key(value['scope'])})
@@ -195,6 +218,45 @@ class ModelBoundaries(unittest.TestCase):
 
 
 class ObserverBoundaries(unittest.TestCase):
+    def test_admin_only_retirement_preserves_denial_and_policy_revision(self):
+        oracle.admin_only_retirement(*admin_only_history())
+
+    def test_admin_only_delete_cannot_reuse_pre_policy_revision(self):
+        calls, heads = admin_only_history()
+        calls['bad-sweep-delete']['body']['expected_revision'] = '4'
+        with self.assertRaises(model.Rejected) as error:
+            oracle.admin_only_retirement(calls, heads)
+        self.assertEqual(error.exception.rule, 'admin-only-delete-original-policy-revision')
+
+    def test_admin_only_seal_cannot_restore_read_permission(self):
+        calls, heads = admin_only_history()
+        next(iter(heads.values()))[1]['head']['policy'][0]['read'] = True
+        with self.assertRaises(model.Rejected) as error:
+            oracle.admin_only_retirement(calls, heads)
+        self.assertEqual(error.exception.rule, 'admin-only-policy-preserved-through-seal')
+
+    def test_admin_only_observation_requires_real_denied_result(self):
+        calls, heads = admin_only_history()
+        calls['bad-sweep-delete-status']['result'] = {'ok': True}
+        with self.assertRaises(model.Rejected) as error:
+            oracle.admin_only_retirement(calls, heads)
+        self.assertEqual(error.exception.rule, 'admin-only-read-denied')
+
+    def test_original_name_read_filters_method_path_and_move_interval(self):
+        values = []
+        for serial, role, method, path, start in ((1, 'R', 'GET', '/name', 15),
+                (2, 'R', 'PUT', '/name', 16), (3, 'R', 'GET', '/head', 17),
+                (4, 'R', 'GET', '/name', 21), (1, 'C', 'GET', '/name', 14),
+                (5, 'R', 'GET', '/name', 9)):
+            values.append({'request': {'role': role, 'serial': serial, 'method': method,
+                                      'path': path, 'monotonic_ns': start},
+                           'backend': {'status': 200, 'monotonic_ns': start + 1}, 'delivered': True})
+        index = evidence.ObservationIndex(sorted(values, key=lambda row: evidence.moment(row['request'])))
+        found = oracle.name_reads_before_move(index,
+            {'role': 'R', 'request': {'monotonic_ns': 10}}, {'request': {'path': '/name', 'monotonic_ns': 20}})
+        self.assertEqual(found, values[:1])
+        self.assertIs(found[0], values[0])
+
     def test_original_head_candidate_requires_same_call_exact_get(self):
         call = {'role': 'B', 'request': {'monotonic_ns': 20}}
         publication = {'request': {'role': 'B', 'path': '/head', 'monotonic_ns': 40,

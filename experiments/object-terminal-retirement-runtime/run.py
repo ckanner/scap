@@ -314,10 +314,12 @@ def diagnostics(suite):
     suite.create_direct('bad_sweep')
     suite.seed('bad_sweep')
     head = suite.status('bad_sweep', 'bad-sweep-admin-base')
-    suite.call('B', 'bad-sweep-admin-only', 'policy', 'bad_sweep', input={
+    head = suite.call('B', 'bad-sweep-admin-only', 'policy', 'bad_sweep', input={
         'expectedRevision': head['revision'], 'nonce': suite.next_nonce(),
         'permissions': [{'principal': '11', 'read': False, 'write': False, 'admin': True}]})
-    suite.delete_direct('bad_sweep', 'bad-sweep-delete')
+    suite.call('B', 'bad-sweep-delete-status', 'status', 'bad_sweep', expect='DENIED')
+    suite.call('B', 'bad-sweep-delete', 'lifecycle', 'bad_sweep', input={
+        'expectedRevision': head['revision'], 'nonce': suite.next_nonce(), 'lifecycle': 'deleted'})
     suite.seal('bad_sweep', 'bad-sweep-seal-without-read-or-provision')
     prepared = suite.prepare_gc('bad_sweep', 1, 'bad-sweep-pending')
     assert prepared['status']['storage']['sweep'] is not None

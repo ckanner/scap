@@ -447,6 +447,7 @@ def errors(calls, values):
         'race-seal-R': 'CONFLICT', 'before-unstable-observation': 'CONFLICT',
         'foreign-storage-denied': 'IDENTITY_CONFLICT', 'foreign-seal-denied': 'IDENTITY_CONFLICT',
         'stale-old-lookup': 'MISSING', 'bad-sweep-observe-rejected': 'CORRUPT', 'bad-sweep-resume-rejected': 'CORRUPT',
+        'bad-sweep-delete-status': 'DENIED',
     }
     expected.update({name: 'CONFLICT' for name in ('late-repeat-seal-original', 'late-repeat-seal-current',
                                                  'after-repeat-seal-original', 'after-repeat-seal-current')})
@@ -466,6 +467,36 @@ def errors(calls, values):
     for name in unknown:
         need(calls[name]['result']['ok'] is False and calls[name]['result']['error']['code'] == 'UNKNOWN', 'original-unknown-not-overwritten')
     return len(unknown)
+
+
+def admin_only_retirement(calls, heads):
+    policy, denied, deletion, seal = (calls[name] for name in ('bad-sweep-admin-only',
+        'bad-sweep-delete-status', 'bad-sweep-delete', 'bad-sweep-seal-without-read-or-provision'))
+    permissions = [{'principal': '11', 'read': False, 'write': False, 'admin': True}]
+    need(policy['body']['permissions'] == permissions
+         and all(call['request']['principal'] == '11' for call in (policy, denied, deletion, seal)),
+         'admin-only-original-principal')
+    need(policy['result']['ok'] and deletion['result']['ok'] and seal['result']['ok']
+         and denied['result']['ok'] is False and denied['result']['error']['code'] == 'DENIED',
+         'admin-only-read-denied')
+    need(deletion['body']['expected_revision'] == policy['response_body']['value']['revision'],
+         'admin-only-delete-original-policy-revision')
+    need(all(moment(left['done']) < moment(right['request'])
+             for left, right in zip((policy, denied, deletion), (denied, deletion, seal))),
+         'admin-only-original-call-order')
+    database = int(policy['body']['scope']['database'])
+    preserved = [record['head'] for record in heads[database]
+                 if moment(policy['request']) < moment(record['exchange']['backend']) < moment(seal['done'])]
+    native = [{**permissions[0], 'principal': 11}]
+    need(preserved and all(head['policy'] == native for head in preserved)
+         and preserved[-1]['storage'].get('terminal') is not None,
+         'admin-only-policy-preserved-through-seal')
+
+
+def name_reads_before_move(values, call, moving):
+    return [x for x in values.for_call(call, moment(moving['request']))
+            if x['request']['method'] == 'GET' and x['request']['path'] == moving['request']['path']
+            and x['backend'] is not None and x['backend']['status'] == 200 and x['delivered']]
 
 
 def faults(directory, inputs, events, calls, values, heads, objects, originals, deletions, seals):
@@ -558,8 +589,7 @@ def faults(directory, inputs, events, calls, values, heads, objects, originals, 
     moving, _, moving_release = cuts['before-unstable-name-view']
     need(moment(calls['before-delete-resumed']['response']) < moment(moving_release)
          and moving['backend']['status'] == 200, 'changed-name-between-exact-reads')
-    name_first = [x for x in values.for_call(calls['before-unstable-observation'], moment(moving['request']))
-                  and x['request']['path'] == moving['request']['path'] and x['backend']['status'] == 200 and x['delivered']]
+    name_first = name_reads_before_move(values, calls['before-unstable-observation'], moving)
     need(len(name_first) == 1 and name_first[0]['bytes'] != moving['bytes'], 'unstable-name-actual-change')
     before_release_cut = cuts['before-old-release'][0]
     new_scope = {key: int(value) for key, value in inputs['scopes']['before_successor'].items()}
@@ -597,9 +627,11 @@ def faults(directory, inputs, events, calls, values, heads, objects, originals, 
     surviving = {int(inputs['scopes'][name]['database']) for name in ('before_successor', 'after_successor', 'foreign')}
     need(not [x for x in deletions if object_path(x['request']['path'])[0]['database'] in surviving], 'successor-and-foreign-not-collected')
     need(not [record for database in surviving for record in heads[database] if record['kind'] == 'terminal'], 'survivor-never-sealed')
+    admin_only_retirement(calls, heads)
     return {'faults': len(expected), 'original_unknowns': errors(calls, values),
             'old_context_expired': 1, 'stale_terminal_context_rejected_as_missing': 1,
-            'committed_original_reply_after_collection': 1, 'named_source_recovery_with_pending_gc': 4}
+            'committed_original_reply_after_collection': 1, 'named_source_recovery_with_pending_gc': 4,
+            'admin_only_retirement_without_read': 1}
 
 
 def audit(directory):

@@ -1,7 +1,9 @@
 # HEAD7 Deleted 终态退休：真实运行验收计划
 
-状态：**实现已落盘，尚未冻结、尚未运行实际验收**。固定输入分母与命令见本目录 README；
-精确产品基线和源码清单将在 core/service/SDK 候选冻结后记录。这里只装配正式 `scapd`、Node SDK、
+状态：**首次实际执行未完成；已修正夹具的权限前置，等待新冻结源的完整重验**。
+原产品 `7b757f7` / 夹具 `430f7a3` 的 actual01 在撤回 READ/WRITE 后调用普通 status，
+收到正确的 DENIED，但旧 runner 错误要求成功而停止。原失败和清理账本保留，不作为合同通过。
+固定输入分母与命令见本目录 README；精确产品基线和源码清单由每次实际记录绑定。这里只装配正式 `scapd`、Node SDK、
 native SQLite 与需要签名的 S3 兼容后端，不实现另一套退休或目录恢复算法。
 
 协议依据是 `docs/architecture/terminal-storage-retirement.md`。现有 HEAD6 完整保留窗口、
@@ -77,7 +79,10 @@ HEAD，用来制造坏 authority 回读；这不是正常运行设置，不是�
    释放原 GET 得到真实 NoSuchKey；原一次调查保留原 MISSING，不能分类为 SnapshotExpired。
    global quarantine 的后续同 lineage 行为由 core 精确单位承担，不把同一个 daemon
    的另一次调用未经证明地当作同一个 handle。
-2. **checkpoint 早于 seal**：正式 seal/prepare 后，仅把 sweep.serial 改为 terminal.serial。
+2. **checkpoint 早于 seal**：先通过正式 policy 撤回 principal 11 的 READ/WRITE 并保留 ADMIN。
+   普通 status 必须 DENIED；删除直接使用该次 policy 成功响应的 revision，随后 seal/prepare
+   仍无 READ/WRITE/provision。独立审计检查原响应版本、拒绝结果与封存前全部 HEAD 的原权限。
+   正式 seal/prepare 后，仅把 sweep.serial 改为 terminal.serial。
    fresh storage_status 与原 batch resume 必须失败关闭，无 DELETE/HEAD 技术发布。
 
 新鲜第二次 Name GET 与第一次的 body/ETag 不同，精确返回 Conflict，不能 Corrupt 或
@@ -120,7 +125,7 @@ CommittedButUnavailable；后者由新核心精准单位及独立 output/respons
 实际固定配置沿用已验证的合法 output/transport/S3 范围，增加的 catalogue admission
 与所有 worker/Scope/nonce/operation 身份固定在 spec.py 与 runner 原步骤中。整个运行、每个 hold、原
 read/HTTP/S3/SDK 的 deadline 先记录再运行，不在失败后续期。固定为 23 次一次 SQL、
-21 原 ACK、6 冷 lookup、19 传输切点、10 seal、25 完整历史反例；实际尚未运行。
+21 原 ACK、6 冷 lookup、19 传输切点、10 seal、25 完整历史反例；完整实际验收尚未通过。
 
 运行前验证真实 SDK prepare/restore 及所有新的 DTO 适配；owned loopback HTTP 边界
 测试覆盖 binary、嵌套 response body、multipart XML/ETag。测试不代替实际 native/S3。
