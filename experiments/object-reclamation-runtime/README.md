@@ -112,8 +112,8 @@ configured distinct GC signing identity. Dispositions require delivered typed
 outcomes in the corresponding resume operation. A lost response cannot be
 counted as `applied`, and NoSuchBucket cannot be counted as an absent key.
 
-The 22 negative controls operate on independent copies of a complete passing
-raw history. Each must fail its named semantic boundary; an unrelated schema
+The 23 negative controls operate on independent copies of a complete passing
+raw history, including omission of an entire S3 exchange. Each must fail its named semantic boundary; an unrelated schema
 failure is itself a failed control. They cover lost original ACK/result bytes,
 closed-window omission, altered target bytes, missing readback, unsealed
 publication, copying receipt-only historical roots, active generation DELETE,

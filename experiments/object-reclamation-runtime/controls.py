@@ -57,6 +57,9 @@ class Copy:
                 changed = {key: replace(child) for key, child in item.items()}
                 if item.get('request') == old and 'headers' in changed and 'content-length' in changed['headers']:
                     changed['headers']['content-length'] = str(len(value))
+                if item.get('request') == old and 'headers' in changed and 'x-amz-content-sha256' in changed['headers']:
+                    if changed['headers']['x-amz-content-sha256'] != 'UNSIGNED-PAYLOAD':
+                        changed['headers']['x-amz-content-sha256'] = sha(value)
                 if item.get('response') == old and 'headers' in changed and 'content-length' in changed['headers']:
                     changed['headers']['content-length'] = str(len(value))
                 return changed
@@ -167,7 +170,16 @@ def mutate(value, case):
         request = next(row for row in value.events if row['event'] == 's3_request' and row['method'] == 'PUT'
                        and row['role'] == 'B' and '/4101/' in row['path'] and '/storage/2/objects/' in row['path'])
         original = value.bytes(request['request'])
-        request['request'] = value.artifact(original[:-1] + bytes([original[-1] ^ 1]))
+        changed = original[:-1] + bytes([original[-1] ^ 1])
+        request['request'] = value.artifact(changed)
+        if request['headers']['x-amz-content-sha256'] != 'UNSIGNED-PAYLOAD':
+            request['headers']['x-amz-content-sha256'] = sha(changed)
+    elif case == 'whole_s3_exchange_missing':
+        selected = next(row for row in value.events if row['event'] == 's3_request' and row['role'] == 'B'
+                        and row['method'] == 'GET' and '/objects/' in row['path']
+                        and row['phase'] == 'main-full-retained-copy')
+        value.events = [row for row in value.events if not
+                        (row.get('role') == 'B' and row.get('serial') == selected['serial'])]
     elif case == 'unsealed_publication':
         for row in value.events:
             if row['event'] == 's3_request' and row['method'] == 'PUT' and head_path(row['path']) == 4101:
@@ -197,11 +209,14 @@ def mutate(value, case):
         for row in value.events:
             if row.get('role') == 'B' and isinstance(row.get('serial'), int) and row['serial'] >= serial:
                 row['serial'] += 1
+        oracle.one(value.events, 's3_proxy_stopped', role='B')['request_count'] += 1
         for offset, row in enumerate(sorted(group, key=oracle.moment)):
             row.update(serial=serial, path=source_path.replace('/storage/1/', '/storage/2/'), monotonic_ns=start + offset)
             if row['event'] == 's3_request':
                 row['request'] = source['request'].copy()
                 row['headers']['content-length'] = str(source['request']['bytes'])
+                if row['headers']['x-amz-content-sha256'] != 'UNSIGNED-PAYLOAD':
+                    row['headers']['x-amz-content-sha256'] = source['request']['sha256']
             if row['event'] == 's3_backend_response':
                 row['headers']['etag'] = '"control-historical-root"'
             value.events.append(row)
@@ -317,6 +332,7 @@ CASES = {
     'missing_original_ack': 'original-ack-denominator',
     'closed_window_result_not_received': 'copy-source-edge-and-target-put',
     'same_key_changed_target_bytes': 'immutable-bytes-key',
+    'whole_s3_exchange_missing': 'original-s3-request-denominator',
     'target_not_read_back': 'seal-before-exact-target-readback',
     'unsealed_publication': 'seal-transition',
     'historical_receipt_root_copied': 'copy-roots-include-receipt-only-history',

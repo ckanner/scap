@@ -274,7 +274,8 @@ class Proxy:
         self.server.server_close()
         self.thread.join(5)
         assert not self.thread.is_alive() and self.active == 0
-        self.trace.emit('s3_proxy_stopped', role=self.role, errors=self.errors, joined=True)
+        self.trace.emit('s3_proxy_stopped', role=self.role, errors=self.errors, joined=True,
+                        request_count=self.serial)
 
 
 class Child:

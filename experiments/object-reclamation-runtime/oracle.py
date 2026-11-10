@@ -294,6 +294,27 @@ def request_call(request, calls):
     return max(candidates, key=lambda value: moment(value['request']))
 
 
+def exchange_integrity(groups, final_counts):
+    by_role = defaultdict(set)
+    for (role, serial), group in groups.items():
+        need(type(serial) is int and serial > 0, 'original-s3-request-denominator')
+        by_role[role].add(serial)
+        need('s3_request' in group, 's3-complete-lifecycle')
+        request = group['s3_request']
+        need(all(row.get('method') == request['method'] and row.get('path') == request['path']
+                 for row in group.values()), 's3-stage-original-method-path')
+    need(set(by_role) <= set(final_counts), 'original-s3-request-denominator')
+    for role, count in final_counts.items():
+        need(type(count) is int and count >= 0 and sorted(by_role.get(role, set())) == list(range(1, count + 1)),
+             'original-s3-request-denominator')
+
+
+def payload_integrity(request, payload):
+    need(int(request['headers'].get('content-length', '0')) == len(payload), 's3-request-length')
+    need(request['headers'].get('x-amz-content-sha256') in ('UNSIGNED-PAYLOAD', sha(payload)),
+         'public-signed-payload-hash')
+
+
 def s3_audit(directory, events, calls, backend):
     groups = defaultdict(dict)
     kinds = ('s3_request', 's3_forward_started', 's3_backend_response', 's3_delivery_started', 's3_delivery_finished', 's3_handler_started', 's3_handler_finished')
@@ -303,6 +324,7 @@ def s3_audit(directory, events, calls, backend):
         key = (event['role'], event['serial'])
         need(event['event'] not in groups[key], 's3-duplicate-stage')
         groups[key][event['event']] = event
+    exchange_integrity(groups, {row['role']: row['request_count'] for row in selection(events, 's3_proxy_stopped')})
     exchanges = []
     for key, group in groups.items():
         need(all(stage in group for stage in ('s3_request', 's3_handler_started', 's3_handler_finished')), 's3-complete-lifecycle')
@@ -311,7 +333,7 @@ def s3_audit(directory, events, calls, backend):
              (backend['normal_access_sha256'], backend['gc_access_sha256']), 'actual-signed-request')
         need(moment(group['s3_handler_started']) <= moment(request) < moment(group['s3_handler_finished']), 's3-handler-order')
         payload = raw(directory, request['request'])
-        need(int(request['headers'].get('content-length', '0')) == len(payload), 's3-request-length')
+        payload_integrity(request, payload)
         call = request_call(request, calls)
         exchange = {'request': request, 'payload': payload, 'call': call, 'group': group,
                     'backend': group.get('s3_backend_response'), 'delivered': False}

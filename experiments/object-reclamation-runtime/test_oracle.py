@@ -265,6 +265,39 @@ class ObserverTests(unittest.TestCase):
             self.assertEqual(oracle.no_such_key(exchange), expected)
         self.assertFalse(oracle.no_such_key({'backend': None}))
 
+    def test_whole_exchange_omission_cannot_shrink_the_s3_denominator(self):
+        def group(serial):
+            request = {'role': 'B', 'serial': serial, 'method': 'GET', 'path': '/bucket/key'}
+            return {'s3_request': request, 's3_handler_started': request.copy()}
+        oracle.exchange_integrity({('B', 1): group(1), ('B', 2): group(2)}, {'B': 2})
+        with self.assertRaises(model.Rejected) as raised:
+            oracle.exchange_integrity({('B', 1): group(1), ('B', 3): group(3)}, {'B': 3})
+        self.assertEqual(raised.exception.rule, 'original-s3-request-denominator')
+
+    def test_missing_final_exchange_is_detected_by_closed_listener_count(self):
+        request = {'role': 'B', 'serial': 1, 'method': 'GET', 'path': '/bucket/key'}
+        with self.assertRaises(model.Rejected) as raised:
+            oracle.exchange_integrity({('B', 1): {'s3_request': request}}, {'B': 2})
+        self.assertEqual(raised.exception.rule, 'original-s3-request-denominator')
+
+    def test_all_stages_keep_the_original_method_and_path(self):
+        request = {'role': 'B', 'serial': 1, 'method': 'DELETE', 'path': '/retired/key'}
+        for field, changed in (('method', 'GET'), ('path', '/active/key')):
+            with self.subTest(field=field):
+                group = {'s3_request': request, 's3_backend_response': {**request, field: changed}}
+                with self.assertRaises(model.Rejected) as raised:
+                    oracle.exchange_integrity({('B', 1): group}, {'B': 1})
+                self.assertEqual(raised.exception.rule, 's3-stage-original-method-path')
+
+    def test_public_signed_body_hash_is_recomputed(self):
+        payload = b'actual bytes'
+        headers = {'content-length': str(len(payload)), 'x-amz-content-sha256': model.sha(payload)}
+        oracle.payload_integrity({'headers': headers}, payload)
+        oracle.payload_integrity({'headers': {**headers, 'x-amz-content-sha256': 'UNSIGNED-PAYLOAD'}}, payload)
+        with self.assertRaises(model.Rejected) as raised:
+            oracle.payload_integrity({'headers': {**headers, 'x-amz-content-sha256': '0' * 64}}, payload)
+        self.assertEqual(raised.exception.rule, 'public-signed-payload-hash')
+
 
 class ControlConstructionTests(unittest.TestCase):
     def fixture(self, root):
@@ -338,7 +371,7 @@ class ControlConstructionTests(unittest.TestCase):
             self.assertEqual(decoded[0]['rows'], [[1, 261, blob]])
 
     def test_declared_control_scope_has_exact_unique_boundaries(self):
-        self.assertEqual(len(controls.CASES), 22)
+        self.assertEqual(len(controls.CASES), 23)
         self.assertTrue(all(isinstance(v, str) and v for v in controls.CASES.values()))
 
 
