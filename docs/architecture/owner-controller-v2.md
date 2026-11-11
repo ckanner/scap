@@ -185,8 +185,9 @@ RECOVERY_BUSY 是准入压力，两者都不累计死亡，不可借此连续晋
 wire/redirect、MISSING/CORRUPT、policy 冲突不累计；429/RECOVERY_BUSY/LIMIT 有界退避。
 已核实的 S3/服务端 UNKNOWN、UNAVAILABLE 不能直接当成 owner 死亡。
 
-默认 controller HTTP 将已识别的 TLS 证书错误、错误 HTTP framing 和重定向拒绝归入非死亡
-错误；普通 SDK 注入的 Fetch 仍可能把多种底层故障统一为 TRANSPORT。DNS/网络配置错误
+默认 controller HTTP 将 Node 22.16 文档列出的全部 X509 校验错误、`ERR_TLS_*`、`ERR_SSL_*`、
+TLS 写入的 `EPROTO`、错误 HTTP framing 和重定向拒绝归入非死亡错误；OpenSSL 的
+`OUT_OF_MEM` 归入 `LIMIT`。普通 SDK 注入的 Fetch 仍可能把多种底层故障统一为 TRANSPORT。DNS/网络配置错误
 与连接失败仍不能全部区分，它们可能导致可疑策略误判。guarded probe 正常只证明控制路径和 fresh READ，
 不证明数据 actor 没有卡住。两种局限都需明示，不能声称精确故障检测或无条件 RTO。
 
@@ -298,3 +299,28 @@ SIGINT/SIGTERM 停止轮询，然后等待所有 Scope tick、请求、socket �
 工作，不撤销已在服务 admission 的 owner 操作。重启从实际持久计划重新查证。
 
 参考：[Node 22.16 HTTP](https://nodejs.org/download/release/v22.16.0/docs/api/http.html)。
+
+## 12. 2026-11-11 TLS 分类修正
+
+原 `9263b41` 只枚举了少量证书错误，漏掉 `CERT_REVOKED`、`CERT_REJECTED`、
+`INVALID_CA` 等官方 X509 类别，也将不兼容 TLS 协议产生的 `ERR_SSL_*` / `EPROTO`
+归为 `TRANSPORT`。在另一个 metadata 入口仍可读的场景中，这会把配置或认证错误
+计入 owner 失联窗口，可能触发不必要的接管或取消。实际 TLS 连接到普通 HTTP 端口的
+回归确认底层错误是 `EPROTO`，不能只匹配 `ERR_SSL_*` 前缀。
+
+本次补全[固定 Node 文档的 X509 清单](https://nodejs.org/download/release/v22.16.0/docs/api/tls.html#x509-certificate-error-codes)，
+同时拒绝 TLS/SSL 协议错误；没有更改信任配置、关闭证书验证或将错误当作可用。
+OpenSSL 内存不足走原 `LIMIT` 退避。普通连接断开、DNS 和客户端期限保持原来的
+可疑观察策略；它们仍不构成 worker 死亡证明。
+
+新增单位覆盖所有文档 X509 类别和协议错误，并把五类拒绝接入真实 controller 状态机：
+各运行四轮，在超过原失败阈值与观察跨度后仍只报告 `blocked/INVALID`，累计 40 个
+status 调用、零 mutation。另加真实 socket 的 HTTPS→HTTP 错配回归，验证请求和 socket
+清理后 slot 归还。原 self-signed/TLS verification、UNKNOWN 和 deadline 回归继续保留。
+
+此修正在本机 **Node 24.22.1** 上通过 150 项 SDK 单位、20 个生产模块逐文件精确 V8
+计数，以及独立的 19 项真实 HTTP/CLI 检查（7 SDK、9 controller transport、3 CLI）。
+这是本次兼容环境的证据，不替代原固定 Node 22.16 的运行记录、完整独立模型、
+native/SQLite/S3 多 controller 故障验收或 AWS 认证。原 missing-dependency 启动失败、
+修正前的三项回归失败，以及首次修正遗漏 `EPROTO` 的真实回归失败均单独保留。
+精确输入和结果见[本次证据](../evidence/controller-tls-classification-2026-11-11.json)。

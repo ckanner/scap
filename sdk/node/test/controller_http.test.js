@@ -5,8 +5,12 @@ import { EventEmitter } from 'node:events';
 import http from 'node:http';
 import https from 'node:https';
 import dns from 'node:dns';
+import { performance } from 'node:perf_hooks';
 import { ControllerHttp } from '../src/controller_http.js';
+import { OwnerController } from '../src/controller.js';
 import { ClientError } from '../src/errors.js';
+import { policy } from './controller_policy.test.js';
+import { head, OPTIONS } from './owner_fixture.js';
 
 const URL = 'http://worker.test/v1';
 const SECRET = 'synthetic-controller-secret-never-in-errors';
@@ -229,6 +233,75 @@ test('Node errors are sanitized and TLS or parser faults are not classified as w
     io.calls[index].request.emit('error', reason === undefined ? undefined : Object.assign(new Error(SECRET), reason));
     await assert.rejects(pending, code(expected)); io.finish(index);
   }
+});
+
+test('all documented X509 failures and TLS protocol errors are non-death observations', async (t) => {
+  const io = fixture(t);
+  // Node 22.16 TLS X509 error codes, independently enumerated from its manual.
+  const certificates = ['UNABLE_TO_GET_ISSUER_CERT', 'UNABLE_TO_GET_CRL',
+    'UNABLE_TO_DECRYPT_CERT_SIGNATURE', 'UNABLE_TO_DECRYPT_CRL_SIGNATURE',
+    'UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY', 'CERT_SIGNATURE_FAILURE', 'CRL_SIGNATURE_FAILURE',
+    'CERT_NOT_YET_VALID', 'CERT_HAS_EXPIRED', 'CRL_NOT_YET_VALID', 'CRL_HAS_EXPIRED',
+    'ERROR_IN_CERT_NOT_BEFORE_FIELD', 'ERROR_IN_CERT_NOT_AFTER_FIELD',
+    'ERROR_IN_CRL_LAST_UPDATE_FIELD', 'ERROR_IN_CRL_NEXT_UPDATE_FIELD',
+    'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_CHAIN_TOO_LONG', 'CERT_REVOKED', 'INVALID_CA',
+    'PATH_LENGTH_EXCEEDED', 'INVALID_PURPOSE', 'CERT_UNTRUSTED', 'CERT_REJECTED', 'HOSTNAME_MISMATCH'];
+  for (const cause of [...certificates, 'ERR_TLS_CERT_ALTNAME_INVALID', 'ERR_TLS_DH_PARAM_SIZE',
+    'ERR_TLS_INVALID_PROTOCOL_VERSION', 'ERR_SSL_WRONG_VERSION_NUMBER', 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION', 'EPROTO']) {
+    const index = io.calls.length, pending = io.transport.fetch(URL, input()); io.socket(index);
+    io.calls[index].request.emit('error', Object.assign(new Error(SECRET), { code: cause }));
+    await assert.rejects(pending, code('INVALID')); io.finish(index);
+  }
+  const index = io.calls.length, pending = io.transport.fetch(URL, input()); io.socket(index);
+  io.calls[index].request.emit('error', Object.assign(new Error(SECRET), { code: 'OUT_OF_MEM' }));
+  await assert.rejects(pending, code('LIMIT')); io.finish(index);
+  assert.equal(io.transport.snapshot().active, 0);
+});
+
+test('repeated certificate or TLS protocol rejection cannot mature an automatic takeover window', async (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const io = fixture(t), calls = [], status = head();
+  let cause = 'CERT_REJECTED';
+  const factory = (_url, _args, received) => {
+    const request = new Request();
+    request.end = (bytes) => {
+      const value = JSON.parse(bytes); calls.push(value);
+      queueMicrotask(() => {
+        if (value.expected_worker_instance === '100') {
+          request.emit('error', Object.assign(new Error(SECRET), { code: cause }));
+        } else {
+          const response = new Incoming(); received(response);
+          response.emit('data', Buffer.from(JSON.stringify({ ok: true, value: status })));
+          response.emit('end');
+        }
+        request.finish();
+      });
+    };
+    return request;
+  };
+  t.mock.method(https, 'request', factory);
+  const p = policy({ metadataEndpoints: ['https://metadata.test/v1'], workers: [
+    { workerInstance: '100', endpoint: 'https://owner.test/v1', rank: 0 },
+    { workerInstance: '200', endpoint: 'https://target.test/v1', rank: 1 },
+  ] });
+  for (cause of ['CERT_REJECTED', 'CERT_REVOKED', 'ERR_TLS_DH_PARAM_SIZE', 'ERR_SSL_WRONG_VERSION_NUMBER', 'EPROTO']) {
+    now = 0;
+    const controller = new OwnerController({ policy: p, token: OPTIONS.token, fetch: io.transport.fetch });
+    try {
+      for (const tick of [0, 5000, 10000, 15000]) {
+        now = tick;
+        const report = await controller.tick();
+        assert.equal(report.state, 'blocked'); assert.equal(report.reason, 'INVALID');
+        assert.equal(report.httpCalls, 2); assert.equal(report.mutations, 0);
+      }
+    } finally { await controller.close(); }
+  }
+  assert.equal(calls.length, 40);
+  assert.ok(calls.every((call) => call.operation === 'status'));
+  await io.transport.close();
+  assert.equal(io.transport.snapshot().active, 0);
 });
 
 test('informational, upgrade and CONNECT sockets cannot escape lifetime ownership', async (t) => {

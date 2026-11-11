@@ -195,3 +195,13 @@ test('explicit HTTPS verification rejects a self-signed peer even under insecure
   await owned.close();
   assert.equal(calls, 0); assert.equal(owned.snapshot().active, 0);
 });
+
+test('a real TLS connection to a plaintext HTTP endpoint is rejected without a worker-death classification', { timeout: 5000 }, async (t) => {
+  let calls = 0;
+  const app = await server(t, (_request, response) => { ++calls; response.end('{}'); });
+  const owned = transport(t), original = signal(t);
+  await assert.rejects(owned.fetch(app.endpoint.replace('http:', 'https:'), init(original.signal)), code('INVALID'));
+  await owned.close();
+  assert.equal(calls, 0); assert.equal(owned.snapshot().active, 0);
+  assert.equal(owned.snapshot().started, 1); assert.equal(owned.snapshot().completed, 1);
+});

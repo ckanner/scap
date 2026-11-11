@@ -10,17 +10,27 @@ const REQUEST_BYTES = 16 * 1024;
 const RESPONSE_BYTES = 64 * 1024;
 const HEADER_BYTES = 16 * 1024;
 const HEADER_COUNT = 64;
-const TLS_ERRORS = new Set(['CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'DEPTH_ZERO_SELF_SIGNED_CERT',
-  'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
-  'ERR_TLS_CERT_ALTNAME_INVALID', 'ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED']);
+// Complete Node 22.16 X509 verification codes, excluding OUT_OF_MEM below,
+// plus EPROTO emitted when a TLS write encounters an incompatible peer.
+// Certificate rejection and an incompatible TLS endpoint do not establish that
+// the owner died; counting them as TRANSPORT can consume the finite rank chain.
+const TLS_ERRORS = new Set(['UNABLE_TO_GET_ISSUER_CERT', 'UNABLE_TO_GET_CRL',
+  'UNABLE_TO_DECRYPT_CERT_SIGNATURE', 'UNABLE_TO_DECRYPT_CRL_SIGNATURE',
+  'UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY', 'CERT_SIGNATURE_FAILURE', 'CRL_SIGNATURE_FAILURE',
+  'CERT_NOT_YET_VALID', 'CERT_HAS_EXPIRED', 'CRL_NOT_YET_VALID', 'CRL_HAS_EXPIRED',
+  'ERROR_IN_CERT_NOT_BEFORE_FIELD', 'ERROR_IN_CERT_NOT_AFTER_FIELD',
+  'ERROR_IN_CRL_LAST_UPDATE_FIELD', 'ERROR_IN_CRL_NEXT_UPDATE_FIELD',
+  'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_CHAIN_TOO_LONG', 'CERT_REVOKED', 'INVALID_CA',
+  'PATH_LENGTH_EXCEEDED', 'INVALID_PURPOSE', 'CERT_UNTRUSTED', 'CERT_REJECTED', 'HOSTNAME_MISMATCH', 'EPROTO']);
 
 function failure(code) {
   return new ClientError(code, 'The bounded controller HTTP attempt did not complete');
 }
 
 function networkCode(error) {
-  if (error?.code === 'HPE_HEADER_OVERFLOW') return 'LIMIT';
-  return TLS_ERRORS.has(error?.code) || /^HPE_/.test(error?.code) ? 'INVALID' : 'TRANSPORT';
+  if (error?.code === 'HPE_HEADER_OVERFLOW' || error?.code === 'OUT_OF_MEM') return 'LIMIT';
+  return TLS_ERRORS.has(error?.code) || /^(?:HPE_|ERR_TLS_|ERR_SSL_)/.test(error?.code) ? 'INVALID' : 'TRANSPORT';
 }
 
 function argumentsFor(input, init) {
