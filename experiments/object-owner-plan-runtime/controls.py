@@ -139,7 +139,10 @@ def change_product(directory, name, mutation):
     if body['ok']:
         value = copy.deepcopy(body['value'])
         if isinstance(value, dict) and isinstance(value.get('result'), str):
-            value['result'] = put_raw(directory, m.wire.b64(value['result']))
+            if group['http_proxy_request']['operation'] == 'query':
+                value = e.query_result(m.wire.b64(value['result']))
+            else:
+                value['result'] = put_raw(directory, m.wire.b64(value['result']))
         done['result']['value'] = value
     else:
         done['result']['error']['code'] = body['error']['code']

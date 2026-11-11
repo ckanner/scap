@@ -1,6 +1,6 @@
 # HEAD8：真实 Missing 与并发 owner 发布验收
 
-状态：**实现待冻结，产品 actual / oracle / controls 均 NOT_RUN**。本合同补充 owner-plan 主合同，不替代其 native 三窗口、进程退出、删除及冷恢复验收。生产修复源为 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`；新夹具提交身份必须另外固定。
+状态：**actual01 原始观察已完成，原 oracle 因 query 返回形状假设错误失败；本修订待冻结后执行 actual02**。详见 [原始审计失败及修正](../../docs/evidence/owner-absence-actual01-query-oracle-diagnosis-2026-11-11.json)，未冻结诊断不计正式验收。本合同补充 owner-plan 主合同，不替代其 native 三窗口、进程退出、删除及冷恢复验收。生产修复源为 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`；新夹具提交身份必须另外固定。
 
 ## 为什么增加这个合同
 
@@ -58,7 +58,7 @@ SDK control 90s / recovery 300s，服务 HTTP/S3 120s，owner_prepare 保持 cor
 
 ## 独立反例与运行规则
 
-13 个完整副本分别移除 S3/HTTP 交换、移除 hold、改成 before_forward、错误报告 Fenced/Corrupt、移除当前第二次 Descriptor、移除 proof 场景第二次404/后续 Proof/HEAD3、将永久 Proof 改为 pending、改变 accepted HEAD 的原 If-Match、替换跨 Scope 结果。每例必须被指定语义 guard 拒绝；完整副本保留，最后重新核对原证据所有文件 SHA。正控完整复用原证据必须通过。
+13 个完整副本分别移除 S3/HTTP 交换、移除 hold、改成 before_forward、错误报告 Fenced/Corrupt、移除当前第二次 Descriptor、移除 proof 场景第二次404/后续 Proof/HEAD3、将永久 Proof 改为 pending、改变 accepted HEAD 的原 If-Match、替换跨 Scope 的完整一致 receipt/result。每例必须被指定语义 guard 拒绝；完整副本保留，最后重新核对原证据所有文件 SHA。正控完整复用原证据必须通过。
 
 轻量单位使用显式 synthetic signed loopback 后端测试“404 已观测、条件创建后原404仍交付、重读200”，并独立测试各 oracle 缺边反例；这些单位不是产品 actual。
 

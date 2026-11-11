@@ -1,6 +1,6 @@
 # Owner Descriptor absence：真实并发回归
 
-这是 `owner_prepare` 对合法 Missing 交错的独立实际验收。范围、输入、期限和 13 个反例固定在 [PLAN.md](PLAN.md)。当前产品 actual、独立 oracle、完整 controls 均 **NOT_RUN**，待源码提交冻结；单位/loopback 不代表产品通过。
+这是 `owner_prepare` 对合法 Missing 交错的独立实际验收。范围、输入、期限和 13 个反例固定在 [PLAN.md](PLAN.md)。actual01 的原始观察已完成，但原 oracle 误把公开 query 的 `{statements}` 当成 committed wrapper，正式审计失败。本修订独立解码并逐字段校验 query，待冻结后以新 actual02 重跑全部门禁；[失败与诊断记录](../../docs/evidence/owner-absence-actual01-query-oracle-diagnosis-2026-11-11.json) 保留原日志，未冻结诊断、单位/loopback 不代表正式通过。
 
 三个 Scope 分别验证：原404之后另一 daemon prepare+Claim；原404之后另一 daemon 将计划替换成永久历史；两次真实404与稳定 HEAD 之后出现新 Proof，此时必须再读变化的 HEAD 并 Conflict。所有正例 hold 都位于实际 S3 后端响应之后，不改 HEAD/ETag、不注入 Missing、不删除对象。
 

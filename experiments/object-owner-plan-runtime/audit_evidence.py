@@ -321,6 +321,24 @@ def original_inputs(directory, inputs, events):
     return specs, originals, owners, named
 
 
+def query_result(raw_value):
+    """Independent projection of SCAPRES1 into the driver's public SDK JSON.
+
+    Query returns TransactionResult directly; only execute/lookup include
+    rawResult. Bigints are decimal strings and Buffer.toJSON keeps its bytes.
+    """
+    def scalar(value):
+        if type(value) is int:
+            return str(value)
+        if isinstance(value, bytes):
+            return {'type': 'Buffer', 'data': list(value)}
+        return value
+    return {'statements': [{'columns': statement['columns'],
+        'rows': [[scalar(value) for value in row] for row in statement['rows']],
+        'affectedRows': str(statement['affected_rows']),
+        'lastInsertRowid': str(statement['last_insert_rowid'])} for statement in wire.result(raw_value)]}
+
+
 def sdk(directory, inputs, events, configurations, originals, owners, named,
         sql_count=297, saved_count=50, owner_counts=None):
     if owner_counts is None:
@@ -448,7 +466,10 @@ def sdk(directory, inputs, events, configurations, originals, owners, named,
                     public = value['value']
                     if isinstance(public, dict) and 'result' in public and operation in ('execute', 'lookup', 'query'):
                         payload = wire.b64(public['result'])
-                        need(raw(directory, done['result']['value']['result']) == payload, 'sdk-original-full-result')
+                        if operation == 'query':
+                            need(done['result']['value'] == query_result(payload), 'sdk-original-query-values')
+                        else:
+                            need(raw(directory, done['result']['value']['result']) == payload, 'sdk-original-full-result')
                         wire.result(payload)
                         if 'receipt' in public:
                             need(done['result']['value']['receipt'] == public['receipt'], 'sdk-original-receipt')

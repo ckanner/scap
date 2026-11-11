@@ -265,13 +265,15 @@ def legacy(suite):
     p1 = suite.new_plan(name, 1)
     state(suite.owner('prepare', p1), 'prepared')
     original = suite.saved[p1]['input']
-    gate = s3(suite, 'legacy-takeover', 'B', 'PUT', spec.head_path(name))
-    suite.begin('B', 'legacy-original-takeover', 'takeover', name, input={
-        'expectedRevision': original['expected_revision'], 'nonce': suite.next_nonce(), 'expectedWorkerInstance': '9102'})
+    # A legacy takeover and HEAD8 Claim are both control operations. Use a
+    # different daemon for the legacy writer so their original CASes can race.
+    gate = s3(suite, 'legacy-takeover', 'C', 'PUT', spec.head_path(name))
+    suite.begin('C', 'legacy-original-takeover', 'takeover', name, input={
+        'expectedRevision': original['expected_revision'], 'nonce': suite.next_nonce(), 'expectedWorkerInstance': '9103'})
     arrived(gate)
     claimed = state(suite.owner('claim', p1), 'claimed')
-    released(suite.proxies['B'], gate)
-    suite.finish('B', 'legacy-original-takeover', 'CONFLICT')
+    released(suite.proxies['C'], gate)
+    suite.finish('C', 'legacy-original-takeover', 'CONFLICT')
     delayed = http(suite, 'legacy-activation-delayed', 9102, 'activate')
     suite.begin('B', 'legacy-original-late-activation', 'activate', name, options=UNKNOWN, input={
         'expectedRevision': str(int(claimed['status']['revision']) + 1),

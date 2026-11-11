@@ -1,6 +1,6 @@
 # HEAD8 accepted owner plan：真实运行合同
 
-状态：**actual01 已运行并失败，原始证据完整保留；本轮夹具修订待冻结后执行 actual02**。失败与修复边界见 [ACL 调度诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json)。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行新实际合同。70 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
+状态：**actual01/02 均保留原失败；本轮夹具修订待冻结后执行 actual03**。失败与修复边界见 [ACL 调度诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json)；第二处同 lane 问题见 [legacy 调度诊断](../../docs/evidence/owner-plan-actual02-legacy-diagnosis-2026-11-11.json)。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行新实际合同。71 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
 
 ## 权威、目的与固定分母
 
@@ -54,7 +54,7 @@ HTTP 代理保存原请求、真实完整产品响应、向 SDK 的投递/断连
 | acl | 恢复 payload GET 延迟期间同权限 ACL 更新导致 Conflict；另一轮撤 ADMIN 导致 Denied。prepare Descriptor GET 在 C 延迟时，由 B 独立 daemon 查询状态并撤 ADMIN，原 C 调用也必须 Denied，不能泄露旧记录。新当前 ADMIN 12 用保存的 creator11 原输入 inspect/resume。 |
 | target_death | 原 Claim PUT invoke 后退出 B，原请求随后真实生效；新 B worker9202 收到原 target9102 的 claim/resume 必须 TARGET_MISMATCH。当前 ADMIN abort 后新计划转向 R9204。 |
 | resume_death | 恢复最终 Active PUT invoke 后退出 R9204，原请求随后生效；inspect 只能报告历史 Active，不能声称本地 Session。新 R9304 拒绝旧目标；新计划转向 C。 |
-| legacy | 原 HEAD6 takeover CAS 被 HEAD8 admission fencing。原 legacy activate HTTP 在 Aborted 后才到达，哪怕 expected R 碰巧匹配仍 Fenced；不能绕过已采用的 owner 协议。 |
+| legacy | C9103 原 HEAD6 takeover CAS 与 B9102 HEAD8 Claim 在独立 daemon 竞争，旧 CAS 被 admission fencing。原 legacy activate HTTP 在 Aborted 后才到达，哪怕 expected R 碰巧匹配仍 Fenced；不能绕过已采用的 owner 协议。 |
 | proof_claim | 新 Claim 替换旧 Active marker 前，真实 Proof PUT ACK 丢失、Proof GET ACK 丢失各一次；未完成原 exact readback 不得改 HEAD。旧证明缺失仅 Fenced/未知历史；旧 Proof phase 达到当前 admission 的完整故障响应必须 Corrupt。 |
 | proof_cancel | 新计划原 base Cancel 入口也必须先持久保存旧 Aborted Proof；Proof 回读丢失后无 Cancelling，原输入再次明确调用完成 Cancelling→Aborted。 |
 | named_old | pending named delete 为 Conflict，可遗留原固定 Control，但不能改变 HEAD/Name/payload。Active 后使用新 operation/fresh R 执行真实 named delete；HEAD8 seal + final A GC 后，旧/current owner history 仍元数据可读。复用同名后仍按原 Scope 查看旧记录。 |
@@ -78,4 +78,4 @@ Corrupt latch 的后继不能冒充新的物理诊断。`missing_descriptor` 的
 
 本合同不提供后台自动接管 controller，不证明 DNS/K8s 实例身份认证，不给通用 S3 或跨地域吞吐 SLO。只接受本次固定二进制、原限额、真实 SQLite/native/S3 的观察。未知结果保持未知；若失败，完整保留原进程/请求/源码/期限，修复后新 commit、新目录、新 attempt，不回填旧 PASS。
 
-`run.py`、独立 oracle、42 个反例构造、70 个纯夹具单位及固定命令已实现。actual01 的同 Scope control lane 依赖环已定位；本修订将撤权完整路由至独立 daemon，禁止延长期限掩盖调度错误。当前等待审查并提交冻结本修订；actual02 绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。
+`run.py`、独立 oracle、42 个反例构造、71 个纯夹具单位及固定命令已实现。actual01 的同 Scope control lane 依赖环已定位；本修订将撤权完整路由至独立 daemon，actual02 又确认 legacy takeover 与 Claim 同 lane 导致原 Claim UNKNOWN，因此旧 takeover 改由 C9103，HEAD8 Claim 仍固定 B9102；两处均禁止延长期限掩盖调度错误。当前等待审查并提交冻结本修订；actual03 绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。

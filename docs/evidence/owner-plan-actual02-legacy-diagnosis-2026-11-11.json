@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "profile": "head8-owner-plan-actual02-legacy-failure-diagnosis",
+  "status": "FAILED_ORIGINAL_PRESERVED",
+  "runtime_commit": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+  "fixture_commit": "734ad66dde3686e25be9c4ffdef997f33cf74860",
+  "original_summary": {
+    "status": "FAILED",
+    "error": "AssertionError(('legacy-p1-claim', {'id': 'legacy-p1-claim', 'ok': False, 'error': {'name': 'UnknownError', 'code': 'UNKNOWN', 'reference': {'scope': {'deployment': '1', 'tenant': '7', 'database': '7210', 'incarnation': '1', 'generation': '1'}, 'operation': 'owner_claim', 'expectedWorkerInstance': '9102', 'ownerPlan': {'creator': '11', 'operation': '801001', 'descriptor_hash': '53d035685854ee387624f8f4741f3054e4f6a62044f479da2e8c6c3946906d97'}}, 'receipt': None}}))",
+    "elapsed_seconds": 164.08656891500004,
+    "cleanup_errors": [],
+    "private_removed": false
+  },
+  "evidence_sha256": {
+    "inputs.json": "873bb9bfc2339deab9eb477904c26d081e8ac8d36b4a36b1a7465febf1946bb8",
+    "events.jsonl": "e6aaabea7b71e6bcac3cc386d837d3c8c134dccdbd977d1ccdfc69fac4b65a0e",
+    "summary.json": "c3a0ca99424b6cb99d9b18168934c154736053751ecfd2c9e913d084f76474cd",
+    "failure.txt": "ebcb498e9f0bd08560e2e8e93a37d8ce387b4928ff380ab971c108370a9fa1ef",
+    "sdk-C-4.jsonl": "b668aeb91ff69ffb7a00efab578846817ae26cd684aeef9eed59b34ee4c6a74e",
+    "sdk-B-1.jsonl": "ea9731236007f2c7fcad7641b1bf3aac4b65d11ca9615c69f403bae31c1ece10"
+  },
+  "timeline": [
+    {
+      "sequence": 55321,
+      "event": "sdk_dispatch",
+      "id": "legacy-original-takeover",
+      "role": "B",
+      "operation": "takeover",
+      "seconds_after_takeover_dispatch": 0.0
+    },
+    {
+      "sequence": 55325,
+      "event": "http_proxy_request",
+      "role": "B-9102",
+      "serial": 37,
+      "operation": "takeover",
+      "seconds_after_takeover_dispatch": 0.005589147
+    },
+    {
+      "sequence": 55337,
+      "event": "fault_arrived",
+      "id": "legacy-takeover",
+      "role": "B",
+      "serial": 1002,
+      "seconds_after_takeover_dispatch": 0.013327944
+    },
+    {
+      "sequence": 55338,
+      "event": "sdk_dispatch",
+      "id": "legacy-p1-claim",
+      "role": "C",
+      "operation": "owner_claim",
+      "seconds_after_takeover_dispatch": 0.013695766
+    },
+    {
+      "sequence": 55342,
+      "event": "http_proxy_request",
+      "role": "B-9102",
+      "serial": 38,
+      "operation": "owner_claim",
+      "seconds_after_takeover_dispatch": 0.018630767
+    },
+    {
+      "sequence": 55349,
+      "event": "fault_suppressed",
+      "id": "legacy-takeover",
+      "role": "B",
+      "serial": 1002,
+      "aborted": true,
+      "seconds_after_takeover_dispatch": 90.040324404
+    },
+    {
+      "sequence": 55351,
+      "event": "http_proxy_backend_response",
+      "role": "B-9102",
+      "serial": 37,
+      "operation": "takeover",
+      "status": 503,
+      "seconds_after_takeover_dispatch": 90.045823394
+    },
+    {
+      "sequence": 55385,
+      "event": "http_proxy_backend_response",
+      "role": "B-9102",
+      "serial": 38,
+      "operation": "owner_claim",
+      "status": 200,
+      "seconds_after_takeover_dispatch": 90.077535868
+    }
+  ],
+  "diagnosis": "The legacy takeover held a B9102 HEAD PUT before forwarding. HEAD8 owner_claim for the same Scope was also routed to B9102, so its control lane could not execute it while the fixture waited for its completion before releasing takeover. The original owner_claim exhausted its fixed 90 second SDK deadline and remained UNKNOWN. The first ACL fixture correction succeeded earlier in this run.",
+  "correction": "Run the original legacy takeover on independent C9103 with original expected_worker_instance=9103; keep saved HEAD8 plan target and Claim on B9102. Keep the later delayed legacy activation on B9102. Require independent daemon bindings in oracle; do not extend any deadline or change result assertions.",
+  "limits": "This failed partial run does not certify the owner-plan contract. All original failure logs remain unchanged; actual03 requires a new committed fixture."
+}

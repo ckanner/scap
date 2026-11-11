@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import struct
 import subprocess
 import tempfile
 import threading
@@ -42,6 +43,19 @@ class EvidenceBoundary(unittest.TestCase):
 
     def test_numeric_hash_is_not_converted_to_u64(self):
         self.assertEqual(e.native({'hash': '1' * 64, 'revision': '23'}), {'hash': '1' * 64, 'revision': 23})
+
+    def test_query_result_is_public_decoded_values_not_committed_wrapper(self):
+        def string(value):
+            encoded = value.encode()
+            return struct.pack('<I', len(encoded)) + encoded
+        columns = ['integer', 'real', 'blob', 'text', 'null']
+        raw = (b'SCAPRES1' + struct.pack('<II', 1, 5) + b''.join(map(string, columns))
+               + struct.pack('<I', 1) + b'\x01' + struct.pack('<q', 9007199254740993)
+               + b'\x02' + struct.pack('<d', 3.5) + b'\x04' + struct.pack('<I', 2) + b'\x00\xff'
+               + b'\x03' + string('原查询') + b'\x00' + struct.pack('<Qq', 7, -1))
+        self.assertEqual(e.query_result(raw), {'statements': [{'columns': columns,
+            'rows': [['9007199254740993', 3.5, {'type': 'Buffer', 'data': [0, 255]}, '原查询', None]],
+            'affectedRows': '7', 'lastInsertRowid': '-1'}]})
 
     def test_two_descriptor_absences_need_same_exact_head_between_and_after(self):
         current = {}

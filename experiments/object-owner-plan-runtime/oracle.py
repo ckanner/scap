@@ -618,7 +618,7 @@ FAULT_BINDINGS = (
     ('acl-prepare-descriptor', 's3', 'hold', 'before_forward', 'C', 'acl-delayed-prepare'),
     ('dead-worker-claim', 's3', 'hold', 'before_forward', 'B', 'dead-worker-original-claim'),
     ('dead-worker-resume', 's3', 'hold', 'before_forward', 'R', 'dead-worker-original-active'),
-    ('legacy-takeover', 's3', 'hold', 'before_forward', 'B', 'legacy-original-takeover'),
+    ('legacy-takeover', 's3', 'hold', 'before_forward', 'C', 'legacy-original-takeover'),
     ('claim-proof-put-ack', 's3', 'drop', 'after_response', 'B', 'proof-claim-put-unknown'),
     ('claim-proof-read-ack', 's3', 'drop', 'after_response', 'B', 'proof-claim-get-unknown'),
     ('old-proof-missing', 's3', 'no_such_key', 'before_forward', 'C', 'proof-claim-missing-is-unknown-history'),
@@ -751,6 +751,10 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
     later_puts = [value for value in values.for_call(second) if value['request']['method'] == 'PUT'
                   and m.head_path(value['request']['path']) is not None]
     need(not later_puts, 'second-resume-no-second-active-publication')
+    takeover, claim = calls['legacy-original-takeover'], calls['legacy-p1-claim']
+    need(takeover['role'] == 'C' and takeover['body']['expected_worker_instance'] == '9103'
+         and claim['role'] == 'B' and claim['body']['expected_worker_instance'] == '9102',
+         'legacy-race-independent-daemons')
     legacy = calls['legacy-original-late-activation']
     aborted = [row for row in heads[7210] if row['kind'] == 'owner_abort'][0]
     need(e.moment(aborted['exchange']['backend']) < e.moment(legacy['proxy']['forward_started'])

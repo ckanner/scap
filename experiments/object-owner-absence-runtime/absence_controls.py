@@ -55,8 +55,10 @@ def stale_etag(directory):
 
 def changed_lookup(directory):
     _, _, _, _, _, group = c.proxy_command(directory, 'recovered-superseded-002')
-    other = m.wire.parse(e.raw(directory, group['http_proxy_backend_response']['response']))['value']['result']
-    c.change_product(directory, 'recovered-current-002', lambda body: body['value'].__setitem__('result', other))
+    # Keep the other Scope's receipt and bytes internally consistent. Otherwise
+    # the decoder would reject its hash before testing original-result binding.
+    other = m.wire.parse(e.raw(directory, group['http_proxy_backend_response']['response']))['value']
+    c.change_product(directory, 'recovered-current-002', lambda body: body.__setitem__('value', other))
 
 
 def cases():
