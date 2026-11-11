@@ -462,6 +462,18 @@ def check_query(call, original, counter):
          and decoded[0]['rows'] == [[1, counter, original['decoded'][-1]['rows'][0][1]]], 'single-effect-business-state')
 
 
+def delete_control_input(call, record):
+    action, control, exchange = call['body'], record['value'], record['exchange']
+    need(action['operation'] == 'delete_name' and control['kind'] == 'delete'
+         and control['creation'] == e.native(action['creation'])
+         and str(control['operation']) == action['control_operation']
+         and str(control['principal']) == call['principal']
+         and all(str(control[key]) == action[key] for key in ('expected_name_revision', 'expected_head_revision', 'nonce'))
+         and call['role'] == exchange['request']['role']
+         and e.moment(call['proxy']['forward_started']) < e.moment(exchange['request'])
+         < e.moment(exchange['backend']) < e.moment(call['product']), 'original-named-delete-control-input')
+
+
 def gc_and_catalogue(inputs, events, calls, heads, metadata, values, backend):
     logical = e.native(inputs['scopes']['named_old'])
     history = heads[logical['database']]
@@ -559,9 +571,7 @@ def gc_and_catalogue(inputs, events, calls, heads, metadata, values, backend):
     need(set(controls) == {97001, 97002}, 'distinct-original-delete-controls')
     for operation, identifier in ((97001, 'named-pending-original-delete'), (97002, 'named-new-explicit-delete')):
         call, record = calls[identifier], controls[operation]
-        action, control = call['body'], record['value']
-        need(all(str(control[key]) == action[key] for key in ('expected_name_revision', 'expected_head_revision', 'nonce'))
-             and candidates(call, record['exchange']), 'original-named-delete-control-input')
+        delete_control_input(call, record)
     rejected = calls['named-pending-original-delete']
     changes = [value for value in values.for_call(rejected) if value['request']['method'] == 'PUT' and successful(value)]
     need(changes and all(value.get('metadata_record') is controls[97001] for value in changes),
@@ -660,12 +670,21 @@ def descriptor_absence_barrier(pair, observations):
     return before[0], after
 
 
-def fault_audit(directory, inputs, events, calls, values, http, heads, owners, records, stopped):
-    expected = {row[0]: row for row in FAULT_BINDINGS}
-    need(len(expected) == 28 and inputs['faults'] == [list(row[:4]) for row in FAULT_BINDINGS], 'fixed-fault-profile')
+def complete_fault_delivery(events):
     need(len(e.selection(events, 'fault_armed')) == 23 and len(e.selection(events, 'http_proxy_fault_armed')) == 5
          and len(e.selection(events, 'fault_arrived')) == 26
          and len(e.selection(events, 'http_proxy_fault_arrived')) == 5, 'complete-fault-delivery-denominator')
+
+
+def forwarded_while_held(call, events, identifier):
+    release = e.one(events, 'fault_release_requested', id=identifier)
+    return e.moment(call['proxy']['forward_finished']) < e.moment(release)
+
+
+def fault_audit(directory, inputs, events, calls, values, http, heads, owners, records, stopped):
+    expected = {row[0]: row for row in FAULT_BINDINGS}
+    need(len(expected) == 28 and inputs['faults'] == [list(row[:4]) for row in FAULT_BINDINGS], 'fixed-fault-profile')
+    complete_fault_delivery(events)
     faults, holds = {}, {}
     for identifier, layer, mode, stage, role, name in FAULT_BINDINGS:
         before = 'http_proxy_' if layer == 'http' else ''
@@ -747,6 +766,7 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
     active = faults['resume-wins-active']
     need(e.moment(active['request']) < e.moment(second['proxy']['forward_finished'])
          < e.moment(active['group']['s3_forward_started'])
+         and forwarded_while_held(second, events, 'resume-wins-active')
          and first['product_body']['value'] == second['product_body']['value'], 'same-actor-second-resume-is-history')
     later_puts = [value for value in values.for_call(second) if value['request']['method'] == 'PUT'
                   and m.head_path(value['request']['path']) is not None]
@@ -824,6 +844,7 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
              and query['request']['headers']['x-scap-admission'] == 'data'
              and e.moment(held['request']) < e.moment(query['proxy']['forward_finished'])
              < e.moment(held['group']['s3_forward_started']) < e.moment(limited['product'])
+             and forwarded_while_held(query, events, identifier)
              and e.moment(held['group']['s3_delivery_finished']) < e.moment(query['product']),
              'same-actor-budget-failure-then-original-row')
         # HTTP response-reader threads need not run in actor completion order.
@@ -845,7 +866,7 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
 def audit(directory):
     directory = Path(directory)
     inputs = wire.parse((directory / 'inputs.json').read_bytes())
-    events = e.rows(directory / 'events.jsonl')
+    events = e.EventIndex(e.rows(directory / 'events.jsonl'))
     need([row['sequence'] for row in events] == list(range(1, len(events) + 1))
          and all(e.moment(before) <= e.moment(after) for before, after in zip(events, events[1:])), 'event-ledger-order')
     e.fixed_inputs(inputs)
@@ -855,6 +876,9 @@ def audit(directory):
     calls, local = e.sdk(directory, inputs, events, configurations, originals, owners, named)
     http, _ = e.http_exchanges(directory, events, calls)
     errors = original_errors(calls)
+    # Check the fixed fault denominator before decoding Missing deliveries,
+    # whose per-response checks also require their original fault witness.
+    complete_fault_delivery(events)
     values = e.s3_exchanges(directory, events, backend)
     heads, objects, records, metadata = e.histories(directory, inputs, values)
     closures = Closures(objects)

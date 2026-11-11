@@ -1,6 +1,6 @@
 # HEAD8 accepted owner plan：真实运行合同
 
-状态：**actual01/02 均保留原失败；本轮夹具修订待冻结后执行 actual03**。失败与修复边界见 [ACL 调度诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json)；第二处同 lane 问题见 [legacy 调度诊断](../../docs/evidence/owner-plan-actual02-legacy-diagnosis-2026-11-11.json)。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行新实际合同。71 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
+状态：**actual01/02 保留原失败，actual03 完成原始观察但正式 oracle 失败；本修订待冻结后执行 actual04**。失败与修复边界见 [ACL 调度诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json)；第二处同 lane 问题见 [legacy 调度诊断](../../docs/evidence/owner-plan-actual02-legacy-diagnosis-2026-11-11.json)；第三次的 catalogue 绑定错误及反例曾错误接受问题见 [审计诊断](../../docs/evidence/owner-plan-actual03-audit-diagnosis-2026-11-11.json)。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行新实际合同。74 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
 
 ## 权威、目的与固定分母
 
@@ -37,7 +37,7 @@
 
 每个 HTTP observer 最多 16 个 handler、10,000 请求、128 个 gate，单请求 1 MiB、单响应 64 MiB、header 16 KiB / 64 项；输入/输出各 10s、后端 330s、关闭 join 共用 10s 绝对上界。S3 observer 的每次真实后端连接上限 15s、输入 10s；hold 的 180s 不能续期。启动期 `/healthz` 活性探针不计入 `/v1` / `/v1/catalogue` 产品 POST 分母。
 
-第二 resume 和预算场景的 query 在旧 S3 请求仍持有时，必须已经由实际 HTTP observer 完整 forward；不能仅凭写入 SDK stdin 就放行。query 的 scope、目标进程和 data lane 与原 recovery actor 一致，原 descriptor 投递后才能出现 query payload GET，且必须返回原行。HTTP observer 的两个响应读取线程不保证按 actor 完成顺序运行，因此不把两个 socket 响应日志的先后当作调度器内部时钟。
+第二 resume 和预算场景的 query 在旧 S3 请求仍持有时，必须已经由实际 HTTP observer 完整 forward；HTTP forward_finished 必须严格早于 fault_release_requested，不能用稍后的 S3 forward_started 代替释放边界，也不能仅凭写入 SDK stdin 就放行。query 的 scope、目标进程和 data lane 与原 recovery actor 一致，原 descriptor 投递后才能出现 query payload GET，且必须返回原行。HTTP observer 的两个响应读取线程不保证按 actor 完成顺序运行，因此不把两个 socket 响应日志的先后当作调度器内部时钟。
 
 HTTP 代理保存原请求、真实完整产品响应、向 SDK 的投递/断连及独立关闭时总数；SDK 自己保存原 Fetch 和原 UNKNOWN。S3 保存原 method/path/headers/payload hash、签名验证、forward、真实 backend 响应、可能被注入的 delivery、完整 handler 和关闭时总数。Authorization/secret/token 只存内存和 private 配置，公开证据仅 hash。代理不自动 retry。
 
@@ -66,6 +66,8 @@ HTTP 代理保存原请求、真实完整产品响应、向 SDK 的投递/断连
 
 新 `audit_model.py` 严格独立解码 HEAD6/7/8、Descriptor、Proof，不调用产品 verifier，也不把 owner 字段删掉后交旧 HEAD6 判定器。HEAD8 包括历史 phase/admission 对齐、nonce/目标/epoch、当前 R/S 边界、`R == phase.R => transition.nonce == phase.nonce`；terminal HEAD 保留历史 owner marker，永久元数据不随 payload GC 删除。
 
+Catalogue Control 按完整 Creation、principal、control operation、原 R/nonce、daemon 和原 HTTP 调用时序绑定，不用数据库物理 key 匹配 catalogue namespace。只读事件索引保留全部原记录、顺序、重复和对象身份，所有 guard 仍逐次执行，不缓存判定。
+
 oracle 从闭合 raw 分母重建所有 accepted HEAD CAS、原 ETag、Scope、当前 ACL、完整数据/retained closure、每次 SQL 结果及 receipt、owner proof 先于替换的因果、原请求先 invoke/原进程已 wait4 后 S3 effect、原 UNKNOWN 从未回填。prepare 的 hash/digest 按独立 canonical 字段次序计算；GET 的实际 backend 与注入 delivery 必须分开。
 
 Metadata corrupt 故障只能使用计划明确的 delivery；保存 backend 原文和变异原文，不能将通用响应不一致判定整体放宽。同 ID 不同 hash 这一故障组，对同一次 inspect 的首、尾两次 exact HEAD GET 交付同一变异字节和原 ETag，才能独立命中稳定 HEAD2 后的 Corrupt；只改首 GET 会正确得到 Conflict，不算本边界通过。另一坏 Proof 只变一次 GET。静态 HEAD/owner 矛盾（包括 phase nonce 同 R 不一致）由独立 decoder 反例单位完整覆盖；实际本轮专测稳定 HEAD2 诊断，不能声称旧 actual 已覆盖新增静态规则。
@@ -78,4 +80,4 @@ Corrupt latch 的后继不能冒充新的物理诊断。`missing_descriptor` 的
 
 本合同不提供后台自动接管 controller，不证明 DNS/K8s 实例身份认证，不给通用 S3 或跨地域吞吐 SLO。只接受本次固定二进制、原限额、真实 SQLite/native/S3 的观察。未知结果保持未知；若失败，完整保留原进程/请求/源码/期限，修复后新 commit、新目录、新 attempt，不回填旧 PASS。
 
-`run.py`、独立 oracle、42 个反例构造、71 个纯夹具单位及固定命令已实现。actual01 的同 Scope control lane 依赖环已定位；本修订将撤权完整路由至独立 daemon，actual02 又确认 legacy takeover 与 Claim 同 lane 导致原 Claim UNKNOWN，因此旧 takeover 改由 C9103，HEAD8 Claim 仍固定 B9102；两处均禁止延长期限掩盖调度错误。当前等待审查并提交冻结本修订；actual03 绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。
+`run.py`、独立 oracle、42 个反例构造、74 个纯夹具单位及固定命令已实现。actual01 的同 Scope control lane 依赖环已定位；本修订将撤权完整路由至独立 daemon，actual02 又确认 legacy takeover 与 Claim 同 lane 导致原 Claim UNKNOWN，因此旧 takeover 改由 C9103，HEAD8 Claim 仍固定 B9102；两处均禁止延长期限掩盖调度错误。当前等待审查并提交冻结本修订；actual04 绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。

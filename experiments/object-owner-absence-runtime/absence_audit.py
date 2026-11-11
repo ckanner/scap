@@ -288,7 +288,7 @@ def sql_results(directory, inputs, events, specs, originals, calls, heads, value
 def audit(directory):
     directory = Path(directory)
     inputs = wire.parse((directory / 'inputs.json').read_bytes())
-    events = e.rows(directory / 'events.jsonl')
+    events = e.EventIndex(e.rows(directory / 'events.jsonl'))
     need([row['sequence'] for row in events] == list(range(1, len(events) + 1))
          and all(e.moment(a) <= e.moment(b) for a, b in zip(events, events[1:])), 'event-ledger-order')
     fixed_inputs(inputs)
