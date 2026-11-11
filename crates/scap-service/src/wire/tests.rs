@@ -361,6 +361,9 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
         creation: None,
         deletion: None,
         owner_plan: None,
+        snapshots: None,
+        snapshot_limits: None,
+        restore_origin: None,
         scope,
         revision: 2,
         transition: receipt_value.transition.clone(),
@@ -701,6 +704,8 @@ fn maintenance_status_exposes_only_small_plan_and_checkpoint_summaries() {
             target: 2,
             phase: CopyPhase::Copying,
             basis: CopyBasis {
+                snapshots: None,
+                snapshot_limits: None,
                 data_root: head.data_root.clone(),
                 windows: head.windows.clone(),
                 sequence: head.sequence,

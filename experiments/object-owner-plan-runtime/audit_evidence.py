@@ -58,7 +58,7 @@ def archive(path, expected):
             need(sha(data) == expected[member.name], 'archive-source-bytes')
 
 
-def identity(directory, inputs, events):
+def identity(directory, inputs, events, plan_path='experiments/object-owner-plan-runtime/PLAN.md'):
     source = wire.parse((directory / 'source.json').read_bytes())
     files = source['files']
     need(source['commit'] == inputs['commit'] and source['source_sha256'] == inputs['source_sha256']
@@ -71,7 +71,7 @@ def identity(directory, inputs, events):
         for row in files:
             data = file.extractfile(row['path']).read()
             need(len(data) == row['bytes'] and hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == row['git_blob'], 'committed-source-bytes')
-    need(inputs['plan_sha256'] == expected['experiments/object-owner-plan-runtime/PLAN.md'], 'frozen-plan')
+    need(inputs['plan_sha256'] == expected[plan_path], 'frozen-plan')
     receipts = {}
     for name, tool, stdout_key, stderr_key in (
             ('service-build', 'scapd', 'cargo.stdout.jsonl_sha256', 'cargo.stderr.log_sha256'),
@@ -321,7 +321,28 @@ def original_inputs(directory, inputs, events):
     return specs, originals, owners, named
 
 
-def sdk(directory, inputs, events, configurations, originals, owners, named):
+def query_result(raw_value):
+    """Independent projection of SCAPRES1 into the driver's public SDK JSON.
+
+    Query returns TransactionResult directly; only execute/lookup include
+    rawResult. Bigints are decimal strings and Buffer.toJSON keeps its bytes.
+    """
+    def scalar(value):
+        if type(value) is int:
+            return str(value)
+        if isinstance(value, bytes):
+            return {'type': 'Buffer', 'data': list(value)}
+        return value
+    return {'statements': [{'columns': statement['columns'],
+        'rows': [[scalar(value) for value in row] for row in statement['rows']],
+        'affectedRows': str(statement['affected_rows']),
+        'lastInsertRowid': str(statement['last_insert_rowid'])} for statement in wire.result(raw_value)]}
+
+
+def sdk(directory, inputs, events, configurations, originals, owners, named,
+        sql_count=297, saved_count=50, owner_counts=None):
+    if owner_counts is None:
+        owner_counts = dict(zip(NAMES, OWNER_COUNTS))
     calls, local = {}, {}
     sdk_starts = selection(events, 'child_started')
     sdk_starts = [row for row in sdk_starts if row['id'].startswith('sdk-')]
@@ -366,7 +387,7 @@ def sdk(directory, inputs, events, configurations, originals, owners, named):
                 need(not requests and done['attempts'] == 0, 'local-sdk-no-product-dispatch')
                 if operation == 'prepare_sql':
                     need(command['specs'] == inputs['specs'] and done['result'] ==
-                         {'id': name, 'ok': True, 'value': {'prepared': 297}}, 'all-original-sql-prepared')
+                         {'id': name, 'ok': True, 'value': {'prepared': sql_count}}, 'all-original-sql-prepared')
                     saved = one(ledger, 'intents_prepared')
                     need(raw(directory, saved['original']) == (directory / 'intents.json').read_bytes(), 'saved-sql-original-ledger')
                 elif operation == 'owner_save':
@@ -445,7 +466,10 @@ def sdk(directory, inputs, events, configurations, originals, owners, named):
                     public = value['value']
                     if isinstance(public, dict) and 'result' in public and operation in ('execute', 'lookup', 'query'):
                         payload = wire.b64(public['result'])
-                        need(raw(directory, done['result']['value']['result']) == payload, 'sdk-original-full-result')
+                        if operation == 'query':
+                            need(done['result']['value'] == query_result(payload), 'sdk-original-query-values')
+                        else:
+                            need(raw(directory, done['result']['value']['result']) == payload, 'sdk-original-full-result')
                         wire.result(payload)
                         if 'receipt' in public:
                             need(done['result']['value']['receipt'] == public['receipt'], 'sdk-original-receipt')
@@ -470,25 +494,26 @@ def sdk(directory, inputs, events, configurations, originals, owners, named):
             entry.update(request=request, body=body, terminal=terminal, principal=principal)
             calls[name] = entry
         need(len(selection(ledger, 'http_request')) == sum(call['sdk'] == role for call in calls.values()), 'all-sdk-posts-accounted')
-    need(len([entry for entry in local.values() if entry['command']['operation'] == 'owner_save']) == 50,
+    need(len([entry for entry in local.values() if entry['command']['operation'] == 'owner_save']) == saved_count,
          'all-owner-originals-saved')
     for call in calls.values():
         if call['body']['operation'].startswith('owner_'):
             saved = owners[call['command']['intent']]
             need('saved_at' in saved and moment(saved['saved_at']) < moment(call['request']), 'owner-save-before-every-dispatch')
     method_names = ('owner_prepare', 'owner_claim', 'owner_resume', 'owner_abort', 'owner_inspect')
-    for name, counts in zip(NAMES, OWNER_COUNTS):
+    for name, counts in owner_counts.items():
         observed = tuple(sum(call['command']['scope_name'] == name and call['body']['operation'] == method
                              for call in calls.values()) for method in method_names)
         need(observed == counts, 'fixed-owner-post-denominator')
-    need(sum(call['body']['operation'].startswith('owner_') for call in calls.values()) == 200, 'all-owner-posts-accounted')
+    need(sum(call['body']['operation'].startswith('owner_') for call in calls.values()) == sum(map(sum, owner_counts.values())),
+         'all-owner-posts-accounted')
     return calls, local
 
 
-def http_exchanges(directory, events, calls):
+def http_exchanges(directory, events, calls, expected_count=10):
     starts = {row['role']: row for row in selection(events, 'http_proxy_started')}
     ends = {row['role']: row for row in selection(events, 'http_proxy_closed')}
-    need(set(starts) == set(ends) and len(starts) == 10, 'http-proxy-lifetime')
+    need(set(starts) == set(ends) and len(starts) == expected_count, 'http-proxy-lifetime')
     expected_limits = {'request_bytes': 1048576, 'response_bytes': 67108864, 'header_bytes': 16384,
         'headers': 64, 'handlers': 16, 'requests': 10000, 'gates': 128, 'input_seconds': 10,
         'output_seconds': 10, 'backend_seconds': 330, 'hold_seconds': 180, 'close_seconds': 10}

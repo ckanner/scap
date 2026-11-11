@@ -164,6 +164,68 @@ export interface OperationReference {
   readonly ownerInput?: PrepareOwnerInput;
   readonly ownerIdentity?: OwnerIdentity;
   readonly ownerPlan?: OwnerPlanRef;
+  readonly snapshotInput?: PrepareSnapshotInput;
+  readonly snapshotIdentity?: SnapshotIdentity;
+  readonly snapshotReference?: SnapshotRef;
+  readonly snapshotLimits?: SnapshotLimits;
+}
+
+export interface SnapshotIdentity { readonly creator: Decimal; readonly operation: Decimal }
+export interface SnapshotRef extends SnapshotIdentity {
+  readonly capture_serial: Decimal;
+  readonly descriptor_hash: string;
+}
+export interface PrepareSnapshotInput extends SnapshotIdentity {
+  readonly expected_revision: Decimal;
+  readonly expected_head_serial: Decimal;
+  /** Nonempty, at most 128 UTF-8 bytes, without control characters. */
+  readonly label: string;
+}
+export interface SnapshotPoint {
+  readonly data_root: string;
+  readonly page_count: number;
+  readonly sequence: Decimal;
+  readonly source_revision: Decimal;
+}
+export interface SnapshotEntry {
+  readonly reference: SnapshotRef;
+  readonly label: string;
+  readonly point: SnapshotPoint;
+}
+export interface SnapshotLimits {
+  /** Zero disables new retained points. The persisted format allows at most 64. */
+  readonly max_points: number;
+  /** Gross logical bytes, counted once per point even when roots share objects. */
+  readonly max_logical_bytes: Decimal;
+}
+declare const savedSnapshotInput: unique symbol;
+export interface SavedSnapshotInput {
+  readonly [savedSnapshotInput]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly input: PrepareSnapshotInput;
+}
+export interface SnapshotRecord {
+  readonly scope: Scope;
+  readonly input: PrepareSnapshotInput;
+  readonly reference: SnapshotRef;
+  readonly point: SnapshotPoint;
+}
+declare const preparedSnapshot: unique symbol;
+/** SDK misuse guard; current server ADMIN/READ checks remain authoritative. */
+export interface PreparedSnapshot extends SnapshotRecord { readonly [preparedSnapshot]: true }
+export interface SnapshotObservation<P extends SnapshotRecord = SnapshotRecord> {
+  /** Current observation. ReleasedObserved does not manufacture a past ACK. */
+  readonly state: 'prepared' | 'retained' | 'released_observed' | 'fenced';
+  readonly status: DatabaseStatus;
+  readonly prepared: P;
+  readonly accepted: SnapshotEntry | null;
+}
+export interface SnapshotListing {
+  readonly status: DatabaseStatus;
+  readonly snapshots: readonly SnapshotEntry[];
+  /** Null before this database first adopts the retained-snapshot format. */
+  readonly limits: SnapshotLimits | null;
 }
 
 export interface OwnerIdentity { readonly creator: Decimal; readonly operation: Decimal }
@@ -559,6 +621,19 @@ export class Client {
   ownerClaim(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
   ownerResume(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
   ownerAbort(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  prepareSnapshotInput(input: PrepareSnapshotInput): SavedSnapshotInput;
+  /** Persist this string before the first prepare RPC. It contains no bearer token. */
+  saveSnapshotInput(input: SavedSnapshotInput): string;
+  restoreSnapshotInput(serialized: string): SavedSnapshotInput;
+  snapshotPrepare(saved: SavedSnapshotInput, options?: CallOptions): Promise<PreparedSnapshot>;
+  snapshotInspect(saved: SavedSnapshotInput, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  /** Identity-only observations cannot authorize SDK capture or release. */
+  snapshotObserve(identity: SnapshotIdentity, options?: CallOptions): Promise<SnapshotObservation>;
+  snapshotCapture(prepared: PreparedSnapshot, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  snapshotRelease(prepared: PreparedSnapshot, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  snapshotList(options?: CallOptions): Promise<SnapshotListing>;
+  setSnapshotLimits(input: { readonly expectedRevision: Decimal; readonly nonce: Decimal;
+    readonly limits: SnapshotLimits }, options?: CallOptions): Promise<SnapshotListing>;
   closeFull(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
   setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;

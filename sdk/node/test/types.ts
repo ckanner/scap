@@ -1,6 +1,7 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
 import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, RouteError, OwnerReconcileError, UnknownError,
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
+  type SavedSnapshotInput, type PreparedSnapshot, type SnapshotObservation, type SnapshotListing,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
@@ -50,6 +51,26 @@ async function contract() {
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
   const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
+  const snapshotInput: SavedSnapshotInput = db.prepareSnapshotInput({ creator: '7', operation: '61',
+    expected_revision: guarded.revision, expected_head_serial: guarded.head_serial, label: 'before migration' });
+  const snapshotSaved: SavedSnapshotInput = db.restoreSnapshotInput(db.saveSnapshotInput(snapshotInput));
+  const snapshotPrepared: PreparedSnapshot = await db.snapshotPrepare(snapshotSaved);
+  const snapshotObserved: SnapshotObservation<PreparedSnapshot> = await db.snapshotInspect(snapshotSaved);
+  const snapshotHistory: SnapshotObservation = await db.snapshotObserve({ creator: '7', operation: '61' });
+  const snapshotListing: SnapshotListing = await db.snapshotList();
+  await db.snapshotCapture(snapshotPrepared);
+  await db.snapshotRelease(snapshotObserved.prepared);
+  await db.setSnapshotLimits({ expectedRevision: guarded.revision, nonce: '62',
+    limits: { max_points: 64, max_logical_bytes: '34359738368' } });
+  // @ts-expect-error Identity-only history cannot authorize a snapshot mutation.
+  db.snapshotCapture(snapshotHistory.prepared);
+  // @ts-expect-error Snapshot preparation requires the saved complete input.
+  db.snapshotPrepare(snapshotPrepared.input);
+  // @ts-expect-error Historical page counts and immutable point identities are readonly.
+  snapshotListing.snapshots[0].point.page_count = 1;
+  // @ts-expect-error Original revisions cannot round through JavaScript Number.
+  db.prepareSnapshotInput({ creator: '7', operation: '63', expected_revision: 1,
+    expected_head_serial: '1', label: 'invalid' });
   const directStorage: DatabaseStatus = await db.storageStatus();
   const retiredDirect: DatabaseStatus = await db.retireStorage({ expectedHeadSerial: directStorage.head_serial });
   const terminalSerial: string | undefined = retiredDirect.storage.terminal?.serial;

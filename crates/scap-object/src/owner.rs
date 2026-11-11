@@ -258,15 +258,23 @@ impl Database {
         {
             return Err(Error::Fenced);
         }
-        head.revision.checked_add(2).ok_or(Error::Limit)?;
-        head.head_serial.checked_add(2).ok_or(Error::Limit)?;
+        let mut terminal = head.clone();
+        terminal.revision = head.revision.checked_add(2).ok_or(Error::Limit)?;
+        terminal.head_serial = head.head_serial.checked_add(2).ok_or(Error::Limit)?;
+        if !crate::snapshot_format::cleanup_room(&terminal) {
+            return Err(Error::Limit);
+        }
         Ok(())
     }
 
     fn owner_mode(head: &Head, input: &PrepareOwnerInput) -> Result<(), Error> {
         match input.mode {
             OwnerMode::Takeover => {
-                head.owner_epoch.checked_add(1).ok_or(Error::Limit)?;
+                let mut next = head.clone();
+                next.owner_epoch = head.owner_epoch.checked_add(1).ok_or(Error::Limit)?;
+                if !crate::snapshot_format::cleanup_room(&next) {
+                    return Err(Error::Limit);
+                }
             }
             OwnerMode::Activate => {
                 if head.active || head.owner_instance != input.target_worker {
@@ -535,7 +543,9 @@ impl Database {
         };
         // The same immutable base passed owner_admission's +2 reservation.
         let mut next = Self::next(&base.head, nonce).expect("owner admission reserved counters");
-        next.format = 8;
+        if next.format != 9 {
+            next.format = 8;
+        }
         next.active = false;
         if kind == OwnerAdmissionKind::Claim && descriptor.input.mode == OwnerMode::Takeover {
             next.owner_epoch += 1; // owner_admission/mode and exact descriptor checked above.
@@ -643,7 +653,9 @@ impl Database {
         // Keep the native gate on the original shared-lineage Database. The
         // bounded operation meter belongs only to this recovery's object reads.
         let mut session = self.restore(&objects, &base, directory, deadline)?;
-        database.verify_results(&objects, &base.head, deadline)?;
+        // HEAD9 keeps retained data roots in the same durable closure as the
+        // live tree and original results. A native recovery cannot omit them.
+        database.verify_recovery_closure(&objects, &base, deadline)?;
         session.history_verified = true;
         database.owner_barrier(principal, &base, deadline)?;
         let next = terminal(

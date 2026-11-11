@@ -1,9 +1,9 @@
 //! Live HEAD6 namespaces and permanently sealed HEAD7 Deleted namespaces.
-//! Explicit retained roots are not admitted by either format.
+//! HEAD9 additionally binds retained roots into every physical copy plan.
 
 use super::{
     budget, check, hash_valid, object_key, DatabaseQuota, FormatError, Head, Lifecycle, Retention,
-    Window,
+    SnapshotEntry, SnapshotLimits, Window,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -56,6 +56,18 @@ pub struct CopyBasis {
     pub quota: DatabaseQuota,
     pub retention: Retention,
     pub request_epoch: u64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::snapshot_format::present_entries"
+    )]
+    pub snapshots: Option<Vec<SnapshotEntry>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::snapshot_format::present_limits"
+    )]
+    pub snapshot_limits: Option<SnapshotLimits>,
 }
 
 impl CopyBasis {
@@ -68,6 +80,8 @@ impl CopyBasis {
             quota: head.quota.clone(),
             retention: head.retention.clone(),
             request_epoch: head.request_epoch,
+            snapshots: head.snapshots.clone(),
+            snapshot_limits: head.snapshot_limits.clone(),
         }
     }
 
@@ -79,6 +93,8 @@ impl CopyBasis {
             && self.quota == head.quota
             && self.retention == head.retention
             && self.request_epoch == head.request_epoch
+            && self.snapshots == head.snapshots
+            && self.snapshot_limits == head.snapshot_limits
     }
 }
 
@@ -144,7 +160,7 @@ impl Storage {
         check(self.plan.is_none() || self.sweep.is_none())?;
         // HEAD8 preserves its owner marker through a storage terminal seal.
         // Older formats retain their exact omit/present wire contract.
-        if head.format != 8 {
+        if matches!(head.format, 6 | 7) {
             check((head.format == 6) == self.terminal.is_none())?;
         }
         if let Some(terminal) = &self.terminal {
@@ -168,6 +184,17 @@ impl Storage {
                 plan.basis.revision != 0
                     && plan.basis.revision <= plan.serial
                     && plan.basis.matches(head),
+            )?;
+            check(
+                plan.basis
+                    .snapshots
+                    .as_deref()
+                    .unwrap_or(&[])
+                    .iter()
+                    .all(|entry| {
+                        entry.reference.capture_serial < plan.serial
+                            && entry.point.source_revision <= plan.basis.revision
+                    }),
             )?;
         }
         if let Some(sweep) = &self.sweep {

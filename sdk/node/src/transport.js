@@ -12,7 +12,7 @@ const CATALOGUE = new Set(['prepare_create', 'resume_create', 'abort_create',
   'inspect_create_operation', 'resolve_name', 'delete_name', 'named_storage_status', 'retire_named_storage']);
 const DISCOVERY = new Set(['list_names', 'deployment_inventory']);
 const READ = new Set(['status', 'query', 'open', 'storage_status', 'named_storage_status',
-  'inspect_create_operation', 'resolve_name', 'owner_inspect', ...DISCOVERY]);
+  'inspect_create_operation', 'resolve_name', 'owner_inspect', 'snapshot_inspect', 'snapshot_list', ...DISCOVERY]);
 
 export function duration(value) {
   requireValue(Number.isSafeInteger(value) && value > 0 && value <= 2147483647,

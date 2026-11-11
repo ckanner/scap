@@ -86,6 +86,38 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
 
+## 显式保留快照（HEAD9 S1 候选）
+
+快照捕获当前已提交的数据根，不复制请求历史，不提供任意墙上时间的PITR。字段、权限和生命周期见[接口合同](../../crates/scap-service/docs/snapshots.md)。新Scope恢复仍属于后续S2。
+
+```javascript
+const current = await db.status();
+const intention = db.prepareSnapshotInput({
+  creator: '7', operation: '201',
+  expected_revision: current.revision,
+  expected_head_serial: current.head_serial,
+  label: 'before migration',
+});
+const serialized = db.saveSnapshotInput(intention);
+// 应用先将 serialized 写入自己的持久日志并同步，然后才调用 prepare。
+const prepared = await db.snapshotPrepare(intention);
+const observed = await db.snapshotCapture(prepared);
+console.log(observed.state);
+
+// 重启或 UNKNOWN 后，以原输入查证，不按 label 选点或换原基线。
+const original = db.restoreSnapshotInput(serialized);
+const inspected = await db.snapshotInspect(original);
+console.log(inspected.state, inspected.accepted);
+const points = await db.snapshotList();
+await db.snapshotRelease(inspected.prepared);
+```
+
+`prepareSnapshotInput/saveSnapshotInput/restoreSnapshotInput`只在本地运行，不替应用持久化。每次snapshot RPC至多一个HTTP请求。`snapshotObserve({creator,operation})`允许只读身份查证；其返回记录不能直接交给SDK capture/release，须有完整保存输入并经prepare/inspect核对。这是防误用的本地品牌标记，服务端仍以当次ADMIN/READ授权。
+
+`snapshotPrepare`返回PreparedSnapshot；capture/release/inspect返回SnapshotObservation。retained是当前保留，released_observed是当前已释放且存在历史accepted proof，fenced不确定过去是否曾接受。任何状态都不改写先前UNKNOWN。变更的UNKNOWN保留原输入或ref；inspect/list纯读取失败不冒充可能写入，也不自动重试。
+
+`setSnapshotLimits({expectedRevision,nonce,limits:{max_points,max_logical_bytes}})`使用原revision和nonce。默认64点/32GiB gross逻辑字节，限额必须容纳已有点；共享物理块不抵扣逻辑额度。只有max_points、返回的page_count是Number，其余计数仍为规范十进制字符串。永久descriptor/proof不受live数量限额约束，释放点不会回收这些身份记录。
+
 ## 显式物理代压缩与 GC
 
 `status()` 还返回物理 `head_serial` 和有界 `storage` 状态。`storage.terminal` 是必填字段，

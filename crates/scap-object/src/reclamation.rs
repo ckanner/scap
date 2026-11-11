@@ -1,5 +1,6 @@
 //! Explicit administrator compaction and bounded, restartable retired-key sweep.
-//! Ordinary readers have no durable pins. This module admits no retained roots.
+//! Ordinary readers have no durable pins. Every HEAD9 retained root is copied
+//! before sealing a replacement generation and blocks terminal retirement.
 
 use crate::format::*;
 use crate::head_publication::{PreparedHead, PublicationDomain};
@@ -140,11 +141,18 @@ impl Database {
             || base.head.storage.terminal.is_some()
             || base.head.storage.plan.is_some()
             || base.head.storage.sweep.is_some()
+            || base
+                .head
+                .snapshots
+                .as_ref()
+                .is_some_and(|entries| !entries.is_empty())
         {
             return Err(Error::Conflict);
         }
         let mut next = technical_next(&base.head)?;
-        next.format = if next.owner_plan.is_some() { 8 } else { 7 };
+        if next.format != 9 {
+            next.format = if next.owner_plan.is_some() { 8 } else { 7 };
+        }
         next.active = false;
         next.storage.terminal = Some(TerminalSeal {
             serial: next.head_serial,
@@ -164,6 +172,10 @@ impl Database {
             || next.owner_epoch != base.head.owner_epoch
             || next.owner_instance != base.head.owner_instance
             || (!base.head.active && next.active)
+            || next.snapshots != base.head.snapshots
+            || next.snapshot_limits != base.head.snapshot_limits
+            || next.restore_origin != base.head.restore_origin
+            || (base.head.format == 9 && next.format != 9)
         {
             return Err(Error::Format(FormatError::Invalid));
         }

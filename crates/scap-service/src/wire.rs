@@ -230,6 +230,24 @@ pub enum Action {
     OwnerAbort {
         plan: crate::owner_wire::Reference,
     },
+    SnapshotPrepare {
+        input: crate::snapshot_wire::Prepare,
+    },
+    SnapshotInspect {
+        identity: crate::snapshot_wire::Identity,
+    },
+    SnapshotCapture {
+        reference: crate::snapshot_wire::Reference,
+    },
+    SnapshotRelease {
+        reference: crate::snapshot_wire::Reference,
+    },
+    SnapshotList {},
+    SnapshotLimits {
+        expected_revision: Decimal,
+        nonce: Decimal,
+        limits: crate::snapshot_wire::Limits,
+    },
     CloseFull {
         expected_revision: Decimal,
         nonce: Decimal,
@@ -318,6 +336,18 @@ impl Action {
             | Self::OwnerAbort { plan } => {
                 plan.native()?;
             }
+            Self::SnapshotPrepare { input } => {
+                input.native()?;
+            }
+            Self::SnapshotInspect { identity } => {
+                identity.native()?;
+            }
+            Self::SnapshotCapture { reference } | Self::SnapshotRelease { reference } => {
+                reference.native()?;
+            }
+            Self::SnapshotLimits { limits, .. } => {
+                limits.native()?;
+            }
             _ => {}
         }
         if matches!(
@@ -351,6 +381,11 @@ impl Action {
                 ..
             }
             | Self::Quota {
+                expected_revision,
+                nonce,
+                ..
+            }
+            | Self::SnapshotLimits {
                 expected_revision,
                 nonce,
                 ..

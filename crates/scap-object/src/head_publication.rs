@@ -51,6 +51,9 @@ impl PreparedHead {
             || base.head.storage.terminal.is_some()
             || next.owner_plan != base.head.owner_plan
             || next.format != base.head.format
+            || next.snapshots != base.head.snapshots
+            || next.snapshot_limits != base.head.snapshot_limits
+            || next.restore_origin != base.head.restore_origin
         {
             return Err(Error::Format(FormatError::Invalid));
         }
@@ -112,6 +115,15 @@ impl PreparedHead {
         Self::bound(database, &base, &next, deadline)
     }
 
+    pub(super) fn snapshot(
+        database: &Database,
+        candidate: crate::snapshot::VerifiedSnapshotTransition,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        let (base, next) = candidate.into_parts();
+        Self::bound(database, &base, &next, deadline)
+    }
+
     pub(super) fn domain(&self) -> PublicationDomain {
         self.domain
     }
@@ -132,6 +144,9 @@ impl PreparedHead {
         let serial = base.head.head_serial.checked_add(1).ok_or(Error::Limit)?;
         if next.head_serial != serial {
             return Err(Error::Format(FormatError::Invalid));
+        }
+        if !crate::snapshot_format::cleanup_room(next) {
+            return Err(Error::Limit);
         }
         let bytes = encode_head(next).map_err(Error::Format)?;
         Ok(Self {

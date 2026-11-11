@@ -20,6 +20,8 @@ pub const MAX_OWNER_RECOVERY_BYTES: u64 = 64 * GIB;
 pub struct Options {
     pub quota: DatabaseQuota,
     pub retention: Retention,
+    /// First-winner default used only when adopting HEAD9 snapshots.
+    pub snapshot_limits: crate::snapshot_format::SnapshotLimits,
     pub sql: SqlLimits,
     pub max_input_bytes: usize,
     pub max_changed_pages: u32,
@@ -46,6 +48,7 @@ impl Default for Options {
                 max_entries: 4096,
                 max_result_bytes: 256 * 1024 * 1024,
             },
+            snapshot_limits: crate::snapshot_format::SnapshotLimits::default(),
             sql: SqlLimits {
                 max_statements: 256,
                 max_sql_bytes: 1024 * 1024,
@@ -72,6 +75,7 @@ impl Options {
     pub fn validate(&self) -> Result<(), Error> {
         self.quota.validate().map_err(Error::Format)?;
         self.retention.validate().map_err(Error::Format)?;
+        self.snapshot_limits.validate().map_err(Error::Format)?;
         self.sql.validate().map_err(Error::Sql)?;
         let durable = durable_sql_limits();
         if self.sql.max_statements > durable.max_statements

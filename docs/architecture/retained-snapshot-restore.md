@@ -1,6 +1,6 @@
 # HEAD9：显式保留快照与新 Scope 恢复
 
-状态：设计与独立可执行模型候选，产品未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
+状态：设计、独立可执行模型及 S1 产品实现候选；S2 新 Scope 恢复尚未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
 
 ## 1. 选择与交付边界
 
@@ -41,7 +41,7 @@ SnapshotEntry 建议字段：
 
 ```text
 reference = { creator, operation, capture_serial, descriptor_hash }
-label: 最多128 UTF-8字节，无控制字符
+label: 非空，最多128 UTF-8字节，无控制字符
 point = { data_root, page_count, sequence, source_revision }
 ```
 
@@ -147,8 +147,8 @@ RestoreDescriptor 固定：目标 Creation（name/expected-name-revision/新 Sco
 ```text
 Database::snapshot_prepare(principal, PrepareSnapshotInput, deadline)
   -> PreparedSnapshot { full_scope, fixed_input, snapshot_ref, point }
-Database::snapshot_capture(principal, SnapshotPlanRef, deadline)
-  -> SnapshotObservation { current_head, Prepared|Retained|ReleasedObserved|FencedUnknown }
+Database::snapshot_capture(principal, SnapshotRef, deadline)
+  -> SnapshotObservation { current_head, Prepared|Retained|ReleasedObserved|Fenced }
 Database::snapshot_inspect(principal, creator, operation, deadline)
   -> SnapshotObservation
 Database::snapshot_list(principal, deadline) -> bounded metadata list

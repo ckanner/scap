@@ -131,10 +131,17 @@ def durable_dependencies(heads, values, closures):
                 need(readbacks, 'immutable-exact-readback-before-head')
 
 
-def owner_protocol(inputs, owners, heads, records, calls, values, ready, closures):
+def owner_protocol(inputs, owners, heads, records, calls, values, ready, closures,
+                   descriptor_count=46, proof_count=28, phase_counts=None, admissions=None):
+    if phase_counts is None:
+        phase_counts = {'owner_claim': 43, 'owner_cancel': 2, 'owner_active': 36, 'owner_abort': 9}
+    if admissions is None:
+        admissions = {name: count + (name != 'named_old') - (name == 'bulk')
+                      for name, count in zip(e.NAMES, e.WARM_COUNTS)}
     descriptors = {m.reference(row['value'])['descriptor_hash']: row for row in records.values() if row['kind'] == 'descriptor'}
     proofs = [row for row in records.values() if row['kind'] == 'proof']
-    need(len(descriptors) == 46 and len(proofs) == 28 and len(records) == 74, 'permanent-owner-record-denominator')
+    need(len(descriptors) == descriptor_count and len(proofs) == proof_count
+         and len(records) == descriptor_count + proof_count, 'permanent-owner-record-denominator')
     by_identity = {}
     for digest, record in descriptors.items():
         descriptor, exchange = record['value'], record['exchange']
@@ -228,12 +235,12 @@ def owner_protocol(inputs, owners, heads, records, calls, values, ready, closure
                 recovered.append({'scope': public(head['scope']), 'original': descriptor['original_name'],
                     'dependencies': len(closure['dependencies']), 'retained_entries': len(closure['entries']),
                     'retained_results': len(closure['results']), 'levels': closure['index_levels']})
-    need(phases == {'owner_claim': 43, 'owner_cancel': 2, 'owner_active': 36, 'owner_abort': 9}, 'fixed-owner-phase-denominator')
-    for name, count in zip(e.NAMES, e.WARM_COUNTS):
+    need(phases == phase_counts, 'fixed-owner-phase-denominator')
+    for name, count in admissions.items():
         history = heads[int(inputs['scopes'][name]['database'])]
         admitted = {row['head']['owner_plan']['reference']['descriptor_hash'] for row in history
                     if row['kind'] in ('owner_claim', 'owner_cancel')}
-        need(len(admitted) == count + (name != 'named_old') - (name == 'bulk'), 'per-scope-owner-admissions')
+        need(len(admitted) == count, 'per-scope-owner-admissions')
     return descriptors, phases, recovered
 
 
@@ -611,7 +618,7 @@ FAULT_BINDINGS = (
     ('acl-prepare-descriptor', 's3', 'hold', 'before_forward', 'C', 'acl-delayed-prepare'),
     ('dead-worker-claim', 's3', 'hold', 'before_forward', 'B', 'dead-worker-original-claim'),
     ('dead-worker-resume', 's3', 'hold', 'before_forward', 'R', 'dead-worker-original-active'),
-    ('legacy-takeover', 's3', 'hold', 'before_forward', 'B', 'legacy-original-takeover'),
+    ('legacy-takeover', 's3', 'hold', 'before_forward', 'C', 'legacy-original-takeover'),
     ('claim-proof-put-ack', 's3', 'drop', 'after_response', 'B', 'proof-claim-put-unknown'),
     ('claim-proof-read-ack', 's3', 'drop', 'after_response', 'B', 'proof-claim-get-unknown'),
     ('old-proof-missing', 's3', 'no_such_key', 'before_forward', 'C', 'proof-claim-missing-is-unknown-history'),
@@ -635,18 +642,37 @@ def original_errors(calls):
     return Counter(actual.values())
 
 
+def descriptor_absence_barrier(pair, observations):
+    need(len(pair) == 2 and pair[0]['request']['path'] == pair[1]['request']['path']
+         and all(item['backend'] is None and item['delivery_complete']
+                 and item['group']['s3_delivery_started']['status'] == 404 for item in pair),
+         'two-original-descriptor-missing-deliveries')
+    first, second = pair
+    heads = [item for item in observations if item.get('read_head') is not None and item['delivered']]
+    before = [item for item in heads if e.moment(first['group']['s3_delivery_finished'])
+              < e.moment(item['request']) and e.moment(item['group']['s3_delivery_finished'])
+              < e.moment(second['request'])]
+    after = [item for item in heads if e.moment(second['group']['s3_delivery_finished'])
+             < e.moment(item['request'])]
+    need(len(before) == 1 and after and before[0]['bytes'] == after[0]['bytes']
+         and before[0]['backend']['headers']['etag'] == after[0]['backend']['headers']['etag']
+         and before[0]['read_head'] is after[0]['read_head'], 'missing-descriptor-stable-head-barrier')
+    return before[0], after
+
+
 def fault_audit(directory, inputs, events, calls, values, http, heads, owners, records, stopped):
     expected = {row[0]: row for row in FAULT_BINDINGS}
     need(len(expected) == 28 and inputs['faults'] == [list(row[:4]) for row in FAULT_BINDINGS], 'fixed-fault-profile')
     need(len(e.selection(events, 'fault_armed')) == 23 and len(e.selection(events, 'http_proxy_fault_armed')) == 5
-         and len(e.selection(events, 'fault_arrived')) == 24
+         and len(e.selection(events, 'fault_arrived')) == 26
          and len(e.selection(events, 'http_proxy_fault_arrived')) == 5, 'complete-fault-delivery-denominator')
     faults, holds = {}, {}
     for identifier, layer, mode, stage, role, name in FAULT_BINDINGS:
         before = 'http_proxy_' if layer == 'http' else ''
         armed = e.one(events, before + 'fault_armed', id=identifier)
         arrivals = e.selection(events, before + 'fault_arrived', id=identifier)
-        uses = 2 if identifier == 'same-id-different-hash' else 1
+        uses = 2 if identifier in ('same-id-different-hash', 'current-descriptor-missing',
+                                  'historical-descriptor-missing') else 1
         need(len(arrivals) == uses and armed['role'] == role and armed['mode'] == mode
              and armed['stage'] == stage and armed['occurrence'] == 1, 'original-fault-arm-and-use')
         call, selected = calls[name], []
@@ -725,6 +751,10 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
     later_puts = [value for value in values.for_call(second) if value['request']['method'] == 'PUT'
                   and m.head_path(value['request']['path']) is not None]
     need(not later_puts, 'second-resume-no-second-active-publication')
+    takeover, claim = calls['legacy-original-takeover'], calls['legacy-p1-claim']
+    need(takeover['role'] == 'C' and takeover['body']['expected_worker_instance'] == '9103'
+         and claim['role'] == 'B' and claim['body']['expected_worker_instance'] == '9102',
+         'legacy-race-independent-daemons')
     legacy = calls['legacy-original-late-activation']
     aborted = [row for row in heads[7210] if row['kind'] == 'owner_abort'][0]
     need(e.moment(aborted['exchange']['backend']) < e.moment(legacy['proxy']['forward_started'])
@@ -736,6 +766,8 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
                                 ('acl-prepare-descriptor', 'acl-withdraw-before-descriptor-delivery')):
         value, call = faults[identifier], calls[expected[identifier][-1]]
         policy = calls[update]
+        need(value['request']['role'] != policy['role'],
+             'acl-change-on-independent-daemon')
         need(e.moment(value['request']) < e.moment(policy['request']) < e.moment(policy['product'])
              < e.moment(value['group']['s3_forward_started']), 'actual-acl-change-during-original-read')
         response = policy['product_body']['value']
@@ -765,11 +797,21 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
                         and e.moment(other['request']) < e.moment(call['request'])]
         need(not prior_errors and not any(item['request']['method'] != 'GET' for item in values.for_call(call)),
              'independent-live-lineage-consumes-corruption-fault')
-    old = faults['historical-descriptor-missing']
+    for identifier in ('current-descriptor-missing', 'historical-descriptor-missing'):
+        pair = faults[identifier]
+        call = calls[expected[identifier][-1]]
+        descriptor_absence_barrier(pair, values.for_call(call))
+    old = faults['historical-descriptor-missing'][1]
     old_call = calls[expected['historical-descriptor-missing'][-1]]
     proof_path = old['request']['path'].replace('/descriptor/', '/proof/')
-    need(proof_path in records and any(item['request']['path'] == proof_path and item['delivered']
-         and item['backend']['status'] == 200 for item in values.for_call(old_call)), 'missing-historical-descriptor-has-real-proof')
+    proof_reads = [item for item in values.for_call(old_call) if item['request']['path'] == proof_path and item['delivered']
+                   and item['backend']['status'] == 200]
+    need(proof_path in records and proof_reads, 'missing-historical-descriptor-has-real-proof')
+    before, after = descriptor_absence_barrier(faults['historical-descriptor-missing'], values.for_call(old_call))
+    need(any(head['read_head'] is before['read_head'] and head['bytes'] == before['bytes']
+         and head['backend']['headers']['etag'] == before['backend']['headers']['etag']
+         and e.moment(proof['group']['s3_delivery_finished']) < e.moment(head['request'])
+         for head in after for proof in proof_reads), 'missing-historical-proof-stable-head-barrier')
     bad = faults['same-id-different-hash']
     need(len(bad) == 2 and bad[0]['bytes'] == bad[1]['bytes']
          and bad[0]['delivery_bytes'] == bad[1]['delivery_bytes']
@@ -796,7 +838,7 @@ def fault_audit(directory, inputs, events, calls, values, http, heads, owners, r
         witness = e.one(events, 'same_actor_query_after_budget', scope_name=name)
         need(witness['service'] == ('service-G-1' if name == 'budget_gets' else 'service-Z-1')
              and witness['result'] == query['result']['value'], 'same-actor-original-business-witness')
-    return {'groups': 28, 's3_groups': 23, 's3_deliveries': 24, 'http_groups': 5,
+    return {'groups': 28, 's3_groups': 23, 's3_deliveries': 26, 'http_groups': 5,
             'original_unknowns': 12, 'after_owned_exit_effects': 3, 'original_hold_seconds': holds}
 
 

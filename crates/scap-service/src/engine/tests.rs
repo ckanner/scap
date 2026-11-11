@@ -7,6 +7,9 @@ use scap_object::format::Lifecycle;
 #[path = "owner_tests.rs"]
 mod owner_tests;
 
+#[path = "snapshot_tests.rs"]
+mod snapshot_tests;
+
 fn fixture(maximum: usize, pages: u64) -> (tempfile::TempDir, Arc<Memory>, Engine) {
     let directory = tempfile::tempdir().unwrap();
     let memory = Arc::new(Memory::default());

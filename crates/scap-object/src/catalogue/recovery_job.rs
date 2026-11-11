@@ -410,7 +410,7 @@ impl RecoveryJob {
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         database
-            .verify_results(&objects, &snapshot.head, deadline)
+            .verify_recovery_closure(&objects, &snapshot, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         session.history_verified = true;

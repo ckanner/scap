@@ -1,6 +1,10 @@
 //! Strict live v6 / terminal v7 HEADs and unchanged v2 immutable frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
+pub use crate::snapshot_format::{
+    SnapshotEntry, SnapshotIdentity, SnapshotLimits, SnapshotPoint, SnapshotRef,
+    MAX_SNAPSHOT_LABEL_BYTES, MAX_SNAPSHOT_LOGICAL_BYTES, MAX_SNAPSHOT_POINTS,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -253,6 +257,26 @@ pub struct Head {
         deserialize_with = "crate::owner_format::present_owner"
     )]
     pub owner_plan: Option<OwnerPlan>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::snapshot_format::present_entries"
+    )]
+    pub snapshots: Option<Vec<crate::snapshot_format::SnapshotEntry>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::snapshot_format::present_limits"
+    )]
+    pub snapshot_limits: Option<crate::snapshot_format::SnapshotLimits>,
+    /// S1 recognizes only null. Cross-Scope restore origins require S2's
+    /// complete creation/inspection/publication consumers before admission.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::snapshot_format::present_null_origin"
+    )]
+    pub restore_origin: Option<()>,
     pub active: bool,
     pub auth_epoch: u64,
     pub policy: Vec<Permission>,
@@ -270,8 +294,10 @@ pub struct Head {
 
 impl Head {
     pub(crate) fn validate(&self) -> Result<(), FormatError> {
-        check(matches!(self.format, 6..=8))?;
-        check((self.format == 8) == self.owner_plan.is_some())?;
+        check(matches!(self.format, 6..=9))?;
+        if self.format != 9 {
+            check((self.format == 8) == self.owner_plan.is_some())?;
+        }
         self.scope.validate()?;
         nonzero(&[
             self.head_serial,
@@ -313,6 +339,7 @@ impl Head {
         if let Some(plan) = &self.owner_plan {
             plan.validate_head(self)?;
         }
+        crate::snapshot_format::validate_head(self)?;
         Ok(())
     }
 

@@ -10,6 +10,10 @@
 
 [PR #56](https://github.com/ckanner/scap/pull/56) 的 HEAD8 冻结产品 `3e85035` 已通过 stable/nightly 各700项单元、63个生产文件四维精确覆盖，SDK 92项单位及独立模型989正向/48负/3正对照；真实原生、1 GiB恢复、资源、终态回收和负载已通过。发现接口一次外部时限失败原样保留，同条件重验、owner V2专项和GC最终审计仍在执行，见[HEAD8验收](docs/engineering/head8-owner-plan-validation.md)。[PR #57](https://github.com/ckanner/scap/pull/57) 另行实现有限自动controller，其开发结果不替代HEAD8验收。
 
+**2026-11-11 增量（均仍为草稿）：** HEAD8 `e3bdf7b` 修复真实 Missing 与新 HEAD 拼接造成的误 Corrupt；703 项 stable/nightly 单元、63 个生产文件四维精确覆盖通过，真实接管专项正在以 `50bebd8` 重验，原夹具失败保留。PR #57 修复 TLS/证书错误被当作 owner 失联的问题；Node 22.16.0 的150单元、20文件精确V8覆盖和19项loopback通过，独立控制器模型402正向/40负/3正对照正式通过（`76f5633`）。这些证据不代替多进程 controller/S3 联合验收。
+
+PR #58 已实现 HEAD9 S1 候选：永久快照身份、capture/release、持久限额、多根 COPY/GC 及完整恢复校验、HTTP/Node接口。其[模型精化](docs/architecture/retained-snapshot-restore.md)独立验证804正向/47负/3正对照；S1产品仍需冻结后完整覆盖与真实HTTP/S3验收。S2跨Scope恢复、任意时间PITR、硬RSS/磁盘预算、AWS和生产SLO没有由S1交付。接口见[快照合同](crates/scap-service/docs/snapshots.md)。
+
 对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
 
 历史 [HEAD5 组合候选](docs/architecture/head5-runtime-composition.md)的冻结运行时 `778a4d2` 已通过完整538+538单位、发现/metadata专项以及[六个实际native/S3网络子门禁](docs/evidence/head5-runtime-network-local-2026-11-09.json)。本轮目录为116场景、1,000次ACK零错配，保留结果为12场景/72入口；这些使用Rust worker与真实签名S3，不替代仍待完成的HTTP服务、容量/部署恢复、owner和资源门禁，也不接受后续编码器/输出池源码。该历史候选由 PR #54 承接；新运行结果与新发现以顶部记录为准。

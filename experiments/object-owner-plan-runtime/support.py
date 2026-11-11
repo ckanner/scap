@@ -57,7 +57,7 @@ class Gate:
         assert (mode == 'replace_body') == (mutation is not None)
         assert mode != 'replace_body' or stage == 'after_response'
         assert mode != 'no_such_key' or stage == 'before_forward'
-        assert uses == 1 or mode == 'replace_body' and mutation['kind'] == 'same_id_hash'
+        assert uses == 1 or mode == 'no_such_key' or mode == 'replace_body' and mutation['kind'] == 'same_id_hash'
         self.id, self.method, self.prefix = identifier, method, prefix
         self.mode, self.stage, self.occurrence = mode, stage, occurrence
         self.uses, self.mutation = uses, mutation

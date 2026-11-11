@@ -1,8 +1,10 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-复核日期：2026-11-10。源码审查基线为
-[`66f452ec73111f8c9dc7509883717828ba883e8a`](https://github.com/ckanner/scap/commit/66f452ec73111f8c9dc7509883717828ba883e8a)
-（PR #54 的 HEAD6 冻结生产候选）。本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，
+复核日期：2026-11-11。当前 main 为 HEAD7
+[`fab8ca0`](https://github.com/ckanner/scap/commit/fab8ca09aa05fdaf612cdcf47a9fce8e65373896)，
+最新 HEAD8 产品修复为 PR #56 的
+[`e3bdf7b`](https://github.com/ckanner/scap/commit/e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492)；
+有限 controller 与 HEAD9 分别在 PR #57/#58 草稿中推进。本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，
 不修改 HEAD、请求身份、所有权或 GC 协议。下文的“已实现”只表示该树存在对应代码；
 历史验收只认证其原冻结输入，新候选是否通过仍以[验证规范](../engineering/validation.md)
 和本候选证据为准。
@@ -14,19 +16,22 @@ SCAP 的目标是：大量独立租户／Agent 数据库共享计算资源，以
 同一数据库保持一个有效写入序列，不要求每个闲置数据库常驻进程。
 
 **当前架构避开了跨主机共享 SQLite 活动文件的锁风险；它没有消除单库串行提交、
-对象往返、整库冷恢复和共享资源的成本。HEAD6 已实现完整复制与有界物理 GC，并已完成
-其独立真实验收；自动 owner 恢复、Deleted 最后一代退休、PITR 与生产性能验收
-仍未完成，不能宣布整个目标已经交付。** 新源码与实际完成状态见[HEAD6 验收](../engineering/head6-runtime-validation.md)。
+对象往返、整库冷恢复和共享资源的成本。HEAD6 的完整复制与有界物理 GC、HEAD7 的
+Deleted 最后一代显式退休已经合入 main。HEAD8 接管协议、有限 controller 和快照恢复
+仍按各自候选验收；自动恢复、完整快照恢复及生产性能目标不能仅凭上述基座宣告完成。**
+历史已合入证据见[HEAD7 验收](../engineering/head7-runtime-validation.md)，接管增量见
+[HEAD8 验收](../engineering/head8-owner-plan-validation.md)，快照设计见
+[HEAD9 方案](retained-snapshot-restore.md)。
 
 | 用户关心的问题 | 当前代码的处理 | 仍有的边界 |
 | --- | --- | --- |
 | NFS/EFS 上共享 `.db/WAL/SHM` 损坏 | 私有本地执行镜像；文件系统准入；跨节点只通过对象 API 协调 | 可靠本地 I/O、可信挂载和固定 native 引擎仍是前提；真实网络挂载实验另验 |
-| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive | 探测和调度不决定写权；后台自动 controller 尚未交付 |
+| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive；HEAD8 持久保存接管计划及取消证明 | 探测和调度不决定写权；有限 controller 在独立草稿中，尚未完成多实例真实故障验收 |
 | 一个热点数据库写入拥堵 | 同库 actor 串行，事务有界，支持一次事务多个 SQL 语句 | 加 pod 不会自动增加该库的有效 writer；没有多写者或 group commit |
 | 一个冷库阻塞其他热库 | 不同库有界 actor，控制池和恢复准入分别设置 | CPU、网络、S3、磁盘、进程资源仍共享；不是硬租户隔离 |
 | 小改动上传整库 | 128 KiB chunk、COW 数据树和分段请求索引 | 仍有多个顺序 GET/PUT、read-back 与 HEAD CAS |
 | 节点丢失后重新上线 | 从 S3 完整恢复、校验，再激活；Session 保留已恢复镜像 | 当前冷恢复必须读取完整数据及保留结果闭包，没有 lazy VFS |
-| 长期成本 | 逻辑请求留存边界、完整闭包复制、单调物理世代与持久 GC checkpoint | GC 默认无删除凭据；需公平重复 sweep，Deleted 最后一代尚保护，单库配额不限制 bucket 总量 |
+| 长期成本 | 逻辑请求留存边界、完整闭包复制、单调物理世代、持久 GC checkpoint；显式 terminal seal 可退休 Deleted 最后一代 | GC 默认无删除凭据；需公平重复 sweep；保留快照需保护完整闭包，永久控制记录和孤儿不受单库配额限制 |
 
 实现映射见 [README](../../README.md)、[路线图](../engineering/roadmap.md)、
 [HEAD5 基础](head5-foundation.md)和[资源预算](resource-budgets.md)。
@@ -114,6 +119,14 @@ owner epoch 和物理 storage generation 各有用途，不能互换。特别是
 准入的旧管理 HTTP 只带 `expected_revision`，单独前进技术 serial 不足以封闭它的
 所有未来阶段，详见[owner controller 设计](owner-controller-plan.md)。
 
+HEAD8 的后续修复还覆盖一个与 NFS 无关的合法并发时序：A 的 descriptor GET 先返回真正
+Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD。旧实现把前后的不同
+观察拼成损坏结论。`e3bdf7b` 要求在 HEAD1 后重新读取依赖，并在 HEAD2 重新授权、核对
+完整 body/ETag 后解释；后来的 accepted proof 也需要稳定屏障。这不重试 HEAD CAS，
+不为旧意图换 ETag。新增三项确定性单位进入 703 项完整单元及 63 文件精确覆盖分母；
+真实 signed-S3 并发证据仍单独验收。由此可见，改用对象 API 避开共享活动文件只是
+架构前提，不能替代读取顺序、权限、发布和恢复协议的逐项证明。
+
 ### 3.3 不确定与已知提交必须分开
 
 | 观察结果 | 允许的后续行为 |
@@ -189,7 +202,7 @@ SCAP TPS 数字。
 放大仍然可观。完整冷恢复读取量约为整个物理库，不能声称已有按需页加载。上表不含
 AWS 实测延迟，不认证 PR #53 的新代码，也不能与其他 HEAD 格式的字节数拼接成同轮成绩。
 
-### 5.3 新 HEAD6 本地基线与实际瓶颈
+### 5.3 历史 HEAD6 本地基线与实际瓶颈
 
 冻结 `66f452e` 的[独立负载验收](../engineering/head6-runtime-validation.md)已完成：八库、
 两租户，185 个原 execute 全部 committed；固定 288 个测量调用无丢样、无自动 SQL 重试。
@@ -214,6 +227,13 @@ AWS 实测延迟，不认证 PR #53 的新代码，也不能与其他 HEAD 格�
 了有界恢复 permit 与热库/控制隔离，不表示 backend 页缓存已冷，也不替代 1 GiB 容量
 恢复、唤醒风暴、长期过载或进程 RSS 硬限制。资源采样与 wait4 数值不一致的原始观察
 同样保留，不把采样峰值当成硬上界。
+
+后续已合入 HEAD7 的[同类完整记录](../evidence/head7-runtime-local-2026-11-10.json)
+`load.result.measured` 中，单库写并发1为 **10.823 次/秒**，单库写并发4为
+**10.083 次/秒**，四库并发4为 **14.707 次/秒**。这些仍是带审计代理、固定小样本、
+本地兼容存储的历史观察，不能认证本次 HEAD8/HEAD9 源码，也不能用作生产容量规划。
+它进一步说明增加同库请求并发没有增加串行提交能力；要提高热点库吞吐，必须减少
+实际关键路径工作，或另行设计并验证新的引擎/提交协议。
 
 ### 5.4 优化的优先顺序与可测成果
 
@@ -271,12 +291,12 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 | 工作包 | 当前起点 | 下一交付与退出标准 |
 | --- | --- | --- |
-| 当前候选组合 | HEAD6 已冻结；632+632 单位、59 文件精确覆盖、新 native/1 GiB、HTTP/S3、回收、负载与全部独立判定已完成 | PR #54 合入收尾；旧失败、后续修复与新成功分别保留 |
+| 当前候选组合 | HEAD6/HEAD7 已合入；HEAD8 `e3bdf7b` 已通过703+703单位与63文件精确覆盖 | 完成当前 HEAD8 真实 owner、签名 S3、进程退出、冷恢复与全部独立判定；保留原失败及修复后新尝试 |
 | N1 权威合同 | 已有提交 gate、结果查证、取消、接管及多轮本地恢复证据 | 完整 OT-01–08、真实 AWS Standard 合同和独立并发历史审计；同 ETag 双发布、所有切点崩溃、迟到旧 owner、依赖损坏与全计算丢失分别验收 |
-| N2 自动恢复 | 静态路由、显式 owner 意图、guarded probe | 按[owner-controller 既定决定](owner-controller-plan.md)优先完成 accepted owner-plan 独立模型、权威 phase 与新 API，再接探测/controller；跨重启同计划推进、abort 与迟到 HTTP 竞争可证明；业务 SQL 不重放 |
+| N2 自动恢复 | HEAD8 持久 accepted owner-plan；PR #57 有限 controller/fleet、HTTP/DNS/socket 所有权与 CLI 草稿 | 完成 controller 独立并发模型与真实多实例合同；TLS/证书配置错误不能作为 owner 死亡怀疑，跨重启同计划、abort 和迟到 HTTP 逐项验证；业务 SQL 不重放 |
 | N2 资源与活性 | actor、intake、typed 单次预算、HTTP 期限与普通 `/v1` output Pool；输出/慢消费实证已完成 | 运行冻结单库/多库基线，补跨入口对象 decode/native heap/磁盘总账；持续过载、冷恢复风暴、tenant 公平性与硬容量另验 |
-| N3 可持续存储 | HEAD6 完整 copy/promote、共享知识域、可中止旧操作、单调退休与持久 sweep 已完成[本批故障验收](../engineering/head6-runtime-validation.md) | PR #55 独立完成 Deleted 永久终态退休；继续 retained hold/PITR 与长期成本收敛，不把一轮清空当作永久无孤儿 |
-| N3 快照与 PITR | 方案与基础原语存在，产品未完成 | 从受保护根恢复到新数据库身份，重新建立权限和请求空间；源/目标崩溃、旧 owner/ACL/取消屏障不复活、保留根安全释放逐项验收 |
+| N3 可持续存储 | HEAD6 copy/promote/持久 sweep 和 HEAD7 Deleted 永久终态退休均已完成对应本地验收并合入 | 在全部保留根、旧操作与迟到 PUT 的真实历史中验证回收；长期成本统计包括永久控制元数据，不把一轮清空当作永久无孤儿 |
+| N3 快照与 PITR | HEAD9 设计与804/47+3独立有限模型已提交；S1 Rust 正在实现 | S1 完成保留表、descriptor/proof、多根复制和GC保护；S2 恢复到新 Scope 并重新建立权限/请求空间；各自完整产品门禁，不把模型或保留 SQL 结果当成备份恢复 |
 | N4 发布出口 | 既有本地容量与部分故障证据 | 冻结负载及数字 SLO，测目标存储、真实部署故障域、长运行、保留/GC 成本、运维恢复；按既有流程另行启用非关键试运行 |
 
 HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability

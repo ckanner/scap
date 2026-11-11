@@ -4,8 +4,11 @@ pub mod catalogue;
 pub mod format;
 pub mod options;
 pub mod owner;
+pub mod snapshot;
 
 mod owner_format;
+mod snapshot_format;
+mod snapshot_records;
 
 mod closure;
 mod data_tree;
@@ -412,6 +415,9 @@ impl Database {
             owner_epoch: 1,
             owner_instance: self.worker,
             owner_plan: None,
+            snapshots: None,
+            snapshot_limits: None,
+            restore_origin: None,
             active: false,
             auth_epoch: 1,
             policy: vec![Permission {
@@ -467,6 +473,21 @@ impl Database {
                 closure::Step::Pending(next) => cursor = next,
                 closure::Step::Complete(proof) => return proof.finish(base).map(|_| ()),
             }
+        }
+    }
+
+    // Called only after native restore has already verified the current data
+    // tree. Historical roots are independent dependencies of the same HEAD.
+    fn verify_recovery_closure(
+        &self,
+        objects: &ObjectContext,
+        base: &Snapshot,
+        deadline: Instant,
+    ) -> Result<(), Error> {
+        if base.head.snapshots.as_deref().unwrap_or(&[]).is_empty() {
+            self.verify_results(objects, &base.head, deadline)
+        } else {
+            self.verify_closure(objects, base, deadline)
         }
     }
 
@@ -1017,7 +1038,7 @@ impl Database {
         }
         let objects = ObjectContext::from_snapshot(self, &base, deadline)?;
         let mut session = self.restore(&objects, &base, directory, deadline)?;
-        self.verify_results(&objects, &base.head, deadline)?;
+        self.verify_recovery_closure(&objects, &base, deadline)?;
         session.history_verified = true;
         let current = self.read_head(deadline)?;
         if current.etag != base.etag || current.head != base.head {
@@ -1222,3 +1243,6 @@ mod result_validation_tests;
 
 #[cfg(test)]
 mod object_context_tests;
+
+#[cfg(test)]
+mod snapshot_integration_tests;
