@@ -1389,6 +1389,54 @@ fn raw_edge_checks_reject_wrong_physical_key_and_out_of_range_window() {
 }
 
 #[test]
+fn a_resumed_root_rejects_counter_damage_before_visiting_the_next_root() {
+    // The cursor is private and cannot be supplied by a client. Inject only
+    // local accounting damage after an actual verified manifest/node prefix,
+    // then require the normal resume path to withhold all later dependencies.
+    for fault in 0..4 {
+        let fixture = fixture(1, 1);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
+        let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
+        let mut visited = Vec::new();
+        let Step::Pending(mut cursor) = cursor
+            .advance(
+                StepBudget {
+                    max_frames: 2,
+                    max_read_bytes: 2 * MAX_OBJECT_BYTES as u64,
+                },
+                &mut |visit| {
+                    visited.push(visit.hash.to_owned());
+                    Ok(())
+                },
+            )
+            .unwrap()
+        else {
+            panic!("the one-page root still has a chunk to verify")
+        };
+        assert_eq!(visited, fixture.expected[..2]);
+        assert_eq!((cursor.totals.pages, cursor.totals.chunks), (0, 0));
+        match fault {
+            0 => cursor.totals.pages = 1,
+            1 => cursor.totals.chunks = 1,
+            2 => cursor.root_start_pages = 1,
+            3 => cursor.root_start_chunks = 1,
+            _ => unreachable!(),
+        }
+        assert!(matches!(
+            cursor.advance(StepBudget::default(), &mut |visit| {
+                visited.push(visit.hash.to_owned());
+                Ok(())
+            }),
+            Err(Error::Corrupt)
+        ));
+        assert_eq!(visited, fixture.expected[..3]);
+        assert_eq!(fixture.trace.reads.lock().unwrap().len(), 3);
+        assert_eq!(fixture.trace.writes.load(Ordering::Relaxed), 0);
+        assert!(fixture.database.quarantined.load(Ordering::Acquire));
+    }
+}
+
+#[test]
 fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
     for fault in 0..8 {
         let fixture = fixture(1, 1);

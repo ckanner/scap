@@ -216,3 +216,110 @@ fn bounded_control_replies_cover_limits_and_all_snapshot_operations() {
         .unwrap_err();
     assert_eq!(denied.code, "DENIED");
 }
+
+#[test]
+fn snapshot_validation_and_internal_dispatch_reject_bad_typed_inputs_before_io() {
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    let head = active(&mut engine);
+    let mut input = fixed(&head, 74);
+    input.expected_revision = Decimal(0);
+    let reference = Reference {
+        creator: Decimal(3),
+        operation: Decimal(74),
+        capture_serial: Decimal(3),
+        descriptor_hash: "invalid".into(),
+    };
+    let mut entry = engine.cache.pop_first().unwrap().1;
+    let path = engine.directory.path().join("invalid-snapshot-input");
+    memory.calls.lock().unwrap().clear();
+    for action in [
+        Action::SnapshotPrepare { input },
+        Action::SnapshotInspect {
+            identity: SnapshotIdentity {
+                creator: Decimal(0),
+                operation: Decimal(74),
+            },
+        },
+        Action::SnapshotCapture {
+            reference: reference.clone(),
+        },
+        Action::SnapshotRelease { reference },
+        Action::SnapshotLimits {
+            expected_revision: revision(&head),
+            nonce: Decimal(92),
+            limits: Limits {
+                max_points: 65,
+                max_logical_bytes: Decimal(0),
+            },
+        },
+    ] {
+        assert_eq!(action.validate().unwrap_err().code, "INVALID");
+        assert_eq!(
+            engine
+                .dispatch(&principal(), &mut entry, action, &path, until(), None)
+                .unwrap_err()
+                .code,
+            "INVALID"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+        assert!(!path.exists());
+    }
+}
+
+#[test]
+fn snapshot_control_storage_failures_remain_unknown_without_hidden_publication() {
+    let (_directory, memory, mut engine) = fixture(4, 10000);
+    let head = active(&mut engine);
+    let input = fixed(&head, 75);
+    let saved = invoke(
+        &mut engine,
+        Action::SnapshotPrepare {
+            input: input.clone(),
+        },
+    );
+    let reference = reference(&saved);
+    for action in [
+        Action::SnapshotPrepare { input },
+        Action::SnapshotInspect {
+            identity: SnapshotIdentity {
+                creator: Decimal(3),
+                operation: Decimal(75),
+            },
+        },
+        Action::SnapshotCapture {
+            reference: reference.clone(),
+        },
+        Action::SnapshotRelease { reference },
+        Action::SnapshotLimits {
+            expected_revision: revision(&head),
+            nonce: Decimal(93),
+            limits: Limits {
+                max_points: 1,
+                max_logical_bytes: Decimal(1048576),
+            },
+        },
+    ] {
+        let count = head_puts(&memory);
+        *memory.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+        assert_eq!(
+            engine
+                .execute(&principal(), call(action), until())
+                .unwrap_err()
+                .code,
+            "UNKNOWN"
+        );
+        assert_eq!(head_puts(&memory), count);
+    }
+    assert_eq!(
+        invoke(
+            &mut engine,
+            Action::SnapshotInspect {
+                identity: SnapshotIdentity {
+                    creator: Decimal(3),
+                    operation: Decimal(75)
+                }
+            }
+        )["state"],
+        "prepared"
+    );
+}

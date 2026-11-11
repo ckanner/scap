@@ -117,6 +117,7 @@ fn historical_points_bind_their_own_geometry_identity_and_source_revision() {
     );
     let mut oversized = vec![entry(3); 65];
     assert!(gross_bytes(&oversized).is_err());
+    assert!(SnapshotLimits::default().fits(&oversized).is_err());
     oversized.pop();
     assert_eq!(gross_bytes(&oversized).unwrap(), 64 * 3 * PAGE_SIZE as u64);
 }

@@ -40,8 +40,9 @@ impl SnapshotLimits {
 
     pub(crate) fn fits(&self, entries: &[SnapshotEntry]) -> Result<(), FormatError> {
         self.validate()?;
+        let bytes = gross_bytes(entries)?;
         valid(entries.len() <= self.max_points as usize)?;
-        valid(gross_bytes(entries)? <= self.max_logical_bytes)
+        valid(bytes <= self.max_logical_bytes)
     }
 }
 
