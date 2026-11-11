@@ -80,6 +80,234 @@ fn target(objects: &Arc<Quoted>, worker: u64) -> Database {
     Database::with_options(objects.clone(), scope(), worker, test_options()).unwrap()
 }
 
+/// Complete a real competing operation after an exact GET has obtained its
+/// response, but before that response reaches the first caller. The captured
+/// result is never rewritten: an earlier Missing remains a legitimate read.
+type AfterGetAction = (usize, Box<dyn FnOnce() + Send>);
+
+struct AfterGet {
+    inner: Arc<Quoted>,
+    key: String,
+    reads: AtomicUsize,
+    actions: Mutex<Vec<AfterGetAction>>,
+}
+
+impl Objects for AfterGet {
+    fn get(&self, key: &str, maximum: usize, until: Instant) -> Result<Stored, StoreError> {
+        let result = self.inner.get(key, maximum, until);
+        if key == self.key {
+            let read = self.reads.fetch_add(1, Ordering::Relaxed) + 1;
+            let action = {
+                let mut actions = self.actions.lock().unwrap();
+                actions
+                    .iter()
+                    .position(|(nth, _)| *nth == read)
+                    .map(|index| actions.remove(index).1)
+            };
+            if let Some(action) = action {
+                action();
+            }
+        }
+        result
+    }
+
+    fn put(
+        &self,
+        key: &str,
+        bytes: &[u8],
+        condition: Condition<'_>,
+        until: Instant,
+    ) -> Result<String, StoreError> {
+        self.inner.put(key, bytes, condition, until)
+    }
+}
+
+#[test]
+fn prepare_missing_before_a_competing_claim_recovers_the_actual_first_winner() {
+    for superseded in [false, true] {
+        let (objects, source) = fixture();
+        let initial = source.status(7, deadline()).unwrap();
+        let fixed = input(&initial, 101, 20, OwnerMode::Takeover);
+        let competing_input = fixed.clone();
+        let competing = target(&objects, 20);
+        let winner = Arc::new(Mutex::new(None));
+        let observed = winner.clone();
+        let delayed = Arc::new(AfterGet {
+            inner: objects.clone(),
+            key: owner_format::key(&scope(), &fixed.identity(), false),
+            reads: AtomicUsize::new(0),
+            actions: Mutex::new(vec![(
+                1,
+                Box::new(move || {
+                    let OwnerPreparation::Prepared(plan) = competing
+                        .owner_prepare(7, &competing_input, deadline())
+                        .unwrap()
+                    else {
+                        panic!()
+                    };
+                    competing
+                        .owner_claim(7, &plan.reference, deadline())
+                        .unwrap();
+                    if superseded {
+                        competing
+                            .owner_abort(7, &plan.reference, deadline())
+                            .unwrap();
+                        let next = prepare(&competing, 102, 30, OwnerMode::Takeover);
+                        competing
+                            .owner_abort(7, &next.reference, deadline())
+                            .unwrap();
+                    }
+                    *observed.lock().unwrap() =
+                        Some((plan, competing.read_head(deadline()).unwrap()));
+                }),
+            )]),
+        });
+        let database = Database::with_options(delayed, scope(), 20, test_options()).unwrap();
+        let result = database.owner_prepare(7, &fixed, deadline());
+        let (plan, accepted) = winner.lock().unwrap().take().unwrap();
+        assert!(
+            matches!(&result, Ok(OwnerPreparation::Prepared(found)) if *found == plan),
+            "a descriptor absent before another caller creates and claims it is not corrupt: {result:?}"
+        );
+        assert!(database.healthy().is_ok());
+        let after = database.read_head(deadline()).unwrap();
+        assert_eq!(after.head, accepted.head);
+        assert_eq!(after.etag, accepted.etag);
+    }
+}
+
+#[test]
+fn prepare_refresh_rechecks_permission_before_mismatch_and_preserves_unknown() {
+    for revoke in [false, true] {
+        let (objects, source) = fixture();
+        let initial = source.status(7, deadline()).unwrap();
+        let fixed = input(&initial, 101, 20, OwnerMode::Takeover);
+        let competing_input = fixed.clone();
+        let competing = target(&objects, 20);
+        let key = owner_format::key(&scope(), &fixed.identity(), false);
+        let failing_objects = objects.clone();
+        let failing_key = key.clone();
+        let mut actions: Vec<AfterGetAction> = vec![(
+            1,
+            Box::new(move || {
+                let OwnerPreparation::Prepared(plan) = competing
+                    .owner_prepare(7, &competing_input, deadline())
+                    .unwrap()
+                else {
+                    panic!()
+                };
+                competing
+                    .owner_claim(7, &plan.reference, deadline())
+                    .unwrap();
+                if !revoke {
+                    failing_objects
+                        .inner
+                        .fail(false, failing_key, StoreError::Unknown);
+                }
+            }),
+        )];
+        let mut supplied = fixed;
+        if revoke {
+            supplied.target_worker += 1;
+            actions.push((
+                2,
+                Box::new(move || {
+                    let head = source.status(7, deadline()).unwrap();
+                    source
+                        .set_policy(
+                            7,
+                            head.revision,
+                            88,
+                            vec![Permission {
+                                principal: 11,
+                                read: true,
+                                write: true,
+                                admin: true,
+                            }],
+                            deadline(),
+                        )
+                        .unwrap();
+                }),
+            ));
+        }
+        let database = Database::with_options(
+            Arc::new(AfterGet {
+                inner: objects.clone(),
+                key,
+                reads: AtomicUsize::new(0),
+                actions: Mutex::new(actions),
+            }),
+            scope(),
+            20,
+            test_options(),
+        )
+        .unwrap();
+        let result = database.owner_prepare(7, &supplied, deadline());
+        if revoke {
+            assert!(matches!(result, Err(Error::Denied)), "{result:?}");
+        } else {
+            assert!(
+                matches!(result, Err(Error::Store(StoreError::Unknown))),
+                "{result:?}"
+            );
+        }
+        assert!(database.healthy().is_ok());
+    }
+}
+
+#[test]
+fn prepare_proof_created_after_absence_requires_a_stable_head_before_quarantine() {
+    let (objects, source) = fixture();
+    let initial = source.status(7, deadline()).unwrap();
+    let fixed = input(&initial, 101, 20, OwnerMode::Takeover);
+    let competing_input = fixed.clone();
+    let competing = target(&objects, 20);
+    let accepted = Arc::new(Mutex::new(None));
+    let observed = accepted.clone();
+    let database = Database::with_options(
+        Arc::new(AfterGet {
+            inner: objects.clone(),
+            key: head_key(&scope()),
+            reads: AtomicUsize::new(0),
+            actions: Mutex::new(vec![(
+                2,
+                Box::new(move || {
+                    let OwnerPreparation::Prepared(plan) = competing
+                        .owner_prepare(7, &competing_input, deadline())
+                        .unwrap()
+                    else {
+                        panic!()
+                    };
+                    competing
+                        .owner_claim(7, &plan.reference, deadline())
+                        .unwrap();
+                    competing
+                        .owner_abort(7, &plan.reference, deadline())
+                        .unwrap();
+                    let next = prepare(&competing, 102, 30, OwnerMode::Takeover);
+                    competing
+                        .owner_abort(7, &next.reference, deadline())
+                        .unwrap();
+                    *observed.lock().unwrap() = Some(competing.read_head(deadline()).unwrap());
+                }),
+            )]),
+        }),
+        scope(),
+        20,
+        test_options(),
+    )
+    .unwrap();
+    assert!(matches!(
+        database.owner_prepare(7, &fixed, deadline()),
+        Err(Error::Conflict)
+    ));
+    assert!(database.healthy().is_ok());
+    let expected = accepted.lock().unwrap().take().unwrap();
+    let after = database.read_head(deadline()).unwrap();
+    assert_eq!(after.head, expected.head);
+    assert_eq!(after.etag, expected.etag);
+}
+
 #[test]
 fn takeover_claim_resume_preserves_history_and_returns_only_this_calls_native_session() {
     let (objects, source) = fixture();
@@ -515,11 +743,12 @@ fn prepare_races_keep_the_first_record_and_compare_the_exact_readback() {
             descriptor.bytes().unwrap()
         };
         let key = owner_format::key(&scope(), &fixed.identity(), false);
-        // Both creators saw Absent. The competing immutable PUT wins just
-        // before our proof GET completes, so our original Absent PUT gets 412.
+        // Both absence reads complete before the competing immutable PUT wins
+        // at the proof read. Our original Absent PUT gets 412 and its exact
+        // readback must retain that first winner's bytes.
         objects
             .inner
-            .replace_after(3, key.clone(), bytes.clone(), false);
+            .replace_after(5, key.clone(), bytes.clone(), false);
         let result = database.owner_prepare(7, &fixed, deadline());
         match cut {
             0 => assert!(matches!(result, Ok(OwnerPreparation::Prepared(_)))),
@@ -555,7 +784,9 @@ struct AlterRead {
 impl Objects for AlterRead {
     fn get(&self, key: &str, maximum: usize, until: Instant) -> Result<Stored, StoreError> {
         let result = self.inner.get(key, maximum, until);
-        if key != self.key || self.reads.fetch_add(1, Ordering::Relaxed) + 1 != self.nth {
+        if key != self.key
+            || (self.nth != 0 && self.reads.fetch_add(1, Ordering::Relaxed) + 1 != self.nth)
+        {
             return result;
         }
         match &self.change {
@@ -675,7 +906,7 @@ fn descriptor_damage_is_not_replaced_or_misreported_as_a_client_input_conflict()
     let database = altered(
         &objects,
         owner_format::key(&scope(), &fixed.identity(), false),
-        2,
+        3,
         ReadChange::Missing,
     );
     assert!(matches!(
@@ -687,7 +918,7 @@ fn descriptor_damage_is_not_replaced_or_misreported_as_a_client_input_conflict()
     let database = altered(
         &objects,
         head_key(&scope()),
-        1,
+        0,
         ReadChange::Etag("not-an-etag".into()),
     );
     assert!(matches!(
