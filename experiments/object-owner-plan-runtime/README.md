@@ -1,6 +1,6 @@
 # 真实 owner-plan 故障合同
 
-本目录实现 HEAD8 的独立实际验收。固定范围、身份、计数和期限见 [PLAN.md](PLAN.md)，确定性输入见 `spec.py`。**夹具已实现并通过 69 个轻量单位；尚未执行本目录的产品 actual。** 只有正式冻结源码、构建 receipt 和全输入等价校验完成后才能执行。
+本目录实现 HEAD8 的独立实际验收。固定范围、身份、计数和期限见 [PLAN.md](PLAN.md)，确定性输入见 `spec.py`。**actual01 已执行并在 ACL 场景失败；本轮修订待提交冻结后执行 actual02。** [失败诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json) 保留原源码、日志 SHA 和实际时间线，不回填通过。 只有正式冻结源码、构建 receipt 和全输入等价校验完成后才能执行。
 
 ## 验收范围
 
@@ -16,9 +16,9 @@
 
 `audit_evidence.py` 验证原输入、两个构建身份、owned 退出、每条 HTTP/S3 原始字节及闭合分母。`audit_model.py` 独立解码 HEAD6/7/8、Descriptor、Proof 和完整不可变依赖。`oracle.py` 重新推导原 ETag、当前 ADMIN、全部 retained result 恢复、永久 Proof 的发布顺序、进程退出后的 effect、原 UNKNOWN 和原 SQL receipt；不以 runner 的 PASS 标签作证据。runner 只返回 `OBSERVED_NOT_AUDITED`。
 
-`controls.py` 创建 40 份完整反例和 1 份原样正控。副本初始复用只读 hardlink，任何修改都先断开链接；所有副本和每个目标 guard 的结果都保存。负控必须命中指定语义拒绝，其他异常或不相关格式错误都算失败。源 raw evidence 的全文件 inventory 最后重新校验。程序不会删除失败副本。
+`controls.py` 创建 42 份完整反例和 1 份原样正控。副本初始复用只读 hardlink，任何修改都先断开链接；所有副本和每个目标 guard 的结果都保存。负控必须命中指定语义拒绝，其他异常或不相关格式错误都算失败。源 raw evidence 的全文件 inventory 最后重新校验。程序不会删除失败副本。
 
-69 个轻量单位包含真实公开 SDK save/restore、并发两个 Resume/Abort 的 Fetch 归属、25 个 HTTP observer loopback 边界、实际签名 S3 loopback 的两次相同 hash 变异与 NoSuchKey、独立 decoder 和原件保护。这些 loopback 响应是明确的夹具单位，不是原生产品验收。
+70 个轻量单位包含真实公开 SDK save/restore、并发两个 Resume/Abort 的 Fetch 归属、25 个 HTTP observer loopback 边界、实际签名 S3 loopback 的两次相同 hash 变异与连续两次 NoSuchKey、独立 decoder 和原件保护。这些 loopback 响应是明确的夹具单位，不是原生产品验收。
 
 ## 正式命令
 

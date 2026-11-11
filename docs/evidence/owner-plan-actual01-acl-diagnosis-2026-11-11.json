@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "profile": "head8-owner-plan-actual01-acl-failure-diagnosis",
+  "status": "FAILED_ORIGINAL_PRESERVED",
+  "runtime_and_fixture_commit": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+  "original_summary": {
+    "status": "FAILED",
+    "error": "AssertionError(('acl-delayed-prepare', {'id': 'acl-delayed-prepare', 'ok': False, 'error': {'name': 'UnknownError', 'code': 'UNKNOWN', 'reference': {'scope': {'deployment': '1', 'tenant': '7', 'database': '7207', 'incarnation': '1', 'generation': '1'}, 'operation': 'owner_prepare', 'ownerInput': {'creator': '11', 'operation': '800701', 'expected_revision': '5', 'expected_head_serial': '5', 'mode': 'takeover', 'target_worker': '9102', 'nonces': {'claim': '8007011', 'cancel': '8007012', 'activate': '8007013', 'abort': '8007014'}}}, 'receipt': None}}))",
+    "elapsed_seconds": 111.73562232199993,
+    "cleanup_errors": [],
+    "private_removed": false
+  },
+  "evidence_sha256": {
+    "inputs.json": "c8f8cb06060f49377d0e2f9a1000eefd9b111479a66b016db33f3d6f0d8e151c",
+    "events.jsonl": "fd64031d292089b7b2db5b615c08c73c54084e37f5fdd894fed166a4c3e0d899",
+    "summary.json": "c50af366f038ea899cc0a2a9a077c03a10ee4012144e769f87434b9fdb058499",
+    "failure.txt": "856372f6d8bebd53b28d629758521bc07e7cee4e547d6d206e7a02a0a87cbf40",
+    "sdk-C-4.jsonl": "610f8592e213d5c0efeb01af6a6edf10679bdeafc02ea69fa253b828b9778c43"
+  },
+  "original_dispatch_event": 54976,
+  "timeline": [
+    {
+      "sequence": 54985,
+      "event": "fault_arrived",
+      "id": "acl-prepare-descriptor",
+      "role": "C",
+      "serial": 195,
+      "seconds_after_original_dispatch": 0.008528012
+    },
+    {
+      "sequence": 54986,
+      "event": "sdk_dispatch",
+      "id": "acl-withdraw-before-descriptor-delivery-status",
+      "role": "C",
+      "operation": "status",
+      "seconds_after_original_dispatch": 0.009337412
+    },
+    {
+      "sequence": 54993,
+      "event": "http_proxy_backend_response",
+      "role": "C-9103",
+      "serial": 83,
+      "operation": "owner_prepare",
+      "status": 503,
+      "seconds_after_original_dispatch": 30.01080139
+    },
+    {
+      "sequence": 55006,
+      "event": "http_proxy_backend_response",
+      "role": "C-9103",
+      "serial": 84,
+      "operation": "status",
+      "status": 200,
+      "seconds_after_original_dispatch": 30.020625516
+    },
+    {
+      "sequence": 55012,
+      "event": "sdk_dispatch",
+      "id": "acl-withdraw-before-descriptor-delivery",
+      "role": "C",
+      "operation": "policy",
+      "seconds_after_original_dispatch": 30.027096405
+    },
+    {
+      "sequence": 55032,
+      "event": "http_proxy_backend_response",
+      "role": "C-9103",
+      "serial": 85,
+      "operation": "policy",
+      "status": 200,
+      "seconds_after_original_dispatch": 30.050365932
+    },
+    {
+      "sequence": 55039,
+      "event": "fault_release_requested",
+      "id": "acl-prepare-descriptor",
+      "role": "C",
+      "seconds_after_original_dispatch": 30.05634814
+    },
+    {
+      "sequence": 55040,
+      "event": "fault_forward_resumed",
+      "id": "acl-prepare-descriptor",
+      "role": "C",
+      "serial": 195,
+      "seconds_after_original_dispatch": 30.059186561
+    }
+  ],
+  "diagnosis": "The original owner_prepare held its descriptor GET on C. The fixture dispatched same-Scope status/policy revocation to C and waited before releasing that GET. Scheduler control dispatch hashes the Scope to one serial lane; status could not execute until prepare reached its original 30 second deadline. UNKNOWN was delivered before policy changed. This is a fixture-induced dependency cycle, not evidence of an authorization failure.",
+  "code_references": [
+    "experiments/object-owner-plan-runtime/run.py::acl",
+    "experiments/object-owner-plan-runtime/harness.py::policy",
+    "crates/scap-service/src/scheduler.rs::Scheduler dispatch control lane"
+  ],
+  "planned_correction": "Route revocation status and policy through independent daemon B, keep C original prepare and all deadlines, require actual policy commit before original descriptor delivery and independent daemon binding in oracle.",
+  "claim": "No actual success or full-contract acceptance is inferred from this failed run. A new committed fixture and new actual attempt are required."
+}

@@ -396,10 +396,10 @@ def early_legacy(directory):
     events(directory, mutate, True)
 
 
-def missing_second_hash(directory):
+def missing_second_delivery(directory, identifier):
     def mutate(rows):
         row = next(row for row in rows if row['event'] == 'fault_arrived'
-                   and row['id'] == 'same-id-different-hash' and row['use'] == 2)
+                   and row['id'] == identifier and row['use'] == 2)
         rows.remove(row)
     events(directory, mutate)
 
@@ -463,7 +463,9 @@ def cases():
         ('resume-effect-before-process-exit', lambda d: premature_effect(d, 'dead-worker-resume', 'service-R-2'), 'original-s3-effect-after-owned-process-exit'),
         ('legacy-http-forwarded-before-abort', early_legacy, 'legacy-http-after-adoption-is-fenced-even-matching-revision'),
         ('acl-failure-without-fresh-observation', lambda d: missing_fresh_head(d, 'acl-resume-old-head', 'B'), 'original-operation-fresh-admin-barrier'),
-        ('second-stable-hash-fault-omitted', missing_second_hash, 'complete-fault-delivery-denominator'),
+        ('second-stable-hash-fault-omitted', lambda d: missing_second_delivery(d, 'same-id-different-hash'), 'complete-fault-delivery-denominator'),
+        ('second-current-missing-omitted', lambda d: missing_second_delivery(d, 'current-descriptor-missing'), 'complete-fault-delivery-denominator'),
+        ('second-historical-missing-omitted', lambda d: missing_second_delivery(d, 'historical-descriptor-missing'), 'complete-fault-delivery-denominator'),
         ('missing-proof-called-aborted', lambda d: change_product(d, 'proof-claim-missing-is-unknown-history', lambda b: b['value'].__setitem__('state', 'aborted')), 'unknown-history-is-not-not-applied'),
         ('local-budget-called-corruption', lambda d: change_product(d, 'budget_gets-limited-resume', lambda b: b['error'].__setitem__('code', 'CORRUPT')), 'all-original-error-and-unknown-results'),
         ('query-not-forwarded-during-held-resume', no_queued_query, 'same-actor-budget-failure-then-original-row'),
@@ -481,7 +483,7 @@ def run(source, output):
         raise ValueError('control output must be a new directory outside the original evidence')
     output.mkdir(parents=True, exist_ok=False)
     original = inventory(source)
-    assert len(cases()) == 40 and len({name for name, _, _ in cases()}) == 40
+    assert len(cases()) == 42 and len({name for name, _, _ in cases()}) == 42
     baseline = oracle.audit(source)
     report = {'schema': 1, 'status': 'RUNNING', 'source': str(source), 'baseline': baseline,
               'negative_controls': [], 'positive_controls': [], 'original_unchanged': False}

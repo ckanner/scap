@@ -248,7 +248,10 @@ def acl(suite):
     descriptor = s3(suite, 'acl-prepare-descriptor', 'C', 'GET', owner_key(suite, p1, 'descriptor'))
     suite.owner_begin('prepare', p1, 'acl-delayed-prepare')
     arrived(descriptor)
-    suite.policy(name, 'acl-withdraw-before-descriptor-delivery', admin11=False, read11=False, write11=False, principal='12')
+    # Same-Scope control operations on C share a serial lane. The revocation
+    # must run on another daemon while C's original descriptor GET is held.
+    suite.policy(name, 'acl-withdraw-before-descriptor-delivery', admin11=False, read11=False,
+                 write11=False, principal='12', role='B')
     released(suite.proxies['C'], descriptor)
     suite.finish('C', 'acl-delayed-prepare', 'DENIED')
     state(suite.owner('inspect', p1, 'acl-current-admin-inspect', principal='12'), 'claimed')
@@ -373,13 +376,15 @@ def missing_descriptor(suite):
     suite.prepare_claim_resume(p1)
     p2 = suite.new_plan(name, 2)
     active = suite.prepare_claim_resume(p2)
-    missing = s3(suite, 'current-descriptor-missing', 'C', 'GET', owner_key(suite, p2, 'descriptor'))
+    missing = s3(suite, 'current-descriptor-missing', 'C', 'GET', owner_key(suite, p2, 'descriptor'), uses=2)
     suite.owner('prepare', p2, 'missing-current-descriptor-rejected', expect='CORRUPT')
     arrived(missing)
+    assert missing.used == 2 and missing.finished.wait(5)
     variant = suite.save_variant(p1, p1 + '-changed-base', active['status'])
-    old = s3(suite, 'historical-descriptor-missing', 'R', 'GET', owner_key(suite, p1, 'descriptor'))
+    old = s3(suite, 'historical-descriptor-missing', 'R', 'GET', owner_key(suite, p1, 'descriptor'), uses=2)
     suite.owner('prepare', variant, 'missing-historical-descriptor-rejected', expect='CORRUPT', bootstrap_worker='9204')
     arrived(old)
+    assert old.used == 2 and old.finished.wait(5)
     reference = active['prepared']['reference']
     changed_hash = ('0' if reference['descriptor_hash'] != '0' * 64 else '1') * 64
     wrong = s3(suite, 'same-id-different-hash', 'G', 'GET', spec.head_path(name), uses=2,

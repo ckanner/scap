@@ -15,7 +15,8 @@ import support as io
 
 
 class Harness:
-    def __init__(self, args, evidence, private):
+    def __init__(self, args, evidence, private, profile=spec, plan_path='experiments/object-owner-plan-runtime/PLAN.md'):
+        self.profile, self.plan_path = profile, plan_path
         self.args, self.evidence, self.private = args, evidence, private
         self.trace = io.Trace(evidence)
         self.backend = None
@@ -25,7 +26,7 @@ class Harness:
         self.tokens = {principal: secrets.token_hex(32) for principal in ('11', '12')}
         self.gc_access, self.gc_secret = secrets.token_hex(32), secrets.token_hex(32)
         self.node = Path(shutil.which(args.node) or args.node).resolve()
-        self.specs, self.plans = spec.inputs(), {row['name']: row for row in spec.plans()}
+        self.specs, self.plans = self.profile.inputs(), {row['name']: row for row in self.profile.plans()}
         self.sql, self.saved, self.originals = {row['name']: row for row in self.specs}, {}, {}
         self.nonce = 90000000
 
@@ -44,7 +45,7 @@ class Harness:
         assert 'LLVM_PROFILE_FILE' not in os.environ and 'NODE_V8_COVERAGE' not in os.environ
         assert not any('instrument-coverage' in os.environ.get(key, '')
                        for key in ('RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS'))
-        spec.validate()
+        self.profile.validate()
         self.source_module = io.module('owner_source_manifest', io.ROOT / 'scripts/source_manifest.py')
         self.original_source = self.source_module.capture(io.ROOT)
         io.save(self.evidence / 'source.json', io.encoded(self.original_source))
@@ -79,12 +80,12 @@ class Harness:
             'runtime_source_commit': service['source_commit'], 'runtime_source_root': service['source_root'],
             'seed_source_root': native['source_root'], 'source_sha256': self.original_source['source_sha256'],
             'source_archive_sha256': io.sha((self.evidence / 'source.tar').read_bytes()),
-            'plan_sha256': source['experiments/object-owner-plan-runtime/PLAN.md'],
-            'tools': tools, 'scopes': spec.SCOPES, 'named': {name: spec.creation(name) for name in spec.NAMED},
-            'specs': self.specs, 'plans': list(self.plans.values()), 'exceptional_plans': spec.exceptional_plans(),
-            'expected': spec.EXPECTED, 'owner_rpc': spec.OWNER_RPC, 'faults': spec.FAULTS,
-            'workers': spec.WORKERS, 'native_worker': spec.NATIVE_WORKER, 'limits': spec.LIMITS,
-            'timeouts': spec.TIMEOUTS, 'max_sweep_pages': spec.MAX_SWEEP_PAGES,
+            'plan_sha256': source[self.plan_path],
+            'tools': tools, 'scopes': self.profile.SCOPES, 'named': {name: self.profile.creation(name) for name in self.profile.NAMED},
+            'specs': self.specs, 'plans': list(self.plans.values()), 'exceptional_plans': self.profile.exceptional_plans(),
+            'expected': self.profile.EXPECTED, 'owner_rpc': self.profile.OWNER_RPC, 'faults': self.profile.FAULTS,
+            'workers': self.profile.WORKERS, 'native_worker': self.profile.NATIVE_WORKER, 'limits': self.profile.LIMITS,
+            'timeouts': self.profile.TIMEOUTS, 'max_sweep_pages': self.profile.MAX_SWEEP_PAGES,
         }))
         self.backend = io.network.Backend(self.args.weed, self.private / 'backend',
                                           volume_size_mib=128, max_volumes=4)
@@ -107,25 +108,25 @@ class Harness:
         finally:
             connection.close()
         credentials = {self.backend.access: self.backend.secret, self.gc_access: self.gc_secret}
-        for role in ('seed', *spec.ROLES):
+        for role in ('seed', *self.profile.ROLES):
             self.proxies[role] = io.Proxy(self.backend, role, self.trace, credentials)
-        for role in spec.ROLES:
+        for role in self.profile.ROLES:
             self.ports[role] = io.network.free_port(set(self.ports.values()))
-            for worker in spec.WORKERS[role]:
+            for worker in self.profile.WORKERS[role]:
                 self.http[str(worker)] = HTTPProxy(f'{role}-{worker}', self.ports[role], self.trace, self.tokens)
-        for role in spec.ROLES:
-            self.start_service(role, spec.WORKERS[role][0])
-        for role in spec.ROLES:
+        for role in self.profile.ROLES:
+            self.start_service(role, self.profile.WORKERS[role][0])
+        for role in self.profile.ROLES:
             self.start_sdk(role)
         self.call('C', 'prepare-original-sql', 'prepare_sql', specs=self.specs)
 
     def start_service(self, role, worker):
-        assert role not in self.services and worker in spec.WORKERS[role]
+        assert role not in self.services and worker in self.profile.WORKERS[role]
         self.service_incarnations[role] = self.service_incarnations.get(role, 0) + 1
         incarnation = self.service_incarnations[role]
         cache = self.private / f'cache-{role}-{incarnation}'
         cache.mkdir(mode=0o700)
-        configuration = spec.configuration(self.ports[role], cache, self.proxies[role].endpoint,
+        configuration = self.profile.configuration(self.ports[role], cache, self.proxies[role].endpoint,
             {principal: io.sha(token.encode()) for principal, token in self.tokens.items()}, worker, role)
         path = self.private / f'service-{role}-{incarnation}.json'
         io.save(path, io.encoded(configuration))
@@ -161,7 +162,7 @@ class Harness:
         config = self.private / f'client-{name}.private.json'
         endpoints = {worker: proxy.endpoint for worker, proxy in self.http.items()}
         io.save(config, io.encoded({'endpoint': endpoints[self.workers[role]], 'tokens': self.tokens,
-            'scopes': spec.SCOPES, 'source_root': str(io.ROOT), 'timeouts': spec.TIMEOUTS,
+            'scopes': self.profile.SCOPES, 'source_root': str(io.ROOT), 'timeouts': self.profile.TIMEOUTS,
             'workerEndpoints': endpoints, 'routes': [
                 {'workerInstance': worker, 'endpoint': endpoint + '/v1'} for worker, endpoint in endpoints.items()]}))
         client = self.child([str(self.node), str(io.HERE / 'client.mjs'), str(config),
@@ -261,10 +262,10 @@ class Harness:
         assert active['state'] == 'active'
         return active
 
-    def policy(self, name, label, admin11=True, read11=True, write11=True, principal='11', head=None):
+    def policy(self, name, label, admin11=True, read11=True, write11=True, principal='11', head=None, role='C'):
         if head is None:
-            head = self.status(name, label + '-status', principal=principal)
-        return self.call('C', label, 'policy', name, principal=principal,
+            head = self.status(name, label + '-status', role=role, principal=principal)
+        return self.call(role, label, 'policy', name, principal=principal,
             input={'expectedRevision': head['revision'], 'nonce': self.next_nonce(), 'permissions': [
                 {'principal': '11', 'read': read11, 'write': write11, 'admin': admin11},
                 {'principal': '12', 'read': True, 'write': True, 'admin': True}]})
@@ -283,7 +284,7 @@ class Harness:
         return self.call(role, label, 'named', name, intent=label, input=action, expect=expect, **fields)
 
     def create_named(self, name, role='A'):
-        original = spec.creation(name)
+        original = self.profile.creation(name)
         prepared = self.named(name + '-prepare-create', name, {'operation': 'prepare_create',
             'name': original['name'], 'create_operation': original['operation'],
             'expected_name_revision': original['expected_name_revision'],
@@ -298,7 +299,7 @@ class Harness:
         self.trace.emit('original_ack', name=name, receipt=value['receipt'], result=value['result'])
 
     def seed_small(self, name, role='A'):
-        if name in spec.NAMED:
+        if name in self.profile.NAMED:
             self.create_named(name, role)
         else:
             self.call(role, name + '-create', 'create', name, input={'nonce': self.next_nonce()})
@@ -315,9 +316,9 @@ class Harness:
         cache.mkdir(mode=0o700)
         configuration = {'endpoint': self.proxies['seed'].endpoint, 'region': 'us-east-1',
             'bucket': 'scap-test', 'access_key': self.backend.access, 'secret_key': self.backend.secret,
-            'scope': {key: int(value) for key, value in spec.SCOPES['bulk'].items()},
-            'worker': spec.NATIVE_WORKER, 'principal': 11, 'provision': True,
-            'cache_root': str(cache), 'fixture_limits': spec.LIMITS, 'resource_log': None}
+            'scope': {key: int(value) for key, value in self.profile.SCOPES['bulk'].items()},
+            'worker': self.profile.NATIVE_WORKER, 'principal': 11, 'provision': True,
+            'cache_root': str(cache), 'fixture_limits': self.profile.LIMITS, 'resource_log': None}
         path = self.private / 'native-seed.private.json'
         io.save(path, io.encoded(configuration))
         io.save(self.evidence / 'native-seed-config.json', io.encoded({
@@ -369,9 +370,9 @@ class Harness:
     def sweep_named_old(self):
         name, after = 'named_old', None
         self.trace.emit('sweep_round_started', scope_name=name, generation=1, label='named-terminal', after=None)
-        for page in range(spec.MAX_SWEEP_PAGES):
+        for page in range(self.profile.MAX_SWEEP_PAGES):
             label = f'named-terminal-{page}'
-            head = self.named(label + '-storage', name, {'operation': 'named_storage_status', 'creation': spec.creation(name)})
+            head = self.named(label + '-storage', name, {'operation': 'named_storage_status', 'creation': self.profile.creation(name)})
             prepared = self.call('C', label + '-prepare', 'gc_prepare', name, input={
                 'expectedHeadSerial': head['head_serial'], 'generation': '1', 'after': after})
             batch = prepared['status']['storage']['sweep']

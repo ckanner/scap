@@ -1,6 +1,6 @@
 # HEAD8 accepted owner plan：真实运行合同
 
-状态：**夹具实现完成，待提交冻结；未运行产品 actual**。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行实际合同。69 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
+状态：**actual01 已运行并失败，原始证据完整保留；本轮夹具修订待冻结后执行 actual02**。失败与修复边界见 [ACL 调度诊断](../../docs/evidence/owner-plan-actual01-acl-diagnosis-2026-11-11.json)。产品、SDK、正式二进制和本夹具源码各自固定身份后，才能执行新实际合同。70 个轻量单位包括真实公开 SDK 和签名 loopback 传输；这些单位不代表本合同的产品实际通过。
 
 ## 权威、目的与固定分母
 
@@ -20,10 +20,10 @@
 | 终态：Active / Aborted | 36 / 9 |
 | 永久 terminal Proof | 28 |
 | owner POST：prepare / claim / resume / abort / inspect | 53 / 49 / 47 / 16 / 35 = 200 |
-| S3 故障 / HTTP 故障 | 23 / 5 |
+| S3 故障 / S3 delivery / HTTP 故障 | 23 / 26 / 5 |
 | 服务 incarnation / SDK controller incarnation | 10 / 10 |
 | owned wait4 | 27：10 服务、10 SDK、1 native、2 版本进程、4 后端 |
-| 全历史负控 / 原样正控 | 40 / 1，持久保存全部副本及目标 guard |
+| 全历史负控 / 原样正控 | 42 / 1，持久保存全部副本及目标 guard |
 
 295 个成功 SQL 中，具名旧 Scope 的 3 份结果随明确删除和终态回收失去普通 lookup 资格；它们的原 ACK 仍完整保留并检查，292 个存活结果逐字节冷 lookup。bulk 的一个取消和一个被 pending 阻止的新 SQL 分别保持 Cancelled 与 Unknown。历史 Result.data_root 是 receipt 元数据，不把它误当作恢复依赖。
 
@@ -51,7 +51,7 @@ HTTP 代理保存原请求、真实完整产品响应、向 SDK 的投递/断连
 | claim_wins | Claim 与原 base Cancel 两个原 CAS 同时持有；先放 Claim，后 Cancel 412。明确 Abort 使已接收目标 tuple 终止；原计划后续 activate-only 新意图恢复。初始 active owner 的 activate-only prepare 失败。 |
 | resume_cancel | 完整恢复后的原 Active CAS 延迟，Abort 先终止；原 Active CAS 412，无伪 Active。 |
 | resume_wins | 原 Active CAS 延迟后排入第二同目标 resume，再持有 Abort CAS；先放 Active，第二 resume 只观察历史 Active，迟到 Abort 412。后续 SQL 正常且历史 marker 不变。 |
-| acl | 恢复 payload GET 延迟期间同权限 ACL 更新导致 Conflict；另一轮撤 ADMIN 导致 Denied。prepare Descriptor GET 延迟后撤 ADMIN 也 Denied，不能泄露旧记录。新当前 ADMIN 12 用保存的 creator11 原输入 inspect/resume。 |
+| acl | 恢复 payload GET 延迟期间同权限 ACL 更新导致 Conflict；另一轮撤 ADMIN 导致 Denied。prepare Descriptor GET 在 C 延迟时，由 B 独立 daemon 查询状态并撤 ADMIN，原 C 调用也必须 Denied，不能泄露旧记录。新当前 ADMIN 12 用保存的 creator11 原输入 inspect/resume。 |
 | target_death | 原 Claim PUT invoke 后退出 B，原请求随后真实生效；新 B worker9202 收到原 target9102 的 claim/resume 必须 TARGET_MISMATCH。当前 ADMIN abort 后新计划转向 R9204。 |
 | resume_death | 恢复最终 Active PUT invoke 后退出 R9204，原请求随后生效；inspect 只能报告历史 Active，不能声称本地 Session。新 R9304 拒绝旧目标；新计划转向 C。 |
 | legacy | 原 HEAD6 takeover CAS 被 HEAD8 admission fencing。原 legacy activate HTTP 在 Aborted 后才到达，哪怕 expected R 碰巧匹配仍 Fenced；不能绕过已采用的 owner 协议。 |
@@ -59,7 +59,7 @@ HTTP 代理保存原请求、真实完整产品响应、向 SDK 的投递/断连
 | proof_cancel | 新计划原 base Cancel 入口也必须先持久保存旧 Aborted Proof；Proof 回读丢失后无 Cancelling，原输入再次明确调用完成 Cancelling→Aborted。 |
 | named_old | pending named delete 为 Conflict，可遗留原固定 Control，但不能改变 HEAD/Name/payload。Active 后使用新 operation/fresh R 执行真实 named delete；HEAD8 seal + final A GC 后，旧/current owner history 仍元数据可读。复用同名后仍按原 Scope 查看旧记录。 |
 | named_successor | 真实新 Creation/Scope，两份 SQL；cold 首次 owner adoption 后原结果不受旧 Scope 回收影响。 |
-| missing_descriptor | 当前 Descriptor Missing、旧 Descriptor Missing 但 Proof 存在均 Corrupt 且不得重建。当前 marker 同 creator/operation 换 hash，前后 exact HEAD 稳定时 Corrupt。上述是明确一次 delivery 故障，backend 原对象不删。 |
+| missing_descriptor | 当前 Descriptor Missing、旧 Descriptor Missing 但 Proof 存在均 Corrupt 且不得重建。当前 marker 同 creator/operation 换 hash，前后 exact HEAD 稳定时 Corrupt。Descriptor 的首次及重读两次 GET 都交付明确 Missing，夹在两次 Missing 之间和之后的 exact HEAD 必须稳定；历史 Proof 实际读取后还须再观察同一 HEAD。backend 原对象不删。 |
 | budget_gets / budget_bytes | 预先配置 gets=0 / bytes=1 的真实目标。hold resume 的 Descriptor GET 时将 READ query 排入同 Scope 同 actor，放行后原 resume LIMIT、无 Active，队列下一 query 验证原行，证明同驻留 Database 未隔离。单凭同 PID 的 control 成功不算。Abort→新目标新计划能恢复。 |
 
 ## 独立判定
@@ -72,10 +72,10 @@ Metadata corrupt 故障只能使用计划明确的 delivery；保存 backend 原
 
 Corrupt latch 的后继不能冒充新的物理诊断。`missing_descriptor` 的 current Missing、旧 Descriptor Missing+Proof、同 ID changed hash 分别经 C9103、R9204、G9105 的不同既有服务 lineage；`proof_claim` 的坏旧 Proof 是该家族最后一步，经 Z9106。oracle 必须看到每次对应真实原请求和计划注入被消耗，不能只看相同 CORRUPT 返回值；之后恢复只使用原计划已计入的 cold C9203，不清私有 latch、不复用旧 worker incarnation。
 
-全量真实正证据之后执行 40 个持久保存的反例副本和 1 个原样正控；固定清单及目标 guard 在 `controls.py::cases()`。每个负控必须命中其目标 guard，不能以无关格式损坏冒充目标通过。whole exchange 删除必须被独立关闭分母拒绝；移除某项必要 Proof / retained result / HEAD2 读取的反例则同步调整其完整组和关闭总数，以明确命中语义边界。原 ETag、phase/nonce、同 ID hash、永久元数据 DELETE、三种进程退出后 effect、ACL、UNKNOWN、预算和冷结果都有独立反例。修改镜像采用先断开 hardlink 再写入，最后验证原始证据 inventory 未变化。
+新增 current/historical 第二次 Missing 遗漏反例各一份。全量真实正证据之后执行 42 个持久保存的反例副本和 1 个原样正控；固定清单及目标 guard 在 `controls.py::cases()`。每个负控必须命中其目标 guard，不能以无关格式损坏冒充目标通过。whole exchange 删除必须被独立关闭分母拒绝；移除某项必要 Proof / retained result / HEAD2 读取的反例则同步调整其完整组和关闭总数，以明确命中语义边界。原 ETag、phase/nonce、同 ID hash、永久元数据 DELETE、三种进程退出后 effect、ACL、UNKNOWN、预算和冷结果都有独立反例。修改镜像采用先断开 hardlink 再写入，最后验证原始证据 inventory 未变化。
 
 ## 边界与交付条件
 
 本合同不提供后台自动接管 controller，不证明 DNS/K8s 实例身份认证，不给通用 S3 或跨地域吞吐 SLO。只接受本次固定二进制、原限额、真实 SQLite/native/S3 的观察。未知结果保持未知；若失败，完整保留原进程/请求/源码/期限，修复后新 commit、新目录、新 attempt，不回填旧 PASS。
 
-`run.py`、独立 oracle、40 个反例构造、69 个纯夹具单位及固定命令已实现。当前等待根任务审查并提交冻结本夹具；实际运行绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。
+`run.py`、独立 oracle、42 个反例构造、70 个纯夹具单位及固定命令已实现。actual01 的同 Scope control lane 依赖环已定位；本修订将撤权完整路由至独立 daemon，禁止延长期限掩盖调度错误。当前等待审查并提交冻结本修订；actual02 绑定正式产品 release 的原 receipt，每一项生产/SDK/native 输入都必须与夹具提交逐字节相同。禁止在未冻结的工作树提前跑产品 actual。正式 raw/oracle/controls 的结果应新增到独立验收记录，不能通过修改本计划回填通过。

@@ -37,11 +37,25 @@ class EvidenceBoundary(unittest.TestCase):
     def test_all_faults_independently_bound(self):
         self.assertEqual(tuple(row[:4] for row in oracle.FAULT_BINDINGS), spec.FAULTS)
         self.assertEqual(len(oracle.UNKNOWN_CALLS), 12)
-        self.assertEqual(len(controls.cases()), 40)
-        self.assertEqual(len({row[0] for row in controls.cases()}), 40)
+        self.assertEqual(len(controls.cases()), 42)
+        self.assertEqual(len({row[0] for row in controls.cases()}), 42)
 
     def test_numeric_hash_is_not_converted_to_u64(self):
         self.assertEqual(e.native({'hash': '1' * 64, 'revision': '23'}), {'hash': '1' * 64, 'revision': 23})
+
+    def test_two_descriptor_absences_need_same_exact_head_between_and_after(self):
+        current = {}
+        pair = [{'request': {'path': '/descriptor', 'monotonic_ns': start}, 'backend': None,
+                 'delivery_complete': True, 'group': {'s3_delivery_started': {'status': 404},
+                    's3_delivery_finished': {'monotonic_ns': start + 1}}} for start in (1, 5)]
+        heads = [{'request': {'monotonic_ns': start}, 'read_head': current, 'delivered': True,
+                  'bytes': b'exact-head', 'backend': {'headers': {'etag': '"exact"'}},
+                  'group': {'s3_delivery_finished': {'monotonic_ns': start + 1}}} for start in (3, 7)]
+        oracle.descriptor_absence_barrier(pair, heads)
+        self.rejected('two-original-descriptor-missing-deliveries', oracle.descriptor_absence_barrier, pair[:1], heads)
+        self.rejected('missing-descriptor-stable-head-barrier', oracle.descriptor_absence_barrier, pair, heads[:1])
+        heads[-1]['backend']['headers']['etag'] = '"changed"'
+        self.rejected('missing-descriptor-stable-head-barrier', oracle.descriptor_absence_barrier, pair, heads)
 
     def test_missing_whole_s3_exchange_rejected_by_closed_count(self):
         self.rejected('s3-closed-denominator', e.s3_exchanges, Path('/unused'),
@@ -185,7 +199,7 @@ class EvidenceBoundary(unittest.TestCase):
 
 
 class SignedS3Observer(unittest.TestCase):
-    def test_two_head_mutations_and_one_missing_have_closed_real_loopback_ledgers(self):
+    def test_two_head_mutations_and_two_missing_have_closed_real_loopback_ledgers(self):
         original, received, failures = m.encoded(marked_head('active')), [], []
         access, secret = 'owner-unit-access', 'owner-unit-secret'
 
@@ -232,21 +246,25 @@ class SignedS3Observer(unittest.TestCase):
                 self.assertTrue(gate.finished.wait(5))
                 self.assertEqual(gate.used, 2)
                 missing = '/scap-test/scap-object/v1/1/7/7201/inc/1/gen/1/owner/v1/descriptor/11/800101'
-                proxy.arm('current-descriptor-missing', 'GET', missing, 'no_such_key')
-                response = support.signing.signed_request(endpoint, 'GET', missing)
-                self.assertEqual(response['status'], 404)
-                self.assertIn(b'NoSuchKey', support.signing.body_value(response['body']))
+                absent = proxy.arm('current-descriptor-missing', 'GET', missing, 'no_such_key', uses=2)
+                for _ in range(2):
+                    response = support.signing.signed_request(endpoint, 'GET', missing)
+                    self.assertEqual(response['status'], 404)
+                    self.assertIn(b'NoSuchKey', support.signing.body_value(response['body']))
+                self.assertEqual(absent.used, 2)
+                self.assertTrue(absent.finished.wait(5))
                 proxy.close()
                 proxy = None
                 self.assertEqual(received, [path, path])
                 self.assertFalse(failures)
                 values = e.s3_exchanges(root, e.rows(root / 'events.jsonl'),
                     {'normal_access_sha256': m.sha(access.encode()), 'gc_access_sha256': m.sha(b'unused-gc')})
-                self.assertEqual(len(values), 3)
+                self.assertEqual(len(values), 4)
                 self.assertTrue(all(value['delivery_complete'] for value in values))
                 self.assertEqual(values[0]['bytes'], original)
                 self.assertEqual(values[0]['delivery_bytes'], values[1]['delivery_bytes'])
                 self.assertIsNone(values[2]['backend'])
+                self.assertIsNone(values[3]['backend'])
         finally:
             if proxy is not None:
                 proxy.close()
