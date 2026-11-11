@@ -61,3 +61,11 @@ request、connection、handler、原始 payload、真实服务响应与实际交
 运行不是 Rust unit coverage 的来源；本实验不会启用 `LLVM_PROFILE_FILE`、
 `-Cinstrument-coverage` 或 `NODE_V8_COVERAGE`。未运行的阶段必须写 `NOT_RUN`。
 永久 descriptor/proof 数量仍随历史增长，本实验只证明 payload GC 不误删它们。
+
+## 保留的首次正式失败
+
+`f02fc7d926d84da4592a4c6f990d96c0239e8046` 的 actual01 在两点与六笔 SQL、COPY/promote
+完成后失败：夹具在 Ready 下使用了只接受 Deleted 的 `storage_status`，产品正确返回
+`LIFECYCLE`。原 source inventory、原 HTTP/S3/进程记录、failure/summary 保留；source
+前后验证通过，cleanup 完成。这一轮没有独立审计 PASS，也没有用修改后的源码覆盖原件。
+后续夹具按两轮固定生命周期选择 `status` 与 `storage_status`，并同步固定 oracle 的调用分母。

@@ -39,6 +39,8 @@
 GC 每页原 `after` 必须精确来自上页真实报告，首个为 null、非终页严格递增、末页
 真实 `exhausted=true`；报告必须绑定真实 LIST、typed exact GET、checkpoint、resume。
 代 1 的完整清除必须在全部 warm 计算丢失之前已完成。
+第一轮 Scope 仍 Ready，用普通 `status` 读取；第二轮为 Deleted terminal，用专门的
+`storage_status` 元数据入口。该入口本身不接受 Ready，不得把 LIFECYCLE 失败当成 GC 成功。
 
 ## 固定历史
 

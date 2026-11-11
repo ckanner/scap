@@ -65,7 +65,8 @@ def fixed_calls(events, calls):
         need(type(row['pages']) is int and 1 <= row['pages'] <= 32, 'bounded-sweep-denominator')
         for page in range(row['pages']):
             label = f'{row["label"]}-{page}'
-            fixed.update({label + '-storage': 'storage_status', label + '-prepare': 'gc_prepare', label + '-resume': 'gc_resume'})
+            fixed.update({label + '-storage': 'status' if row['label'] == 'retired-one' else 'storage_status',
+                          label + '-prepare': 'gc_prepare', label + '-resume': 'gc_resume'})
     need(set(calls) == set(fixed) and all(calls[key]['body']['operation'] == value for key, value in fixed.items()),
          'fixed-public-call-denominator')
     errors = {name: call['result']['error']['code'] for name, call in calls.items() if not call['result']['ok']}

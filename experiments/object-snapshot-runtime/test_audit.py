@@ -14,6 +14,7 @@ import audit_evidence as e
 import oracle
 import spec
 import controls
+from harness import Harness
 
 
 def head():
@@ -393,6 +394,40 @@ class SweepPageChainTests(GuardAssertions):
         events, calls = self.fixture()
         events[0]['monotonic_ns'] = 25
         self.rejected('retired-generation-finished-before-compute-loss', lambda: oracle.gc_page_chain(events, calls))
+
+
+class SweepDriverTests(unittest.TestCase):
+    class Trace:
+        def __init__(self):
+            self.events = []
+
+        def emit(self, event, **fields):
+            self.events.append({'event': event, **fields})
+
+    class PublicCalls:
+        def __init__(self):
+            self.trace = SweepDriverTests.Trace()
+            self.calls = []
+
+        def call(self, role, identifier, operation, **fields):
+            self.calls.append({'role': role, 'id': identifier, 'operation': operation, **fields})
+            if operation in ('status', 'storage_status'):
+                return {'head_serial': '17'}
+            if operation == 'gc_prepare':
+                return {'status': {'storage': {'sweep': None}}, 'exhausted': True, 'next_after': None}
+            raise AssertionError('unplanned public call')
+
+    def test_ready_retired_generation_uses_ordinary_status(self):
+        suite = self.PublicCalls()
+        Harness.sweep(suite, 1, 'retired-one')
+        self.assertEqual([call['operation'] for call in suite.calls], ['status', 'gc_prepare'])
+        self.assertEqual(suite.calls[1]['input'], {'expectedHeadSerial': '17', 'generation': '1', 'after': None})
+
+    def test_deleted_terminal_generation_uses_deleted_metadata_status(self):
+        suite = self.PublicCalls()
+        Harness.sweep(suite, 2, 'terminal-two')
+        self.assertEqual([call['operation'] for call in suite.calls], ['storage_status', 'gc_prepare'])
+        self.assertEqual(suite.calls[1]['input'], {'expectedHeadSerial': '17', 'generation': '2', 'after': None})
 
 
 if __name__ == '__main__':

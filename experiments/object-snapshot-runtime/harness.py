@@ -70,7 +70,9 @@ class Harness(OwnerHarness):
         self.trace.emit('sweep_round_started', scope_name='bulk', generation=generation, label=label, after=None)
         for page in range(spec.MAX_SWEEP_PAGES):
             identifier = f'{label}-{page}'
-            head = self.call('C', identifier + '-storage', 'storage_status')
+            # Generation 1 is retired while this Scope remains Ready. The
+            # storage_status route is specifically the Deleted metadata API.
+            head = self.call('C', identifier + '-storage', 'status' if generation == 1 else 'storage_status')
             report = self.call('C', identifier + '-prepare', 'gc_prepare', input={
                 'expectedHeadSerial': head['head_serial'], 'generation': str(generation), 'after': after})
             batch = report['status']['storage']['sweep']
