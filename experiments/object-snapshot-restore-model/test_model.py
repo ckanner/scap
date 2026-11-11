@@ -1,7 +1,7 @@
 from copy import deepcopy
 import unittest
 
-from cases import finish, full_copy_without_record, rejected, setup, special
+from cases import finish, full_copy_without_record, prepare_competitor, refinement, rejected, setup, special
 from codec_budget import build, report
 from model import Model
 from oracle import audit
@@ -29,6 +29,81 @@ class ModelTests(unittest.TestCase):
 
     def test_label_reuse_does_not_change_identity(self):
         self.check("released_label_is_new_identity")
+
+    def test_real_missing_before_competing_capture_recovers_first_winner(self):
+        for release in (False, True):
+            with self.subTest(release=release):
+                model = Model()
+                winners = []
+                descriptor = model.snapshot_prepare(1, actor="a", hook=lambda: winners.append(
+                    prepare_competitor(model, release)))
+                self.assertEqual(descriptor, winners[0])
+                self.assertEqual(descriptor, model.store["snapshot/source/2/1"]["body"])
+                self.assertEqual(sum(call["kind"] == "snapshot_descriptor" for call in model.calls.values()), 1)
+                # The real first GET completed while the key was absent; no
+                # fabricated Missing result or operator corruption is involved.
+                first = next(event for event in model.events if event["event"] == "get_effect")
+                self.assertEqual(first["result"], {"status": "missing"})
+                self.assertFalse(any(event["event"] == "operator_fault" for event in model.events))
+                audit(model.trace("real-absence-first-winner"))
+
+    def test_prepare_cross_read_change_is_conflict_and_revocation_precedes_mismatch(self):
+        for name, result in (("prepare_refresh_head_change", "Conflict"),
+                             ("prepare_late_proof_head_change", "Conflict"),
+                             ("prepare_refresh_denied_before_mismatch", "Denied")):
+            with self.subTest(name=name):
+                model = refinement(name)
+                failure = next(event for event in reversed(model.events) if event["event"] == "rejected")
+                self.assertEqual(failure["code"], result)
+                self.assertFalse(any(event.get("code") == "Corrupt" for event in model.events))
+                audit(model.trace(name))
+
+    def test_prepare_unknown_does_not_allocate_a_descriptor_or_quarantine(self):
+        for stage in ("initial", "refresh", "proof"):
+            with self.subTest(stage=stage):
+                model = refinement(f"prepare_{stage}_unknown")
+                self.assertNotIn("snapshot/source/2/1", model.store)
+                self.assertFalse(any(event.get("code") == "Corrupt" for event in model.events))
+                # A new explicit call may proceed; it does not replay an old
+                # publication or reinterpret the failed observation as absence.
+                descriptor = model.snapshot_prepare(1, actor="a")
+                self.assertEqual(model.run(model.snapshot_capture(descriptor, actor="a"))["status"], "applied")
+                audit(model.trace("unknown-new-call"))
+
+    def test_s1_admission_only_accepts_explicit_null_origin(self):
+        for name in ("s1_null_origin", "s1_copying_origin", "s1_copied_origin", "s1_missing_origin"):
+            with self.subTest(name=name):
+                model = refinement(name)
+                admissions = [event for event in model.events if event["event"] == "s1_source_admission"]
+                self.assertEqual(len(admissions), int(name == "s1_null_origin"))
+                self.assertEqual(len(model.calls), 0)
+                audit(model.trace(name))
+
+    def test_released_points_leave_permanent_control_objects_after_payload_gc(self):
+        model = refinement("permanent_snapshot_metadata")
+        self.assertEqual(model.store["head/source"]["body"]["snapshots"], [])
+        self.assertIsNotNone(model.store["head/source"]["body"]["terminal"])
+        self.assertFalse(any(path.startswith("data/source/") for path in model.store))
+        self.assertEqual({path for path in model.store if path != "head/source"},
+                         {"snapshot/source/1/1", "accepted/source/1/1", "snapshot/source/1/2", "accepted/source/1/2"})
+        audit(model.trace("permanent-control-cost"))
+
+    def test_technical_serial_gaps_do_not_create_future_source_revisions(self):
+        model = refinement("source_revision_technical_gap")
+        head = model.store["head/source"]["body"]
+        self.assertEqual((head["revision"], head["serial"]), (2, 6))
+        self.assertEqual([(entry["point"]["revision"], entry["ref"]["capture_serial"])
+                          for entry in head["snapshots"]], [(1, 4), (2, 6)])
+        audit(model.trace("fixed-original-revisions"))
+
+    def test_reusing_operation_recovers_original_descriptor_without_second_capture(self):
+        model = refinement("same_operation_no_second_ref")
+        self.assertEqual([entry["ref"]["operation"] for entry in model.store["head/source"]["body"]["snapshots"]], [2])
+        old = model.store["snapshot/source/1/1"]["body"]
+        self.assertEqual(old["capture_serial"], 2)
+        self.assertTrue(any(event.get("operation") == "snapshot_capture" and event.get("code") == "Fenced"
+                            for event in model.events))
+        audit(model.trace("old-operation-stays-fenced"))
 
     def test_copy_does_not_use_lowered_current_quota_for_historical_tree(self):
         self.check("multi_root_lower_current_quota")

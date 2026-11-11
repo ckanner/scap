@@ -63,7 +63,7 @@ class Model:
                            "2": {"admin": True, "read": True}, "3": {"admin": True, "read": True}},
                 "lifecycle": "ready", "snapshots": [], "plan": None, "sweep": None,
                 "limits": {"max_points": 2, "max_pages": 6}, "terminal": None,
-                "requests": [9001], "owner_pending": False}
+                "requests": [9001], "owner_pending": False, "restore_origin": None}
         self._initial("head/source", head)
         self.events.append({"event": "initial", "maximum": maximum,
                             "objects": deepcopy(self.store), "principals": dict(self.principal),
@@ -238,24 +238,57 @@ class Model:
         return self.immutable("payload", key(scope, generation, digest(body)), body, actor,
                               evidence, {"scope": scope, "generation": generation})
 
-    def snapshot_prepare(self, operation, label="point", actor="admin", hook=None):
+    def snapshot_prepare(self, operation, label="point", actor="admin", hook=None,
+                         refresh_hook=None, proof_hook=None, faults=None, unsafe=None):
+        faults = faults or {}
         descriptor_key = f"snapshot/source/{self.principal[actor]}/{operation}"
-        descriptor_read, old = self.get(descriptor_key, actor)
+        initial, old = self.get(descriptor_key, actor, fault=faults.get("initial"))
+        descriptor_read = initial
         if hook:
             hook()
         head_read, head = self.fresh_head(actor)
         self.auth(head, actor, read=True)
+        head2 = None
+        if old["status"] == "missing" and unsafe != "stale_missing":
+            # The initial absence can precede another process's accepted point.
+            # Only an observation after this HEAD can diagnose its dependency.
+            descriptor_read, old = self.get(descriptor_key, actor, fault=faults.get("refresh"))
+            if refresh_hook:
+                refresh_hook()
+            head2, refreshed = self.fresh_head(actor)
+            self.auth(refreshed, actor, read=True)
+            if refreshed != head:
+                self.fail("Conflict", "snapshot_prepare_barrier", actor=actor,
+                          head1=head_read, head2=head2)
+        view = self.event("snapshot_prepare_view", actor=actor, process=self.process[actor],
+                          creator=self.principal[actor], operation=operation, initial=initial,
+                          head1=head_read, descriptor=descriptor_read, head2=head2)
         if old["status"] == "present":
             if old["body"]["label"] != label:
                 self.fail("Conflict", "snapshot_prepare", descriptor=descriptor_read, head=head_read)
+            self.event("snapshot_prepared", view=view, descriptor=descriptor_read, label=label)
             return old["body"]
         if old["status"] != "missing":
-            self.fail("Unknown", "snapshot_prepare", descriptor=descriptor_read)
+            self.fail("Unknown", "snapshot_prepare", read=descriptor_read)
         body = head["body"]
-        proof_read, proof = self.get(f"accepted/source/{self.principal[actor]}/{operation}", actor)
-        if proof["status"] == "present" or any(item["ref"]["operation"] == operation
-                and item["ref"]["creator"] == self.principal[actor] for item in body["snapshots"]):
-            self.fail("Corrupt", "descriptor_dependency", head=head_read, proof=proof_read)
+        if proof_hook:
+            proof_hook()
+        proof_read, proof = self.get(f"accepted/source/{self.principal[actor]}/{operation}", actor,
+                                     fault=faults.get("proof"))
+        if proof["status"] == "present":
+            proof_head = None
+            if unsafe != "late_proof":
+                proof_head, refreshed = self.fresh_head(actor)
+                self.auth(refreshed, actor, read=True)
+                if refreshed != head:
+                    self.fail("Conflict", "snapshot_prepare_barrier", actor=actor,
+                              head1=head_read, head2=proof_head)
+            self.fail("Corrupt", "descriptor_dependency", view=view, proof=proof_read, proof_head=proof_head)
+        if any(item["ref"]["operation"] == operation and item["ref"]["creator"] == self.principal[actor]
+               for item in body["snapshots"]):
+            self.fail("Corrupt", "descriptor_dependency", view=view, proof=proof_read, proof_head=None)
+        if proof["status"] != "missing" and unsafe != "unknown_proof":
+            self.fail("Unknown", "snapshot_prepare", read=proof_read)
         if body["lifecycle"] != "ready" or body["terminal"] is not None:
             self.fail("Lifecycle", "snapshot_prepare", head=head_read)
         if body["plan"] is not None or body["sweep"] is not None or body["owner_pending"]:
@@ -273,9 +306,19 @@ class Model:
                       "operation": operation, "label": label, "base": deepcopy(body), "etag": head["etag"],
                       "point": {"root": body["root"], "pages": body["pages"], "sequence": body["sequence"],
                                 "revision": body["revision"]}, "capture_serial": body["serial"] + 1}
-        self.immutable("snapshot_descriptor", descriptor_key, descriptor, actor,
-                       {"head": head_read, "root": root_read, "prior": descriptor_read, "proof": proof_read})
+        accepted, _ = self.immutable("snapshot_descriptor", descriptor_key, descriptor, actor,
+                       {"head": head_read, "root": root_read, "prior": descriptor_read, "proof": proof_read,
+                        "prepare_view": view})
+        self.event("snapshot_prepared", view=view, descriptor=accepted, label=label)
         return descriptor
+
+    def s1_open(self, actor="admin", unsafe=False):
+        """Only the staged reader boundary; this does not implement a wire codec."""
+        head_read, head = self.fresh_head(actor)
+        if not unsafe and ("restore_origin" not in head["body"] or head["body"]["restore_origin"] is not None):
+            self.fail("Corrupt", "s1_origin_boundary", head=head_read)
+        self.event("s1_source_admission", head=head_read, actor=actor, process=self.process[actor])
+        return head["body"]
 
     @staticmethod
     def entry(descriptor):

@@ -2,7 +2,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 
-from cases import setup, full_copy_without_record, rejected, special
+from cases import setup, full_copy_without_record, prepare_competitor, refinement, rejected, special
 from model import Model, digest, key
 
 
@@ -195,6 +195,35 @@ def bad(name):
                  "state": "reserved", "revision": 1}
         model.candidate("reserve", "name/backup", value, "absent", "a",
                         {"descriptor": descriptor_read, "name": name_read, "target_admission": admission})
+    elif name == "prepare_stale_missing_quarantined":
+        model = Model()
+        rejected(lambda: model.snapshot_prepare(1, actor="a", hook=lambda: prepare_competitor(model),
+                                                unsafe="stale_missing"), "Corrupt")
+    elif name == "prepare_changed_refresh_quarantined":
+        model = refinement("prepare_refresh_head_change")
+        next(event for event in reversed(model.events) if event["event"] == "rejected")["code"] = "Corrupt"
+    elif name == "prepare_late_proof_quarantined":
+        model = Model()
+        rejected(lambda: model.snapshot_prepare(1, actor="a", proof_hook=lambda: prepare_competitor(model, True),
+                                                unsafe="late_proof"), "Corrupt")
+    elif name == "prepare_unknown_proof_rebuilt":
+        model = Model()
+        model.snapshot_prepare(1, faults={"proof": "unknown"}, unsafe="unknown_proof")
+    elif name == "snapshot_future_source_revision":
+        model = Model(); entry = model.capture(1); model.run(model.snapshot_release(entry)); model.capture(2)
+        head = deepcopy(model.store["head/source"]["body"])
+        # S=4, R=1, capture_serial=4: the old R_point < capture_serial check accepts 2.
+        head["snapshots"][0]["point"]["revision"] = 2
+        model.operator("head/source", head); model.begin()
+    elif name == "snapshot_duplicate_operation_entries":
+        model = Model(); model.capture(1, "first"); model.capture(2, "second")
+        head = deepcopy(model.store["head/source"]["body"])
+        # Both complete refs, labels and capture serials remain distinct.
+        head["snapshots"][1]["ref"]["operation"] = 1
+        model.operator("head/source", head); model.begin()
+    elif name in ("s1_copying_origin_accepted", "s1_copied_origin_accepted", "s1_missing_origin_accepted"):
+        model = refinement(name.removesuffix("_accepted"))
+        model.s1_open(unsafe=True)
     else:
         raise ValueError(name)
     return model.trace(name)
@@ -239,6 +268,15 @@ MATRIX = (
     ("missing_referenced_completion_still_binds", "referenced_completion", "metadata_and_protocol"),
     ("original_name_revision_rebased", "original_name_revision", "protocol"),
     ("creator_gate_borrowed_for_foreign_plan", "fresh_target_permission", "protocol"),
+    ("prepare_stale_missing_quarantined", "prepare_dependency_order", "protocol"),
+    ("prepare_changed_refresh_quarantined", "prepare_barrier_before_corrupt", "observer"),
+    ("prepare_late_proof_quarantined", "prepare_proof_barrier", "protocol"),
+    ("prepare_unknown_proof_rebuilt", "missing_is_not_rebuild", "protocol"),
+    ("snapshot_future_source_revision", "snapshot_source_revision", "metadata_and_protocol"),
+    ("snapshot_duplicate_operation_entries", "snapshot_operation_identity", "metadata_and_protocol"),
+    ("s1_copying_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
+    ("s1_copied_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
+    ("s1_missing_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
 )
 
 

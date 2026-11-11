@@ -8,8 +8,8 @@ import sys
 import tempfile
 import unittest
 
-from cases import special
-from counterexamples import negatives
+from cases import refinement, special
+from counterexamples import bad, negatives
 from oracle import audit, Violation
 
 
@@ -48,6 +48,32 @@ class OracleTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom):
                 imported.append((node.module or "").split(".")[0])
         self.assertFalse(set(imported) & {"model", "cases", "counterexamples", "explore", "codec_budget"})
+
+    def test_prepare_order_rule_rejects_the_original_real_interleaving(self):
+        value = bad("prepare_stale_missing_quarantined")
+        self.assertFalse(any(event["event"] == "operator_fault" for event in value["events"]))
+        with self.assertRaises(Violation) as caught:
+            audit(value)
+        self.assertEqual(caught.exception.rule, "prepare_dependency_order")
+        audit(refinement("prepare_missing_before_capture").trace("fixed-same-interleaving"))
+
+    def test_new_head_constraints_are_independent_of_old_point_bounds(self):
+        for name, expected in (("snapshot_future_source_revision", "snapshot_source_revision"),
+                               ("snapshot_duplicate_operation_entries", "snapshot_operation_identity")):
+            with self.subTest(name=name):
+                value = bad(name)
+                head = next(event["value"]["body"] for event in value["events"] if event["event"] == "operator_fault")
+                points = head["snapshots"]
+                # These damaged heads satisfy the old static checks, which
+                # explains why a new decoder obligation is necessary.
+                self.assertEqual([entry["ref"]["capture_serial"] for entry in points],
+                                 sorted({entry["ref"]["capture_serial"] for entry in points}))
+                self.assertEqual(len({json.dumps(entry["ref"], sort_keys=True) for entry in points}), len(points))
+                self.assertTrue(all(0 < entry["point"]["revision"] < entry["ref"]["capture_serial"] <= head["serial"]
+                                    for entry in points))
+                with self.assertRaises(Violation) as caught:
+                    audit(value)
+                self.assertEqual(caught.exception.rule, expected)
 
     def test_raw_conditional_result_cannot_be_overridden_by_summary(self):
         value = special("snapshot_observation_is_not_release_ack").trace("bad-effect")

@@ -13,14 +13,14 @@ class ExploreTests(unittest.TestCase):
     def test_fixed_inventory_and_no_omitted_family(self):
         positive, negative = cases(), negatives()
         table = inventory(positive, negative)
-        self.assertEqual(len(table["positive"]), 789)
-        self.assertEqual(len(table["negative"]), 38)
+        self.assertEqual(len(table["positive"]), 804)
+        self.assertEqual(len(table["negative"]), 47)
         self.assertEqual(dict(Counter(case.family for case in positive)), FAMILIES)
 
     def test_every_representative_and_all_boundary_histories(self):
         seen = set()
         for case in cases():
-            if case.family != "boundary" and case.family in seen:
+            if case.family not in ("boundary", "refinement") and case.family in seen:
                 continue
             seen.add(case.family)
             with self.subTest(name=case.name):

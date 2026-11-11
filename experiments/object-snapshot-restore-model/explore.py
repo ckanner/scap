@@ -21,14 +21,14 @@ from oracle import audit, canonical, Violation
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-PRODUCT_BASE = "3e850357478133ae2b76007c3e0e9609d3d8ac02"
+PRODUCT_BASE = "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492"
 MAX_SECONDS = 120
 MAX_BYTES = 256 * 1024 * 1024
-POSITIVE_COUNT = 789
-NEGATIVE_COUNT = 38
+POSITIVE_COUNT = 804
+NEGATIVE_COUNT = 47
 FAMILIES = {"capture": 80, "release_sql": 80, "bind_abort": 80, "provision_abort": 80,
             "two_completion": 80, "different_creator_name": 80, "migration": 126,
-            "late_completion": 70, "copied_abort": 40, "restart": 32, "boundary": 41}
+            "late_completion": 70, "copied_abort": 40, "restart": 32, "boundary": 41, "refinement": 15}
 
 
 def digest(data):

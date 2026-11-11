@@ -1,10 +1,12 @@
 # HEAD9 retained snapshot / fresh Scope restore：固定有限分母
 
-状态：独立模型源码与固定验收计划；运行结论仅以对应源码指纹manifest为准。产品实现、native SQLite、HTTP/S3、AWS均为 **NOT_RUN**。设计见 [retained-snapshot-restore.md](../../docs/architecture/retained-snapshot-restore.md)，输入产品固定为 `3e850357478133ae2b76007c3e0e9609d3d8ac02`，不继承HEAD8的700个单位或旧模型结果。
+状态：独立模型源码与固定验收计划；运行结论仅以对应源码指纹manifest为准。产品实现、native SQLite、HTTP/S3、AWS均为 **NOT_RUN**。设计见 [retained-snapshot-restore.md](../../docs/architecture/retained-snapshot-restore.md)，本次精化的输入产品固定为 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`；原789/38计划基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`，不继承HEAD8的700个单位或旧模型结果。
 
 ## 选择与原子边界
 
 保留点只有当前A中的数据树边，不引入旧generation永久pin。HEAD9的snapshot_limits是持久策略，普通本地copy预算耗尽只能Budget。每个snapshot有固定creator/operation、capture_serial=原S+1、原HEAD/ETag与point；release前持久accepted proof，释放后不能复用ID。source Deleted仍保留points，terminal须空表。
+
+HEAD还必须验证source_revision不超过当前R、live `(creator,operation)`不重复；完整ref互异和source_revision小于capture_serial不能替代这两项。合法模型API原本已用原R和永久身份槽阻止这些状态，本次补齐独立observer对坏HEAD的约束。S1读取方只接受显式null restore_origin；非null由S2及其完整Catalogue消费者一起启用。主模型原有S2 target使用符号`origin`，并未移除或提前算成S1可用功能。
 
 目标先取得自己的Provisioning slot，才开始跨Scope复制。每个frame重封装，自底向上重算hash；目标ACL只含新creator，sequence=0、request_epoch=1、请求结果为空。已授权、完整且独立的复制才能形成不可变CompletionRecord；record接受后源release/ACL/GC不再是目标的依赖，但每次目标resume仍须新目标授权和自己的Name/HEAD屏障。target abort不能被迟到record或旧CAS绕过。
 
@@ -20,7 +22,7 @@ GC通常作为继承HEAD6的“已证明永久退休generation+exact候选ETag+�
 
 外部target creator/provision资格每个新操作重新admit，模型有真实权限撤回事件；已经admit的调用不声称能被异步撤销。source ACL是HEAD内权威，并在copy前后重新验证。模型不提供共享进程知识谱系的完整证明；physical/semantic/Budget分类只覆盖本文失败投影与禁止失败前缀恢复，HEAD6/8 handle隔离仍须产品单位及真实验收。
 
-## 固定正向矩阵：789 histories
+## 固定正向矩阵：804 histories（原789 + 新15）
 
 | 家族 | 完整有限枚举 | Histories |
 | --- | --- | ---: |
@@ -35,16 +37,23 @@ GC通常作为继承HEAD6的“已证明永久退休generation+exact候选ETag+�
 | `copied_abort` | Abort Accept/Fence/Release与原Copied CAS三阶段全部20交织 × 2回复结局 | 40 |
 | `restart` | capture/release/provision/completion/copied/bind/ready/abort × prepare/invoke/effect/response后退出 | 32 |
 | `boundary` | `cases.py::SPECIALS`固定41个独立边界，逐例进入inventory | 41 |
+| `refinement` | `cases.py::REFINEMENTS`固定15个prepare/字段阶段/永久metadata边界，原家族不改名、不减项 | 15 |
 
 同步宏内的每个原始GET、PUT、DELETE都被observer重放，但scheduler不在所有内部I/O处插入对手；最终source屏障的中间HEAD变更用专门hook边界展示。未枚举的任意多actor、任意时长、无限release/capture/GC或所有时序不是本实验的结论。
 
 41个边界包括：两点不同页数与current quota降低；copy冻结表/limits；同名新ID；Deleted恢复；零/部分payload budget后新attempt；protected/source/target/semantic不同失败；release前后在途prefix；已释放失败点不能重启；源撤权的5个位置；proof错误稳定Corrupt/变化Conflict；descriptor有entry/proof见证却Missing；descriptor延迟GET后撤权优先Denied；持久limits不能低于live；新target quota；first-winner输入/Name冲突；ForeignOccupied保留foreign且释放Name；referenced Completion Missing；proof不是release ACK；cleanup余量；迟到PUT新轮清扫；3世代迟到DELETE；同身份错hash的稳定/变化屏障；terminal checkpoint整体settle/clear/Unknown及余量不足；target撤权后的新resume拒绝；撤源权限仍可合法取消target；不同creator复用Name后原target/旧Bind仍fenced。
 
-## 固定负控：38 histories
+新增15个refinement固定覆盖：真实初读Missing后竞争者capture或release，返回实际first-winner；descriptor后读与HEAD2之间发生capture，先Conflict；HEAD2撤权先Denied而非泄漏label冲突；初读/后读/proof的3种Unknown不创建descriptor；稳定Missing之后才出现proof，必须再检查HEAD；S1显式null通过、Copying/Copied/缺字段拒绝4例；两轮capture/release后terminal+GC的永久metadata4对象；技术serial领先时point仍固定原R；已释放operation重新prepare仍返回旧descriptor且capture被永久fence。后3例分别验证实际对象集合或既有合法协议，不靠修改summary制造结论。
+
+prepare的修正针对原真实错误：a先取得Missing，b合法prepare+capture，再由a读取新HEAD；旧模型会Corrupt，旧observer也漏检。现在initial descriptor→HEAD1后，Missing触发descriptor后读→HEAD2，当前权限优先，稳定后才能解释依赖。proof Present另外要求proof后的稳定HEAD；原始GET/PUT回包均未伪造。首轮观察Unknown保留Unknown。模型仅在这些命名hook插入竞争者，仍不是任意内部I/O交织穷举。
+
+## 固定负控：47 histories（原38 + 新9）
 
 完整列表在`counterexamples.py::MATRIX`，每例固定`name / expected rule / category`。成功标准是独立observer在自身预期rule拒绝，任意解析异常、其他rule或构造失败均不算通过。
 
 类别明确区分故意改变协议执行的`protocol`、外部损坏权威后故意忽略错误的`metadata_and_protocol`、仅篡改观察结论/原始回包的`observer`。未把任何反例声称为现有HEAD8合法API能产生的状态。具体包括遗漏snapshot闭包、CopyBasis不绑列表、释放无proof、ID复用、跨Scope原字节、Empty提前Bind/Ready、不完整prefix、旧权限、忽略HEAD2、错误expiry/Budget、条件重绑、删除受保护A、terminal漏points、普通SQL改point、损坏依赖重建、释放后新attempt、crash后前缀/unsent复用、伪造ACK/NotApplied、限额/计数越界、导入旧request、错误completion根、同身份hash矛盾、坏几何、terminal忽略q、目标权限撤回、Missing引用record继续Bind、原expected Name revision重绑、拿本人creator gate借用他人plan。
+
+新增9例：用HEAD之前的旧Missing隔离健康数据库；把HEAD变化改报Corrupt；晚到proof不经后置HEAD屏障就隔离；把proof Unknown当作不存在；接纳source_revision在当前R未来的坏HEAD；接纳完整ref不同却共用creator/operation的坏HEAD；S1分别错误接纳Copying、Copied、缺失origin。新增metadata负控保留了原静态条件（serial有序、完整ref互异、source_revision<capture_serial），以便证明新检查有独立作用。原模型合法API防住的情况不被描述为新的协议可达漏洞。
 
 ## HEAD尺寸与cleanup reserve
 
@@ -69,8 +78,10 @@ S + live_points + p + c + q + d + t <= MAX
 
 终态idle才没有cleanup债务；terminal后的checkpoint仍有q。Unknown局部DELETE前缀不推进HEAD，q不变；settled CAS丢ACK后新exact观察可证q=1。有限reserve不保证有计数进行无限late PUT/无限sweep；极限正例特意保留terminal中的未扫orphan，显示拒绝新checkpoint而不冒称永久全空。目录owner_epoch/Name原有计数限制须在后续产品中保持，本模型不单独证明其完整状态空间。
 
+live点数与gross数据量有界不限制永久控制metadata。每个不同prepared operation至少可留下一个descriptor，有accepted proof的operation还增加一个对象；未capture或未release成功也可能留下控制orphan。`permanent_snapshot_metadata`实际走两轮capture/release，再delete/terminal/GC，得到live=0、payload=0、descriptor=2、proof=2。它证明这一有限轨迹存在永久成本，不把2次循环外推为无限规模性能证明；未来控制GC需要独立退休、防复用和禁止Missing重建的权威方案。
+
 ## 证据与后续门禁
 
-explore一次只用1个进程，最多120秒/256MiB证据，拒绝覆盖已有目录。manifest记录789/38固定inventory、源码SHA256前后、每个原始history、具体negative rule、Python版本、尺寸报告与观察计数；失败和原history保留。测试包含独立oracle在仅有自身文件的空目录执行，不可导入model、scheduler或产品。
+explore一次只用1个进程，最多120秒/256MiB证据，拒绝覆盖已有目录。manifest记录804/47固定inventory、源码SHA256前后、每个原始history、具体negative rule、Python版本、尺寸报告与观察计数；失败和原history保留。原789/38只是保持不变的覆盖范围，旧manifest不替代此次完整重跑。测试包含独立oracle在仅有自身文件的空目录执行，不可导入model、scheduler或产品。
 
 最终模型验收通过也只允许进入设计审查。S1生产snapshot authority/closure、S2 fresh-Scope restore，以及HTTP/SDK、四维精确单位、原生/HTTP/S3故障注入、进程退出/全冷恢复、独立oracle与controls仍须分别完成。不会把当前文档或模型预先算成PITR产品交付。

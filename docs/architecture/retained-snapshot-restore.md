@@ -1,6 +1,6 @@
 # HEAD9：显式保留快照与新 Scope 恢复
 
-状态：设计与独立可执行模型候选，产品未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。固定实现输入为 HEAD8 候选 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；其 core 字节对应 `core-freeze-01.json` 的完整摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b`。HEAD8 的正式验收不认证本文的新协议。
+状态：设计与独立可执行模型候选，产品未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
 
 ## 1. 选择与交付边界
 
@@ -33,6 +33,8 @@
 
 HEAD9 新增必填 `snapshots: []`（至多 64 条）、`snapshot_limits: {max_points,max_logical_bytes}`、必填 nullable `restore_origin`。HEAD6/7/8 必须完全省略这些字段；不能把未知/缺失字段默认为空。HEAD9 的 owner_plan 可省略仅表示尚未采用 V2，显式null仍拒绝；一旦已有 owner marker，任何后继必须保留或经现有 owner V2 合法替换，legacy owner 永久拒绝。HEAD9 的普通/终态 storage 规则与现有 HEAD6/7 一致，额外要求 terminal => snapshots 为空。
 
+S1 的实际解码和所有写入只接受 **显式 `restore_origin:null`**。缺字段、`Copying`、`Copied` 或任何其他非 null 内容都失败关闭；不能先接受未来 origin 再让旧 Catalogue 路径忽略它。第5节非 null 形状属于 S2，必须与 Catalogue recipe、CompletionRecord、inspect/discovery/recovery/abort 以及 Bind/Ready 的全部消费者同时开放。S1 对普通 HEAD9 的保留快照不需要非 null origin。
+
 限额是持久业务策略：默认 `max_points=64`、`max_logical_bytes=32GiB`；格式硬界为最多64点、总字节最多 `64 × MAX_PAGES × 4096`，可配为0以禁止新增点。当前ADMIN可在Ready/Maintenance用原HEAD/ETag更新限额，更新推进业务revision/transition及技术serial；新限额必须容纳已有live数量和gross逻辑字节。Deleted/terminal不开放这个业务更新入口，避免改变原delete/abort barrier；那里只释放旧点、保留原R/transition。服务本地copy/read预算不参与格式合法性，换一个较小预算的实例不能把原来合法HEAD判Corrupt；它只能对新复制尝试返回Budget。限额进入CopyBasis，copy期间不更新。
 
 SnapshotEntry 建议字段：
@@ -43,13 +45,19 @@ label: 最多128 UTF-8字节，无控制字符
 point = { data_root, page_count, sequence, source_revision }
 ```
 
-数组按 capture_serial 严格递增；live label 不重复；完整 ref 不重复。`capture_serial` 是 capture CAS 后的 head_serial，即 descriptor 原 head_serial+1，不由客户端任选。要求 `0 < source_revision < capture_serial <= HEAD.head_serial`、`sequence <= HEAD.sequence`、`page_count <= MAX_PAGES`，hash 和所有身份严格验证。名字只是在当前 live 集合内的标签；release 后同名新点必须获得新的 serial/ref。restore descriptor 永远保存完整原 ref，不会在重启时按同名重新选点。
+数组按 capture_serial 严格递增；live label、完整 ref 以及 `(creator,operation)` 各自不重复。后一个约束对应永久 descriptor 的唯一物理身份槽；两个不同 hash/serial 的完整 ref 不能借同一个槽同时存在。`capture_serial` 是 capture CAS 后的 head_serial，即 descriptor 原 head_serial+1，不由客户端任选。同时要求 `0 < source_revision <= HEAD.revision`、`source_revision < capture_serial <= HEAD.head_serial`、`sequence <= HEAD.sequence`、`page_count <= MAX_PAGES`，hash 和所有身份严格验证。只检查 source_revision 小于 capture_serial 不够：技术维护可使 S=4 而 R=1，source_revision=2、capture_serial=4 仍是不可能的来源点。
+
+名字只是在当前 live 集合内的标签；release 后同名新点必须获得新的 operation/serial/ref。restore descriptor 永远保存完整原 ref，不会在重启时按同名重新选点。原模型的合法 API 已通过永久 first-winner descriptor 和原 HEAD/ETag capture 阻止同 operation 再次接受，也已固定 source_revision 为原 R；新增的两项静态检查约束损坏或外来 HEAD 的解码，不能据此声称发现了合法 API 可制造未来 revision 或重复身份的路径。
 
 SnapshotDescriptor 是永久不可变控制记录，包含完整 Scope、creator/operation、原 expected revision/head_serial、label、原 HEAD canonical hash/同次 ETag、精确 point、schema 和输入摘要。与 owner prepare 相同：输入在调用前保存；响应丢失可按 operation 找回实际 first-winner descriptor；不能重新用较晚 HEAD 给原 operation 构造新 base。
 
 从HEAD6/8首次升级时，descriptor还固定此次first-winner的初始snapshot_limits；不能在resume时用另一实例的新默认重建候选。HEAD9已有持久limits时完全沿用原HEAD策略。HEAD7 terminal不接受capture或新payload context。descriptor保存完整HEAD的SHA256和原ETag，不把最多256KiB HEAD内联到小控制记录；当前exact GET须同时匹配hash、原R/S、point和同次ETag。
 
-prepare 对现有 descriptor 的原始 GET 结果先暂存，随后 fresh HEAD/current ADMIN+READ，之后才处理内容、缺失或输入冲突。新建还要求 Ready、没有 pending owner/copy/sweep/terminal、原 R/S 一致、有快照数/字节额度。page_count 来自原 Snapshot 下真实 manifest GET 的 hash/Scope/类型校验，不能接受客户端自报。若当前 entry 或 accepted proof 已引用同身份，descriptor Missing 是 Corrupt，不能重建。
+prepare 对现有 descriptor 的原始 GET 结果先暂存，随后读取 HEAD1 并检查当前 ADMIN+READ，之后才处理内容或输入冲突。原始 GET 为 Missing 时，必须在 HEAD1 之后再次 exact GET descriptor，再读取 HEAD2、重新检查当前 ADMIN+READ，并确认 HEAD1/HEAD2 的 body 与同次 ETag 完全相同。当前撤权先 Denied；有权限但 HEAD 变化先 Conflict；只有稳定组合才能把后读 Missing 解释为 HEAD 引用的损坏依赖。后读 Present 返回实际 first-winner，不能重建为当前较晚 base；原始或后读 Unknown 均保留 Unknown，不当作 Missing。
+
+这个重读不是为了重试 publication：合法时序可以是 A 先得到真正 Missing，B 随后 prepare+capture，A 才读到引用 descriptor 的新 HEAD。直接把 A 的旧 Missing 和新 HEAD 拼在一起会错误 Corrupt。另一个合法时序是在稳定 Missing 观察后，B 才创建 descriptor、capture 并写 accepted proof；因此若随后 proof GET 为 Present，仍须再读 HEAD、先检查当前权限，并与原 HEAD1 做稳定比较，之后才允许据 proof 宣告 descriptor 损坏。proof Unknown 不允许创建新 descriptor。任何不稳定组合都不永久 quarantine，也不换一个 HEAD 为旧 operation 重新绑定候选。
+
+新建还要求 Ready、没有 pending owner/copy/sweep/terminal、原 R/S 一致、有快照数/字节额度。page_count 来自原 Snapshot 下真实 manifest GET 的 hash/Scope/类型校验，不能接受客户端自报。稳定当前 entry 或固定 accepted proof 已引用同身份而 descriptor 仍 Missing 才是 Corrupt，不能重建。每个新 descriptor 仍只 Absent PUT 并 exact 回读；这套观察屏障不增加权威 HEAD CAS 次数。
 
 ### 3.2 capture
 
@@ -62,6 +70,8 @@ prepare 对现有 descriptor 的原始 GET 结果先暂存，随后 fresh HEAD/c
 删除 live entry 前，必须从真实当前 entry 构造并条件创建一个固定 `SnapshotAcceptedProof {version, scope, entry}`，再 exact 读回原字节。proof 不包含这次 release 的新鲜 ACL、ETag、时间或较晚 revision。它证明该 entry 曾被 HEAD 接受；**单独存在不证明 release 已生效**。
 
 确认 proof 后，release 以当前原 ETag 移除完全相同的 entry，仅推进 serial。copy/sweep/pending owner 时拒绝 release。重启后的新 release 可在新鲜 ADMIN 下继续同一 ref；每个具体 CAS 仍固定自己的原 ETag。当前 entry 仍在 => Retained；稳定 HEAD 中 entry 不在、serial 已跨过 capture_serial、固定 proof 匹配 => ReleasedObserved；这不是过去调用的 ACK。proof/descriptor 永不进入 payload GC。
+
+因此 live 表至多64条不等于永久控制对象至多64个。每个已准备的不同 operation 都可留下 descriptor，完成 capture/release 的不同 operation 还各有一个 accepted proof；prepare 后未 capture、release CAS 未生效的记录也可永久保留。两次 capture/release 后即使 live 表为空、数据库 terminal、全部 payload 已 GC，仍有两个 descriptor 和两个 proof。它们维持身份不可复用与依赖损坏检测；S1 不通过 TTL、覆盖或 payload GC 删除它们。永久 metadata 的数量随历史 operation 增长，32GiB gross 限额也不限制这部分存储或请求成本。若后续要回收，必须另设计身份永久退休及防重建协议。
 
 ID 防复用来自双重约束：capture ID 必须是原 S+1，具体 CAS 又绑定那个原 HEAD。release 或任意较晚 HEAD 使这个原 CAS 永久失效。新 capture 不能指定旧 ID；新同名点也不能冒充旧 ref。不存在“entry absent 就允许重注册旧 ref”的入口。
 
@@ -163,6 +173,7 @@ control 工作与大 copy 分离。每个控制调用最多一个权威 CAS；�
 
 * 格式最多64个live points、label最多128 bytes；HEAD仍256KiB。新模型目录的`codec_budget.py`用当前1024条ACL、64个互不相同且全部需JSON转义的128-byte labels、完整CopyBasis副本、3窗口、owner marker、Copied restore origin、32条最大key/1024-byte ETag的sweep分别构造。候选字段布局下live COPY=164,934 bytes、live sweep=199,324 bytes、terminal sweep=157,799 bytes。进一步把互斥plan+sweep+terminal及最长enum都同时置入不可达的保守上界，得到242,467 bytes，距262,144仍有19,677 bytes。它是逐字段JSON尺寸上界，不是声称这个不可达组合能过Rust validator；真实HEAD9 codec四维单位及同字段编码仍须独立验收。任何最终字段改名/新增均重算。
 * 持久gross限额默认32GiB；按每个点page_count×4096保守相加，不把共享对象扣除作为准入依据。现有live总量以上的ADMIN限额更新必须单独通过checked总量验证；本地恢复预算与此策略分开。
+* snapshot_limits 约束 live 根数量和 gross 数据量，不约束永久 descriptor/proof 数量、旧 A 中待清理 orphan、恢复失败目标残留或请求次数。release 只移除保留边；空间释放还取决于后续合法 COPY/退休/GC。运维成本必须同时统计这些类别；对象 inventory 可用于成本诊断，不能成为 snapshot 身份或发布权威。
 * 业务 quota 只约束当前库；点的页数不可随 quota 降低改变。target quota 独立设置且必须容纳完整点；target retention是新默认/选项，不是源结果保留策略。
 * source GET、target PUT/readback各独立计数/字节预算，建议沿用每次最多1,048,576读、64GiB admitted bytes的安全默认，并为PUT设独立相同上限；可降低，0禁用大copy。按授予cap预留、成功且期限仍有效才退款、失败不退；本地缩窄cap的Limit映射Budget，无quarantine。不是RSS/线缆流量硬上限。
 * 重封装采用有界后序栈（数据树最多4层，每层最多256 child hashes）与单Chunk缓冲，不能用全库PageBatch/BTreeMap把10GiB图片装入内存。native校验使用有额度的临时文件；recovery semaphore和临时盘预留必须分别限制并发/总逻辑空间，不能只宣称cache_bytes限制RSS。
@@ -190,13 +201,15 @@ control 工作与大 copy 分离。每个控制调用最多一个权威 CAS；�
 
 建议一次完整功能分两可审查提交，但最终产品验收按组合进行：
 
-**S1 snapshot authority + closure：** strict HEAD9/table/descriptor/proof/API，所有普通/owner/storage guard，完整逐根 closure 和 CopyBasis，Deleted/release/terminal、资源与counter预留。仅存在未发布的S1草稿时不宣称PITR完成。
+**S1 snapshot authority + closure：** strict HEAD9/table/descriptor/proof/API，所有普通/owner/storage guard，完整逐根 closure 和 CopyBasis，Deleted/release/terminal、资源与counter预留。S1 必填且仅允许 null restore_origin；必须同时更新普通 publication、owner V2、compaction/GC、Catalogue 对现有 HEAD 的读取与删除 guard，不能只加 snapshot 模块。完成这些门禁可单独交付保留根与元数据管理；S1 尚不提供新 Scope 恢复，不能宣称 PITR 或完整备份恢复已完成。
 
 **S2 fresh restore：** strict Catalogue recipe/restore origin/completion，完整跨Scope重封装和native校验，Name/HEAD状态机与取消/发现/恢复全部消费者，HTTP/Node SDK，一次调用一个CAS与明确新resume。
 
 核心改动位置：`format.rs`、`storage.rs`、`closure.rs`、`data_tree.rs`或新有界transcode模块、`lib.rs`/Session publication、`head_publication.rs`、`reclamation.rs`、`owner.rs`、Catalogue records/types/create/inspect/control/terminal/discovery/recovery；新增snapshot/restore私有capability模块。store继续提供原exact/conditional接口，不引入任意DELETE能力。
 
 独立finite模型先覆盖两snapshot、三source generations、两个目标身份/两个actor、有界counter与2–3页数据树。分开实现状态转移与观察器，保留正向全history和故障协议负控。模型明确抽象掉SQLite/HTTP/S3真实实现，不认证产品。
+
+本次精化保留原789正例/38负控的名称与范围，追加独立的15条 refinement 正例和9条负控；新固定分母是804/47，结果必须由新源码指纹重新运行取得。prepare 竞态是实际模型错误：原合法交错返回 Corrupt，而且旧 observer 未检查这种 rejected；新增 observer 从真实 GET invoke/effect/response 重建顺序。source_revision 与 `(creator,operation)` 的新负控则明确先注入损坏 HEAD，再检测错误接纳，不冒称合法 API 可达。S1 admission 只检查阶段字段边界；模型原有 S2 符号 target origin 与恢复路径继续独立运行，它不是 Rust wire codec 的证明。永久 metadata 用实际 capture/release/terminal/GC 后的对象集合检验。
 
 正向矩阵至少包括：两个点与当前根同时复制；snapshot后SQL并close窗口；quota降低后旧点迁移；复制期间capture/release拒绝；旧GET被promote+sweep中止后同点新A重启；release后同名新点；Deleted恢复/最后release+seal；两个restore creator争同Name；同operation不同recipe first-winner；prepare/capture/release/proof/Copied/Ready逐个Unknown；每个跨对象切点退出后全缓存丢失；源撤权前后完成边界；CompletionRecord先到/后到target abort；FenceAbsent/ForeignOccupied；目标quota/bytes/context/disk额度耗尽；同target双resume；源全删除后目标cold恢复；旧源请求在目标不能lookup成原Committed。
 

@@ -30,7 +30,7 @@ class Violation(Exception):
 def audit(history):
     objects, calls, reads, processes, attempts, validations = {}, {}, {}, {}, {}, {}
     principals, maximum, seen_etags, provision_rights, target_admissions = {}, 0, set(), {}, {}
-    accepted_points, complete_records, active_targets = {}, set(), set()
+    accepted_points, complete_records, active_targets, prepare_views = {}, set(), set(), {}
     terminal_scopes = set()
     index = 0
     counts = {"events": 0, "head_effects": 0, "completed_copies": 0, "target_ready": 0,
@@ -75,9 +75,12 @@ def audit(history):
             entries = head["snapshots"]
             serials = [entry["ref"]["capture_serial"] for entry in entries]
             need(serials == sorted(set(serials)), "snapshot_identity")
+            need(len({(entry["ref"]["creator"], entry["ref"]["operation"]) for entry in entries}) == len(entries),
+                 "snapshot_operation_identity")
             need(len({entry["label"] for entry in entries}) == len(entries), "snapshot_label")
             need(all(0 < entry["point"]["revision"] < entry["ref"]["capture_serial"] <= head["serial"]
                      and entry["point"]["sequence"] <= head["sequence"] for entry in entries), "snapshot_point")
+            need(all(entry["point"]["revision"] <= head["revision"] for entry in entries), "snapshot_source_revision")
             need(len(entries) <= head["limits"]["max_points"] <= 2 and
                  sum(entry["point"]["pages"] for entry in entries) <= head["limits"]["max_pages"] <= 6,
                  "persisted_snapshot_limits")
@@ -247,6 +250,9 @@ def audit(history):
                   "revision": head["body"]["revision"]}, "snapshot_original_basis")
             need(observation(evidence["prior"], call, False)["status"] == "missing"
                  and observation(evidence["proof"], call, False)["status"] == "missing", "missing_is_not_rebuild")
+            prepared = prepare_views.get(evidence.get("prepare_view"))
+            need(prepared is not None and prepared["head1"] == evidence["head"]
+                 and prepared["descriptor"] == evidence["prior"], "prepare_dependency_order")
             need(head["body"]["lifecycle"] == "ready" and not head["body"]["owner_pending"] and head["body"]["plan"] is None,
                  "snapshot_admission")
             return
@@ -568,6 +574,37 @@ def audit(history):
         elif kind == "copy_abandoned":
             need(event["attempt"] in attempts and event["reason"] in ("Denied", "Conflict", "Corrupt", "Incomplete"), "known_abandoned_attempt")
             attempts[event["attempt"]]["failed"] = True
+        elif kind == "snapshot_prepare_view":
+            initial = observation(event["initial"], event, False)
+            first = observation(event["head1"], event)
+            need(reads[event["initial"]]["response_index"] < reads[event["head1"]]["invoke_index"],
+                 "prepare_dependency_order")
+            need(event["creator"] == principals[event["actor"]] and
+                 reads[event["descriptor"]]["key"] == f"snapshot/source/{event['creator']}/{event['operation']}",
+                 "snapshot_descriptor_binding")
+            if initial["status"] == "missing":
+                need(event["head2"] is not None and event["descriptor"] != event["initial"], "prepare_dependency_order")
+                second = observation(event["head2"], event)
+                need(first == second and reads[event["head1"]]["response_index"] <
+                     reads[event["descriptor"]]["invoke_index"] and reads[event["descriptor"]]["response_index"] <
+                     reads[event["head2"]]["invoke_index"], "prepare_dependency_order")
+            else:
+                need(event["descriptor"] == event["initial"] and event["head2"] is None, "prepare_dependency_order")
+            permissions(first["body"], event["actor"], True)
+            observation(event["descriptor"], event, False)
+            prepare_views[index] = deepcopy(event)
+        elif kind == "snapshot_prepared":
+            need(event["view"] in prepare_views, "prepare_dependency_order")
+            prepared = prepare_views[event["view"]]
+            descriptor = body(event["descriptor"], prepared)
+            need(reads[event["descriptor"]]["key"] ==
+                 f"snapshot/source/{prepared['creator']}/{prepared['operation']}" and
+                 (descriptor["creator"], descriptor["operation"], descriptor["label"]) ==
+                 (prepared["creator"], prepared["operation"], event["label"]), "snapshot_descriptor_binding")
+        elif kind == "s1_source_admission":
+            head = body(event["head"], event)
+            permissions(head, event["actor"])
+            need("restore_origin" in head and head["restore_origin"] is None, "s1_null_origin")
         elif kind == "snapshot_observation":
             pseudo = {"actor": event["actor"], "process": processes[event["actor"]]}
             head = stable_source(event, pseudo)
@@ -592,10 +629,38 @@ def audit(history):
                 objects[event["key"]] = deepcopy(event["value"])
                 seen_etags.add(event["value"]["etag"])
         elif kind == "rejected":
-            # Candidate-level successes are proven above. These negative API
-            # observations are checked only for the explicitly modeled barrier.
+            # Rejections are not generally a safety proof. These explicitly
+            # modeled cases must carry real read ordering, not a model summary.
             if event["operation"] in ("completion_barrier", "snapshot_observe") and "head1" in event:
                 need(observation(event["head1"]) != observation(event["head2"]) and event["code"] == "Conflict", "barrier_before_corrupt")
+            elif event["operation"] == "snapshot_prepare_barrier":
+                permissions(body(event["head2"]), event["actor"], True)
+                need(observation(event["head1"]) != observation(event["head2"]) and event["code"] == "Conflict",
+                     "prepare_barrier_before_corrupt")
+            elif event["operation"] == "descriptor_dependency":
+                need(event.get("view") in prepare_views, "prepare_dependency_order")
+                prepared = prepare_views[event["view"]]
+                head = body(prepared["head1"])
+                missing = observation(prepared["descriptor"], prepared, False)
+                proof = observation(event["proof"], prepared, False)
+                live = any((entry["ref"]["creator"], entry["ref"]["operation"]) ==
+                           (prepared["creator"], prepared["operation"]) for entry in head["snapshots"])
+                need(missing["status"] == "missing" and event["code"] == "Corrupt"
+                     and (live or proof["status"] == "present"), "missing_is_not_rebuild")
+                if proof["status"] == "present":
+                    need(event.get("proof_head") is not None, "prepare_proof_barrier")
+                    final = observation(event["proof_head"], prepared)
+                    permissions(final["body"], prepared["actor"], True)
+                    need(final == observation(prepared["head1"], prepared) and
+                         reads[event["proof"]]["response_index"] < reads[event["proof_head"]]["invoke_index"],
+                         "prepare_proof_barrier")
+            elif event["operation"] == "snapshot_prepare" and event["code"] == "Unknown":
+                need(observation(event["read"], present=False)["status"] not in ("present", "missing"),
+                     "prepare_unknown_preserved")
+            elif event["operation"] == "s1_origin_boundary":
+                head = body(event["head"])
+                need(event["code"] == "Corrupt" and ("restore_origin" not in head or head["restore_origin"] is not None),
+                     "s1_null_origin")
         else:
             need(False, "known_event", kind)
     need(history["events"] and history["events"][0]["event"] == "initial", "single_initial")

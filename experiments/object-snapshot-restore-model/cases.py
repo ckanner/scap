@@ -573,6 +573,75 @@ def special(name):
     raise ValueError(name)
 
 
+def prepare_competitor(model, release=False):
+    descriptor = model.snapshot_prepare(1, actor="b")
+    model.run(model.snapshot_capture(descriptor, actor="b"))
+    if release:
+        model.run(model.snapshot_release(model.entry(descriptor), actor="b"))
+    return descriptor
+
+
+def refinement(name):
+    model = Model()
+    if name in ("prepare_missing_before_capture", "prepare_missing_before_release"):
+        model.snapshot_prepare(1, actor="a", hook=lambda: prepare_competitor(
+            model, release=name.endswith("release")))
+    elif name == "prepare_refresh_head_change":
+        rejected(lambda: model.snapshot_prepare(1, actor="a", refresh_hook=lambda: prepare_competitor(model)),
+                 "Conflict")
+    elif name == "prepare_refresh_denied_before_mismatch":
+        rejected(lambda: model.snapshot_prepare(1, "wrong-label", actor="a",
+                 hook=lambda: model.snapshot_prepare(1, "first-label", actor="b"),
+                 refresh_hook=lambda: model.run(model.source_update("revoke"))), "Denied")
+    elif name in ("prepare_initial_unknown", "prepare_refresh_unknown", "prepare_proof_unknown"):
+        stage = name.split("_")[1]
+        rejected(lambda: model.snapshot_prepare(1, actor="a", faults={stage: "unknown"}), "Unknown")
+    elif name == "prepare_late_proof_head_change":
+        rejected(lambda: model.snapshot_prepare(1, actor="a", proof_hook=lambda: prepare_competitor(model, True)),
+                 "Conflict")
+    elif name == "s1_null_origin":
+        model.s1_open()
+    elif name in ("s1_copying_origin", "s1_copied_origin", "s1_missing_origin"):
+        head = deepcopy(model.store["head/source"]["body"])
+        if name == "s1_missing_origin":
+            del head["restore_origin"]
+        else:
+            phase = {"kind": "copying"} if name == "s1_copying_origin" else {
+                "kind": "copied", "completion_hash": "c" * 64, "data_root": head["root"], "page_count": head["pages"]}
+            head["restore_origin"] = {"descriptor_hash": "d" * 64, "phase": phase}
+        model.operator("head/source", head)
+        rejected(lambda: model.s1_open(), "Corrupt")
+    elif name == "permanent_snapshot_metadata":
+        for operation in (1, 2):
+            entry = model.capture(operation)
+            model.run(model.snapshot_release(entry))
+        model.run(model.source_update("delete")); model.run(model.terminal()); model.sweep("source", 1)
+    elif name == "source_revision_technical_gap":
+        entry = model.capture(1)
+        model.run(model.snapshot_release(entry))
+        model.capture(2)
+        model.run(model.source_update("sql", ["new"]))
+        model.capture(3, "new-point")
+    elif name == "same_operation_no_second_ref":
+        entry = model.capture(1)
+        model.run(model.snapshot_release(entry))
+        original = model.snapshot_prepare(1)
+        rejected(lambda: model.snapshot_capture(original), "Fenced")
+        model.capture(2)
+    else:
+        raise ValueError(name)
+    return model
+
+
+REFINEMENTS = (
+    "prepare_missing_before_capture", "prepare_missing_before_release", "prepare_refresh_head_change",
+    "prepare_refresh_denied_before_mismatch", "prepare_initial_unknown", "prepare_refresh_unknown",
+    "prepare_proof_unknown", "prepare_late_proof_head_change", "s1_null_origin", "s1_copying_origin",
+    "s1_copied_origin", "s1_missing_origin", "permanent_snapshot_metadata", "source_revision_technical_gap",
+    "same_operation_no_second_ref",
+)
+
+
 SPECIALS = (
     "multi_root_lower_current_quota", "copy_freezes_table_and_limits", "released_label_is_new_identity",
     "deleted_retains_until_explicit_release", "zero_budget_fresh_retry", "partial_budget_fresh_retry",
@@ -621,4 +690,6 @@ def cases():
         result.append(Case(f"restart-{operation}-{cut}", "restart", lambda operation=operation, cut=cut: restart(operation, cut)))
     for name in SPECIALS:
         result.append(Case(name, "boundary", lambda name=name: special(name)))
+    for name in REFINEMENTS:
+        result.append(Case(name, "refinement", lambda name=name: refinement(name)))
     return result
