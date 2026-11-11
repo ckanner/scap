@@ -292,8 +292,16 @@ impl Database {
         let key = owner_format::key(&self.scope, &identity, false);
         // Hold the raw result until the subsequent fresh HEAD authorizes the
         // caller. A slow descriptor GET must not preserve an old ADMIN grant.
-        let stored = database.objects.get(&key, MAX_DESCRIPTOR, deadline);
+        let mut stored = database.objects.get(&key, MAX_DESCRIPTOR, deadline);
         let base = database.owner_head(principal, deadline)?;
+        if matches!(stored, Err(StoreError::Missing)) {
+            // Missing was observed before this HEAD. Another caller may have
+            // created and admitted the descriptor in between those reads.
+            // Re-read after HEAD1, then authorize/stabilize HEAD2 before
+            // interpreting the dependency, input conflict or transport error.
+            stored = database.objects.get(&key, MAX_DESCRIPTOR, deadline);
+            database.owner_barrier(principal, &base, deadline)?;
+        }
         if let Some(descriptor) = database.owner_decode_descriptor(&identity, stored)? {
             if descriptor.input != *input {
                 return Err(Error::Conflict);
@@ -339,7 +347,13 @@ impl Database {
         let proof_key = owner_format::key(&self.scope, &identity, true);
         match database.objects.get(&proof_key, MAX_PROOF, deadline) {
             Err(StoreError::Missing) => {}
-            Ok(_) => return Err(database.observe(Error::Corrupt)),
+            Ok(_) => {
+                // A competing admission and replacement may have created this
+                // proof after our absence observation. Only an unchanged HEAD
+                // can turn that observation into a missing dependency.
+                database.owner_barrier(principal, &base, deadline)?;
+                return Err(database.observe(Error::Corrupt));
+            }
             Err(error) => return Err(Error::Store(error)),
         }
         let descriptor = OwnerDescriptor::new(&base, input).map_err(Error::Format)?;
