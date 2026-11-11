@@ -296,7 +296,7 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 | N2 自动恢复 | HEAD8 持久 accepted owner-plan；PR #57 有限 controller/fleet、HTTP/DNS/socket 所有权与 CLI 草稿 | 完成 controller 独立并发模型与真实多实例合同；TLS/证书配置错误不能作为 owner 死亡怀疑，跨重启同计划、abort 和迟到 HTTP 逐项验证；业务 SQL 不重放 |
 | N2 资源与活性 | actor、intake、typed 单次预算、HTTP 期限与普通 `/v1` output Pool；输出/慢消费实证已完成 | 运行冻结单库/多库基线，补跨入口对象 decode/native heap/磁盘总账；持续过载、冷恢复风暴、tenant 公平性与硬容量另验 |
 | N3 可持续存储 | HEAD6 copy/promote/持久 sweep 和 HEAD7 Deleted 永久终态退休均已完成对应本地验收并合入 | 在全部保留根、旧操作与迟到 PUT 的真实历史中验证回收；长期成本统计包括永久控制元数据，不把一轮清空当作永久无孤儿 |
-| N3 快照与 PITR | HEAD9 设计与804/47+3独立有限模型已提交；S1 Rust 正在实现 | S1 完成保留表、descriptor/proof、多根复制和GC保护；S2 恢复到新 Scope 并重新建立权限/请求空间；各自完整产品门禁，不把模型或保留 SQL 结果当成备份恢复 |
+| N3 快照与 PITR | HEAD9 S1候选55140bf已通过783单位、67生产文件精确覆盖和原native/1GiB复验；804/47+3模型独立通过 | S1 完成保留表、descriptor/proof、多根复制和GC保护；S2 恢复到新 Scope 并重新建立权限/请求空间；各自完整产品门禁，不把模型或保留 SQL 结果当成备份恢复 |
 | N4 发布出口 | 既有本地容量与部分故障证据 | 冻结负载及数字 SLO，测目标存储、真实部署故障域、长运行、保留/GC 成本、运维恢复；按既有流程另行启用非关键试运行 |
 
 HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability

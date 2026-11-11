@@ -37,8 +37,19 @@ def moment(row):
     return int(value)
 
 
+class EventIndex(tuple):
+    """Index immutable raw event membership; never cache a verdict."""
+    def __new__(cls, rows_value):
+        value = super().__new__(cls, rows_value)
+        value.by_event = defaultdict(list)
+        for row in value:
+            value.by_event[row['event']].append(row)
+        return value
+
+
 def selection(rows_value, event, **fields):
-    return [row for row in rows_value if row['event'] == event and
+    candidates = rows_value.by_event.get(event, ()) if isinstance(rows_value, EventIndex) else rows_value
+    return [row for row in candidates if row['event'] == event and
             all(row.get(name) == value for name, value in fields.items())]
 
 
@@ -349,7 +360,7 @@ def sdk(directory, inputs, events, configurations, originals, owners, named,
     for child in sdk_starts:
         identifier = child['id']
         role = identifier.removeprefix('sdk-')
-        ledger = rows(directory / ('sdk-' + role + '.jsonl'))
+        ledger = EventIndex(rows(directory / ('sdk-' + role + '.jsonl')))
         need([row['sequence'] for row in ledger] == list(range(1, len(ledger) + 1))
              and all(row['role'] == role for row in ledger)
              and all(moment(a) <= moment(b) for a, b in zip(ledger, ledger[1:])), 'sdk-closed-sequence')

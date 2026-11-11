@@ -10,9 +10,9 @@
 
 [PR #56](https://github.com/ckanner/scap/pull/56) 的 HEAD8 冻结产品 `3e85035` 已通过 stable/nightly 各700项单元、63个生产文件四维精确覆盖，SDK 92项单位及独立模型989正向/48负/3正对照；真实原生、1 GiB恢复、资源、终态回收和负载已通过。发现接口一次外部时限失败原样保留，同条件重验、owner V2专项和GC最终审计仍在执行，见[HEAD8验收](docs/engineering/head8-owner-plan-validation.md)。[PR #57](https://github.com/ckanner/scap/pull/57) 另行实现有限自动controller，其开发结果不替代HEAD8验收。
 
-**2026-11-11 增量（均仍为草稿）：** HEAD8 `e3bdf7b` 修复真实 Missing 与新 HEAD 拼接造成的误 Corrupt；703 项 stable/nightly 单元、63 个生产文件四维精确覆盖通过，真实接管专项正在以 `50bebd8` 重验，原夹具失败保留。PR #57 修复 TLS/证书错误被当作 owner 失联的问题；Node 22.16.0 的150单元、20文件精确V8覆盖和19项loopback通过，独立控制器模型402正向/40负/3正对照正式通过（`76f5633`）。这些证据不代替多进程 controller/S3 联合验收。
+**2026-11-11 增量（均仍为草稿）：** HEAD8 `e3bdf7b` 修复真实 Missing 与新 HEAD 拼接造成的误 Corrupt；703 项 stable/nightly 单元、63 个生产文件四维精确覆盖通过，真实接管专项正在以 `dbd181c` 重验，原夹具失败保留。PR #57 修复 TLS/证书错误被当作 owner 失联的问题；Node 22.16.0 的150单元、20文件精确V8覆盖和19项loopback通过，独立控制器模型402正向/40负/3正对照正式通过（`76f5633`）。这些证据不代替多进程 controller/S3 联合验收。
 
-PR #58 已实现 HEAD9 S1 候选：永久快照身份、capture/release、持久限额、多根 COPY/GC 及完整恢复校验、HTTP/Node接口。其[模型精化](docs/architecture/retained-snapshot-restore.md)独立验证804正向/47负/3正对照；S1产品仍需冻结后完整覆盖与真实HTTP/S3验收。S2跨Scope恢复、任意时间PITR、硬RSS/磁盘预算、AWS和生产SLO没有由S1交付。接口见[快照合同](crates/scap-service/docs/snapshots.md)。
+PR #58 已实现 HEAD9 S1 候选：永久快照身份、capture/release、持久限额、多根 COPY/GC 及完整恢复校验、HTTP/Node接口。其[模型精化](docs/architecture/retained-snapshot-restore.md)独立验证804正向/47负/3正对照；冻结产品 `55140bf` 已通过783项stable/nightly单元、67个生产Rust文件四维精确覆盖、99项SDK单位、7项HTTP loopback、严格TypeScript及完整独立模型复验；同一release的15类原native故障合同与1 GiB恢复也通过，39个ACK、16,384个随机BLOB逐项零错配。证据见[S1单位](docs/evidence/snapshot-s1-unit-local-2026-11-11.json)和[原合同复验](docs/evidence/snapshot-s1-native-capacity-local-2026-11-11.json)。这些原合同没有调用快照API；新增[快照真实夹具](experiments/object-snapshot-runtime/README.md)已提交，专项运行、独立审计与负控仍须在其冻结提交上执行。S2跨Scope恢复、任意时间PITR、硬RSS/磁盘预算、AWS和生产SLO没有由S1交付。接口见[快照合同](crates/scap-service/docs/snapshots.md)。
 
 对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
 

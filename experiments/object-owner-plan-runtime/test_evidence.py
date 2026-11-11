@@ -44,6 +44,47 @@ class EvidenceBoundary(unittest.TestCase):
     def test_numeric_hash_is_not_converted_to_u64(self):
         self.assertEqual(e.native({'hash': '1' * 64, 'revision': '23'}), {'hash': '1' * 64, 'revision': 23})
 
+    def test_queued_call_must_be_forwarded_before_requested_gate_release(self):
+        events = [{'event': 'fault_release_requested', 'id': 'unit-hold', 'monotonic_ns': 10}]
+        for stamp, expected in ((9, True), (10, False), (11, False)):
+            call = {'proxy': {'forward_finished': {'monotonic_ns': stamp}}}
+            self.assertEqual(oracle.forwarded_while_held(call, events, 'unit-hold'), expected)
+
+    def test_event_index_keeps_original_order_identity_and_duplicates(self):
+        rows = [{'event': 'unit', 'id': 1}, {'event': 'other', 'id': 1},
+                {'event': 'unit', 'id': 2}, {'event': 'unit', 'id': 1}]
+        indexed = e.EventIndex(rows)
+        self.assertEqual(list(indexed), rows)
+        for event, fields in (('unit', {}), ('unit', {'id': 1}), ('other', {'id': 1}), ('missing', {})):
+            expected, actual = e.selection(rows, event, **fields), e.selection(indexed, event, **fields)
+            self.assertEqual(actual, expected)
+            self.assertTrue(all(a is b for a, b in zip(expected, actual)))
+        self.rejected('one-unit', lambda: e.one(indexed, 'unit', id=1))
+
+    def test_catalogue_control_binds_creation_and_call_not_database_key_slot(self):
+        creation = spec.creation('named_old')
+        control = {'creation': e.native(creation), 'kind': 'delete', 'principal': 11, 'operation': 97001,
+                   'expected_name_revision': 2, 'expected_head_revision': 7, 'nonce': 90000066}
+        call = {'body': {'operation': 'delete_name', 'creation': creation, 'control_operation': '97001',
+                        'expected_name_revision': '2', 'expected_head_revision': '7', 'nonce': '90000066'},
+                'role': 'C', 'principal': '11', 'proxy': {'forward_started': {'monotonic_ns': 1},
+                    'backend_response': {'monotonic_ns': 5}}, 'product': {'monotonic_ns': 5}}
+        record = {'value': control, 'exchange': {'request': {'role': 'C', 'monotonic_ns': 2,
+                    'path': '/scap-test/scap-object/v1/1/7/catalogue/v1/control/11/delete/97001'},
+                    'backend': {'monotonic_ns': 3}}}
+        self.assertFalse(oracle.candidates(call, record['exchange']))
+        oracle.delete_control_input(call, record)
+        for key, value in (('role', 'B'), ('principal', '12')):
+            changed = deepcopy(call)
+            changed[key] = value
+            self.rejected('original-named-delete-control-input', oracle.delete_control_input, changed, record)
+        changed = deepcopy(call)
+        changed['body']['creation']['scope']['generation'] = '2'
+        self.rejected('original-named-delete-control-input', oracle.delete_control_input, changed, record)
+        changed = deepcopy(record)
+        changed['exchange']['backend']['monotonic_ns'] = 6
+        self.rejected('original-named-delete-control-input', oracle.delete_control_input, call, changed)
+
     def test_query_result_is_public_decoded_values_not_committed_wrapper(self):
         def string(value):
             encoded = value.encode()

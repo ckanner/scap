@@ -1,6 +1,6 @@
 # HEAD8：真实 Missing 与并发 owner 发布验收
 
-状态：**actual01 原始观察已完成，原 oracle 因 query 返回形状假设错误失败；本修订待冻结后执行 actual02**。详见 [原始审计失败及修正](../../docs/evidence/owner-absence-actual01-query-oracle-diagnosis-2026-11-11.json)，未冻结诊断不计正式验收。本合同补充 owner-plan 主合同，不替代其 native 三窗口、进程退出、删除及冷恢复验收。生产修复源为 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`；新夹具提交身份必须另外固定。
+状态：**actual02 在冻结提交 `50bebd8fb2d48682e926a89735fc8d6951fa5745` 完成实际运行、独立 oracle、13+1 controls；本修订共享的只读事件索引待新提交 actual03 再验证**。详见 [原始审计失败及修正](../../docs/evidence/owner-absence-actual01-query-oracle-diagnosis-2026-11-11.json)，未冻结诊断不计正式验收。本合同补充 owner-plan 主合同，不替代其 native 三窗口、进程退出、删除及冷恢复验收。生产修复源为 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`；新夹具提交身份必须另外固定。
 
 ## 为什么增加这个合同
 
