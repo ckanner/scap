@@ -1,10 +1,16 @@
 """Regressions for distinguishing real GC preflights from bounded LIST pages."""
 import copy
+import os
+from pathlib import Path
+import shutil
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import urlencode
 
 import audit_model as m
+import audit_evidence as e
+import controls
 import oracle
 
 
@@ -167,6 +173,71 @@ class BucketQueryWitnessTests(unittest.TestCase):
                 patch.object(oracle, 'find_public_head', side_effect=[before, prepared, completed]):
             self.rejected('dedicated-exact-gc-get-before-checkpoint', lambda: oracle.gc_protocol(
                 [], {}, [], [page, versioning, lock, wrong_exact], BACKEND))
+
+
+class SnapshotResponseMutationTests(unittest.TestCase):
+    def fixture(self, directory, delivered=False):
+        directory.mkdir(); (directory / 'raw').mkdir()
+        body = {'ok': True, 'value': {'prepared': {'scope': {'incarnation': '1'},
+                'reference': {'descriptor_hash': 'a' * 64}}, 'state': 'retained'}}
+        original = controls.put_raw(directory, m.encoded(body))
+        rows = [
+            {'event': 'http_proxy_backend_response', 'role': 'C-9403', 'serial': 5,
+             'operation': 'snapshot_capture', 'response': original,
+             'headers': {'content-length': str(original['bytes'])}},
+            {'event': 'http_proxy_delivery_started' if delivered else 'http_proxy_delivery_suppressed',
+             'role': 'C-9403', 'serial': 5, 'operation': 'snapshot_capture'},
+            {'event': 'http_proxy_backend_response', 'role': 'A-9401', 'serial': 3,
+             'operation': 'snapshot_inspect', 'response': original},
+            {'event': 'http_proxy_delivery_started', 'role': 'A-9401', 'serial': 3,
+             'operation': 'snapshot_inspect', 'response': original},
+            {'event': 'http_proxy_backend_response', 'role': 'C-9403', 'serial': 6,
+             'operation': 'snapshot_capture', 'response': original},
+        ]
+        controls.save_rows(directory / 'events.jsonl', rows)
+        controls.save_rows(directory / 'sdk-A-1.jsonl', [
+            {'event': 'http_response', 'command': 'point-one-inspect', 'response': original},
+            {'event': 'command_finished', 'command': 'point-one-inspect',
+             'result': {'ok': True, 'value': body['value']}},
+        ])
+        controls.save_rows(directory / 'sdk-C-1.jsonl', [
+            {'event': 'command_finished', 'command': 'capture-original-ack',
+             'result': {'ok': False, 'error': {'code': 'UNKNOWN'}}},
+        ])
+        return original, body
+
+    def test_lost_capture_mutations_preserve_shared_inspect_and_sdk_views(self):
+        for scope in (False, True):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as temporary:
+                source, target = Path(temporary) / 'original', Path(temporary) / 'control'
+                original, body = self.fixture(source)
+                before = controls.inventory(source)
+                shutil.copytree(source, target, copy_function=os.link)
+                controls.changed_snapshot_response(target, scope=scope)
+                self.assertEqual(controls.inventory(source), before)
+                original_rows, changed = e.rows(source / 'events.jsonl'), e.rows(target / 'events.jsonl')
+                self.assertEqual([index for index, pair in enumerate(zip(original_rows, changed))
+                                  if pair[0] != pair[1]], [0])
+                self.assertEqual(e.raw(target, original), m.encoded(body))
+                expected = copy.deepcopy(body)
+                if scope:
+                    expected['value']['prepared']['scope']['incarnation'] = '2'
+                else:
+                    expected['value']['prepared']['reference']['descriptor_hash'] = '0' + 'a' * 63
+                self.assertEqual(m.wire.parse(e.raw(target, changed[0]['response'])), expected)
+                for name in ('sdk-A-1.jsonl', 'sdk-C-1.jsonl'):
+                    self.assertEqual((target / name).read_bytes(), (source / name).read_bytes())
+                ledger = e.rows(target / 'sdk-A-1.jsonl')
+                self.assertEqual(m.wire.parse(e.raw(target, ledger[0]['response']))['value'], ledger[1]['result']['value'])
+
+    def test_suppressed_response_mutation_refuses_a_delivered_capture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'delivered'
+            self.fixture(target, delivered=True)
+            before = controls.inventory(target)
+            with self.assertRaises(AssertionError):
+                controls.changed_snapshot_response(target)
+            self.assertEqual(controls.inventory(target), before)
 
 
 if __name__ == '__main__':

@@ -80,14 +80,29 @@ def replaced_copy_basis(directory):
 
 
 def changed_snapshot_response(directory, scope=False):
-    row = product(directory, 'snapshot_capture')
+    values = e.rows(directory / 'events.jsonl')
+    captured = [row for row in values if row['event'] == 'http_proxy_backend_response'
+                and row['operation'] == 'snapshot_capture']
+    assert len(captured) == 2
+    row = captured[0]
+    group = [event for event in values if event.get('role') == row['role']
+             and event.get('serial') == row['serial'] and event['event'].startswith('http_proxy_')]
+    # This is the original capture whose HTTP ACK was suppressed. Its bytes
+    # also occur in a later, independently delivered inspect response. Give
+    # only this exchange a new reference; changing every content alias would
+    # corrupt that later SDK/HTTP pair before the intended snapshot guard.
+    assert sum(event['event'] == 'http_proxy_delivery_suppressed' for event in group) == 1
+    assert not any(event['event'] in ('http_proxy_delivery_started', 'http_proxy_delivery_finished') for event in group)
     value = m.wire.parse(e.raw(directory, row['response']))
     if scope:
         value['value']['prepared']['scope']['incarnation'] = '2'
     else:
         old = value['value']['prepared']['reference']['descriptor_hash']
         value['value']['prepared']['reference']['descriptor_hash'] = ('0' if old[0] != '0' else '1') + old[1:]
-    replace_blob(directory, row['response'], m.encoded(value))
+    row['response'] = put_raw(directory, m.encoded(value))
+    if 'content-length' in row.get('headers', {}):
+        row['headers']['content-length'] = str(row['response']['bytes'])
+    save_rows(directory / 'events.jsonl', values)
 
 
 def proof_after_removal(directory):
