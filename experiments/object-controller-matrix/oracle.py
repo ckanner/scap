@@ -156,6 +156,8 @@ def sources(directory, events):
     need(inputs.get('javascript_inputs') == javascript and
          isinstance(inputs.get('source_root'), str) and Path(inputs['source_root']).is_absolute(),
          'javascript-source-manifest')
+    need(inputs.get('node_environment') == {'node_options': 'absent',
+         'node_path': 'unset-for-owned-node-children'}, 'fixed-node-environment')
     need(sha((directory / 'source.tar').read_bytes()) == inputs['source_archive_sha256'], 'source-archive')
     with tarfile.open(directory / 'source.tar') as archive:
         members = archive.getmembers()

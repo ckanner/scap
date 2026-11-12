@@ -127,8 +127,12 @@ and a suppressed delivery; no response bytes are changed.
 Before every Node child is spawned, `node_source_bound` records its exact
 absolute entry, entry hash and the complete SDK, codec and business-observer
 input map checked against the frozen source. Controller and business entries
-are both covered. The runner rejects `NODE_OPTIONS`/`NODE_PATH` preload or loader
-overrides; a matching filename suffix alone is insufficient. The oracle binds
+are both covered. The runner rejects nonempty `NODE_OPTIONS` preload/loader
+overrides. It removes the host's general `NODE_PATH` dependency search path only
+from the explicit environment of its owned Node children and version probe;
+these fixed ESM inputs use relative imports and `node:` builtins. Global process
+settings and unrelated children are unchanged. This closed Node environment is
+recorded in `inputs.json`; a matching filename suffix alone is insufficient. The oracle binds
 this event, original argv, input map and source archive, and requires the binding
 before the real child start. Existing whole-source after-capture remains required.
 

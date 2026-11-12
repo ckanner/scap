@@ -24,8 +24,12 @@ class Harness:
         self.backend = self.original = None
 
     def child(self, command, name, environment=None):
-        environment = environment or os.environ.copy()
+        environment = dict(os.environ if environment is None else environment)
         if Path(command[0]).resolve() == self.node:
+            # These fixed ESM inputs use only relative imports and node: builtins.
+            # The host's general artifact dependency search path is not an input
+            # to this SDK experiment; remove it only from this owned child.
+            environment.pop('NODE_PATH', None)
             assert not environment.get('NODE_OPTIONS') and not environment.get('NODE_PATH'), 'unbound Node runtime options'
             relative = ('sdk/node/bin/owner-controller.mjs' if name.startswith('controller-')
                         else 'experiments/object-controller-matrix/client.mjs')
@@ -43,6 +47,7 @@ class Harness:
 
     def setup(self):
         assert 'LLVM_PROFILE_FILE' not in os.environ and 'NODE_V8_COVERAGE' not in os.environ
+        assert not os.environ.get('NODE_OPTIONS'), 'unbound Node runtime options'
         assert not any('instrument-coverage' in os.environ.get(key, '')
                        for key in ('RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS'))
         self.source = io.load('controller_matrix_source', io.ROOT / 'scripts/source_manifest.py')
@@ -64,12 +69,15 @@ class Harness:
                 archive.add(io.ROOT / row['path'], arcname=row['path'], recursive=False)
         tools = {name: {'path': str(path.resolve()), 'sha256': io.build.digest(path)}
                  for name, path in (('node', self.node), ('weed', self.args.weed), ('scapd', self.args.server))}
-        node_version = subprocess.check_output([str(self.node), '--version'], text=True).strip()
+        version_environment = dict(os.environ)
+        version_environment.pop('NODE_PATH', None)
+        node_version = subprocess.check_output([str(self.node), '--version'], env=version_environment, text=True).strip()
         assert node_version == 'v22.16.0'
         io.save(self.evidence / 'scenario.json', io.encoded(self.case))
         io.save(self.evidence / 'inputs.json', io.encoded({
             **self.case, 'tools': tools, 'node_version': node_version,
             'source_root': str(io.ROOT), 'javascript_inputs': self.javascript_inputs,
+            'node_environment': {'node_options': 'absent', 'node_path': 'unset-for-owned-node-children'},
             'source_commit': self.original['commit'], 'source_sha256': self.original['source_sha256'],
             'source_archive_sha256': io.build.digest(self.evidence / 'source.tar'),
             'plan_sha256': files['experiments/object-controller-matrix/PLAN.md'],
