@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 from urllib.parse import parse_qs, urlsplit
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
 
 import audit_evidence as e
 import audit_model as m
@@ -21,6 +22,7 @@ description.loader.exec_module(prior)
 projection, public = prior.projection, prior.public
 HEAD_PATH = '/scap-test/scap-object/v1/1/7/8201/head'
 BASE = '/scap-test/scap-object/v1/1/7/8201/inc/1/gen/1/'
+S3_XML_NAMESPACE = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
 
 def within(call, exchange):
@@ -100,6 +102,79 @@ def list_witness(exchange, live):
     exchange['listed'] = ['/scap-test/' + key for key in keys]
 
 
+def gc_flat_xml(raw, root_name, allowed, namespace_required):
+    """Independently decode bounded, flat capability metadata; no DTD or aliases."""
+    need(len(raw) <= 32768, 'bounded-gc-capability-response')
+    fields, stack = {}, []
+    parser = expat.ParserCreate()
+
+    def start(name, attributes):
+        if not stack:
+            need(name == root_name and (attributes == {'xmlns': S3_XML_NAMESPACE}
+                 or not namespace_required and attributes == {}), 'gc-capability-xml')
+        else:
+            need(len(stack) == 1 and name in allowed and name not in fields
+                 and not attributes, 'gc-capability-xml')
+            fields[name] = ''
+        stack.append(name)
+
+    def characters(text):
+        if len(stack) == 2:
+            fields[stack[-1]] += text
+        else:
+            need(all(char in ' \t\r\n' for char in text), 'gc-capability-xml')
+
+    def forbidden(*_args):
+        need(False, 'gc-capability-xml')
+
+    def declaration(version, encoding, standalone):
+        need(version == '1.0' and encoding in (None, 'UTF-8') and standalone == -1,
+             'gc-capability-xml')
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = lambda _name: stack.pop()
+    parser.CharacterDataHandler = characters
+    parser.XmlDeclHandler = declaration
+    parser.StartDoctypeDeclHandler = forbidden
+    parser.StartCdataSectionHandler = forbidden
+    parser.CommentHandler = forbidden
+    parser.ProcessingInstructionHandler = forbidden
+    try:
+        # Parsing decoded UTF-8 prevents implicit UTF-16 transcoding. A single
+        # leading UTF-8 BOM is valid, just as in the declared transport format.
+        parser.Parse(raw.decode('utf-8-sig'), True)
+    except (UnicodeDecodeError, expat.ExpatError):
+        need(False, 'gc-capability-xml')
+    return fields
+
+
+def bucket_query_witness(exchange, backend):
+    """GC bucket preflights are GETs with a query, but are never object LISTs."""
+    request, response = exchange['request'], exchange['backend']
+    url = urlsplit(request['path'])
+    need(url.path == '/scap-test' and url.query in ('versioning', 'object-lock'), 'gc-bucket-query-shape')
+    need(request['role'] == 'C' and request['access_sha256'] == backend['gc_access_sha256'],
+         'dedicated-gc-capability-check')
+    if url.query == 'versioning':
+        need(response['status'] == 200, 'gc-versioning-status')
+        fields = gc_flat_xml(exchange['bytes'], 'VersioningConfiguration', {'Status', 'MFADelete'}, True)
+        need(not fields, 'gc-bucket-unversioned')
+    else:
+        need(response['status'] == 404, 'gc-object-lock-status')
+        fields = gc_flat_xml(exchange['bytes'], 'Error',
+                             {'Code', 'Message', 'RequestId', 'HostId', 'Resource', 'BucketName', 'Key'}, False)
+        need(fields.get('Code') == 'ObjectLockConfigurationNotFoundError', 'gc-object-lock-disabled')
+
+
+def query_witness(exchange, live, backend):
+    query = urlsplit(exchange['request']['path']).query
+    if query in ('versioning', 'object-lock'):
+        bucket_query_witness(exchange, backend)
+    else:
+        need(exchange['backend']['status'] == 200, 'actual-list-response')
+        list_witness(exchange, live)
+
+
 def histories(values, backend):
     heads, live, snapshots, owner_records, all_objects = [], {}, {}, {}, {}
     known = {m.scope_key(e.SCOPE)}
@@ -110,7 +185,7 @@ def histories(values, backend):
         method, path, status = request['method'], request['path'], response['status']
         if method == 'GET':
             if '?' in path:
-                need(status == 200, 'actual-list-response'); list_witness(exchange, live)
+                query_witness(exchange, live, backend)
             elif status == 200:
                 need(path in live and live[path]['bytes'] == exchange['bytes']
                      and live[path]['etag'] == response['headers'].get('etag'), 'actual-exact-read-version')
@@ -466,8 +541,15 @@ def gc_protocol(events, calls, heads, values, backend):
         completed = find_public_head(calls, identifier + '-resume', heads)
         batch = prepared['head']['storage']['sweep']
         need(m.legacy.retired(before['head']['storage'], int(generation)), 'gc-original-generation-retired')
-        listed = [value for value in reads(prepare, values) if '?' in value['request']['path']]
-        need(len(listed) == 1 and listed[0]['request']['access_sha256'] == backend['gc_access_sha256'], 'dedicated-one-original-list-page')
+        # Only list_witness can add this key after validating the original
+        # ListObjectsV2 request and complete 32-key page. Versioning preflights
+        # also return 200 but must not inflate the list-page denominator.
+        listed = [value for value in reads(prepare, values) if 'listed' in value]
+        # The daemon supplies Listings from its ordinary S3 handle. A listing
+        # is only candidate discovery; the typed GETs below and every DELETE
+        # must still use the separately configured GC identity.
+        need(len(listed) == 1 and listed[0]['request']['access_sha256'] == backend['normal_access_sha256'],
+             'one-original-candidate-list-page')
         query = parse_qs(urlsplit(listed[0]['request']['path']).query)
         prefix = m.prefix(e.SCOPE, int(generation)).removeprefix('/scap-test/')
         expected_after = [] if prepare['body']['after'] is None else [prefix + prepare['body']['after']]
