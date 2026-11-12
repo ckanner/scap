@@ -22,7 +22,19 @@ def alter_candidate(model, identifier, change):
 
 
 def bad(name):
-    if name == "omit_snapshot_on_copy":
+    if name == "completion_revocation_reported_as_conflict":
+        model, entry, desc = setup(); attempt = full_copy_without_record(model, desc)
+        begin = len(model.events)
+        rejected(lambda: model.completion(attempt,
+                 hook=lambda: model.run(model.source_update("revoke"))), "Denied")
+        source_reads = [event["id"] for event in model.events[begin:]
+                        if event["event"] == "get_invoke" and event["actor"] == "a"
+                        and event["key"] == "head/source"]
+        assert len(source_reads) == 2
+        failure = next(event for event in reversed(model.events) if event["event"] == "rejected")
+        failure.update(code="Conflict", operation="completion_barrier", actor="a",
+                       head1=source_reads[0], head2=source_reads[1])
+    elif name == "omit_snapshot_on_copy":
         model = Model(); model.capture(1); model.run(model.source_update("sql", ["new-only"]))
         model.run(model.begin()); model.copy_generation(omit_snapshot=True); model.seal(unsafe=True)
     elif name == "inconsistent_copy_basis":
@@ -277,6 +289,7 @@ MATRIX = (
     ("s1_copying_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
     ("s1_copied_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
     ("s1_missing_origin_accepted", "s1_null_origin", "metadata_and_protocol"),
+    ("completion_revocation_reported_as_conflict", "current_permission", "observer"),
 )
 
 

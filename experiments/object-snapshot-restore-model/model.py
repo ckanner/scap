@@ -797,13 +797,18 @@ class Model:
         actor = attempt["actor"]
         entry = attempt["descriptor"]["input"]["source"]
         first, before = self.present("head/source", actor)
+        if not unsafe:
+            try:
+                self.auth(before, actor, read=True)
+            except Rejected:
+                attempt["failed"] = True
+                self.event("copy_abandoned", attempt=identifier, reason="Denied")
+                raise
         descriptor_read, descriptor = self.get(f"snapshot/source/{entry['ref']['creator']}/{entry['ref']['operation']}", actor)
         proof_read, proof = self.get(f"accepted/source/{entry['ref']['creator']}/{entry['ref']['operation']}", actor)
         if hook:
             hook()
         second, after = self.present("head/source", actor)
-        if before != after:
-            self.abandon(identifier, "Conflict", "completion_barrier", head1=first, head2=second)
         if not unsafe:
             try:
                 self.auth(after, actor, read=True)
@@ -811,6 +816,8 @@ class Model:
                 attempt["failed"] = True
                 self.event("copy_abandoned", attempt=identifier, reason="Denied")
                 raise
+        if before != after:
+            self.abandon(identifier, "Conflict", "completion_barrier", actor=actor, head1=first, head2=second)
         if descriptor["status"] != "present" or self.entry(descriptor["body"]) != entry:
             self.abandon(identifier, "Corrupt", "completion_descriptor", descriptor=descriptor_read, head2=second)
         same_identity = [item for item in after["body"]["snapshots"] if

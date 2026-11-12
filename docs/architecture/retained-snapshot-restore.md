@@ -2,6 +2,11 @@
 
 状态：设计、独立可执行模型及 S1 产品实现候选；S2 新 Scope 恢复尚未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
 
+2026-11-11 接续审查：S1 已进入 #59 组合，专项真实历史及独立负控见
+[组合验收](../engineering/sqlite-s3-integration-validation.md)；该本地结果没有实现 S2。
+当前 S2 的具体代码入口与一次完整交付边界见第 11 节，按
+[接续计划](../engineering/sqlite-s3-delivery-plan.md)在 #59 必要验收之后推进。
+
 ## 1. 选择与交付边界
 
 推荐先实现 **当前 A 内的有界 retained roots，随每次 compaction 一起复制**，再把一个明确 SnapshotRef 恢复到全新的 Catalogue 创建身份。首片是显式命名点或明确 sequence 的恢复；只能捕获当前已提交根，不声称能选择任意历史 sequence、任意墙上时刻或从 Result.data_root 恢复历史镜像。
@@ -134,7 +139,7 @@ RestoreDescriptor 固定：目标 Creation（name/expected-name-revision/新 Sco
 
 * prepare 新目标与 Reserve/Provision 要求真实目标 creator/provision admission；原 caller 输入不提供可信 principal。现有记录 first-winner 返回前仍鉴权。
 * 没有 accepted CompletionRecord 的每次 copy 必须 fresh source HEAD、当前 ADMIN+READ、同一 held SnapshotRef，并 fresh 验证目标 own Provisioning/Copying 与 caller 权限。跨进程不继承旧授权或数据 context。
-* copy 完成后，创建 CompletionRecord 前进行源HEAD1→实际SnapshotDescriptor/必要的accepted proof→源HEAD2的稳定屏障；HEAD1/HEAD2 body和ETag完全相同后，按该次当前ADMIN+READ处理元数据。跨读变化先Conflict，不把一个过渡组合永久隔离；稳定且完整ref/hash/point矛盾才Corrupt。若撤权已在这次检查前生效，拒绝、无completion、无Copied/Ready。当前权限不足也先Denied，不泄漏后读记录或输入冲突。
+* copy 完成后，创建 CompletionRecord 前进行源HEAD1→实际SnapshotDescriptor/必要的accepted proof→源HEAD2的稳定屏障。HEAD1 先检查当前 ADMIN+READ，拒绝者不再读取 descriptor/proof；HEAD2 也先检查当前 ADMIN+READ，再比较两次 body/ETag。任一步撤权先 Denied 并消费本次 prefix，不返回可能泄漏元数据状态的 Conflict/Corrupt。两次都授权而跨读变化才 Conflict，不把过渡组合永久隔离；稳定且完整 ref/hash/point 矛盾才 Corrupt。最终屏障失败时无 completion、无 Copied/Ready；重新授权后也必须新建 attempt，不能恢复失败前缀。
 * release阻止新的source attempt/context admission。已经合法准入、尚未失败的原context可以继续GET；若在旧g仍可读期间完成完整源/目标验证，则可在当前权限仍有效且accepted-snapshot proof匹配的条件下完成。最终稳定屏障后不再补源payload GET。若旧g先被回收，该attempt失败；失败或重启且无completion时不能凭旧descriptor为已释放ref重新准入。这里没有每GET的HEAD锁，也不承诺release完成会撤回所有在途读。
 * 在最后源权限观察之后发生的撤权不能撤回已经完成的授权读取。不存在跨源 HEAD 与目标记录的原子事务；不能承诺“撤权一返回，所有先前完成的数据复制都从目标消失”。
 * CompletionRecord 已接受后源 ACL/GC 不再是目标依赖；继续推进必须有目标当前授权。若目标已 Aborting/Deleted，不能转为 Copied/Ready，即便原 completion PUT 后来才出现。
@@ -209,10 +214,38 @@ control 工作与大 copy 分离。每个控制调用最多一个权威 CAS；�
 
 独立finite模型先覆盖两snapshot、三source generations、两个目标身份/两个actor、有界counter与2–3页数据树。分开实现状态转移与观察器，保留正向全history和故障协议负控。模型明确抽象掉SQLite/HTTP/S3真实实现，不认证产品。
 
-本次精化保留原789正例/38负控的名称与范围，追加独立的15条 refinement 正例和9条负控；新固定分母是804/47，结果必须由新源码指纹重新运行取得。prepare 竞态是实际模型错误：原合法交错返回 Corrupt，而且旧 observer 未检查这种 rejected；新增 observer 从真实 GET invoke/effect/response 重建顺序。source_revision 与 `(creator,operation)` 的新负控则明确先注入损坏 HEAD，再检测错误接纳，不冒称合法 API 可达。S1 admission 只检查阶段字段边界；模型原有 S2 符号 target origin 与恢复路径继续独立运行，它不是 Rust wire codec 的证明。永久 metadata 用实际 capture/release/terminal/GC 后的对象集合检验。
+前次精化保留原789正例/38负控的名称与范围，追加15条 refinement 正例和9条负控，形成804/47。2026-11-11 接续审查再统一第6节的权限优先级：原 completion 模型先读元数据并先报 HEAD 变化 Conflict，与 S1 的当前权限优先不一致；现改为两次 HEAD 均先授权，并增加一个把撤权误报 Conflict 的独立负控。当前固定分母为804/48，原804正例和47负控均保留；原 `proof_conflict_changed_head_is_conflict` 仍验证有权的 HEAD 变化，撤权例单独要求 Denied。结果必须由新源码指纹重新运行取得，不能沿用804/47旧报告。
+
+prepare 竞态是先前实际模型错误：原合法交错返回 Corrupt，而且旧 observer 未检查这种 rejected；新增 observer 从真实 GET invoke/effect/response 重建顺序。source_revision 与 `(creator,operation)` 的负控则明确先注入损坏 HEAD，再检测错误接纳，不冒称合法 API 可达。S1 admission 只检查阶段字段边界；模型原有 S2 符号 target origin 与恢复路径继续独立运行，它不是 Rust wire codec 的证明。永久 metadata 用实际 capture/release/terminal/GC 后的对象集合检验。
 
 正向矩阵至少包括：两个点与当前根同时复制；snapshot后SQL并close窗口；quota降低后旧点迁移；复制期间capture/release拒绝；旧GET被promote+sweep中止后同点新A重启；release后同名新点；Deleted恢复/最后release+seal；两个restore creator争同Name；同operation不同recipe first-winner；prepare/capture/release/proof/Copied/Ready逐个Unknown；每个跨对象切点退出后全缓存丢失；源撤权前后完成边界；CompletionRecord先到/后到target abort；FenceAbsent/ForeignOccupied；目标quota/bytes/context/disk额度耗尽；同target双resume；源全删除后目标cold恢复；旧源请求在目标不能lookup成原Committed。
 
 负控至少包括：COPY漏一个snapshot root；用current quota替代point边界；汇总页数掩盖单root错误；CopyBasis不绑列表；release不保留proof；旧snapshot ID复用；按新同名点改restore；旧g物理失败直接当Current损坏或语义损坏当Expired；原frame跨Scope直接复制；目标引用源hash；generic Empty完成Copying；部分copy制造CompletionRecord；撤权前的旧权限跨新resume；target abort后换ETag续发；source Missing伪装空库；CompletionRecord被删除后重建；snapshot被终态seal遗漏；没有计数预留耗尽清理路径；错把Missing当历史NotApplied。
 
-产品门禁另含所有生产文件四维精确单位、真实native/HTTP/signed S3、多个snapshot重叠chunk与不同根、原SQL随机值/BLOB、暂停GET/PUT/CAS/DELETE、两Scope进程退出及全冷恢复、独立oracle和负控。实际AWS故障域/成本仍是独立门禁。以上当前均为NOT_RUN，不能由HEAD8的700单位或任何旧模型结果替代。
+产品门禁另含所有生产文件四维精确单位、真实native/HTTP/signed S3、多个snapshot重叠chunk与不同根、原SQL随机值/BLOB、暂停GET/PUT/CAS/DELETE、两Scope进程退出及全冷恢复、独立oracle和负控。S1 已执行的具体范围以组合验收为准；S2 产品及实际 AWS 故障域／成本仍为 NOT_RUN，不能由 HEAD8 单位、S1 专项或任何模型结果替代。
+
+## 11. S2 实现闭环与当前代码缺口
+
+本节按 #59 组合的正式代码核对，限定后续 S2 的改动边界；列出入口不等于已经实现。
+格式、Catalogue 消费者、跨 Scope copy、资源归属和传输必须作为同一功能验收，
+各可审查提交可以先进入 Draft，但没有任何中间提交独立开放半套 restore 协议。
+
+| 层 | 当前可复用入口 | S2 必须同步完成的变化 |
+| --- | --- | --- |
+| HEAD 格式与继承 | `format.rs`、`snapshot_format.rs`、`head_publication.rs`、`reclamation.rs` | `Option<()>` 仅表示 S1 显式 null；改为严格 Copying/Copied 类型及私有合法转换能力；普通 publication 和 owner/COPY/GC 保留 origin |
+| 快照管理 | `snapshot.rs::snapshot_capture_head`、`set_snapshot_limits` | 当前设置 `Some(())` 是 S1 的升级行为；S2 必须在原 HEAD 已有 Copied origin 时原样保留，不能擦除 provenance |
+| 永久创建身份 | `catalogue/records.rs`、`types.rs`、`mod.rs` | format1 Empty 原字节保持严格解码；新显式版本 Restore recipe 使用同一个 `catalogue/v1/create/{creator}/{operation}` 槽，所有 first-winner 读取先鉴权 |
+| 目录状态机 | `catalogue/create.rs`、`inspect.rs`、`control.rs`、`terminal.rs` | `resume_create`／`abort_create` 当前内部最多循环4步；S2 接口提取明确 one-step，最多一个权威 CAS。Copying 不 Bind/Ready；Copied 引用 completion 必须 exact 验证，Missing 不重建 |
+| 发现与部署恢复 | `catalogue/discovery_records.rs`、`discovery_names.rs`、`recovery_job.rs` | 每种可恢复阶段保持固定 recipe／creation，识别部分复制和永久取消；旧 Empty 完成器不能推进 Restore，不能因已有 HEAD 就报告 Ready |
+| 跨 Scope 数据 | `data_tree::{walk,check_node,check_chunk}`、`ObjectContext::from_snapshot`／`save` | 单 chunk 缓冲和有界后序栈重编码，不把 source frame/hash 直接复用到 target，不采用全库 PageBatch/BTreeMap |
+| 原生验证 | `scap-object-sqlite` 的 `ImageBuilder` 与 `SqliteWriter::open` | 目标额度的临时镜像、完整 native integrity_check 与拒绝提交 gate；不授予可写 Session，不套用源当前 quota |
+| 服务资源 | `scap-service/src/catalogue.rs`、`catalogue_scheduler.rs`、HTTP catalogue | 当前普通目录 worker 无 restore 私有目录／长恢复资源；新增 recovery admission、独立 owned worker、临时盘 lease、GET/PUT/readback 预算与统一 deadline |
+| wire 与 SDK | catalogue wire、`sdk/node/src/catalogue.js`、`catalogue_wire.js`、`transport.js` | 严格新 intent/reference/progress 与长 copy 操作分类；单次 POST、UNKNOWN 不改原 intent、不隐藏重放；显式 inspect/resume/abort |
+
+实施次序是先固定格式与状态机及独立模型，再接通有界 copy／native capability，随后
+完成所有消费者与 HTTP/SDK，最后在冻结组合上执行第10节的产品门禁。目标 completion
+不是调用者能填入的 root/hash，也不是本地文件存在的证明；只由完整验证成功的私有
+capability 创建。权限次序按第6节统一，避免模型、代码和错误分类分别采用不同规则。
+
+所有新状态必须保留可取消路径和有限清理余量。S2 引入的永久 recipe/completion
+metadata 另列成本，不把当前 live snapshot 限额解释为终身对象总量上限。

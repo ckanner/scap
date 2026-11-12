@@ -29,6 +29,13 @@ class OracleTests(unittest.TestCase):
         del altered["summary"]
         self.assertEqual(audit(altered), original)
 
+    def test_completion_conflict_cannot_hide_revoked_current_authority(self):
+        value = bad("completion_revocation_reported_as_conflict")
+        with self.assertRaises(Violation) as caught:
+            audit(value)
+        self.assertEqual(caught.exception.rule, "current_permission")
+        audit(special("revoke_inside_final_barrier").trace("revocation-denied"))
+
     def test_oracle_isolated_with_only_its_file_and_history(self):
         value = special("three_generations_late_delete").trace("isolated")
         with tempfile.TemporaryDirectory() as directory:

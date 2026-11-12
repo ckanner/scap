@@ -124,6 +124,26 @@ class ModelTests(unittest.TestCase):
         rejected(lambda: model.completion(attempt), "ExpiredAttempt")
         finish(model, desc); audit(model.trace("authorization-prefix-consumed"))
 
+    def test_completion_checks_initial_permission_before_reading_metadata(self):
+        model, entry, desc = setup(); attempt = full_copy_without_record(model, desc)
+        model.run(model.source_update("revoke"))
+        begin = len(model.events)
+        rejected(lambda: model.completion(attempt), "Denied")
+        reads = [event["key"] for event in model.events[begin:] if event["event"] == "get_invoke"]
+        self.assertEqual(reads, ["head/source"])
+        self.assertTrue(model.attempts[attempt]["failed"])
+        audit(model.trace("denied-before-completion-metadata"))
+
+    def test_completion_revocation_precedes_head_conflict_and_consumes_prefix(self):
+        model, entry, desc = setup(); attempt = full_copy_without_record(model, desc)
+        rejected(lambda: model.completion(attempt,
+                 hook=lambda: model.run(model.source_update("revoke"))), "Denied")
+        self.assertFalse(any(event.get("operation") == "completion_barrier" for event in model.events))
+        self.assertTrue(model.attempts[attempt]["failed"])
+        model.run(model.source_update("grant"))
+        rejected(lambda: model.completion(attempt), "ExpiredAttempt")
+        finish(model, desc); audit(model.trace("denied-before-conflict"))
+
     def test_completed_context_cannot_add_payload_after_final_barrier(self):
         model, entry, desc = setup(); attempt = full_copy_without_record(model, desc)
         call = model.completion(attempt)

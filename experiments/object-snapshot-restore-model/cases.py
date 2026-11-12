@@ -384,7 +384,7 @@ def special(name):
             if name == "revoke_before_completion":
                 model.run(model.source_update("revoke")); rejected(lambda: model.completion(attempt), "Denied")
             elif name == "revoke_inside_final_barrier":
-                rejected(lambda: model.completion(attempt, hook=lambda: model.run(model.source_update("revoke"))), "Conflict")
+                rejected(lambda: model.completion(attempt, hook=lambda: model.run(model.source_update("revoke"))), "Denied")
             else:
                 call = model.completion(attempt)
                 if name == "revoke_after_record": model.run(call)
@@ -408,7 +408,9 @@ def special(name):
         bad = deepcopy(model.store["accepted/source/1/1"]["body"])
         bad["entry"]["point"]["sequence"] += 1
         model.operator("accepted/source/1/1", bad)
-        rejected(lambda: model.completion(attempt, hook=lambda: model.run(model.source_update("revoke"))), "Conflict")
+        # A still-authorized HEAD change masks an unstable metadata mismatch.
+        # Revocation is separately required to return Denied before Conflict.
+        rejected(lambda: model.completion(attempt, hook=lambda: model.run(model.source_update("grant"))), "Conflict")
         return model
     if name == "descriptor_missing_after_acceptance":
         model = Model(); entry = model.capture(1)

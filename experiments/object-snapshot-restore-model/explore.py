@@ -25,7 +25,7 @@ PRODUCT_BASE = "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492"
 MAX_SECONDS = 120
 MAX_BYTES = 256 * 1024 * 1024
 POSITIVE_COUNT = 804
-NEGATIVE_COUNT = 47
+NEGATIVE_COUNT = 48
 FAMILIES = {"capture": 80, "release_sql": 80, "bind_abort": 80, "provision_abort": 80,
             "two_completion": 80, "different_creator_name": 80, "migration": 126,
             "late_completion": 70, "copied_abort": 40, "restart": 32, "boundary": 41, "refinement": 15}

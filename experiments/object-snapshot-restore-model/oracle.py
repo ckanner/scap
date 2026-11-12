@@ -632,6 +632,8 @@ def audit(history):
             # Rejections are not generally a safety proof. These explicitly
             # modeled cases must carry real read ordering, not a model summary.
             if event["operation"] in ("completion_barrier", "snapshot_observe") and "head1" in event:
+                if event["operation"] == "completion_barrier":
+                    permissions(body(event["head2"]), event["actor"], True)
                 need(observation(event["head1"]) != observation(event["head2"]) and event["code"] == "Conflict", "barrier_before_corrupt")
             elif event["operation"] == "snapshot_prepare_barrier":
                 permissions(body(event["head2"]), event["actor"], True)

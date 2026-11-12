@@ -14,7 +14,7 @@ class ExploreTests(unittest.TestCase):
         positive, negative = cases(), negatives()
         table = inventory(positive, negative)
         self.assertEqual(len(table["positive"]), 804)
-        self.assertEqual(len(table["negative"]), 47)
+        self.assertEqual(len(table["negative"]), 48)
         self.assertEqual(dict(Counter(case.family for case in positive)), FAMILIES)
 
     def test_every_representative_and_all_boundary_histories(self):
