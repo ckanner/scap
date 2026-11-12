@@ -120,6 +120,8 @@ python3 scripts/check_repo.py
 
 ## 设计与后续阶段
 
+当前状态、目标、#59 合入条件和后续实施顺序见[接续交付计划](docs/engineering/sqlite-s3-delivery-plan.md)。
+
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。
 - [认证 HTTP 与新 SDK](docs/adr/0023-authenticated-http-and-node-sdk.md)、[真实服务恢复合同](experiments/object-service/README.md)。
