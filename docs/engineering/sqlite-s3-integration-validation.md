@@ -1,6 +1,6 @@
 # PR #59：SQLite on S3 组合验收
 
-复核日期：2026-11-11（America/New_York）。主线仍为 HEAD7 `fab8ca0`。
+复核更新：2026-11-12（UTC）。本组合的主线基准是 HEAD7 `fab8ca0`。
 [PR #59](https://github.com/ckanner/scap/pull/59) 的组合提交 `fc10287` 同时保留
 #56 `1d709db`、#57 `df922b95`、#58 `4216523` 的 ancestry、实现和原证据；
 `e485a97` 补回旧 controller 分支遗漏的 owner 夹具和历史证据。
@@ -12,6 +12,9 @@ SDK exports、类型和测试同时保留 controller 与 snapshot 两套接口�
 夹具及文档。每次实际运行独立冻结源码，逐一验证原 receipt 的277个 service及183个
 native build inputs等价，仍记录二进制真实构建来源，没有将新夹具SHA改写成release来源。
 controller只需要service receipt；其原生SQLite静态archive也随receipt核对。
+新增 listing、deployment discovery、resource 和 GC transport 二进制分别保留自己在
+`3b1d50c` 的真实构建 receipt；它们不冒充 `fc10287` 的构建产物。各夹具的源码归属
+与实际 Node 输入分别验证，文档提交不会改写已执行历史的 source commit。
 
 | 验证层 | 本次冻结源码 | 新执行结果 |
 | --- | --- | --- |
@@ -23,6 +26,10 @@ controller只需要service receipt；其原生SQLite静态archive也随receipt�
 | 生产controller CLI | `5f47ce8` + 原release | fresh actual/加强oracle/15负控通过；3个scapd、2个controller、30控制HTTP、3次owner变更、164签名S3 |
 | retained snapshot S1 | `c6826df` + 原release | 49项夹具单位、fresh actual、独立oracle和10项负控通过；六原ACK/冷lookup、两保留根、55 HTTP、922 S3、13 wait4 |
 | 固定负载与32 MiB恢复 | runtime `fc10287` / fixture `ffff164` | 871 POST、185原execute、288测量调用；actual/独立oracle/14负控+3正控全部通过 |
+| native／schema／原结果／生命周期／目录／发现 | `3b1d50c` + 各真实receipt | 新执行15网络合同、30扩展故障、12×6=72个保留结果入口、12生命周期、116目录案例及完整部署发现；独立审计及指定负控通过 |
+| 固定1 GiB全冷恢复 | `3b1d50c` + 原release | 16,384个64 KiB BLOB与关闭镜像完整校验；38 execute ACK+1 UNKNOWN原lookup分列，5负控通过；原4 GiB空间门槛未改 |
+| 工具／模型 | `3b1d50c`；snapshot精化`6784258` | 74 tooling单位及精确覆盖、各固定完整模型通过；snapshot新38单位、804正例／48负控；只是模型，没有开放S2产品 |
+| 多controller固定矩阵 | runtime `fc10287` / fixture `e64eb56` | 23夹具自测、12实际场景、独立oracle、31定向负控通过；57个实际JavaScript输入和原HTTP／S3／进程共同绑定 |
 
 Rust使用全新target及profiles，218份raw和1份merged profile，没有混入集成profile。
 完整精确计数和命令哈希见[Rust机器记录](../evidence/sqlite-s3-integration-rust-local-2026-11-11.json)，
@@ -30,6 +37,13 @@ SDK/类型见[Node机器记录](../evidence/sqlite-s3-integration-node-local-202
 实际合同的原输入、事件、源码、二进制、独立oracle、controls和失败摘要见
 [runtime机器记录](../evidence/sqlite-s3-integration-runtime-local-2026-11-11.json)。
 每个runner自身仍只输出`OBSERVED_NOT_AUDITED`，后续独立判定不回写原件。
+接续的完整门禁分别见[native／容量记录](../evidence/sqlite-s3-integration-native-local-2026-11-12.json)、
+[工具与模型记录](../evidence/sqlite-s3-integration-models-local-2026-11-12.json)和
+[controller矩阵记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
+
+剩余服务组合仍在原冻结 `3b1d50c` 上执行：HTTP、隔离、分段索引、发现、metadata、
+输出池、响应过期、资源和GC transport的实际及指定审计已通过；HEAD6实际和独立oracle
+已通过，其23负控／1正控与终态退休25负控／1正控尚未完成，不预先签发整体PASS。
 
 ## 本次实际证明的行为
 
@@ -43,6 +57,19 @@ controller先观察healthy，然后旧owner被SIGKILL且owned wait4完成，删�
 结果与counter=3逐字节一致。已有snapshot的reference/point不变，旧worker guard拒绝
 期间零S3调用。原claim/resume HTTP成功、accepted marker及当前authority独立核验后，
 才与CLI报告交叉核对。缓存删除至active报告本次为26.916秒，只是该固定本地历史的观察。
+
+接续的12场景矩阵在 `e64eb56` 完整执行612.476秒，独立oracle6.469秒、31项负控
+12.894秒，均退出0。它涵盖同policy竞争、不同policy／creator阻断、人工marker、
+Claimed取消、Cancelling重启、原owner仍健康、撤权、worker误绑、429及恢复LIMIT、
+S3失败、探测期限、停机与迟到旧CAS。20个真实CLI和108个owned子进程都有生命周期
+证据；586 HTTP中363个来自controller，另有1,914个签名S3请求。24份业务ACK、12份
+UNKNOWN与36次原lookup分别核验，12个S1保留点均不改变。每个Node子进程在spawn前
+绑定完整入口及57个SDK／codec／观察器文件，oracle与源码manifest／tar交叉核对。
+
+最后停机历史保留原Active HEAD PUT的body与If-Match，待新controller已激活后才放行，
+旧请求返回412；它不重签旧候选。只读M上的查询和guardedStatus分别证明恢复结果与
+路由guard，不单独宣称该M已经成为writer或证明旧native writer fencing。固定fleet、
+部署分配不复用worker身份和原有期限仍是前提；正确性运行时间不当作吞吐基准。
 
 snapshot S1的固定历史包含两次capture、两次release、两个保留根、六份原SQL结果、
 多根COPY/promote、退休代GC、全暖缓存删除后的恢复，以及Deleted终态seal对保留根的
@@ -75,7 +102,7 @@ snapshot S1的固定历史包含两次capture、两次release、两个保留根�
    缺口在“实际执行源码”的验收绑定。新夹具在每个Node子进程spawn前核对入口绝对
    路径、SDK/codec/业务观察器全部固定文件hash和运行选项；oracle将这些原事件绑定到
    source manifest/tar及真实argv，新增3控共31。原结果和反例不改写，新冻结组合必须
-   重新执行全12例actual/oracle/controls；不能只给旧事件补字段使其通过新检查。
+   重新执行全12例actual/oracle/controls；已在新 `e64eb56` 完成，未给旧事件补字段。
 6. `bb4057a` 的新绑定C1诊断在启动业务Node之前拒绝了环境默认`NODE_PATH`（通用
    artifact依赖搜索路径），24.740秒退出且完成清理；没有发生业务或完整矩阵验收。
    该失败保留。后续只从自有Node子进程环境移除这个不属于固定ESM/内建依赖的搜索
@@ -87,8 +114,8 @@ snapshot S1的固定历史包含两次capture、两次release、两个保留根�
 ## 尚未覆盖的发布条件
 
 本轮是本地SeaweedFS 4.51、逐请求签名及真实SQLite/HTTP/进程合同，不认证AWS。
-controller只覆盖一个固定自动接管历史；多controller竞争、动态fleet及完整故障矩阵
-还需验证。此前完整native/1 GiB、资源/GC矩阵的历史结果不能自动充作本轮重新执行。
+controller已覆盖固定12场景多实例矩阵，native／1 GiB也有本轮独立新结果；这不扩展
+为任意动态fleet、全部部署故障域或完整N1–N4退出。服务HEAD6负控及终态退休仍在收口。
 实例身份登记/分配、S2 restore/PITR、持续过载、唤醒风暴、公平性、硬RSS/磁盘上界、
 长期保留/GC成本、真实AWS和生产数字SLO仍按[路线图](roadmap.md)推进。
 

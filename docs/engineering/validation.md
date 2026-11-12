@@ -2,6 +2,14 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
+## PR #59 的 owner／controller／S1 组合（2026-11-12）
+
+[组合验收](sqlite-s3-integration-validation.md)保留正式runtime `fc10287` 的新单位、
+67文件精确覆盖和原release归属，并逐项列出独立冻结的实际夹具。新的native／1 GiB
+全冷恢复、各固定模型，以及 `e64eb56` 的12场景生产controller矩阵／31负控均已通过。
+HEAD6负控和终态退休服务回归仍在收口；其余产品目标与合入门禁见
+[交付计划](sqlite-s3-delivery-plan.md)。历史失败不覆盖，S2／AWS／生产SLO不预先标记完成。
+
 ## PR #54 的运行时组合（2026-11-10）
 
 [HEAD6 新候选记录](head6-runtime-validation.md)绑定生产 `66f452e`：stable/nightly 各

@@ -1,0 +1,2389 @@
+{
+  "schema": "scap-sqlite-s3-integration-controller-matrix-local-v1",
+  "generated_utc": "2026-11-12T06:07:04.175705+00:00",
+  "status": "PASS_FIXED_SOURCE_BOUND_LOCAL_MATRIX_ONLY",
+  "fixture_source": {
+    "commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+    "tree": "df8180ab11c38e61dfd53ee58cc7108a399e5ec4",
+    "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+    "tracked_files": 716,
+    "source_before": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source.json",
+      "bytes": 190191,
+      "sha256": "f90afd16e30865e09042b6ba49dee3a76ebdd2e0c1c522050f02ba00f2b4d39e"
+    },
+    "before_after_verified": true
+  },
+  "runtime": {
+    "source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+    "release_input_count": 277,
+    "release_inputs_exactly_equal": true,
+    "tools": {
+      "node": {
+        "path": "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+        "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+      },
+      "scapd": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+        "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+      },
+      "weed": {
+        "path": "/workspace/scratch/bccab55c9ca3/toolchain/bin/weed",
+        "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+      }
+    },
+    "native_archives": {
+      "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    },
+    "receipt": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/service-build/build-receipt.json",
+      "bytes": 33874,
+      "sha256": "0848039a89879f2ed6296c659dc375095a198d366172cdc35b603e8d0c741911"
+    },
+    "release_rebuilt_by_fixture": false
+  },
+  "fixed_contract": {
+    "case_count": 12,
+    "case_order": {
+      "complete": true,
+      "expected": [
+        "C1_same_policy_prepare_restart",
+        "C2_same_creator_policy",
+        "C2_different_creators",
+        "C2_manual_marker",
+        "C3_claimed_abort",
+        "C3_cancelling_restart",
+        "C3_healthy_original",
+        "C4_revoked_authority",
+        "C4_worker_mismatch",
+        "C4_resource_refusal",
+        "C4_s3_unavailable",
+        "C5_shutdown_deadline"
+      ],
+      "selected": [
+        "C1_same_policy_prepare_restart",
+        "C2_same_creator_policy",
+        "C2_different_creators",
+        "C2_manual_marker",
+        "C3_claimed_abort",
+        "C3_cancelling_restart",
+        "C3_healthy_original",
+        "C4_revoked_authority",
+        "C4_worker_mismatch",
+        "C4_resource_refusal",
+        "C4_s3_unavailable",
+        "C5_shutdown_deadline"
+      ],
+      "version": 1
+    },
+    "plan_sha256": "138032f27d1f1355cfe5c0075d40c92ee3a71e66270810dd86b9637eb87ea574",
+    "limits": {
+      "business_seconds": 45,
+      "failure_count": 3,
+      "failure_interval_ms": 1000,
+      "failure_span_ms": 5000,
+      "http_per_tick": 8,
+      "mutation_per_tick": 1,
+      "post_fault_reports": 2,
+      "probe_ms": 1000,
+      "recovery_deadline_ms": 60000,
+      "stage_seconds": 75,
+      "tick_deadline_ms": 30000,
+      "tick_ms": 5000
+    },
+    "node_version": "v22.16.0",
+    "node_environment": {
+      "node_options": "absent",
+      "node_path": "unset-for-owned-node-children"
+    },
+    "javascript_input_count": 57,
+    "interpretation": "Raw HTTP/S3/process authority and exact executed Node/SDK inputs; reports alone never certify success."
+  },
+  "fixture_self_tests": {
+    "count": 23,
+    "oracle_tests": 21,
+    "real_http_loopbacks": 2
+  },
+  "commands": {
+    "record": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/commands.json",
+      "bytes": 9176,
+      "sha256": "1099c9f3cf0cece535384d03406eef780a802bd27754d86ea5178e707fddae5d"
+    },
+    "steps": [
+      {
+        "name": "source-before",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "capture",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source.json"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T05:53:33.552346+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 1.105146784997487,
+        "finished_utc": "2026-11-12T05:53:34.657990+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source-before.stdout",
+          "sha256": "60279fd546934983a5afa136ecfeb130032a40c377bf2be9ffec9a31c3272c97"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source-before.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "fixture-units",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-controller-matrix",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T05:53:34.659279+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 1.262201310000819,
+        "finished_utc": "2026-11-12T05:53:35.929206+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/fixture-units.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/fixture-units.stderr",
+          "sha256": "fe7376eb8ba1123e6866d5fbfd4b346545f23ff69ea3cb4512a7ffe3ef7bde0f"
+        }
+      },
+      {
+        "name": "client-syntax",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+          "--check",
+          "experiments/object-controller-matrix/client.mjs"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T05:53:35.929854+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 0.02833239200117532,
+        "finished_utc": "2026-11-12T05:53:35.962805+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/client-syntax.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/client-syntax.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "repo-check",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "scripts/check_repo.py"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T05:53:35.963251+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 0.4752595130012196,
+        "finished_utc": "2026-11-12T05:53:36.506000+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/repo-check.stdout",
+          "sha256": "7bb3dccbf56591db8c4883c7b633c2dd45ab834718205fc1058c680116bf26c5"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/repo-check.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "actual",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-controller-matrix/run.py",
+          "--server",
+          "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+          "--build-record",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+          "--weed",
+          "/workspace/scratch/bccab55c9ca3/toolchain/bin/weed",
+          "--node",
+          "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+          "--evidence",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T05:53:36.507923+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 612.4758213979985,
+        "finished_utc": "2026-11-12T06:03:48.986253+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual.stdout",
+          "sha256": "a7eef572ba5c5870dc027bf06c810eacfe2870e4ef7d919fcdfe2f57d67eaaab"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual.stderr",
+          "sha256": "6622ef454c8bddb8b65915ce067312b45dbfdd9fcc9240c65abeadafb253b158"
+        }
+      },
+      {
+        "name": "oracle",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-controller-matrix/oracle.py",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T06:03:48.988269+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 6.46898529399914,
+        "finished_utc": "2026-11-12T06:03:55.458491+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/oracle.stdout",
+          "sha256": "cc05d8e46228040bf3b8924d08570a888f29cab17acf98b3a90387336372a3aa"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/oracle.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "controls",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-controller-matrix/controls.py",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual",
+          "--output",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T06:03:55.459403+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 12.894486781999149,
+        "finished_utc": "2026-11-12T06:04:08.354826+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls.stdout",
+          "sha256": "4ab1e30e5bc6a4d1a96fbc197a1c8387a3f03bb02d4916bb12da421a672ec394"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "source-after",
+        "command": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source.json"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-controller-matrix-source-e64eb56",
+        "started_utc": "2026-11-12T06:04:08.355596+00:00",
+        "exit_code": 0,
+        "elapsed_seconds": 0.2620028339988494,
+        "finished_utc": "2026-11-12T06:04:08.618297+00:00",
+        "stdout": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source-after.stdout",
+          "sha256": "a24b7db186b2d26c6a5b41a46b46cb15c6ae4b3db1ed2cf9bf42c0554f3a2566"
+        },
+        "stderr": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/source-after.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    ]
+  },
+  "actual_summary": {
+    "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/summary.json",
+    "bytes": 2856,
+    "sha256": "69a3f5797aa0cad4d5b4cbe81990331a385caf5bb0caf998db19a8b13572cd80"
+  },
+  "independent_oracle": {
+    "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/oracle.stdout",
+    "bytes": 18985,
+    "sha256": "cc05d8e46228040bf3b8924d08570a888f29cab17acf98b3a90387336372a3aa"
+  },
+  "totals": {
+    "business_unknowns": 12,
+    "client_acks": 24,
+    "controller_http_posts": 363,
+    "controller_processes": 20,
+    "http_posts": 586,
+    "original_lookups": 36,
+    "original_sql": 36,
+    "owned_children": 108,
+    "retained_snapshots": 12,
+    "s3_requests": 1914
+  },
+  "cases": [
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 1,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C1_same_policy_prepare_restart",
+      "client_acks": 2,
+      "controller_http_posts": 54,
+      "controller_processes": 3,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9603",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "active",
+            "nonce": "1391707426769869032",
+            "owner_epoch": "2",
+            "owner_instance": "9603",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "63c6c54725bcbe64844dc6612ed52d6f38ca005b2aad0c28cde9ead0db176704",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8701",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "1391707426769869032",
+          "revision": "8"
+        }
+      },
+      "http_posts": 72,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 10,
+      "owner_mutations": {
+        "owner_claim": 1,
+        "owner_prepare": 3,
+        "owner_resume": 1
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 12,
+      "retained_snapshots": 1,
+      "s3_requests": 192,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 80.85894202100098,
+      "original_whole_seconds": 240,
+      "cleanup_errors": [],
+      "node_source_bindings": 6,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/inputs.json",
+          "bytes": 7610,
+          "sha256": "edca79cfac83349b3cbcbde50360d9b6e7cd9f840d39458b3347ddd15f07991a"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/scenario.json",
+          "bytes": 752,
+          "sha256": "3db9274b6c2862a415b1d01a4a2f7502b4bde79cefa498a96015c0a08a738974"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/events.jsonl",
+          "bytes": 923299,
+          "sha256": "3fb82334897629e0bea90d5724f42bebd9b6fb5ab5e456dc3730ae1e908ad1f4"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/business.jsonl",
+          "bytes": 5789,
+          "sha256": "b2cbe49d779ff092bef9e714cccae070b2b56787ab36f5108a5b1a2e7bd09ee3"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/http-client-ledger.jsonl",
+          "bytes": 33554,
+          "sha256": "875f05cfa525b6f079b2b39928101152122c80cb739531ddc933b0edf0fe8cb8"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/http-client-transport.jsonl",
+          "bytes": 39735,
+          "sha256": "5c162926d1268a037eec42a5f355b2179a99aa1fc9295a6f55c0b2b194af90c6"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/intents.json",
+          "bytes": 1408,
+          "sha256": "2202bc31dcd4c7b036cd64e98cb4e5965eaa99d3946dc60275fe7c20d635c968"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "6d970330abee53e3ba6bef40ff474cfe858016a7238f4322ce8f6cdf0f2e1b30"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "b078a64b032ce7ff52c772f8a8509904e0e392ad30665ef6db9504a53a6ca831"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C1_same_policy_prepare_restart/summary.json",
+          "bytes": 236,
+          "sha256": "b319749e63f5cb2530a89aa2ab7532af5184db7ea2afebc2490409ebd06ace2e"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 1,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C2_same_creator_policy",
+      "client_acks": 2,
+      "controller_http_posts": 48,
+      "controller_processes": 2,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "active",
+            "nonce": "2608078175135345047",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "27fcceb0a68e04d6f355bc15d025d9797738e1e98cf1340700529684ba3fa8fb",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8702",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "2608078175135345047",
+          "revision": "8"
+        }
+      },
+      "http_posts": 66,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {
+        "owner_claim": 1,
+        "owner_prepare": 2,
+        "owner_resume": 1
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 13,
+      "retained_snapshots": 1,
+      "s3_requests": 193,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 52.213644159997784,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/inputs.json",
+          "bytes": 7602,
+          "sha256": "a06e9567812eff610fbaba3c932f33b1dd1d5b557b452dfbf841546f52802576"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/scenario.json",
+          "bytes": 744,
+          "sha256": "fc30c8359d44a878564723bbbeb49d31f609fb99bdb9cebbaa61b1cb4e566cfa"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/events.jsonl",
+          "bytes": 892445,
+          "sha256": "6d7ec44ba84eec8214e20781651f11eca7c94df43115441d82ec095fe6d18d2f"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/business.jsonl",
+          "bytes": 5796,
+          "sha256": "88d257dfe0029f1743cea2be0cb949b1c1c96b8ee67e4d9c00eae7f24d93851a"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/http-client-ledger.jsonl",
+          "bytes": 33569,
+          "sha256": "89a4a0264a2bb1770701239a114a7325110c6333d8e75b1d6c58624889842e92"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/http-client-transport.jsonl",
+          "bytes": 39867,
+          "sha256": "b0df9fc4a80405ff033a6292ebc50c27e731a2a8e703a3113a9f3b320ba69a0d"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/intents.json",
+          "bytes": 1408,
+          "sha256": "890323befe8acc71e2901e322337a2824921c91cada9c03cc1fd08d5bc82c192"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "48ca8fa00f5c1a9335dd7d50e6ef2b12c48511b6f427a5a7bcc5ebd2c59078f2"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "9db2a06f3b872cd87cf96b9ba7203ebc5c464965c17f88ba4af67e0120966ff7"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_same_creator_policy/summary.json",
+          "bytes": 229,
+          "sha256": "ace5f9fa06ff8985f6419d0ae36527693b14711422e7bb728ea20d53f137b6b1"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 1,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C2_different_creators",
+      "client_acks": 2,
+      "controller_http_posts": 49,
+      "controller_processes": 2,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "active",
+            "nonce": "15554447314230012261",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "17a84e6425c0f2658545745092e6a147f4e28ec9139711dd7fba5f0728041c95",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8703",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "15554447314230012261",
+          "revision": "8"
+        }
+      },
+      "http_posts": 67,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {
+        "owner_claim": 2,
+        "owner_prepare": 2,
+        "owner_resume": 1
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 13,
+      "retained_snapshots": 1,
+      "s3_requests": 202,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 51.59956411700114,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/inputs.json",
+          "bytes": 7602,
+          "sha256": "b52a0926e5af6ee28ec3f62e776724c7861af1fc76139aec864de237c4d390e6"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/scenario.json",
+          "bytes": 744,
+          "sha256": "7f79b3f144b33ca21507490cc405a632138f4b75b00d3382814cbf7cb2b5181b"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/events.jsonl",
+          "bytes": 922525,
+          "sha256": "38b87c15a68d0267f6741d36da80ae28bda015d3198bf2a0a7c2b6d3b0c1ac98"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/business.jsonl",
+          "bytes": 5802,
+          "sha256": "ab11e21993ce78cd3754c944b2df2b2a00a8d95c64cc8b2e573576ed6a4a6794"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/http-client-ledger.jsonl",
+          "bytes": 33597,
+          "sha256": "4a8036047f9943d1787a707f8918bc6cc1fa95a0e781555a18e7555fb57f1581"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "2f5af51292fce1f695b7ec7e14dc89f37d54bc10a38ee57414adc57eb7261001"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/intents.json",
+          "bytes": 1408,
+          "sha256": "26e4b0687d6b6865ad33d7f7d20733f4ed70a347415dd9006488cd858b76dd4f"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "a68b67959d6624ad25ce4ac21affcb30a3a839a65d9c7cc57dd0926568ff2079"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "2176f7b1b49fe2c820928ff875beb6a27246e767154ed4cc75a79acbdd8ecb0f"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_different_creators/summary.json",
+          "bytes": 227,
+          "sha256": "f258c10e7d4930b4c621818cd66065f66941737c33d8d00c14464ff956eb525e"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C2_manual_marker",
+      "client_acks": 2,
+      "controller_http_posts": 2,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": false,
+        "auth_epoch": "2",
+        "head_serial": "8",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "8",
+            "kind": "claimed",
+            "nonce": "87021",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "7"
+          },
+          "reference": {
+            "creator": "11",
+            "descriptor_hash": "e6caa61f382eac41dbea9cb05606cfba3ec3bf4c59132137256501554bd7175d",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "7",
+        "scope": {
+          "database": "8704",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "87021",
+          "revision": "7"
+        }
+      },
+      "http_posts": 23,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {},
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 2,
+      "retained_snapshots": 1,
+      "s3_requests": 121,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 29.908221244000742,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/inputs.json",
+          "bytes": 7597,
+          "sha256": "2b49aad661ff536f11533aa78b7fa53b9bb20eb345f88bf17609f002e9a14ecf"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/scenario.json",
+          "bytes": 739,
+          "sha256": "1f38e3b6cd497835a0670a7d9fadf8c7d9e93d6d66af988285c218675922a231"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/events.jsonl",
+          "bytes": 534718,
+          "sha256": "d0d47eef09a021364b2b4388f01cfe955b48eb562701c2be9007cfaa6b2ba992"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/business.jsonl",
+          "bytes": 6032,
+          "sha256": "6de1845b5b9e0d553f4e604b21bb3611be13d13d21b8bb6e02ee3416085e96b4"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/http-client-ledger.jsonl",
+          "bytes": 40272,
+          "sha256": "8508d3fcff875bb6a965c9c2b4254351d21ac59555dbd793f72687255507cb56"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/http-client-transport.jsonl",
+          "bytes": 47240,
+          "sha256": "9d4ef518402ad3a35d455b03e797b4bddf14bd626be36256cbfd668fe281fb6c"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/intents.json",
+          "bytes": 1408,
+          "sha256": "00d8d99d7da0b48f7d8df2291e22edd15f1966ee7107c4e1843461013e81bf05"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "900e799a10a31bb149a3441d76cf262d684cb6203ca5ee9e7fb9f713f701abf1"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "993cbd6c76acdf468c788e9df78b873b8c60431dd61d2fd94c8554eadea5b93a"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C2_manual_marker/summary.json",
+          "bytes": 223,
+          "sha256": "3f1a2670c05b8d465a055662a1ebb3e5442886a7e276c1fe06e088c7181168c3"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 1,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C3_claimed_abort",
+      "client_acks": 2,
+      "controller_http_posts": 40,
+      "controller_processes": 2,
+      "final_authority": {
+        "active": false,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "aborted",
+            "nonce": "17742033198868487321",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "fe818bdb5ff066cf79dbc83c20097a5c4ee9b91fb395adfd144ffcc4e9daea37",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8705",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "17742033198868487321",
+          "revision": "8"
+        }
+      },
+      "http_posts": 58,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {
+        "owner_abort": 1,
+        "owner_claim": 1,
+        "owner_prepare": 1,
+        "owner_resume": 1
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 8,
+      "retained_snapshots": 1,
+      "s3_requests": 176,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 52.1789434750026,
+      "original_whole_seconds": 240,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/inputs.json",
+          "bytes": 7597,
+          "sha256": "cc91c9679f59955dfde41c65049eee06e8a4f77bc95aec37338b856a7447aa9a"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/scenario.json",
+          "bytes": 739,
+          "sha256": "9e134043469f70a11e921bf7fc5a83a3f5563104a22b5509e6fdf5636005dc81"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/events.jsonl",
+          "bytes": 810162,
+          "sha256": "b39c8e87c95bc430aca04e512242534d66a6d14f7bcef961e1c4edf9f1f0babc"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/business.jsonl",
+          "bytes": 5804,
+          "sha256": "009e162a0f747c5488777895205a32bd5f41c9c94f147bcf19c542bd3fc3cc45"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/http-client-ledger.jsonl",
+          "bytes": 33601,
+          "sha256": "dd29290e56683ddf5c0d39428759edc58a224dad4c0fae3b575431639ea41ad6"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "d5a0531399b01bd4d94bedc1e665d59a8a2663b90e66a789aecf2692c9c0b78d"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/intents.json",
+          "bytes": 1408,
+          "sha256": "02a54f377a490304677bef9cf8d025abb757cc6345f55f22beca59ba79ebfdff"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "3af730f6dbf9e20015a9eee60050e8f55e6db45b5e81c023347b667cf8e0e790"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "2577cf5249978fbda7fbea2fa150212c5d9fbffe2f4dfb7201a2660160c6a0cf"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_claimed_abort/summary.json",
+          "bytes": 221,
+          "sha256": "a0697053a2142b9408339b4729e83b81e8773256ac8fd5302fa97f8ded927f23"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 1,
+        "active": 0,
+        "cancelling": 1,
+        "claimed": 0
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C3_cancelling_restart",
+      "client_acks": 2,
+      "controller_http_posts": 56,
+      "controller_processes": 3,
+      "final_authority": {
+        "active": false,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "1",
+        "owner_instance": "9601",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "cancel",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "aborted",
+            "nonce": "15843037233533992540",
+            "owner_epoch": "1",
+            "owner_instance": "9601",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "054ff04d36a290c4c56b3a2e4f66e93e293b0255744868054e430b20130b32df",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8706",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "15843037233533992540",
+          "revision": "8"
+        }
+      },
+      "http_posts": 74,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 10,
+      "owner_mutations": {
+        "owner_abort": 2,
+        "owner_claim": 1,
+        "owner_prepare": 2
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 10,
+      "retained_snapshots": 1,
+      "s3_requests": 189,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 71.30410279100033,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 6,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/inputs.json",
+          "bytes": 7602,
+          "sha256": "64e1cede1c4cd7a83f4d97f3c83b25634434b86cd7ac09e4840aa2d4a8dbce7e"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/scenario.json",
+          "bytes": 744,
+          "sha256": "bb846afca4b404b524a9d5573c8e2ed0aba796ead5c527eb1ca55e0253441137"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/events.jsonl",
+          "bytes": 908663,
+          "sha256": "dd1c76e007372bbe2939b511c576334a553170cb82580fb8bf81d57096ece2e1"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/business.jsonl",
+          "bytes": 5805,
+          "sha256": "09006618d5aa2c73e2757d559df8eaba4e320cc25a2a9f2a99dd2ab04d8ba559"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/http-client-ledger.jsonl",
+          "bytes": 33605,
+          "sha256": "39e9e54def464498b197ea6908771f6fb67a398d3f1f10b69ded626688bd69b1"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "abf04f25277c281732bbf1478b09bbcd5c073d16cd7d0c35ff5508fc58493e9c"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/intents.json",
+          "bytes": 1408,
+          "sha256": "29f171954d57d84b4db02a233c295f27600c8dca1d6750f773e88bbc815223e9"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "23625fc14490d37f6e995a1e079badb27ec3cd547b9edb945dce8d3743fc8395"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "336633e188675d9c4970ec0b4a7974f225d6f1b4eb84febb259eb6acd205f60f"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_cancelling_restart/summary.json",
+          "bytes": 227,
+          "sha256": "c6abb9e6de4492a85ab0208ef294e50f1ff6e935128a43d7394b985e89af91f4"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 0
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C3_healthy_original",
+      "client_acks": 2,
+      "controller_http_posts": 16,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "7",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "1",
+        "owner_instance": "9601",
+        "owner_plan": null,
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "6",
+        "scope": {
+          "database": "8707",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "3",
+          "revision": "6"
+        }
+      },
+      "http_posts": 34,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 8,
+      "owner_mutations": {
+        "owner_prepare": 1
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 5,
+      "retained_snapshots": 1,
+      "s3_requests": 128,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 40.859626050998486,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 4,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/inputs.json",
+          "bytes": 7600,
+          "sha256": "2b4a6d6ce0491f83440bb17ccfdc2b423dc6ffc1945e55fc0c55bb16c0fba3ad"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/scenario.json",
+          "bytes": 742,
+          "sha256": "0069377397b5ec1805e35d97ad054aec48fdf9a101518f51974c75071e835163"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/events.jsonl",
+          "bytes": 581685,
+          "sha256": "2c96b1b124fed782885583dc28f6a3c14756dd8fc429a7baaa9d909eba24dfb2"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/business.jsonl",
+          "bytes": 5462,
+          "sha256": "89637f5c6eb30b9c8ed88d0dddb043fb0f111104fbcb5caeae024141c38f7dd7"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/http-client-ledger.jsonl",
+          "bytes": 32689,
+          "sha256": "ddc61d9c6eeb1f95d2b03d37384d0b9f8b208b2d3b29d7298e163c211aa325c9"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "6df3ad66f3bf1eb1507f816f5e6df7395cbf6d96dca79a3159c72886d1b5b6df"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/intents.json",
+          "bytes": 1408,
+          "sha256": "9f814673f3466b1836971ee2a924b3ae291ba2eb0ecf3ca3e5915f4c8210eb8f"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "057ddf4498adf740f2c1f17e83c15bf4fbd9528023b64d8d781f12d06cbdf21b"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "ee99f02d7a48bb19ffe6fef196b0ff47ad919e4e8b4860884da13312d6d633f8"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C3_healthy_original/summary.json",
+          "bytes": 226,
+          "sha256": "919429453324dfc415803e74611de74e9380e3ca9b11e972667b4e772582e61d"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 0
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C4_revoked_authority",
+      "client_acks": 2,
+      "controller_http_posts": 4,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "3",
+        "head_serial": "8",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "1",
+        "owner_instance": "9601",
+        "owner_plan": null,
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "7",
+        "scope": {
+          "database": "8708",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "86015",
+          "revision": "7"
+        }
+      },
+      "http_posts": 24,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {},
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 3,
+      "retained_snapshots": 1,
+      "s3_requests": 115,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 31.491321338002308,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/inputs.json",
+          "bytes": 7601,
+          "sha256": "ff724f3ab0a3f07be3b3f38f182d63a7c144733d8c4beb3deb3581d1f9006b9b"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/scenario.json",
+          "bytes": 743,
+          "sha256": "0dfc053031d0e485e71a5c817fe53982268a52550e0bc63cdf43859075df5159"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/events.jsonl",
+          "bytes": 518276,
+          "sha256": "de61a338c630616368510df8e34bcbd690183c1c861fdf59e3ab4bbb5729813f"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/business.jsonl",
+          "bytes": 5579,
+          "sha256": "8b6f72e879f72da705051a7dad08b691d67c4faea5b155aa50b2deaba7fb9fc5"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/http-client-ledger.jsonl",
+          "bytes": 36132,
+          "sha256": "9c695cdae50333ba95b7a40225e91042a7e7de76f16b062fb434baf2acb844b3"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/http-client-transport.jsonl",
+          "bytes": 44560,
+          "sha256": "4093c7785da2f80ab6263224909e8ee4d629ada466f3d4e4547b3a64d607c09e"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/intents.json",
+          "bytes": 1408,
+          "sha256": "6858d153294c9d22c23d86f604f25b4a20ad765563266a5aa4cf9e9bfeaff0de"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "f3bc1f9de07a7842c21da5f711110fd94df80815e08910eb6c0da123aece9f4b"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "5f1d4b658268a6b7bd278364369f35afa1c523540a0e3ed019a38c09ff18bfa8"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_revoked_authority/summary.json",
+          "bytes": 227,
+          "sha256": "7769d1d711cf085fbdede1c2c32ed284425d075a458dbc6971f7108d84795089"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 0
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C4_worker_mismatch",
+      "client_acks": 2,
+      "controller_http_posts": 22,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "7",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "1",
+        "owner_instance": "9601",
+        "owner_plan": null,
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "6",
+        "scope": {
+          "database": "8709",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "3",
+          "revision": "6"
+        }
+      },
+      "http_posts": 40,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 8,
+      "owner_mutations": {},
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 6,
+      "retained_snapshots": 1,
+      "s3_requests": 124,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 53.64397923499928,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 4,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/inputs.json",
+          "bytes": 7599,
+          "sha256": "fa369b94eabb09b29dfc1013ed7aed51217acb29345e98db871af2581c36c91c"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/scenario.json",
+          "bytes": 741,
+          "sha256": "7e65bd5d82e8e86330cbfaec64c9d7d3176866e354a2ee635460d0dce76092a2"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/events.jsonl",
+          "bytes": 583455,
+          "sha256": "28416b9e44a95219f3b66d6081f7b34f46bab8c89b2d5aa151d36a5097dc0b47"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/business.jsonl",
+          "bytes": 5462,
+          "sha256": "7de78a7b55164684ba51f769500d6a3b20b941d38c89c5948199b8b47e5430f1"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/http-client-ledger.jsonl",
+          "bytes": 32689,
+          "sha256": "7fe2bd1afdfc93057602581dbd611e345705f5880715a3db4f203f9c2af3e8b7"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "230e6e7d8a9de534150a539cb25c20bdf9cf10a69b8916cca2e964d5869b0639"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/intents.json",
+          "bytes": 1408,
+          "sha256": "ca8634234a9dc3fe71ed1a0af00cddb2192054de80b2213e736e834d1a082819"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "ac16c8584460678efdc7cf28fb768a4dae3f1354d399226ea241595532f089c4"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "98b114d2bf8a8b0c586d4c82af01e8e3af74e55c03932e2e808009281ba76084"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_worker_mismatch/summary.json",
+          "bytes": 224,
+          "sha256": "520f7e82c99b1fb4520a804e9c10dc7fa78e5cef27ba9b9e8349ae0ebbef8792"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C4_resource_refusal",
+      "client_acks": 2,
+      "controller_http_posts": 32,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": false,
+        "auth_epoch": "2",
+        "head_serial": "8",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "8",
+            "kind": "claimed",
+            "nonce": "15485215589763804540",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "7"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "6bfc22ad4a4c109f4e454ebbb5e8c45d06f3be7b0ee91424929a241b2e018e53",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "7",
+        "scope": {
+          "database": "8710",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "15485215589763804540",
+          "revision": "7"
+        }
+      },
+      "http_posts": 51,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {
+        "owner_claim": 1,
+        "owner_prepare": 1,
+        "owner_resume": 2
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 8,
+      "retained_snapshots": 1,
+      "s3_requests": 161,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 63.492860067002766,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/inputs.json",
+          "bytes": 7599,
+          "sha256": "b4d8dccc8136873b6066bb5ba2c3f149da0e10a38e7a5598b565c98f7590b45b"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/scenario.json",
+          "bytes": 741,
+          "sha256": "0a7b3c692919b3d57bdfe2402791f59edf2c8a1bc3cb97b0afdb71d5527b8fc8"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/events.jsonl",
+          "bytes": 755145,
+          "sha256": "f0951cfdf49590b4eb579b1c5ca56ad1a63360ad88cd9071de8f94f261131cbc"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/business.jsonl",
+          "bytes": 6475,
+          "sha256": "4c6a107eccd7c1355125a6a63bfc0222400488476ed6239f28a3250216427c4a"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/http-client-ledger.jsonl",
+          "bytes": 35311,
+          "sha256": "07fd50cf7dd49170bf1c606692f2224e185ef2247e7f59997a0fcef824058c6b"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/http-client-transport.jsonl",
+          "bytes": 42649,
+          "sha256": "2e7a77b1673eafeba681e2663d24f023880ac94e5e0e9339698affad41d713f2"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/intents.json",
+          "bytes": 1408,
+          "sha256": "9958d4859a7976be1877fbe300f7e741db2b311114a6d8517dd9cc57fece0a6b"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "008702f48b6aa8882891808944116e3251d01c7e8ee9b4d845d838538bb2d875"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "f94e7c2f2388067035c25b184e169027b9e4e7965792bd850b2fb7126ad8bfe1"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_resource_refusal/summary.json",
+          "bytes": 226,
+          "sha256": "25ac7d9e28fa39b0fbeac64f789d5c19037ca2350a6b5d8ec0983443f2463fd4"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 0,
+        "cancelling": 0,
+        "claimed": 0
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C4_s3_unavailable",
+      "client_acks": 2,
+      "controller_http_posts": 5,
+      "controller_processes": 1,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "7",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "1",
+        "owner_instance": "9601",
+        "owner_plan": null,
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "6",
+        "scope": {
+          "database": "8711",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "3",
+          "revision": "6"
+        }
+      },
+      "http_posts": 24,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {},
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 3,
+      "retained_snapshots": 1,
+      "s3_requests": 114,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 31.169344023997837,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/inputs.json",
+          "bytes": 7598,
+          "sha256": "e70873507444e62d9f629487f364c7bf416cb632a2a8cab1687bca683ddd938c"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/scenario.json",
+          "bytes": 740,
+          "sha256": "a2894d803a2f94016bc69c071b12c4c24bf3fd9304cae9b5c5941b8088a48e86"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/events.jsonl",
+          "bytes": 516443,
+          "sha256": "2f9042ae4585e28945c4ae8afdd370223a6bc6af5c1aab6498149720c41d92e0"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/business.jsonl",
+          "bytes": 6133,
+          "sha256": "4983b1269afa6d6ee2a1eefb440877540ee64cbc70ad7ae96c791eb122ae936f"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/http-client-ledger.jsonl",
+          "bytes": 34414,
+          "sha256": "0d5734d5353d5a4913741e421e8576c1e0799deae8236fd7aaba6ff721432ab1"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/http-client-transport.jsonl",
+          "bytes": 42730,
+          "sha256": "a7c460794ce63dfe08ce8c5f68cb602c37d27477f59cf9c05ce78664ec6ba1b3"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/intents.json",
+          "bytes": 1408,
+          "sha256": "681fc6cb921d1ddd8b6d5bb135758bb90cd5ade617006d3fdc00ef32f7623a97"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "143c7886b21aeebd79717edf25a02d3e361841ba67c266a2083ba1231d926735"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "7a759608fcf785de29a722802497f0929557c057ce1975f1d41ab21bc5d5bb87"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C4_s3_unavailable/summary.json",
+          "bytes": 224,
+          "sha256": "ee1aff2b06b622fe1114b7dca73554ae3632c71e82a49d67bfc2552e842f18f9"
+        }
+      }
+    },
+    {
+      "accepted_head_phases": {
+        "aborted": 0,
+        "active": 1,
+        "cancelling": 0,
+        "claimed": 1
+      },
+      "aws": "NOT_RUN",
+      "business_unknowns": 1,
+      "case_id": "C5_shutdown_deadline",
+      "client_acks": 2,
+      "controller_http_posts": 35,
+      "controller_processes": 2,
+      "final_authority": {
+        "active": true,
+        "auth_epoch": "2",
+        "head_serial": "9",
+        "lifecycle": "ready",
+        "max_bytes": "10737418240",
+        "owner_epoch": "2",
+        "owner_instance": "9602",
+        "owner_plan": {
+          "admission": {
+            "head_serial": "8",
+            "kind": "claim",
+            "revision": "7"
+          },
+          "phase": {
+            "head_serial": "9",
+            "kind": "active",
+            "nonce": "5854087899709668472",
+            "owner_epoch": "2",
+            "owner_instance": "9602",
+            "revision": "8"
+          },
+          "reference": {
+            "creator": "12",
+            "descriptor_hash": "d7da06d5e58fc4e453030db7d3838d40a3f9befc6b2a4a686ad64ee1af9153a8",
+            "operation": "7"
+          }
+        },
+        "request_epoch": "1",
+        "retention": {
+          "max_entries": 4096,
+          "max_result_bytes": "268435456",
+          "oldest_epoch": "1"
+        },
+        "revision": "8",
+        "scope": {
+          "database": "8712",
+          "deployment": "1",
+          "generation": "1",
+          "incarnation": "1",
+          "tenant": "7"
+        },
+        "sequence": "3",
+        "storage": {
+          "active_generation": "1",
+          "allocated_through": "1",
+          "plan": null,
+          "sweep": null,
+          "terminal": null
+        },
+        "transition": {
+          "nonce": "5854087899709668472",
+          "revision": "8"
+        }
+      },
+      "http_posts": 53,
+      "original_lookups": 3,
+      "original_sql": 3,
+      "owned_children": 9,
+      "owner_mutations": {
+        "owner_claim": 1,
+        "owner_prepare": 1,
+        "owner_resume": 2
+      },
+      "per_process_tick_wire_attribution": "NOT_CLAIMED",
+      "production_slo": "NOT_RUN",
+      "reports": 7,
+      "retained_snapshots": 1,
+      "s3_requests": 199,
+      "source_commit": "e64eb56c6e5b983e416bcbefe72eabcae7434e8b",
+      "source_sha256": "0a0a677ea8e64f133d4eee702643fa93810557eaa2a69496a13984815de8413a",
+      "status": "PASS_CONTROLLER_MATRIX_CASE",
+      "actual_elapsed_seconds": 53.51904494499831,
+      "original_whole_seconds": 180,
+      "cleanup_errors": [],
+      "node_source_bindings": 5,
+      "javascript_input_count": 57,
+      "originals": {
+        "inputs.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/inputs.json",
+          "bytes": 7601,
+          "sha256": "1c97a0921f77f8b661520cad4eb9a64288a9a03c7f0e09d3850e98a41ebd07a5"
+        },
+        "scenario.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/scenario.json",
+          "bytes": 743,
+          "sha256": "651c8dd019ed5c9d692ff46cf97f465bfabc7d8ff9ca3abf10a1547869dcc497"
+        },
+        "source.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/source.json",
+          "bytes": 154363,
+          "sha256": "97d6d429edab9581b57c37bbc3fb8495e7911b0467c013f882a91a9cab8be251"
+        },
+        "source.tar": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/source.tar",
+          "bytes": 13568000,
+          "sha256": "3073f3daa482ea9b344c583d2191c83e7ddddb38b900122df3917577ac069cf5"
+        },
+        "events.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/events.jsonl",
+          "bytes": 890324,
+          "sha256": "919c62338ce2004c2d46c2b5054beeebb827b28c607cca8976a77618e37b1c0e"
+        },
+        "business.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/business.jsonl",
+          "bytes": 5800,
+          "sha256": "33bbd3d572b521bd05a618822fb8529f614f0fd3bd99d49159cc0eae216bc4f4"
+        },
+        "http-client-ledger.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/http-client-ledger.jsonl",
+          "bytes": 33593,
+          "sha256": "7aebc45eac6791679035f28382ed023f81135b55252e1a100beba56820a8447b"
+        },
+        "http-client-transport.jsonl": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/http-client-transport.jsonl",
+          "bytes": 40072,
+          "sha256": "e1cded4964619825f734994479119cdea57a3bb378a200453e332fe6c3b76c84"
+        },
+        "intents.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/intents.json",
+          "bytes": 1408,
+          "sha256": "d1a104a77ca93d6a6df513f9ea448990bfe9d1b73e349d8507f4ab57602e5c0e"
+        },
+        "snapshot-original.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/snapshot-original.json",
+          "bytes": 1433,
+          "sha256": "600bf8eee6818f6c926775bb4c6353f174853bceac93812490e70d8e190a8d1c"
+        },
+        "snapshot-intent.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/snapshot-intent.json",
+          "bytes": 286,
+          "sha256": "8aad0ed24891230c041f39aae65d3a637b673ce5bd30d66625388bddecbc9d1b"
+        },
+        "summary.json": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/actual/C5_shutdown_deadline/summary.json",
+          "bytes": 226,
+          "sha256": "d4ed5fc5aa97a22efeca628948aefa331c7b33288774e3c3053629d30ee32def"
+        }
+      }
+    }
+  ],
+  "negative_controls": {
+    "count": 31,
+    "report": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls/manifest.json",
+      "bytes": 62264,
+      "sha256": "edd6173869e4a042ecc4cfaa8f12fb7b3d8ca2140e560806af9e9243ef65889c"
+    },
+    "plan": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls/controls-plan.json",
+      "bytes": 3900,
+      "sha256": "5f54a7857df7fc106d09a98762659967e1e768f7f1c9d9f4de55dbb612554054"
+    },
+    "cases": [
+      {
+        "name": "invalid-s3-signature",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "actual-s3-signatures",
+        "observed_guard": "actual-s3-signatures",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "http-operation-disagrees-with-original",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "http-original-operation",
+        "observed_guard": "http-original-operation",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "controller-dispatches-sql",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "controller-never-sql",
+        "observed_guard": "controller-never-sql",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "unconditional-head-publication",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "conditional-s3-put",
+        "observed_guard": "conditional-s3-put",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "late-cas-with-unread-etag",
+        "case_id": "C5_shutdown_deadline",
+        "expected_guard": "head-original-exact-get",
+        "observed_guard": "head-original-exact-get",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "late-cas-body-changed",
+        "case_id": "C5_shutdown_deadline",
+        "expected_guard": "late-original-candidate-unchanged",
+        "observed_guard": "late-original-candidate-unchanged",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "owner-descriptor-hash-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "original-owner-descriptor",
+        "observed_guard": "original-owner-descriptor",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "claim-target-guard-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "owner-actual-target-guard",
+        "observed_guard": "owner-actual-target-guard",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "active-report-without-active-http",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "active-report-has-original-http",
+        "observed_guard": "active-report-has-original-http",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "accepted-reference-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "accepted-original-reference",
+        "observed_guard": "accepted-original-reference",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "accepted-nonce-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "accepted-original-nonce",
+        "observed_guard": "accepted-original-nonce",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "controller-mutation-budget-exceeded",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "per-tick-admission",
+        "observed_guard": "per-tick-admission",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "original-client-ack-omitted",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "two-original-client-acks",
+        "observed_guard": "two-original-client-acks",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "original-client-ack-rewritten",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "original-ack-bytes",
+        "observed_guard": "original-ack-bytes",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "original-unknown-relabelled-ack",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "business-unknown-preserved",
+        "observed_guard": "business-unknown-preserved",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "recovered-lookup-result-rewritten",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "recovered-original-result",
+        "observed_guard": "recovered-original-result",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "retained-snapshot-reference-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "snapshot-preserved",
+        "observed_guard": "snapshot-preserved",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "native-query-random-blob-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "no-sql-replay-counter-and-random",
+        "observed_guard": "no-sql-replay-counter-and-random",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "owned-wait4-source-fabricated",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "owned-wait4",
+        "observed_guard": "owned-wait4",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "owner-cache-not-removed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "cache-loss-after-owned-exit",
+        "observed_guard": "cache-loss-after-owned-exit",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "backpressure-http-429-relabelled",
+        "case_id": "C4_resource_refusal",
+        "expected_guard": "original-http-error-status",
+        "observed_guard": "original-http-error-status",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "limit-http-413-relabelled",
+        "case_id": "C4_resource_refusal",
+        "expected_guard": "original-http-error-status",
+        "observed_guard": "original-http-error-status",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "s3-unknown-relabelled-unavailable",
+        "case_id": "C4_s3_unavailable",
+        "expected_guard": "s3-unavailable-not-owner-death",
+        "observed_guard": "s3-unavailable-not-owner-death",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "late-aborted-resume-relabelled-active",
+        "case_id": "C3_claimed_abort",
+        "expected_guard": "accepted-current-marker",
+        "observed_guard": "accepted-current-marker",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "original-sdk-request-hash-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "original-sdk-request-hash",
+        "observed_guard": "original-sdk-request-hash",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "foreign-policy-report-reused",
+        "case_id": "C2_same_creator_policy",
+        "expected_guard": "foreign-policy-remains-blocked",
+        "observed_guard": "foreign-policy-remains-blocked",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "foreign-creator-report-reused",
+        "case_id": "C2_different_creators",
+        "expected_guard": "foreign-creator-remains-blocked",
+        "observed_guard": "foreign-creator-remains-blocked",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "first-candidate-cut-target-changed",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "real-first-candidate-failure",
+        "observed_guard": "real-first-candidate-failure",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "unbound-node-entrypoint",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "production-node-entrypoint",
+        "observed_guard": "production-node-entrypoint",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "changed-node-source-input",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "actual-node-source-inputs",
+        "observed_guard": "actual-node-source-inputs",
+        "status": "REJECTED_EXPECTED"
+      },
+      {
+        "name": "unbound-node-runtime-options",
+        "case_id": "C1_same_policy_prepare_restart",
+        "expected_guard": "bound-node-runtime-options",
+        "observed_guard": "bound-node-runtime-options",
+        "status": "REJECTED_EXPECTED"
+      }
+    ],
+    "positive_reaudit": "PASS_UNCHANGED_ORIGINAL_HISTORIES",
+    "original_evidence_unchanged": true,
+    "inventory_before": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls/positive-inventory-before.json",
+      "bytes": 343365,
+      "sha256": "f1825cc879a1b68ac57187f828c62683bafeb1e2bd58601a97c12c1a5a0198e5"
+    },
+    "inventory_after": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-gate-01/controls/positive-inventory-after.json",
+      "bytes": 343365,
+      "sha256": "f1825cc879a1b68ac57187f828c62683bafeb1e2bd58601a97c12c1a5a0198e5"
+    }
+  },
+  "preserved_history": {
+    "73a7140_original_contract": {
+      "record": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-73a7140-gate-01/commands.json",
+        "bytes": 9179,
+        "sha256": "39cecb594e222bfb3430dbe49d94e91172caecea0087a72995ee7e5f8f15afe7"
+      },
+      "actual_oracle_and_28_controls_exit_zero": true,
+      "limitation": "Suffix-only Node entry check accepted an unbound execution path; this result is not promoted to the new source-bound contract."
+    },
+    "source_binding_counterexample_and_review": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/controller-matrix-oracle-review/source-binding-review-summary.json",
+      "bytes": 1904,
+      "sha256": "ce477611531c7cbf384ee6cf909501a298766b376e7d1d6b6baf1d93d365063b"
+    },
+    "bb4057a_failed_startup_diagnostic": {
+      "summary": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-bb4057a-diagnostic-c1-01/C1_same_policy_prepare_restart/summary.json",
+        "bytes": 280,
+        "sha256": "3ea32bbca5f60b72c224116e7228f7a55368a06e783a481d64443c1ed210af85"
+      },
+      "failure": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-bb4057a-diagnostic-c1-01/C1_same_policy_prepare_restart/failure.txt",
+        "bytes": 1347,
+        "sha256": "0057bff9028b408848b45d0fdf60a56fbfd007e114d46112a8d4863de1590837"
+      },
+      "observation": {
+        "aws": "NOT_RUN",
+        "case_id": "C1_same_policy_prepare_restart",
+        "cleanup_errors": [],
+        "controls": "NOT_RUN",
+        "elapsed_seconds": 24.739883443999133,
+        "error": "AssertionError('unbound Node runtime options')",
+        "oracle": "NOT_RUN",
+        "production_slo": "NOT_RUN",
+        "status": "FAILED",
+        "whole_seconds": 240
+      },
+      "cause": "Host artifact NODE_PATH rejected before business Node spawn; not a product failure. Original failure and complete cleanup retained."
+    },
+    "e64eb56_c1_diagnostic": {
+      "actual": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-diagnostic-c1-01/summary.json",
+        "bytes": 376,
+        "sha256": "46bb72934c998e74a59af70a93e6b2595b74169c9c7bceb4e5a8c1811b30643b"
+      },
+      "case_oracle": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-diagnostic-c1-01.oracle.stdout",
+        "bytes": 1699,
+        "sha256": "67a9b9dfbe76dd8d6032622a901f9ed427d2a019121ac90d0fb217d795c80645"
+      },
+      "three_new_negative_controls": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-matrix-e64eb56-source-controls-diagnostic-01/summary.json",
+        "bytes": 2897,
+        "sha256": "afc45013d110b698cf9d9f30cbfed4f343891e973edf373dbf9ba23d8b57e739"
+      },
+      "scope": "Diagnostic only; not spliced into the complete matrix."
+    }
+  },
+  "limits": {
+    "aws": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "s2_restore": "NOT_IMPLEMENTED",
+    "per_process_tick_wire_attribution": "NOT_CLAIMED",
+    "native_writer_certification_by_m_query": "NOT_CLAIMED",
+    "old_writer_fencing_from_m_route_mismatch": "NOT_CLAIMED",
+    "hard_rss_disk_or_long_run_cost": "NOT_CLAIMED",
+    "timing": "Fixed correctness deadlines retained; no performance comparison while independent HEAD6/terminal correctness/audit work runs."
+  }
+}
