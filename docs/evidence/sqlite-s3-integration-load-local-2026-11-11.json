@@ -1,0 +1,768 @@
+{
+  "schema": "scap-sqlite-s3-integration-load-local-v1",
+  "review_date": "2026-11-11",
+  "review_timezone": "America/New_York",
+  "status": "PASS_FIXED_LOCAL_LOAD_HISTORY_AND_CONTROLS",
+  "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+  "fixture_source": {
+    "commit": "ffff164b2025137200377f0cc0d709a87082f3cb",
+    "tree": "7549661de9f4f31fb7376fe9f1081d7d6d9c88d0",
+    "source_sha256": "e27de05317f2d0219111e4e04cca8b06e0c647b10187f6e3afddbc2c9a12a7b7"
+  },
+  "fixture_source_files": 699,
+  "fixture_source_before_after": "EXACT_MATCH",
+  "plan_sha256": "d21c13273f00b6dc0908c4c531429f0701b49e16ff8267073ebc5bace2d4ae81",
+  "plan_changed_for_this_run": false,
+  "runtime_build_receipt_sha256": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56",
+  "runtime_inputs": 277,
+  "tools": {
+    "node": {
+      "path": "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+    },
+    "scapd": {
+      "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+      "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+    },
+    "weed": {
+      "path": "/workspace/scratch/bccab55c9ca3/toolchain/bin/weed",
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+    }
+  },
+  "commands": [
+    {
+      "name": "source-before",
+      "argv": [
+        "python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "capture",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-driver-01/source.json"
+      ],
+      "exit": 0,
+      "seconds": 0.2735879421234131,
+      "log_sha256": "6706a6ff855cbdc7bb29f7dcd69fcf070343487a4644fc3e691a93c07da5bd7d"
+    },
+    {
+      "name": "fixture-unit",
+      "argv": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/object-load",
+        "-p",
+        "test_contract.py"
+      ],
+      "exit": 0,
+      "seconds": 2.2800893783569336,
+      "log_sha256": "616a72b447cc7e8658bc24d1b60084aad06f24f98d93bc51c87e1f5ea1670b82"
+    },
+    {
+      "name": "actual",
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-load/run.py",
+        "--source-root",
+        "/workspace/scratch/bccab55c9ca3/scap-validation-source",
+        "--server",
+        "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+        "--build-record",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+        "--weed",
+        "/workspace/scratch/bccab55c9ca3/toolchain/bin/weed",
+        "--node",
+        "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+        "--evidence",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01"
+      ],
+      "exit": 0,
+      "seconds": 112.20791482925415,
+      "log_sha256": "d51b47a3ee2f84c16eba3abe0e242c0730e10a046aa633028c33e993f2fc964d"
+    },
+    {
+      "name": "oracle",
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-load/oracle.py",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01"
+      ],
+      "exit": 0,
+      "seconds": 5.667478799819946,
+      "log_sha256": "9d7622b83c154a56cca6fbca2f2f6267f0aca9362ab6f9c432637525f0b8a719"
+    },
+    {
+      "name": "controls",
+      "argv": [
+        "python3",
+        "-B",
+        "experiments/object-load/controls.py",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01",
+        "--output",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-controls-01"
+      ],
+      "exit": 0,
+      "seconds": 56.52197813987732,
+      "log_sha256": "ac0ed61507591d011642b66723334056117aae03f1f4f311c18d4a4ffe5b0426"
+    },
+    {
+      "name": "source-after",
+      "argv": [
+        "python3",
+        "-B",
+        "scripts/source_manifest.py",
+        "verify",
+        "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-driver-01/source.json"
+      ],
+      "exit": 0,
+      "seconds": 0.337066650390625,
+      "log_sha256": "1692071e2cfc832b0df1cc56667f4197f530843d0d8b46e39c20828b1047898c"
+    }
+  ],
+  "fixture_unit_tests": 21,
+  "actual": {
+    "aws_standard": "NOT_RUN",
+    "cleanup_errors": [],
+    "private_path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/scap-load-private-fuso3wr7",
+    "private_removed": true,
+    "production_slo_passed": false,
+    "status": "OBSERVED_NOT_AUDITED"
+  },
+  "oracle": {
+    "all_outcomes": {
+      "rejected": 1,
+      "success": 870
+    },
+    "aws_standard": "NOT_RUN",
+    "cold_recovery": {
+      "database_pages": 8258,
+      "downloaded_dependencies": 281,
+      "gate_hold_ms": 162.625818,
+      "hot_control_calls": 11,
+      "open_ms": 1106.080838,
+      "user_bytes": 33554432
+    },
+    "http_posts": 871,
+    "measured": {
+      "read_multi": {
+        "concurrency_limit": 4,
+        "elapsed_seconds": 0.286823232,
+        "latency_ms_including_generator_queue": {
+          "maximum": 288.249239,
+          "p50": 178.097994,
+          "p95": 276.252567,
+          "p99": 288.249239,
+          "samples": 64
+        },
+        "observed_concurrency": 4,
+        "offered": 64,
+        "offered_per_second": 223.13394753183732,
+        "outcomes": {
+          "success": 64
+        },
+        "request_latency_ms_including_service_queue": {
+          "maximum": 47.649922,
+          "p50": 13.901591,
+          "p95": 37.871069,
+          "p99": 47.649922,
+          "samples": 64
+        },
+        "s3_methods": {
+          "GET": 64
+        },
+        "s3_request_body_bytes": 0,
+        "s3_requests": 64,
+        "s3_response_body_bytes": 49152,
+        "success_per_second": 223.13394753183732
+      },
+      "read_same": {
+        "concurrency_limit": 4,
+        "elapsed_seconds": 0.294393595,
+        "latency_ms_including_generator_queue": {
+          "maximum": 295.816819,
+          "p50": 193.292458,
+          "p95": 289.236814,
+          "p99": 295.816819,
+          "samples": 64
+        },
+        "observed_concurrency": 4,
+        "offered": 64,
+        "offered_per_second": 217.3960340407542,
+        "outcomes": {
+          "success": 64
+        },
+        "request_latency_ms_including_service_queue": {
+          "maximum": 57.67299,
+          "p50": 14.067482,
+          "p95": 45.316198,
+          "p99": 57.67299,
+          "samples": 64
+        },
+        "s3_methods": {
+          "GET": 64
+        },
+        "s3_request_body_bytes": 0,
+        "s3_requests": 64,
+        "s3_response_body_bytes": 49216,
+        "success_per_second": 217.3960340407542
+      },
+      "write_multi": {
+        "concurrency_limit": 4,
+        "elapsed_seconds": 8.881118035,
+        "latency_ms_including_generator_queue": {
+          "maximum": 8884.221692,
+          "p50": 6623.111753,
+          "p95": 8785.795357,
+          "p99": 8884.221692,
+          "samples": 64
+        },
+        "observed_concurrency": 4,
+        "offered": 64,
+        "offered_per_second": 7.206299899154533,
+        "outcomes": {
+          "success": 64
+        },
+        "request_latency_ms_including_service_queue": {
+          "maximum": 2815.831,
+          "p50": 241.331406,
+          "p95": 2555.800066,
+          "p99": 2815.831,
+          "samples": 64
+        },
+        "s3_methods": {
+          "GET": 768,
+          "PUT": 384
+        },
+        "s3_request_body_bytes": 3568556,
+        "s3_requests": 1152,
+        "s3_response_body_bytes": 6648492,
+        "success_per_second": 7.206299899154533
+      },
+      "write_same": {
+        "concurrency_limit": 4,
+        "elapsed_seconds": 22.674971031,
+        "latency_ms_including_generator_queue": {
+          "maximum": 22677.963394,
+          "p50": 11034.773593,
+          "p95": 21644.093655,
+          "p99": 22677.963394,
+          "samples": 64
+        },
+        "observed_concurrency": 4,
+        "offered": 64,
+        "offered_per_second": 2.8224953369291033,
+        "outcomes": {
+          "success": 64
+        },
+        "request_latency_ms_including_service_queue": {
+          "maximum": 2903.984381,
+          "p50": 1181.670453,
+          "p95": 2505.462789,
+          "p99": 2903.984381,
+          "samples": 64
+        },
+        "s3_methods": {
+          "GET": 844,
+          "PUT": 423
+        },
+        "s3_request_body_bytes": 10099679,
+        "s3_requests": 1267,
+        "s3_response_body_bytes": 20103119,
+        "success_per_second": 2.8224953369291033
+      },
+      "write_seq": {
+        "concurrency_limit": 1,
+        "elapsed_seconds": 6.214585059,
+        "latency_ms_including_generator_queue": {
+          "maximum": 6215.738874,
+          "p50": 1088.27313,
+          "p95": 5741.776591,
+          "p99": 6215.738874,
+          "samples": 32
+        },
+        "observed_concurrency": 1,
+        "offered": 32,
+        "offered_per_second": 5.1491772493575265,
+        "outcomes": {
+          "success": 32
+        },
+        "request_latency_ms_including_service_queue": {
+          "maximum": 772.210165,
+          "p50": 72.772488,
+          "p95": 534.059603,
+          "p99": 772.210165,
+          "samples": 32
+        },
+        "s3_methods": {
+          "GET": 395,
+          "PUT": 198
+        },
+        "s3_request_body_bytes": 3063762,
+        "s3_requests": 593,
+        "s3_response_body_bytes": 5948394,
+        "success_per_second": 5.1491772493575265
+      }
+    },
+    "measurement_scope": "fixed local instrumented observation, unchanged release product",
+    "production_slo_passed": false,
+    "raw_evidence_unique_bytes": 227054684,
+    "readiness_gets": 2,
+    "resources": [
+      {
+        "first_sample_delay_ms": 0.965932,
+        "hard_peak_or_limit_proved": false,
+        "instance": 1,
+        "kernel_lifetime_maxrss_bytes": 76701696,
+        "last_sample_to_exit_ms": 335.911385,
+        "maximum_sample_collection_ms": 16.638101,
+        "maximum_sample_gap_ms": 118.68019,
+        "observed_hwm_decreases": 6,
+        "sampled_backend_allocated_peak_bytes": 56029184,
+        "sampled_backend_logical_peak_bytes": 55826021,
+        "sampled_cache_allocated_peak_bytes": 34914304,
+        "sampled_cache_logical_peak_bytes": 34885632,
+        "sampled_fd_peak": 49,
+        "sampled_hwm_max_bytes": 77438976,
+        "sampled_rss_peak_bytes": 77438976,
+        "sampled_thread_peak": 15,
+        "samples": 489
+      },
+      {
+        "first_sample_delay_ms": 0.554374,
+        "hard_peak_or_limit_proved": false,
+        "instance": 2,
+        "kernel_lifetime_maxrss_bytes": 59142144,
+        "last_sample_to_exit_ms": 87.727815,
+        "maximum_sample_collection_ms": 17.271087,
+        "maximum_sample_gap_ms": 118.097542,
+        "observed_hwm_decreases": 0,
+        "sampled_backend_allocated_peak_bytes": 56029184,
+        "sampled_backend_logical_peak_bytes": 55826938,
+        "sampled_cache_allocated_peak_bytes": 34885632,
+        "sampled_cache_logical_peak_bytes": 34885632,
+        "sampled_fd_peak": 41,
+        "sampled_hwm_max_bytes": 59142144,
+        "sampled_rss_peak_bytes": 54276096,
+        "sampled_thread_peak": 15,
+        "samples": 364
+      }
+    ],
+    "results": {
+      "ack_observations": 690,
+      "measured_write_resolutions": {
+        "committed": 160
+      },
+      "original_committed": 185,
+      "verified_rows": {
+        "cold": 512,
+        "hot": 1,
+        "m0": 16,
+        "m1": 16,
+        "m2": 16,
+        "m3": 16,
+        "same": 64,
+        "seq": 32
+      }
+    },
+    "s3_authority": {
+      "accepted_versions": 1462,
+      "ambiguous_http_intervals": 0,
+      "blackholed_before_forward": 0,
+      "causal_constraints": 5198,
+      "conditional_put_responses": 1462,
+      "exact_get_body_etag_pairs": 4804,
+      "http_interval_binding": "NOT_REQUESTED"
+    },
+    "s3_requests": 6266,
+    "sampled_resource_peak_is_hard_bound": false,
+    "status": "PASSED"
+  },
+  "controls": {
+    "negative_controls": [
+      {
+        "case": "missing_call",
+        "rejected_by": "http-denominator"
+      },
+      {
+        "case": "slow_sample_removed",
+        "rejected_by": "call-clock"
+      },
+      {
+        "case": "request_identity_changed",
+        "rejected_by": "original-http-input"
+      },
+      {
+        "case": "retained_result_changed",
+        "rejected_by": "committed-wire"
+      },
+      {
+        "case": "cold_blob_changed",
+        "rejected_by": "complete-business-values"
+      },
+      {
+        "case": "publication_missing",
+        "rejected_by": "s3-exchange"
+      },
+      {
+        "case": "whole_tail_exchange_missing",
+        "rejected_by": "s3-denominator"
+      },
+      {
+        "case": "warm_hidden_download",
+        "rejected_by": "warm-head-only"
+      },
+      {
+        "case": "busy_error_changed",
+        "rejected_by": "sdk-error-code"
+      },
+      {
+        "case": "gate_released_early",
+        "rejected_by": "hot-before-gate-release"
+      },
+      {
+        "case": "wrong_process",
+        "rejected_by": "resource-process-identity"
+      },
+      {
+        "case": "missing_samples",
+        "rejected_by": "resource-samples"
+      },
+      {
+        "case": "wrong_binary",
+        "rejected_by": "runtime-binary"
+      },
+      {
+        "case": "unreaped_service",
+        "rejected_by": "owned-service-exit"
+      }
+    ],
+    "positive_controls": 3,
+    "status": "PASSED"
+  },
+  "observer_timing_diagnostic": {
+    "scope": "Raw observer request-to-delivery intervals include recording overhead; not isolated S3 server time.",
+    "results": {
+      "write_seq": {
+        "count": 593,
+        "p50_ms": 1.601608,
+        "p99_ms": 10.200782,
+        "maximum_ms": 94.641727,
+        "over_100ms": 0,
+        "over_500ms": 0,
+        "five_slowest": [
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 1471,
+            "recorded_round_trip_ms": 94.641727,
+            "forward_to_recorded_response_ms": 77.14087,
+            "response_record_to_delivery_ms": 0.589761
+          },
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 1473,
+            "recorded_round_trip_ms": 58.828829,
+            "forward_to_recorded_response_ms": 52.252268,
+            "response_record_to_delivery_ms": 0.872199
+          },
+          {
+            "method": "GET",
+            "path_type": "object",
+            "serial": 1594,
+            "recorded_round_trip_ms": 43.348265,
+            "forward_to_recorded_response_ms": 41.779977,
+            "response_record_to_delivery_ms": 1.126836
+          },
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 1593,
+            "recorded_round_trip_ms": 14.102178,
+            "forward_to_recorded_response_ms": 12.515653,
+            "response_record_to_delivery_ms": 0.562622
+          },
+          {
+            "method": "PUT",
+            "path_type": "head",
+            "serial": 1596,
+            "recorded_round_trip_ms": 10.293053,
+            "forward_to_recorded_response_ms": 9.916827,
+            "response_record_to_delivery_ms": 0.127639
+          }
+        ]
+      },
+      "write_same": {
+        "count": 1267,
+        "p50_ms": 1.895222,
+        "p99_ms": 71.038115,
+        "maximum_ms": 386.565376,
+        "over_100ms": 5,
+        "over_500ms": 0,
+        "five_slowest": [
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 2400,
+            "recorded_round_trip_ms": 386.565376,
+            "forward_to_recorded_response_ms": 385.988584,
+            "response_record_to_delivery_ms": 0.235558
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 2484,
+            "recorded_round_trip_ms": 298.754184,
+            "forward_to_recorded_response_ms": 298.357288,
+            "response_record_to_delivery_ms": 0.251411
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 1969,
+            "recorded_round_trip_ms": 114.407055,
+            "forward_to_recorded_response_ms": 113.925213,
+            "response_record_to_delivery_ms": 0.195499
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 1933,
+            "recorded_round_trip_ms": 104.074766,
+            "forward_to_recorded_response_ms": 103.663317,
+            "response_record_to_delivery_ms": 0.199726
+          },
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 2848,
+            "recorded_round_trip_ms": 102.15942,
+            "forward_to_recorded_response_ms": 95.048511,
+            "response_record_to_delivery_ms": 0.806602
+          }
+        ]
+      },
+      "write_multi": {
+        "count": 1152,
+        "p50_ms": 5.229475,
+        "p99_ms": 130.643753,
+        "maximum_ms": 882.188345,
+        "over_100ms": 20,
+        "over_500ms": 1,
+        "five_slowest": [
+          {
+            "method": "PUT",
+            "path_type": "head",
+            "serial": 3360,
+            "recorded_round_trip_ms": 882.188345,
+            "forward_to_recorded_response_ms": 881.167145,
+            "response_record_to_delivery_ms": 0.581029
+          },
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 3354,
+            "recorded_round_trip_ms": 414.830397,
+            "forward_to_recorded_response_ms": 413.290702,
+            "response_record_to_delivery_ms": 0.666054
+          },
+          {
+            "method": "GET",
+            "path_type": "object",
+            "serial": 3451,
+            "recorded_round_trip_ms": 386.690095,
+            "forward_to_recorded_response_ms": 385.818076,
+            "response_record_to_delivery_ms": 0.626786
+          },
+          {
+            "method": "GET",
+            "path_type": "object",
+            "serial": 3450,
+            "recorded_round_trip_ms": 357.145838,
+            "forward_to_recorded_response_ms": 356.260379,
+            "response_record_to_delivery_ms": 0.484166
+          },
+          {
+            "method": "PUT",
+            "path_type": "object",
+            "serial": 3355,
+            "recorded_round_trip_ms": 354.322412,
+            "forward_to_recorded_response_ms": 352.036363,
+            "response_record_to_delivery_ms": 1.489582
+          }
+        ]
+      },
+      "read_same": {
+        "count": 64,
+        "p50_ms": 1.553325,
+        "p99_ms": 4.450407,
+        "maximum_ms": 4.450407,
+        "over_100ms": 0,
+        "over_500ms": 0,
+        "five_slowest": [
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4118,
+            "recorded_round_trip_ms": 4.450407,
+            "forward_to_recorded_response_ms": 3.960783,
+            "response_record_to_delivery_ms": 0.357198
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4112,
+            "recorded_round_trip_ms": 4.075574,
+            "forward_to_recorded_response_ms": 3.778875,
+            "response_record_to_delivery_ms": 0.137414
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4133,
+            "recorded_round_trip_ms": 3.671066,
+            "forward_to_recorded_response_ms": 3.263604,
+            "response_record_to_delivery_ms": 0.099197
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4115,
+            "recorded_round_trip_ms": 3.390586,
+            "forward_to_recorded_response_ms": 2.189361,
+            "response_record_to_delivery_ms": 0.129131
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4148,
+            "recorded_round_trip_ms": 3.205558,
+            "forward_to_recorded_response_ms": 2.941268,
+            "response_record_to_delivery_ms": 0.109912
+          }
+        ]
+      },
+      "read_multi": {
+        "count": 64,
+        "p50_ms": 2.014668,
+        "p99_ms": 8.984285,
+        "maximum_ms": 8.984285,
+        "over_100ms": 0,
+        "over_500ms": 0,
+        "five_slowest": [
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4206,
+            "recorded_round_trip_ms": 8.984285,
+            "forward_to_recorded_response_ms": 8.604062,
+            "response_record_to_delivery_ms": 0.142461
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4193,
+            "recorded_round_trip_ms": 7.857694,
+            "forward_to_recorded_response_ms": 6.350215,
+            "response_record_to_delivery_ms": 1.034189
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4207,
+            "recorded_round_trip_ms": 6.862913,
+            "forward_to_recorded_response_ms": 5.314666,
+            "response_record_to_delivery_ms": 1.003262
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4212,
+            "recorded_round_trip_ms": 6.546956,
+            "forward_to_recorded_response_ms": 6.280632,
+            "response_record_to_delivery_ms": 0.105987
+          },
+          {
+            "method": "GET",
+            "path_type": "head",
+            "serial": 4208,
+            "recorded_round_trip_ms": 6.221696,
+            "forward_to_recorded_response_ms": 5.807173,
+            "response_record_to_delivery_ms": 0.105737
+          }
+        ]
+      }
+    }
+  },
+  "artifacts": {
+    "inputs.json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/inputs.json",
+      "sha256": "66402b2754800e225f532269df3678c82eeaa5ffb81163471b55f4d19774dc95"
+    },
+    "workload.json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/workload.json",
+      "sha256": "709995a03820264279c9f1ebaeedcb0e500f76ffc1fba1c9098110e7d73c3f3b"
+    },
+    "events.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/events.jsonl",
+      "sha256": "a0b9bbfc32a995838f2876ec5bb108f7f44a96ae4b31983e37002c781a41f3cd"
+    },
+    "s3.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/s3.jsonl",
+      "sha256": "17010ab6d0321b1f90a26e23e5c5aac67e5c2c3682f051fd457ae1cbf3195276"
+    },
+    "sdk.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/sdk.jsonl",
+      "sha256": "20def7e6dde795b5a46d4471cfc788a2fa1ffabc3d9032d5afcb58910b924a48"
+    },
+    "acks.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/acks.jsonl",
+      "sha256": "510338caf734ad4edada02a76bcf8ae51da583ae274f318e894e9ed7cd5969ee"
+    },
+    "intents.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/intents.jsonl",
+      "sha256": "23064bc3d861b1eb715fc30bf9c0ffa37678c54fb41811b4b3fbf89214809052"
+    },
+    "resources-1.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/resources-1.jsonl",
+      "sha256": "83a07646abaad333521e678c05572935b39617f6e50236d79ef872404d9a6c4d"
+    },
+    "resources-2.jsonl": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-actual-01/resources-2.jsonl",
+      "sha256": "3af2f8739276f212f1b689eeefcc25c9a6d09c277b2b1a3012b6296b9b471fa8"
+    },
+    "source.json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-driver-01/source.json",
+      "sha256": "bc7770b84ed7df504501e5f2b5b72a30355df752b128926b33c1568c472dcd03"
+    },
+    "oracle.log": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-driver-01/oracle.log",
+      "sha256": "9d7622b83c154a56cca6fbca2f2f6267f0aca9362ab6f9c432637525f0b8a719"
+    },
+    "controls.json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-controls-01/controls.json",
+      "sha256": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353"
+    },
+    "request-timing-diagnostic.json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/ffff164-load-driver-01/request-timing-diagnostic.json",
+      "sha256": "1f3ff2eb72879f3aca410772bc6349cbab484ab1d8f89914ca276ab50caba6ad"
+    }
+  },
+  "limits": [
+    "One fixed small closed-loop run through the actual production daemon/SDK/native SQLite and local SeaweedFS 4.51, with full observer overhead.",
+    "Runtime release is fc10287; later fixture and documentation changes do not relabel its build source.",
+    "No other builds or runtime fault workloads ran during the measurement; light source review and Git file operations were present. CPU and disk were not isolated.",
+    "The comparison with historical runs is not a paired benchmark and does not identify a code regression or performance improvement.",
+    "Each measured group has only 32 or 64 samples; nearest-rank p99 is its maximum. No production tail confidence bound is claimed.",
+    "The ordinary transaction baseline does not measure snapshot/GC or controller failover throughput.",
+    "Object request observer intervals include evidence recording and are not isolated backend server latency.",
+    "AWS Standard/Express, open-loop overload, long-run fairness, GiB cold recovery, hard RSS/disk bounds and production SLO are NOT_RUN by this contract."
+  ],
+  "aws": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "prior_failures_modified": false
+}

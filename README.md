@@ -10,13 +10,13 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 [PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 汇集下列已提交草稿；“代码已实现”和“该组合已验证”分别记录：
 
-| 工作 | 当前代码 | 原候选证据与剩余门禁 |
+| 工作 | 当前代码 | 本次组合验收与剩余门禁 |
 | --- | --- | --- |
-| [#56：可恢复 owner plan](https://github.com/ckanner/scap/pull/56)，来源 `1d709db` | HEAD8 持久描述、Claim/Cancelling、Active/Aborted 证明、当前权限屏障和恢复预算；包括 `e3bdf7b` 的 Missing/HEAD 竞态修复 | 该产品已有 703+703 单元与 63 文件精确覆盖；两项 owner 实际合同与对照已观察通过，但原环境中断前未完成完整归档整理。见 [HEAD8 验收](docs/engineering/head8-owner-plan-validation.md)和[本次观察记录](docs/evidence/owner-runtime-observed-local-2026-11-11.json)。 |
-| [#57：有限自动控制器](https://github.com/ckanner/scap/pull/57)，来源 `df922b95` | 有界 owner 恢复调度、传输与 CLI；TLS/证书配置错误不计作 owner 死亡证据；不重放业务 SQL | 原候选 Node 150 单元、20 文件精确 V8 覆盖、19 项 loopback 和独立模型已通过；完整 controller/native/S3 多进程联合验收仍未完成。见[控制器方案](docs/architecture/owner-controller-plan.md)。 |
-| [#58：保留快照 S1](https://github.com/ckanner/scap/pull/58)，来源 `4216523` | HEAD9 永久快照身份、capture/release、持久限额、多根 COPY/GC、完整恢复校验和 HTTP/Node API | 产品 `55140bf` 有 783+783 单元、67 文件精确覆盖及原 native/1 GiB 合同证据；这些原合同没有调用快照 API。快照专项夹具修正后实际运行与对照仍为 NOT_RUN，见[单位证据](docs/evidence/snapshot-s1-unit-local-2026-11-11.json)、[原合同证据](docs/evidence/snapshot-s1-native-capacity-local-2026-11-11.json)和[保留的专项失败](docs/evidence/snapshot-s1-f02-fixture-failure-2026-11-11.json)。 |
+| [#56：可恢复 owner plan](https://github.com/ckanner/scap/pull/56)，来源 `1d709db` | HEAD8 持久描述、Claim/Cancelling、Active/Aborted 证明、当前权限屏障和恢复预算；包括 `e3bdf7b` 的 Missing/HEAD 竞态修复 | 本组合重新完成 owner-plan 与 Missing/HEAD 并发两项 actual/独立 oracle，分别42负控+1正控、13负控+1正控通过；原候选证据仍保留。 |
+| [#57：有限自动控制器](https://github.com/ckanner/scap/pull/57)，来源 `df922b95` | 有界 owner 恢复调度、传输与 CLI；TLS/证书配置错误不计作 owner 死亡证据；不重放业务 SQL | 生产CLI的接管、丢响应、重启、冷恢复和snapshot保留实际合同通过；原HTTP成功独立核验及15个负控通过。多controller竞争及完整故障矩阵仍待验收。 |
+| [#58：保留快照 S1](https://github.com/ckanner/scap/pull/58)，来源 `4216523` | HEAD9 永久快照身份、capture/release、持久限额、多根 COPY/GC、完整恢复校验和 HTTP/Node API | 本组合S1实际、独立oracle及10负控通过：两保留根、六原结果、丢响应、多根COPY/GC、全缓存丢失恢复和终态seal。跨Scope恢复S2与任意时间PITR未实现。 |
 
-**组合验证正在进行，PR 保持草稿。** `e485a97` 已补齐旧分支遗漏的 owner 夹具和历史证据，并在新环境通过 157 项 SDK 单元、21 个生产模块精确 V8 覆盖、19 项 HTTP/CLI loopback、严格 TypeScript 和 owner/snapshot 夹具单位，见[本轮组合 SDK 证据](docs/evidence/sqlite-s3-integration-node-local-2026-11-11.json)。完整 Rust 单元／精确覆盖与原生 SQLite／HTTP／S3、控制器和快照专项分别验收；上表历史结果不认证组合源码。跨 Scope 快照恢复（S2）、任意时间 PITR、硬 RSS／磁盘隔离、真实 AWS、长运行成本与生产 SLO 仍未交付。接续顺序见[路线图](docs/engineering/roadmap.md)。
+**本次组合的上述本地合同已通过，PR 保持草稿。** 新执行的stable/nightly各783项Rust单位、67个生产文件逐文件精确覆盖、157项SDK单位、21模块精确V8覆盖、19项HTTP/TLS/CLI loopback、严格TypeScript以及owner/controller/snapshot实际合同均绑定各自冻结源码，见[组合验收](docs/engineering/sqlite-s3-integration-validation.md)。本轮固定负载中，单库C1/C4写为5.149/2.822次每秒，四库C4为7.206次每秒，属于含观察开销的本地小样本；热点吞吐仍需优化。完整故障矩阵、实例身份分配、S2/PITR、硬RSS/磁盘隔离、真实AWS、长运行成本和生产SLO仍未交付；按`AGENTS.md`未完成所需验证不合并，接续顺序见[路线图](docs/engineering/roadmap.md)。
 
 ## SQLite 文件安全与吞吐边界
 
@@ -74,8 +74,8 @@ HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使�
 保存的意图只能按[旧 owner 合同](docs/architecture/owner-reconciliation.md)显式协调和查证；
 新 `OwnerPlanClient` 用持久描述与 HEAD phase 恢复已接受计划。
 `OwnerController` / `OwnerControllerFleet` 候选在固定策略、期限和调用预算内推进计划，TLS/证书配置错误
-不作为 owner 死亡证据。旧 CAS 不换 ETag，原 SQL 的 UNKNOWN 仍用 lookup/cancel；控制器实现存在
-不等于自动 HA 的多进程合同已经通过。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
+不作为 owner 死亡证据。旧 CAS 不换 ETag，原 SQL 的 UNKNOWN 仍用 lookup/cancel；本次固定自动接管历史通过
+仍不代表多 controller 竞争与完整 HA 故障矩阵通过。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
 [控制器方案](docs/architecture/owner-controller-plan.md)及 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。

@@ -1,0 +1,1185 @@
+{
+  "schema": "scap-sqlite-s3-integration-runtime-local-v1",
+  "review_date": "2026-11-11",
+  "review_timezone": "America/New_York",
+  "status": "PASS_LISTED_LOCAL_CONTRACTS_ONLY",
+  "assembled_code_commit": "c6826df2faabb73af610e7943b5f2370a21cc05c",
+  "main_at_review": "fab8ca09aa05fdaf612cdcf47a9fce8e65373896",
+  "production_code_equals_fresh_unit_and_release_candidate": "fc102872bf4c8687ade1098c13e5abded8853497",
+  "rust_and_sdk_trees_unchanged_since_that_candidate": true,
+  "current_worktree_build_input_equivalence": {
+    "service": {
+      "input_count": 277,
+      "exact_match": true,
+      "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+        "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+      },
+      "receipt": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+        "sha256": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56"
+      }
+    },
+    "native": {
+      "input_count": 183,
+      "exact_match": true,
+      "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/network-release/release/scap-object-network",
+        "sha256": "840727a0fe503711ae759d68e300eef1e224c668474f7eb3b5471e146376ba70"
+      },
+      "receipt": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/native-build/build.json",
+        "sha256": "88d24b343f3ab52758084e796f3b6e1308b4fe002b30869e9d2313a73ff22af9"
+      }
+    }
+  },
+  "summary_artifacts": {
+    "owner": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/machine-summary.json",
+      "sha256": "09bc9deb4f4646e985bec4adac9e7d9d3474170486ac453ee39ee7b7649206f0"
+    },
+    "controller": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-5f47ce8-audit-03/validation-summary.json",
+      "sha256": "33b4101a58eae5acb3583783ce96c45faf9615e6f381b2322aea23e867cfb1d3"
+    },
+    "snapshot": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-driver-01/validation-summary.json",
+      "sha256": "59f8671cf034131cbff2061ec47f299531e1df4b4ec5f76f4388c7ecc5d5b936"
+    }
+  },
+  "owner": {
+    "schema": 1,
+    "status": "PASSED",
+    "generated_utc": "2026-11-12T04:05:36.784967+00:00",
+    "fixture_source_commit": "e485a97e4892058698be864ccf04e5826742c428",
+    "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+    "source": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/source.json",
+      "sha256": "5b3ed588513fbb83ba332d750db59eb7c238f1933bbc5328d32830bd207c5fbf",
+      "source_sha256": "98d9ea89a0336298d8624bf9c1c59d1a7707fee5db09b904a2cbfad9fb48cc15",
+      "tree": "76f87dd7c3741fdbffd461eaca369088811ee596",
+      "tracked_files": 689,
+      "before_and_after_each_suite": "PASSED"
+    },
+    "commands": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/commands.json",
+      "sha256": "4591b6627f3dcedfcf56f9842e727d1f6db56191aa5182d906b39732434a27d1"
+    },
+    "driver": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/run_owner_gates.py",
+      "sha256": "dd41c599b0789857dec6d11fc3d916bd050b45c844f9cf1ad9d58916399aac40"
+    },
+    "runtime_inputs_unchanged": true,
+    "builds": {
+      "service": {
+        "receipt": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+          "sha256": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56"
+        },
+        "binary": {
+          "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+          "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+        },
+        "original_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+        "profile": "release",
+        "input_count": 277,
+        "fixture_input_equivalence": "PASSED"
+      },
+      "native_seed": {
+        "receipt": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/native-build/build.json",
+          "sha256": "88d24b343f3ab52758084e796f3b6e1308b4fe002b30869e9d2313a73ff22af9"
+        },
+        "binary": {
+          "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/network-release/release/scap-object-network",
+          "sha256": "840727a0fe503711ae759d68e300eef1e224c668474f7eb3b5471e146376ba70"
+        },
+        "original_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+        "profile": "release",
+        "input_count": 183,
+        "fixture_input_equivalence": "PASSED"
+      }
+    },
+    "preflight": {
+      "owner-fixture-units": {
+        "tests": 74,
+        "status": "PASSED",
+        "elapsed_seconds": 3.4923944439997285
+      },
+      "absence-fixture-units": {
+        "tests": 9,
+        "status": "PASSED",
+        "elapsed_seconds": 1.2737935989989637
+      },
+      "client-syntax": {
+        "status": "PASSED"
+      }
+    },
+    "suites": {
+      "plan": {
+        "profile": "head8-owner-plan-native-http-signed-s3-v1",
+        "status": "PASSED",
+        "plan_sha256": "c1c6e195970b97b6d85726890b94570a9d6b23f6d7be659f2b9865d77e33ff3d",
+        "fixed_timeouts": {
+          "hold_seconds": 180,
+          "http_ms": 120000,
+          "original_unknown_ms": 1500,
+          "recovery_ms": 300000,
+          "s3_ms": 120000,
+          "sdk_ms": 90000,
+          "whole_seconds": 1200
+        },
+        "actual": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/plan-actual01",
+          "summary": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/plan-actual01/summary.json",
+            "sha256": "f380fa2d8985cd197c989e8d107bb00ab97ebed56561ae43729f7cb3540df48a"
+          },
+          "reported_status": "OBSERVED_NOT_AUDITED",
+          "exit_code": 0,
+          "elapsed_seconds": 123.74475071199959,
+          "cleanup_errors": [],
+          "private_removed": true,
+          "captured_file_count": 5989,
+          "original_sha256": {
+            "events.jsonl": "15a12df2d2e6b907239d9a8873c49f43507feace1c96b663432cbae941f4f140",
+            "inputs.json": "0beb10b1d0f2fad6b1c02178a89d2f12d6bcb7cb2965b68372cc7319d994a64f",
+            "intents.json": "fa4e14898f3b2db3f29d1e8f160801a3fd8b6aa1e1d47aa03a2fbeff72b8c585",
+            "named-intents.jsonl": "67602d6de661ee0a1122d9ac853b57a271f6f9ddd2085dc3ebeab34cce58e0aa",
+            "original-results.json": "91d6c0cfc4280aece32c7bec18e03abc6e73c7d390a662771846f2b5b39c8e39",
+            "owner-inputs.jsonl": "e559b4933e01b243c02940b2d7ca2c8a822b8750660aa887e45f151be86b60ca"
+          }
+        },
+        "oracle": {
+          "report": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/plan-oracle.stdout",
+            "sha256": "45158549d0915c59433b3c78703f9b0b2923b9cdbebc38f2c2dffaf5ac97cc7c"
+          },
+          "status": "PASSED",
+          "exit_code": 0,
+          "elapsed_seconds": 10.96416662000047,
+          "expected": {
+            "abort_posts": 16,
+            "aborted": 9,
+            "active": 36,
+            "admissions": 45,
+            "cancelling": 2,
+            "claim_posts": 49,
+            "claimed": 43,
+            "cold_business_queries": 16,
+            "cold_cancelled": 1,
+            "cold_sql_committed": 292,
+            "cold_unknown": 1,
+            "descriptors": 46,
+            "faults": 28,
+            "http_faults": 5,
+            "inspect_posts": 35,
+            "native_sql_committed": 260,
+            "owned_wait4": 27,
+            "owner_posts": 200,
+            "prepare_posts": 53,
+            "proofs": 28,
+            "resume_posts": 47,
+            "s3_faults": 23,
+            "saved_owner_inputs": 50,
+            "scopes": 17,
+            "sdk_incarnations": 10,
+            "service_incarnations": 10,
+            "sql_committed": 295,
+            "sql_originals": 297,
+            "warm_service_cache_losses": 9
+          },
+          "observed": {
+            "accepted_phases": {
+              "owner_abort": 9,
+              "owner_active": 36,
+              "owner_cancel": 2,
+              "owner_claim": 43
+            },
+            "automatic_controller": "NOT_TESTED",
+            "aws_standard": "NOT_RUN",
+            "closed_retained_windows": 2,
+            "cold_blocked_unknown": 1,
+            "cold_business_queries": 16,
+            "cold_original_cancelled": 1,
+            "cold_original_lookups": 292,
+            "current_retained_entries": 261,
+            "exact_status_observations": 279,
+            "faults": {
+              "after_owned_exit_effects": 3,
+              "groups": 28,
+              "http_groups": 5,
+              "original_hold_seconds": {
+                "acl-change-payload": 0.06039538,
+                "acl-prepare-descriptor": 0.051850734,
+                "acl-revoke-payload": 0.056305062,
+                "bytes-budget-descriptor": 0.026352385,
+                "claim-cancel-old-claim": 1.679422927,
+                "claim-wins-cancel": 0.013360257,
+                "claim-wins-claim": 0.019722028,
+                "dead-worker-claim": 1.54479293,
+                "dead-worker-resume": 1.590993451,
+                "gets-budget-descriptor": 0.060133227,
+                "late-descriptor-put": 1.507640162,
+                "legacy-activation-delayed": 1.655970096,
+                "legacy-takeover": 0.034768693,
+                "resume-cancel-active": 0.032543083,
+                "resume-wins-abort": 0.374159609,
+                "resume-wins-active": 0.200547576
+              },
+              "original_unknowns": 12,
+              "s3_deliveries": 26,
+              "s3_groups": 23
+            },
+            "gc": {
+              "accepted_deletes": 17,
+              "checkpoints": 1,
+              "delete_requests": 17,
+              "named_records": 9
+            },
+            "http_posts": 721,
+            "native_original_sql_acks": 260,
+            "original_errors": {
+              "CONFLICT": 7,
+              "CORRUPT": 4,
+              "DENIED": 3,
+              "FENCED": 10,
+              "LIFECYCLE": 3,
+              "LIMIT": 2,
+              "TARGET_MISMATCH": 3,
+              "UNKNOWN": 12
+            },
+            "original_sql_acks": 295,
+            "owned_wait4": 27,
+            "owner_posts": 200,
+            "permanent_descriptors": 46,
+            "permanent_prefix_emptiness": "NOT_CLAIMED",
+            "permanent_proofs": 28,
+            "production_slo": "NOT_RUN",
+            "s3_requests": 10047,
+            "saved_owner_inputs": 50,
+            "sdk_incarnations": 10,
+            "service_incarnations": 10,
+            "warm_service_cache_losses": 9,
+            "recovered_closures": 36,
+            "event_count": 81602
+          }
+        },
+        "controls": {
+          "report": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/plan-controls01/controls.json",
+            "sha256": "b6d119aed19b8e28038ac848eeec26a7f34449ab4bfb04426dad1ac571809c98"
+          },
+          "status": "PASSED",
+          "negative_passed": 42,
+          "positive_passed": 1,
+          "original_unchanged": true,
+          "exit_code": 0,
+          "elapsed_seconds": 308.20068315700155
+        }
+      },
+      "absence": {
+        "profile": "head8-real-owner-absence-races-v1",
+        "status": "PASSED",
+        "plan_sha256": "c19b01529f2532b46734f0d8ea30b16ab8d99ee4de287eb948827c6e4e650637",
+        "fixed_timeouts": {
+          "hold_seconds": 180,
+          "http_ms": 120000,
+          "original_unknown_ms": 1500,
+          "recovery_ms": 300000,
+          "s3_ms": 120000,
+          "sdk_ms": 90000,
+          "whole_seconds": 1200
+        },
+        "actual": {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/absence-actual01",
+          "summary": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/absence-actual01/summary.json",
+            "sha256": "11a36beb577b022188ebc2ee76b6d0cb92e26719c28f623f6938e5be3b716399"
+          },
+          "reported_status": "OBSERVED_NOT_AUDITED",
+          "exit_code": 0,
+          "elapsed_seconds": 20.66045317300086,
+          "cleanup_errors": [],
+          "private_removed": true,
+          "captured_file_count": 387,
+          "original_sha256": {
+            "events.jsonl": "227ca038f26a20f9ad060b66b9c3cd2cfdd40fe1491e9b856c01888313a1025c",
+            "inputs.json": "93dd91a4cc21deb00bf7acbbfef8f7a2cec41e123fd5b8a0ee9474c8a95f3624",
+            "intents.json": "c5d54db5e0aeb97a311472c57677152faae44d0b8472fc14f89f7403b6ae1735",
+            "original-results.json": "cf234ae40c9814bca288130f9c259674a24ec2e081815fd6394158d062406522",
+            "owner-inputs.jsonl": "273391e5a1375310e469a6b4b5d7965dc26ce150e314d7c3ebaed2944a9bc4eb"
+          }
+        },
+        "oracle": {
+          "report": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/absence-oracle.stdout",
+            "sha256": "686eed0039b57aa6d5d3d457a63a01fb885980b740149aa89b0051de16720a76"
+          },
+          "status": "PASSED",
+          "exit_code": 0,
+          "elapsed_seconds": 0.651584705001369,
+          "expected": {
+            "aborted": 4,
+            "active": 3,
+            "business_queries": 3,
+            "cancelling": 2,
+            "claimed": 5,
+            "descriptors": 7,
+            "lookups": 6,
+            "owned_wait4": 12,
+            "owner_posts": 27,
+            "proofs": 4,
+            "s3_faults": 4,
+            "saved_owner_inputs": 7,
+            "scopes": 3,
+            "sdk_incarnations": 3,
+            "service_incarnations": 3,
+            "sql_committed": 6,
+            "sql_originals": 6
+          },
+          "observed": {
+            "aws_standard": "NOT_RUN",
+            "business_queries": 3,
+            "descriptors": 7,
+            "exact_status_observations": 38,
+            "http_posts": 63,
+            "original_lookups": 6,
+            "original_native_sql_acks": 6,
+            "owned_wait4": 12,
+            "owner_posts": 27,
+            "phases": {
+              "owner_abort": 4,
+              "owner_active": 3,
+              "owner_cancel": 2,
+              "owner_claim": 5
+            },
+            "production_slo": "NOT_RUN",
+            "proofs": 4,
+            "races": {
+              "prepared_winners": 2,
+              "proof_conflicts": 1,
+              "real_404_holds": 3,
+              "real_stable_head_holds": 1
+            },
+            "s3_requests": 344,
+            "saved_owner_inputs": 7,
+            "recovered_closures": 3,
+            "event_count": 3348
+          }
+        },
+        "controls": {
+          "report": {
+            "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/absence-controls01/controls.json",
+            "sha256": "40d8337b69640a1ca018f6e2cd9c03a9e7d0c90e2aeaf75018d812566d55e6bb"
+          },
+          "status": "PASSED",
+          "negative_passed": 13,
+          "positive_passed": 1,
+          "original_unchanged": true,
+          "exit_code": 0,
+          "elapsed_seconds": 5.195093390999318
+        }
+      }
+    },
+    "limitations": {
+      "backend": "Local SeaweedFS 4.51 with captured and checked signed S3 requests; this is not AWS S3 validation.",
+      "automatic_controller": "NOT_TESTED_BY_THESE_TWO_CONTRACTS",
+      "s1_snapshot_lifecycle": "SEPARATE_CONTRACT_NOT_ESTABLISHED_BY_THIS_RESULT",
+      "aws_standard": "NOT_RUN",
+      "s3_express": "NOT_RUN",
+      "production_slo": "NOT_RUN",
+      "cross_az_rpo0": "NOT_CLAIMED",
+      "permanent_prefix_emptiness": "NOT_CLAIMED",
+      "throughput": "Not a throughput benchmark; other independent runtime gates may share this host.",
+      "unit_coverage": "These fixture tests do not replace Rust unit coverage gates.",
+      "identity": "Deployment must provide a unique worker_instance for each process incarnation.",
+      "source_scope": "Results bind the exact frozen fixture commit to the original runtime build commit via identical recorded production, SDK and native build inputs; they do not certify later source changes."
+    },
+    "build_equivalence_record": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-owner-regression-01/receipt-equivalence.stdout",
+      "sha256": "442ded4dc41bee96402668b40575bbb61ac76e5498437c5422722877557a9882"
+    }
+  },
+  "controller": {
+    "status": "PASS_FIXED_LOCAL_CONTROLLER_HISTORY_AND_15_CONTROLS",
+    "source": {
+      "commit": "5f47ce8157e9817aec03d09409b8d057cda59b76",
+      "tree": "905187b2bbb62116a86cdb1ac0cc1af9052d6e1e",
+      "source_sha256": "75dcec5f979f96aeb7404c0209f5e1ce2e5a5d47bc0e3c929df124452737b61d",
+      "tracked_files": 700
+    },
+    "release": {
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+        "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+      },
+      "source_root": "/workspace/scratch/bccab55c9ca3/scap-validation-source",
+      "input_files": 277,
+      "all_build_inputs_equal_frozen_candidate": true
+    },
+    "actual": {
+      "aws": "NOT_RUN",
+      "cleanup_errors": [],
+      "controls": "NOT_RUN",
+      "elapsed_seconds": 46.594504691998736,
+      "oracle": "NOT_RUN",
+      "production_slo": "NOT_RUN",
+      "status": "OBSERVED_NOT_AUDITED",
+      "whole_seconds": 180
+    },
+    "oracle": {
+      "aws": "NOT_RUN",
+      "client_acks": 2,
+      "cold_lookups": 3,
+      "controller_http_calls": 30,
+      "controller_processes": 2,
+      "controller_reports": 7,
+      "preserved_business_unknowns": 1,
+      "preserved_claim_unknowns": 1,
+      "production_slo": "NOT_RUN",
+      "services": 3,
+      "snapshot_points_preserved": 1,
+      "status": "PASS_FIXED_CONTROLLER_HISTORY"
+    },
+    "controls": {
+      "negative_controls": [
+        {
+          "case": "signature",
+          "guard": "actual-s3-signatures",
+          "rejected": true
+        },
+        {
+          "case": "ack",
+          "guard": "two-original-client-acks",
+          "rejected": true
+        },
+        {
+          "case": "unknown",
+          "guard": "business-unknown-preserved",
+          "rejected": true
+        },
+        {
+          "case": "result",
+          "guard": "recovered-original-result",
+          "rejected": true
+        },
+        {
+          "case": "sql",
+          "guard": "controller-never-sql",
+          "rejected": true
+        },
+        {
+          "case": "guard",
+          "guard": "stale-worker-guard-rejected",
+          "rejected": true
+        },
+        {
+          "case": "cache",
+          "guard": "cache-loss-after-owned-exit",
+          "rejected": true
+        },
+        {
+          "case": "restart",
+          "guard": "controller-restart-joined",
+          "rejected": true
+        },
+        {
+          "case": "budget",
+          "guard": "per-tick-admission",
+          "rejected": true
+        },
+        {
+          "case": "resume_failure",
+          "guard": "real-resume-success",
+          "rejected": true
+        },
+        {
+          "case": "resume_state",
+          "guard": "real-resume-active-state",
+          "rejected": true
+        },
+        {
+          "case": "resume_inactive",
+          "guard": "resume-active-authority",
+          "rejected": true
+        },
+        {
+          "case": "resume_owner",
+          "guard": "resume-active-authority",
+          "rejected": true
+        },
+        {
+          "case": "resume_plan",
+          "guard": "resume-original-plan",
+          "rejected": true
+        },
+        {
+          "case": "resume_marker",
+          "guard": "resume-current-marker",
+          "rejected": true
+        }
+      ],
+      "original_evidence_modified": false,
+      "status": "PASS_FIXED_CONTROLLER_CONTROLS",
+      "unchanged_positive": "PASS_FIXED_CONTROLLER_HISTORY"
+    },
+    "acceptance_strengthening": [
+      "Original claim/resume HTTP status 200 and ok true, with claimed/active state",
+      "Prepared input, scope and reference equal original owner_prepare input and owner_claim plan",
+      "Accepted admission/phase/current marker match original nonces, revisions, head serials and fixed first takeover epoch 2/owner 9602",
+      "Resume preserves original claim admission and SQL sequence; CLI authority must equal original resume HTTP status"
+    ],
+    "observed_cache_loss_to_active_report_seconds": 26.916077566,
+    "observed_s3_requests": 164,
+    "controller_reports": [
+      {
+        "process": "controller-one",
+        "state": "healthy",
+        "reason": "CURRENT_OWNER_RESPONDED",
+        "http_calls": 2,
+        "mutations": 0,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-one",
+        "state": "waiting",
+        "reason": "OWNER_SUSPICION_INCOMPLETE",
+        "http_calls": 3,
+        "mutations": 0,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-one",
+        "state": "waiting",
+        "reason": "OWNER_SUSPICION_INCOMPLETE",
+        "http_calls": 3,
+        "mutations": 0,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-one",
+        "state": "prepared",
+        "reason": "ORIGINAL_INPUT_VERIFIED",
+        "http_calls": 6,
+        "mutations": 1,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-one",
+        "state": "unknown",
+        "reason": "UNKNOWN",
+        "http_calls": 7,
+        "mutations": 1,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-two",
+        "state": "waiting",
+        "reason": "RECOVERY_REQUIRES_NEXT_TICK_BUDGET",
+        "http_calls": 4,
+        "mutations": 0,
+        "recovery_budget": false
+      },
+      {
+        "process": "controller-two",
+        "state": "active_observed",
+        "reason": "VERIFIED_OWNER_OBSERVATION",
+        "http_calls": 5,
+        "mutations": 1,
+        "recovery_budget": true
+      }
+    ],
+    "artifact_sha256": {
+      "source.json": "8e3ed0b72f648e381051ade70d5c47387174ed1f1c273dc5d2fbe9a38298c8c3",
+      "inputs.json": "27067ab012f03691007a1af44fcf565d5a121c0d197bcd23aa0b74099c7f10fe",
+      "summary.json": "a4dda6e935b63612bf230663db7cb968a69f8377e6668078291eb34cb1604561",
+      "events.jsonl": "04b9b88b36053cc20fbea205d0c397f2a8e09bee026681f8eb9783e60c20f903",
+      "business.jsonl": "13a82ac84ee13c7130b4218550193c1310010f4b1794d51ea02b080ee44b82e9",
+      "http-client-ledger.jsonl": "bdef28a5ef741840a0d769dbda63920bb7b4ad3b8df972300649931580815d26",
+      "service-build/build-receipt.json": "0848039a89879f2ed6296c659dc375095a198d366172cdc35b603e8d0c741911"
+    },
+    "audit_sha256": {
+      "actual-run.json": "eb623e6a906be112b74f47d743081525c3f3a945a37ca4e4060d7b5cef0aa6f6",
+      "audit.json": "eead2ac96b63bbd0e1a61a5b91a4905c54c10f1977455c41897c83747dc17f32",
+      "oracle.stdout.json": "3546d6f5eacf5df3c69d79ca246e3e4cab1ca725578b787ec0fbbf881975b5cb",
+      "controls.stdout.json": "9c51bcec19b345c8dea2b90c7cfc04c0d17572bd239c7c35ca149a46a54ca339"
+    },
+    "evidence": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-5f47ce8-actual-03",
+    "audit_evidence": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-5f47ce8-audit-03",
+    "prior_attempts": [
+      {
+        "commit": "183396b07f3f0620459ce5fc42f9daa11520f855",
+        "actual": "OBSERVED_NOT_AUDITED",
+        "oracle": "PASS_FIXED_CONTROLLER_HISTORY",
+        "controls": "FAIL_SQL_CONTROL_WRONG_GUARD_HTTP_ORIGINAL_OPERATION",
+        "reason": "Shared content-addressed status body was replaced globally; fixed only targeted controls and added reference-isolation regression.",
+        "evidence": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-183396b-audit-01"
+      },
+      {
+        "commit": "ffff164b2025137200377f0cc0d709a87082f3cb",
+        "actual": "OBSERVED_NOT_AUDITED",
+        "oracle": "ORIGINAL_PASS_SUPERSEDED_FOR_RESUME_HTTP_VERIFICATION",
+        "controls": "ORIGINAL_9_PASS_INSUFFICIENT_FOR_RESUME_HTTP_VERIFICATION",
+        "reason": "Independent review replaced only the original owner_resume response with FENCED in memory; old oracle still accepted the counterexample. Actual product response was successful. Original evidence and verdicts retained; this fresh run applies strengthened acceptance and six additional controls.",
+        "evidence": "/workspace/scratch/bccab55c9ca3/scap-review/validation/controller-ffff164-audit-02",
+        "review": "/workspace/scratch/bccab55c9ca3/scap-review/controller-oracle-review",
+        "review_files_sha256": {
+          "reproduce_failed_resume.py": "89eeca2eda8e37faa77a8453eccf1c542a54e83c86f21cc9093d0c9232757994",
+          "original-diagnostic.json": "5c56ca2466259d9d4dd5a5a05eab238c379c0db5cb497ab1f297a95e7d87c90a",
+          "oracle-ffff164-original.py": "17c81b2e157f88a36bfbf1eb762c2d71a07cf6f6f21b2515a04022fe45c2dd1f",
+          "fixed-diagnostic.json": "80c75f897650399ba247909152680b4f3a268a565133ce365b4329a4c3fd03ef"
+        }
+      }
+    ],
+    "limits": [
+      "One fixed local failure history, not full controller concurrency matrix",
+      "SeaweedFS 4.51 with per-request SigV4; not AWS validation",
+      "No production failover SLO or throughput conclusion",
+      "Snapshot retained point preserved; not full restore/PITR acceptance"
+    ]
+  },
+  "snapshot": {
+    "actual": "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-actual-01",
+    "actual_observation": {
+      "aws_standard": "NOT_RUN",
+      "cleanup_errors": [],
+      "elapsed_seconds": 25.895938405999914,
+      "error": null,
+      "private": "/workspace/scratch/bccab55c9ca3/scap-review/validation/scap-snapshot-private-qhl2f4j7",
+      "private_removed": true,
+      "production_slo": "NOT_RUN",
+      "restore_s2": "NOT_RUN",
+      "schema": 1,
+      "status": "OBSERVED_NOT_AUDITED"
+    },
+    "aws_standard": "NOT_RUN",
+    "cleared_environment_variables": [
+      "NODE_V8_COVERAGE",
+      "NODE_OPTIONS",
+      "LLVM_PROFILE_FILE",
+      "RUSTFLAGS",
+      "CARGO_ENCODED_RUSTFLAGS",
+      "PYTHONOPTIMIZE"
+    ],
+    "commands": [
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "capture",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-driver-01/source.json"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456868665771562,
+        "exit_code": 0,
+        "name": "source-before",
+        "start_ns": 1794456868523858516,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "9439a4dcae076e13de1ef9ae2558a7edc1164c4fd1ac71de897b157c0f1d9fd6"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-snapshot-runtime",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456868944759916,
+        "exit_code": 0,
+        "name": "units",
+        "start_ns": 1794456868667877643,
+        "stderr_sha256": "57e0a01645781d05aae3b542bc03baec85d536abd70cb7a4e1304c9805860769",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+          "--check",
+          "experiments/object-snapshot-runtime/client.mjs"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456868989594551,
+        "exit_code": 0,
+        "name": "node-syntax",
+        "start_ns": 1794456868945589051,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "/workspace/scratch/bccab55c9ca3/scap-review/run_snapshot_c6826df.py",
+          "--receipt-check"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456869123899692,
+        "exit_code": 0,
+        "name": "receipt-equivalence",
+        "start_ns": 1794456868990628213,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "2553644c1f16cd6c456427930dc8ef1c7d5f89420796f98978fbb98205fedd44"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-snapshot-runtime/run.py",
+          "--server",
+          "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+          "--build-record",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+          "--worker",
+          "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/network-release/release/scap-object-network",
+          "--seed-build-record",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/native-build/build.json",
+          "--weed",
+          "/workspace/scratch/bccab55c9ca3/toolchain/bin/weed",
+          "--node",
+          "/workspace/scratch/bccab55c9ca3/toolchain/node-v22.16.0-linux-x64/bin/node",
+          "--evidence",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-actual-01"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456895141090454,
+        "exit_code": 0,
+        "name": "actual",
+        "start_ns": 1794456869124783749,
+        "stderr_sha256": "86cbaa70c32362c3cefa45bd121d5b0154f882205c5f1ab1840631e9061c25dd",
+        "stdout_sha256": "2f48530db2d41c22bc38e6754faf7ff8c107b5cc91474719841c4d27c1f85817"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-snapshot-runtime/oracle.py",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-actual-01"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456895848123852,
+        "exit_code": 0,
+        "name": "oracle",
+        "start_ns": 1794456895142899947,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "ab7f0695ae40178b2aa2fed39fdeb5cd376aaa2619d1d2dbd61b557dffe87732"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "experiments/object-snapshot-runtime/controls.py",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-actual-01",
+          "--out",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-controls-01"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456903812003660,
+        "exit_code": 0,
+        "name": "controls",
+        "start_ns": 1794456895849072593,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "d89e68e954ac4e7de44ff7256e820560b4dc6fd5d6c0bb3adb73afa66ce541a3"
+      },
+      {
+        "argv": [
+          "/workspace/scratch/bccab55c9ca3/toolchain/python/bin/python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-driver-01/source.json"
+        ],
+        "cwd": "/workspace/scratch/bccab55c9ca3/scap-snapshot-source-02",
+        "end_ns": 1794456903942363192,
+        "exit_code": 0,
+        "name": "source-after",
+        "start_ns": 1794456903813456486,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "f2f57c9520d718c472e46ca1914d1759ecfa50c3159e22e3b9aef54e01aca412"
+      }
+    ],
+    "controls": "/workspace/scratch/bccab55c9ca3/scap-review/validation/c6826df-snapshot-controls-01",
+    "controls_verdict": {
+      "controls": [
+        {
+          "expected_guard": "cold-complete-held-recovery",
+          "name": "omit-held-root-from-cold-recovery",
+          "observed_guard": "cold-complete-held-recovery",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "copy-frozen-held-basis",
+          "name": "replace-copy-held-basis",
+          "observed_guard": "copy-frozen-held-basis",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "original-snapshot-observation-reference",
+          "name": "change-original-snapshot-reference",
+          "observed_guard": "original-snapshot-observation-reference",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "snapshot-observation-full-scope",
+          "name": "change-original-snapshot-scope",
+          "observed_guard": "snapshot-observation-full-scope",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "release-proof-before-remove",
+          "name": "remove-before-permanent-proof",
+          "observed_guard": "release-proof-before-remove",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "original-unknown-not-overwritten",
+          "name": "relabel-original-unknown-as-ack",
+          "observed_guard": "original-unknown-not-overwritten",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "http-proxy-closed-denominator",
+          "name": "omit-original-http-exchange",
+          "observed_guard": "http-proxy-closed-denominator",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "s3-closed-denominator",
+          "name": "omit-original-s3-exchange",
+          "observed_guard": "s3-closed-denominator",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "original-result-bytes",
+          "name": "change-original-result-bytes",
+          "observed_guard": "original-result-bytes",
+          "status": "REJECTED"
+        },
+        {
+          "expected_guard": "permanent-control-metadata-not-deleted",
+          "name": "delete-permanent-snapshot-metadata",
+          "observed_guard": "permanent-control-metadata-not-deleted",
+          "status": "REJECTED"
+        }
+      ],
+      "positive_inventory_sha256": "6a5246ebbdb996fca212fc5fcf8dde25a739d227d3c5dc2ab405f021967e36fc",
+      "positive_originals_unchanged": true,
+      "positive_profile": "head9-s1-native-http-signed-s3-v1",
+      "schema": 1,
+      "status": "PASSED"
+    },
+    "driver_sha256": "f7d1c6c0a4284a2b4ff636c05f04b8bfd209efff05eda1f133dee853278e3804",
+    "error": null,
+    "fixture_source_commit": "c6826df2faabb73af610e7943b5f2370a21cc05c",
+    "fixture_tree": "cca0aeabfb943624832843ef76cf411e4c4f43f0",
+    "oracle_verdict": {
+      "aws_standard": "NOT_RUN",
+      "cold_original_lookups": 6,
+      "fixture_source_commit": "c6826df2faabb73af610e7943b5f2370a21cc05c",
+      "held_roots_in_copy_and_cold_recovery": 2,
+      "http_posts": 55,
+      "oracle_python_sqlite": "3.53.1",
+      "original_unknowns": 2,
+      "owned_wait4": 13,
+      "production_slo": "NOT_RUN",
+      "profile": "head9-s1-native-http-signed-s3-v1",
+      "restore_s2": "NOT_RUN",
+      "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "s3_requests": 922,
+      "schema": 1,
+      "snapshot_descriptors": 2,
+      "snapshot_proofs": 2,
+      "source_sha256": {
+        "events.jsonl": "c52790beeaa6d124f0cb775cde0687862d2996f02cb415be3619956005980ebe",
+        "inputs.json": "c711568f1c3ccda6bf37b227aa1e7cca309c113b2030356417c97063e50ff748",
+        "intents.json": "4a60f7f508d05bd8f3876ed440d511869cd9f0fa5b108765e7560a29f8cf0290",
+        "original-results.json": "426dadd9544f2e8887f463e46200cb6a239304d098d8cf534c2bd1b8419e3824",
+        "owner-inputs.jsonl": "ca0dbd4b1f805f07515ed97d0fb2c695f231daecf1232bf0de94003d51b890ea",
+        "snapshot-inputs.jsonl": "02f3eb6352c9ce5e1dbe27fee97723c956e6e4ee80c0a446371cf6134994bd9b"
+      },
+      "sql_original_acks": 6,
+      "status": "PASSED",
+      "sweep_rounds": 2
+    },
+    "prior_attempts_retained": [
+      "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-01",
+      "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-02",
+      "/workspace/scratch/bccab55c9ca3/scap-review/validation/e56ce0a-snapshot-driver-01"
+    ],
+    "production_slo": "NOT_RUN",
+    "receipt_equivalence": {
+      "binary_sha256": {
+        "native": "840727a0fe503711ae759d68e300eef1e224c668474f7eb3b5471e146376ba70",
+        "scapd": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+      },
+      "fixture_source_commit": "c6826df2faabb73af610e7943b5f2370a21cc05c",
+      "native_inputs": 183,
+      "receipt_sha256": {
+        "native": "88d24b343f3ab52758084e796f3b6e1308b4fe002b30869e9d2313a73ff22af9",
+        "service": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56"
+      },
+      "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "service_inputs": 277,
+      "status": "PASS_INPUT_EQUIVALENCE"
+    },
+    "restore_s2": "NOT_RUN",
+    "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+    "status": "PASSED"
+  },
+  "snapshot_fixture_unit_tests": 49,
+  "controller_fixture_unit_tests": 12,
+  "preserved_snapshot_failures": [
+    {
+      "directory": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-01",
+      "reason": "Driver supplied a nonexistent Node binary path; no database acceptance occurred.",
+      "original_preserved": true,
+      "records": [
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-01/commands.json",
+          "sha256": "b60ebfb5bc17156d33970f5b52731d3d67191e1c4ca1435188f3901c08b41f0b"
+        },
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-01/status.json",
+          "sha256": "08373cf7a09bbc6b6a0ebf4cda2c75ce8c36bb5ccdd5f8ab5ed05d51bf7fab39"
+        }
+      ]
+    },
+    {
+      "directory": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-02",
+      "reason": "Actual completed; original oracle incorrectly classified GC bucket capability GETs as LIST and used an incorrect LIST identity assumption.",
+      "original_preserved": true,
+      "records": [
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-02/commands.json",
+          "sha256": "6266901975cbdb55d7732e7bf98a5096a53491135214fef7723c5d352cf8bb3f"
+        },
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e485-snapshot-driver-02/status.json",
+          "sha256": "ec0308ff47badc8912cfcae7af2f6b4e02d2b950464cdac02687e026b30e6b22"
+        }
+      ]
+    },
+    {
+      "directory": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e56ce0a-snapshot-driver-01",
+      "reason": "Fresh actual/oracle passed; two controls modified shared body aliases and hit an earlier SDK/HTTP consistency guard.",
+      "original_preserved": true,
+      "records": [
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e56ce0a-snapshot-driver-01/commands.json",
+          "sha256": "4d2361f555c5304add0e1461a2a5ab0b8cdb7fd682acf26ea57ecf812d7eabe0"
+        },
+        {
+          "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/e56ce0a-snapshot-driver-01/validation-summary.json",
+          "sha256": "597b6bfbb49973521cb1257063ccc602a2458df85ede1c051c1f8cbac79ceeda"
+        }
+      ]
+    }
+  ],
+  "independent_controller_review": {
+    "finding": "The original ffff164 oracle accepted a counterfactual failed resume HTTP response while the CLI still reported active. The real original product response was successful.",
+    "correction": "5f47ce8 independently binds real claim/resume HTTP observations to original input, reference, accepted marker and current authority, then checks the CLI report; fresh actual and 15 controls passed.",
+    "records": [
+      {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/controller-oracle-review/original-diagnostic.json",
+        "sha256": "5c56ca2466259d9d4dd5a5a05eab238c379c0db5cb497ab1f297a95e7d87c90a"
+      },
+      {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/controller-oracle-review/fixed-diagnostic.json",
+        "sha256": "80c75f897650399ba247909152680b4f3a268a565133ce365b4329a4c3fd03ef"
+      },
+      {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/controller-oracle-review/reproduce_failed_resume.py",
+        "sha256": "89eeca2eda8e37faa77a8453eccf1c542a54e83c86f21cc9093d0c9232757994"
+      },
+      {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/controller-oracle-review/oracle-ffff164-original.py",
+        "sha256": "17c81b2e157f88a36bfbf1eb762c2d71a07cf6f6f21b2515a04022fe45c2dd1f"
+      }
+    ]
+  },
+  "unit_evidence": "sqlite-s3-integration-rust-local-2026-11-11.json",
+  "sdk_evidence": "sqlite-s3-integration-node-local-2026-11-11.json",
+  "load_evidence": "sqlite-s3-integration-load-local-2026-11-11.json",
+  "limitations": {
+    "backend": "Real local SeaweedFS 4.51 with captured signed S3 requests; not AWS.",
+    "automatic_controller": "One fixed real process history plus original independent model; not a complete concurrent controller/fleet matrix.",
+    "snapshot": "S1 retained roots, lifecycle, all-root copy and GC only; S2 new-Scope restore and arbitrary PITR are not implemented.",
+    "worker_identity": "Unique non-reused worker_instance remains a deployment precondition; no persistent instance allocator exists.",
+    "full_historical_native_gib_resource_gc_matrix": "NOT_RERUN_AS_A_WHOLE_ON_THIS_COMPOSITION",
+    "hard_rss_disk_bounds": "NOT_ESTABLISHED",
+    "long_run_cost": "NOT_RUN",
+    "aws_standard": "NOT_RUN",
+    "s3_express": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "cross_az_rpo0": "NOT_CLAIMED",
+    "complete_N1_N4_exit": false,
+    "prior_raw_failures_overwritten": false
+  },
+  "remote_ci_observation": {
+    "source_commit": "c6826df2faabb73af610e7943b5f2370a21cc05c",
+    "total_count": 20,
+    "checks": [
+      {
+        "id": 130967748408,
+        "name": "Actual resource lifetimes and conditional GC transport",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748408"
+      },
+      {
+        "id": 130967748359,
+        "name": "N0 bounded model and independent oracle",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748359"
+      },
+      {
+        "id": 130967748335,
+        "name": "Real local S3 HTTP and process recovery",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748335"
+      },
+      {
+        "id": 130967748334,
+        "name": "Rust unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748334"
+      },
+      {
+        "id": 130967748327,
+        "name": "Deleted terminal retirement and permanent identity faults",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748327"
+      },
+      {
+        "id": 130967748266,
+        "name": "Tooling unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748266"
+      },
+      {
+        "id": 130967748150,
+        "name": "HEAD6 compaction and durable GC faults",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967748150"
+      },
+      {
+        "id": 130967747892,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429423/job/130967747892"
+      },
+      {
+        "id": 130967747846,
+        "name": "Local throughput and cold recovery baseline",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429358/job/130967747846"
+      },
+      {
+        "id": 130967747699,
+        "name": "node-sdk",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429422/job/130967747699"
+      },
+      {
+        "id": 130967746849,
+        "name": "node-codec",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153429290/job/130967746849"
+      },
+      {
+        "id": 130967729695,
+        "name": "Real local S3 HTTP and process recovery",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729695"
+      },
+      {
+        "id": 130967729525,
+        "name": "Tooling unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729525"
+      },
+      {
+        "id": 130967729461,
+        "name": "Actual resource lifetimes and conditional GC transport",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729461"
+      },
+      {
+        "id": 130967729422,
+        "name": "Local throughput and cold recovery baseline",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729422"
+      },
+      {
+        "id": 130967729360,
+        "name": "Rust unit coverage 100 percent",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729360"
+      },
+      {
+        "id": 130967729336,
+        "name": "documentation",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423578/job/130967729336"
+      },
+      {
+        "id": 130967729302,
+        "name": "Deleted terminal retirement and permanent identity faults",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729302"
+      },
+      {
+        "id": 130967729236,
+        "name": "N0 bounded model and independent oracle",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967729236"
+      },
+      {
+        "id": 130967728983,
+        "name": "HEAD6 compaction and durable GC faults",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/ckanner/scap/actions/runs/43153423460/job/130967728983"
+      }
+    ],
+    "job_metadata": {
+      "sample_run": 43153429358,
+      "steps": "null in run jobs response"
+    },
+    "log_fetch": {
+      "job": 130967748334,
+      "result": "404 BlobNotFound"
+    },
+    "annotations_fetch": "Connector rejected endpoint as unsupported",
+    "failure_cause": "UNDETERMINED",
+    "local_results_do_not_replace_remote_ci": true
+  }
+}

@@ -11,28 +11,29 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 | 阶段 | 主线及候选已实现 | 尚需完成的退出条件 |
 | --- | --- | --- |
-| N0 协议与格式 | SCAPOBJ2、HEAD6/7 代际复制／GC／永久 seal 已在主线；候选增加 HEAD8 owner plan、HEAD9 retained roots，各有独立模型 | 统一格式与所有 HEAD 写路径、SDK/controller 的完整组合单位、精确覆盖及故障合同；模型不代替产品 |
+| N0 协议与格式 | SCAPOBJ2、HEAD6/7复制/GC/seal已在主线；组合HEAD8 owner-plan/HEAD9 retained roots，完整Rust/SDK单位和精确覆盖新执行通过 | 完整受影响native/容量/资源/GC历史矩阵及跨协议交错；模型和局部实际合同不能替代全部产品出口 |
 | N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证/取消、增量页树、Session 与可调配额；多轮本地故障及全计算丢失恢复已有证据 | 真实 AWS Standard、完整 OT 合同与对应部署故障域，不能把本地兼容存储推成生产保证 |
-| N2 多库接入 | HTTP/SDK、名称目录、发现与部署恢复、按库 actor、独立控制/恢复、intake/output/期限；候选实现可恢复 owner plan 与有限自动 controller | controller/native/S3 多进程联合验收；实例身份登记/分配尚缺；持续过载、冷启动风暴、租户公平性、完整资源总账与硬RSS/磁盘界限 |
-| N3 可持续存储 | HEAD6 完整复制、单调退休、持久 sweep 和 HEAD7 Deleted 最后一代永久退休已合入；HEAD9 S1 候选实现保留根、capture/release、多根COPY/GC | 快照专项实际与独立对照；S2 从保留根恢复到新Scope、任意时间PITR、长期保留/GC成本收敛；全库冷恢复优化需另验证 |
+| N2 多库接入 | HTTP/SDK、目录/发现、按库actor、控制/恢复/intake/output期限；持久owner-plan与有限controller的本次自动接管、重启、原结果合同通过 | 多controller竞争与完整故障矩阵；实例identity分配；持续过载、冷启动风暴、公平性、资源总账与硬RSS/磁盘边界 |
+| N3 可持续存储 | HEAD6完整复制/持久sweep和HEAD7 Deleted终态退休已合入；HEAD9 S1保留根、多根COPY/GC专项实际及10负控通过 | S2从保留根恢复新Scope、任意时间PITR、长期保留/GC成本；整库冷恢复优化需另验证 |
 | N4 首发 | 已有绑定提交的本地容量、故障和固定负载记录 | 冻结目标后端/IAM/故障域与开环负载，测长期吞吐、p95/p99、错误、恢复、成本；按既有范围另行启用非关键业务试运行 |
 
-**当前组合验证正在进行。** `e485a97` 的 SDK、类型及夹具单位已通过[本轮检查](../evidence/sqlite-s3-integration-node-local-2026-11-11.json)，
-Rust 完整门禁与实际 SQLite/HTTP/S3 合同分别记录。原 HEAD7 的 652+652、owner 产品的 703+703、S1 产品
-`55140bf` 的 783+783 单位和各自覆盖分母分别保留，不能相加或借用为组合结果。
-owner 实际通过观察及归档限制见[记录](../evidence/owner-runtime-observed-local-2026-11-11.json)；
-S1 原 native/1 GiB 通过记录不包含快照 API，专项夹具的原失败与修正后 NOT_RUN 见
-[快照记录](../evidence/snapshot-s1-f02-fixture-failure-2026-11-11.json)。
+**本次列出的组合本地合同已通过，PR #59仍为Draft。** 新执行stable/nightly各783项单位、
+67文件精确覆盖、157项SDK/21模块精确覆盖、类型和19项loopback；owner两专项、生产
+controller实际/15负控、S1实际/10负控及固定负载实际/14负控+3正控均完成。
+完整归属、原失败和审计缺口修正见[组合验收](sqlite-s3-integration-validation.md)。
+历史HEAD7、owner、S1单位数字各自保留，不能相加。本轮单库C1/C4写5.149/2.822次每秒、
+四库C4写7.206次每秒，含本地观察开销且不是生产容量；热点吞吐没有完成目标。
+AWS与生产SLO没有运行，完整历史矩阵、资源和产品出口仍是独立工作。
 
 ## 接续实施顺序与验收
 
-1. 冻结当前组合源码，确认 HEAD7 原证据及 owner/controller/snapshot 接口同时保留，
-   完成整仓单位、精确覆盖、Node/类型/工具与受影响 native/HTTP/S3 回归；新失败按候选保存。
-2. 完成持久 owner 计划与生产 controller 的联合故障合同：旧实例未退出、目标替换、
+1. 当前组合已冻结并完成单位/精确覆盖、Node/类型及本次owner/controller/S1局部实际合同；
+   补齐完整受影响native/容量/资源/GC历史矩阵及交错验收后，再按仓库门禁判断合入。
+2. 在本次持久owner专项和生产CLI重启接管合同之上，完成多controller竞争与其余故障矩阵：旧实例未退出、目标替换、
    prepare/claim/resume 丢响应、重启推进、取消与迟到请求、权限撤销，以及 TLS 配置错误。
    部署仍须提供不复用的 `worker_instance`；数值 guard 不代表进程身份认证。
-3. 完成 S1 快照专项：捕获/释放、永久身份、限额、多根 COPY、GC/删除后的可达性与所有原结果。
-   然后实现 S2 新 Scope 恢复和目录 completion/cancel/discovery，不复活源权限、owner 或请求空间；
+3. S1捕获/释放、永久身份、多根COPY、GC/删除与冷恢复专项已通过；补充完整交错后，
+   实现S2新Scope恢复和目录completion/cancel/discovery，不复活源权限、owner或请求空间；
    任意时间 PITR 需要独立日志保留和恢复合同。
 4. 按实测账本减少对象往返和副本，验证 SQL batch 的收益；补持续过载、唤醒风暴、资源隔离和长期GC。
    同库仍串行提交、冷恢复仍完整加载。group commit、lazy VFS、同库读池和更换MVCC引擎须独立设计，
