@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import controls
 import oracle
 
 
@@ -56,6 +57,26 @@ class OracleTests(unittest.TestCase):
             self.assertEqual(oracle.raw_file(root, ref), b'valid')
             path.write_bytes(b'wrong')
             self.rejected('raw-hash', lambda: oracle.raw_file(root, ref))
+
+    def test_targeted_control_preserves_shared_body_and_sibling_request(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / 'raw').mkdir()
+            raw, changed = b'{"operation":"status"}', b'{"operation":"execute"}'
+            digest = oracle.sha(raw)
+            path = root / 'raw' / digest
+            path.write_bytes(raw)
+            original = {'file': 'raw/' + digest, 'bytes': len(raw), 'sha256': digest}
+            target, sibling = {'request': dict(original)}, {'request': dict(original)}
+            replacements = {}
+            controls.replace_reference(target, 'request', changed, replacements)
+            self.assertEqual(sibling['request'], original)
+            self.assertEqual(oracle.raw_file(root, sibling['request']), raw)
+            self.assertEqual(path.read_bytes(), raw)
+            self.assertNotEqual(target['request'], original)
+            self.assertEqual(target['request']['bytes'], len(changed))
+            self.assertEqual(target['request']['sha256'], oracle.sha(changed))
+            self.assertEqual(replacements, {oracle.sha(changed): changed})
 
     def test_partial_final_record_and_duplicate_json_are_rejected(self):
         with tempfile.TemporaryDirectory() as name:

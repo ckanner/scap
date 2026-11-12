@@ -8,6 +8,13 @@ from pathlib import Path
 import oracle
 
 
+def replace_reference(event, field, raw, replacements):
+    """Give one observed exchange its own bytes, preserving shared original blobs."""
+    digest = oracle.sha(raw)
+    event[field] = {'file': 'raw/' + digest, 'bytes': len(raw), 'sha256': digest}
+    replacements[digest] = raw
+
+
 def controls(directory):
     directory = Path(directory)
     original = oracle.audit(directory)
@@ -46,7 +53,7 @@ def controls(directory):
             event = next(row for row in oracle.select(events, 'http_proxy_request') if row['principal'] == '12')
             body = json.loads(oracle.raw_file(directory, event['request']))
             body['operation'] = event['operation'] = 'execute'
-            replacements[event['request']['sha256']] = json.dumps(body).encode()
+            replace_reference(event, 'request', json.dumps(body).encode(), replacements)
         elif case == 'budget':
             event = oracle.one(events, 'controller_reports', id='controller-one')
             rows = [json.loads(line) for line in oracle.raw_file(directory, event['raw']).splitlines()]
@@ -54,7 +61,8 @@ def controls(directory):
             replacements[event['raw']['sha256']] = b''.join((json.dumps(row) + '\n').encode() for row in rows)
 
         def read(description):
-            return replacements.get(description['sha256'], oracle.raw_file(directory, description))
+            digest = description['sha256']
+            return replacements[digest] if digest in replacements else oracle.raw_file(directory, description)
 
         try:
             oracle.audit_history(directory, events, business, client, read)
