@@ -1,21 +1,54 @@
 # 新对象架构实施路线
 
-按PR16从零推进，旧原型与PR17不构成兼容或实现前置条件。
+按 [PR #16](https://github.com/ckanner/scap/pull/16) 推进 SQLite on S3。对象存储是唯一持久权威，
+SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成兼容或实现前置。
 
-| 阶段 | 当前工作与退出条件 |
-| --- | --- |
-| N0 协议与格式 | 已有严格 SCAPOBJ2 格式、有界模型与独立历史判定；主线 #35 为 HEAD4。PR #54 的 HEAD6 生产候选已接通可中止普通操作、多世代复制与持久 GC checkpoint，按新源码单独验收 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读/取消/接管、默认 10 GiB 配额、增量页树与 Session 已实现。#54 的 HEAD6 修复 retained nonce 校验缺口，完成全部新单位、native 故障、原结果、生命周期和 1 GiB 全计算丢失恢复；目标 AWS Standard 与完整阶段退出仍单列 |
-| N2 多库接入 | 鉴权 HTTP/SDK、名称目录、有界 actor、独立控制/恢复、全目录发现、显式 owner 协调、intake/output/HTTP 期限已实现。#54 输出竞争、慢消费者、HTTP discovery、guarded status、owner 故障与固定多库负载全部本地门禁已通过；自动故障探测/controller、完整资源总账、开放到达/长期压力仍待完成 |
-| N3 可持续存储 | HEAD6 core/store/service/SDK 已实现完整复制、单调退休、专用有界 GC 与重启 checkpoint，新单位、真实暂停故障、独立判定与23反例全部完成。PR #55 已提交 Deleted 最后 active generation 的终态退休实现，继续独立验收；显式 retained roots/PITR、增量冷恢复和长期成本收敛仍未完成 |
-| N4 首发 | 真实目标 backend/IAM/故障域、MB/GiB、长尾/热点/唤醒风暴、长运行与性能/恢复/成本 SLO；另行获准后用非关键数据试运行 |
+## 当前阶段
 
-本轮不以原 Raft 的 538 测试或旧 SLO 认证新实现。门禁失败与新发现都保留，
-缺失环境记 NOT_RUN；不将本地兼容后端的容量实测包装为整个阶段完成。
+已合入主线的基准为 HEAD7 `fab8ca0`（#54/#55）。[PR #59](https://github.com/ckanner/scap/pull/59)
+的组合起点 `fc10287` 汇集 #56 `1d709db`、#57 `df922b95` 与 #58 `4216523`；
+这些来源已经提交，不能因代码齐备或原分支单位通过就将新组合标成已验收。
 
-## 2026-11-10 当前实施顺序
+| 阶段 | 主线及候选已实现 | 尚需完成的退出条件 |
+| --- | --- | --- |
+| N0 协议与格式 | SCAPOBJ2、HEAD6/7 代际复制／GC／永久 seal 已在主线；候选增加 HEAD8 owner plan、HEAD9 retained roots，各有独立模型 | 统一格式与所有 HEAD 写路径、SDK/controller 的完整组合单位、精确覆盖及故障合同；模型不代替产品 |
+| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证/取消、增量页树、Session 与可调配额；多轮本地故障及全计算丢失恢复已有证据 | 真实 AWS Standard、完整 OT 合同与对应部署故障域，不能把本地兼容存储推成生产保证 |
+| N2 多库接入 | HTTP/SDK、名称目录、发现与部署恢复、按库 actor、独立控制/恢复、intake/output/期限；候选实现可恢复 owner plan 与有限自动 controller | controller/native/S3 多进程联合验收；实例身份登记/分配尚缺；持续过载、冷启动风暴、租户公平性、完整资源总账与硬RSS/磁盘界限 |
+| N3 可持续存储 | HEAD6 完整复制、单调退休、持久 sweep 和 HEAD7 Deleted 最后一代永久退休已合入；HEAD9 S1 候选实现保留根、capture/release、多根COPY/GC | 快照专项实际与独立对照；S2 从保留根恢复到新Scope、任意时间PITR、长期保留/GC成本收敛；全库冷恢复优化需另验证 |
+| N4 首发 | 已有绑定提交的本地容量、故障和固定负载记录 | 冻结目标后端/IAM/故障域与开环负载，测长期吞吐、p95/p99、错误、恢复、成本；按既有范围另行启用非关键业务试运行 |
 
-当前提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
+**当前组合验证正在进行。** `e485a97` 的 SDK、类型及夹具单位已通过[本轮检查](../evidence/sqlite-s3-integration-node-local-2026-11-11.json)，
+Rust 完整门禁与实际 SQLite/HTTP/S3 合同分别记录。原 HEAD7 的 652+652、owner 产品的 703+703、S1 产品
+`55140bf` 的 783+783 单位和各自覆盖分母分别保留，不能相加或借用为组合结果。
+owner 实际通过观察及归档限制见[记录](../evidence/owner-runtime-observed-local-2026-11-11.json)；
+S1 原 native/1 GiB 通过记录不包含快照 API，专项夹具的原失败与修正后 NOT_RUN 见
+[快照记录](../evidence/snapshot-s1-f02-fixture-failure-2026-11-11.json)。
+
+## 接续实施顺序与验收
+
+1. 冻结当前组合源码，确认 HEAD7 原证据及 owner/controller/snapshot 接口同时保留，
+   完成整仓单位、精确覆盖、Node/类型/工具与受影响 native/HTTP/S3 回归；新失败按候选保存。
+2. 完成持久 owner 计划与生产 controller 的联合故障合同：旧实例未退出、目标替换、
+   prepare/claim/resume 丢响应、重启推进、取消与迟到请求、权限撤销，以及 TLS 配置错误。
+   部署仍须提供不复用的 `worker_instance`；数值 guard 不代表进程身份认证。
+3. 完成 S1 快照专项：捕获/释放、永久身份、限额、多根 COPY、GC/删除后的可达性与所有原结果。
+   然后实现 S2 新 Scope 恢复和目录 completion/cancel/discovery，不复活源权限、owner 或请求空间；
+   任意时间 PITR 需要独立日志保留和恢复合同。
+4. 按实测账本减少对象往返和副本，验证 SQL batch 的收益；补持续过载、唤醒风暴、资源隔离和长期GC。
+   同库仍串行提交、冷恢复仍完整加载。group commit、lazy VFS、同库读池和更换MVCC引擎须独立设计，
+   不能预先记为本轮性能收益。
+5. 在真实目标 AWS/兼容后端运行原条件写、权限/密钥故障、恢复与预先冻结的数字SLO；
+   Express One Zone 不是跨AZ持久层，不能只因 checkpoint 到 Standard 就承诺跨AZ RPO=0。
+
+完整设计与代码映射见[安全、并发和吞吐说明](../architecture/sqlite-s3-safety-and-throughput.md)、
+[owner计划](../architecture/accepted-owner-plan.md)、[控制器](../architecture/owner-controller-plan.md)和
+[保留快照／恢复](../architecture/retained-snapshot-restore.md)。已合入基座证据见
+[HEAD6](head6-runtime-validation.md)、[HEAD7](head7-runtime-validation.md)；缺失环境记NOT_RUN，
+原失败保持原样，完整目标不以测试数或容量配置代替阶段退出。
+
+## 历史：2026-11-10 实施顺序
+
+以下保留当时的实施顺序；后续合入及本组合状态以上方为准。当日提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
 最新 HEAD6 `66f452e` 的 632+632 单位、59 文件精确覆盖、新 native/1 GiB、HTTP/资源/GC与负载
 全部本地门禁见[独立新记录](head6-runtime-validation.md)；下述 d60 是已完成但后来发现语义缺口的历史基线。
 PR #54 已承接 HEAD5 运行时组合，冻结 `d60ea98` 完成 580+580 单位、57 个生产文件的

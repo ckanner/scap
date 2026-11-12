@@ -1,5 +1,9 @@
 # 活跃数据库执行隔离与吞吐边界
 
+当前实现仍采用按库 actor。主线 HEAD7 已完成对应本地隔离合同；PR #59 汇集的
+owner/controller/snapshot 候选需要另做组合验收，不能继承下方历史测试计数。
+控制器的后台策略不改变服务中单库 SQL 串行执行的边界。
+
 ## 问题与决定
 
 原调度器把所有数据请求及 `Open` / `Activate` 按 HEAD 哈希到固定 data lane。一个 lane 的同步恢复最长可以占用 recovery deadline；同 lane 中另一库即使已有热 Session，也不能执行。独立 HTTP recovery intake 与恢复 semaphore 只限制数量，不能解除这个排队阻塞。
@@ -15,7 +19,7 @@
 5. 全局、租户及 HEAD 排队预算统一计算 data / recovery / control，出队或丢弃立即归还。真正的 control 请求享有预留空间；冷恢复不能消耗这部分预留。计数不包含当前已执行操作；在途操作另受 actor 数和 control worker 数约束。
 6. 同库优先恢复/管理任务最多连续执行三个后让普通 SQL 获得一次机会；control pool 在租户及库之间轮转。这个调度是非抢占的；正在执行的单库 SQL 仍可占用自己的 actor 到原始 deadline。
 7. 关闭、启动失败、工厂失败及 panic 都关闭相应队列并返回稳定错误。已经失去响应的在途操作不自动重放。全局关闭先封闭 admission，再在锁外等待线程退出。
-8. 恢复并发继续由同一全局 semaphore 限制，获取失败返回 `RECOVERY_BUSY`。没有后台自动接管、刷新候选 ETag、修改请求身份或 SQL 重放。
+8. 恢复并发继续由同一全局 semaphore 限制，获取失败返回 `RECOVERY_BUSY`。调度器本身不探测故障或自动接管，不刷新候选 ETag、修改请求身份或重放 SQL；候选独立 controller 只能通过既定 owner-plan 协议推进。
 
 ## 显式配置
 
@@ -31,7 +35,7 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 
 本文件最初开发时的 scoped 单元记录保留如下。后续 #31/#32 的组合 workspace、真实 HTTP/S3 与冷热隔离验收已完成并合入，最新冻结身份和失败修正过程见[验收记录](../engineering/catalogue-actors-validation.md)。下方最初阶段的 NOT_RUN 不是该后续候选的状态，后续新增目录/恢复/索引仍须按自己的输入单独验证。
 
-本候选的 Rust 1.90 服务 unit **70/70**、workspace 严格 clippy 和 fresh nightly unit 已运行。来自完整 workspace unit-only profile 的 12 个 `scap-service` 生产文件行/函数/region/branch 计数均覆盖全部实际分母；`catalogue.rs`、`lib.rs`、`main.rs` 没有可测 branch region，明确为 0/0，不把它们宣称为测得的 100% 分支覆盖。主要改动文件的精确计数如下。
+最初 actor 开发候选的 Rust 1.90 服务 unit **70/70**、workspace 严格 clippy 和 fresh nightly unit 已运行。来自完整 workspace unit-only profile 的 12 个 `scap-service` 生产文件行/函数/region/branch 计数均覆盖全部实际分母；`catalogue.rs`、`lib.rs`、`main.rs` 没有可测 branch region，明确为 0/0，不把它们宣称为测得的 100% 分支覆盖。主要改动文件的精确计数如下。
 
 | 文件 | 行 | 函数 | region | branch |
 | --- | --- | --- | --- | --- |
@@ -39,7 +43,7 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 | `config.rs` | 118/118 | 16/16 | 151/151 | 50/50 |
 | `daemon.rs` | 129/129 | 20/20 | 198/198 | 2/2 |
 
-这是 **service scoped** 结果。隔离副本的 catalogue recovery 基线仍有覆盖缺口，整体 workspace gate 尚未通过，不把本批结果冒充其他批次验收。真实 HTTP/S3/进程隔离实验与 AWS 云端容量/SLO 为 **NOT_RUN**；必须在合并最终 core 候选后分别执行。服务实验配置已同步到显式 actor 字段，Python 服务 harness unit 41 项通过，但该 unit 不替代真实网络实验。
+这是当时的 **service scoped** 结果。该隔离副本的 catalogue recovery 基线仍有覆盖缺口，当时整体 workspace gate 尚未通过，真实 HTTP/S3/进程隔离与 AWS 为 **NOT_RUN**；后续真实本地验收已由本节首段链接记录，AWS 与新组合仍分别验收，不回写历史 verdict。服务实验配置已同步到显式 actor 字段，Python 服务 harness unit 41 项通过，但该 unit 不替代真实网络实验。
 
 以下场景由 unit 门控实际 `Scheduler::submit` / 正式 Engine 路径验证：
 
@@ -56,7 +60,7 @@ actor 总数、control worker 数加固定 **1** 个 reaper 最多 256，每租�
 
 热强读每次仍做 exact HEAD GET 与权限/数据根校验，再在本地查询。冷恢复仍顺序下载整个不可变树、校验历史结果并做 native integrity check。写提交按 128 KiB chunk / 256 路数据树做 COW，并非每次全库上传；然而新对象依赖逐个 PUT + exact GET、分段请求索引路径更新、HEAD CAS、native publication 和同步 checkpoint 都位于提交路径。没有 group commit、同库并发 reader pool、MVCC 或 S3 Express 专用适配器，不能借 Turso 公布的其他架构/硬件基准宣称本项目 TPS。
 
-数据 actor、control pool 仍共享对象客户端、网络、磁盘、CPU 和 HTTP runtime。HTTP JSON 解码仍在 runtime 内同步执行，缓存页预算没有入场磁盘预留，GC 仍关闭；这些边界必须在容量/延迟实验中独立测量。`BACKPRESSURE` 与 `RECOVERY_BUSY` 是可观察的资源限制，不能宣传成无限扩展。
+数据 actor、control pool 仍共享对象客户端、网络、磁盘、CPU 和 HTTP runtime。HTTP JSON 解码仍在 runtime 内同步执行，缓存页预算没有入场磁盘预留；HEAD6/7 的显式回收已经实现，默认仍未授予 GC 删除权限；这些边界必须在容量/延迟实验中独立测量。`BACKPRESSURE` 与 `RECOVERY_BUSY` 是可观察的资源限制，不能宣传成无限扩展。
 
 ## SQLite、NFS 与原生依赖
 

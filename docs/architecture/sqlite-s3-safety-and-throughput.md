@@ -1,13 +1,14 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-复核日期：2026-11-11。当前 main 为 HEAD7
-[`fab8ca0`](https://github.com/ckanner/scap/commit/fab8ca09aa05fdaf612cdcf47a9fce8e65373896)，
-最新 HEAD8 产品修复为 PR #56 的
-[`e3bdf7b`](https://github.com/ckanner/scap/commit/e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492)；
-有限 controller 与 HEAD9 分别在 PR #57/#58 草稿中推进。本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，
-不修改 HEAD、请求身份、所有权或 GC 协议。下文的“已实现”只表示该树存在对应代码；
-历史验收只认证其原冻结输入，新候选是否通过仍以[验证规范](../engineering/validation.md)
-和本候选证据为准。
+复核日期：2026-11-11。已合入 main 的基准是 HEAD7
+[`fab8ca0`](https://github.com/ckanner/scap/commit/fab8ca09aa05fdaf612cdcf47a9fce8e65373896)。
+[PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 纳入 #56 `1d709db`、
+#57 `df922b95` 和 #58 `4216523` 的 owner plan、有限 controller 与 HEAD9 S1 实现。
+本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，不另建 HEAD、请求身份、
+所有权或 GC 协议。“实现存在”“原候选已验证”“新组合通过”是三个不同结论；
+新组合验证正在进行；`e485a97` 的 SDK/类型与夹具单位已有[独立结果](../evidence/sqlite-s3-integration-node-local-2026-11-11.json)。
+Rust 完整门禁及 SQLite/HTTP/S3/控制器/快照专项须按
+[验证规范](../engineering/validation.md)分别记录。历史结果不自动继承。
 
 ## 1. 要完成的目标与现在的结论
 
@@ -26,7 +27,7 @@ Deleted 最后一代显式退休已经合入 main。HEAD8 接管协议、有限 
 | 用户关心的问题 | 当前代码的处理 | 仍有的边界 |
 | --- | --- | --- |
 | NFS/EFS 上共享 `.db/WAL/SHM` 损坏 | 私有本地执行镜像；文件系统准入；跨节点只通过对象 API 协调 | 可靠本地 I/O、可信挂载和固定 native 引擎仍是前提；真实网络挂载实验另验 |
-| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive；HEAD8 持久保存接管计划及取消证明 | 探测和调度不决定写权；有限 controller 在独立草稿中，尚未完成多实例真实故障验收 |
+| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive；HEAD8 候选持久保存接管计划及取消证明 | 探测和调度不决定写权；进程 worker identity 不复用仍依赖部署；controller 多实例真实故障验收未完成 |
 | 一个热点数据库写入拥堵 | 同库 actor 串行，事务有界，支持一次事务多个 SQL 语句 | 加 pod 不会自动增加该库的有效 writer；没有多写者或 group commit |
 | 一个冷库阻塞其他热库 | 不同库有界 actor，控制池和恢复准入分别设置 | CPU、网络、S3、磁盘、进程资源仍共享；不是硬租户隔离 |
 | 小改动上传整库 | 128 KiB chunk、COW 数据树和分段请求索引 | 仍有多个顺序 GET/PUT、read-back 与 HEAD CAS |
@@ -42,6 +43,11 @@ SQLite 并非只能由一个进程使用。官方 WAL 支持同机多个连接�
 并行，但一个数据库同一时刻只有一个 writer；共享 wal-index 要求这些进程处于同一
 主机。网络文件系统的问题同时涉及文件锁、同步与写入顺序，不能简化为所有 NFS
 必然立即损坏，也不能只归因于 `fcntl`。[S1][S2][S3]
+
+EFS 官方明确支持 NFSv4 文件锁，包括 byte-range advisory locks，并规定 close-to-open
+一致性等 NFS 访问语义。因此不能说 EFS 没有文件锁；“advisory”本身也不是损坏证明。
+但这些能力不满足 SQLite WAL 跨主机共享 wal-index 的前提，也不能替代 SQLite 对完整
+文件系统语义的要求。SCAP 的部署决定仍是不共享网络上的活动 SQLite 文件。[S1][S12]
 
 SCAP 当前执行拓扑进一步收窄为“一份私有镜像、一个受控 native 连接、所属线程串行
 使用”。数据库服务可以接收多个客户端；多个数据库可以同时运行。这个选择避免了
@@ -76,8 +82,10 @@ CAS 不能辨认其业务内容错误。固定 libSQL/native 的 WAL-reset 补�
 不允许一次操作中途换地址。HEAD6 支持多世代复制与永久退休；ordinary 操作可中止，
 不建立崩溃后无法解除的永久读 pin。物理读取失败后，只有一次原预算/期限内 exact
 HEAD 调查严格证明原世代已退休，才可返回 `SnapshotExpired`；语义损坏仍失败关闭。
-已知提交保留原 receipt，不能因为读取过期抹掉提交事实。显式快照/PITR 的 retained
-roots 尚未实现，不能把保留 SQL 原结果等同于历史数据库快照。
+已知提交保留原 receipt，不能因为读取过期抹掉提交事实。主线 HEAD7 尚不提供显式保留快照；
+HEAD9 S1 候选已经实现 retained roots、捕获/释放、多根闭包复制及 GC 保护，专项修正后
+实际验收仍待执行。S2 的新 Scope 恢复和任意时间 PITR 未实现；保留 SQL 原结果、
+保留历史数据根和可用的备份恢复产品不是同一能力，见[快照方案](retained-snapshot-restore.md)。
 
 ## 3. S3 提交、fencing 与丢响应的精确边界
 
@@ -117,7 +125,9 @@ SCAP 的原子性来自先持久依赖、再发布一个根；安全性仍依赖
 HEAD5 引入、HEAD6 沿用的 `head_serial` 每次替换严格递增，防止内容恢复原样造成 ABA；业务 revision、
 owner epoch 和物理 storage generation 各有用途，不能互换。特别是，尚未到服务端
 准入的旧管理 HTTP 只带 `expected_revision`，单独前进技术 serial 不足以封闭它的
-所有未来阶段，详见[owner controller 设计](owner-controller-plan.md)。
+所有未来阶段。HEAD8 候选通过 accepted plan、phase 和取消屏障封闭这些后继，进入该
+格式后拒绝旧 takeover/activate，详见[owner 计划](accepted-owner-plan.md)和
+[controller 设计](owner-controller-plan.md)。
 
 HEAD8 的后续修复还覆盖一个与 NFS 无关的合法并发时序：A 的 descriptor GET 先返回真正
 Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD。旧实现把前后的不同
@@ -126,6 +136,12 @@ Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD�
 不为旧意图换 ETag。新增三项确定性单位进入 703 项完整单元及 63 文件精确覆盖分母；
 真实 signed-S3 并发证据仍单独验收。由此可见，改用对象 API 避开共享活动文件只是
 架构前提，不能替代读取顺序、权限、发布和恢复协议的逐项证明。
+
+当前 `worker_instance` guard 只比较配置中的数值，不是进程 incarnation 认证。部署必须为
+每次启动分配不复用的 identity；若两个进程复用同一值，替换进程可以通过原目标 guard。
+原 ETag CAS 和完整恢复仍防止两个冲突候选都成为新权威，但实例隔离、路由判断和争用
+语义不再有此前提。产品尚未实现持久实例登记/分配；不能用本地 PID 或普通健康探针
+声称已解决该问题，参见[计划的实例边界](accepted-owner-plan.md#33-resume)。
 
 ### 3.3 不确定与已知提交必须分开
 
@@ -139,8 +155,9 @@ Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD�
 
 当前 [`RoutedClient`](../../sdk/node/src/routed.js) fresh status 后最多派发一次原业务请求，
 [`OwnerClient`](../../sdk/node/src/owner.js) 的恢复意图仅供 inspect；新的只读 guarded probe
-验证接收 worker，不产生自动接管权。任何后续 controller 都继续复用 HEAD 权威，不另建
-一套绕过它的分布式锁。
+验证接收 worker 数值，不产生自动接管权。候选 `OwnerPlanClient` 只推进受 HEAD 接受的
+固定计划；`OwnerController` 在有界策略内调用它，仍复用 HEAD 权威。其代码与独立模型
+已存在，多进程 controller/native/S3 联合验收尚未完成，不另建绕过 HEAD 的分布式锁。
 
 ## 4. 单库与多库的吞吐分别设计
 
@@ -254,14 +271,16 @@ AWS 实测延迟，不认证 PR #53 的新代码，也不能与其他 HEAD 格�
 
 | 路线 | 官方可确认的机制 | SCAP 的取舍 |
 | --- | --- | --- |
-| 开源 libSQL / Bottomless | 已提交 WAL 页异步复制，按 generation 备份与恢复；`insert_frames` 提交本地帧后提交复制工作 | 可参考分批和恢复链；它的异步备份边界不能满足本项目 ACK 前 S3 权威发布 [S8] |
+| 开源 libSQL / Bottomless | libSQL 仍继承 SQLite 单 writer；Bottomless 按 generation 异步复制已提交 WAL 页，本地 `insert_frames` 后提交复制工作 | 可参考分批和恢复链；这条异步备份边界不能满足本项目 ACK 前 S3 权威发布 [S8][S13] |
 | Turso Cloud | WAL 先写 S3 Express，成功后确认；多租户 WAL 合批；DB 分块与本地缓存、按需取块 | 借鉴远端持久化参与提交和请求摊薄；不据公开文章假定其 owner/GC 采用本项目 HEAD 协议 [S9][S10] |
-| 新 Rust Turso Database | MVCC 模式下 `BEGIN CONCURRENT`、行级冲突检测和 snapshot isolation | 是引擎并发能力；采用 S3 不会使 SCAP 的固定 libSQL 自动具备这套能力 [S11] |
+| 新 Rust Turso Database | MVCC 模式下 `BEGIN CONCURRENT`、行级冲突检测和 snapshot isolation；2026-08-03 的 Cloud 公告为需显式启用的 early preview | 是独立 Rust 引擎的并发能力，冲突仍需处理；S3 不会使 SCAP 的固定 libSQL 自动具备这套能力 [S11][S14] |
 
 本次还核对开源 `bottomless/src/bottomless_wal.rs`：`insert_frames` 在本地
 `wrapped.insert_frames` 后调用 `replicator.submit_frames`，等待复制进度／snapshot 的
 逻辑位于 checkpoint 路径。由此只能判断这条开源路径的确认边界，不能反推 Cloud。
 固定上游比较与更详细的生命周期取舍见[已有源码复核](sqlite-s3-turso-review.md)。
+Cloud 的 WAL 合批、缓存和调度属于服务架构；不能因引擎开源就假定全部 Cloud 基础设施
+已经开源，或把旧 libSQL 方案和新引擎 preview 的能力拼成同一个已验证产品。
 
 Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它既不是 SCAP 的实测，
 也不是 S3 Standard、其他兼容服务或端到端 p99 的承诺。MVCC 仍需要处理写冲突，
@@ -291,12 +310,12 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 | 工作包 | 当前起点 | 下一交付与退出标准 |
 | --- | --- | --- |
-| 当前候选组合 | HEAD6/HEAD7 已合入；HEAD8 `e3bdf7b` 已通过703+703单位与63文件精确覆盖 | 完成当前 HEAD8 真实 owner、签名 S3、进程退出、冷恢复与全部独立判定；保留原失败及修复后新尝试 |
+| 当前候选组合 | HEAD6/HEAD7 已合入；PR #59 纳入 owner、controller 与快照 S1，原候选证据各自保留 | 组合 SDK/类型和夹具单位已通过；完整 Rust 门禁与受影响实际合同分别继续，不把703/783等历史计数相加当成组合结果 |
 | N1 权威合同 | 已有提交 gate、结果查证、取消、接管及多轮本地恢复证据 | 完整 OT-01–08、真实 AWS Standard 合同和独立并发历史审计；同 ETag 双发布、所有切点崩溃、迟到旧 owner、依赖损坏与全计算丢失分别验收 |
-| N2 自动恢复 | HEAD8 持久 accepted owner-plan；PR #57 有限 controller/fleet、HTTP/DNS/socket 所有权与 CLI 草稿 | 完成 controller 独立并发模型与真实多实例合同；TLS/证书配置错误不能作为 owner 死亡怀疑，跨重启同计划、abort 和迟到 HTTP 逐项验证；业务 SQL 不重放 |
+| N2 自动恢复 | HEAD8 持久 accepted owner-plan；有限 controller/fleet、HTTP/DNS/socket 所有权与 CLI 已实现；原 controller 独立模型402正向/40负/3正对照已通过 | 完成真实多实例 controller/native/S3 合同；TLS/证书配置错误不能作为 owner 死亡怀疑，跨重启同计划、abort 和迟到 HTTP 逐项验证；业务 SQL 不重放 |
 | N2 资源与活性 | actor、intake、typed 单次预算、HTTP 期限与普通 `/v1` output Pool；输出/慢消费实证已完成 | 运行冻结单库/多库基线，补跨入口对象 decode/native heap/磁盘总账；持续过载、冷恢复风暴、tenant 公平性与硬容量另验 |
 | N3 可持续存储 | HEAD6 copy/promote/持久 sweep 和 HEAD7 Deleted 永久终态退休均已完成对应本地验收并合入 | 在全部保留根、旧操作与迟到 PUT 的真实历史中验证回收；长期成本统计包括永久控制元数据，不把一轮清空当作永久无孤儿 |
-| N3 快照与 PITR | HEAD9 S1候选55140bf已通过783单位、67生产文件精确覆盖和原native/1GiB复验；804/47+3模型独立通过 | S1 完成保留表、descriptor/proof、多根复制和GC保护；S2 恢复到新 Scope 并重新建立权限/请求空间；各自完整产品门禁，不把模型或保留 SQL 结果当成备份恢复 |
+| N3 快照与 PITR | HEAD9 S1 产品55140bf有783+783单位、67文件精确覆盖和原native/1GiB证据；804/47+3模型独立通过，capture/release、多根复制和GC保护已实现 | 修正夹具后的快照专项及独立对照仍NOT_RUN；之后实现S2新Scope恢复与新权限/请求空间，任意时间PITR另设计；原native合同没有调用快照API |
 | N4 发布出口 | 既有本地容量与部分故障证据 | 冻结负载及数字 SLO，测目标存储、真实部署故障域、长运行、保留/GC 成本、运维恢复；按既有流程另行启用非关键试运行 |
 
 HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability
@@ -333,7 +352,7 @@ lazy VFS、同文件并发读池、替换 MVCC 引擎、跨库 group commit、Ex
 
 ## 10. 官方资料
 
-以下外部资料于 2026-11-10 复核；采用其技术边界，不继承其产品承诺。
+以下外部资料于 2026-11-11 复核；采用其技术边界，不继承其产品承诺。
 
 - [S1：SQLite — Write-Ahead Logging](https://www.sqlite.org/wal.html)：WAL 共享内存、同机与单 writer。
 - [S2：SQLite — SQLite Over a Network](https://www.sqlite.org/useovernet.html)：网络文件 I/O 的同步、顺序和锁风险。
@@ -346,3 +365,6 @@ lazy VFS、同文件并发读池、替换 MVCC 引擎、跨库 group commit、Ex
 - [S9：Turso — Cloud durability](https://turso.tech/blog/how-does-the-turso-cloud-keep-your-data-durable-and-safe)：分块、本地缓存与远端确认。
 - [S10：AWS/Turso — Transactional database with S3 Express](https://aws.amazon.com/blogs/storage/how-turso-built-a-transactional-database-using-amazon-s3-express-one-zone/)：2026-07-23 文章，多库合批与写入路径；作者测量不等于 SCAP 性能。
 - [S11：Turso manual](https://github.com/tursodatabase/turso/blob/main/docs/manual.md)：MVCC/BEGIN CONCURRENT 的连接、冲突和功能限制；快速演进的 main 不替代本项目固定依赖。
+- [S12：AWS — Features of Amazon EFS](https://docs.aws.amazon.com/efs/latest/ug/features.html)：NFSv4 advisory byte-range locks 与 close-to-open 一致性；不推出跨主机 SQLite WAL 支持。
+- [S13：libSQL 项目说明](https://github.com/tursodatabase/libsql)：libSQL 与 Rust Turso Database 是不同项目，前者保留单 writer 限制。
+- [S14：Turso — Concurrent Writes Early Preview](https://turso.tech/blog/concurrent-writes-on-turso-cloud)：2026-08-03 公告，显式启用、tursodb 数据库与行级 MVCC；相同行冲突仍需处理。
