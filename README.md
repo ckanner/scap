@@ -18,6 +18,11 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 **本次组合的上述本地合同已通过，PR 保持草稿。** 新执行的stable/nightly各783项Rust单位、67个生产文件逐文件精确覆盖、157项SDK单位、21模块精确V8覆盖、19项HTTP/TLS/CLI loopback、严格TypeScript以及owner/controller/snapshot实际合同均绑定各自冻结源码，见[组合验收](docs/engineering/sqlite-s3-integration-validation.md)。本轮固定负载中，单库C1/C4写为5.149/2.822次每秒，四库C4为7.206次每秒，属于含观察开销的本地小样本；热点吞吐仍需优化。完整故障矩阵、实例身份分配、S2/PITR、硬RSS/磁盘隔离、真实AWS、长运行成本和生产SLO仍未交付；按`AGENTS.md`未完成所需验证不合并，接续顺序见[路线图](docs/engineering/roadmap.md)。
 
+2026-11-12 的接续状态见[交付计划](docs/engineering/sqlite-s3-delivery-plan.md)：新 native／
+schema／原结果／生命周期／目录／发现及固定1 GiB全冷恢复已通过；S2完成屏障的授权
+模型已修正并重新通过804／48。12场景controller矩阵已提交冻结，完整实际与其余
+HTTP／资源回归继续执行，当前不改变上述Draft及产品边界。
+
 ## SQLite 文件安全与吞吐边界
 
 SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SHM`。私有本地镜像和临时目录经过文件系统准入；对象存储中的原 ETag 条件发布负责跨节点排序与旧写者 fencing。SQLite WAL 的 wal-index 需要同机共享内存；SQLite 支持同机多进程，单库一个 writer 不等于整个服务只能单进程。EFS 支持 NFSv4 advisory byte-range locks，这不等于支持跨主机共享 SQLite WAL。官方依据和实现映射见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)及[部署要求](docs/operations/sqlite-storage-safety.md)。

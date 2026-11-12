@@ -1,0 +1,945 @@
+{
+  "schema": "scap-sqlite-s3-integration-native-local-v1",
+  "review_date": "2026-11-12",
+  "review_timezone": "UTC",
+  "status": "PASS_NATIVE_NETWORK_AND_FIXED_GIB1_LOCAL",
+  "report_assembly_only_no_tests_rerun": true,
+  "fixture_source": {
+    "commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+    "tree": "2c1a9177d9711fb16d8357419d9b66ee11ae67de",
+    "source_sha256": "097e5fe2e8b4e49680ba768de439cc6c872c1e73522bec2a3b1d30d2396c6bfd",
+    "tracked_files": 703,
+    "worktree": "/workspace/scratch/bccab55c9ca3/scap-native-source-3b1d50c",
+    "before_after": "EXACT_MATCH",
+    "fixture_changes_for_this_run": []
+  },
+  "runtime_source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+  "build_identity_rule": "fc release provenance remains fc10287 even when all 277/183 recorded inputs match 3b. Listing and discovery have new 3b release receipts; discovery also uses the fc native seed.",
+  "input_equivalence": {
+    "native": 183,
+    "service": 277,
+    "status": "PASS_INPUT_EQUIVALENCE"
+  },
+  "builds": {
+    "native_fc_release": {
+      "source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "profile": "release",
+      "receipt": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/native-build/build.json",
+        "bytes": 23211,
+        "sha256": "88d24b343f3ab52758084e796f3b6e1308b4fe002b30869e9d2313a73ff22af9"
+      },
+      "input_count": 183,
+      "all_inputs_equal_fixture": true,
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/network-release/release/scap-object-network",
+        "sha256": "840727a0fe503711ae759d68e300eef1e224c668474f7eb3b5471e146376ba70"
+      },
+      "role": "executed native worker and discovery seed",
+      "input_sha256": "37c1c8465ee26db77b73d4b9fd6769f072e1729b1378e31294eda3b77ee828c8"
+    },
+    "service_fc_release": {
+      "source_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+      "profile": "release",
+      "receipt": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/fc10287-release-01/service-build/build.json",
+        "bytes": 33444,
+        "sha256": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56"
+      },
+      "input_count": 277,
+      "all_inputs_equal_fixture": true,
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/fc10287-release-01/service-release/release/scapd",
+        "sha256": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a"
+      },
+      "role": "277-input equivalence checked; service execution belongs to separate service evidence"
+    },
+    "listing_3b_release": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "source_dirty": false,
+      "profile": "release",
+      "receipt": {
+        "path": "listing-build/build.json",
+        "bytes": 23455,
+        "sha256": "4a5a60bd353d3b4d38d1449431e6395b93573ac43068c93a707fc7af45e0bea1"
+      },
+      "input_count": 183,
+      "input_sha256": "37c1c8465ee26db77b73d4b9fd6769f072e1729b1378e31294eda3b77ee828c8",
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/3b1d50c-native-regression-01/release/examples/scap-object-listing",
+        "sha256": "832244ad9fdc6db033e2d43fc89884184c0dea8859d95de8f9d98c3fd442b372"
+      },
+      "cargo_build_exit_code": 0,
+      "build_stdout_sha256": "f1e6bd0e2d2f45c90f9bb309ad787f730101239e6ae4defe0940abcae2a21b90",
+      "build_stderr_sha256": "a69aacdd1d9b7bd4fe783744013eb4755cd16612928c3a9f9a2a1760491c87c4"
+    },
+    "discovery_3b_release": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "source_dirty": false,
+      "profile": "release",
+      "receipt": {
+        "path": "discovery-build/build.json",
+        "bytes": 31415,
+        "sha256": "3837dc089b2a16af9938972d891031bad811ac7afa5adf95368efec5c75b10bb"
+      },
+      "input_count": 245,
+      "input_sha256": "b2cce6a46702de1ff3670504810e7a93774d87b706cb26f9d990e0f42cadbb78",
+      "binary": {
+        "path": "/workspace/scratch/bccab55c9ca3/target/3b1d50c-native-regression-01/release/scap-object-discovery",
+        "sha256": "06ec7357a38ebcc137151a81a89e31df38e4838f3ee5a1597bff26429e280b33"
+      },
+      "cargo_build_exit_code": 0,
+      "build_stdout_sha256": "d6344c979cbafc0c308ae953f05f39fa896a59a59f2538346ab68a317e866a51",
+      "build_stderr_sha256": "72938e853008d3c867a66c7996b89988f296bd07cd4731f2aaa94bf75623ce2d"
+    }
+  },
+  "backend": {
+    "name": "SeaweedFS",
+    "version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101",
+    "binary_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "contract": "real local signed S3-compatible endpoint; no AWS Standard claim"
+  },
+  "fixture_units": {
+    "object_network": 163,
+    "object_discovery": 23,
+    "commands": [
+      "native/native-fixture-units",
+      "native/discovery-fixture-units"
+    ]
+  },
+  "static_gates": {
+    "object_network_fmt": 0,
+    "object_network_clippy": 0,
+    "object_discovery_fmt": 0,
+    "object_discovery_clippy": 0,
+    "rust_toolchain": "1.90.0",
+    "clippy_warnings": "denied"
+  },
+  "command_receipts": [
+    {
+      "id": "native/source-before",
+      "exit_code": 0,
+      "seconds": 0.134011,
+      "stdout_sha256": "aacad2ce79d391fb9305c072ff5511640a0d4aaf4ecdcf97a797a68e5862259a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/receipt-equivalence",
+      "exit_code": 0,
+      "seconds": 0.248219,
+      "stdout_sha256": "19592770f476475d63d0c5ae1e7a4587c3d029701c70b4e775f74194cf45fe39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/native-fixture-units",
+      "exit_code": 0,
+      "seconds": 3.441514,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ff8b0688ca77806921dbbe2c5aafa073f5fc826be976ed65ac5f81249701f4ab"
+    },
+    {
+      "id": "native/discovery-fixture-units",
+      "exit_code": 0,
+      "seconds": 0.671253,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "98f9de078176f56ac99ce5a43226d27ad7ba216f6cf29e07fa6a15eeb43e86fb"
+    },
+    {
+      "id": "native/copy-development-cache",
+      "exit_code": 0,
+      "seconds": 2.091978,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/copy-release-cache",
+      "exit_code": 0,
+      "seconds": 2.918934,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/object-network-fmt",
+      "exit_code": 0,
+      "seconds": 0.900495,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/object-network-clippy",
+      "exit_code": 0,
+      "seconds": 3.679107,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8be48e9e93041b2c1307452b56db979c845ac3a2b465968dee7bbed73bbbf88d"
+    },
+    {
+      "id": "native/object-discovery-fmt",
+      "exit_code": 0,
+      "seconds": 0.627041,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/object-discovery-clippy",
+      "exit_code": 0,
+      "seconds": 0.300237,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "85573fd714531e53bda9ef6b8f3d7e90e122ad45ad458f96aa1a9482c6fb5c0c"
+    },
+    {
+      "id": "native/listing-build",
+      "exit_code": 0,
+      "seconds": 14.386934,
+      "stdout_sha256": "87153979101b281642c4434b698f9c977c75ada94d07108683bb4bb9af61ebdb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/discovery-build",
+      "exit_code": 0,
+      "seconds": 2.114281,
+      "stdout_sha256": "bd2bc404d25f7495860e84f9cc9726b777de6e971b065908e9938b5851673cf8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/network-actual",
+      "exit_code": 0,
+      "seconds": 47.395938,
+      "stdout_sha256": "75b386cf1c263826fa31e18942b87c0804807cae56683fe693e0541b1e53bac3",
+      "stderr_sha256": "9a3f7677d46b13dcd547fa5712106b8ba6bde53111a1dc4d1d4c429356bac9c5"
+    },
+    {
+      "id": "native/retained-actual",
+      "exit_code": 0,
+      "seconds": 34.77741,
+      "stdout_sha256": "92960f4f2998f184a3a42538d8052f04fbc8b91366dd71f1e361fd0adabba645",
+      "stderr_sha256": "31a61868e67a9f840b8808a82e33dffff3587f5e8f2892775f28c4a113243d79"
+    },
+    {
+      "id": "native/lifecycle-actual",
+      "exit_code": 0,
+      "seconds": 48.855864,
+      "stdout_sha256": "e026c74e104af020f07da6658214c8ea71b99eaa3e15049e00406eb91b1a9505",
+      "stderr_sha256": "8c9317f0f370d4f152b3f40aa21abf03effc2c810eb84d7f5109e9662b4d8d47"
+    },
+    {
+      "id": "native/lifecycle-oracle",
+      "exit_code": 0,
+      "seconds": 0.979019,
+      "stdout_sha256": "3c603617e5faaec709ac52f785983c0c4d3878c66aa5530f34daedd46e0d71e8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/catalogue-actual",
+      "exit_code": 0,
+      "seconds": 211.439071,
+      "stdout_sha256": "e12556e151579bdd8ecf7f4af9053578b908d68e0ca6d1f298a579bddaa3c4f6",
+      "stderr_sha256": "86e4052cb7cdc87d22c78a999329e431a215e7f4243525016f3f6f59ec2b0637"
+    },
+    {
+      "id": "native/catalogue-oracle",
+      "exit_code": 0,
+      "seconds": 44.493128,
+      "stdout_sha256": "617f53588f3a75174bc5b7001fdafb85eb3d836cadf206dcff877efed874f8e6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/listing-actual",
+      "exit_code": 0,
+      "seconds": 18.822334,
+      "stdout_sha256": "aef79015a4c97d5e0c91ebda1c0b744b140d9cf5023d38a05d07280939d0c04a",
+      "stderr_sha256": "05909fb32c97cfedbb08b08dbd8741ba6c63207c26d54828c887803f73cf9eec"
+    },
+    {
+      "id": "native/response-actual",
+      "exit_code": 0,
+      "seconds": 20.717346,
+      "stdout_sha256": "b51063b50631b9cfbe7a7a06cdf6cd4c685bd2659b29278eb9f1658d1745384d",
+      "stderr_sha256": "e492767be760c7473d5cadba20a983cdcae7f72205e8d7d2472a8901355ff1d3"
+    },
+    {
+      "id": "native/response-oracle-controls",
+      "exit_code": 0,
+      "seconds": 0.05005,
+      "stdout_sha256": "b51063b50631b9cfbe7a7a06cdf6cd4c685bd2659b29278eb9f1658d1745384d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/discovery-actual",
+      "exit_code": 0,
+      "seconds": 79.678033,
+      "stdout_sha256": "e4fba0a750235e31e67439b14b08d1f62a26dcb2341f47c540270db7c473349a",
+      "stderr_sha256": "76db5c228905a264f3827d53e0775c437a5db4bf2f29241ecc8e24f774e7c77b"
+    },
+    {
+      "id": "native/discovery-oracle",
+      "exit_code": 0,
+      "seconds": 2.296726,
+      "stdout_sha256": "b21d2d65b44da487d440020d6df927947691ada2b977f82b6ac712100fcdca25",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/discovery-controls",
+      "exit_code": 0,
+      "seconds": 47.718818,
+      "stdout_sha256": "cce757ca0140c7684a775fb9d38d8f8d4915759ae067e86b78b40174d205c74d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "native/source-after",
+      "exit_code": 0,
+      "seconds": 1.161124,
+      "stdout_sha256": "a20246d478a60b8a96f3b79a3e31caa6abf41381279f06afc6c179b8a44c2009",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "gib1/source-before",
+      "exit_code": 0,
+      "seconds": 0.172317,
+      "stdout_sha256": "aacad2ce79d391fb9305c072ff5511640a0d4aaf4ecdcf97a797a68e5862259a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "gib1/gib1-actual",
+      "exit_code": 0,
+      "seconds": 176.460717,
+      "stdout_sha256": "32e90f37204325f03f107ed60e9a723564b60110fc44910c96e0e7bcfaf5edc0",
+      "stderr_sha256": "c4f03eb4b6795a688dda695b1208b08c98e34f615d61cd94e39b1fec009d9ecf"
+    },
+    {
+      "id": "gib1/independent-raw-oracle",
+      "exit_code": 0,
+      "seconds": 30.61188,
+      "stdout_sha256": "3967d30e3ee7fa676177f48e086c10032b32fe8a3bb7e46a4eb4d8083ca66896",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "gib1/source-after",
+      "exit_code": 0,
+      "seconds": 0.159297,
+      "stdout_sha256": "a20246d478a60b8a96f3b79a3e31caa6abf41381279f06afc6c179b8a44c2009",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "profiles": {
+    "network": {
+      "all_completed_contract_names": [
+        "signed_exact_key_conditional_objects",
+        "same_etag_two_process_competition",
+        "original_result_and_all_compute_loss",
+        "lost_head_response_keeps_original_result",
+        "takeover_fences_inflight_old_writer",
+        "commit_cancel_both_orders",
+        "lost_cancel_response_preserves_fence",
+        "corrupt_dependency_fails_closed_without_head_change",
+        "object_blackhole_fails_closed",
+        "backend_process_restart_retains_acknowledged_state",
+        "each_observed_dependency_upload_cut_retains_previous_authority",
+        "accepted_head_survives_process_loss_and_native_publication_failure",
+        "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+        "changed_head_during_recovery_refuses_old_activation",
+        "alter_schema_original_results_and_all_compute_loss"
+      ],
+      "base_contracts": 10,
+      "base_original_acks": 4,
+      "extended_cases": 30,
+      "extended_original_acks": 61,
+      "remaining_scope": {
+        "additional_http_error_matrix": "NOT_RUN",
+        "aws_endpoint_gate": "NOT_RUN",
+        "dependency_cuts": "before forwarding and after backend 200, before client response",
+        "full_ot_01_08_matrix": "NOT_RUN",
+        "late_forward_after_process_death": "NOT_RUN; pre-forward cuts explicitly abort",
+        "warm_quarantine": "existing_unit_only; not measured by these cold cases"
+      },
+      "schema_modes": 2,
+      "schema_original_acks": 12,
+      "schema_original_replays": 12,
+      "status": "passed",
+      "execution": {
+        "network-actual": {
+          "command_id": "native/network-actual",
+          "exit_code": 0
+        }
+      },
+      "oracle_mode": "built-in original contract observation checks; no separate oracle process",
+      "standalone_negative_oracle_command": "NOT_RUN",
+      "raw_artifact_group": "network"
+    },
+    "retained_result": {
+      "cases": 12,
+      "entrypoint_checks": 72,
+      "entrypoints": [
+        "lookup_identity",
+        "cancel_identity",
+        "activate",
+        "activate_session",
+        "session_open",
+        "query"
+      ],
+      "original_acks": 30,
+      "status": "passed",
+      "execution": {
+        "retained-actual": {
+          "command_id": "native/retained-actual",
+          "exit_code": 0
+        }
+      },
+      "oracle_mode": "built-in original retained-result/entrypoint checks; no separate oracle process",
+      "standalone_negative_oracle_command": "NOT_RUN",
+      "raw_artifact_group": "retained"
+    },
+    "lifecycle": {
+      "ack_identities": 30,
+      "ack_mismatches": 0,
+      "ack_responses": 78,
+      "aws_endpoint_gate": "NOT_RUN",
+      "cancellation_identities": 12,
+      "cancellation_proof_observations": 34,
+      "checked_cases": 12,
+      "closed_lookup_checks": 1,
+      "committed_observations_before_execute_ack": 1,
+      "deleted_access_checks": 40,
+      "execute_responses": 122,
+      "inputs": 56,
+      "planned_cases": 12,
+      "production_slo_passed": false,
+      "resolved_without_execute_ack_identities": 0,
+      "resolved_without_execute_ack_observations": 0,
+      "retired_lookup_checks": 11,
+      "revoked_access_checks": 4,
+      "status": "passed",
+      "unit_coverage_contribution": false,
+      "execution": {
+        "lifecycle-actual": {
+          "command_id": "native/lifecycle-actual",
+          "exit_code": 0
+        },
+        "lifecycle-oracle": {
+          "command_id": "native/lifecycle-oracle",
+          "exit_code": 0
+        }
+      },
+      "standalone_negative_oracle_command": "NOT_RUN; fixture units are recorded separately",
+      "raw_artifact_group": "lifecycle"
+    },
+    "catalogue": {
+      "ack_responses": 1000,
+      "aws_endpoint_gate": "NOT_RUN",
+      "checked_cases": 116,
+      "complete_responses": 2791,
+      "descriptor_ack_identities": 133,
+      "explicit_lost_unknown": 153,
+      "invoked_calls": 2944,
+      "mismatch_count": 0,
+      "oracle_sha256": "f574823793b793ba8b4799fa27c2251f12ca8eeff28161d88f3effa6e65ec351",
+      "pilot_profiles": 6,
+      "production_slo_passed": false,
+      "put_cut_cases": 78,
+      "saved_catalogue_intents": 939,
+      "sql_ack_identities": 108,
+      "sql_inputs": 109,
+      "status": "passed",
+      "structural_cases": 32,
+      "unit_coverage_contribution": false,
+      "wire_reader_sha256": "28186c3ffad25121a218277ec85fcd00c3085dc78d5f50ffb35ec6b5b1fbaede",
+      "execution": {
+        "catalogue-actual": {
+          "command_id": "native/catalogue-actual",
+          "exit_code": 0
+        },
+        "catalogue-oracle": {
+          "command_id": "native/catalogue-oracle",
+          "exit_code": 0
+        }
+      },
+      "standalone_negative_oracle_command": "NOT_RUN; fixture units are recorded separately",
+      "raw_artifact_group": "catalogue"
+    },
+    "listing": {
+      "status": "passed",
+      "scope": "N2-A-storage-port-only",
+      "calls": 174,
+      "list_calls": 34,
+      "complete_inventory_scans": 3,
+      "negative_controls": 21,
+      "audit_negative_controls": 5,
+      "observed_online_non_snapshot": true,
+      "execution": {
+        "listing-actual": {
+          "command_id": "native/listing-actual",
+          "exit_code": 0
+        }
+      },
+      "oracle_and_five_audit_controls_execution": "in the same listing-actual process; enclosing exit code 0, no separate exit code",
+      "transport_negative_controls": 21,
+      "list_max_keys": 32,
+      "raw_artifact_group": "listing"
+    },
+    "bounded_response": {
+      "status": "passed",
+      "scope": "storage-port-development-contract",
+      "auxiliary_response_limit": 65536,
+      "max_successful_get_bytes": 1024,
+      "case_count": 8,
+      "case_names": [
+        "get_large_404",
+        "get_small_404",
+        "get_stream_500",
+        "get_success_large",
+        "put_accepted_500",
+        "put_large_412",
+        "put_small_412",
+        "put_success_large"
+      ],
+      "negative_controls": [
+        {
+          "name": "unbounded_error_was_consumed",
+          "rejected": true
+        },
+        {
+          "name": "accepted_put_misreported_local_limit",
+          "rejected": true
+        },
+        {
+          "name": "accepted_put_misreported_conflict",
+          "rejected": true
+        },
+        {
+          "name": "exact_readback_changed",
+          "rejected": true
+        },
+        {
+          "name": "missing_kernel_wait4",
+          "rejected": true
+        }
+      ],
+      "execution": {
+        "response-actual": {
+          "command_id": "native/response-actual",
+          "exit_code": 0
+        },
+        "response-oracle-controls": {
+          "command_id": "native/response-oracle-controls",
+          "exit_code": 0
+        }
+      },
+      "oracle_and_controls_share_one_invocation": true,
+      "raw_artifact_group": "response"
+    },
+    "discovery": {
+      "aws_standard_contract": "NOT_RUN",
+      "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+      "deployment": 1469555741263765293,
+      "full_byte_objects": 154,
+      "list_pages": 1480,
+      "original_ack_count": 11,
+      "original_inputs": 13,
+      "processes": 62,
+      "production_throughput_slo": "NOT_RUN",
+      "signed_s3_requests": 4085,
+      "status": "passed",
+      "verification_scope": "full",
+      "profile_names": [
+        "admin_without_read",
+        "complete",
+        "interrupted",
+        "missing_reader",
+        "missing_retained_result"
+      ],
+      "input_outcomes": {
+        "cancelled": 1,
+        "deleted_barrier": 1,
+        "retained_ack": 8,
+        "retained_committed_without_native_ack": 1,
+        "retired_barrier": 2
+      },
+      "negative_control_count": 23,
+      "positive_control_count": 1,
+      "controls_originals_unchanged": true,
+      "execution": {
+        "discovery-actual": {
+          "command_id": "native/discovery-actual",
+          "exit_code": 0
+        },
+        "discovery-oracle": {
+          "command_id": "native/discovery-oracle",
+          "exit_code": 0
+        },
+        "discovery-controls": {
+          "command_id": "native/discovery-controls",
+          "exit_code": 0
+        }
+      },
+      "raw_artifact_group": "discovery"
+    }
+  },
+  "capacity_gib1": {
+    "status": "PASSED",
+    "profile": "gib1",
+    "diagnostic": false,
+    "execution": {
+      "gib1-actual": {
+        "command_id": "gib1/gib1-actual",
+        "exit_code": 0
+      },
+      "independent-raw-oracle": {
+        "command_id": "gib1/independent-raw-oracle",
+        "exit_code": 0
+      }
+    },
+    "fixed_payload_bytes": 1073741824,
+    "blob_bytes": 65536,
+    "independently_generated_blob_count": 16384,
+    "complete_blob_bytes_audited": 1073741824,
+    "blob_mismatches": 0,
+    "original_input_count": 39,
+    "original_result_ledger_entries": 39,
+    "original_execute_ack_count": 38,
+    "original_execute_unknown_count": 1,
+    "unknown_resolved_by_original_lookup": 1,
+    "cold_original_lookup_count": 39,
+    "legacy_summary_ack_audited_count": 39,
+    "ledger_count_meaning": "39 is 38 execute ACKs plus the original committed result resolved after one UNKNOWN; it is not 39 execute ACKs.",
+    "receipt_and_full_original_result_mismatches": 0,
+    "budgets": {
+      "operation_ms": 30000,
+      "recovery_ms": 1800000,
+      "bulk_rows": 512,
+      "maximum_bulk_payload_bytes": 33554432,
+      "query_batch_rows": 64,
+      "default_quota_bytes": 10737418240
+    },
+    "default_options_unchanged": true,
+    "compute_and_local_cache_loss": true,
+    "backend_process_restart": true,
+    "os_page_cache_cleared": false,
+    "device_power_loss_or_cross_az": "NOT_RUN",
+    "independent_oracle": {
+      "status": "PASS_INDEPENDENT_GIB1_RAW_AUDIT",
+      "auditor_sha256": "8268250758bd294ce4342c775585394ddd38ecf97c19adb2e2db742f0768b9d6",
+      "independent_sqlite": {
+        "blob_hashes_matched": 16384,
+        "image_bytes": 1082163200,
+        "image_sha256": "1e139cf363a97d3a4b07225f75118a2d26e089fa7f014da4a974111243ba3019",
+        "integrity": "ok",
+        "version": "3.53.1"
+      },
+      "original_files_unchanged": true,
+      "negative_control_count": 5,
+      "negative_controls": [
+        {
+          "case": "missing_result",
+          "expected_guard": "all-39-original-results",
+          "observed_guard": "all-39-original-results"
+        },
+        {
+          "case": "recovered_result",
+          "expected_guard": "recovered-original-result",
+          "observed_guard": "recovered-original-result"
+        },
+        {
+          "case": "blob_hash",
+          "expected_guard": "every-original-blob-hash",
+          "observed_guard": "every-original-blob-hash"
+        },
+        {
+          "case": "missing_exit",
+          "expected_guard": "all-owned-compute-exits",
+          "observed_guard": "all-owned-compute-exits"
+        },
+        {
+          "case": "unknown_relabelled",
+          "expected_guard": "original-unknown-preserved",
+          "observed_guard": "original-unknown-preserved"
+        }
+      ],
+      "controls_execution": "same independent-raw-oracle invocation, exit code 0",
+      "native_image_access": "SQLite mode=ro&immutable=1; integrity_check=ok; every BLOB rehashed against original pre-invocation input ledger; image hash unchanged",
+      "bulk_sql_fingerprint_recomputation": "NOT_CLAIMED; deleted batch payload files are not recreated. The saved original Request, receipt/result frame and every recovered BLOB are checked.",
+      "actual_http_requests": 34862
+    },
+    "point_1gib_contract": {
+      "logical_changed_payload_bytes": 65536,
+      "get_body_bytes_exclusive_upper_bound": 8388608,
+      "put_body_bytes_exclusive_upper_bound": 8388608,
+      "get_requests_exclusive_upper_bound": 512,
+      "put_requests_exclusive_upper_bound": 64,
+      "measurements": {
+        "beginning": {
+          "get_requests": 16,
+          "get_response_bytes": 593259,
+          "put_request_bytes": 292862,
+          "put_requests": 8
+        },
+        "end": {
+          "get_requests": 18,
+          "get_response_bytes": 635119,
+          "put_request_bytes": 313538,
+          "put_requests": 9
+        },
+        "middle": {
+          "get_requests": 18,
+          "get_response_bytes": 856559,
+          "put_request_bytes": 424385,
+          "put_requests": 9
+        }
+      },
+      "meaning": "bounded transfer observations for fixed mutations; not a latency, throughput or AWS cost SLO"
+    },
+    "hot_cache_head_blackhole_elapsed_seconds": 0.20254204099910567,
+    "temporary_directory_adjustment": {
+      "environment_variable": "TMPDIR",
+      "value": "/workspace/scratch/bccab55c9ca3/scap-capacity-private-3b1d50c-01",
+      "reason": "fresh workspace-backed private directory with adequate space; no fixed profile or guard was reduced",
+      "initial_free_bytes": 47897776128,
+      "minimum_free_guard_bytes": 4294967296,
+      "guard_changed": false
+    },
+    "resource_observations": {
+      "samples": 1704,
+      "errors": [],
+      "minimum_filesystem_free_bytes": 44499214336,
+      "worker_self_procfs_hwm_bytes": {
+        "1": 149622784,
+        "2": 79278080,
+        "3": 83554304
+      },
+      "worker_kernel_wait4_maxrss_bytes": {
+        "worker-1": 148938752,
+        "worker-2": 78884864,
+        "worker-3": 83238912
+      },
+      "owned_wait4_count": 11,
+      "owned_compute_incarnations": 3,
+      "owned_backend_incarnations": 8,
+      "rss_values_are_observations_not_hard_limits": true,
+      "shared_cgroup_memory_is_not_worker_rss": true,
+      "global_rss_or_disk_hard_limit": "NOT_CLAIMED"
+    },
+    "disk_observations": [
+      {
+        "backend": {
+          "allocated_bytes": 1109291008,
+          "files": 93,
+          "logical_bytes": 1109016519
+        },
+        "compute": {
+          "allocated_bytes": 1082261504,
+          "files": 3,
+          "logical_bytes": 1082261504
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082163200,
+            "directory": "writer-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "before_compute_loss"
+      },
+      {
+        "backend": {
+          "allocated_bytes": 1107193856,
+          "files": 109,
+          "logical_bytes": 1106861665
+        },
+        "compute": {
+          "allocated_bytes": 1082200064,
+          "files": 3,
+          "logical_bytes": 1082195968
+        },
+        "database_files": [
+          {
+            "allocated_bytes": 1082167296,
+            "directory": "recovered-cache",
+            "logical_bytes": 1082163200
+          }
+        ],
+        "stage": "after_s3_only_recovery"
+      }
+    ],
+    "full_initial_materialization": true,
+    "lazy_database_reads": false,
+    "gc_enabled": false,
+    "raw_artifact_group": "gib1"
+  },
+  "boundaries": {
+    "aws_standard": "NOT_RUN",
+    "capacity_gc": "DISABLED_IN_FIXED_PROFILE",
+    "default_quota_10gib_profile": "NOT_RUN",
+    "lazy_vfs": "NOT_IMPLEMENTED; cold full materialization",
+    "production_slo": "NOT_RUN",
+    "global_memory_or_disk_hard_limit": "NOT_CLAIMED",
+    "production_deployment": "NOT_RUN",
+    "long_running_multi_tenant_fairness": "NOT_RUN",
+    "device_power_loss": "NOT_RUN",
+    "cross_az_durability": "NOT_RUN",
+    "sustained_throughput_or_cost_slo": "NOT_RUN",
+    "native_unit_coverage_contribution": false,
+    "head_format_scope": "ordinary default HEAD6 and its original profiles; owner/snapshot upgrades are separate runtime evidence",
+    "later_candidate_reuse": "requires explicit unchanged build/fixture input review; this file records the actual frozen 3b candidate only"
+  },
+  "raw_evidence_root": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-native-regression-01",
+  "references": {
+    "machine-summary.json": {
+      "path": "machine-summary.json",
+      "bytes": 62225,
+      "sha256": "ccafc1796d2c4055ef5387e5451484d612b4c10d8eeb44eccb2ab2138bf2e72f"
+    },
+    "commands.json": {
+      "path": "commands.json",
+      "bytes": 18949,
+      "sha256": "577171785fb5eddf31e4b39cd82af32a29b0527f62b668c4057c3916aa404518"
+    },
+    "source.json": {
+      "path": "source.json",
+      "bytes": 186665,
+      "sha256": "e65ab9b3e25b24a5cf96835b01f7a3a473398cd7c7a487d6cfd568a167c55053"
+    },
+    "receipt-input-equivalence.json": {
+      "path": "receipt-input-equivalence.json",
+      "bytes": 128113,
+      "sha256": "25726440e12a369ba2ce891412e28c326aea035bb0d036b6362cc14daa7bb14f"
+    },
+    "validation-summary.json": {
+      "path": "validation-summary.json",
+      "bytes": 20713,
+      "sha256": "1cb18a36c55a73ecabd6f0b8d74eafd0df94b73d41dc5427b8d707424dccf882"
+    },
+    "lifecycle-oracle.stdout": {
+      "path": "lifecycle-oracle.stdout",
+      "bytes": 4503,
+      "sha256": "3c603617e5faaec709ac52f785983c0c4d3878c66aa5530f34daedd46e0d71e8"
+    },
+    "catalogue-oracle.stdout": {
+      "path": "catalogue-oracle.stdout",
+      "bytes": 37077,
+      "sha256": "617f53588f3a75174bc5b7001fdafb85eb3d836cadf206dcff877efed874f8e6"
+    },
+    "discovery-oracle.stdout": {
+      "path": "discovery-oracle.stdout",
+      "bytes": 6161,
+      "sha256": "b21d2d65b44da487d440020d6df927947691ada2b977f82b6ac712100fcdca25"
+    },
+    "discovery-controls.stdout": {
+      "path": "discovery-controls.stdout",
+      "bytes": 200502,
+      "sha256": "cce757ca0140c7684a775fb9d38d8f8d4915759ae067e86b78b40174d205c74d"
+    },
+    "response-oracle-controls.stdout": {
+      "path": "response-oracle-controls.stdout",
+      "bytes": 2869,
+      "sha256": "b51063b50631b9cfbe7a7a06cdf6cd4c685bd2659b29278eb9f1658d1745384d"
+    },
+    "gib1-driver/commands.json": {
+      "path": "gib1-driver/commands.json",
+      "bytes": 3087,
+      "sha256": "d7ce8839a6525cca04c34194284450c2f85e4d0e6f17f7e32220b885a3910d97"
+    },
+    "gib1-driver/source.json": {
+      "path": "gib1-driver/source.json",
+      "bytes": 186665,
+      "sha256": "e65ab9b3e25b24a5cf96835b01f7a3a473398cd7c7a487d6cfd568a167c55053"
+    },
+    "gib1-driver/frozen-plan.json": {
+      "path": "gib1-driver/frozen-plan.json",
+      "bytes": 1293,
+      "sha256": "8773345ab6c1e97608eed0890cde78621f79eff3ea34575ae03f4d5d7648698a"
+    },
+    "gib1-driver/validation-summary.json": {
+      "path": "gib1-driver/validation-summary.json",
+      "bytes": 36360,
+      "sha256": "4356f0171ac2be59ea80fb17460d7ac3bad1da3d77581acdc9e9e0691368d935"
+    },
+    "gib1-driver/independent-raw-oracle.stdout": {
+      "path": "gib1-driver/independent-raw-oracle.stdout",
+      "bytes": 3823,
+      "sha256": "3967d30e3ee7fa676177f48e086c10032b32fe8a3bb7e46a4eb4d8083ca66896"
+    },
+    "run_native_3b1d50c.py": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/run_native_3b1d50c.py",
+      "bytes": 9778,
+      "sha256": "f09ac44e5f89b2ee57fb931506efe4e54282a30f7d637e134193959f65a1e3cd"
+    },
+    "run_gib1_3b1d50c.py": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/run_gib1_3b1d50c.py",
+      "bytes": 5457,
+      "sha256": "0eea95c28569062a2298ebefd87cf4f1daf0733b7b233dcbec474955096a3414"
+    },
+    "audit_capacity_gib1.py": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/audit_capacity_gib1.py",
+      "bytes": 18791,
+      "sha256": "8268250758bd294ce4342c775585394ddd38ecf97c19adb2e2db742f0768b9d6"
+    }
+  },
+  "raw_artifact_hashes": {
+    "network": {
+      "summary.json": "d394591e127f09164465e206481c4f681fac81bf084369e55cda3f2eae0966aa",
+      "history.jsonl": "75b386cf1c263826fa31e18942b87c0804807cae56683fe693e0541b1e53bac3",
+      "ack-ledger.jsonl": "ccd386096beaf0de2954376063d9036bcd5a74fd1a5645671f55d06148ab0892",
+      "fault-input-ledger.jsonl": "1a329ae9a206e7e3ea0d450e311e7eb0bb4734761b0629c9bb2d5b6a3436ff18",
+      "fault-outcome-ledger.jsonl": "938e2a1d8a117971d92227d5bf93bed53b38d2d5e20684f0cdeb91ebdc5d2127",
+      "fault-ack-ledger.jsonl": "3ca4eddc89cf9a97973ccbffcf45be177f53c8ec8aae0d4f703189fe2fd4ac2e",
+      "schema-input-ledger.jsonl": "658b8beaf18d93738cca9eacc7da485d3b923ed61acb06563de62e7cfe08195b",
+      "schema-ack-ledger.jsonl": "499b81f8415fa7cee18062bc5eced9e00e9ee1abcc1689351580be6973eb031f",
+      "schema-audit.jsonl": "e7e64e213b6f0878b68d89adb99080dced78506e34f65b11761309bf7f50d2bc"
+    },
+    "retained": {
+      "summary.json": "abf2de9b36f71e1f893a552f3fabc63128b930a89c6050561a1d2737d1a09a9c",
+      "history.jsonl": "20cab698078b0f0588e41ef1555823f757608810896c1fdcb2499a4af4926be4",
+      "fault-input-ledger.jsonl": "a3f9c083a5f056c078fe4a0211d4257c5091e8a8325f27bd71fc905e1cb9b37e",
+      "fault-outcome-ledger.jsonl": "6e3c1ef2d975454d23df69be890748f3dbee1cbfae75a6bb13a7c093c7b7d517",
+      "fault-ack-ledger.jsonl": "d9093a94b05df0771f2af7bd17a08a547379f8e5bd15dbac51a3ac91181a9598",
+      "fault-cases.jsonl": "9ef4234b226b380e447d210b08a96955c6b01caa1966c7cdb4f859dd64091b5b"
+    },
+    "lifecycle": {
+      "summary.json": "59e63534054e09ded6441a67302ef7dacc38eb2728aaeec39ad6af8faf939eb1",
+      "history.jsonl": "8bd72d0c85489a08e0085e1e14fbd5e1aef292d74bb15a6816e6b819aa225599",
+      "lifecycle-plan.json": "0bc9f33fc844109a58e8b5a1bfb31054a2b7b232243b6667a7463645ed059c28",
+      "lifecycle-input-ledger.jsonl": "426d9c06c3f1876bd3155036417dd2e6317b1bf2f2db9093c1242595ba3f92a0",
+      "lifecycle-client-ledger.jsonl": "f02d97797873f306f4fd799baf307d95074fca454b5009144576b8f35b622a37",
+      "lifecycle-ack-ledger.jsonl": "4297f4204d26c2fa934ec139cadc7571a33d80abf91c0c7b192ad37e90dbe5f3",
+      "lifecycle-facts.jsonl": "1598d4bdbfc4c8498b21241814e215617cf81c2034e35527c43e090f994ad641",
+      "lifecycle-oracle.json": "215a5e89787b9b78fb543922e5eba584d82ca74448feaae4f73c0b2ca13113fc"
+    },
+    "catalogue": {
+      "summary.json": "61cbd2aba28b8ca8ac5c5dd6cc9ade0c7d891806c596717f742a2af777151c26",
+      "history.jsonl": "cda176e4ec38698c198ea3a5dd3107a725a945fffdea437dc39b0f0f5313305e",
+      "catalogue-plan.json": "23107c1a34c86c117b748a2272a4f260cd6a8fbd75469ff90062b4fdde54bb14",
+      "catalogue-cut-plan.json": "4761b94e493252d970ce775183304b66ad006c28ddcc86ece01549b49a186b21",
+      "catalogue-input-ledger.jsonl": "57e9a7a8aeddc75d2e44281d491e07064c6d8a2212502e7fdc5678628f7cfcb3",
+      "catalogue-client-ledger.jsonl": "b19ed7feb484ce5407d09738bb33072adaf0896a76dc452a6de5b36680092379",
+      "catalogue-ack-ledger.jsonl": "4cbf1c0f84556cde50e3d5c58995f136dd14fc9bdba31f2b114fcfebed787fb0",
+      "catalogue-facts.jsonl": "0d0b91b1b4917f4c2626cffc124b48969918f0466f04990aa18b7029a49db2c7",
+      "catalogue-oracle.json": "617f53588f3a75174bc5b7001fdafb85eb3d836cadf206dcff877efed874f8e6"
+    },
+    "listing": {
+      "listing-history.jsonl": "60a733f0490befea3b49ff36335487a247e068b6ec267552a0ed7203a474a9cc",
+      "listing-oracle.json": "aef79015a4c97d5e0c91ebda1c0b744b140d9cf5023d38a05d07280939d0c04a",
+      "listing-audit-negatives.json": "0f38c961ce4a4844227bd828189a6c97c03d38908a37b0b7aa8067f03ca69bb9"
+    },
+    "response": {
+      "response-history.jsonl": "1c427c99ba85ed8d5de34c212f974cc03a7db36f7a03dac1bb199328a6cf8f3f",
+      "response-oracle.json": "b51063b50631b9cfbe7a7a06cdf6cd4c685bd2659b29278eb9f1658d1745384d"
+    },
+    "discovery": {
+      "history.jsonl": "5da872c0b2d72087354219a728efc4a0d46b17aac38b1725fc34ab470b2aeaef",
+      "inputs.jsonl": "8d6331bc9f397b9f1c055eb75d13c2c8fd600a4d989b4c076adeadd904cee4e6",
+      "acks.jsonl": "c002d5f895974fe3b3e5c3b3b7279fe29e6663830260723a8bfd71856effaee8",
+      "calls.jsonl": "06edae651f8c63d0e1d68de8396c34695b67418fcdd0f712b1ec00c19ed07a87",
+      "facts.jsonl": "9339ae016813f6502538ebf0502b8f742fc191ec0f7423921fe237f1649c6f07",
+      "plan.json": "61a121fe231a50e6669ddc70e34016801cd02ff23245edf1ed5057e08c754c8a",
+      "controller-result.json": "b21d2d65b44da487d440020d6df927947691ada2b977f82b6ac712100fcdca25"
+    },
+    "gib1": {
+      "summary.json": "2a4444dbb2c32f5da6d39e37c501b7cec15a4bf810a84dc325be1346e1111f1f",
+      "history.jsonl": "32e90f37204325f03f107ed60e9a723564b60110fc44910c96e0e7bcfaf5edc0",
+      "input-ledger.jsonl": "8ccafa41683bfbfeee5d1ef12b43b7403766bcff2ad3a5830979bcf2a8088526",
+      "ack-ledger.jsonl": "d518e40ada8b97ec5b8f69328ae93dc9ba217be30c86610b2843b71c8969e002",
+      "resource-samples.jsonl": "38b192aad1a4b0aae69faffd3aeb28ed2cd76ac51f3a61d1af69354ffbc30833"
+    }
+  },
+  "original_failure_artifacts_overwritten": false,
+  "raw_logs_databases_credentials_in_this_commit": false,
+  "raw_artifact_hash_path_rule": "Each raw_artifact_hashes[group][filename] is SHA-256 of raw_evidence_root/group/filename. Full lengths and original receipts remain in the referenced artifacts."
+}

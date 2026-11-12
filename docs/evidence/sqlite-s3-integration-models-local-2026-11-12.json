@@ -1,0 +1,522 @@
+{
+  "schema": "scap-sqlite-s3-integration-models-local-v1",
+  "generated_utc": "2026-11-12T05:25:15.417594+00:00",
+  "status": "PASS_LISTED_MODEL_AND_TOOLING_GATES_ONLY",
+  "summary": {
+    "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/summary.json",
+    "bytes": 10449,
+    "sha256": "9a09a24a99dd899b6d9669beb34e33f32be6361eb5b45c516952b85f214e6d8d"
+  },
+  "source_before": {
+    "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/source-before.json",
+    "bytes": 186665,
+    "sha256": "e65ab9b3e25b24a5cf96835b01f7a3a473398cd7c7a487d6cfd568a167c55053"
+  },
+  "source_after_verified": true,
+  "command_exit_codes": {
+    "source-before": 0,
+    "tooling-unit": 0,
+    "tooling-coverage": 0,
+    "tooling-json": 0,
+    "object-authority-model-unit": 0,
+    "object-authority-model-explore": 0,
+    "object-terminal-retirement-model-unit": 0,
+    "object-terminal-retirement-model-explore": 0,
+    "object-owner-plan-model-unit": 0,
+    "object-owner-plan-model-explore": 0,
+    "object-owner-controller-model-unit": 0,
+    "object-owner-controller-model-explore": 0,
+    "object-owner-controller-model-oracle": 0,
+    "object-owner-controller-model-controls": 0,
+    "object-snapshot-restore-model-unit": 0,
+    "object-snapshot-restore-model-explore": 0,
+    "named-catalogue-model": 0,
+    "snapshot-codec-budget": 0,
+    "source-after": 0
+  },
+  "tooling": {
+    "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+    "unit_tests": 74,
+    "coverage_totals": {
+      "covered_lines": 401,
+      "num_statements": 401,
+      "percent_covered": 100.0,
+      "percent_covered_display": "100",
+      "missing_lines": 0,
+      "excluded_lines": 0,
+      "num_branches": 184,
+      "num_partial_branches": 0,
+      "covered_branches": 184,
+      "missing_branches": 0
+    },
+    "files": {
+      "scripts/check_repo.py": {
+        "covered_lines": 133,
+        "num_statements": 133,
+        "percent_covered": 100.0,
+        "percent_covered_display": "100",
+        "missing_lines": 0,
+        "excluded_lines": 0,
+        "num_branches": 52,
+        "num_partial_branches": 0,
+        "covered_branches": 52,
+        "missing_branches": 0
+      },
+      "scripts/check_unit_coverage.py": {
+        "covered_lines": 108,
+        "num_statements": 108,
+        "percent_covered": 100.0,
+        "percent_covered_display": "100",
+        "missing_lines": 0,
+        "excluded_lines": 0,
+        "num_branches": 64,
+        "num_partial_branches": 0,
+        "covered_branches": 64,
+        "missing_branches": 0
+      },
+      "scripts/source_manifest.py": {
+        "covered_lines": 160,
+        "num_statements": 160,
+        "percent_covered": 100.0,
+        "percent_covered_display": "100",
+        "missing_lines": 0,
+        "excluded_lines": 0,
+        "num_branches": 68,
+        "num_partial_branches": 0,
+        "covered_branches": 68,
+        "missing_branches": 0
+      }
+    },
+    "coverage_json": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/tooling.json",
+      "bytes": 24744,
+      "sha256": "6d5d6456294c19e391f4306aa1a8f6acfa165c24e1a4c4578d92d3c8cd02c951"
+    }
+  },
+  "models": {
+    "object-authority-model": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "unit_tests": 121,
+      "unit_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-authority-model-unit.log",
+        "bytes": 17708,
+        "sha256": "63fac4a4a2d887645722cfe2ee4ec589ea2140e7ad6545f05a77b7a54d1e626f"
+      },
+      "fixed_exploration": {
+        "passed": true,
+        "positive_cases": 664,
+        "race_cases": 640,
+        "directed_cases": 24,
+        "negative_controls_rejected": 30,
+        "context_qualified_scheduler_states": 2096,
+        "distinct_scheduler_transitions": 2344,
+        "executed_scheduler_steps": 14928
+      },
+      "exploration_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-authority-model-explore.log",
+        "bytes": 382,
+        "sha256": "120203ba145014a5a20a3746996c91c1695ba54fb3e2b517c519c74d48544ed6"
+      }
+    },
+    "object-terminal-retirement-model": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "unit_tests": 44,
+      "unit_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-terminal-retirement-model-unit.log",
+        "bytes": 6249,
+        "sha256": "3ebc40b94719387b6da1e01457d6a63bf6a9403b84e10484b3145e597be93827"
+      },
+      "fixed_exploration": {
+        "distinct_macro_edges": 3778,
+        "distinct_macro_states": 3697,
+        "elapsed_seconds": 6.972007808000853,
+        "ok": true,
+        "profiles": {
+          "foreign-abort": {
+            "events": 103,
+            "histories": 4
+          },
+          "late-get": {
+            "events": 11772,
+            "histories": 252
+          },
+          "late-head": {
+            "events": 17864,
+            "histories": 392
+          },
+          "late-put": {
+            "events": 11984,
+            "histories": 224
+          },
+          "restart-gc": {
+            "events": 178,
+            "histories": 4
+          },
+          "restart-terminal": {
+            "events": 390,
+            "histories": 16
+          },
+          "terminal-race": {
+            "events": 9280,
+            "histories": 320
+          }
+        },
+        "smoke": false,
+        "total_history_bytes": 29416044
+      },
+      "exploration_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-terminal-retirement-model-explore.log",
+        "bytes": 527,
+        "sha256": "2ff553ceb1d6c3cc9f0623b1edb26f27b0da43e36e50b3518da47f2eff66e14d"
+      }
+    },
+    "object-owner-plan-model": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "unit_tests": 19,
+      "unit_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-owner-plan-model-unit.log",
+        "bytes": 2487,
+        "sha256": "747de6ba551d699f4076f50998be33c45af805a8befd8e85c01c8e19f4f5c29c"
+      },
+      "fixed_exploration": {
+        "aggregate": {
+          "applied": 3019,
+          "caller_unknowns": 848,
+          "calls": 4959,
+          "conflicts": 733,
+          "guards": 10,
+          "late_effects": 17,
+          "native_sql": 5,
+          "proof_readbacks": 17,
+          "recoveries": 1272,
+          "writes": 3752
+        },
+        "aws": "NOT_RUN",
+        "bound_evidence_bytes": 268435456,
+        "bound_seconds": 120,
+        "controller": "NOT_IMPLEMENTED",
+        "diagnostic": false,
+        "elapsed_seconds": 5.393126300999938,
+        "evidence_bytes_before_report": 62527265,
+        "families": {
+          "activate": 3,
+          "cancelling": 1,
+          "claim_cancel": 140,
+          "counter": 4,
+          "crash": 16,
+          "damage": 7,
+          "deleted": 1,
+          "descriptor": 8,
+          "guards": 2,
+          "inspect": 4,
+          "latehttp": 1,
+          "legacy": 3,
+          "limits": 3,
+          "metadata": 6,
+          "preparelost": 8,
+          "proof": 4,
+          "replacement": 4,
+          "reserve": 4,
+          "resume_abort": 252,
+          "sameworker": 1,
+          "sql": 1,
+          "storage": 10,
+          "transition": 2,
+          "two_resume": 504
+        },
+        "native_sqlite_http_s3": "NOT_RUN",
+        "negative_controls": 48,
+        "observed_head_edges": 57,
+        "observed_head_states": 63,
+        "positive_cases": 989,
+        "positive_controls": 3,
+        "production": "NOT_EXECUTED_BY_MODEL",
+        "source_sha256": "cb3bdd47069a88097ccb7407c50613cf445e990de2bf214b62168c8821c8b5b5",
+        "status": "PASSED"
+      },
+      "exploration_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-owner-plan-model-explore.log",
+        "bytes": 1098,
+        "sha256": "00c7fb907a419c5346de96e3c8acbbd6eee10d4c4930430279ff2d45bba62cb5"
+      }
+    },
+    "object-owner-controller-model": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "unit_tests": 19,
+      "unit_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-owner-controller-model-unit.log",
+        "bytes": 2644,
+        "sha256": "f749d5b53bf62257c0050cf2ab6e8f910f505d8873adabe3fcd9fc97b59829f1"
+      },
+      "fixed_exploration": {
+        "aws": "NOT_RUN",
+        "controls": "NOT_RUN",
+        "diagnostic": false,
+        "elapsed_seconds": 7.721359014511108,
+        "evidence_bytes": 146223858,
+        "families": {
+          "activate-current": 1,
+          "authority-change": 3,
+          "bounds": 3,
+          "cancel-then-activate": 1,
+          "counter": 3,
+          "foreign": 4,
+          "healthy": 1,
+          "intervals": 1,
+          "late-claim": 2,
+          "late-prepare": 1,
+          "maintenance": 4,
+          "mode-off": 3,
+          "nondeath": 7,
+          "prepare-race": 360,
+          "rank-exhausted": 1,
+          "restart-pending": 2,
+          "sql-unknown": 1,
+          "window-reset": 4
+        },
+        "independent_oracle": "NOT_RUN",
+        "native_sqlite_http_s3": "NOT_RUN",
+        "negative_controls": 40,
+        "positive_cases": 402,
+        "production_controller": "NOT_EXECUTED",
+        "source_sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114",
+        "status": "GENERATED",
+        "throughput_slo": "NOT_RUN",
+        "unique_raw_histories": 402
+      },
+      "exploration_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-owner-controller-model-explore.log",
+        "bytes": 733,
+        "sha256": "622c107464af702d46d68fe01beb0c881afb2942978d59d1768f9d8dd984aa8e"
+      },
+      "independent_oracle": {
+        "aggregate": {
+          "core_calls": 21577,
+          "core_unknowns": 184,
+          "mutations": 2319,
+          "probe_failures": 5052,
+          "restarts": 1445,
+          "ticks": 6526
+        },
+        "aws": "NOT_RUN",
+        "diagnostic": false,
+        "elapsed_seconds": 5.711179494857788,
+        "native_sqlite_http_s3": "NOT_RUN",
+        "phase": "oracle",
+        "positive_cases": 402,
+        "production_controller": "NOT_EXECUTED",
+        "source_sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114",
+        "status": "PASSED",
+        "throughput_slo": "NOT_RUN",
+        "unique_raw_histories": 402
+      },
+      "independent_controls": {
+        "aws": "NOT_RUN",
+        "diagnostic": false,
+        "elapsed_seconds": 0.21573233604431152,
+        "native_sqlite_http_s3": "NOT_RUN",
+        "negative_controls": 40,
+        "phase": "controls",
+        "positive_controls": 3,
+        "production_controller": "NOT_EXECUTED",
+        "source_sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114",
+        "status": "PASSED",
+        "throughput_slo": "NOT_RUN"
+      }
+    },
+    "object-snapshot-restore-model": {
+      "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+      "unit_tests": 35,
+      "unit_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-snapshot-restore-model-unit.log",
+        "bytes": 4956,
+        "sha256": "dc17206ca5ca84cd3d3460778421a825127deaaa5832fbadb8c147d4279dc937"
+      },
+      "fixed_exploration": {
+        "active_case": null,
+        "diagnostic": false,
+        "error": null,
+        "negatives": 47,
+        "positives": 804,
+        "seconds": 9.88331603900042,
+        "status": "PASS"
+      },
+      "exploration_log": {
+        "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/object-snapshot-restore-model-explore.log",
+        "bytes": 140,
+        "sha256": "27f0d3211dd4463ebf0e2fd054506ccf884b76d8a211b71e24d337ec593957e0"
+      },
+      "scope": "Preserved earlier 804/47 run; superseded for current completion authorization by the separate 6784258 run below."
+    }
+  },
+  "named_catalogue": {
+    "source_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+    "report": {
+      "accepted": true,
+      "counts": {
+        "directed_histories": 85,
+        "executed_commands": 31897,
+        "negative_histories": 25,
+        "negative_recorded_events": 1722,
+        "observed_edges": 31897,
+        "observed_scheduler_states": 32766,
+        "observed_storage_states": 203,
+        "positive_histories": 885,
+        "positive_recorded_events": 61043,
+        "race_histories": 800,
+        "rejected_negatives": 25
+      },
+      "exclusions": [
+        "production Rust and SDK",
+        "S3/AWS contract",
+        "SQLite/data closure beyond symbolic empty root",
+        "production identity hash/format",
+        "credential revocation races",
+        "all within-prepare GET interleavings",
+        "timeout returned before later storage effect",
+        "business reply queued across compute crash",
+        "complete rejection-reason/nonterminal-status classification",
+        "unbounded liveness",
+        "LIST/full inventory",
+        "GC/PITR"
+      ],
+      "failures": [],
+      "python": "3.12.14",
+      "scope": {
+        "actors_per_race": 2,
+        "actual_max_attempts": 17,
+        "actual_max_events": 146,
+        "actual_max_records": 11,
+        "candidates_per_race": 2,
+        "distinct_create_intents_per_history_at_most": 3,
+        "limits": {
+          "max_attempts": 64,
+          "max_events": 1024,
+          "max_pending": 8,
+          "max_records": 32,
+          "max_revision": 31
+        },
+        "linear_extensions_per_race": 20,
+        "names_per_history": 1,
+        "network_phases": [
+          "invoke",
+          "effect",
+          "receive"
+        ],
+        "network_steps_per_race": 6,
+        "note": "All 20 linear extensions of two prepared 3-phase chains; separate directed cuts. Not arbitrary-state exhaustive exploration.",
+        "races": [
+          "double_descriptor",
+          "double_create",
+          "same_intent_provision",
+          "bind_abort",
+          "late_provision_absent_cancel",
+          "same_intent_abort",
+          "same_intent_complete",
+          "two_deletes",
+          "same_abort_descriptor",
+          "changed_abort_descriptor"
+        ],
+        "response_variants": [
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            true
+          ],
+          [
+            true,
+            false
+          ],
+          [
+            true,
+            true
+          ]
+        ]
+      },
+      "source_sha256": {
+        "README.md": "572e4a5862db471b8afa4ae90b8334d0e3bd53c38239815a6b2500b04c16257e",
+        "named_catalogue_model.py": "541b95172ccabb04c98a103e054766e10a92a1cc40faef51dbbf05a378418497",
+        "named_catalogue_oracle.py": "0e57994f1e398df0347c5e7927873e8fe7dfd906956b0bef182a3f3382e52bff",
+        "test_named_catalogue_model.py": "66592f79e07d3df678b60c4d6f1abe3e322e12dc478d81c64584bf84a468d04a",
+        "test_named_catalogue_oracle.py": "87d05030f4fd5e7795e5b13d2eb903842a39c96fe27a575227e4b64a19dac22c"
+      }
+    },
+    "log": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/named-catalogue-model.log",
+      "bytes": 2652,
+      "sha256": "8e39e56d114e0c403ebe419b91c98fe1c230d45fbf5c1bb4f6554d4e1d13d9b9"
+    }
+  },
+  "head_codec_size_bound": {
+    "report": {
+      "bytes": {
+        "all_optional_upper_bound_not_valid_head": 242467,
+        "live_copy": 164934,
+        "live_sweep": 199324,
+        "terminal_sweep": 157799
+      },
+      "head_cap": 262144,
+      "minimum_margin": 19677,
+      "source_bounds": {
+        "etag_bytes": 1024,
+        "hash_ascii_bytes": 64,
+        "label_utf8_bytes": 128,
+        "policy": 1024,
+        "snapshots": 64,
+        "sweep_entries": 32,
+        "u64_decimal_bytes": 20,
+        "windows": 3
+      },
+      "warning": "Proposal field-size bound; exact Rust codec/schema gates remain NOT_RUN."
+    },
+    "log": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-model-tooling-01/snapshot-codec-budget.log",
+      "bytes": 513,
+      "sha256": "2458fee0fa96d253ed447583dbf8ba8dc6c44089892dddac7662c7d7856b1cd4"
+    }
+  },
+  "current_snapshot_restore_model": {
+    "source_commit": "6784258970f06681c8c69473bd3211bc7a933b04",
+    "unit_tests": 38,
+    "report": {
+      "active_case": null,
+      "diagnostic": false,
+      "error": null,
+      "negatives": 48,
+      "positives": 804,
+      "seconds": 10.312429240999336,
+      "status": "PASS"
+    },
+    "summary": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/6784258-snapshot-model-01/summary.json",
+      "bytes": 2461,
+      "sha256": "430d3da5e94929fd13217483e08d3c32590f5f404e643d8e912237d7785287ee"
+    },
+    "source_before": {
+      "path": "/workspace/scratch/bccab55c9ca3/scap-review/validation/6784258-snapshot-model-01/source-before.json",
+      "bytes": 186930,
+      "sha256": "a2cae4a2d118aa2dc42906f98feebda4fd859925b12551df7545cc5cd69a1354"
+    },
+    "source_after_verified": true,
+    "command_exit_codes": {
+      "source-before": 0,
+      "units": 0,
+      "full-model": 0,
+      "repo-check": 0,
+      "source-after": 0
+    },
+    "change": "Both completion barrier HEAD reads authorize current ADMIN+READ before metadata or conflict classification; revoked prefixes cannot be resumed.",
+    "production_s2_restore": "NOT_IMPLEMENTED"
+  },
+  "limits": {
+    "models_execute_production_database": false,
+    "native_http_s3": "NOT_EXECUTED_BY_MODELS",
+    "aws": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "arbitrary_state_exhaustiveness": "NOT_CLAIMED",
+    "s2_product_validation": "NOT_RUN"
+  }
+}
