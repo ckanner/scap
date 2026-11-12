@@ -1,14 +1,15 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-复核日期：2026-11-11。已合入 main 的基准是 HEAD7
+状态更新：2026-11-12。该组合的主线基准是 HEAD7
 [`fab8ca0`](https://github.com/ckanner/scap/commit/fab8ca09aa05fdaf612cdcf47a9fce8e65373896)。
 [PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 纳入 #56 `1d709db`、
 #57 `df922b95` 和 #58 `4216523` 的 owner plan、有限 controller 与 HEAD9 S1 实现。
 本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，不另建 HEAD、请求身份、
 所有权或 GC 协议。“实现存在”“原候选已验证”“新组合通过”是三个不同结论；
-本组合已新执行Rust完整单位门禁、SDK/类型、owner/controller/S1快照实际合同及固定负载，
+本组合已新执行Rust完整单位门禁、SDK/类型、owner/controller/S1实际、固定负载、
+native／固定1 GiB及固定12场景controller矩阵，
 冻结来源、精确结果与原失败见[组合验收](../engineering/sqlite-s3-integration-validation.md)。
-这些具体本地合同不等于完整故障矩阵、AWS或生产SLO。各层仍按
+这些固定本地合同不等于动态HA、AWS或生产SLO。各层仍按
 [验证规范](../engineering/validation.md)分别记录，历史结果不自动继承。
 
 ## 1. 要完成的目标与现在的结论
@@ -20,7 +21,8 @@ SCAP 的目标是：大量独立租户／Agent 数据库共享计算资源，以
 **当前架构避开了跨主机共享 SQLite 活动文件的锁风险；它没有消除单库串行提交、
 对象往返、整库冷恢复和共享资源的成本。HEAD6 的完整复制与有界物理 GC、HEAD7 的
 Deleted 最后一代显式退休已经合入 main。PR #59中的HEAD8接管、有限controller和
-S1保留快照已完成本次列出的本地实际合同；完整HA矩阵、S2恢复、PITR及生产性能目标
+S1保留快照及固定12场景controller矩阵已完成所列本地合同；动态fleet、身份分配、
+S2恢复、PITR、硬资源边界及生产性能目标
 仍未完成。**
 历史已合入证据见[HEAD7 验收](../engineering/head7-runtime-validation.md)，接管增量见
 [HEAD8 验收](../engineering/head8-owner-plan-validation.md)，快照设计见
@@ -29,7 +31,7 @@ S1保留快照已完成本次列出的本地实际合同；完整HA矩阵、S2�
 | 用户关心的问题 | 当前代码的处理 | 仍有的边界 |
 | --- | --- | --- |
 | NFS/EFS 上共享 `.db/WAL/SHM` 损坏 | 私有本地执行镜像；文件系统准入；跨节点只通过对象 API 协调 | 可靠本地 I/O、可信挂载和固定 native 引擎仍是前提；真实网络挂载实验另验 |
-| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive；HEAD8 候选持久保存接管计划及取消证明 | 探测和调度不决定写权；进程 worker identity 不复用仍依赖部署；controller 多实例真实故障验收未完成 |
+| 旧容器未退出，新容器已经接管 | 同一个 HEAD 的原 ETag CAS；takeover 推进 owner epoch 并先置 inactive；HEAD8 候选持久保存接管计划及取消证明 | 探测和调度不决定写权；进程 worker identity 不复用仍依赖部署；固定多controller矩阵通过，动态fleet和真实部署故障域另验 |
 | 一个热点数据库写入拥堵 | 同库 actor 串行，事务有界，支持一次事务多个 SQL 语句 | 加 pod 不会自动增加该库的有效 writer；没有多写者或 group commit |
 | 一个冷库阻塞其他热库 | 不同库有界 actor，控制池和恢复准入分别设置 | CPU、网络、S3、磁盘、进程资源仍共享；不是硬租户隔离 |
 | 小改动上传整库 | 128 KiB chunk、COW 数据树和分段请求索引 | 仍有多个顺序 GET/PUT、read-back 与 HEAD CAS |
@@ -160,8 +162,26 @@ Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD�
 [`OwnerClient`](../../sdk/node/src/owner.js) 的恢复意图仅供 inspect；新的只读 guarded probe
 验证接收 worker 数值，不产生自动接管权。候选 `OwnerPlanClient` 只推进受 HEAD 接受的
 固定计划；`OwnerController` 在有界策略内调用它，仍复用 HEAD 权威。其代码与独立模型
-已存在；本次生产CLI/native/S3固定故障历史及15负控通过，原HTTP成功独立证明后再与
-CLI报告核对。多controller竞争和完整故障矩阵仍待验收，不另建绕过HEAD的分布式锁。
+已存在；原生产CLI/native/S3合同与15负控继续保留，新增固定12场景实际、独立oracle
+和31项定向负控通过。原HTTP/S3独立证明成功或阻断，再与CLI报告核对。
+
+### 3.4 固定controller矩阵的证明范围
+
+冻结夹具 `e64eb56` 完成23项自测（21项oracle、2项真实HTTP loopback）、12项实际
+场景和31项负控。runtime仍为 `fc10287`，277项release输入相同；每个Node入口与57项
+SDK/codec/观察器运行源码输入绑定原manifest/tar、实际路径及摘要。旧 `73a7140` 结果、
+源码绑定审计缺口与启动失败均保留，新完整历史另行重跑，见
+[矩阵机器记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
+
+矩阵覆盖同策略竞争、其他policy/creator及人工marker阻断、Claimed取消、Cancelling
+重启、原owner仍健康、撤权、目标误绑、真实429/413、S3 UNKNOWN、probe超时、停机和
+迟到原CAS；普通与恢复操作沿用各自固定期限。20个controller、108个受管scapd/Node
+子进程、586 HTTP（363 controller）、1914 S3、24 ACK+12 UNKNOWN、36原lookup与12个
+快照分别核对。这些分母不作为吞吐，也不推定逐进程逐tick的完整wire归属。
+
+固定策略、地址、5秒tick和至少3次间隔失败仍是前提。动态fleet、在线策略、持久实例
+身份、硬RSS/磁盘和生产SLO未交付。当前执行环境不可用，HEAD6完整负控与终态合同
+未完成，PR保持Draft；准确状态见[本批门禁](../engineering/roadmap.md#本批合入门禁)。
 
 ## 4. 单库与多库的吞吐分别设计
 
@@ -345,9 +365,9 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 | 工作包 | 当前起点 | 下一交付与退出标准 |
 | --- | --- | --- |
-| 当前候选组合 | HEAD6/HEAD7已合入；PR #59组合owner/controller/S1，原候选证据保留 | 新783+783 Rust单位、67文件精确覆盖、SDK/类型及owner/controller/S1/固定负载局部实际合同通过；补齐完整受影响历史矩阵后再判断合入，不混用旧结果 |
+| 当前候选组合 | HEAD6/HEAD7已合入；PR #59组合owner/controller/S1，原候选证据保留 | 新Rust/SDK单位与精确覆盖、owner/S1、native/1 GiB、固定12场景controller及服务短合同通过；环境不可用，剩HEAD6完整负控与终态门禁 |
 | N1 权威合同 | 已有提交 gate、结果查证、取消、接管及多轮本地恢复证据 | 完整 OT-01–08、真实 AWS Standard 合同和独立并发历史审计；同 ETag 双发布、所有切点崩溃、迟到旧 owner、依赖损坏与全计算丢失分别验收 |
-| N2 自动恢复 | HEAD8持久owner-plan、有限controller/fleet/CLI；本次真实重启接管、丢响应、原结果及S1保留合同与15负控通过 | 多controller竞争、动态fleet及完整故障检测/取消矩阵；实例identity分配仍是部署前提，不能重放业务SQL |
+| N2 自动恢复 | HEAD8持久owner-plan、有限controller/fleet/CLI；本次真实重启接管、丢响应、原结果及S1保留合同与15负控通过 | 固定多controller矩阵/31负控通过；动态fleet、在线策略和持久identity分配另验，不能重放业务SQL |
 | N2 资源与活性 | actor、intake、单次预算、HTTP期限和普通/v1 output Pool；本次固定单库/多库及32 MiB冷恢复合同通过 | 对当前写入尾延迟按阶段测量并减少对象请求；补跨入口decode/native heap/磁盘总账、持续过载、唤醒风暴和租户公平性 |
 | N3 可持续存储 | HEAD6 copy/promote/持久 sweep 和 HEAD7 Deleted 永久终态退休均已完成对应本地验收并合入 | 在全部保留根、旧操作与迟到 PUT 的真实历史中验证回收；长期成本统计包括永久控制元数据，不把一轮清空当作永久无孤儿 |
 | N3 快照与 PITR | HEAD9 S1 capture/release、多根COPY/GC；本组合783+783单位及67文件覆盖、S1实际/10负控通过；原804/47+3模型证据另存 | 实现S2新Scope恢复、新权限/请求空间及目录完成协议；任意时间PITR另设计；不得把S1保留根当完整restore产品 |
@@ -355,7 +375,8 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability
 本身不足以授权删除。guarded probe 不是自动 HA；普通 `/v1` output Pool 不是全进程
-RSS 上限。该池已在历史候选完成对应实际合同；本轮未重跑完整输出池专项，适用入口与边界见
+RSS 上限。本轮输出池、response expiry与资源专项已通过原固定合同；跨入口资源总账和
+全进程硬隔离仍需完成，适用入口与边界见
 [输出池设计与证据](v1-output-pool.md)。
 
 普通操作的回收路线继续采用既定的可中止世代方案，不默认加入不可撤销永久 pin。

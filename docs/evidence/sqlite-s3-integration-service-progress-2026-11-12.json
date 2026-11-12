@@ -1,0 +1,350 @@
+{
+  "schema": "scap-sqlite-s3-integration-service-progress-v1",
+  "observed_date_utc": "2026-11-12",
+  "status": "PARTIAL_ENVIRONMENT_UNAVAILABLE_NOT_MERGE_READY",
+  "purpose": "Progress and interruption snapshot, not the missing final service gate report. Raw original evidence is external to Git.",
+  "source": {
+    "fixture_commit": "3b1d50c9873fdac97242256930c5afcc374a20e7",
+    "fixture_tree": "2c1a9177d9711fb16d8357419d9b66ee11ae67de",
+    "runtime_commit": "fc102872bf4c8687ade1098c13e5abded8853497",
+    "service_release_inputs": 277,
+    "native_release_inputs": 183,
+    "resource_and_gc_builds": "Separate builds at the clean 3b1d50c source, each preserving its original 703-input receipt; not relabelled as a build from a later document head.",
+    "fixture_source_sha256": "097e5fe2e8b4e49680ba768de439cc6c872c1e73522bec2a3b1d30d2396c6bfd",
+    "tracked_source_files": 703
+  },
+  "evidence_root_at_interruption": "/workspace/scratch/bccab55c9ca3/scap-review/validation/3b1d50c-service-regression-01",
+  "provenance_of_this_snapshot": "Completed phases and counts were read before execution access was lost. This snapshot cannot certify availability of every raw artifact after environment restoration; revalidate originals before reuse.",
+  "completed_prerequisites": {
+    "fixture_python_unit_tests": 405,
+    "node_ledger_tests": 11,
+    "resource_release_and_fmt_clippy": "PASS",
+    "gc_transport_release_and_fmt_clippy": "PASS"
+  },
+  "completed_service_contracts": [
+    {
+      "name": "base HTTP service",
+      "status": "PASS_ORIGINAL_CONTRACT",
+      "actual_seconds": 41.06,
+      "oracle_seconds": 0.513,
+      "http_requests": 105,
+      "s3_requests": 615,
+      "unique_acked_requests": 10,
+      "successful_execute_responses": 18,
+      "unknown_execute_responses": 1,
+      "controls": "NO_SEPARATE_WHOLE_HISTORY_CONTROLS_CLI_IN_ORIGINAL_CONTRACT",
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "bounded transport",
+      "status": "PASS_ORIGINAL_CONTRACT",
+      "actual_seconds": 6.534,
+      "oracle_seconds": 0.041,
+      "cases": 8,
+      "controls": "NO_SEPARATE_WHOLE_HISTORY_CONTROLS_CLI_IN_ORIGINAL_CONTRACT",
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "guarded status",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "actual_seconds": 19.432,
+      "oracle_seconds": 0.165,
+      "controls_seconds": 1.506,
+      "offered_commands": 30,
+      "http_posts": 29,
+      "s3_requests": 46,
+      "sql_identities": 1,
+      "head_publications": 5,
+      "negative_controls": 31,
+      "positive_controls": 1,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "legacy owner",
+      "status": "PASS_AFTER_PRESERVED_DRIVER_ATTEMPTS",
+      "note": "Original failed owner/owner02/owner03 phases remain failed in commands.json. A later distinct controls attempt passed; no old failure is rewritten.",
+      "actual_seconds": 28.118,
+      "oracle_seconds": 1.235,
+      "controls_seconds": 14.292,
+      "original_reaudit_seconds": 1.11,
+      "offered_commands": 70,
+      "accepted_head_publications": 74,
+      "planned_faults": 13,
+      "actual_holds": 9,
+      "lost_successful_responses": 2,
+      "negative_controls": 24,
+      "positive_controls": 1,
+      "original_evidence": "owner-actual03",
+      "controls_evidence": "owner-controls04",
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "catalogue",
+      "status": "PASS_ORIGINAL_ACTUAL_AND_ORACLE",
+      "actual_seconds": 46.602,
+      "oracle_seconds": 0.349,
+      "http_requests": 70,
+      "unique_sql_requests": 3,
+      "successful_sql_responses": 6,
+      "retained_original_results": 4,
+      "controls": "NO_SEPARATE_WHOLE_HISTORY_CONTROLS_CLI_IN_ORIGINAL_CONTRACT",
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "isolation",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "actual_seconds": 25.154,
+      "oracle_seconds": 0.574,
+      "controls_seconds": 5.709,
+      "http_requests": 21,
+      "original_commits": 2,
+      "original_lookups": 2,
+      "successful_queries": 10,
+      "backpressure_responses": 1,
+      "negative_controls": 21,
+      "positive_controls": 1,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "segmented request index",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "identities": 2114,
+      "cancellations": 2112,
+      "negative_controls": 19,
+      "positive_controls": 1,
+      "actual_seconds": 171.046,
+      "oracle_seconds": 19.381,
+      "controls_seconds": 266.108,
+      "sql_acks": 2,
+      "http_requests": 2145,
+      "s3_requests": 21327,
+      "tracked_inputs": 2116,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "service discovery",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "negative_controls": 29,
+      "positive_controls": 1,
+      "entry_with_builtin_audits_seconds": 1229.11,
+      "independent_oracle_seconds": 33.484,
+      "external_controls_seconds": 1002.657,
+      "note": "Full entry includes built-in independent checks; durations are not database performance claims.",
+      "http_requests": 406,
+      "backend_process_window_seconds": 156.889604,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "metadata budget",
+      "status": "PASS_ORIGINAL_CONTRACT_AND_SEMANTIC_CONTROLS",
+      "original_commands": 41,
+      "sql_acks": 6,
+      "semantic_projection_negative_controls": 9,
+      "actual_seconds": 20.916,
+      "oracle_seconds": 0.506,
+      "note": "Nine semantic projection controls, not nine full raw-ledger mutations. Original /tmp contract retained.",
+      "positive_original_copy_controls": 1,
+      "controls_seconds": 1.503,
+      "normal_head_publications": 28,
+      "declared_fault_head_writes": 2,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "output pool",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "http_posts": 18,
+      "negative_controls": 9,
+      "original_baseline_audits": 2,
+      "actual_seconds": 24.479,
+      "oracle_seconds": 2.3,
+      "controls_seconds": 16.099,
+      "business_sql_calls": 1,
+      "s3_requests": 84,
+      "held_responses": 4,
+      "complete_responses": 17,
+      "resets_without_body": 1,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "response expiry",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "http_posts": 11,
+      "negative_controls": 10,
+      "actual_seconds": 33.792,
+      "oracle_seconds": 0.28,
+      "controls_seconds": 2.401,
+      "business_sql_calls": 1,
+      "peer_truncated_responses": 4,
+      "body_drips": 3,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "resource limits",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "http_requests": 25,
+      "s3_requests": 50,
+      "negative_controls": 14,
+      "positive_controls": 1,
+      "actual_seconds": 32.51,
+      "oracle_seconds": 0.546,
+      "controls_seconds": 7.629,
+      "original_execute_calls": 1,
+      "original_unknowns": 1,
+      "backpressure_responses": 3,
+      "transport_holds": 3,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    },
+    {
+      "name": "GC transport",
+      "status": "PASS_ORIGINAL_ACTUAL_ORACLE_CONTROLS",
+      "cases": 42,
+      "signed_product_requests": 115,
+      "independent_object_gets": 136,
+      "negative_controls": 13,
+      "positive_controls": 1,
+      "complete_entry_seconds": 23.017,
+      "owned_children_reaped": 8,
+      "selected_commands_exit_zero": true,
+      "phase_source_after_passed": true
+    }
+  ],
+  "head6": {
+    "actual": {
+      "status": "PASS",
+      "exit_code": 0,
+      "elapsed_seconds": 195.03912105400013,
+      "stdout": {
+        "file": "actual-reclamation-actual.stdout",
+        "sha256": "4e43619f9f4ed9127b7af1084c757728a08435f06edc381a8b9d3548a45a89e5"
+      },
+      "stderr": {
+        "file": "actual-reclamation-actual.stderr",
+        "sha256": "b95aeb386834c2b1b885234a8333b9e9dc17fd25c45036dfe04f3b756f4b1f32"
+      }
+    },
+    "independent_oracle": {
+      "status": "PASS",
+      "exit_code": 0,
+      "elapsed_seconds": 148.97784505000163,
+      "stdout": {
+        "file": "actual-reclamation-oracle.stdout",
+        "sha256": "321a6f7c0100c10c5c2021b6a902c7cb19547d21c2d0b37df7277dfaab2a8701"
+      },
+      "stderr": {
+        "file": "actual-reclamation-oracle.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "observed_counts": {
+      "original_acks": 264,
+      "cold_lookups": 264,
+      "http_posts": 457,
+      "s3_requests": 20296,
+      "main_scope_original_acks": 260
+    },
+    "first_controls": {
+      "status": "NOT_COMPLETED_SESSION_LOST",
+      "expected_negative_controls": 23,
+      "expected_positive_controls": 1,
+      "original_session": 64770,
+      "started_utc": "2026-11-12T05:59:09.074142+00:00",
+      "last_observed_case": "unsealed_publication",
+      "completed_negative_controls_observed_before_interruption": 5,
+      "final_report_present": false,
+      "final_exit_code": "NOT_OBSERVED",
+      "phase_source_after": "NOT_RUN",
+      "partial_results_promoted": false,
+      "original_baseline_and_positive_copy_completed": true
+    },
+    "controls02": {
+      "status": "NOT_STARTED"
+    }
+  },
+  "terminal_retirement": {
+    "status": "NOT_STARTED",
+    "required_negative_controls": 25,
+    "required_positive_controls": 1,
+    "required_stages": [
+      "actual",
+      "independent oracle",
+      "full controls"
+    ]
+  },
+  "execution_interruption": {
+    "observed_errors": [
+      "Unknown process id 64770",
+      "exec-server transport disconnected; failed to resume exec-server session: recovery timed out after 45s"
+    ],
+    "environment_status": "unavailable",
+    "cause": "UNDETERMINED",
+    "observed_disk_free_before_access_loss": {
+      "workspace_gib_approx": 42,
+      "tmp_gib_approx": 4.8
+    },
+    "note": "No observed disk exhaustion. Do not infer a product correctness failure or successful completion from the lost session.",
+    "original_commands_and_partial_directories": "PRESERVED_UNMODIFIED_AS_LAST_OBSERVED",
+    "final_service_gate_summary": "NOT_GENERATED",
+    "final_service_repository_evidence": "NOT_GENERATED",
+    "first_unknown_session_observed_utc_approx": "2026-11-12T06:18:10Z"
+  },
+  "resume_order": [
+    "Restore execution access and inspect whether any prior validation process survives before starting a duplicate.",
+    "Validate source manifests, release receipts and original actual/oracle artifacts; if any required original is missing, rerun its affected gate in a new evidence directory.",
+    "When originals remain complete, rerun all original 23 negative and 1 positive HEAD6 controls in a fresh directory without rerunning business SQL or rewriting the old attempt.",
+    "Run the original terminal actual, independent oracle, 25 negative controls and 1 positive control with unchanged budgets.",
+    "Generate the final service evidence, verify source-after and final affected-input equivalence, then refresh PR head/base and merge only when all scoped local gates pass."
+  ],
+  "limits": {
+    "aws": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "s2_restore": "NOT_IMPLEMENTED",
+    "hard_rss_disk_long_run_cost": "NOT_CLAIMED",
+    "merge_authorization": "Existing maintainer authorization accepts complete local evidence; this partial record does not satisfy that condition."
+  },
+  "known_artifact_sha256": {
+    "service_binary": "d66f5cec11f8ae62d323b000a8a98a0fc7bd137df3120cb98e836829fe3b409a",
+    "service_receipt": "ae3b8c608b4fa5604ae03b1391595df5e00bb68742d3e7db197ce1023845cc56",
+    "native_binary": "840727a0fe503711ae759d68e300eef1e224c668474f7eb3b5471e146376ba70",
+    "native_receipt": "88d24b343f3ab52758084e796f3b6e1308b4fe002b30869e9d2313a73ff22af9",
+    "resource_binary": "2533bfeb6fa06ab37d5cd1525db40f5496bb7a041ddd19d9a8d4125e736c7940",
+    "gc_binary": "022a8d4937278f279e273ba067cd9e6c4198d45d648dd80a56e73fe9949e384e",
+    "gc_original_history": "2c41b57c7ee360b4d761fd7d84cb06f1226eba499a21be5ddc86eeb872f25784",
+    "weed_binary": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  },
+  "preserved_driver_failures": [
+    {
+      "name": "actual-owner-actual",
+      "exit_code": 2,
+      "cause": "External driver passed unsupported --node to original owner CLI; argparse rejected before the actual contract.",
+      "followup": "Removed the external invocation error; Node22 was already fixed by PATH."
+    },
+    {
+      "name": "actual-owner02-actual",
+      "exit_code": 1,
+      "cause": "Actual and cleanup finished but the original oracle required the private runtime under /tmp; workspace evidence parent violated that fixture contract.",
+      "followup": "A fresh owner-actual03 ran the entire original contract under /tmp."
+    },
+    {
+      "name": "actual-owner03-controls",
+      "exit_code": 1,
+      "cause": "Original os.link controls hit EXDEV between /tmp and workspace before negative controls.",
+      "followup": "Fresh owner-controls04 on the same /tmp filesystem completed all 24 negative and 1 positive controls; public archive byte identity was verified."
+    }
+  ],
+  "prepared_but_unexecuted_summary_helpers": [
+    "/workspace/scratch/bccab55c9ca3/scap-review/summarize_service_gates_3b1d50c.py",
+    "/workspace/scratch/bccab55c9ca3/scap-review/assemble_service_repo_evidence_3b1d50c.py"
+  ]
+}

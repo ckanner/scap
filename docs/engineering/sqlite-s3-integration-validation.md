@@ -41,9 +41,10 @@ SDK/类型见[Node机器记录](../evidence/sqlite-s3-integration-node-local-202
 [工具与模型记录](../evidence/sqlite-s3-integration-models-local-2026-11-12.json)和
 [controller矩阵记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
 
-剩余服务组合仍在原冻结 `3b1d50c` 上执行：HTTP、隔离、分段索引、发现、metadata、
+原冻结 `3b1d50c` 的服务回归已完成HTTP、隔离、分段索引、发现、metadata、
 输出池、响应过期、资源和GC transport的实际及指定审计已通过；HEAD6实际和独立oracle
-已通过，其23负控／1正控与终态退休25负控／1正控尚未完成，不预先签发整体PASS。
+已通过，其完整23负控／1正控与终态退休25负控／1正控尚未完成。执行环境现不可用，
+不签发整体PASS，也不合入。
 
 ## 本次实际证明的行为
 
@@ -111,11 +112,40 @@ snapshot S1的固定历史包含两次capture、两次release、两个保留根�
 这些修正没有改变生产代码、固定业务工作量、时间界限或已规定的安全合同。
 原PR的历史失败记录也没有覆盖；每次fresh实际使用新的目录和源码清单。
 
+## 执行环境中断与恢复入口
+
+[服务中断进展记录](../evidence/sqlite-s3-integration-service-progress-2026-11-12.json)只记录13个已完成服务合同、HEAD6已通过部分和中断点，
+状态明确为 `PARTIAL_ENVIRONMENT_UNAVAILABLE_NOT_MERGE_READY`；它不替代尚未生成的最终服务验收。
+
+本地服务回归在HEAD6负向验证期间失去原执行会话：工具返回
+`Unknown process id 64770`。后续root短命令又返回
+`exec-server transport disconnected; failed to resume exec-server session: recovery timed out after 45s`，
+随后环境被明确标为 `unavailable`。这是实际观察到的执行阻断；不能据此把产品判为通过
+或失败，也不能臆断服务回收的根因。
+
+已有HEAD6 actual退出0（195.039秒）和独立oracle退出0（148.978秒）的原始记录保留。
+首轮controls没有最终完整报告，已生成的部分负控目录不构成23负控／1正控全部通过。
+其他已完成门禁不重分类；本轮终态合同仍缺完整结果。
+
+恢复执行环境后的顺序：
+
+1. 读取原 `commands.json`、各原件、源码manifest与build receipt，核对冻结 `3b1d50c`
+   和实际 `fc10287` release；先检查是否还有存活验证进程，避免重复操作。
+2. 原actual和独立oracle证据完整且源码未变时，保留它们。在全新目录运行同一原件上的
+   完整HEAD6 23负控／1正控；不改旧目录、不给未完成命令补成功exit，不拼接部分结果。
+3. 独立完成原终态退休实际、oracle和25负控／1正控；原预算、权限和故障合同保持不变。
+4. 保存最终服务机器记录和失败归属，核对最终代码与已验证输入、文档及远端head/main，
+   再按维护者已有本地验证授权合入。
+
+本次中断后的状态文档通过GitHub接口提交。执行环境不可用，因此该文档提交没有运行
+本地 `check_repo.py`；此前 `c826723` 的文档检查为665个文本文件、659个本地链接通过。
+它没有改变任何生产、SDK、模型或实际夹具源码；不会以文档提交代替未完成的门禁。
+
 ## 尚未覆盖的发布条件
 
 本轮是本地SeaweedFS 4.51、逐请求签名及真实SQLite/HTTP/进程合同，不认证AWS。
 controller已覆盖固定12场景多实例矩阵，native／1 GiB也有本轮独立新结果；这不扩展
-为任意动态fleet、全部部署故障域或完整N1–N4退出。服务HEAD6负控及终态退休仍在收口。
+为任意动态fleet、全部部署故障域或完整N1–N4退出。服务HEAD6完整负控及终态退休因环境不可用尚未完成。
 实例身份登记/分配、S2 restore/PITR、持续过载、唤醒风暴、公平性、硬RSS/磁盘上界、
 长期保留/GC成本、真实AWS和生产数字SLO仍按[路线图](roadmap.md)推进。
 

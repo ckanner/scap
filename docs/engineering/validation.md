@@ -7,7 +7,8 @@
 [组合验收](sqlite-s3-integration-validation.md)保留正式runtime `fc10287` 的新单位、
 67文件精确覆盖和原release归属，并逐项列出独立冻结的实际夹具。新的native／1 GiB
 全冷恢复、各固定模型，以及 `e64eb56` 的12场景生产controller矩阵／31负控均已通过。
-HEAD6负控和终态退休服务回归仍在收口；其余产品目标与合入门禁见
+HEAD6完整负控和终态退休服务回归尚未完成，当前执行环境不可用，PR保持Draft；
+中断与恢复入口见[组合验收](sqlite-s3-integration-validation.md#执行环境中断与恢复入口)，其余产品目标与合入门禁见
 [交付计划](sqlite-s3-delivery-plan.md)。历史失败不覆盖，S2／AWS／生产SLO不预先标记完成。
 
 ## PR #54 的运行时组合（2026-11-10）

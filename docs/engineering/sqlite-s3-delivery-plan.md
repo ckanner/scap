@@ -66,7 +66,7 @@ S2 设计模型的完成屏障已按 `6784258` 修正：两次源 HEAD 均先检
 | --- | --- | --- |
 | 新组合单位、精确覆盖、Node／类型、原二进制来源 | 是；本轮已完成的输入继续逐项核对 | 原构建 receipt 与实际生产输入相同；新夹具只报告自己的源码身份 |
 | native／schema／retained results／生命周期／目录／发现／1 GiB | 是；本轮已通过 | 固定完整场景、原始 ACK／BLOB／对象账本和独立审计；原环境调整及边界单列 |
-| HTTP／隔离／资源／输出／GC transport／HEAD6／终态退休 | 是；前述短合同已通过，HEAD6实际／oracle通过，剩其负控与终态退休 | 原实际入口、独立 oracle、指定负控与资源归属全部完成；最终服务机器证据齐备后整体判定 |
+| HTTP／隔离／资源／输出／GC transport／HEAD6／终态退休 | 是；短合同已通过，HEAD6实际／oracle通过；环境不可用，完整负控与终态合同未完成 | 原实际入口、独立 oracle、指定负控与资源归属全部完成；最终服务机器证据齐备后整体判定 |
 | 多 controller 与固定自动推进故障 | 是；本轮已通过 | [固定12例](../../experiments/object-controller-matrix/PLAN.md)、23项自测与31项负控；原HTTP／S3／进程和实际Node/SDK源共同匹配 |
 | S2 restore、任意时间 PITR | 否，#59 明确只交付 S1 | 后续独立候选，不能将未实现的 restore 字段提前开放 |
 | 动态 fleet、worker 身份分配、硬资源隔离 | 否，保持现有固定 fleet 与部署身份前提 | 后续独立设计、实现和压力验收 |
@@ -87,7 +87,10 @@ S2 设计模型的完成屏障已按 `6784258` 修正：两次源 HEAD 均先检
 
 ### 第一阶段：收口 owner、controller、S1 组合
 
-controller 独立真实矩阵已完成，继续收口上表剩余服务组合回归。固定矩阵与原有
+controller 独立真实矩阵已完成。当前执行环境不可用，先恢复验证环境并核对原件与
+存活进程，再在新目录完成HEAD6完整23负控／1正控和终态实际／oracle／25负控／1正控。
+原服务会话失联没有完整controls报告，不能把前几项拼为通过；准确中断记录见
+[组合验收](sqlite-s3-integration-validation.md#执行环境中断与恢复入口)。固定矩阵与原有
 owner／Missing 专项分层证明：
 
 1. 相同 policy／同一 S 的多实例竞争和 first-winner；prepare 丢 ACK、无本地输入

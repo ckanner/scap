@@ -5,61 +5,74 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-已合入主线的基准为 HEAD7 `fab8ca0`（#54/#55）。[PR #59](https://github.com/ckanner/scap/pull/59)
-的组合起点 `fc10287` 汇集 #56 `1d709db`、#57 `df922b95` 与 #58 `4216523`；
-这些来源已经提交，不能因代码齐备或原分支单位通过就将新组合标成已验收。
+更新：2026-11-12（UTC）。本组合的主线基准为 HEAD7 `fab8ca0`（#54/#55）。
+[PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 汇集 #56 `1d709db`、
+#57 `df922b95` 与 #58 `4216523`，当前仍为Draft。执行环境在服务回归中断后被明确标为
+不可用；剩余门禁未完成，不能因代码齐备或部分实际通过而合入。
 
-| 阶段 | 主线及候选已实现 | 尚需完成的退出条件 |
+| 阶段 | 当前实现与已取得的证据 | 尚需完成的退出条件 |
 | --- | --- | --- |
-| N0 协议与格式 | SCAPOBJ2、HEAD6/7复制/GC/seal已在主线；组合HEAD8 owner-plan/HEAD9 retained roots，完整Rust/SDK单位和精确覆盖、新native/固定1 GiB回归通过 | 剩余HTTP／资源／GC组合和controller实际矩阵；模型和局部实际合同不能替代全部产品出口 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证/取消、增量页树、Session 与可调配额；多轮本地故障及全计算丢失恢复已有证据 | 真实 AWS Standard、完整 OT 合同与对应部署故障域，不能把本地兼容存储推成生产保证 |
-| N2 多库接入 | HTTP/SDK、目录/发现、按库actor、控制/恢复/intake/output期限；持久owner-plan与有限controller的本次自动接管、重启、原结果合同通过 | 多controller竞争与完整故障矩阵；实例identity分配；持续过载、冷启动风暴、公平性、资源总账与硬RSS/磁盘边界 |
-| N3 可持续存储 | HEAD6完整复制/持久sweep和HEAD7 Deleted终态退休已合入；HEAD9 S1保留根、多根COPY/GC专项实际及10负控通过 | S2从保留根恢复新Scope、任意时间PITR、长期保留/GC成本；整库冷恢复优化需另验证 |
-| N4 首发 | 已有绑定提交的本地容量、故障和固定负载记录 | 冻结目标后端/IAM/故障域与开环负载，测长期吞吐、p95/p99、错误、恢复、成本；按既有范围另行启用非关键业务试运行 |
+| N0 协议与格式 | SCAPOBJ2、HEAD6/7复制/GC/seal；组合HEAD8 owner-plan/HEAD9 retained roots；完整Rust/SDK单位与精确覆盖、新native/1 GiB和固定controller矩阵通过 | 本批HEAD6完整负控与终态退休门禁；模型及固定本地合同不替代全部产品出口 |
+| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证/取消、增量页树、Session、可调配额与本地全计算丢失恢复 | 真实AWS Standard、完整OT合同与对应部署故障域 |
+| N2 多库接入 | HTTP/SDK、目录/发现、按库actor、控制/恢复/intake/output期限；owner-plan与固定12场景controller实际/31负控通过 | 动态fleet、在线策略变化、持久实例identity分配、持续过载、冷启动风暴、公平性、硬RSS/磁盘 |
+| N3 可持续存储 | HEAD6复制/持久sweep、HEAD7终态seal；HEAD9 S1保留根及多根COPY/GC实际/10负控通过 | S2新Scope恢复、任意时间PITR、长期保留/GC成本；冷恢复优化另验 |
+| N4 首发 | 已有绑定提交的本地容量、故障与固定负载记录 | 冻结目标后端/IAM/故障域与开环负载，实测吞吐、p95/p99、错误、恢复与成本，再判断非关键试运行条件 |
 
-**本次列出的组合本地合同已通过，PR #59仍为Draft。** 新执行stable/nightly各783项单位、
-67文件精确覆盖、157项SDK/21模块精确覆盖、类型和19项loopback；owner两专项、生产
-controller实际/15负控、S1实际/10负控及固定负载实际/14负控+3正控均完成。
-完整归属、原失败和审计缺口修正见[组合验收](sqlite-s3-integration-validation.md)。
-历史HEAD7、owner、S1单位数字各自保留，不能相加。本轮单库C1/C4写5.149/2.822次每秒、
-四库C4写7.206次每秒，含本地观察开销且不是生产容量；热点吞吐没有完成目标。
-AWS与生产SLO没有运行，完整历史矩阵、资源和产品出口仍是独立工作。
+新执行stable/nightly各783项单位、67个生产文件四维精确覆盖、157项SDK单位／21模块
+精确覆盖、严格类型及19项HTTP/TLS/CLI loopback；owner两专项、原生产controller合同、
+S1及固定负载均保留自己的冻结源码，见[组合验收](sqlite-s3-integration-validation.md)。
+这些数字不是产品完成率，历史HEAD7、owner与S1单位不能相加。
 
-2026-11-12 接续：`3b1d50c` 冻结源码的完整 native／schema／原结果／生命周期／目录／
-发现与固定1 GiB实际、独立审计已完成，见
-[native机器证据](../evidence/sqlite-s3-integration-native-local-2026-11-12.json)。
-`6784258` 修正S2模型完成屏障的权限优先级，新38项自测与804／48历史通过，见
-[模型机器证据](../evidence/sqlite-s3-integration-models-local-2026-11-12.json)。
-`73a7140` 新增[12场景controller矩阵](../../experiments/object-controller-matrix/PLAN.md)，
-20项工具自测通过、28项实际证据负控固定；完整实际矩阵与HTTP／资源回归仍在收口。
-S2产品未开放，PR仍保持Draft。
+接续的 `3b1d50c` 完整native／schema／原结果／生命周期／目录／发现与固定1 GiB全冷
+恢复、独立审计已通过，见[native记录](../evidence/sqlite-s3-integration-native-local-2026-11-12.json)。
+`6784258` 修正S2模型完成屏障的权限顺序，新38项自测及804正例／48负控通过；产品S2
+仍未开放，见[模型记录](../evidence/sqlite-s3-integration-models-local-2026-11-12.json)。
+
+`e64eb56` 的[固定12场景controller矩阵](../../experiments/object-controller-matrix/PLAN.md)
+完成23项自测、12项实际历史、独立oracle及31项定向负控。runtime仍是 `fc10287`，
+277项release输入相同；57项Node/SDK/codec与观察器输入绑定冻结源码、实际路径和摘要。
+原 `73a7140` 结果及其源码绑定审计缺口保留，新结果不回填旧历史，见
+[矩阵记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
+
+### 本批合入门禁
+
+| 本轮回归 | 当前结果与剩余工作 |
+| --- | --- |
+| Rust／SDK／类型及原release来源 | 已通过；文档与夹具接续没有改变生产代码 |
+| native与固定1 GiB | 实际、独立审计及指定负控通过 |
+| controller固定矩阵 | 20个controller、108个受管子进程、586 HTTP（363 controller）、1914 S3；24 ACK+12 UNKNOWN、36原lookup及12快照全部核对 |
+| 服务短合同 | HTTP、隔离、分段、发现、metadata、输出、expiry、资源和GC transport通过 |
+| HEAD6组合 | actual和独立oracle退出0；完整23负控／1正控没有完成，原会话失联，不能拼接部分结果 |
+| HEAD7终态组合 | 本轮实际／独立oracle／25负控与1正控完整闭环未完成 |
+
+**当前阻断是执行环境不可用和最后两项验收缺失。** 中断事实与准确恢复入口见
+[组合验收](sqlite-s3-integration-validation.md#执行环境中断与恢复入口)。恢复后先核对
+原件、源码和存活进程；在新证据目录完成原门禁。门禁齐备再读取精确PR head/main并合入，
+不修改分支保护，不把本地结果称为远端CI通过。
 
 ## 接续实施顺序与验收
 
-当前合入门禁与后续产品目标的分界、每阶段实现内容和验收出口，统一维护在
-[接续交付计划](sqlite-s3-delivery-plan.md)。先完成 #59 必需的组合回归与 controller
-实际矩阵，再合入这个有界的 owner／controller／S1 切片；S2、生产吞吐和 AWS 另行交付，
-不把尚未实现的后续目标混记为本批功能，也不省略本批实际需要的验证。
+详细设计、合入边界和出口统一维护在[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. 当前组合已冻结并完成单位/精确覆盖、Node/类型及本次owner/controller/S1局部实际合同；
-   native／固定1 GiB回归已补齐；继续完成剩余HTTP／资源／GC和controller矩阵后，再按仓库门禁判断合入。
-2. 在本次持久owner专项和生产CLI重启接管合同之上，完成多controller竞争与其余故障矩阵：旧实例未退出、目标替换、
-   prepare/claim/resume 丢响应、重启推进、取消与迟到请求、权限撤销，以及 TLS 配置错误。
-   部署仍须提供不复用的 `worker_instance`；数值 guard 不代表进程身份认证。
-3. S1捕获/释放、永久身份、多根COPY、GC/删除与冷恢复专项已通过；补充完整交错后，
-   实现S2新Scope恢复和目录completion/cancel/discovery，不复活源权限、owner或请求空间；
-   任意时间 PITR 需要独立日志保留和恢复合同。
-4. 按实测账本减少对象往返和副本，验证 SQL batch 的收益；补持续过载、唤醒风暴、资源隔离和长期GC。
-   同库仍串行提交、冷恢复仍完整加载。group commit、lazy VFS、同库读池和更换MVCC引擎须独立设计，
-   不能预先记为本轮性能收益。
-5. 在真实目标 AWS/兼容后端运行原条件写、权限/密钥故障、恢复与预先冻结的数字SLO；
-   Express One Zone 不是跨AZ持久层，不能只因 checkpoint 到 Standard 就承诺跨AZ RPO=0。
+1. 先收口#59剩余HEAD6负控和终态合同，按完整本地证据合入owner／controller／S1。
+2. 实现S2新Scope恢复：固定复制意图、有界跨Scope对象重封装、完整native校验、源权限
+   完成屏障、CompletionRecord、Name/HEAD取消与恢复、HTTP/SDK；不继承源owner、ACL
+   或请求空间。任意时间PITR需要独立日志保留与恢复合同。
+3. 按实际账本优化对象往返和副本，比较已有SQL batch；补持续开环过载、唤醒风暴、
+   租户公平性、资源总账和长期GC。同库仍串行，冷恢复仍完整加载；group commit、
+   lazy VFS、同库读池或MVCC引擎需独立设计。
+4. 固定目标AWS/兼容后端、权限/密钥与部署故障域，执行真实条件写、恢复、长期成本及
+   预先冻结的数字SLO。Express One Zone不能只靠checkpoint到Standard承诺跨AZ RPO=0。
 
-完整设计与代码映射见[安全、并发和吞吐说明](../architecture/sqlite-s3-safety-and-throughput.md)、
+本轮单库C1/C4写为5.149/2.822次每秒，四库C4写7.206次每秒，每写约18–20个对象请求。
+它是含观察开销的小规模本地基线，未做同环境历史对照，热点吞吐仍未达到产品目标。
+动态fleet、在线策略与持久实例分配另行验收；当前部署必须提供不复用的
+`worker_instance`，数值guard不等于进程身份认证。
+
+完整设计与代码映射见[安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、
 [owner计划](../architecture/accepted-owner-plan.md)、[控制器](../architecture/owner-controller-plan.md)和
-[保留快照／恢复](../architecture/retained-snapshot-restore.md)。已合入基座证据见
-[HEAD6](head6-runtime-validation.md)、[HEAD7](head7-runtime-validation.md)；缺失环境记NOT_RUN，
-原失败保持原样，完整目标不以测试数或容量配置代替阶段退出。
+[快照／恢复](../architecture/retained-snapshot-restore.md)。历史失败继续保留；AWS与生产SLO
+保持NOT_RUN，完整目标不以测试数或默认容量代替阶段退出。
 
 ## 历史：2026-11-10 实施顺序
 
