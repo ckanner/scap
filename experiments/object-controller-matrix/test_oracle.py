@@ -96,6 +96,24 @@ def fixed_policy():
         'allowInsecureHttp': True, 'recoveryTimeoutMs': 60000}, endpoints, workers
 
 
+def node_binding(identifier):
+    inputs = {'source_root': '/bound/controller-source', 'source_sha256': 'd' * 64,
+        'javascript_inputs': {'sdk/node/bin/owner-controller.mjs': 'a' * 64,
+            'sdk/node/src/controller.js': 'b' * 64,
+            'experiments/object-controller-matrix/client.mjs': 'c' * 64}}
+    relative = ('sdk/node/bin/owner-controller.mjs' if identifier.startswith('controller-')
+                else 'experiments/object-controller-matrix/client.mjs')
+    entrypoint = inputs['source_root'] + '/' + relative
+    start = {'event': 'child_started', 'id': identifier, 'sequence': 10,
+             'command': ['/tools/node', entrypoint, '/private/config.json']}
+    bound = {'event': 'node_source_bound', 'id': identifier, 'sequence': 9,
+        'source_root': inputs['source_root'], 'entrypoint': entrypoint,
+        'entrypoint_sha256': inputs['javascript_inputs'][relative],
+        'javascript_inputs': deepcopy(inputs['javascript_inputs']),
+        'source_sha256': inputs['source_sha256'], 'runtime_options_absent': True}
+    return start, [bound], inputs
+
+
 class OracleTests(unittest.TestCase):
     def reject(self, guard):
         return self.assertRaisesRegex(audit.Rejected, '^' + guard + '$')
@@ -363,6 +381,33 @@ class OracleTests(unittest.TestCase):
                 else:
                     with self.subTest(change=change), self.reject('fixed-controller-policy'):
                         audit.controllers(*arguments)
+
+    def test_node_source_binding_accepts_both_fixed_entrypoints(self):
+        for identifier in ('controller-one', 'business-initialize'):
+            with self.subTest(identifier=identifier):
+                audit.node_source_binding(*node_binding(identifier))
+
+    def test_node_source_binding_rejects_suffix_only_path_and_changed_sdk_bytes(self):
+        for identifier in ('controller-one', 'business-verify'):
+            start, events, inputs = node_binding(identifier)
+            start['command'][1] = start['command'][1].replace('/bound/controller-source', '/tmp/unbound-source')
+            with self.subTest(identifier=identifier), self.reject('production-node-entrypoint'):
+                audit.node_source_binding(start, events, inputs)
+        start, events, inputs = node_binding('controller-one')
+        events[0]['javascript_inputs']['sdk/node/src/controller.js'] = 'e' * 64
+        with self.reject('actual-node-source-inputs'):
+            audit.node_source_binding(start, events, inputs)
+
+    def test_node_source_binding_rejects_runtime_injection_or_late_binding(self):
+        start, events, inputs = node_binding('controller-one')
+        events[0]['runtime_options_absent'] = False
+        with self.reject('bound-node-runtime-options'):
+            audit.node_source_binding(start, events, inputs)
+        for sequence in (10, 11):
+            start, events, inputs = node_binding('business-verify')
+            events[0]['sequence'] = sequence
+            with self.subTest(sequence=sequence), self.reject('node-source-before-spawn'):
+                audit.node_source_binding(start, events, inputs)
 
 
 if __name__ == '__main__':

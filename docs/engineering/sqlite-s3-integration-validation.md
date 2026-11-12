@@ -70,6 +70,12 @@ snapshot S1的固定历史包含两次capture、两次release、两个保留根�
    FENCED的内存反例仍被接受。真实原响应本来正确，因此这是验收缺口；`5f47ce8`从原
    HTTP与原plan独立证明claim/active，补六项负控，再重新执行actual/oracle/15控。
    旧oracle副本、可复现反例及修复后的只读诊断均保留，不沿用旧通过范围。
+5. 接续新增的`73a7140`完整12场景矩阵、旧oracle和28负控均通过，但独立复核将原
+   controller argv入口改成另一目录下同名脚本，旧oracle仍接受。原实际入口正确，
+   缺口在“实际执行源码”的验收绑定。新夹具在每个Node子进程spawn前核对入口绝对
+   路径、SDK/codec/业务观察器全部固定文件hash和运行选项；oracle将这些原事件绑定到
+   source manifest/tar及真实argv，新增3控共31。原结果和反例不改写，新冻结组合必须
+   重新执行全12例actual/oracle/controls；不能只给旧事件补字段使其通过新检查。
 
 这些修正没有改变生产代码、固定业务工作量、时间界限或已规定的安全合同。
 原PR的历史失败记录也没有覆盖；每次fresh实际使用新的目录和源码清单。

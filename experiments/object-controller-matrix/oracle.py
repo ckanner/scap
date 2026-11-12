@@ -148,6 +148,14 @@ def sources(directory, events):
     fingerprint = sha(json.dumps(files, sort_keys=True, ensure_ascii=True, separators=(',', ':')).encode())
     need(fingerprint == source['source_sha256'] == inputs['source_sha256'], 'source-fingerprint')
     need(inputs['plan_sha256'] == expected['experiments/object-controller-matrix/PLAN.md']['sha256'], 'fixed-plan')
+    javascript = {path: row['sha256'] for path, row in expected.items()
+        if path.startswith(('sdk/node/', 'sdk/node-codec/')) or path in (
+            'experiments/object-controller-matrix/client.mjs',
+            'experiments/object-service/client_ledger.mjs',
+            'experiments/object-service/client_transport.mjs')}
+    need(inputs.get('javascript_inputs') == javascript and
+         isinstance(inputs.get('source_root'), str) and Path(inputs['source_root']).is_absolute(),
+         'javascript-source-manifest')
     need(sha((directory / 'source.tar').read_bytes()) == inputs['source_archive_sha256'], 'source-archive')
     with tarfile.open(directory / 'source.tar') as archive:
         members = archive.getmembers()
@@ -200,12 +208,32 @@ def fixed_inputs(directory, inputs):
     return identifier
 
 
+def node_source_binding(start, events, inputs):
+    """Bind the real interpreter entry and its closed first-party input set."""
+    binding = one(events, 'node_source_bound', id=start['id'])
+    relative = ('sdk/node/bin/owner-controller.mjs' if start['id'].startswith('controller-')
+                else 'experiments/object-controller-matrix/client.mjs')
+    expected = str(Path(inputs['source_root']) / relative)
+    need((start['id'].startswith('controller-') or start['id'].startswith('business-')) and
+         len(start['command']) >= 2 and start['command'][1] == expected == binding.get('entrypoint') and
+         binding.get('source_root') == inputs['source_root'], 'production-node-entrypoint')
+    need(binding.get('source_sha256') == inputs['source_sha256'] and
+         binding.get('javascript_inputs') == inputs['javascript_inputs'] and
+         binding.get('entrypoint_sha256') == inputs['javascript_inputs'].get(relative), 'actual-node-source-inputs')
+    need(binding.get('runtime_options_absent') is True, 'bound-node-runtime-options')
+    need(binding['sequence'] < start['sequence'], 'node-source-before-spawn')
+
+
 def processes(events, read, inputs):
     starts, stops = select(events, 'child_started'), select(events, 'child_stopped')
     need(bool(starts) and len(starts) == len(stops) and
          len({row['id'] for row in starts}) == len(starts) and
          {row['id'] for row in starts} == {row['id'] for row in stops}, 'owned-process-denominator')
     ownership = build_audit.OwnedChildren()
+    bindings = select(events, 'node_source_bound')
+    expected_node_ids = {row['id'] for row in starts if not row['id'].startswith('service-')}
+    need(len(bindings) == len(expected_node_ids) and {row['id'] for row in bindings} == expected_node_ids,
+         'node-source-inventory')
     for start in starts:
         stop = one(events, 'child_stopped', id=start['id'])
         need(start['identity'] == stop['identity'] and start['sequence'] < stop['sequence']
@@ -215,8 +243,8 @@ def processes(events, read, inputs):
         need(stop['status'] == (-9 if stop['crash'] else 0), 'owned-process-outcome')
         tool = inputs['tools']['scapd' if start['id'].startswith('service-') else 'node']
         need(start['command'][0] == tool['path'] and start['executable_sha256'] == tool['sha256'], 'actual-owned-executable')
-        if start['id'].startswith('controller-'):
-            need(start['command'][1].endswith('/sdk/node/bin/owner-controller.mjs'), 'production-controller-cli')
+        if not start['id'].startswith('service-'):
+            node_source_binding(start, events, inputs)
         read(stop['stderr'])
     for cache in select(events, 'cache_removed'):
         stop = one(events, 'child_stopped', id=cache['id'])

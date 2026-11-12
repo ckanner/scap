@@ -103,7 +103,8 @@ Each case directory contains:
 
 - `scenario.json` with the exact immutable case inputs, and `inputs.json` binding
   those bytes, PLAN hash, clean source commit/manifest/archive, actual executable
-  hashes, Node version and all fixed budgets;
+  hashes, Node version and all fixed budgets, the absolute execution source root
+  and complete first-party JavaScript input map;
 - `source.json`, `source.tar` and `service-build/`, including equality of all 277
   release inputs to the current source rather than inheriting an earlier verdict;
 - `events.jsonl` and content-addressed `raw/` bytes from original process, HTTP
@@ -123,6 +124,14 @@ uncontrolled gap between racing requests. Losing a held preparation's response
 emits `http_proxy_response_loss_requested`, followed by the real backend response
 and a suppressed delivery; no response bytes are changed.
 
+Before every Node child is spawned, `node_source_bound` records its exact
+absolute entry, entry hash and the complete SDK, codec and business-observer
+input map checked against the frozen source. Controller and business entries
+are both covered. The runner rejects `NODE_OPTIONS`/`NODE_PATH` preload or loader
+overrides; a matching filename suffix alone is insufficient. The oracle binds
+this event, original argv, input map and source archive, and requires the binding
+before the real child start. Existing whole-source after-capture remains required.
+
 The independent oracle must first validate complete raw framing, source/binary
 binding, process/proxy cleanup, original request/response correlation and actual
 signed storage results. It then verifies each required case, the exact immutable
@@ -132,7 +141,7 @@ must be proven by its original successful HTTP response, original prepare/claim
 reference and current marker/status, not by an active CLI report. Every observed
 HEAD CAS must use its original exact conditional ETag; C5 requires its late 412.
 
-The negative-control denominator is fixed at 28. The groups are:
+The negative-control denominator is fixed at 31. The groups are:
 
 | Original observation changed | Count |
 | --- | --- |
@@ -145,6 +154,7 @@ The negative-control denominator is fixed at 28. The groups are:
 | Original HTTP 429/413 status and S3 Unknown classification | 3 |
 | Late original aborted resume, original SDK request hash | 2 |
 | Fresh foreign-policy/creator reports and original first-candidate cut target | 3 |
+| Absolute Node entry, frozen JavaScript inputs, absence of unbound runtime options | 3 |
 
 Every control requires its named rejection guard; an unrelated earlier error is
 a failed control. The complete original suite is independently audited first,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Twenty-eight targeted negatives over a fully audited, unchanged matrix.
+"""Thirty-one targeted negatives over a fully audited, unchanged matrix.
 
 Only fresh in-memory copies and a new output directory are written. A changed
 raw body gets a new content-addressed reference on the selected exchange; an
@@ -57,8 +57,11 @@ CONTROL_PLAN = (
     ('foreign-policy-report-reused', C2_POLICY, 'foreign-policy-remains-blocked'),
     ('foreign-creator-report-reused', C2_CREATOR, 'foreign-creator-remains-blocked'),
     ('first-candidate-cut-target-changed', C1, 'real-first-candidate-failure'),
+    ('unbound-node-entrypoint', C1, 'production-node-entrypoint'),
+    ('changed-node-source-input', C1, 'actual-node-source-inputs'),
+    ('unbound-node-runtime-options', C1, 'bound-node-runtime-options'),
 )
-EXPECTED_CONTROLS = 28
+EXPECTED_CONTROLS = 31
 
 
 def encoded(value):
@@ -328,6 +331,22 @@ def mutate(name, evidence):
         reused_report(e, 'POLICY' if name == 'foreign-policy-report-reused' else 'FOREIGN_CREATOR')
     elif name == 'first-candidate-cut-target-changed':
         oracle.one(e.events, 'http_proxy_cut_started', id='first-b-candidate')['role'] = 'C'
+    elif name == 'unbound-node-entrypoint':
+        started = oracle.one(e.events, 'child_started', id='controller-one')
+        alternate = '/tmp/scap-controller-matrix-unbound/sdk/node/bin/owner-controller.mjs'
+        assert started['command'][1] != alternate
+        started['command'][1] = alternate
+    elif name == 'changed-node-source-input':
+        binding = oracle.one(e.events, 'node_source_bound', id='controller-one')
+        inputs = binding['javascript_inputs']
+        preferred = 'sdk/node/src/controller.js'
+        key = preferred if preferred in inputs else next(
+            name for name in sorted(inputs) if 'sdk/node/src/' in name)
+        inputs[key] = changed_hash(inputs[key])
+    elif name == 'unbound-node-runtime-options':
+        binding = oracle.one(e.events, 'node_source_bound', id='controller-one')
+        assert binding['runtime_options_absent'] is True
+        binding['runtime_options_absent'] = False
     else:
         raise AssertionError('unknown fixed control')
 

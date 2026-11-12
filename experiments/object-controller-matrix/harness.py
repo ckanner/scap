@@ -24,7 +24,20 @@ class Harness:
         self.backend = self.original = None
 
     def child(self, command, name, environment=None):
-        child = io.Child(command, io.ROOT, environment or os.environ.copy(), self.trace, name, self.private)
+        environment = environment or os.environ.copy()
+        if Path(command[0]).resolve() == self.node:
+            assert not environment.get('NODE_OPTIONS') and not environment.get('NODE_PATH'), 'unbound Node runtime options'
+            relative = ('sdk/node/bin/owner-controller.mjs' if name.startswith('controller-')
+                        else 'experiments/object-controller-matrix/client.mjs')
+            assert Path(command[1]) == io.ROOT / relative
+            for path, digest in self.javascript_inputs.items():
+                actual = io.ROOT / path
+                assert actual.resolve() == actual and actual.is_file() and io.build.digest(actual) == digest
+            self.trace.emit('node_source_bound', id=name, source_root=str(io.ROOT),
+                entrypoint=str(io.ROOT / relative), entrypoint_sha256=self.javascript_inputs[relative],
+                javascript_inputs=self.javascript_inputs, source_sha256=self.original['source_sha256'],
+                runtime_options_absent=True)
+        child = io.Child(command, io.ROOT, environment, self.trace, name, self.private)
         self.children.append(child)
         return child
 
@@ -36,6 +49,11 @@ class Harness:
         self.original = self.source.capture(io.ROOT)
         io.save(self.evidence / 'source.json', io.encoded(self.original))
         files = {row['path']: row['sha256'] for row in self.original['files']}
+        self.javascript_inputs = {path: digest for path, digest in files.items()
+            if path.startswith(('sdk/node/', 'sdk/node-codec/')) or path in (
+                'experiments/object-controller-matrix/client.mjs',
+                'experiments/object-service/client_ledger.mjs',
+                'experiments/object-service/client_transport.mjs')}
         receipt = io.build.verify(self.args.build_record, self.args.server)
         assert all(files.get(name) == digest for name, digest in receipt['inputs'].items())
         build_dir = self.evidence / 'service-build'
@@ -51,6 +69,7 @@ class Harness:
         io.save(self.evidence / 'scenario.json', io.encoded(self.case))
         io.save(self.evidence / 'inputs.json', io.encoded({
             **self.case, 'tools': tools, 'node_version': node_version,
+            'source_root': str(io.ROOT), 'javascript_inputs': self.javascript_inputs,
             'source_commit': self.original['commit'], 'source_sha256': self.original['source_sha256'],
             'source_archive_sha256': io.build.digest(self.evidence / 'source.tar'),
             'plan_sha256': files['experiments/object-controller-matrix/PLAN.md'],

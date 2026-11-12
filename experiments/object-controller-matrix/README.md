@@ -30,15 +30,15 @@ python experiments/object-controller-matrix/controls.py \
 marks the root manifest incomplete. A complete verdict requires all twelve cases
 on one frozen source, followed by the separate oracle and its targeted controls.
 The runner writes only `OBSERVED_NOT_AUDITED` or `FAILED`; it cannot certify itself.
-The controls use 28 fixed targeted contradictions and require the intended
+The controls use 31 fixed targeted contradictions and require the intended
 rejection guard. Original evidence is read-only; negative copies go into the
 new output directory, with inventory equality checked before and after.
 
-The fixture has twenty self-checks: eighteen independent auditor tests and two
+The fixture has twenty-three self-checks: twenty-one independent auditor tests and two
 real HTTP loopback tests. They cover original conditional GET/CAS binding,
 three independent failure observations, fresh post-cut reports, immutable raw
 bytes, complete inventories, current owner observations, HTTP error status and
-the full policy commitment. The loopbacks exercise atomically prearmed holds,
+the full policy commitment, and exact Node entry/SDK source binding. The loopbacks exercise atomically prearmed holds,
 loss of only one genuine response, and a status socket cut without backend
 forwarding. These test the observing/auditing helpers, not database policy:
 
