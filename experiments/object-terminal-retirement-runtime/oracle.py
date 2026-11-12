@@ -20,7 +20,7 @@ def projection(head):
     result = {key: str(head[key]) for key in ('revision', 'head_serial', 'sequence', 'owner_epoch',
                                              'owner_instance', 'auth_epoch', 'request_epoch')}
     storage = head['storage']
-    result.update(scope={key: str(value) for key, value in head['scope'].items()},
+    result.update(owner_plan=None, scope={key: str(value) for key, value in head['scope'].items()},
         active=head['active'], lifecycle=head['lifecycle'],
         max_bytes=None if head['quota']['max_bytes'] is None else str(head['quota']['max_bytes']),
         transition={key: str(value) for key, value in head['transition'].items()},

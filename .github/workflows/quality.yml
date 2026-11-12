@@ -101,6 +101,10 @@ jobs:
         run: python3 -m unittest discover -s experiments/object-terminal-retirement-model -p 'test_*.py' -v
       - name: Explore terminal retirement schedules without claiming product acceptance
         run: python3 experiments/object-terminal-retirement-model/explore.py --out "$GITHUB_WORKSPACE/target/evidence/terminal-retirement-model"
+      - name: Check accepted owner plans and the independent raw-history observer
+        run: python3 -B -m unittest discover -s experiments/object-owner-plan-model -p 'test_*.py' -v
+      - name: Explore accepted owner schedules with original in-flight requests
+        run: python3 -B experiments/object-owner-plan-model/explore.py --output "$GITHUB_WORKSPACE/target/evidence/owner-plan-model"
       - name: Retain model evidence without claiming real S3 execution
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -110,6 +114,7 @@ jobs:
             target/evidence/object-authority-model
             target/evidence/named-catalogue-model
             target/evidence/terminal-retirement-model
+            target/evidence/owner-plan-model
           if-no-files-found: warn
 
   resource-limits:

@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { gzipSync } from 'node:zlib';
-import { Client, CatalogueClient, UnknownError, ClientError } from '../src/client.js';
+import { Client, CatalogueClient, OwnerPlanClient, UnknownError, ClientError } from '../src/client.js';
+import { INPUT as OWNER_INPUT, prepared as ownerRecord, observed as ownerObservation } from './owner_plan_fixture.js';
 
 const TOKEN = 'synthetic-http-only-bearer-credential';
 const SCOPE = {deployment:'1',tenant:'2',database:'3',incarnation:'1',generation:'1'};
@@ -85,4 +86,91 @@ test('actual catalogue Fetch retains a lost create intent and explicitly inspect
   for(const call of calls){assert.equal(call.headers['x-scap-admission'],'catalogue');assert.equal(call.headers.authorization,`Bearer ${TOKEN}`);}
   assert.deepEqual(calls[0].body,{version:1,...action});
   assert.deepEqual(calls[1].body,{version:1,operation:'inspect_create_operation',create_operation:creation.operation});
+});
+
+test('actual owner Fetch recovers a lost prepare response by saved input and guards exactly one claim and resume at the trusted target', async (t) => {
+  const calls = [], replies = ['prepared', 'active'];
+  const observation = (state) => {
+    const value = ownerObservation(state);
+    value.prepared.scope = SCOPE; value.status.scope = SCOPE;
+    return value;
+  };
+  const respond = (res, value) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, value }));
+  };
+  const receive = async (role, req) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks));
+    calls.push({ role, method: req.method, path: req.url, headers: req.headers, body });
+    return body;
+  };
+  const bootstrap = await server(t, async (req, res) => {
+    const body = await receive('bootstrap', req);
+    if (body.operation === 'owner_prepare') { res.destroy(); return; }
+    if (body.operation === 'owner_inspect') { respond(res, observation(replies.shift())); return; }
+    respond(res, observation('aborted'));
+  });
+  const target = await server(t, async (req, res) => {
+    const body = await receive('target', req);
+    if (body.operation === 'owner_resume') { res.destroy(); return; }
+    respond(res, observation('claimed'));
+  });
+  const options = { bootstrapEndpoint: bootstrap.endpoint,
+    routes: [{ workerInstance: '100', endpoint: bootstrap.endpoint }, { workerInstance: '200', endpoint: target.endpoint }],
+    token: TOKEN, scope: SCOPE, principal: '7' };
+  const original = new OwnerPlanClient(options), input = original.prepareInput(OWNER_INPUT);
+  const saved = original.saveInput(input);
+  await assert.rejects(original.prepare(input), (e) => e instanceof UnknownError &&
+    assert.deepEqual(e.reference.ownerInput, OWNER_INPUT) === undefined);
+  assert.equal(calls.length, 1);
+  const restarted = new OwnerPlanClient({ ...options, principal: '8' });
+  const restored = restarted.restoreInput(saved), inspected = await restarted.inspect(restored);
+  assert.equal(inspected.state, 'prepared');
+  const claimed = await restarted.claim(inspected.prepared);
+  assert.equal(claimed.state, 'claimed');
+  await assert.rejects(restarted.resume(inspected.prepared), (e) => e instanceof UnknownError &&
+    e.reference.ownerPlan.descriptor_hash === 'a'.repeat(64) && e.reference.expectedWorkerInstance === '200');
+  assert.equal(calls.length, 4);
+  const historical = await restarted.inspect(restored);
+  assert.equal(historical.state, 'active');
+  await restarted.abort(historical.prepared);
+  assert.deepEqual(calls.map((c) => [c.role, c.body.operation, c.headers['x-scap-admission']]), [
+    ['bootstrap', 'owner_prepare', 'control'], ['bootstrap', 'owner_inspect', 'control'],
+    ['target', 'owner_claim', 'control'], ['target', 'owner_resume', 'recovery'],
+    ['bootstrap', 'owner_inspect', 'control'], ['bootstrap', 'owner_abort', 'control'],
+  ]);
+  for (const call of calls) {
+    assert.equal(call.method, 'POST'); assert.equal(call.path, '/v1');
+    assert.equal(call.headers.authorization, `Bearer ${TOKEN}`); assert.deepEqual(call.body.scope, SCOPE);
+  }
+  const identity = { creator: OWNER_INPUT.creator, operation: OWNER_INPUT.operation };
+  assert.deepEqual(calls[0].body.input, OWNER_INPUT);
+  assert.deepEqual(calls[1].body.identity, identity); assert.deepEqual(calls[4].body.identity, identity);
+  for (const call of calls.slice(2, 4)) {
+    assert.deepEqual(call.body.plan, ownerRecord().reference); assert.equal(call.body.expected_worker_instance, '200');
+  }
+  assert.equal(calls[5].body.expected_worker_instance, undefined);
+  assert.equal(replies.length, 0);
+});
+
+test('actual owner identity-only history and Pending cannot be used as mutation capabilities', async (t) => {
+  const calls = [];
+  const { endpoint } = await server(t, async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks)); calls.push(body);
+    const value = body.operation === 'owner_prepare' ? { state: 'pending',
+      reference: { creator: '8', operation: '99', descriptor_hash: 'b'.repeat(64) } } : ownerObservation('active');
+    if (body.operation !== 'owner_prepare') { value.prepared.scope = SCOPE; value.status.scope = SCOPE; }
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, value }));
+  });
+  const db = new OwnerPlanClient({ bootstrapEndpoint: endpoint, routes: [{ workerInstance: '200', endpoint }],
+    token: TOKEN, scope: SCOPE, principal: '7' });
+  const pending = await db.prepare(db.prepareInput(OWNER_INPUT));
+  assert.equal(pending.reference.creator, '8'); assert.equal(pending.reference.operation, '99');
+  const history = await db.observe({ creator: OWNER_INPUT.creator, operation: OWNER_INPUT.operation });
+  for (const value of [pending.reference, history.prepared, JSON.parse(JSON.stringify(history.prepared))]) {
+    await assert.rejects(db.claim(value), (e) => e.code === 'INVALID');
+  }
+  assert.equal(calls.length, 2);
 });

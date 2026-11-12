@@ -1,0 +1,193 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "source_commit": "7459b8b7388932dea9596b100822c608d2330499",
+  "status": "PASS_WITHIN_DECLARED_NODE22_SCOPE",
+  "environment": {
+    "node": "v22.16.0",
+    "openssl": "3.0.16"
+  },
+  "source_sha256": {
+    "sdk/node/src/catalogue.js": "2c44dd99b0bd7d2eef31ccf410810c615c850ec9fe1180ccbf1751cab1bafa22",
+    "sdk/node/src/catalogue_wire.js": "a040562d2c93609fa1ea5cbcdab040f0059f6425b961c32c18a16082727676a0",
+    "sdk/node/src/client.d.ts": "5719435227836430f5c96d8355da7d9dea6249fb1bd28d9b934b10526d60f4e2",
+    "sdk/node/src/client.js": "8bb6e3f4d4af5200df87958e3d97dba52a410d351d0fe5c60c72e29151fa89fc",
+    "sdk/node/src/controller.js": "881e423ed123cba73ca4a07e3dc22ea50ec02f49f7711b8e3859e4348057feb8",
+    "sdk/node/src/controller_fleet.js": "cbf78f8b09f91c0f413c4de25cc1ec03f5ffee12bbaa3faf30081fd442506c0d",
+    "sdk/node/src/controller_http.js": "d5930713c95494be797de3192f05df618a0a5ff17ba051b19bb89312d0971345",
+    "sdk/node/src/controller_policy.js": "65a30380c5b3c91bd973d0214c7356d2ea78b58a2ed952f8151c6a3d08163150",
+    "sdk/node/src/controller_process.js": "edccd2ce58574937741616adab5be6555defba9bc651064bde137dedcf382f9a",
+    "sdk/node/src/discovery.js": "9af11ce80ecf3b4477660887a7d2e8156ebbd15d4d2580c85d3ebd99ab80a018",
+    "sdk/node/src/discovery_wire.js": "9b3cddbd8678a5646e8ea34e5486e808438674fcd324a163546917f0f40d214a",
+    "sdk/node/src/errors.js": "ab3683d69ac853c9f10e3c7f0fea2d1e3a9393b4da5023dedbd4ca0ce99bf3e5",
+    "sdk/node/src/operation_budget.js": "230ff8e8cf9e7144e0139c92bfe77e3376d3d13d65065216d0d5b4236476a9a6",
+    "sdk/node/src/owner.js": "c23c135687f787bb0a8c284386a26c98938fcce00728b15043326d67ca14e110",
+    "sdk/node/src/owner_intent.js": "3d20960e3c69cf1acc6a3989d0e5eb06445024789c082624081ed7b393353961",
+    "sdk/node/src/owner_plan.js": "a3ba1af9c8974ee3b184b3172fee59172afb0f8f2abbbef2cad8411278b63be0",
+    "sdk/node/src/owner_plan_wire.js": "3d8b0d67f7284e6867c0489c42a1bf4f5bf2122bdff29a7d2c10d264f60725b4",
+    "sdk/node/src/route_registry.js": "642191c023bd2c8bdc862467194df19ec70fe73e48be1c2b10a104f33911c426",
+    "sdk/node/src/routed.js": "b7e6f428391e449c7b533ef587292c2af3ba8b4b1462807b9f05354b12adcf2f",
+    "sdk/node/src/transport.js": "574dfd5821b7a10364de21e1e48247ebd208486eb5d633a4d515d3117de1daa2",
+    "sdk/node/src/wire.js": "90fbd62e4ca79136559fa359532c2e007fc7e8653feaf18ca6c7cfa80e7e9d49",
+    "sdk/node/test/catalogue.test.js": "581542ecb6ff9acd927764202fa15e2ed2036e380ceb23c5575848feaf26616c",
+    "sdk/node/test/check-coverage.mjs": "5381aa75825468353d5a48b68b0cad0153851b4e5f1bb18f75d537f874061a4a",
+    "sdk/node/test/controller.test.js": "c36c30dff5ff2f43d9fe7d1328c2186b8e9fc4fee95ca5a2bb116af21751e1a6",
+    "sdk/node/test/controller_fleet.test.js": "bee5e8e0070e48912b997d6b64aa309f1f7fd8dafd4d1ce40686aa8be1470bb0",
+    "sdk/node/test/controller_http.test.js": "3c78bd9e2db466a431be1a70312f6344cd4c94e800661354346dafdad8565fa1",
+    "sdk/node/test/controller_http_loopback.test.js": "304bcb9e8edb788ed391ee5f8aa51e32145093c174cb91b46d4770604b941c1c",
+    "sdk/node/test/controller_policy.test.js": "8aa3f696fc3a806f2157c28195c70b5a17645b4e30fda1680b27d039d8fd33a4",
+    "sdk/node/test/controller_process.test.js": "17f02ae0e09fbd2c249940656216f925ac9b97e350136baaa0a5d4548b8f9c58",
+    "sdk/node/test/controller_process_loopback.test.js": "f35f7c25fe430f862d7c819a0af9947f979432e47a82f59e63a9d15658ca7e91",
+    "sdk/node/test/discovery.test.js": "889c4e3cf26cfabe5f0175a5e7b9e155523d19c913d2ae049c76f5343b99233d",
+    "sdk/node/test/http.test.js": "71c6fe5fcec13aa9a23ede3c1b7455767dc7f0190a04db12129a3cf983edd825",
+    "sdk/node/test/operation_budget.test.js": "d9d7e64941594e9a4196845e235a7f53b35e21f227bd3eeaf5a756177ef9ee39",
+    "sdk/node/test/owner.test.js": "587d0d6b0db16a237250054b915e69449aae5fd05a22d1ae9bb682cb3b921799",
+    "sdk/node/test/owner_fixture.js": "458f66c2314332a81a89dbee7eab802215c8fb540919822cd65332bac2b37d37",
+    "sdk/node/test/owner_plan.test.js": "0153d2377d683950d8a1004adadafdbad4856a5d05136942fca123815d15c615",
+    "sdk/node/test/owner_plan_fixture.js": "73297d4a19003afbe692666a95066a999383adb8828935898427ba8e819ae3c0",
+    "sdk/node/test/reclamation.test.js": "736a1dd1c64b8d199259544ea4470c4eb32b99d6fc02c4d93c915e75dca343c5",
+    "sdk/node/test/routing.test.js": "fadbd00e3a5937038a9f7d64aef906c3f342f5670709a4bbec454c238358eaff",
+    "sdk/node/test/run.mjs": "a5360eb3602263ca97982f01f0d22f816921d54889888739789b51e54e7bff24",
+    "sdk/node/test/terminal.test.js": "2629c1508cf6d9759b300bbdff77bc743b489ca4e91f9ddb375a123bc3572185",
+    "sdk/node/test/types.ts": "4021df0609629304d71fb56f18b9372541bbbbd79b42f3a7ddc47ca13d3f336f",
+    "sdk/node/test/unit.test.js": "f7f15d7a30f490ecb2f889d570f91dcb7bf5aac1731d7447e520f944fc4eb553",
+    "sdk/node/bin/owner-controller.mjs": "582926fa903701a89297a58cdb9044b35e54dcb1c2324ddb6c438f9fd297f162",
+    "sdk/node-codec/src/codec.js": "78faa6caa15b96f6a33d822984387df4cf691fa5d3b37288042eba8b1813d404"
+  },
+  "source_match_to_prior_node24_inputs": true,
+  "unit": {
+    "command": "NODE_V8_COVERAGE=<new-empty-path> node test/run.mjs",
+    "cwd": "sdk/node",
+    "exit": 0,
+    "tests": 150,
+    "passed": 150,
+    "production_modules": 20,
+    "lines_percent": 100,
+    "functions_percent": 100,
+    "branches_percent": 100,
+    "raw_v8_profiles": [
+      {
+        "sha256": "2aae081483b4c17c2405446dbee6f6efdea98a92906ce13befab15a95de3cefd",
+        "modules": [
+          {
+            "module": "client.js",
+            "functions": 60,
+            "ranges": 110
+          },
+          {
+            "module": "transport.js",
+            "functions": 14,
+            "ranges": 80
+          },
+          {
+            "module": "wire.js",
+            "functions": 53,
+            "ranges": 200
+          },
+          {
+            "module": "errors.js",
+            "functions": 8,
+            "ranges": 21
+          },
+          {
+            "module": "routed.js",
+            "functions": 14,
+            "ranges": 31
+          },
+          {
+            "module": "owner_plan_wire.js",
+            "functions": 16,
+            "ranges": 55
+          },
+          {
+            "module": "discovery.js",
+            "functions": 12,
+            "ranges": 18
+          },
+          {
+            "module": "catalogue.js",
+            "functions": 21,
+            "ranges": 21
+          },
+          {
+            "module": "owner.js",
+            "functions": 13,
+            "ranges": 38
+          },
+          {
+            "module": "owner_plan.js",
+            "functions": 15,
+            "ranges": 48
+          },
+          {
+            "module": "controller.js",
+            "functions": 31,
+            "ranges": 186
+          },
+          {
+            "module": "controller_fleet.js",
+            "functions": 14,
+            "ranges": 46
+          },
+          {
+            "module": "controller_process.js",
+            "functions": 7,
+            "ranges": 39
+          },
+          {
+            "module": "controller_http.js",
+            "functions": 30,
+            "ranges": 150
+          },
+          {
+            "module": "controller_policy.js",
+            "functions": 17,
+            "ranges": 48
+          },
+          {
+            "module": "catalogue_wire.js",
+            "functions": 19,
+            "ranges": 76
+          },
+          {
+            "module": "route_registry.js",
+            "functions": 13,
+            "ranges": 28
+          },
+          {
+            "module": "operation_budget.js",
+            "functions": 13,
+            "ranges": 28
+          },
+          {
+            "module": "discovery_wire.js",
+            "functions": 12,
+            "ranges": 42
+          },
+          {
+            "module": "owner_intent.js",
+            "functions": 12,
+            "ranges": 67
+          }
+        ]
+      }
+    ],
+    "integration_profiles_merged": false,
+    "raw_log_sha256": "d51747fdb716a1edd0feb74010407b76c69fe266500b3cd271d7bc76e79f898d"
+  },
+  "actual_http_cli": {
+    "command": "node --test test/http.test.js test/controller_http_loopback.test.js test/controller_process_loopback.test.js",
+    "cwd": "sdk/node",
+    "exit": 0,
+    "tests": 19,
+    "passed": 19,
+    "raw_log_sha256": "6ef4234669a655fdc00e4808a90f1781ca4a3b965b6b96808c874fbaa0422759"
+  },
+  "prior_results": "controller-tls-classification-2026-11-11.json retains Node24 and all initial failures unchanged",
+  "remaining": {
+    "independent_controller_model": "NOT_RUN",
+    "native_sqlite_signed_s3_multi_controller_fault_acceptance": "NOT_RUN",
+    "aws": "NOT_RUN",
+    "production_slo": "NOT_RUN"
+  }
+}

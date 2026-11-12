@@ -10,6 +10,8 @@ use crate::Error;
 
 pub const GIB: u64 = 1024 * 1024 * 1024;
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_OWNER_RECOVERY_GETS: u64 = 1_048_576;
+pub const MAX_OWNER_RECOVERY_BYTES: u64 = 64 * GIB;
 
 /// A creation default and independent local admission/execution budgets.
 /// Existing databases always use their HEAD's persisted quota and retention.
@@ -18,6 +20,8 @@ pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 pub struct Options {
     pub quota: DatabaseQuota,
     pub retention: Retention,
+    /// First-winner default used only when adopting HEAD9 snapshots.
+    pub snapshot_limits: crate::snapshot_format::SnapshotLimits,
     pub sql: SqlLimits,
     pub max_input_bytes: usize,
     pub max_changed_pages: u32,
@@ -28,6 +32,10 @@ pub struct Options {
     pub max_vm_steps: u32,
     pub operation_timeout: Duration,
     pub recovery_timeout: Duration,
+    /// Cumulative payload admission for one owner resume. These local budgets
+    /// may be lowered to zero; they are not a logical database-size quota.
+    pub owner_recovery_gets: u64,
+    pub owner_recovery_bytes: u64,
 }
 
 impl Default for Options {
@@ -40,6 +48,7 @@ impl Default for Options {
                 max_entries: 4096,
                 max_result_bytes: 256 * 1024 * 1024,
             },
+            snapshot_limits: crate::snapshot_format::SnapshotLimits::default(),
             sql: SqlLimits {
                 max_statements: 256,
                 max_sql_bytes: 1024 * 1024,
@@ -56,6 +65,8 @@ impl Default for Options {
             max_vm_steps: 100_000_000,
             operation_timeout: Duration::from_secs(30),
             recovery_timeout: Duration::from_secs(1800),
+            owner_recovery_gets: MAX_OWNER_RECOVERY_GETS,
+            owner_recovery_bytes: MAX_OWNER_RECOVERY_BYTES,
         }
     }
 }
@@ -64,6 +75,7 @@ impl Options {
     pub fn validate(&self) -> Result<(), Error> {
         self.quota.validate().map_err(Error::Format)?;
         self.retention.validate().map_err(Error::Format)?;
+        self.snapshot_limits.validate().map_err(Error::Format)?;
         self.sql.validate().map_err(Error::Sql)?;
         let durable = durable_sql_limits();
         if self.sql.max_statements > durable.max_statements
@@ -84,6 +96,8 @@ impl Options {
             || self.operation_timeout > Duration::from_secs(86400)
             || self.recovery_timeout.is_zero()
             || self.recovery_timeout > Duration::from_secs(7 * 86400)
+            || self.owner_recovery_gets > MAX_OWNER_RECOVERY_GETS
+            || self.owner_recovery_bytes > MAX_OWNER_RECOVERY_BYTES
         {
             return Err(Error::Limit);
         }

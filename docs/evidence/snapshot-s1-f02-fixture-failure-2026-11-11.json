@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "status": "FIXTURE_READY_FOR_NEW_COMMITTED_ACTUAL",
+  "runtime_product": "55140bff76a62e8c8101e61d52811a95bb682b7b",
+  "units": "37 PASS exact source files",
+  "unit_log": "tooling/s1-snapshot-runtime-units-10-storage-status.log",
+  "failed_actual": {
+    "fixture_commit": "f02fc7d926d84da4592a4c6f990d96c0239e8046",
+    "directory": "/workspace/scratch/09fef39a3b8d/tooling/runtime-private/snapshot-s1-f02-actual01",
+    "status": "FAILED",
+    "reason": "fixture used Deleted-only storage_status while the first retired-generation sweep Scope remained Ready",
+    "summary_sha256": "f0e6f2d57daca2115b1441eb7daf633b1ad0b47d1830768fe85939c230e47877",
+    "failure_sha256": "9c2cd3efa392931c3a72c847656e3c882de928d16a623f5cb76b7d8325a151a0",
+    "source_manifest": "tooling/snapshot-s1-f02-source-before01.json",
+    "source_after": "tooling/snapshot-s1-f02-source-after01.log",
+    "partial_diagnostic": "tooling/snapshot-s1-f02-partial-diagnostic01.log"
+  },
+  "next_actual": "NOT_RUN",
+  "controls": "NOT_RUN",
+  "scope": "Frozen fixture-only correction; no production source or deadline changes",
+  "full_source_equality": "Fixture runner verified build receipts against the unchanged 55140bf product inputs",
+  "partial_diagnostic_is_acceptance": false
+}

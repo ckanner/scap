@@ -441,6 +441,7 @@ impl Catalogue {
         let base = Self::admin(source, view, control.principal)?;
         let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
         if base.head.lifecycle != Lifecycle::Deleted {
+            Database::no_pending_owner(&base.head).map_err(|_| CatalogueError::Conflict)?;
             if base.head.storage.plan.is_some() || base.head.storage.sweep.is_some() {
                 return Err(CatalogueError::Conflict);
             }

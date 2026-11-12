@@ -350,6 +350,58 @@ fn corrupt_missing_data_and_native_images_keep_the_exact_slot_pending() {
 }
 
 #[test]
+fn complete_recovery_includes_held_roots_beyond_the_current_native_image() {
+    use crate::format::{SnapshotEntry, SnapshotLimits, SnapshotPoint, SnapshotRef};
+    for missing in [false, true] {
+        let objects = Arc::new(Memory::default());
+        let database = direct(objects.clone(), 2, 42);
+        let old = database.status(7, deadline()).unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        seed(&database, &temp.path().join("seed"));
+        let mut head = database.status(7, deadline()).unwrap();
+        assert_ne!(head.data_root, old.data_root);
+        head.format = 9;
+        head.head_serial += 1;
+        head.restore_origin = Some(());
+        head.snapshot_limits = Some(SnapshotLimits::default());
+        head.snapshots = Some(vec![SnapshotEntry {
+            reference: SnapshotRef {
+                creator: 7,
+                operation: 901,
+                capture_serial: old.head_serial + 1,
+                descriptor_hash: format::digest(b"retained original point"),
+            },
+            label: "before-write".into(),
+            point: SnapshotPoint {
+                data_root: old.data_root.clone(),
+                page_count: u32::from(!missing),
+                sequence: old.sequence,
+                source_revision: old.revision,
+            },
+        }]);
+        objects.set(
+            &format::head_key(&database.scope),
+            format::encode_head(&head).unwrap(),
+        );
+        if missing {
+            objects.remove(&object_key(&database.scope, 1, &old.data_root));
+        }
+        objects.clear_calls();
+        let mut job = job(objects.clone(), readers(), RecoveryBudget::default());
+        let failed = until_stopped(&mut job, &temp.path().join("restored"));
+        assert_eq!(failed.stopped, Some(RecoveryStop::Corrupt));
+        assert_eq!(
+            failed.completion.pending_scope,
+            Some(database.scope.clone())
+        );
+        assert!(!failed.completion.recovery_complete);
+        assert!(failed.recovered.is_none());
+        assert!(!temp.path().join("restored").exists());
+        assert!(objects.calls().iter().all(|call| !call.put));
+    }
+}
+
+#[test]
 fn local_cache_failure_does_not_delete_an_existing_directory_or_advance_data() {
     let objects = Arc::new(Memory::default());
     direct(objects.clone(), 2, 42);

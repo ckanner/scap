@@ -1,0 +1,210 @@
+{
+  "schema": 1,
+  "status": "LOCAL_DIAGNOSTIC_PASSED",
+  "date": "2026-11-11",
+  "branch_base": "f1d99d74c47c1f7f8f313fabb7eb40705a80875f",
+  "source": {
+    "dirty_declared_inputs": "NO_GIT_REPOSITORY",
+    "files": {
+      "AGENTS.md": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6",
+      "docs/architecture/owner-controller-plan.md": "c47a30ff5bfc469034585ec7c84b605d0b885bf12a2b1a588edd65d9b2d13873",
+      "docs/architecture/owner-controller-v2.md": "4c978be08af22bb10f85f661cfeeba3624cebd154a436b43de8cca78ac2ec76b",
+      "experiments/object-owner-controller-model/PLAN.md": "bce28be3b729066aabcbc333e140660d69b78598d7c8134bf964e591a5503659",
+      "experiments/object-owner-controller-model/README.md": "c1e0a819b1d5f70f7edbb23d93a705d43e5e4ad822d818c0af346665e3de081e",
+      "experiments/object-owner-controller-model/cases.py": "f1e4098b35166b6b4b6ec801560a1bbb5e50609ed2824bab89c05dcfa5a34d8d",
+      "experiments/object-owner-controller-model/controls.py": "9e5cd4dceb4ace20add883c387c8cecbb6ff65fed1b97757b06d1c92c110e6d1",
+      "experiments/object-owner-controller-model/explore.py": "d317d8e2de7c7138d4ffc048cac4b997008690e76f854289629fc5e34d868d14",
+      "experiments/object-owner-controller-model/model.py": "5a02f890b19da8253363e32daf6aea6ec032850e65d46e4115b1079088346ac1",
+      "experiments/object-owner-controller-model/oracle.py": "728c24f43a375169b77a8bccfb8000e4d0f7b9c6a06070ef20719869f2dcea8e",
+      "experiments/object-owner-controller-model/test_model.py": "d81ef7827e316fdd61b35d3dacd59cc75611fb29928467cc57f3a1e8ce4fd5e4",
+      "experiments/object-owner-plan-model/model.py": "c9cba007b6027f0bc094c263d99be72c4d026815338e53052bb37b3df8b23062",
+      "experiments/object-owner-plan-model/oracle.py": "0449521cc6b125859f978a766f2e7075a06f70092d1e5405a5cb0d06b3730655"
+    },
+    "repository_head": null,
+    "sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114"
+  },
+  "python": {
+    "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+    "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "version": "3.12.14"
+  },
+  "units": {
+    "passed": 19,
+    "failed": 0,
+    "log": "18-model-unit-final.log"
+  },
+  "positive": {
+    "positive_cases": 402,
+    "unique_raw_histories": 402,
+    "families": {
+      "activate-current": 1,
+      "authority-change": 3,
+      "bounds": 3,
+      "cancel-then-activate": 1,
+      "counter": 3,
+      "foreign": 4,
+      "healthy": 1,
+      "intervals": 1,
+      "late-claim": 2,
+      "late-prepare": 1,
+      "maintenance": 4,
+      "mode-off": 3,
+      "nondeath": 7,
+      "prepare-race": 360,
+      "rank-exhausted": 1,
+      "restart-pending": 2,
+      "sql-unknown": 1,
+      "window-reset": 4
+    },
+    "evidence_bytes": 146223815
+  },
+  "oracle": {
+    "status": "PASSED",
+    "aggregate": {
+      "core_calls": 21577,
+      "core_unknowns": 184,
+      "mutations": 2319,
+      "probe_failures": 5052,
+      "restarts": 1445,
+      "ticks": 6526
+    },
+    "source_sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114",
+    "elapsed_seconds": 6.165668725967407
+  },
+  "controls": {
+    "status": "PASSED",
+    "negative_controls": 40,
+    "positive_controls": 3,
+    "elapsed_seconds": 0.2469770908355713
+  },
+  "limits": {
+    "calls_per_tick": 8,
+    "configured_workers": 3,
+    "controllers": 2,
+    "evidence_bytes": 536870912,
+    "maximum_counter": 40,
+    "mutations_per_tick": 1,
+    "processes": 1,
+    "replacement_worker": 4,
+    "scope": 1,
+    "seconds": 180
+  },
+  "development_history": [
+    {
+      "log": "09-model-first-sweep.log",
+      "result": "1 failure among 51 smoke scenarios",
+      "reason": "Malformed counter fixture had revision 39 greater than serial 1; independent core checker rejected serial-order. Corrected fixture to R=S=39."
+    },
+    {
+      "log": "10-model-all-positive.log",
+      "result": "462 unfrozen schedules passed generic checking; superseded, not the final matrix",
+      "reason": "Ten of 70 schedules per policy/loss pair admitted after a prior effect and contained no-op cuts; excluded to avoid counting duplicate raw histories. Final 360 races require two real PUTs and full raw-history uniqueness."
+    },
+    {
+      "logs": [
+        "14-model-explore.log",
+        "15-model-oracle.log",
+        "16-model-controls.log"
+      ],
+      "result": "Earlier 402/39/3 diagnostic passed but was superseded by checker independence correction."
+    },
+    {
+      "log": "17-model-report-window-false-pass.log",
+      "result": "FALSE_PASS reproduced in earlier checker",
+      "reason": "Changing a report reason could retain a previously failed suspicion window. Checker now resets only from bound actual response/failure/authority observations, ignores all report reasons for policy state, and the new fortieth negative control must fail failure-window. Added independent report-label unit."
+    }
+  ],
+  "final_commands": [
+    "python -m unittest discover -s experiments/object-owner-controller-model -p test_*.py -v",
+    "python experiments/object-owner-controller-model/explore.py NEW_DIR --diagnostic",
+    "python experiments/object-owner-controller-model/oracle.py NEW_DIR",
+    "python experiments/object-owner-controller-model/oracle.py NEW_DIR --controls"
+  ],
+  "logs": [
+    {
+      "name": "09-model-first-sweep.log",
+      "sha256": "d39ce3005381dcaab3ae465d1e10c5d1b96a1f05730093c0411ac5b3470c8426",
+      "bytes": 10077
+    },
+    {
+      "name": "10-model-all-positive.log",
+      "sha256": "6c16239da2449c3686ddbb258604c4890592eb8add52c6dbb00409c2f86743ff",
+      "bytes": 82701
+    },
+    {
+      "name": "11-model-controls-first.log",
+      "sha256": "76250fcbdbcb1f0e2e1b8cebbff7dd505f189af2faf056a28d4bfd62941303eb",
+      "bytes": 1797
+    },
+    {
+      "name": "12-model-strict-witness.log",
+      "sha256": "2a2d217293740ffaeebf78b1d9c1691e02050b32ee5ebeed8e38cd11969e6fa1",
+      "bytes": 12420
+    },
+    {
+      "name": "13-model-unit.log",
+      "sha256": "19578b3310a3096143fe41901294a1d3edddf909aaac319e073ceb0fa1f5207e",
+      "bytes": 2499
+    },
+    {
+      "name": "14-model-explore.log",
+      "sha256": "c8ead410806d068e99b0f32553b39a9017aa074d2cdd198ca091f0ed2375ff74",
+      "bytes": 732
+    },
+    {
+      "name": "15-model-oracle.log",
+      "sha256": "9b5be3e240906d7a711fa89ba1c11c6dea7e4290a378e9cce63d14c895208d84",
+      "bytes": 459
+    },
+    {
+      "name": "16-model-controls.log",
+      "sha256": "44a9a0d50115f0272d40f7a298a5cf48fb549b63ed4c9980e91d9baeb093451d",
+      "bytes": 339
+    },
+    {
+      "name": "17-model-report-window-false-pass.log",
+      "sha256": "0a12e1659471fbe3a321cff309b54a45e4441e8b3b569d030db89089d4fa3599",
+      "bytes": 205
+    },
+    {
+      "name": "18-model-unit-final.log",
+      "sha256": "1f0d5ed3c666cd09be21bd293e87047bdcc9576df47a4d3c3b4fdf45956d82e9",
+      "bytes": 2644
+    },
+    {
+      "name": "19-model-explore-final.log",
+      "sha256": "bc61fcc32339809aa144e52abd30ef40dd27fe9d44fe7a19e0486b62fb76f33e",
+      "bytes": 732
+    },
+    {
+      "name": "20-model-oracle-final.log",
+      "sha256": "9d1736fe582a96aad5d8c16cc2b957009b79be54e4a918d493f53c83ac2301d7",
+      "bytes": 459
+    },
+    {
+      "name": "21-model-controls-final.log",
+      "sha256": "e37ae94d8156bb87a72fc88336036ab0f6c9843d5c5b5f2482281189a5687d2b",
+      "bytes": 338
+    }
+  ],
+  "evidence_hashes": {
+    "inputs.json": "d5c901b098746a8380fd4786f24c3c751d7b015ee0421256f509954b8e30aeae",
+    "inventory.json": "d315bb13c303bcc1695302e1ab3fff0e00bd6ea19c63120631383fb5ff77c280",
+    "traces.json": "0e9080c4e272c35ec3464059c1437d2c47ac49c9dc36d5efb6365ec60283b8da",
+    "exploration.json": "bc61fcc32339809aa144e52abd30ef40dd27fe9d44fe7a19e0486b62fb76f33e",
+    "oracle.json": "90c675674dfa82ddc7be9773546c7b1a601e7db1037aec666e83e0aee653ff86",
+    "controls.json": "a5606fa23c79fbb69a5bef4a5400680636beed5e58f0a2255aaa0ec8b95627b6",
+    "source-after.json": "c0a3a4377ff5a7061c674ef509658d8895f3c7a5e89e48f9598e336b97d2e5f6"
+  },
+  "not_certified": {
+    "formal_committed_source_run": "NOT_RUN",
+    "previous_undefined_354_48_3_gate": "NOT_SATISFIED_OR_REPLACED",
+    "production_controller_execution": "NOT_RUN_BY_MODEL",
+    "native_sqlite_multi_controller_http_s3": "NOT_RUN_BY_MODEL",
+    "aws_standard": "NOT_RUN",
+    "throughput_and_recovery_slo": "NOT_RUN",
+    "different_rank_table_migration": "OUTSIDE_FIXED_MODEL",
+    "fleet_dns_tls_signal_cleanup": "OUTSIDE_FIXED_MODEL",
+    "automatic_terminal_proof_http_integration": "OUTSIDE_FIXED_MODEL"
+  }
+}

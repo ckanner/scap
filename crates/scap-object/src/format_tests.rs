@@ -249,6 +249,10 @@ fn head() -> Head {
         sequence: 0,
         owner_epoch: 1,
         owner_instance: 1,
+        owner_plan: None,
+        snapshots: None,
+        snapshot_limits: None,
+        restore_origin: None,
         active: false,
         auth_epoch: 1,
         policy: vec![Permission {

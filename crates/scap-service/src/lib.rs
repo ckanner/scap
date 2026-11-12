@@ -14,7 +14,9 @@ pub mod engine;
 pub mod http;
 pub mod intake;
 pub mod output;
+pub mod owner_wire;
 pub mod scheduler;
+pub mod snapshot_wire;
 pub mod transport;
 pub mod wire;
 
