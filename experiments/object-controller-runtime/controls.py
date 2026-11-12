@@ -30,6 +30,12 @@ def controls(directory):
         ('cache', 'cache-loss-after-owned-exit'),
         ('restart', 'controller-restart-joined'),
         ('budget', 'per-tick-admission'),
+        ('resume_failure', 'real-resume-success'),
+        ('resume_state', 'real-resume-active-state'),
+        ('resume_inactive', 'resume-active-authority'),
+        ('resume_owner', 'resume-active-authority'),
+        ('resume_plan', 'resume-original-plan'),
+        ('resume_marker', 'resume-current-marker'),
     ]
     results = []
     for case, guard in cases:
@@ -59,6 +65,23 @@ def controls(directory):
             rows = [json.loads(line) for line in oracle.raw_file(directory, event['raw']).splitlines()]
             rows[0]['mutations'] = 2
             replacements[event['raw']['sha256']] = b''.join((json.dumps(row) + '\n').encode() for row in rows)
+        elif case.startswith('resume_'):
+            request = oracle.one(events, 'http_proxy_request', operation='owner_resume')
+            event = oracle.one(events, 'http_proxy_backend_response', role=request['role'], serial=request['serial'])
+            body = json.loads(oracle.raw_file(directory, event['response']))
+            if case == 'resume_failure':
+                body = {'ok': False, 'error': {'code': 'FENCED'}}
+            elif case == 'resume_state':
+                body['value']['state'] = 'claimed'
+            elif case == 'resume_inactive':
+                body['value']['status']['active'] = False
+            elif case == 'resume_owner':
+                body['value']['status']['owner_instance'] = '9601'
+            elif case == 'resume_plan':
+                body['value']['accepted']['reference']['descriptor_hash'] = '0' * 64
+            elif case == 'resume_marker':
+                body['value']['status']['owner_plan']['phase']['kind'] = 'claimed'
+            replace_reference(event, 'response', json.dumps(body).encode(), replacements)
 
         def read(description):
             digest = description['sha256']

@@ -198,6 +198,38 @@ def exchanges(events, read):
     return http, responses
 
 
+def owner_observation(response, http_status, original_input, scope, reference, state):
+    """Validate the real HTTP observation against the original fixed owner input."""
+    step = 'claim' if state == 'claimed' else 'resume'
+    value = response.get('value') if isinstance(response, dict) else None
+    need(isinstance(response, dict) and http_status == 200 and response.get('ok') is True and isinstance(value, dict),
+         'real-' + step + '-success')
+    need(value.get('state') == state, 'real-' + step + '-' + state + '-state')
+    accepted = value.get('accepted')
+    need(value.get('prepared') == {'input': original_input, 'scope': scope, 'reference': reference}
+         and isinstance(accepted, dict) and accepted.get('reference') == reference,
+         step + '-original-plan')
+    status = value.get('status')
+    need(isinstance(status, dict) and status.get('owner_plan') == accepted, step + '-current-marker')
+    revision, serial = (wire.decimal(original_input[key]) + 1
+                        for key in ('expected_revision', 'expected_head_serial'))
+    admission = {'kind': 'claim', 'revision': str(revision), 'head_serial': str(serial)}
+    active = state == 'active'
+    nonce = original_input['nonces']['activate' if active else 'claim']
+    # This frozen history performs exactly the first takeover from epoch 1/A.
+    phase = {'kind': state, 'nonce': nonce, 'owner_epoch': '2', 'owner_instance': '9602',
+             'revision': str(revision + int(active)), 'head_serial': str(serial + int(active))}
+    need(accepted.get('admission') == admission and accepted.get('phase') == phase,
+         step + '-accepted-phase')
+    need(status.get('active') is active and status.get('owner_instance') == '9602'
+         and status.get('owner_epoch') == phase['owner_epoch'] and status.get('scope') == scope
+         and status.get('lifecycle') == 'ready' and status.get('revision') == phase['revision']
+         and status.get('head_serial') == phase['head_serial']
+         and status.get('transition') == {'nonce': nonce, 'revision': phase['revision']},
+         step + '-active-authority')
+    return value
+
+
 def controllers(events, http, responses, read, cache_sequence):
     allowed = {'status', 'owner_inspect', 'owner_prepare', 'owner_claim', 'owner_resume', 'owner_abort'}
     calls = [row for row in http if row['principal'] == '12']
@@ -243,7 +275,17 @@ def controllers(events, http, responses, read, cache_sequence):
     lost = one(events, 'http_proxy_delivery_suppressed', id='claim-ack-loss')
     need((lost['role'], lost['serial']) == (claim['role'], claim['serial']) and
          responses[(claim['role'], claim['serial'])]['ok'], 'real-claim-success-before-loss')
+    claim_response = one(events, 'http_proxy_backend_response', role=claim['role'], serial=claim['serial'])
     resume_response = one(events, 'http_proxy_backend_response', role=resume['role'], serial=resume['serial'])
+    original_input, scope, reference = bodies[0]['input'], bodies[0]['scope'], bodies[1]['plan']
+    claimed = owner_observation(responses[(claim['role'], claim['serial'])], claim_response['status'],
+                                original_input, scope, reference, 'claimed')
+    resumed = owner_observation(responses[(resume['role'], resume['serial'])], resume_response['status'],
+                                original_input, scope, reference, 'active')
+    need(resumed['accepted']['admission'] == claimed['accepted']['admission']
+         and resumed['status']['sequence'] == claimed['status']['sequence'], 'resume-original-admission')
+    need(active[0]['currentAuthority'] == resumed['status']
+         and active[0]['acceptedPhase'] == resumed['accepted']['phase']['kind'], 'resume-report-matches-http')
     reads = [row for row in select(events, 's3_request') if row['role'] == 'B' and row['method'] == 'GET'
              and '/objects/' in row['path'] and cache_sequence < row['sequence'] < resume_response['sequence']]
     need(bool(reads), 'cold-owner-real-s3-reads')

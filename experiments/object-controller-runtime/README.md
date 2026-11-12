@@ -6,7 +6,15 @@
 
 它复用原 owner HTTP 代理及签名 S3 代理，不实现第二套 controller 或数据库算法。
 `run.py` 只报告 `OBSERVED_NOT_AUDITED`；`oracle.py` 从完整原始记录独立判断，
-`controls.py` 对内存副本的九种特定破坏逐项检查，原件不改动。
+`controls.py` 对内存副本的十五种特定破坏逐项检查，原件不改动。新增六种针对原
+`owner_resume` HTTP 响应：失败、错误 state、inactive、错误 owner、错误 plan 和
+错误 current marker。成功必须由原 HTTP 状态及字节、原 prepare 输入、claim plan
+和 accepted/current marker 交叉验证；CLI 的 active 报告只用于检查两者是否一致。
+
+`ffff164` 的真实历史成功，旧九项 controls 也通过，但之后的独立复核发现：只把
+原 resume HTTP 响应替换为 `FENCED`、保留 CLI 报告，旧 oracle 仍会接受。因此旧
+成功判定不能证明原 resume HTTP 已被独立核验。原件和反例必须保留；该补强需要在
+新提交上重新执行 actual、oracle 与全部十五项 controls，不能沿用旧通过记录。
 
 ## 运行
 
