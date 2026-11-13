@@ -1,8 +1,9 @@
 # SQLite on S3：2026-11-13 代码、验证与剩余交付
 
-本页记录本轮恢复执行环境后的工作。测试对象固定为 PR #59 的 `b15bc45` 和
-PR #60 的 `fd508cc`；文档与验证工具接续提交不改变原构建、原 profile 或实际历史
-的源码身份。详细产品设计仍以[主方案](../architecture/object-storage-native-proposal.md)、
+本页记录本轮恢复执行环境后的工作。两份生产 Rust 基线为 PR #59 的 `b15bc45` 和
+PR #60 的 `fd508cc`；接续的测量／审计工具分别记录自己的源码与构建输入。文档与
+工具提交不改变原构建、原 profile 或实际历史的身份。详细产品设计仍以
+[主方案](../architecture/object-storage-native-proposal.md)、
 [安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)和
 [交付计划](sqlite-s3-delivery-plan.md)为准。
 
@@ -14,6 +15,7 @@ PR #60 的 `fd508cc`；文档与验证工具接续提交不改变原构建、原
 | [PR #59](https://github.com/ckanner/scap/pull/59)，冻结 `b15bc45` | #56 owner-plan、#57 有限 controller、#58 S1 retained snapshots 的组合 | 继续 Draft；重新采集原始记录，逐文件分支测量缺口单列 |
 | [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 在一次新事务内消费已验证 Manifest 的私有证明，省去发布前重复的 GET | 已提交生产实现及针对性测试；保留原条件写、第一次回读与 native publication |
 | 本轮验证工具修复 | 拒绝被其他文件正分母掩盖的单文件 branch 0/0 | 不改变数据库格式、API、SQL 行为或运行预算 |
+| 目录发现观测与容量审计工具 | 同一原请求的 handler 接收见证；可复现的 1 GiB 全 BLOB／关闭镜像审计与捕获 | 243 项服务夹具、28 项审计工具测试通过；新实际分别验收 |
 
 PR #60 的生产改动只涉及 `data_tree.rs`、`object_context.rs` 和 `lib.rs`。
 证明绑定原 ObjectContext、后端、handle lineage、Scope／物理世代、输入／输出根、
@@ -40,7 +42,7 @@ PR #60 的生产改动只涉及 `data_tree.rs`、`object_context.rs` 和 `lib.rs
 | b15 owner／controller／S1 | Missing、S1、单 controller、完整 12 场景矩阵及原独立审计／负控通过 | 动态 fleet、持久实例身份分配仍未交付 |
 | b15 资源／GC transport | 原资源合同及完整 42 例 GC transport 通过 | 不等于全进程硬 RSS／磁盘上限或长期成本已完成 |
 | b15 HEAD7 终态 | actual、独立 oracle、25 负控／1 正控全部通过 | 不表示终态前缀永远没有迟到孤儿 |
-| b15 HEAD6 | 第二次完整 actual 与独立 oracle 通过；完整 23 负控／1 正控仍在执行 | 不能用部分 controls 目录补成整体通过 |
+| b15 HEAD6 | 第二次完整 actual、独立 oracle、全部 23 负控／1 正控已通过 | 第一轮超时失败保留；不扩大为全部产品出口 |
 | b15 服务专项 | 原 13 项中 11 项已完成；isolation 与 service discovery 首次失败分别保留 | discovery 的请求归属观察缺口尚未关闭 |
 | owner-plan、1 GiB 与配对负载 | owner-plan 待原参数完整重跑；容量和配对负载待空闲窗口 | 本页当前不签发整体 merge-ready |
 
@@ -60,6 +62,13 @@ oracle 因此拒绝。该页在原 5 秒期限内以 UNKNOWN cursor 返回；代
 读请求、SigV4 校验与锁之后，没有产品发出时刻。现有原件不能证明这个请求必然合法，
 也不能据此断言生产在返回后新发起了工作。失败保持原样，修复需增加准确的原请求
 观测绑定，不能扩大时间窗、删除 no-post-return 判据或给旧历史补写字段。
+
+接续已经增加真实 handler 入口见证，保留原认证日志时钟、全部原 29 个负控和原预算，
+另加 3 个时钟负控；完整服务夹具单元 243 项通过。由于正式 build inputs 包含这些
+Python 文件，接续会重新构建正式 service 并执行全新实际／32 控，不能复用旧 receipt。
+详见[观测修复](discovery-request-clock-validation.md)。容量审计与捕获工具已经进入
+[独立实验目录](../../experiments/object-capacity-audit/README.md)，28 项小型工具测试通过，
+但本次 1 GiB 实际仍待执行；小型 SQLite fixture 不作为实际容量证据。
 
 ## 3. NFS／EFS 问题是否被解决
 

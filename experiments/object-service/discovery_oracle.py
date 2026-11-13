@@ -57,12 +57,45 @@ def window(call, time):
     return stamp(call["request"]) < time < stamp(call["response"])
 
 
+def received(request):
+    """The same authenticated request's original handler-entry witness.
+
+    Headers have been parsed, but the body and SigV4 may not yet be verified.
+    Never infer this clock from the later authenticated log or old evidence.
+    """
+    require("request_received_monotonic_ns" in request, "S3 request is missing its original receipt clock")
+    value = request["request_received_monotonic_ns"]
+    require(type(value) is int and value > 0, "S3 request has an invalid receipt clock")
+    require(value <= stamp(request), "S3 receipt clock follows its authenticated request log")
+    return value
+
+
+def request_owners(request, calls):
+    """Keep original HTTP windows and the two bounded held-call exceptions."""
+    observed_at = received(request)
+    target = request["query"].get("prefix", request["key"])
+    compatible = []
+    for call in calls.values():
+        identity_value = call["identity"]
+        prefix = f"scap-object/v1/{identity_value['deployment']}/{identity_value['tenant']}/"
+        if call["body"]["operation"] == "deployment_inventory" and identity_value["deployment_inventory"]:
+            prefix = f"scap-object/v1/{identity_value['deployment']}/"
+        if not target.startswith(prefix):
+            continue
+        ordinary = window(call, observed_at)
+        continuing = (call.get("label") in ("held_client_timeout", "held_client_abort")
+                      and stamp(call["request"]) < observed_at < stamp(call["request"]) + 5_000_000_000)
+        if ordinary or continuing:
+            compatible.append(call["label"])
+    return compatible
+
+
 class ObjectHistory(dict):
     """Index an already verified immutable history without changing witnesses."""
     def __init__(self, objects):
         super().__init__(objects)
-        self.observed = sorted(objects.values(), key=lambda obj: stamp(obj["request"]))
-        self.times = [stamp(obj["request"]) for obj in self.observed]
+        self.observed = sorted(objects.values(), key=lambda obj: received(obj["request"]))
+        self.times = [received(obj["request"]) for obj in self.observed]
 
     def invocation(self, call):
         lower = bisect_right(self.times, stamp(call["request"]))
@@ -73,7 +106,7 @@ class ObjectHistory(dict):
 def observed_requests(objects, call):
     if isinstance(objects, ObjectHistory):
         return objects.invocation(call)
-    return [obj for obj in objects.values() if window(call, stamp(obj["request"]))]
+    return [obj for obj in objects.values() if window(call, received(obj["request"]))]
 
 
 def numeric_wire(value):
@@ -203,6 +236,7 @@ def network(data, calls):
         request, forwarded, backend, delivery = [only(by[kind], "missing/duplicate original S3 " + kind)
                                                  for kind in ("request", "forwarded", "backend_response", "delivery_started")]
         terminal = only(by["delivery_finished"] + by["delivery_disconnected"], "S3 delivery terminal inventory")
+        received(request)
         require(stamp(request) < stamp(forwarded) < stamp(backend) < stamp(delivery) < stamp(terminal), "S3 original interval order")
         require(request["method"] in ("GET", "PUT") and request["signing"]["verified"] is True
                 and request["signing"]["algorithm"] == "AWS4-HMAC-SHA256", "missing verified actual product SigV4")
@@ -262,23 +296,9 @@ def network(data, calls):
     versions = object_versions(version_requests, version_responses)
     # Exact reads can outlive a disconnected HTTP client, but only the two
     # observed held requests receive this bounded original 5-second window.
-    held = [call for call in calls.values() if call.get("label") in ("held_client_timeout", "held_client_abort")]
     for obj in objects.values():
-        request = obj["request"]
-        compatible = []
-        for call in calls.values():
-            identity_value = call["identity"]
-            prefix = f"scap-object/v1/{identity_value['deployment']}/{identity_value['tenant']}/"
-            if call["body"]["operation"] == "deployment_inventory" and identity_value["deployment_inventory"]:
-                prefix = f"scap-object/v1/{identity_value['deployment']}/"
-            target = request["query"].get("prefix", request["key"])
-            if not target.startswith(prefix):
-                continue
-            ordinary = window(call, stamp(request))
-            continuing = call in held and stamp(call["request"]) < stamp(request) < stamp(call["request"]) + 5_000_000_000
-            if ordinary or continuing:
-                compatible.append(call["label"])
-        require(compatible, "S3 request has no authenticated invocation or bounded still-running worker")
+        require(request_owners(obj["request"], calls),
+                "S3 request has no authenticated invocation or bounded still-running worker")
     publications = [obj for obj in objects.values() if obj["request"]["method"] == "PUT" and obj["backend"]["status"] == 200]
     listing_count = 0
     for obj in objects.values():
@@ -322,6 +342,7 @@ def network(data, calls):
         require(field("KeyCount") == str(len(entries)) and field("IsTruncated") == str(len(expected) > 32).lower(),
                 "LIST completeness/count differs from observed permanent inventory")
     return ObjectHistory(objects), {"signed_backend_requests": len(objects), "list_requests": listing_count, "versions": versions,
+                     "request_observation_clock": "handler_entry_after_headers_before_authentication_locks_and_trace_io",
                      "exact_gets_with_observed_30ms_latency": delayed,
                      "original_backend_response_body_bytes": sum(len(obj["upstream"]) for obj in objects.values()),
                      "delivered_response_body_bytes": sum(len(obj["outgoing"]) for obj in objects.values())}
@@ -460,7 +481,7 @@ def catalogue_profile(observed, objects):
 def metadata_reservation_options(gets, uncertain=None, *, declared_corruption=False, unconsumed=None):
     """Independent reconstruction of the port budget, not HTTP body byte totals."""
     used, maximum = 0, 16 * 1024 * 1024
-    ordered = sorted(gets, key=lambda value: stamp(value["request"]))
+    ordered = sorted(gets, key=lambda value: received(value["request"]))
     require(uncertain is None or ordered and uncertain == ordered[-1]["request"]["request_serial"],
             "metadata refund ambiguity escaped the single final GET")
     require(unconsumed is None or (uncertain is None and ordered and
@@ -499,12 +520,12 @@ def page_requests(objects, call):
         prefix += identity_value["tenant"] + "/"
     return sorted((obj for obj in observed_requests(objects, call)
                    if obj["request"]["query"].get("prefix", obj["request"]["key"]).startswith(prefix)),
-                  key=lambda obj: stamp(obj["request"]))
+                  key=lambda obj: received(obj["request"]))
 
 
 def list_reservation_options(lists, uncertain=None, unconsumed=None):
     """Each LIST reserves 1 MiB; only a complete successful return refunds it."""
-    ordered = sorted(lists, key=lambda value: stamp(value["request"]))
+    ordered = sorted(lists, key=lambda value: received(value["request"]))
     tail = uncertain if uncertain is not None else unconsumed
     require(tail is None or ordered and tail == ordered[-1]["request"]["request_serial"],
             "LIST accounting ambiguity escaped the single final operation")
@@ -646,7 +667,7 @@ def logical_successor(objects, call, following, classified_through, pending, min
     """
     real = page_requests(objects, call)
     lists = [obj for obj in real if obj["request"]["query"]]
-    tail = [obj for obj in real if stamp(obj["request"]) > classified_through and not obj["request"]["query"]]
+    tail = [obj for obj in real if received(obj["request"]) > classified_through and not obj["request"]["query"]]
     facts = {"minimum": minimum, "started": bool(tail), "available": False, "successor": None}
     admitted, candidates = None, []
     if pending is not None:
@@ -666,13 +687,13 @@ def logical_successor(objects, call, following, classified_through, pending, min
             and following["body"]["cursor"] == value_of(call)["cursor"],
             "unobserved reservation lost its original authenticated frontier")
     query = resumed[0]["request"]["query"]
-    cutoff = stamp(real[0]["request"]) + READ_NANOSECONDS
+    cutoff = received(real[0]["request"]) + READ_NANOSECONDS
     consumed = all(obj["terminal"]["event"] == "delivery_finished" and obj["request"]["fault"] is None
-                   and stamp(obj["request"]) < cutoff and stamp(obj["delivery"]) < cutoff
+                   and received(obj["request"]) < cutoff and stamp(obj["delivery"]) < cutoff
                    and stamp(obj["delivery"]) < stamp(call["response"]) for obj in real)
     if consumed and candidates:
         admitted = only(candidates, "unobserved reservation has ambiguous candidate admission")
-        require(admitted is lists[-1] and all(stamp(obj["request"]) > stamp(admitted["delivery"]) for obj in tail),
+        require(admitted is lists[-1] and all(received(obj["request"]) > stamp(admitted["delivery"]) for obj in tail),
                 "unobserved reservation borrowed a later LIST or another phase")
         physical = listed(admitted)[0]
         index = physical.index(pending["physical"])
@@ -691,7 +712,7 @@ def logical_successor(objects, call, following, classified_through, pending, min
                 "admitting_list_serial": admitted["request"]["request_serial"],
                 "observed_dependency_serials": [obj["request"]["request_serial"] for obj in tail],
                 "resumed_query": query, "dispatch_time": "NOT_OBSERVED"}
-    if facts["successor"] is None and not tail and consumed and stamp(real[-1]["request"]) <= classified_through:
+    if facts["successor"] is None and not tail and consumed and received(real[-1]["request"]) <= classified_through:
         require(lists, "unobserved LIST lacks an original consumed page")
         # Ordinary names stop after an exhausted name LIST; only inventory
         # moves between catalogue phases and tenants.
@@ -722,17 +743,19 @@ def page_budget(objects, call, classified_through=0, *, natural=True, logical=No
             "discovery page lacks actual read-only metadata work")
     require(len(lists) <= 4 and len(gets) <= 512,
             "discovery renewed its original LIST/exact-GET budget")
-    # These are observation clocks, not dispatch clocks. A final abandoned
-    # request may have been sent before its deadline and logged after it.
-    cutoff = stamp(real[0]["request"]) + READ_NANOSECONDS
-    require(all(stamp(obj["request"]) < cutoff for obj in real[:-1]),
+    # These are handler-entry/body-delivery observations, not dispatch clocks.
+    # Authentication/logging may finish later; they cannot move a request into
+    # another HTTP invocation. A final abandoned receive can outlive its read
+    # cutoff, but it must still belong to its original HTTP/held-call window.
+    cutoff = received(real[0]["request"]) + READ_NANOSECONDS
+    require(all(received(obj["request"]) < cutoff for obj in real[:-1]),
             "discovery issued non-final work beyond the external four-second read bound")
     require(all(stamp(obj["delivery"]) < cutoff for obj in real[:-1]),
             "causally enabling response exceeded the external four-second read bound")
-    require(all(stamp(left["delivery"]) < stamp(right["request"])
+    require(all(stamp(left["delivery"]) < received(right["request"])
                 for left, right in zip(real, real[1:])),
             "discovery metadata requests lack their synchronous response dependency")
-    late = stamp(real[-1]["request"]) >= cutoff
+    late = received(real[-1]["request"]) >= cutoff
     abandoned = None
     if late:
         final = real[-1]
@@ -740,10 +763,10 @@ def page_budget(objects, call, classified_through=0, *, natural=True, logical=No
                 "final work exceeded the external four-second read bound without an UNKNOWN tail")
         require(final["terminal"]["event"] == "delivery_disconnected",
                 "late final operation lacks explicit disconnected delivery")
-        require(stamp(final["request"]) > classified_through,
+        require(received(final["request"]) > classified_through,
                 "late final operation already contributed to classified progress")
         abandoned = final["request"]["request_serial"]
-    elif stamp(real[-1]["request"]) <= classified_through or not natural or value["stopped"] != "UNKNOWN":
+    elif received(real[-1]["request"]) <= classified_through or not natural or value["stopped"] != "UNKNOWN":
         require(stamp(real[-1]["delivery"]) < cutoff,
                 "classified response exceeded the external four-second read bound")
     uncertain, unconsumed, list_uncertain, list_unconsumed, unresolved_list = None, None, None, None, None
@@ -759,7 +782,7 @@ def page_budget(objects, call, classified_through=0, *, natural=True, logical=No
             # External TCP completion cannot reveal whether the store client
             # accepted the final body before its fixed deadline. Only this last
             # unresolved GET may retain its reservation or earn its exact refund.
-            if final["request"]["query"] and stamp(final["request"]) > classified_through:
+            if final["request"]["query"] and received(final["request"]) > classified_through:
                 if final["terminal"]["event"] == "delivery_disconnected":
                     unresolved_list = final["request"]["request_serial"]
                     if stamp(final["delivery"]) >= cutoff:
@@ -770,7 +793,7 @@ def page_budget(objects, call, classified_through=0, *, natural=True, logical=No
                     require(logical is not None and logical["successor"] is not None
                             and logical["successor"]["operation"] == "GET",
                             "unresolved final LIST lacks disconnected delivery without classified progress")
-            elif not final["request"]["query"] and stamp(final["request"]) > classified_through:
+            elif not final["request"]["query"] and received(final["request"]) > classified_through:
                 if stamp(final["delivery"]) >= cutoff:
                     # The body was not even sent by the external upper bound;
                     # the store's original-deadline postcheck cannot refund it.
@@ -837,12 +860,12 @@ def visible_witness(objects, call, value):
             continue
         require(parsed["lifecycle"] == "ready" and numeric_wire(parsed["scope"]) == scope, "visible HEAD state/scope differs")
         source = [obj for obj in successful_gets(objects, call, descriptor) if sha(obj["outgoing"]) == parsed["creation"]["descriptor_hash"]
-                  and numeric_wire(parse(obj["outgoing"])["creation"]) == creation and stamp(obj["delivery"]) < stamp(authority["request"])]
-        before = [obj for obj in names if stamp(obj["delivery"]) < stamp(authority["request"])]
-        after = [obj for obj in names if stamp(authority["delivery"]) < stamp(obj["request"])]
+                  and numeric_wire(parse(obj["outgoing"])["creation"]) == creation and stamp(obj["delivery"]) < received(authority["request"])]
+        before = [obj for obj in names if stamp(obj["delivery"]) < received(authority["request"])]
+        after = [obj for obj in names if stamp(authority["delivery"]) < received(obj["request"])]
         barriers = [obj for obj in within(objects, call, key=proof, listing=False) if obj["delivery"]["status"] == 404
-                    and stamp(obj["delivery"]) < stamp(authority["request"])
-                    and any(stamp(prior["delivery"]) < stamp(obj["request"]) for prior in before)]
+                    and stamp(obj["delivery"]) < received(authority["request"])
+                    and any(stamp(prior["delivery"]) < received(obj["request"]) for prior in before)]
         if source and before and after and barriers:
             witnesses.append(authority)
     require(witnesses, "visible name lacks same-call source + Name/Proof/HEAD/Name and fresh READ permission")
@@ -950,7 +973,7 @@ def classified_name_evidence(reads, creation, *, admitted_after=None):
     scope = creation["scope"]
     prefix = f"scap-object/v1/{scope['deployment']}/{scope['tenant']}/"
     def candidates(key):
-        return reads[key] if admitted_after is None else [obj for obj in reads[key] if stamp(obj["request"]) > admitted_after]
+        return reads[key] if admitted_after is None else [obj for obj in reads[key] if received(obj["request"]) > admitted_after]
     key = prefix + "catalogue/v1/name/" + sha(creation["name"].encode())
     names = [obj for obj in candidates(key) if obj["delivery"]["status"] == 200
              and numeric_wire(parse(obj["outgoing"])["creation"]) == creation
@@ -966,15 +989,15 @@ def classified_name_evidence(reads, creation, *, admitted_after=None):
         if body["lifecycle"] != "ready" or numeric_wire(body["scope"]) != scope:
             continue
         source = any(sha(obj["outgoing"]) == body["creation"]["descriptor_hash"]
-                     and stamp(obj["delivery"]) < stamp(head["request"]) for obj in descriptors)
+                     and stamp(obj["delivery"]) < received(head["request"]) for obj in descriptors)
         for after in names:
-            if stamp(after["request"]) <= stamp(head["delivery"]):
+            if received(after["request"]) <= stamp(head["delivery"]):
                 continue
             before = [obj for obj in names if obj["outgoing"] == after["outgoing"]
                       and obj["delivery"]["etag"] == after["delivery"]["etag"]
-                      and stamp(obj["delivery"]) < stamp(head["request"])]
-            barrier = any(stamp(proof["delivery"]) < stamp(head["request"])
-                          and any(stamp(prior["delivery"]) < stamp(proof["request"]) for prior in before) for proof in proofs)
+                      and stamp(obj["delivery"]) < received(head["request"])]
+            barrier = any(stamp(proof["delivery"]) < received(head["request"])
+                          and any(stamp(prior["delivery"]) < received(proof["request"]) for prior in before) for proof in proofs)
             if source and before and barrier and parse(after["outgoing"])["origin"] == body["creation"]:
                 return {"binding": parse(after["outgoing"]), "head": body, "through": stamp(after["delivery"])}
     return None
@@ -1013,7 +1036,7 @@ def no_post_return_work(objects, call, following):
     target = f"scap-object/v1/{call['identity']['deployment']}/"
     if call["body"]["operation"] == "list_names":
         target += call["identity"]["tenant"] + "/"
-    require(not any(stamp(call["response"]) <= stamp(obj["request"]) < next_invocation
+    require(not any(stamp(call["response"]) <= received(obj["request"]) < next_invocation
                     and obj["request"]["query"].get("prefix", obj["request"]["key"]).startswith(target)
                     for obj in objects.values()),
             "abandoned tail was followed by work after its original HTTP response")
@@ -1086,11 +1109,11 @@ def abandoned_candidate(objects, call, following, serial, creation, *, authority
     require(final["request"]["key"] in keys,
             "late final GET belongs to an already classified or unrelated candidate")
     reads = [obj for obj in page_requests(objects, call) if not obj["request"]["query"]
-             and stamp(admitting["delivery"]) < stamp(obj["request"]) <= stamp(final["request"])]
+             and stamp(admitting["delivery"]) < received(obj["request"]) <= received(final["request"])]
     first = next((obj for obj in reads if obj["request"]["key"] == authority), None)
     require(first is not None, "late tail lacks the unclassified candidate's original authority GET")
     require(all(obj["request"]["key"] in keys for obj in reads
-                if stamp(obj["request"]) >= stamp(first["request"])),
+                if received(obj["request"]) >= received(first["request"])),
             "late tail crossed another candidate after its unclassified authority")
     no_post_return_work(objects, call, following)
     return {"call": call["label"], "operation": "GET", "request_serial": serial, "candidate": authority,
@@ -1196,22 +1219,22 @@ def inventory_candidate(objects, call, entry):
                      and obj["request"]["query"].get("delimiter") == ("/" if kind == "head" else None)
                      and physical in listed(obj)[0]], "inventory record lacks its unique original admitting LIST")
     lower = stamp(admitted["delivery"])
-    upper = min((stamp(obj["request"]) for obj in lists if stamp(obj["request"]) > lower),
+    upper = min((received(obj["request"]) for obj in lists if received(obj["request"]) > lower),
                 default=stamp(call["response"]))
-    phase = {serial: obj for serial, obj in objects.items() if lower < stamp(obj["request"]) < upper
+    phase = {serial: obj for serial, obj in objects.items() if lower < received(obj["request"]) < upper
              and stamp(obj["delivery"]) < upper and not obj["request"]["query"]}
     authority = successful_gets(phase, call, entry["key"])
     require(authority, "admitted inventory candidate lacks its own exact authority GET")
-    lower = min(stamp(obj["request"]) for obj in authority)
+    lower = min(received(obj["request"]) for obj in authority)
     entries = listed(admitted)[0]
     following = entries[entries.index(physical) + 1:]
     # Different immutable control records may name the same creation. A later
     # record must not borrow the earlier record's Name/Proof/HEAD/Name witness.
     next_keys = {key + "head" if kind == "head" else key for key in following
                  if kind != "head" or key != tenant + "catalogue/"}
-    upper = min((stamp(obj["request"]) for obj in phase.values() if obj["request"]["key"] in next_keys
-                 and stamp(obj["request"]) > lower), default=upper)
-    return {serial: obj for serial, obj in phase.items() if lower <= stamp(obj["request"]) < upper
+    upper = min((received(obj["request"]) for obj in phase.values() if obj["request"]["key"] in next_keys
+                 and received(obj["request"]) > lower), default=upper)
+    return {serial: obj for serial, obj in phase.items() if lower <= received(obj["request"]) < upper
             and stamp(obj["delivery"]) < upper}
 
 
@@ -1255,11 +1278,11 @@ def inventory_record(objects, call, entry):
     heads = [obj for obj in reads[key_by_kind["head"]] if obj["delivery"]["status"] == 404]
     for after in names:
         for head in heads:
-            if stamp(head["delivery"]) >= stamp(after["request"]):
+            if stamp(head["delivery"]) >= received(after["request"]):
                 continue
-            if any(stamp(source["delivery"]) < stamp(head["request"]) for source in sources) and any(
-                    stamp(proof["delivery"]) < stamp(head["request"]) and any(
-                        stamp(before["delivery"]) < stamp(proof["request"]) for before in names) for proof in proofs):
+            if any(stamp(source["delivery"]) < received(head["request"]) for source in sources) and any(
+                    stamp(proof["delivery"]) < received(head["request"]) and any(
+                        stamp(before["delivery"]) < received(proof["request"]) for before in names) for proof in proofs):
                 return stamp(after["delivery"])
     raise ValueError("dormant inventory lacks its original stable absent view")
 
@@ -1505,7 +1528,7 @@ def cases(observed, objects, history):
         require(page["stopped"] == stopped and page["cursor"] is not None and page["traversal_exhausted"] is False,
                 "S3 failure was turned into successful empty discovery")
         target = only([obj for obj in objects.values() if obj["request"]["fault"] == label], "actual original fault denominator")
-        require(window(call, stamp(target["request"])) and stamp(target["delivery"]) < stamp(call["response"]), "fault has no matching API invocation")
+        require(window(call, received(target["request"])) and stamp(target["delivery"]) < stamp(call["response"]), "fault has no matching API invocation")
         phase = "after_fault_" + label
         recovery = [value for value in observed.values() if value["request"]["phase"] == phase]
         require([value["label"] for value in recovery] == [f"{phase}_{index}" for index in range(len(recovery))],
@@ -1565,7 +1588,7 @@ def cases(observed, objects, history):
             "held_running_workers": 2, "hot_and_control_successes_while_blocked": 3,
             "resident_hot_query_head_only": True, "steady_latency_progress": progress,
             "bounded_natural_continuations": natural,
-            "deadline_evidence": {"external_read_bound": "causally_enabling_requests_and_delivery_starts_before_first_S3_plus_4_seconds",
+            "deadline_evidence": {"external_read_bound": "causally_enabling_requests_and_delivery_starts_before_first_S3_handler_entry_plus_4_seconds",
                                   "exact_internal_origin": "frozen_production_received_HTTP_plus_5_seconds_minus_1_second",
                                   "internal_receive_timestamp_observed": False, "internal_dispatch_timestamp_observed": False,
                                   "late_request_exception": "one_disconnected_unclassified_final_GET_or_LIST_before_HTTP_reply",
@@ -1744,9 +1767,33 @@ def control_shift_after(data, cutoff, delta):
         if not isinstance(values, list):
             continue
         for row in values:
+            if row.get("event") == "request":
+                original = received(row)
+                if original >= cutoff:
+                    row["request_received_monotonic_ns"] = original + delta
             if "monotonic_ns" in row and stamp(row) >= cutoff:
                 value = stamp(row) + delta
                 row["monotonic_ns"] = str(value) if isinstance(row["monotonic_ns"], str) else value
+
+
+def control_retime_event(row, time):
+    """Move a counterfactual event, never lend it an original receive clock."""
+    if row.get("event") == "request":
+        received(row)  # Controls require a new-schema source, never backfill one.
+        row["request_received_monotonic_ns"] = time
+    row["monotonic_ns"] = time
+
+
+def control_receipt_clock(data, kind):
+    """Break only the new original-request witness in an explicit copy."""
+    request = next(row for row in data["discovery-s3.jsonl"] if row["event"] == "request")
+    if kind == "missing":
+        del request["request_received_monotonic_ns"]
+    elif kind == "invalid":
+        request["request_received_monotonic_ns"] = True
+    else:
+        require(kind == "after_log", "unknown receipt-clock control")
+        request["request_received_monotonic_ns"] = stamp(request) + 1
 
 
 def control_renumber(trace):
@@ -1777,7 +1824,7 @@ def control_tail_history(data, call, originals, replacements, removed=()):
     excluded = set(removed) | set(replacements)
     kept = sorted((copy.deepcopy(row) for serial, group in originals.items() if serial not in excluded for row in group), key=stamp)
     for index, row in enumerate(kept):
-        row["monotonic_ns"] = start + 10_000_000 + index * 1000
+        control_retime_event(row, start + 10_000_000 + index * 1000)
     trace = data["discovery-s3.jsonl"]
     trace[:] = [row for row in trace if row.get("request_serial") not in set(originals) | set(replacements)]
     trace.extend(kept); trace.extend(replacement_rows)
@@ -1792,7 +1839,7 @@ def control_retime_group(original, started, *, disconnected=True, delivered=None
             and group[0]["method"] == "GET" and not group[0]["query"],
             "causal negative lacks an original complete unfaulted GET")
     for index, row in enumerate(group):
-        row["monotonic_ns"] = started + index * 1000
+        control_retime_event(row, started + index * 1000)
     if delivered is not None:
         for row, offset in zip(group[2:], (-1000, 0, 1000)):
             row["monotonic_ns"] = delivered + offset
@@ -1938,11 +1985,11 @@ def controls(directory):
         _, observed, _ = http_calls(data)
         prime, hot = observed["prime_hot_query"], observed["while_held_query"]
         trace = data["discovery-s3.jsonl"]
-        cold = next(row for row in trace if row["event"] == "request" and window(prime, stamp(row))
+        cold = next(row for row in trace if row["event"] == "request" and window(prime, received(row))
                     and row["method"] == "GET" and "/objects/" in row["key"])
         moved = [row for row in trace if row.get("request_serial") == cold["request_serial"]]
         for index, row in enumerate(moved):
-            row["monotonic_ns"] = stamp(hot["request"]) + 10_000 + index
+            control_retime_event(row, stamp(hot["request"]) + 10_000 + index)
         trace.sort(key=stamp)
         for index, row in enumerate(trace, 1):
             row["sequence"] = index
@@ -1992,7 +2039,7 @@ def controls(directory):
     original_rows = {serial: [row for row in baseline["discovery-s3.jsonl"] if row.get("request_serial") == serial]
                      for serial in original_ids}
     removed_ids = {obj["request"]["request_serial"] for obj in original_objects
-                   if stamp(obj["request"]) > stamp(completed["request"])}
+                   if received(obj["request"]) > received(completed["request"])}
     extra_id = max(base_objects) + 1
     completed_index = original_objects.index(completed)
     require(completed_index > 0, "causal negative lacks a preceding original GET")
@@ -2021,7 +2068,8 @@ def controls(directory):
             started += len(events)
         require(started + len(events) < first["next_invocation_ns"], "post-return negative lacks the actual inter-invocation interval")
         for index, row in enumerate(events):
-            row["request_serial"], row["monotonic_ns"] = extra_id, started + index
+            row["request_serial"] = extra_id
+            control_retime_event(row, started + index)
         data["discovery-s3.jsonl"].extend(events)
         control_renumber(data["discovery-s3.jsonl"])
 
@@ -2037,7 +2085,7 @@ def controls(directory):
             for event_index, row in enumerate(events):
                 added = copy.deepcopy(row)
                 added["request_serial"] = base + copy_index + 1
-                added["monotonic_ns"] = stamp(source["terminal"]) + 1000 + copy_index * len(events) + event_index
+                control_retime_event(added, stamp(source["terminal"]) + 1000 + copy_index * len(events) + event_index)
                 trace.append(added)
         control_renumber(trace)
 
@@ -2086,6 +2134,9 @@ def controls(directory):
                             "metadata-version control fixed fixture source")
 
     new_controls = (
+        ("missing_request_receipt_clock", lambda data: control_receipt_clock(data, "missing"), "missing its original receipt clock"),
+        ("invalid_request_receipt_clock", lambda data: control_receipt_clock(data, "invalid"), "invalid receipt clock"),
+        ("request_receipt_after_authenticated_log", lambda data: control_receipt_clock(data, "after_log"), "follows its authenticated request log"),
         ("natural_partial_false_complete", false_natural_completion,
          "original authenticated cursor|continuation dispatched|genuine partial first page"),
         ("natural_frontier_skipped_unclassified_key", skipped_natural_candidate,

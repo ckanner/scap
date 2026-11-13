@@ -30,7 +30,8 @@ class Evidence:
 
     def get(self, key, raw=b"", status=200, query=None):
         serial = len(self.objects) + 1
-        request = {"monotonic_ns": self.now, "request_serial": serial, "method": "GET",
+        request = {"monotonic_ns": self.now, "request_received_monotonic_ns": self.now,
+                   "request_serial": serial, "method": "GET",
                    "key": key, "query": query or {}, "fault": None}
         delivery = {"monotonic_ns": self.now + 100, "status": status, "etag": '"body"' if status == 200 else None}
         value = {"request": request, "backend": dict(delivery), "delivery": delivery,
@@ -162,6 +163,7 @@ def late_tail_fixture():
     evidence, ordered, scan, following = names_fixture()
     final = audit.page_requests(evidence.objects, scan[0])[-1]
     final["request"]["monotonic_ns"] = 4_020_000_000
+    final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
     final["backend"]["monotonic_ns"] = 4_025_000_000
     final["delivery"]["monotonic_ns"] = 4_030_000_000
     final["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
@@ -211,8 +213,12 @@ def consumed_phase_fixture():
         if audit.stamp(obj["request"]) > original_time:
             for event in ("request", "backend", "delivery", "terminal"):
                 obj[event]["monotonic_ns"] += 5_000_000_000
+                if event == "request":
+                    obj[event]["request_received_monotonic_ns"] += 5_000_000_000
     for index, event in enumerate(("request", "backend", "delivery", "terminal")):
         phase[event]["monotonic_ns"] = 8_950_000_000 + index * 1000
+        if event == "request":
+            phase[event]["request_received_monotonic_ns"] = phase[event]["monotonic_ns"]
     create, head = middle["value"]["value"]["records"]
     middle["label"] = "consumed_phase"
     middle["response"]["monotonic_ns"] = 9_100_000_000
@@ -249,11 +255,15 @@ class ZeroProgressControls(unittest.TestCase):
             self.assertEqual(set(replacements), {previous_id, completed_id})
             for serial, group in replacements.items():
                 for original, changed in zip(groups[serial], group):
-                    self.assertEqual({k:v for k,v in changed.items() if k not in ('event','monotonic_ns')},
-                                     {k:v for k,v in original.items() if k not in ('event','monotonic_ns')})
+                    clocks = ('event', 'monotonic_ns', 'request_received_monotonic_ns')
+                    self.assertEqual({k:v for k,v in changed.items() if k not in clocks},
+                                     {k:v for k,v in original.items() if k not in clocks})
+                    if changed['event'] == 'request':
+                        self.assertEqual(changed['request_received_monotonic_ns'], changed['monotonic_ns'])
                 obj = evidence.objects[serial]
                 for key, row in zip(('request','backend','delivery','terminal'), (group[0],group[2],group[3],group[4])):
                     obj[key]['monotonic_ns'] = row['monotonic_ns']
+                obj['request']['request_received_monotonic_ns'] = group[0]['request_received_monotonic_ns']
                 obj['terminal']['event'] = group[-1]['event']
             self.assertEqual(set(evidence.objects), original_ids)
             invocation = call(1_000, 4_500_000_000, None, {'stopped':'UNKNOWN','cursor':'original-token'})
@@ -279,12 +289,16 @@ class ZeroProgressControls(unittest.TestCase):
             if audit.stamp(obj["request"]) > audit.stamp(scan[0]["response"]):
                 for event in ("request", "backend", "delivery", "terminal"):
                     obj[event]["monotonic_ns"] += 5_000_000_000
+                    if event == "request":
+                        obj[event]["request_received_monotonic_ns"] += 5_000_000_000
         scan[1]["request"]["monotonic_ns"] += 5_000_000_000
         scan[1]["response"]["monotonic_ns"] += 5_000_000_000
         second = copy.deepcopy(final)
         second["request"]["request_serial"] = max(evidence.objects) + 1
         for event in ("request", "backend", "delivery", "terminal"):
             second[event]["monotonic_ns"] += 5_000_000_000
+            if event == "request":
+                second[event]["request_received_monotonic_ns"] += 5_000_000_000
         evidence.objects[second["request"]["request_serial"]] = second
         invocation = call(5_000_000_000, 9_100_000_000, "original-sealed-token", copy.deepcopy(scan[0]["value"]["value"]))
         report = audit.name_progress([scan[0], invocation, scan[1]], evidence.objects, ordered)
@@ -341,6 +355,8 @@ class ZeroProgressControls(unittest.TestCase):
         for obj in evidence.objects.values():
             for event in ("request", "backend", "delivery", "terminal"):
                 obj[event]["monotonic_ns"] += 5_000_000_000
+                if event == "request":
+                    obj[event]["request_received_monotonic_ns"] += 5_000_000_000
         for invocation in scan:
             invocation["request"]["monotonic_ns"] += 5_000_000_000
             invocation["response"]["monotonic_ns"] += 5_000_000_000
@@ -362,6 +378,8 @@ class ZeroProgressControls(unittest.TestCase):
             if audit.stamp(obj["request"]) > audit.stamp(scan[0]["response"]):
                 for event in ("request", "backend", "delivery", "terminal"):
                     obj[event]["monotonic_ns"] += 5_000_000_000
+                    if event == "request":
+                        obj[event]["request_received_monotonic_ns"] += 5_000_000_000
         for invocation in scan[1:]:
             invocation["request"]["monotonic_ns"] += 5_000_000_000
             invocation["response"]["monotonic_ns"] += 5_000_000_000
@@ -407,6 +425,7 @@ class ListTailControls(unittest.TestCase):
     def test_earlier_final_list_delivery_has_only_two_exact_consumption_outcomes(self):
         evidence, _, scan, _, final = list_tail_fixture()
         final["request"]["monotonic_ns"] = 3_950_000_000
+        final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
         final["delivery"]["monotonic_ns"] = 3_960_000_000
         final["terminal"]["monotonic_ns"] = 3_970_000_000
         budget = audit.page_budget(evidence.objects, scan[0])
@@ -442,6 +461,7 @@ class ListTailControls(unittest.TestCase):
     def test_list_tail_cannot_be_assumed_without_disconnect(self):
         evidence, ordered, scan, _, final = list_tail_fixture()
         final["request"]["monotonic_ns"] = 3_950_000_000
+        final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
         final["terminal"]["event"] = "delivery_finished"
         with self.assertRaisesRegex(ValueError, "unresolved final LIST lacks disconnected delivery"):
             audit.name_progress(scan, evidence.objects, ordered)
@@ -450,6 +470,7 @@ class ListTailControls(unittest.TestCase):
         evidence, ordered, scan, _, final = list_tail_fixture()
         earlier = audit.page_requests(evidence.objects, scan[0])[-2]
         earlier["request"]["monotonic_ns"] = 4_015_000_000
+        earlier["request"]["request_received_monotonic_ns"] = earlier["request"]["monotonic_ns"]
         earlier["delivery"]["monotonic_ns"] = 4_016_000_000
         earlier["terminal"].update(monotonic_ns=4_017_000_000, event="delivery_disconnected")
         with self.assertRaisesRegex(ValueError, "non-final work"):
@@ -495,6 +516,7 @@ class CausalTailControls(unittest.TestCase):
     def test_late_delivery_does_not_invent_a_possible_refund(self):
         evidence, _, scan, _, final = late_tail_fixture()
         final["request"]["monotonic_ns"] = 3_950_000_000
+        final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
         final["terminal"]["event"] = "delivery_finished"
         budget = audit.page_budget(evidence.objects, scan[0])
         self.assertIsNone(budget["late_final_request"])
@@ -523,6 +545,7 @@ class CausalTailControls(unittest.TestCase):
         previous = audit.page_requests(evidence.objects, scan[0])[-2]
         del evidence.objects[final["request"]["request_serial"]]
         previous["request"]["monotonic_ns"] = 4_020_000_000
+        previous["request"]["request_received_monotonic_ns"] = previous["request"]["monotonic_ns"]
         previous["delivery"]["monotonic_ns"] = 4_030_000_000
         previous["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
         with self.assertRaisesRegex(ValueError, "already contributed to classified progress"):
@@ -558,6 +581,7 @@ class CausalTailControls(unittest.TestCase):
         evidence, published, scan = inventory_fixture()
         final = audit.page_requests(evidence.objects, scan[0])[-1]
         final["request"]["monotonic_ns"] = 4_020_000_000
+        final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
         final["delivery"]["monotonic_ns"] = 4_030_000_000
         final["terminal"].update(monotonic_ns=4_031_000_000, event="delivery_disconnected")
         scan[0]["response"]["monotonic_ns"] = 4_100_000_000
@@ -591,6 +615,8 @@ class NaturalContinuationControls(unittest.TestCase):
         admitting = audit.page_requests(evidence.objects, scan[0])[0]
         for index, event in enumerate(("request", "backend", "delivery", "terminal")):
             admitting[event]["monotonic_ns"] = 20_000_000 + index * 1000
+            if event == "request":
+                admitting[event]["request_received_monotonic_ns"] = admitting[event]["monotonic_ns"]
         with self.assertRaisesRegex(ValueError, "unclassified name after its original LIST admission"):
             audit.name_progress(scan, evidence.objects, ordered)
 
@@ -599,6 +625,8 @@ class NaturalContinuationControls(unittest.TestCase):
         descriptor = next(obj for obj in evidence.objects.values() if "/create/" in obj["request"]["key"])
         for index, event in enumerate(("request", "backend", "delivery", "terminal")):
             descriptor[event]["monotonic_ns"] = 5_000_000 + index * 1000
+            if event == "request":
+                descriptor[event]["request_received_monotonic_ns"] = descriptor[event]["monotonic_ns"]
         with self.assertRaisesRegex(ValueError, "unclassified name after its original LIST admission"):
             audit.name_progress(scan, evidence.objects, ordered)
 
@@ -651,6 +679,7 @@ class NaturalContinuationControls(unittest.TestCase):
         evidence, _, scan, _ = names_fixture()
         last = list(evidence.objects.values())[6]
         last["request"]["monotonic_ns"] = 4_500_000_000
+        last["request"]["request_received_monotonic_ns"] = last["request"]["monotonic_ns"]
         last["delivery"]["monotonic_ns"] = 4_500_000_100
         scan[0]["response"]["monotonic_ns"] = 4_900_000_000
         with self.assertRaisesRegex(ValueError, "disconnected delivery"):
@@ -777,6 +806,7 @@ class NaturalContinuationControls(unittest.TestCase):
         evidence.objects = {serial: obj for serial, obj in evidence.objects.items() if audit.window(current, audit.stamp(obj["request"]))}
         final = audit.page_requests(evidence.objects, current)[-1]
         final["request"]["monotonic_ns"] = audit.stamp(current["request"]) + 3_950_000_000
+        final["request"]["request_received_monotonic_ns"] = final["request"]["monotonic_ns"]
         final["delivery"]["monotonic_ns"] = audit.stamp(final["request"]) + 100
         current["response"]["monotonic_ns"] = audit.stamp(current["request"]) + 4_010_000_000
         current["value"]["value"]["stopped"] = "UNKNOWN"
@@ -851,6 +881,7 @@ class NaturalContinuationControls(unittest.TestCase):
         trace = []
         for index, key in enumerate(keys, 1):
             trace.extend([{"event": "request", "request_serial": index, "monotonic_ns": index * 10,
+                           "request_received_monotonic_ns": index * 10,
                            "method": "PUT", "key": key},
                           {"event": "backend_response", "request_serial": index, "monotonic_ns": index * 10 + 1, "status": 200}])
         root = ET.Element("ListBucketResult")
@@ -862,7 +893,8 @@ class NaturalContinuationControls(unittest.TestCase):
             ET.SubElement(ET.SubElement(root, "Contents"), "Key").text = key
         raw = ET.tostring(root)
         body = {"bytes": len(raw), "sha256": audit.sha(raw), "base64": base64.b64encode(raw).decode()}
-        trace.extend([{"event": "request", "request_serial": 41, "monotonic_ns": 1000, "method": "GET", "key": "/scap-test",
+        trace.extend([{"event": "request", "request_serial": 41, "monotonic_ns": 1000,
+                       "request_received_monotonic_ns": 1000, "method": "GET", "key": "/scap-test",
                        "path": "/scap-test?list-type=2&max-keys=32", "query": {"list-type": "2", "max-keys": "32", "prefix": prefix}},
                       {"event": "backend_response", "request_serial": 41, "monotonic_ns": 1001, "status": 200, "body": copy.deepcopy(body)},
                       {"event": "delivery_started", "request_serial": 41, "monotonic_ns": 1002, "status": 200, "body": copy.deepcopy(body)}])
