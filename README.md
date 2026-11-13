@@ -11,8 +11,8 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 | 代码 | 内容 | 当前状态 |
 | --- | --- | --- |
-| [PR #59](https://github.com/ckanner/scap/pull/59)，本轮冻结 `b15bc45` | 汇集 #56 可恢复 owner plan、#57 有限自动 controller 和 #58 保留快照 S1 | 代码已提交，继续 Draft；完整实际原件正在重新采集，分支测量缺口未闭合 |
-| [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 新业务提交复用本次已经验证的 Manifest，减少一次重复 GET | 实现与针对性测试已提交；保留原 ETag、首次完整回读和成功确认顺序；配对负载单独验收 |
+| [PR #59](https://github.com/ckanner/scap/pull/59)，生产基线 `b15bc45`，观测修复 `642383c` | 汇集 #56 可恢复 owner plan、#57 有限自动 controller 和 #58 保留快照 S1 | 代码已提交；新完整 service discovery 及其 32 负控通过，容量接续尚无最终结果；严格分支测量缺口未闭合，继续 Draft |
+| [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 新业务提交复用本次已经验证的 Manifest，减少一次重复 GET | 两组完整配对确认请求减少；四库写入速率分别下降 24.00%／24.52%，回退原因未定位，继续 Draft |
 | 本轮门禁工具修复 | 拒绝被其他文件正计数掩盖的单文件 branch 0/0 | 完整 76 项 tooling 测试及精确 Python 覆盖通过；原 Rust 报告严格重验按预期拒绝 |
 
 b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单元测试通过。两份报告都映射
@@ -23,14 +23,17 @@ b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单元测试通�
 [机器记录](docs/evidence/branch-measurement-review-2026-11-13.json)。
 
 执行环境已经恢复。原 11–12 日部分 raw originals 未能恢复，因此本轮重新构建正式
-release，按原合同重新执行，分别保存原失败、新通过和未运行项。终态退休、native／
-发现、controller 矩阵、S1、资源与 GC transport 已取得新结果；余下实际门禁的进度见
+release，按原合同重新执行，分别保存原失败、新通过和未运行项。HEAD6、终态退休、
+native／deployment discovery、owner-plan、isolation、controller 矩阵、S1、资源与
+GC transport 已取得完整新结果；service discovery 在新 `642383c` 上也已完成，容量接续见
 [2026-11-13 交付与验收](docs/engineering/sqlite-s3-review-2026-11-13.md)。不能把只补
 HEAD6 和终态两个尾项当作所有旧证据已恢复，也不以当前检查器的绿色文字代替严格门禁。
 
 动态 fleet、持久实例身份分配、S2/PITR、硬 RSS／磁盘隔离、持续过载与长期成本、真实
 AWS 和生产 SLO 仍未交付。单库仍串行，冷恢复仍完整读取闭包；同环境请求账本与实际
-吞吐分别报告，不预先宣称减少一个 GET 已解决热点吞吐。
+吞吐分别报告。两组配对的完整正确性和原负控通过，但不能宣称减少一个 GET 已解决
+热点吞吐。原计数、尾延迟、采样限制和下一步 profile 见
+[Manifest 性能验收](docs/engineering/verified-manifest-load-validation.md)。
 
 ## SQLite 文件安全与吞吐边界
 
