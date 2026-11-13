@@ -15,7 +15,7 @@ PR #60 的 `fd508cc`；接续的测量／审计工具分别记录自己的源码
 | [PR #59](https://github.com/ckanner/scap/pull/59)，冻结 `b15bc45` | #56 owner-plan、#57 有限 controller、#58 S1 retained snapshots 的组合 | 继续 Draft；重新采集原始记录，逐文件分支测量缺口单列 |
 | [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 在一次新事务内消费已验证 Manifest 的私有证明，省去发布前重复的 GET | 已提交生产实现及针对性测试；保留原条件写、第一次回读与 native publication |
 | 本轮验证工具修复 | 拒绝被其他文件正分母掩盖的单文件 branch 0/0 | 不改变数据库格式、API、SQL 行为或运行预算 |
-| 目录发现观测与容量审计工具 | 同一原请求的 handler 接收见证；可复现的 1 GiB 全 BLOB／关闭镜像审计与捕获 | 243 项服务夹具、28 项审计工具测试通过；新实际分别验收 |
+| 目录发现观测与容量审计工具 | 同一原请求的 handler 接收见证；可复现的 1 GiB 全 BLOB／关闭镜像审计与捕获 | 243 项服务夹具、28 项审计工具测试通过；新 discovery 与固定 b15 的容量实际、独立审计及全部指定负控分别通过 |
 
 PR #60 的生产改动只涉及 `data_tree.rs`、`object_context.rs` 和 `lib.rs`。
 证明绑定原 ObjectContext、后端、handle lineage、Scope／物理世代、输入／输出根、
@@ -53,7 +53,7 @@ PR #60 的生产改动只涉及 `data_tree.rs`、`object_context.rs` 和 `lib.rs
 | b15 服务专项 | 12 项已有完整通过记录，包含新 isolation 实际／21 负控／1 正控；service discovery 原失败保留 | 新观测 schema 的 discovery 实际属于不同冻结来源，不回填 b15 |
 | `642383c` 服务 discovery | 新正式 release 上的完整 actual、独立 oracle、32 负控及原正控通过；424 HTTP、25,278 S3，源码与构建输入不变 | 这是服务发现合同，不宣称完整数据恢复、AWS 或生产 SLO |
 | 两组配对负载 | 基线→候选及候选→基线各自完整 actual／oracle／14 负控／3 正控通过 | 请求减少有证据，吞吐改善没有证据；四库两次均更慢 |
-| 固定 1 GiB | 冻结 b15 的新完整 actual 已启动；审计／捕获工具已交付，尚无最终判定 | 工具单元不能代替容量实际，本页不签发整体 merge-ready |
+| 固定 1 GiB | 冻结 b15 原 actual、关闭镜像捕获、完整独立审计、5 负控与原正控全部通过；38 原 ACK＋1 原 UNKNOWN、39 冷 lookup、16,384 BLOB／1,073,741,824 字节无失配，integrity_check 为 ok | 默认 10 GiB、fd508 容量、AWS 与生产 SLO 未运行；关闭副本审计不是第二次 S3 恢复，本页不签发整体 merge-ready |
 
 分支测量问题已在[独立说明](branch-coverage-measurement-gap.md)中纠正。
 修复前的检查器对原报告曾返回成功，并不意味着 `match`／`?` 的所有分支已经被独立计数。
@@ -83,9 +83,18 @@ Python 文件，已在冻结 `642383c` 新构建正式 service，278 个输入�
 424 HTTP、25,278 S3、26 SDK／3 service／4 backend 的 owned wait4 与清理状态均核对；
 旧失败原报告 SHA 不变，新结果不能复用旧 receipt 或归属旧 b15 源码。
 详见[观测修复](discovery-request-clock-validation.md)。容量审计与捕获工具已经进入
-[独立实验目录](../../experiments/object-capacity-audit/README.md)，28 项小型工具测试通过，
-本次 1 GiB actual 已在 discovery 完整退出后启动，尚无最终判定；小型 SQLite fixture
-不作为实际容量证据。
+[独立实验目录](../../experiments/object-capacity-audit/README.md)，28 项小型工具测试通过。
+随后在 discovery 完整退出后，冻结 b15 的原固定 1 GiB actual 用时 370.425 秒，关闭
+镜像捕获 12.753 秒，完整独立审计及 5 负控／原正控 42.655 秒，全部退出 0。原 38 个
+execute ACK 与 1 个 UNKNOWN 分别保留，39 个冷 lookup 原结果逐一一致；审计器重新
+读取最终全部 16,384 个 BLOB 的 1 GiB 字节并核验哈希，完整 integrity_check 为 ok。
+11 个原实际子进程均有 owned wait4，之后才捕获关闭镜像；审计器另有独立 wait4。
+审计器的 RSS 观察不作为产品硬内存上限，关闭副本也不是第二次 S3 恢复。完整范围、
+原报告身份与未运行项见[容量验收](capacity-gib1-validation-2026-11-13.md)。
+
+本批计划的本地实际均已取得最终结果，原失败、成功重跑及不同冻结源码继续分开保存。
+接续文档提交和 PR #60 的基线同步不产生新的运行身份，不能把旧实际改称最终合并
+commit 的全套验证；严格分支证明与 PR #60 的性能回退仍是阻断项。
 
 ## 3. NFS／EFS 问题是否被解决
 

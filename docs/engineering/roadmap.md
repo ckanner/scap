@@ -23,8 +23,8 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 | 阶段 | 当前实现与已取得的证据 | 尚需完成的退出条件 |
 | --- | --- | --- |
-| N0 协议与格式 | SCAPOBJ2、HEAD6/7 复制／GC／seal、HEAD8 owner-plan 与 HEAD9 retained roots 已有代码；新 HEAD6 与终态全套实际／oracle／原负控通过 | 关闭逐文件分支测量缺口，完成当前组合仍需的新实际；模型与局部合同不替代整体出口 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证／取消、增量页树、Session、逻辑配额和本地全计算丢失恢复 | 当前组合的完整原件与固定容量验收；真实 AWS Standard、完整 OT 合同及部署故障域另验 |
+| N0 协议与格式 | SCAPOBJ2、HEAD6/7 复制／GC／seal、HEAD8 owner-plan 与 HEAD9 retained roots 已有代码；新 HEAD6 与终态全套实际／oracle／原负控通过 | 关闭逐文件分支测量缺口，按受影响源码重新核对组合门禁；模型与局部合同不替代整体出口 |
+| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证／取消、增量页树、Session、逻辑配额和本地全计算丢失恢复；本轮 b15 固定 1 GiB 与完整原结果／BLOB 独立审计通过 | 真实 AWS Standard、完整 OT 合同及部署故障域另验；1 GiB 不认证默认 10 GiB 或任意容量 |
 | N2 多库接入 | HTTP/SDK、目录／发现、按库 actor、控制／恢复／intake／output 期限；owner-plan、isolation、Missing、单 controller 与固定 12 场景矩阵已重新通过；新 `642383c` service discovery 完整验收通过 | 动态 fleet、在线策略、持久实例身份、持续过载、公平性与硬资源隔离 |
 | N3 可持续存储 | HEAD6 持久 sweep、HEAD7 终态 seal；HEAD9 S1 保留根和多根 COPY/GC 实际／10 负控／1 正控通过 | S2 新 Scope 恢复、任意时间 PITR、长期保留／GC 成本；冷恢复优化另验 |
 | N4 首发 | 已有绑定源码的本地故障与负载记录；Manifest 请求数减少取得两组对照证据，吞吐未取得一致收益 | 冻结目标后端／IAM／故障域与开环负载，实测吞吐、p95/p99、错误、恢复及成本，再判断非关键试运行条件 |
@@ -38,7 +38,7 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 | 本轮回归 | 已完成的范围与仍需判定的部分 |
 | --- | --- |
 | Rust／SDK／类型及 release 来源 | 新构建与单位结果各自绑定源码；严格逐文件分支门禁仍失败，不能标为四维 100% |
-| b15 native／恢复 | 网络、schema、retained results、生命周期、116 目录案例、listing、bounded response、deployment discovery 已重新通过；固定 1 GiB 及新全 BLOB／关闭镜像审计单列 |
+| b15 native／恢复 | 网络、schema、retained results、生命周期、116 目录案例、listing、bounded response、deployment discovery 已重新通过；固定 1 GiB 原实际、新全 BLOB／关闭镜像独立审计、5 负控及原正控完整通过 |
 | b15 owner／controller／S1 | owner-plan 新完整实际／42 负控／1 正控、Missing 13／1、单 controller 15／1、S1 10／1 与固定矩阵通过；owner-plan 首轮 seed 失败独立保留 |
 | 固定 controller 矩阵 | 12 场景、23 项夹具自测、31 负控；本轮原矩阵在负控前后独立复核。20 controller、108 受管子进程、586 HTTP（363 controller）、1,914 S3；24 ACK＋12 UNKNOWN、36 原 lookup、12 快照全部核对 |
 | b15 原 13 项服务合同 | 原首轮为 11 项通过、isolation 与 service discovery 失败；新增 isolation 完整实际／21 负控／1 正控通过后，b15 共 12 项取得完整通过记录。资源与 42 例 GC transport 已包含，不能重复计数 |
@@ -47,9 +47,9 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 | HEAD7 终态组合 | 本轮 actual、独立 oracle、25 负控／1 正控完整通过；固定 HEAD6/7 场景不替代 HEAD9 retained-root 的交错合同 |
 | PR #60 的优化 | 原正确性合同与两组配对 actual／oracle／14 负控／3 正控通过；请求数减少已证实，吞吐回退尚未排除 |
 
-已完成的 isolation、owner-plan 与 `642383c` service discovery、固定容量的接续状态由
+已完成的 isolation、owner-plan 与 `642383c` service discovery、固定容量的完整状态由
 [本轮 review](sqlite-s3-review-2026-11-13.md#2-验证状态与证据归属)逐项维护；本页不把
-原父分组的 FAILED 改成整体 PASS，也不提前代填新实际。旧原件未恢复的记录仍保留
+原父分组的 FAILED 改成整体 PASS，也不将新实际回填到其他源码。旧原件未恢复的记录仍保留
 历史身份；已经提交的摘要与 hash 不能代替缺失的 HTTP／S3／ACK、构建或 profile 原件。
 环境中断本身已不是当前阻断，当前也不再是“只余 HEAD6 两项”。
 
@@ -60,7 +60,7 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 详细设计、合入边界和出口统一维护在[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. 先关闭严格分支测量缺口，完成并归档 #59 当前组合的全部必要合同及新实际接续；
+1. 先关闭严格分支测量缺口，按精确源码审查已完成的 #59 本批合同及其完整原件；
    单位通过、HEAD6／终态通过均不能单独触发合入。#60 另须解释已观测的吞吐回退。
 2. 实现S2新Scope恢复：固定复制意图、有界跨Scope对象重封装、完整native校验、源权限
    完成屏障、CompletionRecord、Name/HEAD取消与恢复、HTTP/SDK；不继承源owner、ACL

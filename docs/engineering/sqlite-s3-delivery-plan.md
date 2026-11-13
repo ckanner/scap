@@ -21,7 +21,7 @@ S3 中的 HEAD 和不可变对象保存唯一持久权威，计算实例和本�
 | --- | --- | --- |
 | 持久提交 | ACK 前数据、原结果、请求身份与屏障已共同发布；断线后不重新执行 SQL | native gate、原 HEAD CAS 和原结果合同已有代码及新本地证据；组合退出仍受严格分支门禁与各实际合同约束 |
 | 安全接管 | 旧实例迟到候选不能覆盖新 HEAD；controller 不把权限、忙或配置错误当成死亡 | 持久 owner 协议、有限 controller 已实现；owner-plan 新完整实际／42 负控／1 正控、Missing、单 controller 和固定 12 场景矩阵已通过；动态 fleet 尚未交付 |
-| 无状态计算 | 清空全部计算和缓存后，从真实对象闭包恢复原数据与原结果 | 本轮 native／schema／原结果／生命周期／目录／deployment discovery 通过；新 `642383c` service discovery 通过其完整发现合同，固定 1 GiB 的新完整审计单列 |
+| 无状态计算 | 清空全部计算和缓存后，从真实对象闭包恢复原数据与原结果 | 本轮 native／schema／原结果／生命周期／目录／deployment discovery 通过；新 `642383c` service discovery 通过其完整发现合同；b15 固定 1 GiB 冷恢复及 39 原结果／16,384 BLOB 完整独立审计通过 |
 | 明确保留与恢复 | 显式快照永久身份、完整 retained roots、释放与 GC 不误删；恢复生成全新数据库身份 | S1 实际／独立审计／10 负控／1 正控通过；S2 新 Scope 恢复未实现，任意时间 PITR 另有协议 |
 | 可控资源与成本 | 有界准入、期限、请求和输出预算；长期回收可观测；失败不提前归还仍被占用的资源 | 原资源合同、42 例 GC transport 通过；持续过载、公平性、硬 RSS／磁盘和长期 metadata 增长尚未闭环 |
 | 可用吞吐 | 预先冻结工作负载和后端，再报告成功率、排队、p95/p99、恢复和每事务成本 | Manifest GET 减少已取得两组同环境对照证据；吞吐回退尚未排除，没有生产容量或 SLO 结论 |
@@ -51,8 +51,10 @@ lazy VFS 或异步确认。
 
 b15 的 SDK 157 项、codec 13 项、HTTP/TLS/CLI loopback 19 项与类型／工具／模型另有
 本轮证据。native／schema／retained results、生命周期、116 目录案例、listing、
-bounded response 和 deployment discovery 已重新通过；固定 1 GiB 的全 BLOB／关闭
-镜像审计单列，不以小型审计工具单元测试代替容量实际。
+bounded response 和 deployment discovery 已重新通过。固定 b15 的原 1 GiB actual、
+关闭镜像捕获、全 BLOB／原结果独立审计及 5 负控／原正控也完整通过，详见
+[容量验收](capacity-gib1-validation-2026-11-13.md)。默认 10 GiB、fd508 容量与真实
+AWS 仍未运行，关闭副本审计不计作第二次 S3 恢复。
 
 owner Missing 的 13 负控／1 正控、单 controller 的 15／1、S1 的 10／1 均完成。
 [固定 controller 矩阵](../../experiments/object-controller-matrix/PLAN.md)本轮有 23 项
@@ -70,7 +72,7 @@ owner Missing 的 13 负控／1 正控、单 controller 的 15／1、S1 的 10�
 其后的 isolation 完整实际／21 负控／1 正控和 owner-plan 完整实际／独立 oracle／
 42 负控／1 正控均按原预算通过，因此 b15 服务合同现有 12/13 项完整通过记录，
 owner／controller／S1 五项均有完整通过记录。新结果分别保留，未覆盖失败父分组。
-`642383c` service discovery 和固定容量继续使用新的证据目录与原预算，其最新状态由
+`642383c` service discovery 和固定容量均以新的证据目录与原预算完成，其精确来源由
 [本轮 review](sqlite-s3-review-2026-11-13.md#2-验证状态与证据归属)维护。
 service discovery 增加真实 handler 入口见证，保留认证日志时钟、原 29 负控，
 另加 3 个时钟负控；不扩大原 HTTP 归属窗口，不给旧历史补字段。该修复在正式 release
@@ -97,7 +99,7 @@ TPS、p99 或生产成本收益。
 | 工作 | 当前合入边界 | 交付判据 |
 | --- | --- | --- |
 | 单位、逐文件精确覆盖、Node／类型、二进制来源 | 阻断 #59/#60；严格分支证明尚缺 | 每份实际与构建 receipt、源码清单相符；各生产文件的必要计数与原反例独立可审计，不放宽门槛 |
-| native／schema／retained results／生命周期／目录／发现／1 GiB | 阻断当前组合；已完成部分与容量新实际分别记录 | 固定完整场景、原始 ACK／BLOB／对象账本和独立审计；容量不以历史摘要或小型工具测试代替 |
+| native／schema／retained results／生命周期／目录／发现／1 GiB | 本批全部已取得最终结果；b15 与新 discovery 的来源分开记录，原失败保留 | 固定完整场景、原始 ACK／BLOB／对象账本和独立审计；新提交仍按受影响源码判定，不复用旧 receipt 冒称最终合并源码全测 |
 | HTTP／隔离／资源／输出／GC transport／HEAD6／终态 | HEAD6、终态、isolation 全套已完成；service discovery 的新 `642383c` 观测来源也已通过完整验收，原失败保留 | 原实际入口、独立 oracle、原负控与资源归属全部完成；不覆盖失败父分组，不拼接实际历史 |
 | owner-plan／Missing／controller／S1 | 五项均有完整实际及规定审计／负控通过；owner-plan 首轮失败保留 | 原控制与业务身份、HTTP／S3／进程和实际 Node/SDK 源匹配；不扩大为动态 fleet 与持久实例身份已交付 |
 | Manifest 优化与配对性能 | #60 独立交付；请求数下降已证明，吞吐回退未排除 | 保持提交语义与原结果正确性，分解回退原因；不能以请求数减少代替吞吐、尾延迟或整体退出 |
