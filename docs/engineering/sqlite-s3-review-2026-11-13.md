@@ -1,0 +1,107 @@
+# SQLite on S3：2026-11-13 代码、验证与剩余交付
+
+本页记录本轮恢复执行环境后的工作。测试对象固定为 PR #59 的 `b15bc45` 和
+PR #60 的 `fd508cc`；文档与验证工具接续提交不改变原构建、原 profile 或实际历史
+的源码身份。详细产品设计仍以[主方案](../architecture/object-storage-native-proposal.md)、
+[安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)和
+[交付计划](sqlite-s3-delivery-plan.md)为准。
+
+## 1. 已提交的代码
+
+| 代码 | 已实现的内容 | 当前交付边界 |
+| --- | --- | --- |
+| main `fab8ca0`，#54/#55 | HEAD6 代际复制、退休与持久 sweep；HEAD7 Deleted 终态 seal | 已合入的基础，仍需在新组合上完成必要回归 |
+| [PR #59](https://github.com/ckanner/scap/pull/59)，冻结 `b15bc45` | #56 owner-plan、#57 有限 controller、#58 S1 retained snapshots 的组合 | 继续 Draft；重新采集原始记录，逐文件分支测量缺口单列 |
+| [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 在一次新事务内消费已验证 Manifest 的私有证明，省去发布前重复的 GET | 已提交生产实现及针对性测试；保留原条件写、第一次回读与 native publication |
+| 本轮验证工具修复 | 拒绝被其他文件正分母掩盖的单文件 branch 0/0 | 不改变数据库格式、API、SQL 行为或运行预算 |
+
+PR #60 的生产改动只涉及 `data_tree.rs`、`object_context.rs` 和 `lib.rs`。
+证明绑定原 ObjectContext、后端、handle lineage、Scope／物理世代、输入／输出根、
+页数与原 deadline；消费时再核对原 HEAD body／ETag，最终仍仅使用原条件 CAS。
+管理发布与普通强读保留原路径。实现和完整不变量见
+[Manifest 证明设计](https://github.com/ckanner/scap/blob/fd508cc052c21dba0e3c54b8e8e82d11c167777a/docs/architecture/verified-manifest-publication.md)。
+
+这项优化没有实现同库 MVCC、独立事务 group commit、lazy VFS 或异步确认。
+对象请求减少与端到端 TPS／p99 改善分别验证；不能按少一个 GET 的比例推算性能收益。
+
+## 2. 验证状态与证据归属
+
+旧 11–12 日的一部分原始执行记录未能恢复。已提交的历史结果不改判为失败；
+但摘要、路径和 hash 不能替代已经丢失的原 HTTP／S3／ACK、coverage profile 和构建原件。
+因此本轮按原范围重新执行受影响门禁，保留新正式 release、原始失败和新通过结果。
+
+| 验证层 | 本轮状态 | 不能推出的结论 |
+| --- | --- | --- |
+| b15 Rust | stable/nightly 各 783 项通过；67 文件 map 完整，已发出计数全命中 | 7 文件 branch 0/0，完整逐文件四维门禁未满足 |
+| fd508 Rust | stable/nightly 各 791 项通过；67 文件 map 完整，已发出计数全命中 | 同上；旧 4d7 的 469/470 region 失败仍独立保存 |
+| b15 SDK／类型／工具／模型 | SDK 157、codec 13、真实 loopback／CLI 19；原工具、环境和完整固定模型通过 | 模型不是产品 S2，SDK 结果不是 native/S3 验收 |
+| fd508 实际正确性 | native 基础／故障／schema、retained、生命周期、S1 共 14 条原命令与规定独立审计通过 | 不能替代 b15 的独立基线，也不证明 AWS 或生产 SLO |
+| b15 native／发现 | 完整网络、retained、生命周期、116 目录案例、listing、bounded response、deployment discovery 通过 | 固定 1 GiB 容量单独验收 |
+| b15 owner／controller／S1 | Missing、S1、单 controller、完整 12 场景矩阵及原独立审计／负控通过 | 动态 fleet、持久实例身份分配仍未交付 |
+| b15 资源／GC transport | 原资源合同及完整 42 例 GC transport 通过 | 不等于全进程硬 RSS／磁盘上限或长期成本已完成 |
+| b15 HEAD7 终态 | actual、独立 oracle、25 负控／1 正控全部通过 | 不表示终态前缀永远没有迟到孤儿 |
+| b15 HEAD6 | 第二次完整 actual 与独立 oracle 通过；完整 23 负控／1 正控仍在执行 | 不能用部分 controls 目录补成整体通过 |
+| b15 服务专项 | 原 13 项中 11 项已完成；isolation 与 service discovery 首次失败分别保留 | discovery 的请求归属观察缺口尚未关闭 |
+| owner-plan、1 GiB 与配对负载 | owner-plan 待原参数完整重跑；容量和配对负载待空闲窗口 | 本页当前不签发整体 merge-ready |
+
+分支测量问题已在[独立说明](branch-coverage-measurement-gap.md)中纠正。
+当前检查器曾返回成功，并不意味着 `match`／`?` 的所有分支已经被独立计数。
+修复后的严格检查器对原两份报告均退出 1；原测试退出码和采集数据保持原样。
+按 `AGENTS.md`，必要门禁未满足，两个 PR 均不合并。
+
+本轮首个 HEAD6 actual 因原 180 秒 hold 窗口超限而失败；同参数空闲重跑实际通过，
+但该结果不足以唯一归因到 CPU／I/O。isolation 首轮在热库探测时返回 RECOVERY_BUSY，
+前后调用间隔超过原 3 秒 idle；owner-plan 首轮在原 8 秒期限的 seed 阶段返回
+Store(Unknown)。这些失败保留，完整重跑使用新目录和原预算，不能拼接部分业务历史。
+
+service discovery 原 429 个 HTTP 区间通过身份／次数核验，但 25,292 个 S3 请求中有
+一个 GET 被代理记录于前一 HTTP 返回后 2.292 ms、下一调用开始前 6.907 ms，原归属
+oracle 因此拒绝。该页在原 5 秒期限内以 UNKNOWN cursor 返回；代理的原记录时刻位于
+读请求、SigV4 校验与锁之后，没有产品发出时刻。现有原件不能证明这个请求必然合法，
+也不能据此断言生产在返回后新发起了工作。失败保持原样，修复需增加准确的原请求
+观测绑定，不能扩大时间窗、删除 no-post-return 判据或给旧历史补写字段。
+
+## 3. NFS／EFS 问题是否被解决
+
+SCAP 不跨主机共享活动 `.db/WAL/SHM`。每个执行实例只打开准入后的私有本地镜像，
+跨节点顺序由 S3 中的单库 HEAD 条件发布和 owner epoch 决定。本地目录可以全部丢弃，
+对象闭包和原结果仍应足以恢复。网络文件锁不承担数据库的跨节点所有权。
+
+成功确认依次经过：原生 SQLite 暂存事务与原结果；不可变依赖条件创建及完整回读；
+原 ETag 的 HEAD CAS；native publication；客户端 ACK。HEAD 响应丢失保留 UNKNOWN，
+只能按原请求身份查证／取消，不能自动重放 SQL。远端已接受而本地发布失败，仍保留
+原 receipt，不能将其解释为远端回滚。新的强读重新检查当前 HEAD 和权限。
+
+这避开了用户担心的共享网络活动文件问题，仍依赖正确的本地 I/O、对象服务合同、
+部署文件系统与未复用的 worker incarnation。overlay 的底层与真实 NFS/EFS/FUSE
+挂载验收仍不能由类型分类测试代替。具体前提见[部署要求](../operations/sqlite-storage-safety.md)。
+
+[SQLite 网络文件说明](https://www.sqlite.org/useovernet.html)讨论锁、同步和写入顺序的风险；
+[WAL 说明](https://www.sqlite.org/wal.html)要求共享 WAL 的进程同机运行。
+SQLite 可同机多进程，EFS 也支持 advisory byte-range locks；这两点都不能推出
+跨主机共享 SQLite WAL 安全。不能将“所有 NFS 都立即损坏”作为本方案的论据。
+
+## 4. 目标与剩余产品工作
+
+当前目标是服务大量独立租户／Agent 数据库，保持明确的提交、原结果和恢复语义。
+不同库可以并行；同一个库仍由一个 actor 串行执行。增加 pod 不会自动提升同库写吞吐，
+长查询仍可能占住该库 actor。冷恢复仍完整读取闭包，尚未按页懒加载。
+
+| 后续工作 | 必须共同交付的内容 | 当前状态 |
+| --- | --- | --- |
+| 关闭当前测量缺口 | 可审计的源码／控制流计数、未执行路径反例、准确的无适用分支语义 | 严格 checker 修复；完整分支证明尚缺 |
+| 热点与多库性能 | 同环境账本对照；随后冻结开环负载、尾延迟、错误、排队、对象成本 | 首项 Manifest GET 优化已提交；没有生产数字承诺 |
+| 动态自动恢复 | 在线 fleet、策略变化、不复用的持久实例 identity、竞争／撤权／停机合同 | 当前仅有限 controller 与部署提供的身份 |
+| S2／PITR | 新 Scope、跨 Scope 重封装、源权限完成屏障、CompletionRecord、Name/HEAD 取消、独立冷恢复 | S1 已实现；S2 模型与完整设计已有，产品 API 未开放；任意时间 PITR 另设计 |
+| 资源与持续运行 | decode/native heap/磁盘总账、持续过载、公平性、冷启动风暴、多轮 GC 与长期元数据成本 | 已有有界准入与逻辑预算，硬隔离和长期合同未完成 |
+| 目标后端与上线 | 真实 AWS Standard 的条件写、IAM/KMS、区域故障域、长运行和预定义 SLO | NOT_RUN；本地 SeaweedFS 不能代替 |
+
+Turso 值得借鉴的部分是远端持久化参与提交、跨库 WAL 合批和分块缓存。开源 libSQL
+Bottomless 的异步复制、Turso Cloud 的 S3 Express 存储路径、新 Rust 引擎的 MVCC
+是不同层次。它们不能拼成“使用 S3 就自动具备多 writer 和高吞吐”的结论。
+官方来源、固定上游代码与 SCAP 的明确取舍见
+[Turso 复核](../architecture/sqlite-s3-turso-review.md)及
+[安全与吞吐第 6–7 节](../architecture/sqlite-s3-safety-and-throughput.md#6-turso-可以借鉴什么)。
+
+本轮提交解决具体实现与证据问题；S2、动态 fleet、硬资源、真实 AWS、长期成本和生产
+SLO 继续按独立退出条件交付，不用测试数量或文档长度表示产品完成率。

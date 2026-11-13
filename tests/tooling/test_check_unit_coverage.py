@@ -121,8 +121,29 @@ class CoverageGateTests(unittest.TestCase):
         for metric in gate.METRICS:
             self.file["summary"][metric] = {"count": 0, "covered": 0}
         errors = " ".join(self.inspect()[0])
-        self.assertIn("empty executable", errors)
+        for metric in gate.METRICS:
+            self.assertIn(f"empty executable {metric} denominator: {self.source}", errors)
         self.assertIn("branch measurement is absent", errors)
+
+    def test_zero_branch_denominator_cannot_be_hidden_by_a_measured_file(self):
+        entrypoint = "crates/example/src/main.rs"
+        self.write(entrypoint, "fn main() { example::answer(); }\n")
+        thin_file = copy.deepcopy(self.file)
+        thin_file["filename"] = str(self.root / entrypoint)
+        thin_file["summary"]["branches"] = {"count": 0, "covered": 0}
+        self.report["data"][0]["files"].append(thin_file)
+        errors, rows = self.inspect()
+        self.assertEqual(errors, [f"empty executable branches denominator: {entrypoint}"])
+        self.assertEqual(len(rows), 2)
+        self.assertIn("branches=2/2", rows[0])
+        self.assertIn("branches=0/0", rows[1])
+
+    def test_command_rejects_zero_branches_without_claiming_100_percent(self):
+        self.file["summary"]["branches"] = {"count": 0, "covered": 0}
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(gate.main(self.save()), 1)
+        self.assertIn(f"FAIL: empty executable branches denominator: {self.source}", output.getvalue())
+        self.assertNotIn("PASS:", output.getvalue())
 
     def test_near_100_is_not_rounded_to_a_pass(self):
         self.file["summary"]["lines"] = {"count": 1000000, "covered": 999999, "percent": 100.0}

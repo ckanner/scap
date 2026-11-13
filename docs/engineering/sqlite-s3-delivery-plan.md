@@ -1,5 +1,12 @@
 # SQLite on S3：当前状态、目标与接续交付
 
+> 2026-11-13 接续：执行环境已恢复，旧原件缺失的门禁正在重新采集；当前结果见
+> [本轮代码与验证](sqlite-s3-review-2026-11-13.md)。本轮发现并修复检查器允许单文件
+> branch 0/0 的缺口，严格逐文件覆盖门禁仍未满足，PR 继续 Draft；见
+> [测量说明](branch-coverage-measurement-gap.md)。以下保留 11–12 日的原计划与历史结果，
+> 其中“环境不可用”“只余两项”及旧 checker PASS 不代表当前状态。
+
+
 更新：2026-11-12（UTC）。这是按当前代码与验收证据维护的交付计划；
 具体运行结果仍以[组合验收](sqlite-s3-integration-validation.md)中的冻结提交和原始记录为准。
 主线基准 `fab8ca0`，组合 [PR #59](https://github.com/ckanner/scap/pull/59)
