@@ -331,7 +331,9 @@ fn corrupt_missing_data_and_native_images_keep_the_exact_slot_pending() {
             64,
             deadline(),
         )
-        .unwrap();
+        .unwrap()
+        .root()
+        .to_owned();
         let mut head = original.head.clone();
         head.data_root = root;
         base.set(

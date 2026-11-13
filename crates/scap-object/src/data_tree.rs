@@ -14,6 +14,51 @@ pub(crate) trait DataObjects {
     fn save(&self, payload: Payload, deadline: Instant) -> Result<String, Error>;
 }
 
+/// One operation's already verified manifest, never a persistent cache or an
+/// authorization grant. In production the borrowed store is the original
+/// ObjectContext, so its backend, Scope and physical generation cannot change
+/// while this proof exists. Only update can construct it, after loading an
+/// unchanged manifest or saving and exactly reading back its replacement.
+pub(crate) struct VerifiedManifest<'a, S: DataObjects> {
+    store: &'a S,
+    base_root: String,
+    root: String,
+    page_count: u32,
+    deadline: Instant,
+}
+
+impl<S: DataObjects> VerifiedManifest<'_, S> {
+    pub(crate) fn root(&self) -> &str {
+        &self.root
+    }
+
+    /// Consume the proof only in its original operation. The caller separately
+    /// checks current context health, its database binding and the HEAD CAS.
+    pub(crate) fn validate(
+        self,
+        store: &S,
+        base_root: &str,
+        root: &str,
+        max_pages: u32,
+        deadline: Instant,
+    ) -> Result<(), Error> {
+        if !std::ptr::eq(self.store, store)
+            || self.base_root != base_root
+            || self.root != root
+            || self.deadline != deadline
+        {
+            return Err(Error::Corrupt);
+        }
+        if self.page_count > max_pages {
+            return Err(Error::Limit);
+        }
+        if Instant::now() >= self.deadline {
+            return Err(Error::Unknown);
+        }
+        Ok(())
+    }
+}
+
 pub(crate) fn empty(store: &impl DataObjects, deadline: Instant) -> Result<String, Error> {
     store.save(
         Payload::Manifest(Manifest {
@@ -308,13 +353,13 @@ impl<S: DataObjects> Edit<'_, S> {
     }
 }
 
-pub(crate) fn update(
-    store: &impl DataObjects,
+pub(crate) fn update<'a, S: DataObjects>(
+    store: &'a S,
     base_root: &str,
     batch: &PageBatch,
     max_pages: u32,
     deadline: Instant,
-) -> Result<String, Error> {
+) -> Result<VerifiedManifest<'a, S>, Error> {
     if max_pages == 0 || max_pages > MAX_PAGES || batch.size_after > max_pages {
         return Err(Error::Limit);
     }
@@ -337,10 +382,22 @@ pub(crate) fn update(
         return Err(Error::Corrupt);
     }
     if batch.size_after == base.page_count && changes.is_empty() {
-        return Ok(base_root.to_owned());
+        return Ok(VerifiedManifest {
+            store,
+            base_root: base_root.to_owned(),
+            root: base_root.to_owned(),
+            page_count: base.page_count,
+            deadline,
+        });
     }
     if batch.size_after == 0 {
-        return empty(store, deadline);
+        return Ok(VerifiedManifest {
+            store,
+            base_root: base_root.to_owned(),
+            root: empty(store, deadline)?,
+            page_count: 0,
+            deadline,
+        });
     }
     let level = level_for(batch.size_after);
     let mut original = base.root.map(|hash| Original {
@@ -371,13 +428,20 @@ pub(crate) fn update(
         deadline,
     };
     let root = edit.node(original.as_ref(), level, 0)?;
-    store.save(
+    let root = store.save(
         Payload::Manifest(Manifest {
             page_count: batch.size_after,
             root: Some(root),
         }),
         deadline,
-    )
+    )?;
+    Ok(VerifiedManifest {
+        store,
+        base_root: base_root.to_owned(),
+        root,
+        page_count: batch.size_after,
+        deadline,
+    })
 }
 
 #[cfg(test)]
