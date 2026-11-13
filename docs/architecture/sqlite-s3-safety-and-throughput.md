@@ -1,16 +1,21 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-状态更新：2026-11-12。该组合的主线基准是 HEAD7
+状态更新：2026-11-13。主线基准是 HEAD7
 [`fab8ca0`](https://github.com/ckanner/scap/commit/fab8ca09aa05fdaf612cdcf47a9fce8e65373896)。
-[PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 纳入 #56 `1d709db`、
-#57 `df922b95` 和 #58 `4216523` 的 owner plan、有限 controller 与 HEAD9 S1 实现。
-本文补充已接受的[对象存储方案](object-storage-native-proposal.md)，不另建 HEAD、请求身份、
-所有权或 GC 协议。“实现存在”“原候选已验证”“新组合通过”是三个不同结论；
-本组合已新执行Rust完整单位门禁、SDK/类型、owner/controller/S1实际、固定负载、
-native／固定1 GiB及固定12场景controller矩阵，
-冻结来源、精确结果与原失败见[组合验收](../engineering/sqlite-s3-integration-validation.md)。
-这些固定本地合同不等于动态HA、AWS或生产SLO。各层仍按
-[验证规范](../engineering/validation.md)分别记录，历史结果不自动继承。
+[PR #59](https://github.com/ckanner/scap/pull/59) 汇集 #56 owner plan、#57 有限 controller
+和 #58 S1 retained snapshots；本轮生产基线冻结为 `b15bc45`，后续 `8a5bd65`／`642383c`
+分别修复严格覆盖检查器和观测／审计工具。[PR #60](https://github.com/ckanner/scap/pull/60)
+的生产候选 `fd508cc` 复用同一事务中已经验证的 Manifest，减少一次重复 GET。
+
+本文补充[对象存储方案](object-storage-native-proposal.md)，不另建 HEAD、请求身份、
+所有权或 GC 协议。环境已恢复，旧原件缺失的合同正在按精确冻结来源重新采集；
+当前结果统一见[本轮代码、验证与剩余工作](../engineering/sqlite-s3-review-2026-11-13.md)。
+两份 Rust 报告的已发出计数全命中，但 7 个文件的 branch 为 0/0，不能称为严格逐文件
+四维覆盖通过。原检查器缺口已修复，两个 PR 继续 Draft；详见
+[分支测量说明](../engineering/branch-coverage-measurement-gap.md)。
+
+下文注明日期／源码的历史结果仍属于原候选。模型、单元、本地实际合同、AWS 与生产
+SLO 分别验收；历史 checker 成功不补足未测量分支，也不自动认证后续候选。
 
 ## 1. 要完成的目标与现在的结论
 
@@ -21,7 +26,7 @@ SCAP 的目标是：大量独立租户／Agent 数据库共享计算资源，以
 **当前架构避开了跨主机共享 SQLite 活动文件的锁风险；它没有消除单库串行提交、
 对象往返、整库冷恢复和共享资源的成本。HEAD6 的完整复制与有界物理 GC、HEAD7 的
 Deleted 最后一代显式退休已经合入 main。PR #59中的HEAD8接管、有限controller和
-S1保留快照及固定12场景controller矩阵已完成所列本地合同；动态fleet、身份分配、
+S1保留快照及固定12场景controller矩阵已有明确来源的本地合同；当前组合仍按本轮验收收口。动态fleet、身份分配、
 S2恢复、PITR、硬资源边界及生产性能目标
 仍未完成。**
 历史已合入证据见[HEAD7 验收](../engineering/head7-runtime-validation.md)，接管增量见
@@ -167,11 +172,13 @@ Missing，B 随后创建并接受 descriptor，A 再看到引用它的新 HEAD�
 
 ### 3.4 固定controller矩阵的证明范围
 
-冻结夹具 `e64eb56` 完成23项自测（21项oracle、2项真实HTTP loopback）、12项实际
+11–12 日历史冻结夹具 `e64eb56` 完成23项自测（21项oracle、2项真实HTTP loopback）、12项实际
 场景和31项负控。runtime仍为 `fc10287`，277项release输入相同；每个Node入口与57项
 SDK/codec/观察器运行源码输入绑定原manifest/tar、实际路径及摘要。旧 `73a7140` 结果、
 源码绑定审计缺口与启动失败均保留，新完整历史另行重跑，见
 [矩阵机器记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
+2026-11-13 又在冻结 `b15bc45` 的新正式 release 上完整执行原矩阵和全部 31 负控，
+结果单独见[本轮机器记录](../evidence/sqlite-s3-revalidation-local-2026-11-13.json)。
 
 矩阵覆盖同策略竞争、其他policy/creator及人工marker阻断、Claimed取消、Cancelling
 重启、原owner仍健康、撤权、目标误绑、真实429/413、S3 UNKNOWN、probe超时、停机和
@@ -180,8 +187,9 @@ SDK/codec/观察器运行源码输入绑定原manifest/tar、实际路径及摘�
 快照分别核对。这些分母不作为吞吐，也不推定逐进程逐tick的完整wire归属。
 
 固定策略、地址、5秒tick和至少3次间隔失败仍是前提。动态fleet、在线策略、持久实例
-身份、硬RSS/磁盘和生产SLO未交付。当前执行环境不可用，HEAD6完整负控与终态合同
-未完成，PR保持Draft；准确状态见[本批门禁](../engineering/roadmap.md#本批合入门禁)。
+身份、硬RSS/磁盘和生产SLO未交付。本轮 HEAD6 完整 23 负控／1 正控及终态合同
+25 负控／1 正控已经完成；原失败与新通过分别保留。严格分支测量门禁仍未满足，PR
+保持 Draft；准确状态见[本批门禁](../engineering/roadmap.md#本批合入门禁)。
 
 ## 4. 单库与多库的吞吐分别设计
 
@@ -278,12 +286,15 @@ AWS 实测延迟，不认证 PR #53 的新代码，也不能与其他 HEAD 格�
 
 ### 5.4 本次组合的实际基线：热点吞吐仍未解决
 
-本轮重新执行原冻结 `object-load` 合同：runtime `fc10287`，fixture `ffff164`，正式
+以下是 2026-11-11 的历史基线，不能代替 2026-11-13 的同环境配对。
+后续配对与请求分类见第 5.6 节和本轮交付报告。
+
+当时重新执行原冻结 `object-load` 合同：runtime `fc10287`，fixture `ffff164`，正式
 release/native SQLite/Node 与 SeaweedFS 4.51，871 个 POST、185 份原 execute、288 个
 测量调用。actual、独立 oracle、14 个负控和3个正控全部通过，源码前后一致，详见
-[本轮完整机器记录](../evidence/sqlite-s3-integration-load-local-2026-11-11.json)。
+[11 日完整机器记录](../evidence/sqlite-s3-integration-load-local-2026-11-11.json)。
 
-| 本轮场景 | 并发 | 成功请求/秒 | 单请求 p50 / p99，ms | S3 请求/调用 |
+| 11 日场景 | 并发 | 成功请求/秒 | 单请求 p50 / p99，ms | S3 请求/调用 |
 | --- | ---: | ---: | ---: | ---: |
 | 单库写 | 1 | 5.149 | 72.772 / 772.210 | 18.531 |
 | 单库写 | 4 | 2.822 | 1181.670 / 2903.984 | 19.797 |
@@ -301,7 +312,7 @@ release/native SQLite/Node 与 SeaweedFS 4.51，871 个 POST、185 份原 execut
 CPU和磁盘未隔离，观察代理和证据写盘也有开销。每组只有32或64个样本，本组p99
 等于最大值，不提供生产尾延迟置信界限。
 
-本轮原始账本中单库四并发有5个对象请求的代理观察往返超过100ms；四库写有20个，
+该次原始账本中单库四并发有5个对象请求的代理观察往返超过100ms；四库写有20个，
 最慢的一次HEAD PUT观察间隔为882.188ms。该间隔包含代理记录开销，不能当成纯S3服务
 时间；端到端还包含SQL、本地checkpoint、编码与排队，当前资料不足以把所有尾延迟
 归因到单一组件。已经确定的是每写18–20次对象请求及同库串行路径仍在；增加同库
@@ -319,6 +330,45 @@ CPU和磁盘未隔离，观察代理和证据写盘也有开销。每组只有32
 
 新 I/O 并发属于待评估优化，当前顺序遍历并未自动获得它。性能优先降低实测的等待和
 复制开销，不以改成异步 ACK、陈旧读或减少失败样本来换取更漂亮的数字。
+
+### 5.6 本轮已经实现的请求减少，以及尚未证实的吞吐收益
+
+PR #60 的私有 `VerifiedManifest` 证明只能由原 `data_tree::update` 创建；它绑定原
+ObjectContext、后端与 handle lineage、Scope／物理世代、输入／输出根、页数和原 deadline。
+消费时核对原 HEAD body／ETag，再执行原条件 CAS。不可变依赖的首次条件写和完整
+回读、配额／健康验证、原结果和 native publication 都保留。普通 query/read 与管理发布
+不使用这个快速路径。设计见
+[Manifest 验证复用](https://github.com/ckanner/scap/blob/fd508cc052c21dba0e3c54b8e8e82d11c167777a/docs/architecture/verified-manifest-publication.md)。
+
+2026-11-13 首次按 b15 → fd508 顺序运行相同固定 fixture；两版各自的 actual、独立
+oracle 和原 14 负控／3 正控全部通过。五个测量阶段的对象帧按原 key、字节 SHA、类型和
+请求／响应编号分类，得到下表；同阶段其他对象类型的 GET／PUT 次数全部相同。
+
+| 测量阶段 | 调用数 | 基线全部 S3 请求 | 优化全部 S3 请求 | 少出的 Manifest GET |
+| --- | ---: | ---: | ---: | ---: |
+| 单库写，C1 | 32 | 593 | 561 | 32 |
+| 单库写，C4 | 64 | 1,267 | 1,203 | 64 |
+| 四库写，C4 | 64 | 1,152 | 1,088 | 64 |
+| 单库暖读，C4 | 64 | 64 | 64 | 0 |
+| 四库暖读，C4 | 64 | 64 | 64 | 0 |
+
+这是按 phase 的聚合核验；它与代码中每次新提交省一次 Manifest GET 的设计相符，
+但没有新增并发下逐 execute 的 HTTP 区间归属证明。不能把本表 160 次减少扩写成
+全程所有 871 次调用逐类型受益，普通暖读仍然每次 fresh HEAD。
+
+首次配对的速率变化混合：单库两组分别约 +5.28%／+11.35%，四库写为 -24.00%。
+这些原始结果保留，不能将请求减少直接写成全面 TPS 提升。针对这个具体差异，另行
+冻结一次反向顺序配对，完整实际／oracle／14 负控／3 正控也通过；三个写入阶段
+再次恰好少 32／64／64 个 Manifest GET，其他对象类别次数相同。四库写仍下降
+24.52%，单库两组这次也下降，不能将回退归为顺序噪声已经解决。全部数字与限度见
+[性能验收](../engineering/verified-manifest-load-validation.md)和
+[完整机器记录](../evidence/verified-manifest-load-local-2026-11-13.json)。不挑选更好的一次，
+不唯一归因环境，也没有事后设置性能通过阈值。
+
+两版使用相同 SQL 结构、schema、调用集合和 payload 长度；原 fixture 每次生成独立
+随机 BLOB，数据字节并非逐字相同。固定小样本、执行顺序、共享宿主以及观察代理／
+证据写盘都会影响时间。对象请求成本减少已有实际证据；稳定吞吐、生产 p99 与 AWS
+性能仍需预先冻结负载、重复测量和目标部署验收。
 
 ## 6. Turso 可以借鉴什么
 
@@ -365,12 +415,12 @@ Turso/AWS 文章中的 6.4 ms 平均值属于作者的 S3 Express 环境；它�
 
 | 工作包 | 当前起点 | 下一交付与退出标准 |
 | --- | --- | --- |
-| 当前候选组合 | HEAD6/HEAD7已合入；PR #59组合owner/controller/S1，原候选证据保留 | 新Rust/SDK单位与精确覆盖、owner/S1、native/1 GiB、固定12场景controller及服务短合同通过；环境不可用，剩HEAD6完整负控与终态门禁 |
+| 当前候选组合 | HEAD6/HEAD7 已合入；PR #59 组合 owner/controller/S1，PR #60 实现 Manifest 验证复用，分别保留冻结来源 | 本轮单位和各实际合同见当前报告；HEAD6/终态完整通过，逐文件分支测量缺口仍阻断合入，不能用历史摘要代替原件 |
 | N1 权威合同 | 已有提交 gate、结果查证、取消、接管及多轮本地恢复证据 | 完整 OT-01–08、真实 AWS Standard 合同和独立并发历史审计；同 ETag 双发布、所有切点崩溃、迟到旧 owner、依赖损坏与全计算丢失分别验收 |
 | N2 自动恢复 | HEAD8持久owner-plan、有限controller/fleet/CLI；本次真实重启接管、丢响应、原结果及S1保留合同与15负控通过 | 固定多controller矩阵/31负控通过；动态fleet、在线策略和持久identity分配另验，不能重放业务SQL |
 | N2 资源与活性 | actor、intake、单次预算、HTTP期限和普通/v1 output Pool；本次固定单库/多库及32 MiB冷恢复合同通过 | 对当前写入尾延迟按阶段测量并减少对象请求；补跨入口decode/native heap/磁盘总账、持续过载、唤醒风暴和租户公平性 |
 | N3 可持续存储 | HEAD6 copy/promote/持久 sweep 和 HEAD7 Deleted 永久终态退休均已完成对应本地验收并合入 | 在全部保留根、旧操作与迟到 PUT 的真实历史中验证回收；长期成本统计包括永久控制元数据，不把一轮清空当作永久无孤儿 |
-| N3 快照与 PITR | HEAD9 S1 capture/release、多根COPY/GC；本组合783+783单位及67文件覆盖、S1实际/10负控通过；原804/47+3模型证据另存 | 实现S2新Scope恢复、新权限/请求空间及目录完成协议；任意时间PITR另设计；不得把S1保留根当完整restore产品 |
+| N3 快照与 PITR | HEAD9 S1 capture/release、多根 COPY/GC 实际／10 负控通过；b15 的 783+783 单位通过、67 文件有 map，严格分支门禁仍未闭合；当前模型 804／48+3，旧 804／47+3 属于历史候选 | 实现 S2 新 Scope 恢复、新权限／请求空间及目录完成协议；任意时间 PITR 另设计；不得把 S1 保留根当完整 restore 产品 |
 | N4 发布出口 | 既有本地容量与部分故障证据 | 冻结负载及数字 SLO，测目标存储、真实部署故障域、长运行、保留/GC 成本、运维恢复；按既有流程另行启用非关键试运行 |
 
 HEAD6 的产品回收依赖整套闭包、退休与 checkpoint 协议，独立条件 DELETE capability

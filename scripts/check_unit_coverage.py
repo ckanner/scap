@@ -90,7 +90,7 @@ def inspect(report: dict, policy: dict, root: Path) -> tuple[list[str], list[str
                 continue
             if metric == "branches":
                 total_branches += count
-            if count == 0 and metric != "branches":
+            if count == 0:
                 errors.append(f"empty executable {metric} denominator: {name}")
             if covered != count:
                 errors.append(f"uncovered {metric}: {name}: {covered}/{count}")

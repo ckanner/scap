@@ -6,29 +6,35 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 ## 当前实现与验证状态
 
-已合入主线的是 [PR #54](https://github.com/ckanner/scap/pull/54) 的代际复制／GC 和 [PR #55](https://github.com/ckanner/scap/pull/55) 的 Deleted 最后一代永久退休，主线基准为 `fab8ca0`（HEAD7）。它还包含认证 HTTP/Node SDK、名称目录、全目录发现与部署恢复、按库 actor、分段请求索引、租户 intake、输出池及绝对期限。HEAD7 冻结产品 `7b757` 的 652+652 单元、60 个生产文件精确四维覆盖和必要本地实际合同见 [HEAD7 验收](docs/engineering/head7-runtime-validation.md)。
+最新核查：2026-11-13（UTC）。main 为 `fab8ca0`（HEAD7），已合入 #54 代际复制／GC 和
+#55 Deleted 最后一代退休。当前产品路线仍是 S3 唯一持久权威、SQLite 私有本地执行。
 
-[PR #59](https://github.com/ckanner/scap/pull/59) 的组合起点 `fc10287` 汇集下列已提交草稿；“代码已实现”和“该组合已验证”分别记录：
-
-| 工作 | 当前代码 | 本次组合验收与剩余门禁 |
+| 代码 | 内容 | 当前状态 |
 | --- | --- | --- |
-| [#56：可恢复 owner plan](https://github.com/ckanner/scap/pull/56)，来源 `1d709db` | HEAD8 持久描述、Claim/Cancelling、Active/Aborted 证明、当前权限屏障和恢复预算；包括 `e3bdf7b` 的 Missing/HEAD 竞态修复 | 本组合重新完成 owner-plan 与 Missing/HEAD 并发两项 actual/独立 oracle，分别42负控+1正控、13负控+1正控通过；原候选证据仍保留。 |
-| [#57：有限自动控制器](https://github.com/ckanner/scap/pull/57)，来源 `df922b95` | 有界 owner 恢复调度、传输与 CLI；TLS/证书配置错误不计作 owner 死亡证据；不重放业务 SQL | 生产CLI的接管、丢响应、重启、冷恢复和snapshot保留实际合同通过；原HTTP成功独立核验及15个负控通过。新增固定12场景矩阵、独立oracle及31项负控已通过，覆盖多controller竞争和有界故障处理；动态fleet另行交付。 |
-| [#58：保留快照 S1](https://github.com/ckanner/scap/pull/58)，来源 `4216523` | HEAD9 永久快照身份、capture/release、持久限额、多根 COPY/GC、完整恢复校验和 HTTP/Node API | 本组合S1实际、独立oracle及10负控通过：两保留根、六原结果、丢响应、多根COPY/GC、全缓存丢失恢复和终态seal。跨Scope恢复S2与任意时间PITR未实现。 |
+| [PR #59](https://github.com/ckanner/scap/pull/59)，生产基线 `b15bc45`，观测修复 `642383c` | 汇集 #56 可恢复 owner plan、#57 有限自动 controller 和 #58 保留快照 S1 | 代码已提交；新完整 service discovery／32 负控与固定 1 GiB 全量审计／5 负控通过；严格分支测量缺口未闭合，继续 Draft |
+| [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 新业务提交复用本次已经验证的 Manifest，减少一次重复 GET | 两组完整配对确认请求减少；四库写入速率分别下降 24.00%／24.52%，回退原因未定位，继续 Draft |
+| 本轮门禁工具修复 | 拒绝被其他文件正计数掩盖的单文件 branch 0/0 | 完整 76 项 tooling 测试及精确 Python 覆盖通过；原 Rust 报告严格重验按预期拒绝 |
 
-**本次组合的上述本地合同已通过，PR 保持草稿。** 新执行的stable/nightly各783项Rust单位、67个生产文件逐文件精确覆盖、157项SDK单位、21模块精确V8覆盖、19项HTTP/TLS/CLI loopback、严格TypeScript以及owner/controller/snapshot实际合同均绑定各自冻结源码，见[组合验收](docs/engineering/sqlite-s3-integration-validation.md)。本轮固定负载中，单库C1/C4写为5.149/2.822次每秒，四库C4为7.206次每秒，属于含观察开销的本地小样本；热点吞吐仍需优化。动态fleet、实例身份分配、S2/PITR、硬RSS/磁盘隔离、真实AWS、长运行成本和生产SLO仍未交付；按`AGENTS.md`未完成所需验证不合并，接续顺序见[路线图](docs/engineering/roadmap.md)。
+b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单元测试通过。两份报告都映射
+67 个生产文件，已发出的计数全部命中，**但 7 个文件 branch 为 0/0，完整逐文件四维
+门禁未满足**。其中 6 个含有 `match` 等决策路径，不能称为结构无分支。旧检查器允许
+单文件零分母的行为已经修正；原报告和旧 exit 0 保留，不扩大为合入证明。详见
+[测量缺口与修复](docs/engineering/branch-coverage-measurement-gap.md)及
+[机器记录](docs/evidence/branch-measurement-review-2026-11-13.json)。
 
-2026-11-12 的接续状态见[交付计划](docs/engineering/sqlite-s3-delivery-plan.md)：新 native／
-schema／原结果／生命周期／目录／发现及固定1 GiB全冷恢复已通过；S2完成屏障的授权
-模型已修正并重新通过804／48。`e64eb56` 的23项夹具自测、12个真实controller场景、
-完整独立审计及31项定向负控全部通过，见[矩阵机器记录](docs/evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
-运行时仍为 `fc10287`，277项release输入相同；每个Node子进程绑定冻结入口与57项运行源码输入。
-HTTP、隔离、分段索引、发现、metadata、输出、expiry、资源及GC transport专项已通过。
+执行环境已经恢复。原 11–12 日部分 raw originals 未能恢复，因此本轮重新构建正式
+release，按原合同重新执行，分别保存原失败、新通过和未运行项。HEAD6、终态退休、
+native／deployment discovery、owner-plan、isolation、controller 矩阵、S1、资源与
+GC transport 已取得完整新结果；service discovery 在新 `642383c` 上也已完成，固定 b15
+的 1 GiB 恢复、39 份原结果查证与 16,384 个 BLOB 全量审计通过。各自来源与边界见
+[2026-11-13 交付与验收](docs/engineering/sqlite-s3-review-2026-11-13.md)。不能把只补
+HEAD6 和终态两个尾项当作所有旧证据已恢复，也不以当前检查器的绿色文字代替严格门禁。
 
-**当前执行环境不可用，PR #59保留Draft。** HEAD6实际和独立oracle已通过，但完整23项
-负控／1项正控未完成；终态退休的本轮完整合同也未完成。中断现场和已有通过记录分别
-保留，不将部分结果拼成整体PASS。恢复环境后先核对原件与进程状态，再补这两个门禁，
-见[剩余验收与中断记录](docs/engineering/sqlite-s3-integration-validation.md#执行环境中断与恢复入口)。
+动态 fleet、持久实例身份分配、S2/PITR、硬 RSS／磁盘隔离、持续过载与长期成本、真实
+AWS 和生产 SLO 仍未交付。单库仍串行，冷恢复仍完整读取闭包；同环境请求账本与实际
+吞吐分别报告。两组配对的完整正确性和原负控通过，但不能宣称减少一个 GET 已解决
+热点吞吐。原计数、尾延迟、采样限制和下一步 profile 见
+[Manifest 性能验收](docs/engineering/verified-manifest-load-validation.md)。
 
 ## SQLite 文件安全与吞吐边界
 

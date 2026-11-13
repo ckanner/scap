@@ -1,0 +1,4509 @@
+{
+  "all_planned_current_actual_commands_have_final_results": true,
+  "already_verified_public_archive_scopes": [
+    {
+      "archive": {
+        "bytes": 129029768,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-native01-20261113.tar.gz",
+        "sha256": "a551c12db7ce9644a0b79fdefee4414f63762941a30233958c82c45b7c3d62a0"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 1104336,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-native01-20261113.index.json",
+        "sha256": "0c2556fbdef5676e9638f328edbaac4bd5ea1202e168d09e7e2d4ddae3a19371"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 0,
+        "other": 0,
+        "regular_files": 1459
+      },
+      "scope": "scap-b15-native01-20261113",
+      "selected_file_count": 1458,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 1458,
+      "verification": {
+        "bytes": 7091,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-native01-20261113.verification.json",
+        "sha256": "40683bef307d13d4a599532feb07641738756136c7e4df3c89f4b0474116f4e8"
+      }
+    },
+    {
+      "archive": {
+        "bytes": 227770562,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-owner-controller-originals-20261113.tar.gz",
+        "sha256": "f5de0bd25e3f0e5091269ae80d3ff321999f4c1ccf1ad1617fd919c681885622"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 15887462,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-owner-controller-originals-20261113.index.json",
+        "sha256": "7f7eb474852024eefe1e7f859ae1ce110ba61988c37566b778b6aade421399bc"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 10825,
+        "other": 0,
+        "regular_files": 5035
+      },
+      "scope": "scap-b15-owner-controller-originals-20261113",
+      "selected_file_count": 15859,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 5034,
+      "verification": {
+        "bytes": 5236,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-owner-controller-originals-20261113.verification.json",
+        "sha256": "efb919457cdf1f3ddea8625b51f350a4e99866c690a1970e195b57cc113cc6a5"
+      }
+    },
+    {
+      "archive": {
+        "bytes": 145984511,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-resource-gc-originals-20261113.tar.gz",
+        "sha256": "b3ab476c6260fb420d635242400a02270d893485c081f6bff3d50d698234017b"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 83216,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-resource-gc-originals-20261113.index.json",
+        "sha256": "56c68d4fe4eaee575c8138d615759468cc7fdbe9997a400c72107384a2eb7b36"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 0,
+        "other": 0,
+        "regular_files": 114
+      },
+      "scope": "scap-b15-resource-gc-originals-20261113",
+      "selected_file_count": 113,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 113,
+      "verification": {
+        "bytes": 4134,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-resource-gc-originals-20261113.verification.json",
+        "sha256": "b1a35cf3b3976dcde871086a7c073588c2d739379ad30e8a2bb78f71ee7ad3da"
+      }
+    },
+    {
+      "archive": {
+        "bytes": 232273489,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-service-originals-20261113.tar.gz",
+        "sha256": "5927bad5741a194a8781decbb5900a4474044b1c48860be6a365f780211891eb"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 149588306,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-service-originals-20261113.index.json",
+        "sha256": "a706b2bfc8bbed2961e205273548e10399e7579d71580ed69fce63018704c053"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 129994,
+        "other": 0,
+        "regular_files": 7124
+      },
+      "scope": "scap-b15-service-originals-20261113",
+      "selected_file_count": 137117,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 7123,
+      "verification": {
+        "bytes": 7591,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-service-originals-20261113.verification.json",
+        "sha256": "bf5a8417e2921de7daa99bc8468399a27ad54ac3089b133ec5bb64be41df87d1"
+      }
+    },
+    {
+      "archive": {
+        "bytes": 45927102,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-fd508-correctness-20261113.tar.gz",
+        "sha256": "97e94db2b7e27a82c04aeace1a8728d7f6e78296d67869f5b08c40542c9f7cb1"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 5737546,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-fd508-correctness-20261113.index.json",
+        "sha256": "4be7156e8986a1e91d9348ebd604dc2082b2454e63be9324e2ad71363908e5ba"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 5426,
+        "other": 0,
+        "regular_files": 706
+      },
+      "scope": "scap-fd508-correctness-20261113",
+      "selected_file_count": 6131,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 705,
+      "verification": {
+        "bytes": 6068,
+        "path": "/workspace/deliverables/scap-runtime-20261113/scap-fd508-correctness-20261113.verification.json",
+        "sha256": "08588467b30d8fae2d24aaacb01f4438ceb986f8bd3001d1fab8fa49c93799f3"
+      }
+    },
+    {
+      "archive": {
+        "bytes": 333003632,
+        "path": "deliverables/scap-head6-b15-20261113.tar.gz",
+        "sha256": "68b702760286676ce6bf2044a67eb2c39c646e064b744a37f02cbf123582b9de"
+      },
+      "hash_scope": "Archive/index SHA copied from existing full-stream verification; this summary did not rehash payloads or scan raw.",
+      "index": {
+        "bytes": 191666317,
+        "path": "deliverables/scap-head6-b15-20261113.index.json",
+        "sha256": "c55eaa30fd24330a4b01de968bdabd94749597f7408ff721489887064467ea2c"
+      },
+      "member_counts": {
+        "directories": 0,
+        "hardlinks": 203163,
+        "other": 0,
+        "regular_files": 15779
+      },
+      "scope": "scap-head6-b15-20261113",
+      "selected_file_count": 218941,
+      "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+      "unique_physical_file_count": 15778,
+      "verification": {
+        "bytes": 2048,
+        "path": "deliverables/scap-head6-b15-20261113.verification.json",
+        "sha256": "0715262816dde54a910488d4a3f38d1e6f36abfde08641429f07dd543c2f1885"
+      }
+    }
+  ],
+  "auxiliary": {
+    "record": {
+      "bytes": 2152,
+      "path": "validation/auxiliary-b15-20261113/result-metrics.json",
+      "sha256": "ff898b0c9a9e38d169f68c1b52ab79db7a4aa653da9751554681a109c21cc9cd"
+    },
+    "value": {
+      "artifact_bytes": 349235160,
+      "artifact_count": 5254,
+      "models": {
+        "authority": {
+          "negative_controls": 30,
+          "passed": true,
+          "positive_cases": 664
+        },
+        "named_catalogue": {
+          "negative_controls": 25,
+          "passed": true,
+          "positive_cases": 885
+        },
+        "owner_controller": {
+          "negative_controls": 40,
+          "positive_cases": 402,
+          "positive_controls": 3,
+          "status": "PASSED"
+        },
+        "owner_plan": {
+          "negative_controls": 48,
+          "positive_cases": 989,
+          "positive_controls": 3,
+          "status": "PASSED"
+        },
+        "snapshot_restore": {
+          "negative_controls": 48,
+          "positive_cases": 804,
+          "positive_controls": 3,
+          "status": "PASS"
+        },
+        "terminal": {
+          "negative_controls": 20,
+          "passed": true,
+          "positive_cases": 1212
+        }
+      },
+      "node_tests": {
+        "codec-unit": {
+          "fail": 0,
+          "pass": 13,
+          "skipped": 0,
+          "tests": 13,
+          "todo": 0
+        },
+        "sdk-controller-http": {
+          "fail": 0,
+          "pass": 12,
+          "skipped": 0,
+          "tests": 12,
+          "todo": 0
+        },
+        "sdk-http": {
+          "fail": 0,
+          "pass": 7,
+          "skipped": 0,
+          "tests": 7,
+          "todo": 0
+        },
+        "sdk-unit": {
+          "fail": 0,
+          "pass": 157,
+          "skipped": 0,
+          "tests": 157,
+          "todo": 0
+        }
+      },
+      "python_tests": {
+        "environment": 32,
+        "object-authority-model": 121,
+        "object-owner-controller-model": 19,
+        "object-owner-plan-model": 19,
+        "object-snapshot-restore-model": 38,
+        "object-terminal-retirement-model": 44,
+        "tooling": 74
+      },
+      "scope": "SDK unit V8, separate real loopback/CLI, TS, tooling/environment exact Python coverage and bounded models only; not native or S3 acceptance",
+      "source_before_after_identical": true,
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_files": 718,
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "source_tree": "548bacc1299f78a5d86960cf5bcea739260b46cc",
+      "status": "PASS_AUXILIARY_SCOPED",
+      "summary_sha256": "d417d480d24cfe66a5544bf0f29b2cb0861d14e933a25f09e964408d78e6932d"
+    }
+  },
+  "aws_standard": "NOT_RUN",
+  "b15_native": {
+    "command_count": 24,
+    "elapsed_seconds": 1377.7399896979987,
+    "profiles": {
+      "bounded_response": {
+        "auxiliary_response_limit": 65536,
+        "aws_standard": "NOT_RUN",
+        "cases": {
+          "get_large_404": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 28.155263,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "get_small_404": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 29.582361,
+            "kernel_maxrss_bytes": 23789568,
+            "result": {
+              "error": "Missing",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 65536
+          },
+          "get_stream_500": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 40.231801,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 81920
+          },
+          "get_success_large": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 16.600448,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Limit",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 8192
+          },
+          "put_accepted_500": {
+            "actual_backend_requests": 2,
+            "elapsed_ms": 47.419261,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "put_large_412": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 33.155406,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Unknown",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 73728
+          },
+          "put_small_412": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 33.275594,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "error": "Conflict",
+              "id": 1,
+              "ok": false
+            },
+            "sent_response_bytes": 65536
+          },
+          "put_success_large": {
+            "actual_backend_requests": 1,
+            "elapsed_ms": 14.464291,
+            "kernel_maxrss_bytes": 23810048,
+            "result": {
+              "etag": "\"3bacbe4b197abfffebe432b8edb8eb6e\"",
+              "id": 1,
+              "ok": true
+            },
+            "sent_response_bytes": 4096
+          }
+        },
+        "max_successful_get_bytes": 1024,
+        "negative_controls": [
+          {
+            "name": "unbounded_error_was_consumed",
+            "rejected": true
+          },
+          {
+            "name": "accepted_put_misreported_local_limit",
+            "rejected": true
+          },
+          {
+            "name": "accepted_put_misreported_conflict",
+            "rejected": true
+          },
+          {
+            "name": "exact_readback_changed",
+            "rejected": true
+          },
+          {
+            "name": "missing_kernel_wait4",
+            "rejected": true
+          }
+        ],
+        "original_history_sha256": "55b91182e34fbecf3f3bdf519601e719f6f8f61ed03e55885ffb0885b55ccffa",
+        "scope": "storage-port-development-contract",
+        "status": "passed"
+      },
+      "catalogue": {
+        "ack_classifications": {
+          "catalogue_progress": 728,
+          "deleted": 26,
+          "retained": 246
+        },
+        "ack_responses": 1000,
+        "actual_http_statuses": {
+          "backend_200": 18081,
+          "backend_404": 1947,
+          "backend_412": 307,
+          "linearization_constraints": 20970
+        },
+        "aws_endpoint_gate": "NOT_RUN",
+        "checked_cases": 116,
+        "complete_responses": 2791,
+        "descriptor_ack_identities": 133,
+        "explicit_lost_unknown": 153,
+        "invoked_calls": 2944,
+        "limits": [
+          "real loopback SeaweedFS 4.51 is not AWS Standard acceptance",
+          "cache removal is a source-bound controller stat/rmtree observation, not external filesystem attestation",
+          "valid foreign named hash collisions are not manufactured; direct foreign identities and invalid provenance are separate",
+          "no general all-stage 403/5xx matrix, namespace inventory, garbage collection or operational SLO claim"
+        ],
+        "mismatch_count": 0,
+        "oracle_sha256": "f574823793b793ba8b4799fa27c2251f12ca8eeff28161d88f3effa6e65ec351",
+        "pilot_profiles": 6,
+        "processes": {
+          "backend_processes_killed": 4,
+          "backend_replacements": 4,
+          "build": {
+            "binary": {
+              "path": "validation/build-targets/b15-native-release/release/scap-object-network",
+              "sha256": "4a1914a6ccd8a1cc70916e377cb163bbc7f8ef818e91cf2e9bf4a98e8c5821a5"
+            },
+            "cargo_process_exit_code": 0,
+            "executable_native_bytes": "verified",
+            "local_source_manifest_matches": true,
+            "original_cargo_build_finished": true,
+            "profile": "network",
+            "retrieved_artifacts": [
+              "validation/build-targets/b15-native-release/release/scap-object-network",
+              "validation/build-targets/b15-native-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+            ],
+            "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+            "source_bytes_verified": 3171196,
+            "source_files_verified": 183,
+            "status": "verified",
+            "unavailable_artifacts": [],
+            "verification_scope": "full"
+          },
+          "compute_incarnations": 619,
+          "lost_invocations": 153,
+          "unique_child_incarnations": 627,
+          "verified_cache_loss_observations": 501
+        },
+        "production_slo_passed": false,
+        "put_cut_cases": 78,
+        "recovery_stages": [
+          "compute_recovery",
+          "backend_recovery"
+        ],
+        "saved_catalogue_intents": 939,
+        "source_artifacts": {
+          "build-receipt.json": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+          "catalogue-ack-ledger.jsonl": "bb12dcf36dbe1840bea8939ea374f27f766bf87922b56da2619fb44568606a17",
+          "catalogue-client-ledger.jsonl": "8ee099de65bbdef82064f32949d866c9050e9cbb514af870c1bc561605da656e",
+          "catalogue-cut-plan.json": "c283490d28672ff10934495229058bcfc3cff48e07bc21e6bb0bc671e493fa4f",
+          "catalogue-facts.jsonl": "bbe8c6e5dc7f64e02b2d7041453ed889f903c6bbcc78ce6ba73001ab70ed05aa",
+          "catalogue-input-ledger.jsonl": "3e98fbd2a3bcbd0c2f9a66db3893b52d9ccfacbe5e2649d5550546b62b666970",
+          "catalogue-plan.json": "628cebb155b9e33bceef6499b3f286a837097041c4c4230ce4b11514827af570",
+          "history.jsonl": "ad2bef5bdeff79d1bddaa437b8be9e122f40f160f9abd830e2115e541f406dd1"
+        },
+        "sql_ack_identities": 108,
+        "sql_inputs": 109,
+        "status": "passed",
+        "structural_cases": 32,
+        "unit_coverage_contribution": false,
+        "wire_reader_sha256": "28186c3ffad25121a218277ec85fcd00c3085dc78d5f50ffb35ec6b5b1fbaede"
+      },
+      "discovery": {
+        "controls": {
+          "negative_controls": 23,
+          "originals_unchanged": true,
+          "positive_controls": 1,
+          "status": "passed",
+          "verification_scope": "full"
+        },
+        "independent_and_controls_core_verdicts_equal": true,
+        "independent_full_oracle": {
+          "aws_standard_contract": "NOT_RUN",
+          "builds": {
+            "recovery": {
+              "binary": {
+                "path": "validation/b15-native-revalidation-20261113/native01/build-target/release/scap-object-discovery",
+                "sha256": "ae1736089635d0307b930b11a369ae690bdb5035011fdd751661476a1f03b920"
+              },
+              "cargo_process_exit_code": 0,
+              "executable_native_bytes": "verified",
+              "local_source_manifest_matches": true,
+              "original_cargo_build_finished": true,
+              "profile": "discovery",
+              "retrieved_artifacts": [
+                "validation/b15-native-revalidation-20261113/native01/build-target/release/scap-object-discovery",
+                "validation/b15-native-revalidation-20261113/native01/build-target/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a",
+                "env/scap-1.90-02/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/cargo",
+                "env/scap-1.90-02/rustup/toolchains/1.90.0-x86_64-unknown-linux-gnu/bin/rustc"
+              ],
+              "sha256": "3d709b97debb7456804fcd97637add90f1a6391f2ad41b6d32a160b5ad1beb99",
+              "source_bytes_verified": 4407455,
+              "source_files_verified": 245,
+              "status": "verified",
+              "unavailable_artifacts": [],
+              "verification_scope": "full"
+            },
+            "seed": {
+              "binary": {
+                "path": "validation/build-targets/b15-native-release/release/scap-object-network",
+                "sha256": "4a1914a6ccd8a1cc70916e377cb163bbc7f8ef818e91cf2e9bf4a98e8c5821a5"
+              },
+              "cargo_process_exit_code": 0,
+              "executable_native_bytes": "verified",
+              "local_source_manifest_matches": true,
+              "original_cargo_build_finished": true,
+              "profile": "network",
+              "retrieved_artifacts": [
+                "validation/build-targets/b15-native-release/release/scap-object-network",
+                "validation/build-targets/b15-native-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+              ],
+              "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+              "source_bytes_verified": 3171196,
+              "source_files_verified": 183,
+              "status": "verified",
+              "unavailable_artifacts": [],
+              "verification_scope": "full"
+            }
+          },
+          "completion_meaning": "per-slot verification points; not a simultaneous deployment snapshot",
+          "deployment": 2801896874652253764,
+          "full_byte_objects": 154,
+          "input_outcomes": {
+            "cancelled": 1,
+            "deleted_barrier": 1,
+            "retained_ack": 8,
+            "retained_committed_without_native_ack": 1,
+            "retired_barrier": 2
+          },
+          "list_pages": 1480,
+          "original_ack_count": 11,
+          "original_inputs": 13,
+          "processes": 62,
+          "production_throughput_slo": "NOT_RUN",
+          "profiles": {
+            "admin_without_read": {
+              "closure_objects": 27,
+              "data_not_required": 4,
+              "data_verified": 4,
+              "metadata_classified": 65,
+              "native_bytes": 73728,
+              "native_rows": 10,
+              "raw_http_body_bytes": 651196,
+              "recovery_complete": false,
+              "required_heads": 5,
+              "steps": 139,
+              "stopped": "PermissionBlocked",
+              "usage": {
+                "candidates": 139,
+                "data_bytes": 117626,
+                "exact_gets": 468,
+                "list_bytes": 298187,
+                "list_pages": 365,
+                "metadata_bytes": 20149797
+              }
+            },
+            "complete": {
+              "closure_objects": 32,
+              "data_not_required": 4,
+              "data_verified": 5,
+              "metadata_classified": 65,
+              "native_bytes": 86016,
+              "native_rows": 11,
+              "raw_http_body_bytes": 671008,
+              "recovery_complete": true,
+              "required_heads": 5,
+              "steps": 140,
+              "stopped": null,
+              "usage": {
+                "candidates": 139,
+                "data_bytes": 135760,
+                "exact_gets": 475,
+                "list_bytes": 298187,
+                "list_pages": 365,
+                "metadata_bytes": 20151475
+              }
+            },
+            "interrupted": {
+              "closure_objects": 13,
+              "data_not_required": 0,
+              "data_verified": 2,
+              "metadata_classified": 5,
+              "native_bytes": 36864,
+              "native_rows": 5,
+              "raw_http_body_bytes": 104283,
+              "recovery_complete": false,
+              "required_heads": 5,
+              "steps": 12,
+              "stopped": null,
+              "usage": {
+                "candidates": 12,
+                "data_bytes": 53828,
+                "exact_gets": 36,
+                "list_bytes": 36827,
+                "list_pages": 35,
+                "metadata_bytes": 1384622
+              }
+            },
+            "missing_reader": {
+              "closure_objects": 27,
+              "data_not_required": 4,
+              "data_verified": 4,
+              "metadata_classified": 65,
+              "native_bytes": 73728,
+              "native_rows": 10,
+              "raw_http_body_bytes": 651196,
+              "recovery_complete": false,
+              "required_heads": 5,
+              "steps": 139,
+              "stopped": "PermissionBlocked",
+              "usage": {
+                "candidates": 139,
+                "data_bytes": 117626,
+                "exact_gets": 468,
+                "list_bytes": 298187,
+                "list_pages": 365,
+                "metadata_bytes": 20149797
+              }
+            },
+            "missing_retained_result": {
+              "closure_objects": 13,
+              "data_not_required": 0,
+              "data_verified": 2,
+              "metadata_classified": 58,
+              "native_bytes": 36864,
+              "native_rows": 5,
+              "raw_http_body_bytes": 550596,
+              "recovery_complete": false,
+              "required_heads": 5,
+              "steps": 130,
+              "stopped": "Corrupt",
+              "usage": {
+                "candidates": 130,
+                "data_bytes": 67259813,
+                "exact_gets": 364,
+                "list_bytes": 289863,
+                "list_pages": 350,
+                "metadata_bytes": 19306226
+              }
+            }
+          },
+          "signed_s3_requests": 4085,
+          "source_sha256": {
+            "acks.jsonl": "88e4f3e2225b42f98fa7db12b8e721693c70429c1b4400b541a8534fb8be9db6",
+            "calls.jsonl": "712f424afaa3a65eb143d0408856cc2056edba63a515364d7e901d77049f5297",
+            "facts.jsonl": "fb7e0c937206e48abc05feb6ddc2dae6efabd21d97c5f38840f5794ea62b49b7",
+            "history.jsonl": "f460c5fcabbebfc40feb430516c5fe94aae1df90c1b4cf445be1204cf41a1cf3",
+            "inputs.jsonl": "7d6f6a879c7ed90759e6cd6e58a460f39d6125d5bb48db1e7e7153d674c39633",
+            "plan.json": "b5d97a021e8dbdaf4affff8a734d45683dfcfbdca54be2a7b780b461aa60f5ff"
+          },
+          "status": "passed",
+          "verification_scope": "full"
+        },
+        "independent_original_hashes_match_control_original_inventory": true
+      },
+      "lifecycle": {
+        "ack_classifications": {
+          "deleted_access": 5,
+          "retained_original": 71,
+          "retired": 2
+        },
+        "ack_identities": 30,
+        "ack_mismatches": 0,
+        "ack_responses": 78,
+        "aws_endpoint_gate": "NOT_RUN",
+        "build": {
+          "binary": {
+            "path": "validation/build-targets/b15-native-release/release/scap-object-network",
+            "sha256": "4a1914a6ccd8a1cc70916e377cb163bbc7f8ef818e91cf2e9bf4a98e8c5821a5"
+          },
+          "cargo_process_exit_code": 0,
+          "executable_native_bytes": "verified",
+          "local_source_manifest_matches": true,
+          "original_cargo_build_finished": true,
+          "profile": "network",
+          "retrieved_artifacts": [
+            "validation/build-targets/b15-native-release/release/scap-object-network",
+            "validation/build-targets/b15-native-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+          ],
+          "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+          "source_bytes_verified": 3171196,
+          "source_files_verified": 183,
+          "status": "verified",
+          "unavailable_artifacts": [],
+          "unique_child_incarnations": 67,
+          "verification_scope": "full"
+        },
+        "cancellation_identities": 12,
+        "cancellation_proof_observations": 34,
+        "checked_cases": 12,
+        "closed_lookup_checks": 1,
+        "committed_observations_before_execute_ack": 1,
+        "deleted_access_checks": 40,
+        "execute_responses": 122,
+        "inputs": 56,
+        "planned_cases": 12,
+        "production_slo_passed": false,
+        "rejected_candidate_calls": [
+          12,
+          44,
+          79,
+          227,
+          358,
+          433
+        ],
+        "resolved_without_execute_ack_identities": 0,
+        "resolved_without_execute_ack_observations": 0,
+        "retired_lookup_checks": 11,
+        "revoked_access_checks": 4,
+        "source_sha256": {
+          "build-receipt.json": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+          "history.jsonl": "cce52343fde352ce4c78e51226eec0c33f08fd2f4402530e98a2f946badc2f67",
+          "lifecycle-ack-ledger.jsonl": "f0eed16ae0a974ae393fc6752d331312893e87f037a20d82762c6c12b80fd265",
+          "lifecycle-client-ledger.jsonl": "db9bc3c77be7c38a339e7624d71627aa31f87b645f5de0c47deb789ebba5a2c7",
+          "lifecycle-facts.jsonl": "313ce8050173061ecc5ac222ce40bf7c9fe56a4a43c0d2639b525fb586414099",
+          "lifecycle-input-ledger.jsonl": "6e4c4f554cd33560156cc1e99ddb7f75de95bb233751b2016ccfb86278480c0c",
+          "lifecycle-plan.json": "6ea4e8a849380cdfb2211157b7ddd8df99748430270393334adbd1e636bc974f"
+        },
+        "status": "passed",
+        "unit_coverage_contribution": false
+      },
+      "listing": {
+        "audit_controls": [
+          {
+            "case": "omit-call",
+            "rejected": true
+          },
+          {
+            "case": "forged-success",
+            "rejected": true
+          },
+          {
+            "case": "false-empty",
+            "rejected": true
+          },
+          {
+            "case": "changed-frontier",
+            "rejected": true
+          },
+          {
+            "case": "unauthenticated",
+            "rejected": true
+          }
+        ],
+        "oracle": {
+          "audit_negative_controls": 5,
+          "binary": {
+            "path": "validation/b15-native-revalidation-20261113/native01/build-target/release/examples/scap-object-listing",
+            "sha256": "cf0b335be726849910049400dff3cbf41f866391df1cc8ec3d0b4555eb660e63"
+          },
+          "calls": 174,
+          "complete_inventory_scans": 3,
+          "history_sha256": "abf33a1ed42e18293d8d74526fe977ef2516bda9b44eb23890604d4f1869c870",
+          "input_sha256": "37c1c8465ee26db77b73d4b9fd6769f072e1729b1378e31294eda3b77ee828c8",
+          "list_calls": 34,
+          "negative_controls": 21,
+          "observed_online_non_snapshot": true,
+          "scope": "N2-A-storage-port-only",
+          "status": "passed"
+        },
+        "standalone_oracle_cli": "NOT_AVAILABLE; original runner independently audits its persisted history and executes all five memory-history negative controls"
+      },
+      "network": {
+        "base_ack_audited_count": 4,
+        "cleanup_errors": [],
+        "completed_contracts": [
+          "signed_exact_key_conditional_objects",
+          "same_etag_two_process_competition",
+          "original_result_and_all_compute_loss",
+          "lost_head_response_keeps_original_result",
+          "takeover_fences_inflight_old_writer",
+          "commit_cancel_both_orders",
+          "lost_cancel_response_preserves_fence",
+          "corrupt_dependency_fails_closed_without_head_change",
+          "object_blackhole_fails_closed",
+          "backend_process_restart_retains_acknowledged_state",
+          "each_observed_dependency_upload_cut_retains_previous_authority",
+          "accepted_head_survives_process_loss_and_native_publication_failure",
+          "missing_and_corrupt_typed_dependencies_refuse_cold_activation",
+          "changed_head_during_recovery_refuses_old_activation",
+          "alter_schema_original_results_and_all_compute_loss"
+        ],
+        "fault_ack_audited_count": 61,
+        "fault_ack_mismatch_count": 0,
+        "fault_ack_recorded_count": 61,
+        "fault_case_count": 30,
+        "fault_case_names": [
+          "dependency_upload_pilot",
+          "dependency_01_before_forward",
+          "dependency_01_after_upstream_response",
+          "dependency_02_before_forward",
+          "dependency_02_after_upstream_response",
+          "dependency_03_before_forward",
+          "dependency_03_after_upstream_response",
+          "dependency_04_before_forward",
+          "dependency_04_after_upstream_response",
+          "dependency_05_before_forward",
+          "dependency_05_after_upstream_response",
+          "dependency_06_before_forward",
+          "dependency_06_after_upstream_response",
+          "dependency_07_before_forward",
+          "dependency_07_after_upstream_response",
+          "head_before_forward",
+          "accepted_head_then_sigkill",
+          "native_file_size_failure_after_head",
+          "native_checkpoint_reader_blocks_truncate",
+          "cold_chunk_missing",
+          "cold_chunk_corrupt",
+          "cold_tree_node_missing",
+          "cold_tree_node_corrupt",
+          "cold_manifest_missing",
+          "cold_manifest_corrupt",
+          "cold_index_missing",
+          "cold_index_corrupt",
+          "cold_result_missing",
+          "cold_result_corrupt",
+          "head_changes_during_cold_activation"
+        ],
+        "fault_outcome_mismatch_count": 0,
+        "oracle_mode": "built-in original contract observation checks; no separate full-history native oracle CLI",
+        "proxy_errors": [],
+        "schema_contract": {
+          "ack_audited_count": 12,
+          "ack_mismatch_count": 0,
+          "ack_recorded_count": 12,
+          "ack_replayed_count": 12,
+          "aws_endpoint_gate": "NOT_RUN",
+          "case_results": [
+            {
+              "ack_count": 6,
+              "all_compute_lost": true,
+              "foreign_key_preserved": true,
+              "mode": "execute",
+              "original_result_replayed_without_put": true,
+              "refused_sql_replayed": false,
+              "scope": {
+                "database": 1,
+                "deployment": 80,
+                "generation": 1,
+                "incarnation": 1,
+                "tenant": 88
+              },
+              "session_reopened_after_refusal": false,
+              "status": "passed"
+            },
+            {
+              "ack_count": 6,
+              "all_compute_lost": true,
+              "foreign_key_preserved": true,
+              "mode": "session_execute",
+              "original_result_replayed_without_put": true,
+              "refused_sql_replayed": false,
+              "scope": {
+                "database": 2,
+                "deployment": 80,
+                "generation": 1,
+                "incarnation": 1,
+                "tenant": 88
+              },
+              "session_reopened_after_refusal": true,
+              "status": "passed"
+            }
+          ],
+          "ledger_sha256": {
+            "schema-ack-ledger.jsonl": "c94069b773e5799c7152c96cb4caa4d7d6ea19ba11a20713c5681ea421ef1536",
+            "schema-audit.jsonl": "6ee576e5b5f80f630f26dd5827769d4ac970e3e74790cd1904b5475c541ccad0",
+            "schema-input-ledger.jsonl": "5e0eb2e59222730c3c841c8009f36b882ddb42a42c83a0d4109b5ed90c65d57c"
+          },
+          "planned_modes": [
+            "execute",
+            "session_execute"
+          ],
+          "status": "passed",
+          "unit_coverage_contribution": false
+        },
+        "status": "passed"
+      },
+      "retained_result": {
+        "ack_audited_count": 30,
+        "ack_mismatch_count": 0,
+        "ack_recorded_count": 30,
+        "oracle_mode": "built-in original contract observation checks; no standalone full-history retained oracle CLI",
+        "outcome_mismatch_count": 0,
+        "planned_probes_per_scenario": [
+          "lookup_identity",
+          "cancel_identity",
+          "activate",
+          "activate_session",
+          "session_open",
+          "query"
+        ],
+        "planned_scenarios": [
+          "result_current_bad_magic",
+          "result_current_truncated_footer",
+          "result_current_trailing_byte",
+          "result_current_unknown_tag",
+          "result_current_nonfinite_real",
+          "result_current_invalid_utf8",
+          "result_closed_bad_magic",
+          "result_closed_truncated_footer",
+          "result_closed_trailing_byte",
+          "result_closed_unknown_tag",
+          "result_closed_nonfinite_real",
+          "result_closed_invalid_utf8"
+        ],
+        "status": "passed",
+        "verified_entrypoint_checks": 72
+      }
+    },
+    "record": {
+      "bytes": 362111,
+      "path": "validation/b15-native-revalidation-20261113/native01/metrics/summary.json",
+      "sha256": "0f649641c166a88c50abd0699c05c5517538f36d60ca33e774ac33e3c76bf11f"
+    },
+    "scope_limits": {
+      "aws_standard": "NOT_RUN",
+      "capacity_gib1": "WAITING_FOR_QUIET_WINDOW; separately required original actual and new independently reviewed whole-image verifier",
+      "catalogue_standalone_whole_history_negative_cli": "NOT_RUN_NOT_CLAIMED; fixture-unit mutations are separately reported",
+      "default_quota_10gib": "NOT_RUN",
+      "discovery_completion": "per-slot verification points; not a simultaneous deployment snapshot",
+      "head6_and_terminal": "SEPARATE_B15_CONTRACTS; not included in this report",
+      "original_budgets_or_scenarios_changed": false,
+      "overall_merge_ready": false,
+      "production_slo": "NOT_RUN",
+      "production_unit_coverage": "ROOT_UNIT_AGENT_OWNED_SEPARATE_GATE",
+      "source_changes": false,
+      "source_identity": "This is baseline PR59 b15 evidence; never relabeled as candidate PR60 runtime pass."
+    },
+    "source": {
+      "after": {
+        "bytes": 190780,
+        "path": "validation/b15-native-revalidation-20261113/native01/source-after.json",
+        "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+      },
+      "before": {
+        "bytes": 190780,
+        "path": "validation/b15-native-revalidation-20261113/native01/source-before.json",
+        "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+      },
+      "before_after_equal": true,
+      "commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "root": "scap",
+      "schema_version": 1,
+      "scope": "git-tracked-source-only",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "tracked_files": 718,
+      "tree": "548bacc1299f78a5d86960cf5bcea739260b46cc"
+    },
+    "status": "PASS_NATIVE_STORAGE_DISCOVERY_LOCAL_CAPACITY_PENDING"
+  },
+  "capacity_gib1": {
+    "record": {
+      "bytes": 23188,
+      "path": "validation/b15-native-revalidation-20261113/capacity01/metrics/review-summary.json",
+      "sha256": "f5604cf886440b4da1251c07585eecaad858e51ea5bfff5095937a9b59864960"
+    },
+    "value": {
+      "actual": {
+        "ack_audit_complete": true,
+        "ack_audited_count": 39,
+        "ack_mismatch_count": 0,
+        "blob_audit_complete": true,
+        "blob_audited_bytes": 1073741824,
+        "blob_audited_count": 16384,
+        "blob_mismatch_count": 0,
+        "cleanup_errors": [],
+        "command_result": {
+          "bytes": 3015,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/commands/03-fixed-gib1-original-actual/result.json",
+          "sha256": "92c608d80a559598fac4519e47b5b89164f1a3ed5a7b2c7a5c6cf83259abc889"
+        },
+        "elapsed_seconds": 370.42482296199887,
+        "hot_cache_blackhole_elapsed_seconds": 0.20457352400262607,
+        "original_budgets": {
+          "default_quota_bytes": 10737418240,
+          "diagnostic": false,
+          "operation_ms": 30000,
+          "options_unchanged": true,
+          "original_disk_guard_bytes": 4294967296,
+          "recovery_ms": 1800000
+        },
+        "original_checks": [
+          "one_gib_independent_payload_committed",
+          "warm_point_updates_do_not_transfer_whole_gib",
+          "warm_session_rechecks_permission_and_exact_root",
+          "unknown_resolved_without_sql_replay",
+          "all_compute_and_backend_process_loss_recovered_from_s3",
+          "every_client_ack_retains_exact_receipt_and_original_result",
+          "every_blob_matches_independent_preinvocation_hash",
+          "hot_cache_cannot_bypass_unavailable_fresh_head"
+        ],
+        "point_mutations": {
+          "lost_head_result": {
+            "database_payload_bytes": 1073741824,
+            "get_body_amplification": 9.274169921875,
+            "get_requests": 19,
+            "get_response_bytes": 607792,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 27
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 4.485107421875,
+            "put_request_bytes": 293936,
+            "put_requests": 8,
+            "put_success_bytes": 293936,
+            "put_successes": 8,
+            "unique_successful_put_keys": 8
+          },
+          "point_1gib_beginning": {
+            "database_payload_bytes": 1073741824,
+            "get_body_amplification": 9.052413940429688,
+            "get_requests": 16,
+            "get_response_bytes": 593259,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 24
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 4.468719482421875,
+            "put_request_bytes": 292862,
+            "put_requests": 8,
+            "put_success_bytes": 292862,
+            "put_successes": 8,
+            "unique_successful_put_keys": 8
+          },
+          "point_1gib_end": {
+            "database_payload_bytes": 1073741824,
+            "get_body_amplification": 9.691146850585938,
+            "get_requests": 18,
+            "get_response_bytes": 635119,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 27
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 4.784210205078125,
+            "put_request_bytes": 313538,
+            "put_requests": 9,
+            "put_success_bytes": 313538,
+            "put_successes": 9,
+            "unique_successful_put_keys": 9
+          },
+          "point_1gib_middle": {
+            "database_payload_bytes": 1073741824,
+            "get_body_amplification": 13.070053100585938,
+            "get_requests": 18,
+            "get_response_bytes": 856559,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 27
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 6.4756011962890625,
+            "put_request_bytes": 424385,
+            "put_requests": 9,
+            "put_success_bytes": 424385,
+            "put_successes": 9,
+            "unique_successful_put_keys": 9
+          },
+          "point_64mib": {
+            "database_payload_bytes": 67108864,
+            "get_body_amplification": 8.63067626953125,
+            "get_requests": 16,
+            "get_response_bytes": 565620,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 24
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 4.3177947998046875,
+            "put_request_bytes": 282971,
+            "put_requests": 8,
+            "put_success_bytes": 282971,
+            "put_successes": 8,
+            "unique_successful_put_keys": 8
+          },
+          "root_change": {
+            "database_payload_bytes": 1073741824,
+            "get_body_amplification": 13.093704223632812,
+            "get_requests": 18,
+            "get_response_bytes": 858109,
+            "head_puts": 1,
+            "http_statuses": {
+              "200": 27
+            },
+            "logical_changed_payload_bytes": 65536,
+            "put_body_amplification": 6.4839935302734375,
+            "put_request_bytes": 424935,
+            "put_requests": 9,
+            "put_success_bytes": 424935,
+            "put_successes": 9,
+            "unique_successful_put_keys": 9
+          }
+        },
+        "proxy_errors": [],
+        "raw_original_file_inventory": {
+          "ack-ledger.jsonl": {
+            "bytes": 52485,
+            "sha256": "3616bc1ac20068ac5190310fc473631c3626f5652b740102451d68eb573b08d8"
+          },
+          "build-cargo.stderr.log": {
+            "bytes": 6399,
+            "sha256": "b30c5794aa2b7210248a464e54cbec4ba694093d20f11ee1c7c396bc722e0f12"
+          },
+          "build-cargo.stdout.jsonl": {
+            "bytes": 189898,
+            "sha256": "56b9ede7b407c3aa0f8222c01db7d5f193facd12ea03dc3dda5087d86f187c09"
+          },
+          "build-receipt.json": {
+            "bytes": 23627,
+            "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650"
+          },
+          "build-source-manifest.json": {
+            "bytes": 21604,
+            "sha256": "51b3470b42a30d89a105b701844997f480c10344ce402b1c8d78f656f7cd9370"
+          },
+          "build-source.tar": {
+            "bytes": 3317760,
+            "sha256": "e2fa55801d23f9833ba854dffa9e1e12726674018e2e854c36d7730eb6eb48df"
+          },
+          "history.jsonl": {
+            "bytes": 80820726,
+            "sha256": "b16b33353dcef1f9cdd3389305021f64867dae076b886f74584a36e25b95611d"
+          },
+          "input-ledger.jsonl": {
+            "bytes": 1902015,
+            "sha256": "c73d01daa955bce9df209759d35b50d65dc6a40c913d487d7a7c3bf3296e6358"
+          },
+          "resource-samples.jsonl": {
+            "bytes": 3211548,
+            "sha256": "b15379fb8aa858afba41306680505fe140c3d1c3828c4489e00de3e2a1f61130"
+          },
+          "summary.json": {
+            "bytes": 26220,
+            "sha256": "07f7b95c4125c510265afd32aa2cf12cc6716de728cbbca4a71a81df3e6b149f"
+          },
+          "worker-resources-1.jsonl": {
+            "bytes": 684976,
+            "sha256": "688cebc7de7bde772eb7f15b9187881115c8b839b0761a21477d27caee371931"
+          },
+          "worker-resources-2.jsonl": {
+            "bytes": 220834,
+            "sha256": "aeab273cb4a5a14b9d532e56145ad45ddb950b33c3ae2ab8a22a05f5c1f29688"
+          },
+          "worker-resources-3.jsonl": {
+            "bytes": 189298,
+            "sha256": "947aefa7dfb8a9aee097e8873e3bc31f810a364f38fc0118d035437c69dd7406"
+          }
+        },
+        "status": "passed",
+        "summary": {
+          "bytes": 26220,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/actual/summary.json",
+          "sha256": "07f7b95c4125c510265afd32aa2cf12cc6716de728cbbca4a71a81df3e6b149f"
+        }
+      },
+      "all_owned_actual_capture_auditor_processes_exited": true,
+      "archive": "WAIT_FOR_SEPARATE_ROOT_GO",
+      "attempt": "validation/b15-native-revalidation-20261113/capacity01",
+      "capture": {
+        "capture_began_after_last_owned_exit": true,
+        "capture_finished_monotonic_ns": 60238778673690,
+        "capture_started_monotonic_ns": 60226263811618,
+        "command_result": {
+          "bytes": 3169,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/commands/04-capture-closed-native-image/result.json",
+          "sha256": "6e54d3ed62888f028d29ba9441e57807f0203f99e3eb4420c2e8a615acde790f"
+        },
+        "elapsed_seconds": 12.75313857999572,
+        "independent_copy_not_second_s3_recovery": true,
+        "original_public_files_unchanged": true,
+        "owned_exits": {
+          "backend_incarnations": 8,
+          "compute_incarnations": 3,
+          "last_exit_monotonic_ns": 60224734647509,
+          "owned_wait4": 11
+        },
+        "record": {
+          "bytes": 4444,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/closed-image/capture.json",
+          "sha256": "3d8e3427e9bee477ed67718e28b3646ad1e4395b4ac66c8679231b004011fdbc"
+        },
+        "source_before_after_and_copy_full_hashes_equal": true,
+        "source_unchanged": true,
+        "status": "CAPTURED_CLOSED_IMAGE"
+      },
+      "controls": {
+        "compact_derived_result": {
+          "bytes": 1853,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/metrics/controls-result.json",
+          "sha256": "8dff50ac0eb6e300a41f47c8981da1888106f502032996cffa51b363e7d48980"
+        },
+        "negative_control_count": 5,
+        "negative_controls": [
+          {
+            "case": "missing_result",
+            "expected_guard": "all-39-original-results",
+            "observed_guard": "all-39-original-results",
+            "status": "REJECTED"
+          },
+          {
+            "case": "recovered_result",
+            "expected_guard": "recovered-original-result",
+            "observed_guard": "recovered-original-result",
+            "status": "REJECTED"
+          },
+          {
+            "case": "blob_hash",
+            "expected_guard": "every-original-blob-hash",
+            "observed_guard": "every-original-blob-hash",
+            "status": "REJECTED"
+          },
+          {
+            "case": "missing_exit",
+            "expected_guard": "all-owned-compute-exits",
+            "observed_guard": "all-owned-compute-exits",
+            "status": "REJECTED"
+          },
+          {
+            "case": "unknown_relabelled",
+            "expected_guard": "original-unknown-preserved",
+            "observed_guard": "original-unknown-preserved",
+            "status": "REJECTED"
+          }
+        ],
+        "no_original_mutation": true,
+        "original_raw_result": {
+          "bytes": 7529,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/audit01/stdout.log",
+          "sha256": "9f8233f2b9de7f9e3f24455ac872688fadf6e5636c1d93ddef600aabc0038428"
+        },
+        "unchanged_positive": "PASSED"
+      },
+      "created_utc": "2026-11-13T17:42:02.667871+00:00",
+      "driver": {
+        "all_six_exit_zero": true,
+        "command_result": {
+          "bytes": 2923,
+          "path": "validation/b15-native-revalidation-20261113/capacity01-driver-command/result.json",
+          "sha256": "32e26c02c6bec1f143bf3c2e88c5d5c1e550ea06d1ac81f7d56629ff76b7dd43"
+        },
+        "original_summary": {
+          "bytes": 19066,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/driver-summary.json",
+          "sha256": "ecd936b310c0a81e5be32cc57bfdeb35253966732918a06c679df05248278559"
+        },
+        "original_summary_status_unchanged": "ACTUAL_AND_IMAGE_CAPTURE_COMPLETE_INDEPENDENT_AUDIT_REQUIRED",
+        "six_original_phases": {
+          "01-capture-source-before": {
+            "bytes": 2715,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/01-capture-source-before/result.json",
+            "sha256": "4ae660f84e27a90fc24ef07eb2373939aad17c1f9adb7ad110b40f44dec9ecfc"
+          },
+          "02-verify-native-build": {
+            "bytes": 2580,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/02-verify-native-build/result.json",
+            "sha256": "fc037417ce0ac1a9c3bd0893c22e23049b697f7b32bfa3b10fb2b5821fb8d3ed"
+          },
+          "03-fixed-gib1-original-actual": {
+            "bytes": 3015,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/03-fixed-gib1-original-actual/result.json",
+            "sha256": "92c608d80a559598fac4519e47b5b89164f1a3ed5a7b2c7a5c6cf83259abc889"
+          },
+          "04-capture-closed-native-image": {
+            "bytes": 3169,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/04-capture-closed-native-image/result.json",
+            "sha256": "6e54d3ed62888f028d29ba9441e57807f0203f99e3eb4420c2e8a615acde790f"
+          },
+          "05-verify-source-after": {
+            "bytes": 2711,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/05-verify-source-after/result.json",
+            "sha256": "6a4b0fee6533e37538e92ff126c714a7b5a690b5f75be6a94188f77682341d1b"
+          },
+          "06-capture-source-after": {
+            "bytes": 2716,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/commands/06-capture-source-after/result.json",
+            "sha256": "f06450435ef03c9fd69ff64dfa4ca982f5e845d58c02d913317bd415c4e3d088"
+          }
+        }
+      },
+      "failures": [],
+      "frozen_plan": {
+        "bytes": 8358,
+        "path": "validation/b15-native-revalidation-20261113/capacity-plan-v2.json",
+        "sha256": "a8bc070afc46c79ca12f2d07e2862019a042e2e193b1ef89d56a1e3dfedd64d0"
+      },
+      "independent_audit": {
+        "actual_history": {
+          "blob_batches": 256,
+          "blob_bytes": 1073741824,
+          "blob_mismatches": 0,
+          "blob_rows": 16384,
+          "client_calls": 394,
+          "cold_original_lookups": 39,
+          "cold_response_bytes": 1084291477,
+          "cold_successful_gets": 8337,
+          "execute_acks": 38,
+          "http_requests": 34862,
+          "original_inputs": 39,
+          "original_unknowns": 1,
+          "processes": {
+            "backend_incarnations": 8,
+            "compute_incarnations": 3,
+            "last_exit_monotonic_ns": 60224734647509,
+            "owned_wait4": 11
+          },
+          "result_mismatches": 0,
+          "status": "PASSED",
+          "unknown_lookup_results": 1
+        },
+        "auditor_maxrss_mib": 460.09765625,
+        "auditor_memory_scope": "Kernel wait4 for the actual independent auditor child; separate from the three native workers and eight backend incarnations.",
+        "capture_record_unchanged": true,
+        "closed_image": {
+          "bytes": 1082163200,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/closed-image/database.sqlite",
+          "sha256": "bd5d9e2906d172c4bbacf2a5ff9274c8361714ceacfcea03e214b0ae544e6998",
+          "sha_provenance": "Independently hashed before/after complete read-only SQLite audit; no redundant 1GiB read just for this summary."
+        },
+        "command_result": {
+          "bytes": 2877,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/audit01/result.json",
+          "sha256": "7b4dea4fe166748cb8f1db6546fc4c811be3775f231361b335fc5c78cdfb9c41"
+        },
+        "elapsed_seconds": 42.65530226100236,
+        "final_blob_manifest": {
+          "bytes": 2246305,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/audit01/final-blob-manifest.jsonl",
+          "sha256": "6f735b25144cf27b0683ce99f02a34bf2fea580c5f8b735e48575818c41a98d3"
+        },
+        "frozen_tool_sources_unchanged": true,
+        "independent_sqlite": {
+          "blob_bytes_rehashed": 1073741824,
+          "image_bytes": 1082163200,
+          "image_sha256": "bd5d9e2906d172c4bbacf2a5ff9274c8361714ceacfcea03e214b0ae544e6998",
+          "integrity_check": [
+            "ok"
+          ],
+          "mode": "ro&immutable=1",
+          "rows_rehashed": 16384,
+          "sidecars": {
+            "": {
+              "bytes": 1082163200,
+              "sha256": "bd5d9e2906d172c4bbacf2a5ff9274c8361714ceacfcea03e214b0ae544e6998"
+            },
+            "-journal": null,
+            "-shm": {
+              "bytes": 32768,
+              "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+            },
+            "-wal": {
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "sqlite_version": "3.53.1"
+        },
+        "original_files_unchanged": true,
+        "original_stdout_report": {
+          "bytes": 7529,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/audit01/stdout.log",
+          "sha256": "9f8233f2b9de7f9e3f24455ac872688fadf6e5636c1d93ddef600aabc0038428"
+        },
+        "owned_auditor_wait4": {
+          "available": true,
+          "maxrss_kib": 471140,
+          "source": "kernel_wait4_owned_child",
+          "system_seconds": 5.109756,
+          "user_seconds": 37.141363
+        },
+        "status": "PASS_NEW_INDEPENDENT_GIB1_RAW_AUDIT"
+      },
+      "official_build": {
+        "executed_copy_receipt": {
+          "bytes": 23627,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/actual/build-receipt.json",
+          "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650"
+        },
+        "independent_verification": {
+          "binary": {
+            "path": "validation/build-targets/b15-native-release/release/scap-object-network",
+            "sha256": "4a1914a6ccd8a1cc70916e377cb163bbc7f8ef818e91cf2e9bf4a98e8c5821a5"
+          },
+          "cargo_process_exit_code": 0,
+          "executable_native_bytes": "verified",
+          "local_source_manifest_matches": true,
+          "original_cargo_build_finished": true,
+          "profile": "network",
+          "retrieved_artifacts": [
+            "validation/build-targets/b15-native-release/release/scap-object-network",
+            "validation/build-targets/b15-native-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+          ],
+          "sha256": "9038670f8f9ccec473aeb42a923759d7484b8d08e3eac6d78446b7322971b650",
+          "source_bytes_verified": 3171196,
+          "source_files_verified": 183,
+          "status": "verified",
+          "unavailable_artifacts": [],
+          "verification_scope": "full"
+        },
+        "original_receipt": {
+          "bytes": 23197,
+          "path": "validation/b15-native-build/build.json",
+          "sha256": "1a19d12c27cd5e8c30a5e9fb7a66c88df9c541bf7ef0a65a5c97fda9f0d14904"
+        }
+      },
+      "old_driver": {
+        "artifact": {
+          "bytes": 9661,
+          "path": "validation/b15-native-revalidation-20261113/run_capacity_actual.py",
+          "sha256": "439d23d53729d2478eb62d90c4c8ff4b221f9ad0e3556c72fc43b5671fb167d6"
+        },
+        "executed": false,
+        "preserved": true
+      },
+      "schema": 1,
+      "scope": "One original, non-diagnostic fixed gib1 actual, closed-file copy, independent complete original result/native image audit, five named negative guards and unchanged original positive.",
+      "scope_limits": {
+        "aws_standard": "NOT_RUN",
+        "candidate_fd508_capacity": "NOT_RUN",
+        "default_quota_10gib": "NOT_RUN",
+        "deleted_bulk_sql_fingerprint_recomputation": "NOT_CLAIMED; old random batch files were deleted by the unchanged original controller",
+        "device_cold_boot_or_cross_az": "NOT_RUN",
+        "full_initial_materialization": true,
+        "gc_enabled": false,
+        "historical_external_auditor": "NOT_RECOVERED_NOT_REUSED",
+        "independent_full_s3_graph_reconstruction": "NOT_CLAIMED; original proxy stores hashes and lengths, not every object body. The original native activation traverses and verifies the full closure; this auditor checks its original wire witnesses and the complete resulting native image.",
+        "lazy_database_reads": false,
+        "long_running_multidatabase_fairness": "NOT_RUN_BY_THIS_CONTRACT",
+        "network_delivery_timing": "object_response is the backend-response lower bound; object_response_delivered is a matching post-send log and may legally follow a client ACK or next request. No exact client-delivery timestamp is claimed.",
+        "overall_merge_ready": false,
+        "production_slo": "NOT_RUN",
+        "runtime_formats_exercised": [
+          6
+        ],
+        "second_s3_recovery_by_copy": "NOT_CLAIMED",
+        "sigv4_mac_recomputation": "NOT_CLAIMED_BY_THIS_AUDITOR; private keys are not read",
+        "six_overwritten_historical_blob_versions": "NOT_REHASHABLE_FROM_FINAL_IMAGE",
+        "storage_generation": 1,
+        "unit_coverage_contribution": false
+      },
+      "source": {
+        "before_after_final_exact_equal": true,
+        "commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+        "manifests": [
+          {
+            "bytes": 190780,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/source-before.json",
+            "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+          },
+          {
+            "bytes": 190780,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/source-after.json",
+            "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+          },
+          {
+            "bytes": 190780,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/metrics/source-final.json",
+            "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+          }
+        ],
+        "post_audit_commands": [
+          {
+            "bytes": 1128,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/metrics/verify-source-final/result.json",
+            "sha256": "693ad04b41bfb2191711c3b67cda5f9a6374ca237efb67f306e1280d37e93c63"
+          },
+          {
+            "bytes": 1139,
+            "path": "validation/b15-native-revalidation-20261113/capacity01/metrics/capture-source-final/result.json",
+            "sha256": "5e0af1e93dcf6d1c98978a682bbd490487b6408ed39b616bac35911cc4d2d040"
+          }
+        ],
+        "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+        "tracked_files": 718,
+        "tree": "548bacc1299f78a5d86960cf5bcea739260b46cc"
+      },
+      "status": "PASS_ORIGINAL_B15_FIXED_GIB1_WITH_NEW_INDEPENDENT_RAW_AND_NATIVE_IMAGE_AUDIT",
+      "tool_sources": {
+        "audit_capacity_gib1_v2.py": {
+          "bytes": 40178,
+          "path": "validation/b15-native-revalidation-20261113/audit_capacity_gib1_v2.py",
+          "sha256": "b0aff8662bab3d68eb2a0d369f62e2beaa483359b4d3732d4a100d9c3aadc6aa"
+        },
+        "capture_closed_image.py": {
+          "bytes": 15531,
+          "path": "validation/b15-native-revalidation-20261113/capture_closed_image.py",
+          "sha256": "47b6ee35df938431343e5f322db1fb0ea0ee81094c01dd324e9a0ef4cfd5eaa1"
+        },
+        "run_capacity_actual_v2.py": {
+          "bytes": 6791,
+          "path": "validation/b15-native-revalidation-20261113/run_capacity_actual_v2.py",
+          "sha256": "3dfd08b544eb673d1933faa7900eb9fc67844a7fd5433fca063c1256467f6b26"
+        },
+        "run_native_gates.py": {
+          "bytes": 12000,
+          "path": "validation/b15-native-revalidation-20261113/run_native_gates.py",
+          "sha256": "328587475bc6122a0e267564a37b88cfa6d40ee217c49bcd2f9b5d487e5b99f5"
+        },
+        "test_audit_capacity_gib1_v2.py": {
+          "bytes": 9028,
+          "path": "validation/b15-native-revalidation-20261113/test_audit_capacity_gib1_v2.py",
+          "sha256": "9af4ebdaf7d2f0be654f7239691a0e954946e90b8b63fbc825912a069b109650"
+        },
+        "test_capture_closed_image.py": {
+          "bytes": 11204,
+          "path": "validation/b15-native-revalidation-20261113/test_capture_closed_image.py",
+          "sha256": "8c2d56242e113ea8c58af6c8014a931d218beaa0b772adb13b08f9a81f341d9f"
+        }
+      }
+    }
+  },
+  "fd508_runtime_correctness": {
+    "phases": [
+      {
+        "elapsed_seconds": 0.35262877000059234,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T14:59:18.810095+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/01-capture-source-before/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 108,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/01-capture-source-before/stdout.log",
+            "sha256": "8afd12da01d29057d8ed1bbdc60014cb04f1d26e3b0a53f2bbaee0f7b4123417"
+          }
+        },
+        "name": "capture-source-before",
+        "started_utc": "2026-11-13T14:59:18.453865+00:00"
+      },
+      {
+        "elapsed_seconds": 0.4373427780010388,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T14:59:19.255330+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/02-verify-release-receipts/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 1407,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/02-verify-release-receipts/stdout.log",
+            "sha256": "15d72ae287763af81eabd19439d8d9ce66d8d365e5697fbd3b1128d56ebe6528"
+          }
+        },
+        "name": "verify-release-receipts",
+        "started_utc": "2026-11-13T14:59:18.815552+00:00"
+      },
+      {
+        "elapsed_seconds": 7.213270234999072,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T14:59:26.473439+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 28488,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/03-network-fixture-units/stderr.log",
+            "sha256": "dab47f7b3c3dc7b3a2b0a11d9341c4b2423453fefb2ca129e8a0ba4a72204f5e"
+          },
+          "stdout.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/03-network-fixture-units/stdout.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "name": "network-fixture-units",
+        "started_utc": "2026-11-13T14:59:19.257715+00:00"
+      },
+      {
+        "elapsed_seconds": 0.6833780460001435,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T14:59:27.163716+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 7841,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/04-snapshot-fixture-units/stderr.log",
+            "sha256": "3220c87e36c50c02b4b3b4ba7ab74fbc0366dbf46d9e0bd8ef7e8be18d2b950b"
+          },
+          "stdout.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/04-snapshot-fixture-units/stdout.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "name": "snapshot-fixture-units",
+        "started_utc": "2026-11-13T14:59:26.477369+00:00"
+      },
+      {
+        "elapsed_seconds": 0.06638015499629546,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T14:59:27.235570+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/05-snapshot-node-syntax/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/05-snapshot-node-syntax/stdout.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "name": "snapshot-node-syntax",
+        "started_utc": "2026-11-13T14:59:27.166409+00:00"
+      },
+      {
+        "elapsed_seconds": 67.60087721799937,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:00:34.849218+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 1299,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/06-native-base-fault-schema/stderr.log",
+            "sha256": "0523177cfeb2faf7ecc139f465281a70b30704097ec052b2432dc0f0074e4845"
+          },
+          "stdout.log": {
+            "bytes": 18367611,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/06-native-base-fault-schema/stdout.log",
+            "sha256": "b3c49c154221e442af1bd4fe9d52f5bb29fd0bee468f7637ccfcc60dbed681f4"
+          }
+        },
+        "name": "native-base-fault-schema",
+        "started_utc": "2026-11-13T14:59:27.239861+00:00"
+      },
+      {
+        "elapsed_seconds": 49.406190369001706,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:01:24.327028+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 1299,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/07-retained-result-contract/stderr.log",
+            "sha256": "75ee21d6f88718e7bebbe2442c7755e4a59f6f583d28ea2b0baf5dc55a78e2cc"
+          },
+          "stdout.log": {
+            "bytes": 10382740,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/07-retained-result-contract/stdout.log",
+            "sha256": "5ee71a453142ef7b27d446f42d37a58b442c5ecb131fc9ba68b6c1cfe766c80a"
+          }
+        },
+        "name": "retained-result-contract",
+        "started_utc": "2026-11-13T15:00:34.918310+00:00"
+      },
+      {
+        "elapsed_seconds": 74.09259188600117,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:02:38.442478+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 1299,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/08-lifecycle-contract/stderr.log",
+            "sha256": "551fbdd771a757920be059d4b001130f6b83c0cae48ea13286597208e602c90d"
+          },
+          "stdout.log": {
+            "bytes": 12455275,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/08-lifecycle-contract/stdout.log",
+            "sha256": "9ff24489214bee8e6d14df83bcfff1e08ca19d48ed41ee0b7ea303751603d8ca"
+          }
+        },
+        "name": "lifecycle-contract",
+        "started_utc": "2026-11-13T15:01:24.347476+00:00"
+      },
+      {
+        "elapsed_seconds": 1.5217086859993287,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:02:40.095898+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/09-lifecycle-independent-oracle/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 4497,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/09-lifecycle-independent-oracle/stdout.log",
+            "sha256": "588bdb30908ae81eeba9e41770ea54e1cf667234c541d5c7191de150b75d0644"
+          }
+        },
+        "name": "lifecycle-independent-oracle",
+        "started_utc": "2026-11-13T15:02:38.570714+00:00"
+      },
+      {
+        "elapsed_seconds": 56.28478096100298,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:03:36.386781+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 1299,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/10-snapshot-actual/stderr.log",
+            "sha256": "e5e207ec6ea970c2f637f906ba877780df7c79c7fbe5f1b08d4ee24d39e94647"
+          },
+          "stdout.log": {
+            "bytes": 372,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/10-snapshot-actual/stdout.log",
+            "sha256": "c2aab683de6a16c420b974ac81169a027db923590aa1095de5605fca9cdf9210"
+          }
+        },
+        "name": "snapshot-actual",
+        "started_utc": "2026-11-13T15:02:40.099954+00:00"
+      },
+      {
+        "elapsed_seconds": 3.806256056006532,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:03:40.228375+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/11-snapshot-independent-oracle/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 1125,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/11-snapshot-independent-oracle/stdout.log",
+            "sha256": "abcb1d2c58323bc16d21a16335463d8c0330dd1f0b8e562a48bc159d7f6ccdb3"
+          }
+        },
+        "name": "snapshot-independent-oracle",
+        "started_utc": "2026-11-13T15:03:36.415292+00:00"
+      },
+      {
+        "elapsed_seconds": 16.483634156000335,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:03:56.730126+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/12-snapshot-full-controls/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 1908,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/12-snapshot-full-controls/stdout.log",
+            "sha256": "d4d28bf545661fb9b44f20c8ebf16087936a818a8ce2e865b3d39837c203c7fc"
+          }
+        },
+        "name": "snapshot-full-controls",
+        "started_utc": "2026-11-13T15:03:40.234512+00:00"
+      },
+      {
+        "elapsed_seconds": 0.24550645199633436,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:03:56.981276+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/13-verify-source-after/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 99,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/13-verify-source-after/stdout.log",
+            "sha256": "5c3221d90f2c2deb4f314b029981f89b62e8c0b2837714c23ef4eea56659009b"
+          }
+        },
+        "name": "verify-source-after",
+        "started_utc": "2026-11-13T15:03:56.733091+00:00"
+      },
+      {
+        "elapsed_seconds": 0.35254982100013876,
+        "exit_code": 0,
+        "finished_utc": "2026-11-13T15:03:57.340650+00:00",
+        "logs": {
+          "stderr.log": {
+            "bytes": 0,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/14-capture-source-after/stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "stdout.log": {
+            "bytes": 108,
+            "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/commands/14-capture-source-after/stdout.log",
+            "sha256": "8afd12da01d29057d8ed1bbdc60014cb04f1d26e3b0a53f2bbaee0f7b4123417"
+          }
+        },
+        "name": "capture-source-after",
+        "started_utc": "2026-11-13T15:03:56.985222+00:00"
+      }
+    ],
+    "record": {
+      "bytes": 67417,
+      "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/result.json",
+      "sha256": "2dfe9c630542a7994353273de1c69c0bcf709190e4380269191e0f4c295e8088"
+    },
+    "source": {
+      "after_file": {
+        "bytes": 191325,
+        "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/source-after.json",
+        "sha256": "1b0c248edb634304df56cabd416457f48a9e7850d1eba662f9d1e19644b50865"
+      },
+      "before_equals_after": true,
+      "before_file": {
+        "bytes": 191325,
+        "path": "validation/manifest-runtime-fd508-20261113/correctness/attempt01/source-before.json",
+        "sha256": "1b0c248edb634304df56cabd416457f48a9e7850d1eba662f9d1e19644b50865"
+      },
+      "commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+      "root": "scap-manifest",
+      "source_sha256": "c43a4af430cf9a0c2b6265cfd347feab676f68b6719d57e2cd0a5bfdb1336f80",
+      "tracked_files": 720,
+      "tree": "d919038fd6c549a187b67cdc15ce8a1fa8abed78"
+    },
+    "status": "PASSED_SCOPED_CORRECTNESS"
+  },
+  "generator": {
+    "bytes": 11428,
+    "path": "validation/assemble_current_review_manifest_v2.py",
+    "sha256": "fbe69f4ac15615bf740e47cf195b3975eea1763fd34e897d5ce2e39f5fcc1906"
+  },
+  "limits": [
+    "No raw history or original result is rewritten by this summary.",
+    "A new observer-schema discovery run is not retroactively attributed to b15.",
+    "Positive controls re-audit original histories; they are not additional actual runs.",
+    "Original controls and budgets are retained; quiet retries do not establish a unique resource-contention cause.",
+    "Aggregate emitted coverage is not strict per-file source-level branch proof.",
+    "Local SeaweedFS is not AWS Standard; no production SLO is certified."
+  ],
+  "newly_verified_public_archive_scopes": {
+    "archive_names_do_not_override_original_verdicts": true,
+    "no_new_actual_or_oracle_execution": true,
+    "scope_limits": [
+      "Public archives exclude private test fixture credentials; previously saved private offline prerequisites remain separate.",
+      "These are original frozen source runs, not new runs of documentation or later merged delivery commits.",
+      "Complete archive SHA identities are unchanged if a transfer uses lossless byte parts."
+    ],
+    "scopes": [
+      {
+        "archive": {
+          "bytes": 992759062,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-paired-load-four-scopes-20261113.tar.gz",
+          "sha256": "316eaeaf16bb731ceff7adb526e22a120aaacf637d69e4104c835db4fb7e85c1"
+        },
+        "checks": {
+          "every_hardlink_target_checked": true,
+          "every_original_path_metadata_unchanged": true,
+          "every_physical_original_sha256_unchanged": true,
+          "every_regular_payload_sha256_checked": true,
+          "exact_member_set": true,
+          "full_gzip_stream_and_crc_checked": true
+        },
+        "index": {
+          "bytes": 199326232,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-paired-load-four-scopes-20261113.index.json",
+          "sha256": "e20f58834a845198bf2066130a737365af1bd05172e15463d690116c335e86dd"
+        },
+        "member_counts": {
+          "directories": 0,
+          "hardlinks": 201120,
+          "other": 0,
+          "regular_files": 13715
+        },
+        "scope": "paired",
+        "selected_file_count": 214834,
+        "source_commits": [
+          "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "fd508cc052c21dba0e3c54b8e8e82d11c167777a"
+        ],
+        "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+        "summary": {
+          "bytes": 15963,
+          "path": "validation/final-paired-quiet-archives-run01-20261113/paired-completed.json",
+          "sha256": "815c3e0dfabcf03d69cdb0c9e988c2c9facf7e933b250c53ca6aaeed5a39e1e3"
+        },
+        "verification": {
+          "bytes": 14825,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-paired-load-four-scopes-20261113.verification.json",
+          "sha256": "d96214cbf433f0d11bec6046d747b78c218b04e4f63661b57a9a51054c3522c7"
+        }
+      },
+      {
+        "archive": {
+          "bytes": 424302063,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-quiet-isolation-owner-plan-20261113.tar.gz",
+          "sha256": "8086aa2fd6d6ef56019ab7b3d1b1cb7e8926f199ddbf388fd84ac35cc7057bc8"
+        },
+        "checks": {
+          "every_hardlink_target_checked": true,
+          "every_original_path_metadata_unchanged": true,
+          "every_physical_original_sha256_unchanged": true,
+          "every_regular_payload_sha256_checked": true,
+          "exact_member_set": true,
+          "full_gzip_stream_and_crc_checked": true
+        },
+        "index": {
+          "bytes": 258469897,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-quiet-isolation-owner-plan-20261113.index.json",
+          "sha256": "4c401665faad99a9e37972412364cc1d0a04d5815bb2bff44ef43aa260a34dec"
+        },
+        "member_counts": {
+          "directories": 0,
+          "hardlinks": 258094,
+          "other": 0,
+          "regular_files": 6336
+        },
+        "scope": "quiet",
+        "selected_file_count": 264429,
+        "source_commits": [
+          "b15bc455349ea36162b8004c2c73fc7d812d4c10"
+        ],
+        "status": "FULL_STREAM_AND_EVERY_MEMBER_VERIFIED",
+        "summary": {
+          "bytes": 10419,
+          "path": "validation/final-paired-quiet-archives-run01-20261113/quiet-completed.json",
+          "sha256": "abf8039b9912316b933e29e604438ed58948cfee76f901ab9d4bc094db28f65a"
+        },
+        "verification": {
+          "bytes": 9493,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-quiet-isolation-owner-plan-20261113.verification.json",
+          "sha256": "7044abbad0698aac8d1ba736060d2b2bfb26fc7e873c67bc6ac41b5a489066bc"
+        }
+      },
+      {
+        "all_selected_inputs_unchanged": true,
+        "archive": {
+          "bytes": 123777284,
+          "path": "/workspace/deliverables/scap-validation-20261113/scap-discovery-clock-642383c-v2-passed.tar.gz",
+          "sha256": "0e3845d4c956102cb38085276a2b5466435765731a13baefea1530a2230510c2"
+        },
+        "full_stream_and_every_member_readback": true,
+        "index": {
+          "bytes": 66724,
+          "path": "/workspace/deliverables/scap-validation-20261113/scap-discovery-clock-642383c-v2-passed.index.json",
+          "sha256": "c3b34246564177d1221d91a16041bbb9e498f68bfcfa4e8f33778127802571b9"
+        },
+        "scope": "discovery642",
+        "source_identity": {
+          "commit": "642383cbd27e72c940fb565064d5b127e3186f22",
+          "source_sha256": "90caedb492ae277e21f30a5ee1c19476e159b0416cbb695f2b23bc5051e0072a",
+          "tree": "d6edf778e2e42cd3c42502bf8af8c111a6848c15"
+        },
+        "status": "PUBLIC_DISCOVERY_ARCHIVE_FULLY_VERIFIED",
+        "summary": {
+          "bytes": 3234,
+          "path": "validation/discovery-clock-archive-result-642383c-v2.json",
+          "sha256": "1c4455f62fde8029dc60ebd7dff029c673ef62c35a36470bd14009cd8bdb430e"
+        },
+        "tar_members_including_index": 152,
+        "verification": {
+          "bytes": 5059,
+          "path": "/workspace/deliverables/scap-validation-20261113/scap-discovery-clock-642383c-v2-passed.verification.json",
+          "sha256": "782afa751115189126f80e2e9db8d0c9e1625e94ad45c786a761472ed2b70b81"
+        }
+      },
+      {
+        "archive": {
+          "bytes": 1104150172,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-capacity-gib1-20261113.tar.gz",
+          "sha256": "1422a8b6920e8f02a0e07932a049b3e2be19a15b32fd34f43da623ef0800bb2c"
+        },
+        "archive_checks": {
+          "every_hardlink_target_checked": true,
+          "every_original_path_metadata_unchanged": true,
+          "every_physical_original_sha256_unchanged": true,
+          "every_regular_payload_sha256_checked": true,
+          "exact_member_set": true,
+          "full_gzip_stream_and_crc_checked": true
+        },
+        "closed_image": {
+          "bytes": 1082163200,
+          "path": "validation/b15-native-revalidation-20261113/capacity01/closed-image/database.sqlite",
+          "sha256": "bd5d9e2906d172c4bbacf2a5ff9274c8361714ceacfcea03e214b0ae544e6998",
+          "sha_provenance": "Independently hashed before/after complete read-only SQLite audit; no redundant 1GiB read just for this summary."
+        },
+        "index": {
+          "bytes": 76754,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-capacity-gib1-20261113.index.json",
+          "sha256": "eb6c006ba42b58aa2614ec1e6f63224c7e087c8bf9937e586eafbae04fb01fca"
+        },
+        "member_counts_including_embedded_index": {
+          "directories": 0,
+          "hardlinks": 0,
+          "other": 0,
+          "regular_files": 104
+        },
+        "scope": "capacity",
+        "selected_file_count": 103,
+        "source": {
+          "commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+          "source_tar_sha256": "8c2b2d5909bb27e5dfc937f7feee0d039d1c076536db1d706c5dc13a93b92704",
+          "status": "ALL_TRACKED_SOURCE_BYTES_AND_GIT_COMMIT_OBJECT_VERIFIED",
+          "tracked_files": 718,
+          "tree": "548bacc1299f78a5d86960cf5bcea739260b46cc"
+        },
+        "status": "FULL_FIXED_GIB1_PUBLIC_ARCHIVE_VERIFIED",
+        "summary": {
+          "bytes": 13406,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-capacity-gib1-20261113.archive-summary.json",
+          "sha256": "560916d50c8a63fc4d73f198bcb66012e6e8f6c3bf62eceba56b204a59cc9db4"
+        },
+        "verification": {
+          "bytes": 9208,
+          "path": "/workspace/deliverables/scap-runtime-20261113/scap-b15-capacity-gib1-20261113.verification.json",
+          "sha256": "184bda8b6f9d9ed69a189094bb7e7c2508194e81493a16420115c05b34949fba"
+        }
+      }
+    ],
+    "status": "ALL_FOUR_SCOPES_FULLY_VERIFIED"
+  },
+  "original_groups": {
+    "head6_actual01": {
+      "actual_exit_code": 1,
+      "controls": "NOT_RUN",
+      "oracle": "NOT_RUN",
+      "original_failure_preserved": true,
+      "reported_status": "INCOMPLETE_OR_FAILED",
+      "result": {
+        "bytes": 523,
+        "path": "validation/head6-b15-20261113/gate-completion.json",
+        "sha256": "491ba49cb881831f6d6ca50189b01ad70c6ab1fe0bf77e4b52b998c6fa77c922"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "head6_actual02": {
+      "actual_exit_code": 0,
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 23,
+        "original_unchanged": true,
+        "positive_count": 1,
+        "positive_count_basis": "One complete copied raw history;23 whole copied counterfactual histories.",
+        "reported_positive_value": null
+      },
+      "independent_oracle_record": {
+        "bytes": 2317,
+        "path": "validation/head6-b15-20261113-02/03-oracle/stdout",
+        "sha256": "1aedebac6958e1a442e1b9680b1e8606810f3f380a4bbdf458553a14b6f02b87"
+      },
+      "reported_status": "PASS_FIXED_HEAD6_CONTRACT_ONLY",
+      "result": {
+        "bytes": 27534,
+        "path": "validation/head6-b15-20261113-02/result.json",
+        "sha256": "476188d5ab59fdde606d980d39b92b53420c92a0a6eead743e1724d79ee1ec54"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "owners_primary": {
+      "reported_status": "FAILED",
+      "result": {
+        "bytes": 10709,
+        "path": "validation/b15-owners-revalidation-20261113/result.json",
+        "sha256": "6f430be96572bd1f938f03a7eb2ae6721170ce0198d8670978f1773c1afd57d6"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "owners_remainder": {
+      "reported_status": "COMMAND_PLAN_PASSED",
+      "result": {
+        "bytes": 20320,
+        "path": "validation/b15-owners-remainder-revalidation-20261113/result.json",
+        "sha256": "e809698093c2e44301b312673dff4157aabbf81866676885372580c202f18bb2"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "resources": {
+      "reported_status": "COMMAND_PLAN_PASSED",
+      "result": {
+        "bytes": 17326,
+        "path": "validation/b15-resources-revalidation-20261113/result.json",
+        "sha256": "e5cd024a88b8da72464bb5bc92d9083c82822b7405b058643cd46091c1896c0a"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "service_primary": {
+      "reported_status": "FAILED",
+      "result": {
+        "bytes": 24678,
+        "path": "validation/b15-service-revalidation-20261113/result.json",
+        "sha256": "5dad492e5f1d9ede3b7c3459bf198f19e36e426b6bdd1f2e636551385f5f3474"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "service_remainder": {
+      "reported_status": "FAILED",
+      "result": {
+        "bytes": 7877,
+        "path": "validation/b15-service-remainder-revalidation-20261113/result.json",
+        "sha256": "9a0765999c2baafcf1e8db09ed88fb8ab39ed5acc5c389d010088bf655d71a13"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "service_tail": {
+      "reported_status": "COMMAND_PLAN_PASSED",
+      "result": {
+        "bytes": 13754,
+        "path": "validation/b15-service-tail-revalidation-20261113/result.json",
+        "sha256": "6a575057d71fcc8ce557e8657f247308101a8f548f03729992a0bd4fdc537c0c"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2"
+    },
+    "terminal": {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 25,
+        "original_unchanged": true,
+        "positive_count": 1,
+        "positive_count_basis": "One complete unchanged original copy.",
+        "reported_positive_value": null
+      },
+      "independent_oracle_record": {
+        "bytes": 2416,
+        "path": "validation/terminal-b15-20261113/oracle01.stdout.log",
+        "sha256": "b66c802ab64405918571967c398657ff2f5f8307eface347449e07254b676848"
+      },
+      "reported_status": "PASSED",
+      "result": {
+        "bytes": 37630,
+        "path": "validation/terminal-b15-20261113/result.json",
+        "sha256": "990da80a7f77266f16716edc067092e31b8af80dc28977801f9292630a3fb2a1"
+      }
+    }
+  },
+  "original_groups_record": {
+    "bytes": 261653,
+    "path": "validation/revalidation-summary-20261113/original-groups.json",
+    "sha256": "66f6df3be6638b18c1ca1e1faac12513ff04c75f8cddd51c4d0df2d02c89dee0"
+  },
+  "original_owner_totals": {
+    "complete_pass": 4,
+    "failed_contracts": [
+      "owner-plan"
+    ],
+    "failed_original_attempts": 1,
+    "planned_contracts": 5
+  },
+  "original_service_totals": {
+    "complete_pass": 11,
+    "denominator": "Eleven original service contracts plus resource-limits and GC-transport; resources are not counted a second time.",
+    "failed_contracts": [
+      "isolation",
+      "service-discovery"
+    ],
+    "failed_original_attempts": 2,
+    "passed_contracts": [
+      "base-http-service",
+      "bounded-transport",
+      "guarded-status",
+      "legacy-owner",
+      "catalogue-http",
+      "segmented-request-index",
+      "metadata-budget",
+      "output-pool",
+      "response-expiry",
+      "resource-limits",
+      "gc-transport"
+    ],
+    "planned_contracts": 13
+  },
+  "overall_merge_ready": false,
+  "owner_complete_contracts_including_quiet_retry": 5,
+  "owner_original_total_contracts": 5,
+  "owner_snapshot_controller_contracts": [
+    {
+      "controls": {
+        "negative_count": 0,
+        "positive_count": 0,
+        "status": "NOT_RUN"
+      },
+      "group": "owners_primary",
+      "id": "owner-plan",
+      "independent_oracle_record": {
+        "bytes": 761,
+        "path": "validation/b15-owners-revalidation-20261113/gates/owner-plan/actual/summary.json",
+        "sha256": "12adec842a6974cea747a0c593e965fc4543780d9b281f8072258d2b17a28bb6"
+      },
+      "oracle_execution": "NOT_RUN: original bulk seed session_open failed before owner-plan fault scenarios",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "FAILED_ORIGINAL_ATTEMPT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 13,
+        "positive_count": 1,
+        "positive_count_basis": "One unchanged original copy; thirteen complete copied counterfactual histories rejected at their expected boundaries.",
+        "report": {
+          "bytes": 8560,
+          "path": "validation/b15-owners-remainder-revalidation-20261113/gates/owner-absence-missing/controls/controls.json",
+          "sha256": "2363d4b27a88d82d4544a0c984ac014b1c22b5b4303a0b00198062dff20e815b"
+        },
+        "reported_positive_value": null
+      },
+      "group": "owners_remainder",
+      "id": "owner-absence-missing",
+      "independent_oracle_record": {
+        "bytes": 2268,
+        "path": "validation/b15-owners-remainder-revalidation-20261113/commands/003-owner-absence-missing-1-oracle/stdout",
+        "sha256": "57852028415cedb845527d10ed64629c88f514d77acb7834003134758cae9473"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 10,
+        "positive_count": 1,
+        "positive_count_basis": "Original unchanged history audited, with positive inventory unchanged; one positive source history, not a new actual.",
+        "report": {
+          "bytes": 1908,
+          "path": "validation/b15-owners-remainder-revalidation-20261113/commands/007-s1-retained-snapshots-2-controls/stdout",
+          "sha256": "432293fdd6dc91012eae3c51f5178b16865ec6c8df3459d1d7baf0c68cf972ca"
+        },
+        "reported_positive_value": null
+      },
+      "group": "owners_remainder",
+      "id": "s1-retained-snapshots",
+      "independent_oracle_record": {
+        "bytes": 1125,
+        "path": "validation/b15-owners-remainder-revalidation-20261113/commands/006-s1-retained-snapshots-1-oracle/stdout",
+        "sha256": "f276daa2a944bd9c59f6abf5e8542ef54473d4891b156e5eefbec6a2cce2a9b4"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 15,
+        "positive_count": 1,
+        "positive_count_basis": "One unchanged original history passes audit; fifteen explicit mutations are controls, not new actuals.",
+        "report": {
+          "bytes": 1305,
+          "path": "validation/b15-owners-remainder-revalidation-20261113/commands/010-single-production-controller-2-controls/stdout",
+          "sha256": "9c51bcec19b345c8dea2b90c7cfc04c0d17572bd239c7c35ca149a46a54ca339"
+        },
+        "reported_positive_value": null
+      },
+      "group": "owners_remainder",
+      "id": "single-production-controller",
+      "independent_oracle_record": {
+        "bytes": 321,
+        "path": "validation/b15-owners-remainder-revalidation-20261113/commands/009-single-production-controller-1-oracle/stdout",
+        "sha256": "3546d6f5eacf5df3c69d79ca246e3e4cab1ca725578b787ec0fbbf881975b5cb"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 31,
+        "positive_count": 1,
+        "positive_count_basis": "One complete twelve-case original matrix is audited before controls and reaudited unchanged afterward;31 negatives use one-case deep copies plus targeted raw overlays, not31 full matrix executions.",
+        "report": {
+          "bytes": 67374,
+          "path": "validation/b15-owners-remainder-revalidation-20261113/commands/013-full-fixed-controller-matrix-2-controls/stdout",
+          "sha256": "6ee4c7b3b43c3df53f29abff7d3332282ff814c8c3b6f6629273fa9854624137"
+        },
+        "reported_positive_value": null
+      },
+      "group": "owners_remainder",
+      "id": "full-fixed-controller-matrix",
+      "independent_oracle_record": {
+        "bytes": 18983,
+        "path": "validation/b15-owners-remainder-revalidation-20261113/commands/012-full-fixed-controller-matrix-1-oracle/stdout",
+        "sha256": "02398420140bba2efc72bb48d889f8fd0caab8345bb9aa3e83e34bdb9c8c434e"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    }
+  ],
+  "paired_load": {
+    "actual_scope_count": 4,
+    "multi_database_rate_changes_percent": [
+      -24.00009079,
+      -24.52351604
+    ],
+    "profile_status": "NOT_RUN",
+    "repository_record": "../evidence/verified-manifest-load-local-2026-11-13.json",
+    "sha256": "7260c4a253f5e5e141d56d36e27960ab3bed87ad6e74a781aa78365419ca93c6",
+    "status": "ACTUAL_AND_ORIGINAL_CONTROLS_PASSED_REQUEST_REDUCTION_VERIFIED_THROUGHPUT_UNRESOLVED",
+    "throughput_regression_excluded": false
+  },
+  "post_runtime_delivery_scope": "Documentation commits and PR60 base synchronization do not change the original execution source identities and do not certify a new merged-head full runtime run.",
+  "preserved_original_failures": {
+    "isolation": {
+      "actor_idle_timeout_ms": 3000,
+      "gap_ms": 7934.36518,
+      "interpretation": "The observed gap exceeded the fixed idle budget; this is consistent with B no longer being resident. No actor-internal eviction event was observed, and no unique CPU/I/O root cause is claimed. Full fresh unchanged isolation contract remains required.",
+      "observed_outcome": "RECOVERY_BUSY"
+    },
+    "owner_plan": {
+      "acceptance": false,
+      "interpretation": "Failure occurred in bulk seed native session_open before the owner plan fault scenarios. Original8soperationbudgetunchanged; fullfreshgatequietrerunpending.",
+      "observed_native_acks_before_failure": 258,
+      "observed_s3_requests_before_failure": 5025,
+      "original_operation_budget_seconds": 8
+    },
+    "record": {
+      "bytes": 3717,
+      "path": "validation/b15-revalidation-initial-failures.json",
+      "sha256": "28deb5f8bf44f6e0bb2dc27aa7529bbec524c6b605deeccfb651a18a1f60656b"
+    },
+    "service_discovery": {
+      "acceptance": false,
+      "error": "ValueError('S3 request has no authenticated invocation or bounded still-running worker')",
+      "new642_execution": "EXCLUDED_NOT_SUBSTITUTED"
+    }
+  },
+  "production_slo_passed": false,
+  "quiet_retries": {
+    "isolation": {
+      "causal_attribution_of_previous_failure": "NOT_ESTABLISHED",
+      "changed_original_budgets": false,
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 21,
+        "positive_count": 1,
+        "record": {
+          "bytes": 4759,
+          "path": "validation/b15-isolation-quiet-revalidation-20261113/gates/isolation/controls/controls.json",
+          "sha256": "212ec2733e487f5deedd461974028d388c6d4bfdd50bd4aa5c35bf837cd60e25"
+        }
+      },
+      "independent_oracle": {
+        "record": {
+          "bytes": 3675,
+          "path": "validation/b15-isolation-quiet-revalidation-20261113/gates/isolation/actual/summary.json",
+          "sha256": "e03a6cf75f19e4369b5a5acca695ca5a9a4db3081b27e29dccb1bb962f729b77"
+        },
+        "value": {
+          "aws_standard": "NOT_RUN",
+          "backpressure_responses": 1,
+          "build": {
+            "binary": {
+              "path": "validation/build-targets/b15-service-release/release/scapd",
+              "sha256": "7d349e94f875ab445aff4c1570bc3f46765590b547f727684662c539861e1a83"
+            },
+            "cargo_process_exit_code": 0,
+            "executable_native_bytes": "verified",
+            "local_source_manifest_matches": true,
+            "original_cargo_build_finished": true,
+            "profile": "service",
+            "retrieved_artifacts": [
+              "validation/build-targets/b15-service-release/release/scapd",
+              "validation/build-targets/b15-service-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a"
+            ],
+            "sha256": "c677b055211a4afddc18b60d5608ee1b1236adca11fcf2f73aef559e408dea1d",
+            "source_bytes_verified": 4583246,
+            "source_files_verified": 277,
+            "status": "verified",
+            "unavailable_artifacts": [],
+            "verification_scope": "full"
+          },
+          "evidence_sha256": {
+            "history.jsonl": "071b38b82f17efa09e05913af4c6074b982c12b6d0474f143184603a5a68f8d9",
+            "http-client-ledger.jsonl": "d853ebd7147c07ded31f9f070a0b09824f9e5b0df2da8ff7f59983b18eef03d0",
+            "isolation-acks.jsonl": "1d060d6ba2a1c9b1bad79c8250f43c75b12cfc415af0026c3972cb4b16c8d9e2",
+            "isolation-calls.jsonl": "c60b2c6bad4273e7264693759606d3207e75eb7d90f8c5930c114016ea681f93",
+            "isolation-inputs.jsonl": "a94fd2d0d726fed381aeabcb71d0157300a00b7522f2be52f0cc3bf6090b567e",
+            "isolation-lookups.jsonl": "0e1d9991aa110420a2eff782647ab5f5bdb1602eb646cc901f4eba0e18cddb05",
+            "isolation-phases.jsonl": "36f5b2647782981822ac35ad843c282778cdc6620334b4e59133ae462d4e5acb",
+            "isolation-plan.json": "6e25e01d3befc6770ad5c2c2026375f43098954d6a1d48a05bc49f043b602cdf",
+            "isolation-service-config.json": "cca642218affb269e0b5b3cec94fc8b203ec303dae7867b5477e9cf753a78ea3",
+            "isolation-tools.json": "50164473fa4f0445c551d6dd98a0d3c6014bea091ad9d4424c3b6f722188d9c4",
+            "process-ledger.jsonl": "6a3e905a424511a0c219711400b1dcb1cb18e1942b9189143c70c5b408aacda3"
+          },
+          "http_invocations": 21,
+          "http_successes": 20,
+          "network": {
+            "capacity_refusal_s3_requests": 0,
+            "cold_image_bytes": 401408,
+            "cold_image_chunks": 4,
+            "cold_page_tree_dependencies_downloaded": 6,
+            "held_get_serial": 70,
+            "hot_and_control_completed_before_release": 4,
+            "original_results_preserved": 2,
+            "original_version_audit": {
+              "accepted_versions": 23,
+              "ambiguous_http_intervals": 0,
+              "blackholed_before_forward": 0,
+              "causal_constraints": 74,
+              "conditional_put_responses": 23,
+              "exact_get_body_etag_pairs": 64,
+              "http_interval_binding": "checked"
+            },
+            "resident_queries_head_only": 10,
+            "s3_requests": 87
+          },
+          "original_commit_responses": 2,
+          "original_result_lookups": 2,
+          "processes": {
+            "backend_authentication_enforced": true,
+            "original_backend_processes": 4,
+            "original_daemons": 1,
+            "original_sdk_processes": 5,
+            "owned_kernel_wait4_verified": true
+          },
+          "production_tps": "NOT_MEASURED",
+          "schema": 1,
+          "status": "passed",
+          "successful_queries": 10,
+          "unique_sql_inputs": 2
+        }
+      },
+      "original_failure_preserved": true,
+      "phases": [
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:43:14.770940+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/001-source-capture/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 108,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/001-source-capture/stdout",
+              "sha256": "d3458710296d3f2cb2fc4a04b91dfef17d73fc7be32bb77c88dead3e0ac063fb"
+            }
+          },
+          "name": "source-capture",
+          "seconds": 0.22933956399356248,
+          "started_utc": "2026-11-13T16:43:14.534664+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:43:42.166378+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 2598,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/002-isolation-actual/stderr",
+              "sha256": "1439acdaa37adc78a99b781eb89826129f13a150c2330ce1f606d20c59411da9"
+            },
+            "stdout": {
+              "bytes": 2992,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/002-isolation-actual/stdout",
+              "sha256": "026d9231b2fadcd36aa84f826246f0b9bc7ec5253ade2009b0e25d9f67e1d86d"
+            }
+          },
+          "name": "isolation-actual",
+          "seconds": 27.39116272800311,
+          "started_utc": "2026-11-13T16:43:14.772935+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:43:50.972587+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/003-isolation-1-isolation_controls/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 55,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/003-isolation-1-isolation_controls/stdout",
+              "sha256": "ed6fb4eee2b48c3640f19917099d280862f6a7b732124e75baffa469c7539b20"
+            }
+          },
+          "name": "isolation-1-isolation_controls",
+          "seconds": 8.79654137599573,
+          "started_utc": "2026-11-13T16:43:42.168715+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:43:51.165966+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/004-source-verify-final/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 99,
+              "path": "validation/b15-isolation-quiet-revalidation-20261113/commands/004-source-verify-final/stdout",
+              "sha256": "7b15d122c7582e28d2ca0e801a9ccb73f875a631784cccfe8996ad3ffd7d73c8"
+            }
+          },
+          "name": "source-verify-final",
+          "seconds": 0.18811863599694334,
+          "started_utc": "2026-11-13T16:43:50.975352+00:00"
+        }
+      ],
+      "plan": {
+        "bytes": 3013,
+        "path": "validation/b15-isolation-quiet-revalidation-20261113-plan.json",
+        "sha256": "029f06f0de4754da2ddec28b411a72d0b5e1c51e159de54e921060f51f18da1c"
+      },
+      "result": {
+        "bytes": 6060,
+        "path": "validation/b15-isolation-quiet-revalidation-20261113/result.json",
+        "sha256": "cceec18fffcaf3b129e16d5d16401ff9fd9b998c069f9c75aac719ebade41733"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    "owner_plan": {
+      "causal_attribution_of_previous_failure": "NOT_ESTABLISHED",
+      "changed_original_budgets": false,
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 42,
+        "positive_count": 1,
+        "record": {
+          "bytes": 34151,
+          "path": "validation/b15-owner-plan-quiet-revalidation-20261113/gates/owner-plan/controls/controls.json",
+          "sha256": "b06f27499013ca1b111953aabde727cbc84165e6f631e443b99de84844d03433"
+        }
+      },
+      "independent_oracle": {
+        "record": {
+          "bytes": 10446,
+          "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/003-owner-plan-1-oracle/stdout",
+          "sha256": "8655df4a09ceca20f39d0861bbdd38bd0daaa9ecd8067c60fd16003bfbcdd589"
+        },
+        "value": {
+          "accepted_phases": {
+            "owner_abort": 9,
+            "owner_active": 36,
+            "owner_cancel": 2,
+            "owner_claim": 43
+          },
+          "automatic_controller": "NOT_TESTED",
+          "aws_standard": "NOT_RUN",
+          "closed_retained_windows": 2,
+          "cold_blocked_unknown": 1,
+          "cold_business_queries": 16,
+          "cold_original_cancelled": 1,
+          "cold_original_lookups": 292,
+          "current_retained_entries": 261,
+          "exact_status_observations": 279,
+          "faults": {
+            "after_owned_exit_effects": 3,
+            "groups": 28,
+            "http_groups": 5,
+            "original_hold_seconds": {
+              "acl-change-payload": 0.091159472,
+              "acl-prepare-descriptor": 0.111960988,
+              "acl-revoke-payload": 0.089015161,
+              "bytes-budget-descriptor": 0.07109472,
+              "claim-cancel-old-claim": 1.832446975,
+              "claim-wins-cancel": 0.026088232,
+              "claim-wins-claim": 0.04759915,
+              "dead-worker-claim": 1.476178194,
+              "dead-worker-resume": 1.415412559,
+              "gets-budget-descriptor": 0.057996268,
+              "late-descriptor-put": 1.498095473,
+              "legacy-activation-delayed": 1.577093322,
+              "legacy-takeover": 0.086296812,
+              "resume-cancel-active": 0.064159138,
+              "resume-wins-abort": 0.063516559,
+              "resume-wins-active": 0.058784584
+            },
+            "original_unknowns": 12,
+            "s3_deliveries": 26,
+            "s3_groups": 23
+          },
+          "fixture_source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "gc": {
+            "accepted_deletes": 17,
+            "checkpoints": 1,
+            "delete_requests": 17,
+            "named_records": 9
+          },
+          "http_posts": 721,
+          "native_original_sql_acks": 260,
+          "original_errors": {
+            "CONFLICT": 7,
+            "CORRUPT": 4,
+            "DENIED": 3,
+            "FENCED": 10,
+            "LIFECYCLE": 3,
+            "LIMIT": 2,
+            "TARGET_MISMATCH": 3,
+            "UNKNOWN": 12
+          },
+          "original_sql_acks": 295,
+          "owned_wait4": 27,
+          "owner_posts": 200,
+          "permanent_descriptors": 46,
+          "permanent_prefix_emptiness": "NOT_CLAIMED",
+          "permanent_proofs": 28,
+          "production_slo": "NOT_RUN",
+          "profile": "head8-owner-plan-native-http-signed-s3-v1",
+          "recovered_closures": [
+            {
+              "dependencies": 270,
+              "levels": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1
+              ],
+              "original": "bulk-p2",
+              "retained_entries": 261,
+              "retained_results": 260,
+              "scope": {
+                "database": "7201",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 270,
+              "levels": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1
+              ],
+              "original": "bulk-p3",
+              "retained_entries": 261,
+              "retained_results": 260,
+              "scope": {
+                "database": "7201",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "late_prepare-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7202",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "late_prepare-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7202",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "claim_cancel-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7203",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "claim_cancel-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7203",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "claim_wins-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7204",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "claim_wins-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7204",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_cancel-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7205",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_cancel-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7205",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_wins-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7206",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 7,
+              "levels": [
+                0
+              ],
+              "original": "resume_wins-p2",
+              "retained_entries": 3,
+              "retained_results": 3,
+              "scope": {
+                "database": "7206",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "acl-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7207",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "acl-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7207",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "target_death-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7208",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "target_death-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7208",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_death-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7209",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_death-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7209",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "resume_death-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7209",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "legacy-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7210",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "legacy-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7210",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "proof_claim-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7211",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 7,
+              "levels": [
+                0
+              ],
+              "original": "proof_claim-p2",
+              "retained_entries": 3,
+              "retained_results": 3,
+              "scope": {
+                "database": "7211",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 7,
+              "levels": [
+                0
+              ],
+              "original": "proof_claim-p3",
+              "retained_entries": 3,
+              "retained_results": 3,
+              "scope": {
+                "database": "7211",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "proof_cancel-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7212",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "proof_cancel-p4",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7212",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "named_old-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "9339941706285732079",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "16268980827873517350",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 7,
+              "levels": [
+                0
+              ],
+              "original": "named_old-p2",
+              "retained_entries": 3,
+              "retained_results": 3,
+              "scope": {
+                "database": "9339941706285732079",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "16268980827873517350",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "missing_descriptor-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7214",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "missing_descriptor-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7214",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "missing_descriptor-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7214",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "budget_gets-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7215",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "budget_gets-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7215",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "budget_bytes-p2",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7216",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "budget_bytes-p3",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "7216",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "1",
+                "tenant": "7"
+              }
+            },
+            {
+              "dependencies": 6,
+              "levels": [
+                0
+              ],
+              "original": "named_successor-p1",
+              "retained_entries": 2,
+              "retained_results": 2,
+              "scope": {
+                "database": "5934874374154769236",
+                "deployment": "1",
+                "generation": "1",
+                "incarnation": "17167167018256718083",
+                "tenant": "7"
+              }
+            }
+          ],
+          "runtime_source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "s3_requests": 10047,
+          "saved_owner_inputs": 50,
+          "schema": 1,
+          "sdk_incarnations": 10,
+          "service_incarnations": 10,
+          "source_sha256": {
+            "events.jsonl": "d0c6fe57b66a84e0d5cafe7481acb34d8937292acbbb1f4d2dd3a793f9b1d2aa",
+            "inputs.json": "ef52ce5ac37d6f8784be48d3f4067531fd8daac1287c63565f6133d1af01f715",
+            "intents.json": "fa4e14898f3b2db3f29d1e8f160801a3fd8b6aa1e1d47aa03a2fbeff72b8c585",
+            "named-intents.jsonl": "67602d6de661ee0a1122d9ac853b57a271f6f9ddd2085dc3ebeab34cce58e0aa",
+            "original-results.json": "3d25c6ec62465b82a89768191062c246db022ca966a76d2bd6b6489b120caf48",
+            "owner-inputs.jsonl": "e559b4933e01b243c02940b2d7ca2c8a822b8750660aa887e45f151be86b60ca"
+          },
+          "status": "PASSED",
+          "warm_service_cache_losses": 9
+        }
+      },
+      "original_failure_preserved": true,
+      "phases": [
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:44:49.001548+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/001-source-capture/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 108,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/001-source-capture/stdout",
+              "sha256": "d3458710296d3f2cb2fc4a04b91dfef17d73fc7be32bb77c88dead3e0ac063fb"
+            }
+          },
+          "name": "source-capture",
+          "seconds": 0.2049473160004709,
+          "started_utc": "2026-11-13T16:44:48.793069+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:48:39.204033+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 1299,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/002-owner-plan-actual/stderr",
+              "sha256": "acac756abb2774bc5552b1e3a2c584c93ee9dfa2eb8b8b633cabe573e449226e"
+            },
+            "stdout": {
+              "bytes": 418,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/002-owner-plan-actual/stdout",
+              "sha256": "cae77cca111467fe6a54f7f1fc69a7b4533d573db97c27e086fd07d9be314a69"
+            }
+          },
+          "name": "owner-plan-actual",
+          "seconds": 230.19938390599418,
+          "started_utc": "2026-11-13T16:44:49.003071+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:48:51.889491+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/003-owner-plan-1-oracle/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 10446,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/003-owner-plan-1-oracle/stdout",
+              "sha256": "8655df4a09ceca20f39d0861bbdd38bd0daaa9ecd8067c60fd16003bfbcdd589"
+            }
+          },
+          "name": "owner-plan-1-oracle",
+          "seconds": 12.673638615997334,
+          "started_utc": "2026-11-13T16:48:39.212982+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:56:08.289431+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/004-owner-plan-2-controls/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 9220,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/004-owner-plan-2-controls/stdout",
+              "sha256": "75e3c2116a07013752f13d22873995a99601b482a7d3dc8120b48b89793b07ca"
+            }
+          },
+          "name": "owner-plan-2-controls",
+          "seconds": 436.37777082300454,
+          "started_utc": "2026-11-13T16:48:51.909644+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:56:08.692784+00:00",
+          "logs": {
+            "stderr": {
+              "bytes": 0,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/005-source-verify-final/stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stdout": {
+              "bytes": 99,
+              "path": "validation/b15-owner-plan-quiet-revalidation-20261113/commands/005-source-verify-final/stdout",
+              "sha256": "7b15d122c7582e28d2ca0e801a9ccb73f875a631784cccfe8996ad3ffd7d73c8"
+            }
+          },
+          "name": "source-verify-final",
+          "seconds": 0.37749375999555923,
+          "started_utc": "2026-11-13T16:56:08.311311+00:00"
+        }
+      ],
+      "plan": {
+        "bytes": 3594,
+        "path": "validation/b15-owner-plan-quiet-revalidation-20261113-plan.json",
+        "sha256": "343f84d9fc08563cf4205f333633c21de936c8020dac66320b57181dff4fecc8"
+      },
+      "result": {
+        "bytes": 7429,
+        "path": "validation/b15-owner-plan-quiet-revalidation-20261113/result.json",
+        "sha256": "c225e9bde2a1e0d388b06acf4c438b059c78c581eca1ad6e81e73bfd63ba5972"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    }
+  },
+  "rust_units": {
+    "b15": {
+      "emitted_counters_for_reference_only": {
+        "branches": {
+          "count": 2768,
+          "covered": 2768
+        },
+        "functions": {
+          "count": 1283,
+          "covered": 1283
+        },
+        "lines": {
+          "count": 14066,
+          "covered": 14066
+        },
+        "regions": {
+          "count": 21735,
+          "covered": 21735
+        }
+      },
+      "legacy_status_interpretation": "Original record retained. Emitted counters are not complete source-level branch coverage; six of the seven zero files contain decisions. No claim is made that the remaining files measure every match arm or question-mark path.",
+      "production_files": 67,
+      "record": {
+        "bytes": 25417,
+        "path": "validation/baseline-unit-b15-20261113/coverage-metrics.json",
+        "sha256": "315dc518a97a8ab86f658f5336210d55dada87775eb641e2cb6667241c5ca98b"
+      },
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "strict_per_file_four_metric_gate": "NOT_SATISFIED",
+      "tests": {
+        "nightly-unit-coverage": {
+          "failed": 0,
+          "filtered": 0,
+          "ignored": 0,
+          "measured": 0,
+          "passed": 783
+        },
+        "stable-units": {
+          "failed": 0,
+          "filtered": 0,
+          "ignored": 0,
+          "measured": 0,
+          "passed": 783
+        }
+      },
+      "tree": "548bacc1299f78a5d86960cf5bcea739260b46cc",
+      "zero_branch_denominator_files": [
+        "crates/scap-object/src/catalogue/types.rs",
+        "crates/scap-object/src/object_frame.rs",
+        "crates/scap-service/src/catalogue.rs",
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/main.rs",
+        "crates/scap-service/src/owner_wire.rs",
+        "crates/scap-service/src/snapshot_wire.rs"
+      ]
+    },
+    "fd508": {
+      "emitted_counters_for_reference_only": {
+        "branches": {
+          "count": 2798,
+          "covered": 2798
+        },
+        "functions": {
+          "count": 1288,
+          "covered": 1288
+        },
+        "lines": {
+          "count": 14151,
+          "covered": 14151
+        },
+        "regions": {
+          "count": 21832,
+          "covered": 21832
+        }
+      },
+      "legacy_status_interpretation": "Original record retained. Emitted counters are not complete source-level branch coverage; six of the seven zero files contain decisions. No claim is made that the remaining files measure every match arm or question-mark path.",
+      "production_files": 67,
+      "record": {
+        "bytes": 25027,
+        "path": "validation/manifest-unit-fd508-20261113/coverage-metrics.json",
+        "sha256": "d53b60903a7b7fe93fcda9d66aa42477b9eacbb3e68943c7646c7513cc4e0ce4"
+      },
+      "source_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+      "source_sha256": "c43a4af430cf9a0c2b6265cfd347feab676f68b6719d57e2cd0a5bfdb1336f80",
+      "strict_per_file_four_metric_gate": "NOT_SATISFIED",
+      "tests": {
+        "nightly-unit-coverage": {
+          "failed": 0,
+          "filtered": 0,
+          "ignored": 0,
+          "measured": 0,
+          "passed": 791
+        },
+        "stable-units": {
+          "failed": 0,
+          "filtered": 0,
+          "ignored": 0,
+          "measured": 0,
+          "passed": 791
+        }
+      },
+      "tree": "d919038fd6c549a187b67cdc15ce8a1fa8abed78",
+      "zero_branch_denominator_files": [
+        "crates/scap-object/src/catalogue/types.rs",
+        "crates/scap-object/src/object_frame.rs",
+        "crates/scap-service/src/catalogue.rs",
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/main.rs",
+        "crates/scap-service/src/owner_wire.rs",
+        "crates/scap-service/src/snapshot_wire.rs"
+      ]
+    }
+  },
+  "schema": "scap-sqlite-s3-revalidation-review-v1",
+  "service_b15_complete_contracts_including_quiet_retry": 12,
+  "service_contracts": [
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 0,
+        "positive_count": 0,
+        "positive_count_basis": "No separate mutation-control CLI in original plan; actual audit is not relabelled as a positive-control run.",
+        "reported_positive_value": null
+      },
+      "group": "service_primary",
+      "id": "base-http-service",
+      "independent_oracle_record": {
+        "bytes": 42850,
+        "path": "validation/b15-service-revalidation-20261113/gates/base-http-service/actual/summary.json",
+        "sha256": "83b0642bf4dd8e8c35f92e1b4505b99fc956a0c7f0ad0d6b3e83378915946ed5"
+      },
+      "oracle_execution": "independent service_oracle.audit invoked inside original actual entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 0,
+        "positive_count": 0,
+        "positive_count_basis": "No separate mutation-control CLI; eight verified exercise cases are contract cases, not eight negative controls.",
+        "reported_positive_value": null
+      },
+      "group": "service_primary",
+      "id": "bounded-transport",
+      "independent_oracle_record": {
+        "bytes": 196,
+        "path": "validation/b15-service-revalidation-20261113/commands/011-bounded-transport-1-oracle/stdout",
+        "sha256": "26a0e4c8e29c5555da880b00f63e74f419ffb4864146035e2d4d89997ae2e1f8"
+      },
+      "oracle_execution": "entry invokes independent verify; explicit original oracle command also passed",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 31,
+        "positive_count": 1,
+        "positive_count_basis": "One complete unchanged original copy.",
+        "report": {
+          "record": {
+            "bytes": 101,
+            "path": "validation/b15-service-revalidation-20261113/commands/014-guarded-status-2-controls/stdout",
+            "sha256": "b23bb09975afd630806d941d021f78820fa1921707f51a14ba928982b95901b6"
+          },
+          "value": {
+            "negative_count": 31,
+            "positive_original_copies": 1,
+            "status": "PASSED_WITHIN_FIXED_CONTROL_SCOPE"
+          }
+        },
+        "reported_positive_value": null
+      },
+      "group": "service_primary",
+      "id": "guarded-status",
+      "independent_oracle_record": {
+        "bytes": 737,
+        "path": "validation/b15-service-revalidation-20261113/commands/013-guarded-status-1-oracle/stdout",
+        "sha256": "eb7c9d9aba316740b1fcd2a5aca6ec42ff4ee825886a9bf5f4f5a9ca53220210"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 24,
+        "positive_case": "controller_summary_is_not_authority",
+        "positive_count": 1,
+        "positive_count_basis": "One copied history with controller summary removed; denominator25 means24 negatives plus1 positive.",
+        "report": {
+          "bytes": 167478,
+          "path": "/tmp/scap-b15-service-20261113-47b68d41143d/legacy-owner/controls/controls.json",
+          "sha256": "f1371d0a1353e05fafbeb358fc507e14dcfc3233f394f9b7e938dfcba9f325ee"
+        },
+        "reported_denominator": 25,
+        "reported_positive_value": null
+      },
+      "group": "service_primary",
+      "id": "legacy-owner",
+      "independent_oracle_record": {
+        "bytes": 9369,
+        "path": "validation/b15-service-revalidation-20261113/commands/015-legacy-owner-actual/stdout",
+        "sha256": "cc2a32a2abc8fc5e21b4066e357a09d48dbdf7d05562c080db63a2a90b9afb9a"
+      },
+      "oracle_execution": "independent owner_oracle.audit invoked by actual entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 0,
+        "positive_count": 0,
+        "positive_count_basis": "No separate whole-history mutation-control CLI in original contract.",
+        "reported_positive_value": null
+      },
+      "group": "service_primary",
+      "id": "catalogue-http",
+      "independent_oracle_record": {
+        "bytes": 36651,
+        "path": "validation/b15-service-revalidation-20261113/gates/catalogue-http/actual/summary.json",
+        "sha256": "d186fb90c007b271630fbebcbfefb9ce6106d53892851f342804c52f5661be0f"
+      },
+      "oracle_execution": "independent catalogue_oracle.audit invoked by actual entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "counts_mean": "executed controls only; original full rerun remains separate",
+        "negative_count": 0,
+        "positive_count": 0,
+        "status": "NOT_RUN"
+      },
+      "group": "service_primary",
+      "id": "isolation",
+      "independent_oracle_record": {
+        "bytes": 388,
+        "path": "validation/b15-service-revalidation-20261113/gates/isolation/actual/summary.json",
+        "sha256": "e4063b8876343325ebe12ec40b67f77a1922be6777ec53552da50cdd5ea63736"
+      },
+      "oracle_execution": "NOT_REACHED: original actual failed during SDK during_cold phase",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "FAILED_ORIGINAL_ATTEMPT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 19,
+        "positive_case": "controller_summary_is_not_authority",
+        "positive_count": 1,
+        "positive_count_basis": "One copied history with controller summary removed.",
+        "report": {
+          "bytes": 4230,
+          "path": "validation/b15-service-remainder-revalidation-20261113/gates/segmented-request-index/controls/controls.json",
+          "sha256": "46f0228a2427afea36a02e87931f5f0e49b4bb163627663a31d623bb509fcb6d"
+        },
+        "reported_positive_value": null
+      },
+      "group": "service_remainder",
+      "id": "segmented-request-index",
+      "independent_oracle_record": {
+        "bytes": 3748,
+        "path": "validation/b15-service-remainder-revalidation-20261113/gates/segmented-request-index/actual/summary.json",
+        "sha256": "579edf336931c4d5ec53faafba7ffdbdca53582c844c2da528adfd1dc3b6e892"
+      },
+      "oracle_execution": "independent segmented_oracle.audit invoked by actual entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "counts_mean": "executed controls; no success inferred from new642 fixture work",
+        "negative_count": 0,
+        "positive_count": 0,
+        "status": "NOT_RUN"
+      },
+      "group": "service_remainder",
+      "id": "service-discovery",
+      "independent_oracle_record": {
+        "bytes": 288,
+        "path": "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json",
+        "sha256": "b02af711a7a116cfa78d771a372444a9d6b292d76f14edf3c7e8ec0ebccc9de9"
+      },
+      "oracle_execution": "FAILED inside original independent audit; original complete controls were not reached",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "FAILED_ORIGINAL_ATTEMPT"
+    },
+    {
+      "controls": {
+        "controls_source": {
+          "bytes": 11387,
+          "path": "scap/experiments/object-metadata/controls.py",
+          "sha256": "a1eb6d430abaac68d218565aeb2ffbd4f2150d8b2bcb5f0ad7a17b3c5dd5bae4"
+        },
+        "distinct_actual_histories": 1,
+        "negative_count": 9,
+        "original_full_controls_report_path": "/tmp/scap-b15-service-20261113-47b68d41143d/metadata-budget/controls.json",
+        "original_full_controls_report_read_by_generator": false,
+        "positive_count": 1,
+        "positive_count_basis": "Nine semantic projection mutations; one complete copied raw history reaudited. These are not nine complete raw-ledger tampering audits.",
+        "positive_execution_basis": "The original controls entry requires a successful full copied-history audit before returning passed.",
+        "report": {
+          "record": {
+            "bytes": 129,
+            "path": "validation/b15-service-tail-revalidation-20261113/commands/003-metadata-budget-1-controls/stdout",
+            "sha256": "62ad58afb4dc87c200399a68d61bc0aa592a9d75b2529d43d970cbd70484767d"
+          },
+          "value": {
+            "negative_count": 9,
+            "output": "/tmp/scap-b15-service-20261113-47b68d41143d/metadata-budget/controls.json",
+            "status": "passed"
+          }
+        },
+        "reported_positive_value": null
+      },
+      "group": "service_tail",
+      "id": "metadata-budget",
+      "independent_oracle_record": {
+        "bytes": 17585,
+        "path": "validation/b15-service-tail-revalidation-20261113/commands/002-metadata-budget-actual/stdout",
+        "sha256": "c7e2acdd927721ab2d78b64ebeecd7570645f81ba521ab38563eb8b522d1d031"
+      },
+      "oracle_execution": "independent oracle.audit invoked by actual entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 9,
+        "positive_count": 2,
+        "positive_count_basis": "Reported positive_original=2 counts before/after audits of the same original history, not two independent actuals.",
+        "report": {
+          "record": {
+            "bytes": 674,
+            "path": "validation/b15-service-tail-revalidation-20261113/commands/006-output-pool-2-controls/stdout",
+            "sha256": "f3107abbb64ec79ad87cb97fa9bc09b571d68b929b5acfcbd05677ddfd5b7929"
+          },
+          "value": {
+            "negative_controls": [
+              {
+                "case": "wrong_limit",
+                "rejected_by": "pressure-limit"
+              },
+              {
+                "case": "different_principal",
+                "rejected_by": "tenant-principal"
+              },
+              {
+                "case": "extra_execute",
+                "rejected_by": "http-denominator"
+              },
+              {
+                "case": "cbu_receipt_changed",
+                "rejected_by": "lookup-receipt"
+              },
+              {
+                "case": "hold_already_read",
+                "rejected_by": "slow-consumer"
+              },
+              {
+                "case": "missing_publication",
+                "rejected_by": "one-business-head-publication"
+              },
+              {
+                "case": "count_two",
+                "rejected_by": "single-effect"
+              },
+              {
+                "case": "recovered_blob_changed",
+                "rejected_by": "large-result-bytes"
+              },
+              {
+                "case": "commit_after_release",
+                "rejected_by": "pressure-held-during-commit"
+              }
+            ],
+            "positive_original": 2,
+            "status": "PASSED"
+          }
+        },
+        "reported_positive_value": 2
+      },
+      "group": "service_tail",
+      "id": "output-pool",
+      "independent_oracle_record": {
+        "bytes": 464,
+        "path": "validation/b15-service-tail-revalidation-20261113/commands/005-output-pool-1-oracle/stdout",
+        "sha256": "69b65e668eb359b465a533a64f64086cd54b991a700ad4fa5ba11f89121058c3"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 10,
+        "positive_audit_invocations": 2,
+        "positive_count": null,
+        "positive_count_basis": "Original controls.py audits the same original before and after ten temporary counterfactual copies. Two audit invocations, one actual history; no positive_count is invented for a stdout that does not declare one.",
+        "report": {
+          "record": {
+            "bytes": 430,
+            "path": "validation/b15-service-tail-revalidation-20261113/commands/009-response-expiry-2-controls/stdout",
+            "sha256": "bdae957d83d5a388701fee6a542e601d2dde2b1235666ee59b4bc8101a5269c5"
+          },
+          "value": {
+            "count": 10,
+            "negative_controls": {
+              "client-disconnect": "no-client-disconnect",
+              "complete-response": "peer-truncated",
+              "forced-exit": "owned-exit",
+              "missing-response": "http-denominator",
+              "missing-result-readback": "result-readback",
+              "no-peer-close": "peer-closed",
+              "prefetched-body": "slow-consumer",
+              "sql-replay": "http-denominator",
+              "unconditional-head": "head-cas",
+              "unsigned-backend": "signed-backend"
+            },
+            "status": "PASSED"
+          }
+        },
+        "reported_positive_value": null,
+        "source": {
+          "bytes": 4404,
+          "path": "scap/experiments/bounded-transport/response/controls.py",
+          "sha256": "41ae63971827698b8c75267b2e3fa4c34936cd3e578366b685cddac336b7c541"
+        }
+      },
+      "group": "service_tail",
+      "id": "response-expiry",
+      "independent_oracle_record": {
+        "bytes": 373,
+        "path": "validation/b15-service-tail-revalidation-20261113/commands/008-response-expiry-1-oracle/stdout",
+        "sha256": "9c74299c3f00976bcfe78b5bab89fdcda84c7b9fa3cf68ec27ea712c22286579"
+      },
+      "oracle_execution": "separate independent oracle command",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 14,
+        "positive_count": 1,
+        "positive_count_basis": "One positive control reported by original controls entry.",
+        "report": {
+          "record": {
+            "bytes": 1857,
+            "path": "validation/b15-resources-revalidation-20261113/commands/008-resource-limits-1-controls/stdout",
+            "sha256": "4d9c03fb4c618eec389273cfe68ece2b0c5baf6cd43ca7fb937d19d9f097634b"
+          },
+          "value": {
+            "negative_controls": [
+              {
+                "name": "missing-response",
+                "reason": "trace sequence gap",
+                "rejected": true
+              },
+              {
+                "name": "duplicate-execute-attempt",
+                "reason": "trace sequence gap",
+                "rejected": true
+              },
+              {
+                "name": "wrong-backpressure",
+                "reason": "wrong HTTP outcome",
+                "rejected": true
+              },
+              {
+                "name": "changed-original-id",
+                "reason": "HTTP request differs from frozen input",
+                "rejected": true
+              },
+              {
+                "name": "false-committed-unknown",
+                "reason": "UNKNOWN became absent/committed or was retried",
+                "rejected": true
+              },
+              {
+                "name": "missing-cancellation-proof",
+                "reason": "original cancellation barrier missing",
+                "rejected": true
+              },
+              {
+                "name": "lost-body-reservation",
+                "reason": "held intake was not directly observed",
+                "rejected": true
+              },
+              {
+                "name": "extended-original-deadline",
+                "reason": "original deadline was extended or response fabricated",
+                "rejected": true
+              },
+              {
+                "name": "worker-completed-before-release",
+                "reason": "worker output sequence gap",
+                "rejected": true
+              },
+              {
+                "name": "missing-kernel-wait4",
+                "reason": "missing owned wait4 evidence",
+                "rejected": true
+              },
+              {
+                "name": "backend-identity-reused",
+                "reason": "backend identity changed",
+                "rejected": true
+              },
+              {
+                "name": "unsigned-backend-readable",
+                "reason": "backend allowed unsigned authority access",
+                "rejected": true
+              },
+              {
+                "name": "changed-large-result",
+                "reason": "query result shape/metadata",
+                "rejected": true
+              },
+              {
+                "name": "changed-large-blob",
+                "reason": "large result bytes changed",
+                "rejected": true
+              }
+            ],
+            "positive_controls": 1,
+            "schema": 1
+          }
+        },
+        "reported_positive_value": null
+      },
+      "group": "resources",
+      "id": "resource-limits",
+      "independent_oracle_record": {
+        "bytes": 1464,
+        "path": "validation/b15-resources-revalidation-20261113/commands/007-resource-limits-actual/stdout",
+        "sha256": "9267d94d3ae5934d20c2eb2298dd285c85eb8e81429eec666edb1c3ca6d0f83b"
+      },
+      "oracle_execution": "independent oracle.audit invoked by original entry",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    },
+    {
+      "controls": {
+        "distinct_actual_histories": 1,
+        "negative_count": 13,
+        "positive_count": 1,
+        "positive_count_basis": "Original entry already completed the full controls; no duplicate external rerun is counted.",
+        "reported_positive_value": null
+      },
+      "group": "resources",
+      "id": "gc-transport",
+      "independent_oracle_record": {
+        "bytes": 579,
+        "path": "validation/b15-resources-revalidation-20261113/commands/012-gc-transport-actual/stdout",
+        "sha256": "ca70edb976a019076bfef1589603c3362a88bbe11ff37ea770e9948116aa626f"
+      },
+      "oracle_execution": "entry invokes independent audit_directory and its complete13+1 controls",
+      "source_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+      "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+      "status": "PASS_COMPLETE_FIXED_CONTRACT"
+    }
+  ],
+  "service_discovery_receive_clock": {
+    "record": {
+      "bytes": 21719,
+      "path": "validation/discovery-clock-final-summary-642383c.json",
+      "sha256": "598ef783a0169f64afbf0e766a06ad6509b66df2f6d36a57b618553468548d3d"
+    },
+    "value": {
+      "aws_standard": "NOT_RUN",
+      "backend_wait_statuses": [
+        -9,
+        -9,
+        -9,
+        -9
+      ],
+      "build": {
+        "binary": {
+          "path": "validation/build-targets/discovery-clock-service-release/release/scapd",
+          "sha256": "c51b17d514f0fa7e735a20daff7fae7076316f4ced27de6b311eadba43c2bdcd"
+        },
+        "input_count": 278,
+        "native_archives": {
+          "/workspace/scratch/47b68d41143d/validation/build-targets/discovery-clock-service-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+        },
+        "receipt_sha256": "dde0e77488d79dc87264d6b59c5104f50cf548cd85caf0a40629bfa790bb8f2b",
+        "source_commit": "642383cbd27e72c940fb565064d5b127e3186f22",
+        "source_sha256": "90caedb492ae277e21f30a5ee1c19476e159b0416cbb695f2b23bc5051e0072a",
+        "source_tree": "d6edf778e2e42cd3c42502bf8af8c111a6848c15",
+        "status": "OFFICIAL_BUILD_AND_SOURCE_VERIFIED"
+      },
+      "cases": {
+        "bounded_natural_continuations": {
+          "fault_denied": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 4,
+            "unchanged_frontier_pages": 0
+          },
+          "fault_head_corrupt_head": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 1,
+            "pages": 4,
+            "unchanged_frontier_pages": 0
+          },
+          "fault_head_missing": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 4,
+            "unchanged_frontier_pages": 0
+          },
+          "fault_missing": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 4,
+            "unchanged_frontier_pages": 0
+          },
+          "fault_missing_truncation": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 4,
+            "unchanged_frontier_pages": 0
+          },
+          "fault_no_progress": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 3,
+            "pages": 5,
+            "unchanged_frontier_pages": 0
+          },
+          "fresh_before_restart": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 1,
+            "pages": 3,
+            "unchanged_frontier_pages": 0
+          },
+          "operator_no_read": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 3,
+            "unchanged_frontier_pages": 0
+          },
+          "original_cursor_positive": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 76,
+            "complete": true,
+            "natural_unknown_pages": 1,
+            "pages": 2,
+            "unchanged_frontier_pages": 0
+          },
+          "reader_revocation": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 2,
+            "pages": 3,
+            "unchanged_frontier_pages": 0
+          },
+          "released_admission": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 1,
+            "pages": 3,
+            "unchanged_frontier_pages": 0
+          },
+          "restart": {
+            "abandoned_final_operations": [],
+            "classified_candidates": 129,
+            "complete": true,
+            "natural_unknown_pages": 0,
+            "pages": 3,
+            "unchanged_frontier_pages": 0
+          }
+        },
+        "deadline_evidence": {
+          "exact_internal_origin": "frozen_production_received_HTTP_plus_5_seconds_minus_1_second",
+          "external_read_bound": "causally_enabling_requests_and_delivery_starts_before_first_S3_handler_entry_plus_4_seconds",
+          "internal_dispatch_timestamp_observed": false,
+          "internal_receive_timestamp_observed": false,
+          "late_request_exception": "one_disconnected_unclassified_final_GET_or_LIST_before_HTTP_reply",
+          "observed_HTTP_roundtrip_under_seconds": 5
+        },
+        "held_running_workers": 2,
+        "hot_and_control_successes_while_blocked": 3,
+        "invalid_cursor_bindings": 8,
+        "observed_response_faults": 6,
+        "resident_hot_query_head_only": true,
+        "seed_ready_names": 131,
+        "steady_latency_progress": {
+          "classified_preexisting_names": 129,
+          "completed": true,
+          "pages": 12,
+          "unknown_pages_with_continuation": 11
+        }
+      },
+      "cleanup_errors": [],
+      "client_phase_count": 26,
+      "client_wait_statuses": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "commands": [
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:57:10.417323+00:00",
+          "name": "source-capture",
+          "seconds": 0.6371880779988714,
+          "started_utc": "2026-11-13T16:57:09.771299+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T16:57:11.133182+00:00",
+          "name": "official-service-build-verify",
+          "seconds": 0.7102054860006319,
+          "started_utc": "2026-11-13T16:57:10.420431+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T17:27:58.560577+00:00",
+          "name": "service-discovery-actual",
+          "seconds": 1847.4236435990024,
+          "started_utc": "2026-11-13T16:57:11.135012+00:00"
+        },
+        {
+          "exit_code": 0,
+          "finished_utc": "2026-11-13T17:27:59.051623+00:00",
+          "name": "source-verify-final",
+          "seconds": 0.4746382140001515,
+          "started_utc": "2026-11-13T17:27:58.573583+00:00"
+        }
+      ],
+      "completed_utc": "2026-11-13T17:29:06.550984+00:00",
+      "control_original_history_hashes_match": true,
+      "data_recovery_complete": false,
+      "fixture_input_count": 278,
+      "fixture_inputs_unchanged": true,
+      "formal_build_verify_passed": true,
+      "formal_source_capture_and_final_verify_passed": true,
+      "http_invocations": 424,
+      "negative_control_count": 32,
+      "negative_controls": [
+        {
+          "name": "false_complete_empty_404",
+          "reason": "S3 failure was turned into successful empty discovery",
+          "rejected": true
+        },
+        {
+          "name": "tampered_cursor_false_success",
+          "reason": "permission/cursor negative falsely succeeded",
+          "rejected": true
+        },
+        {
+          "name": "completed_inventory_omitted_slot",
+          "reason": "cumulative classification count differs",
+          "rejected": true
+        },
+        {
+          "name": "release_before_hot_delivery",
+          "reason": "hot/control/capacity probe did not complete while both LIST workers remained blocked",
+          "rejected": true
+        },
+        {
+          "name": "missing_owned_wait4",
+          "reason": "missing kernel wait4 witness",
+          "rejected": true
+        },
+        {
+          "name": "missing_original_result_recovery",
+          "reason": "native original result denominator changed",
+          "rejected": true
+        },
+        {
+          "name": "replaced_original_cas_condition",
+          "reason": "accepted CAS has no original predecessor version",
+          "rejected": true
+        },
+        {
+          "name": "false_complete_cache_loss",
+          "reason": "cache loss is not real and owned",
+          "rejected": true
+        },
+        {
+          "name": "slow_deadline_discarded_checkpoint",
+          "reason": "expected successful full HTTP response",
+          "rejected": true
+        },
+        {
+          "name": "slow_cursor_reset",
+          "reason": "steady-latency continuation reset or replaced its original cursor",
+          "rejected": true
+        },
+        {
+          "name": "nonresident_hot_query",
+          "reason": "resident hot query performed extra object I/O",
+          "rejected": true
+        },
+        {
+          "name": "missing_request_receipt_clock",
+          "reason": "S3 request is missing its original receipt clock",
+          "rejected": true
+        },
+        {
+          "name": "invalid_request_receipt_clock",
+          "reason": "S3 request has an invalid receipt clock",
+          "rejected": true
+        },
+        {
+          "name": "request_receipt_after_authenticated_log",
+          "reason": "S3 receipt clock follows its authenticated request log",
+          "rejected": true
+        },
+        {
+          "name": "natural_partial_false_complete",
+          "reason": "reader did not receive a genuine partial first page",
+          "rejected": true
+        },
+        {
+          "name": "natural_frontier_skipped_unclassified_key",
+          "reason": "natural continuation advanced past an unclassified name after its original LIST admission",
+          "rejected": true
+        },
+        {
+          "name": "natural_opaque_token_without_progress",
+          "reason": "classified prefix omitted/repeated a visible name or disclosed a READ-denied name",
+          "rejected": true
+        },
+        {
+          "name": "natural_http_deadline_renewed",
+          "reason": "natural discovery page renewed its original five-second deadline",
+          "rejected": true
+        },
+        {
+          "name": "natural_read_cutoff_renewed",
+          "reason": "discovery issued non-final work beyond the external four-second read bound",
+          "rejected": true
+        },
+        {
+          "name": "natural_exact_get_budget_renewed",
+          "reason": "discovery renewed its original LIST/exact-GET budget",
+          "rejected": true
+        },
+        {
+          "name": "metadata_early_get_not_refunded",
+          "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+          "rejected": true
+        },
+        {
+          "name": "metadata_multiple_ambiguous_refunds",
+          "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+          "rejected": true
+        },
+        {
+          "name": "metadata_arbitrary_intermediate_count",
+          "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+          "rejected": true
+        },
+        {
+          "name": "late_final_already_classified_get",
+          "reason": "late final operation already contributed to classified progress",
+          "rejected": true
+        },
+        {
+          "name": "late_final_missing_disconnect",
+          "reason": "late final operation lacks explicit disconnected delivery",
+          "rejected": true
+        },
+        {
+          "name": "multiple_late_unconsumed_tails",
+          "reason": "discovery issued non-final work beyond the external four-second read bound",
+          "rejected": true
+        },
+        {
+          "name": "late_response_enabled_another_request",
+          "reason": "causally enabling response exceeded the external four-second read bound",
+          "rejected": true
+        },
+        {
+          "name": "new_work_after_original_http_return",
+          "reason": "S3 request has no authenticated invocation or bounded still-running worker",
+          "rejected": true
+        },
+        {
+          "name": "completed_list_fabricated_full_refund",
+          "reason": "reported LIST budget differs from exact completed pages and the single original-deadline tail",
+          "rejected": true
+        },
+        {
+          "name": "completed_scan_fabricated_unobserved_get",
+          "reason": "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation",
+          "rejected": true
+        },
+        {
+          "name": "completed_scan_fabricated_unobserved_list",
+          "reason": "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation",
+          "rejected": true
+        },
+        {
+          "name": "coherent_invalid_control_version",
+          "reason": "fixed metadata profile record differs from original authenticated input",
+          "rejected": true
+        }
+      ],
+      "network": {
+        "delivered_response_body_bytes": 12765438,
+        "exact_gets_with_observed_30ms_latency": 1085,
+        "list_requests": 144,
+        "original_backend_response_body_bytes": 12796366,
+        "request_observation_clock": "handler_entry_after_headers_before_authentication_locks_and_trace_io",
+        "signed_backend_requests": 25278,
+        "versions": {
+          "accepted_versions": 931,
+          "ambiguous_http_intervals": 0,
+          "blackholed_before_forward": 0,
+          "causal_constraints": 22285,
+          "conditional_put_responses": 931,
+          "exact_get_body_etag_pairs": 20530,
+          "http_interval_binding": "NOT_REQUESTED"
+        }
+      },
+      "old_failed_report_preserved": {
+        "bytes": 288,
+        "path": "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json",
+        "sha256": "b02af711a7a116cfa78d771a372444a9d6b292d76f14edf3c7e8ec0ebccc9de9"
+      },
+      "original_history_source_hashes": {
+        "discovery-auth.jsonl": "da22eb0653a86b3aadbf7dae52b3c6bc2f4cf7b71a9c1d4fa0f34468bb5800c4",
+        "discovery-calls.jsonl": "fa02770659f9f4aa4f8dd931f3d855903886e5b0a57c45e25792e7d78f09dee7",
+        "discovery-phases.jsonl": "66d7f2adba3dc5e6c61cd6ec514e5be6b281cf13604a96f071878a20f61aa283",
+        "discovery-s3.jsonl": "6a45f26f1d9ce8a878c55e71cce580360ca4edd7763202196982b25185ce32c9",
+        "discovery-source-after.json": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6",
+        "discovery-source-before.json": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6",
+        "discovery-sql-inputs.jsonl": "4b1e2e72fa63e139960d43d5dc1fc91ae6ed516089f788895a7b93fe367be0e4",
+        "discovery-sql-results.jsonl": "25ee6333bb2cd9dbb1274d5c6b1f7cecd67a8c44d4d77d8d6455395b201e1877",
+        "discovery-tools.json": "87e271c03a4bb48694f2e0b5b3dd8f5e19cc5c280997763fbad1c931665c36b3",
+        "http-client-ledger.jsonl": "dfaa8b0dfddf16f80f0078f993d8c76450985b4a5d6371807b0e54a295e729ef",
+        "process-ledger.jsonl": "7791e2985622c21b1c5e72f77ec84d89c9b33aa40fd85b9fa8ed1bc7a3155209"
+      },
+      "positive_original_copy": {
+        "http_invocations": 424,
+        "passed": true
+      },
+      "private_fixture_removed": true,
+      "processes": {
+        "all_owned_wait4": true,
+        "backend_children": 4,
+        "sdk_children": 26,
+        "service_children": 3
+      },
+      "production_slo_passed": false,
+      "quiet_window": "DONE_NO_RUNNING_OWNED_COMMAND",
+      "references": {
+        "/workspace/scratch/47b68d41143d/validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json": {
+          "bytes": 288,
+          "path": "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json",
+          "sha256": "b02af711a7a116cfa78d771a372444a9d6b292d76f14edf3c7e8ec0ebccc9de9"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113.driver.stderr": {
+          "bytes": 0,
+          "path": "validation/discovery-clock-actual-642383c-20261113.driver.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113.driver.stdout": {
+          "bytes": 804,
+          "path": "validation/discovery-clock-actual-642383c-20261113.driver.stdout",
+          "sha256": "5ebbece506d19b969f1aa2a32385744296a376e14837bc96721e23e3537deec5"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stderr": {
+          "bytes": 0,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stdout": {
+          "bytes": 108,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stdout",
+          "sha256": "bacb1ddad80f60f441d2ef847c475e03e99dbfc1c62ccde2ed84c464f166ac77"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stderr": {
+          "bytes": 0,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stdout": {
+          "bytes": 841,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stdout",
+          "sha256": "ab896a754373a6ebae96b3eeac733f3fbd7597af12d2fc945ca4b1dca23adda4"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stderr": {
+          "bytes": 2598,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stderr",
+          "sha256": "a554044400f92325477a0c2e94623f9e28acee699e868c5ec030ed69c1170b8a"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stdout": {
+          "bytes": 16195,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stdout",
+          "sha256": "cea96bd0cd3f8b5f4fbe83c524680d9bc87b88b742f1f284e59fb6546cbbcf2d"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stderr": {
+          "bytes": 0,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stdout": {
+          "bytes": 99,
+          "path": "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stdout",
+          "sha256": "063c9f491fa07646a09a07d79c371b2859bff7594af5ce52dc6a647b7d1e58b0"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-oracle.json": {
+          "bytes": 16195,
+          "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-oracle.json",
+          "sha256": "cea96bd0cd3f8b5f4fbe83c524680d9bc87b88b742f1f284e59fb6546cbbcf2d"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-after.json": {
+          "bytes": 31717,
+          "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-after.json",
+          "sha256": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-before.json": {
+          "bytes": 31717,
+          "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-before.json",
+          "sha256": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/process-ledger.jsonl": {
+          "bytes": 58796,
+          "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/process-ledger.jsonl",
+          "sha256": "7791e2985622c21b1c5e72f77ec84d89c9b33aa40fd85b9fa8ed1bc7a3155209"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/result.json": {
+          "bytes": 5932,
+          "path": "validation/discovery-clock-actual-642383c-20261113/result.json",
+          "sha256": "6b96533fe940ccc204628f25f968687356455e545fb02524d523cd002fb1405c"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-actual-642383c-20261113/source-before.json": {
+          "bytes": 194097,
+          "path": "validation/discovery-clock-actual-642383c-20261113/source-before.json",
+          "sha256": "1837a69968879af891f51e52d03d2cc825ad7931db1e35af3a136752506e10c5"
+        },
+        "/workspace/scratch/47b68d41143d/validation/discovery-clock-command-plan-642383c.json": {
+          "bytes": 5353,
+          "path": "validation/discovery-clock-command-plan-642383c.json",
+          "sha256": "e5979895c5a91b1af86c87548104fa216b0393218da61c14efca0ce63b2fa178"
+        }
+      },
+      "schema": 1,
+      "scope_note": "New frozen 642383c source/receipt/observation schema. Original b15 failure remains failed. No raw scan, repeated oracle, duplicate controls or archive performed in this final small-report check.",
+      "service_wait_statuses": [
+        -9,
+        -9,
+        -9
+      ],
+      "source_commit": "642383cbd27e72c940fb565064d5b127e3186f22",
+      "source_files": 730,
+      "source_sha256": "90caedb492ae277e21f30a5ee1c19476e159b0416cbb695f2b23bc5051e0072a",
+      "source_tree": "d6edf778e2e42cd3c42502bf8af8c111a6848c15",
+      "sql": {
+        "identical_lookup_cancel_results": 4,
+        "native_business_readbacks": 3,
+        "original_execute_ack": 1
+      },
+      "status": "PASSED_ORIGINAL_DISCOVERY_ENTRY_AND_32_CONTROLS"
+    }
+  },
+  "service_original_total_contracts": 13,
+  "source": {
+    "commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+    "manifest": {
+      "bytes": 190780,
+      "path": "validation/b15-source-before.json",
+      "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+    },
+    "source_sha256": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+    "tracked_files": 718,
+    "tree": "548bacc1299f78a5d86960cf5bcea739260b46cc"
+  },
+  "status": "SCOPED_RESULTS_WITH_EXPLICIT_MERGE_BLOCKERS",
+  "strict_checker_repair": {
+    "original_reports_unchanged": true,
+    "rechecks": {
+      "b15": {
+        "actual_exit": 1,
+        "expected_exit": 1,
+        "failures": [
+          "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+          "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+        ]
+      },
+      "fd508": {
+        "actual_exit": 1,
+        "expected_exit": 1,
+        "failures": [
+          "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+          "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+        ]
+      }
+    },
+    "record": {
+      "bytes": 3361,
+      "path": "validation/zero-branch-checker-fix-20261113/summary.json",
+      "sha256": "ce3bd21f45b4aaa6b5e1ea400dff53f0b1bfe9d4bcbf5e85240ebd94bfff460e"
+    },
+    "tooling_totals": {
+      "covered_branches": 184,
+      "covered_lines": 401,
+      "excluded_lines": 0,
+      "missing_branches": 0,
+      "missing_lines": 0,
+      "num_branches": 184,
+      "num_partial_branches": 0,
+      "num_statements": 401,
+      "percent_covered": 100.0,
+      "percent_covered_display": "100"
+    }
+  },
+  "strict_per_file_branch_coverage_closed": false,
+  "updated_utc": "2026-11-13"
+}

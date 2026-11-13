@@ -1,0 +1,167 @@
+{
+  "changed_files": [
+    {
+      "bytes": 13514,
+      "file": "discovery_proxy.py",
+      "path": "experiments/object-service/discovery_proxy.py",
+      "sha256": "f9ef538569f013be347a7530d5428cf2921794cbf581a14970b1e18cd48c7453"
+    },
+    {
+      "bytes": 148576,
+      "file": "discovery_oracle.py",
+      "path": "experiments/object-service/discovery_oracle.py",
+      "sha256": "64098b546853ab53493e25e8511e696d754c90e64f3647993ffe543da04cee2f"
+    },
+    {
+      "bytes": 57232,
+      "file": "test_discovery_progress.py",
+      "path": "experiments/object-service/test_discovery_progress.py",
+      "sha256": "6db52fcae23da31abcd946b531baea5f71ce0fb953fe333662705527904c4304"
+    },
+    {
+      "bytes": 36438,
+      "file": "test_discovery_reservations.py",
+      "path": "experiments/object-service/test_discovery_reservations.py",
+      "sha256": "e7a1c568ba9ea5e87afa7d332785f655e0de5d7bda09e03f7a4685890350f530"
+    },
+    {
+      "bytes": 12196,
+      "file": "test_discovery_request_clock.py",
+      "path": "experiments/object-service/test_discovery_request_clock.py",
+      "sha256": "53963708726522e64c30924201c004aee7b62b7958bbf0e4ca98f7ad7f27cf2f"
+    }
+  ],
+  "control_inventory": {
+    "actual_control_execution": "NOT_RUN",
+    "added": [
+      "missing_request_receipt_clock",
+      "invalid_request_receipt_clock",
+      "request_receipt_after_authenticated_log"
+    ],
+    "current": [
+      "false_complete_empty_404",
+      "tampered_cursor_false_success",
+      "completed_inventory_omitted_slot",
+      "release_before_hot_delivery",
+      "missing_owned_wait4",
+      "missing_original_result_recovery",
+      "replaced_original_cas_condition",
+      "false_complete_cache_loss",
+      "slow_deadline_discarded_checkpoint",
+      "slow_cursor_reset",
+      "nonresident_hot_query",
+      "missing_request_receipt_clock",
+      "invalid_request_receipt_clock",
+      "request_receipt_after_authenticated_log",
+      "natural_partial_false_complete",
+      "natural_frontier_skipped_unclassified_key",
+      "natural_opaque_token_without_progress",
+      "natural_http_deadline_renewed",
+      "natural_read_cutoff_renewed",
+      "natural_exact_get_budget_renewed",
+      "metadata_early_get_not_refunded",
+      "metadata_multiple_ambiguous_refunds",
+      "metadata_arbitrary_intermediate_count",
+      "late_final_already_classified_get",
+      "late_final_missing_disconnect",
+      "multiple_late_unconsumed_tails",
+      "late_response_enabled_another_request",
+      "new_work_after_original_http_return",
+      "completed_list_fabricated_full_refund",
+      "completed_scan_fabricated_unobserved_get",
+      "completed_scan_fabricated_unobserved_list",
+      "coherent_invalid_control_version"
+    ],
+    "original": [
+      "false_complete_empty_404",
+      "tampered_cursor_false_success",
+      "completed_inventory_omitted_slot",
+      "release_before_hot_delivery",
+      "missing_owned_wait4",
+      "missing_original_result_recovery",
+      "replaced_original_cas_condition",
+      "false_complete_cache_loss",
+      "slow_deadline_discarded_checkpoint",
+      "slow_cursor_reset",
+      "nonresident_hot_query",
+      "natural_partial_false_complete",
+      "natural_frontier_skipped_unclassified_key",
+      "natural_opaque_token_without_progress",
+      "natural_http_deadline_renewed",
+      "natural_read_cutoff_renewed",
+      "natural_exact_get_budget_renewed",
+      "metadata_early_get_not_refunded",
+      "metadata_multiple_ambiguous_refunds",
+      "metadata_arbitrary_intermediate_count",
+      "late_final_already_classified_get",
+      "late_final_missing_disconnect",
+      "multiple_late_unconsumed_tails",
+      "late_response_enabled_another_request",
+      "new_work_after_original_http_return",
+      "completed_list_fabricated_full_refund",
+      "completed_scan_fabricated_unobserved_get",
+      "completed_scan_fabricated_unobserved_list",
+      "coherent_invalid_control_version"
+    ],
+    "original_29_retained_in_order": true
+  },
+  "control_inventory_record": {
+    "bytes": 2655,
+    "file": "control-inventory.json",
+    "sha256": "67ca2c94ed90926ba27e56341a80879b2935cd183c314267c062ef61402f1b0c"
+  },
+  "date_utc": "2026-11-13",
+  "fixture_tests": {
+    "added": 11,
+    "failed": 0,
+    "original": 232,
+    "passed": 243
+  },
+  "fresh_actual": "NOT_RUN",
+  "fresh_actual_controls": "NOT_RUN",
+  "fresh_official_build_required": true,
+  "new_controls": 3,
+  "new_witness": "Actual handler-entry monotonic clock after standard-library header parsing but before body read/authentication/shared locks/trace I/O, bound to the same authenticated request record.",
+  "not_claimed": [
+    "product send time",
+    "TCP accept time",
+    "PUT body-read completion time",
+    "retrospective repair of old records"
+  ],
+  "original_failure": {
+    "after_previous_http_response_ms": 2.291901,
+    "before_next_http_request_ms": 6.907092,
+    "conclusion": "External original observation interval cannot establish ownership; missing sender/earlier receive witness prevents a verdict that the request was necessarily legitimate or that the product dispatched after return.",
+    "http_calls": 429,
+    "previous_http_duration_seconds": 4.205692417,
+    "record": {
+      "bytes": 6493,
+      "file": "conclusion.json",
+      "sha256": "b67293cedbb8d45807251ced5abf80f974952105077afa6e6a7b4cd7614b5e81"
+    },
+    "request_serial": 17717,
+    "requests_without_original_interval_owner": 1,
+    "s3_requests": 25292,
+    "source": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+    "status": "FAILED_PRESERVED"
+  },
+  "overall_merge_ready": false,
+  "patch_base_commit": "8a5bd656db85a1dfc7f2effd511e7c71c3209314",
+  "preserved": [
+    "original authlog clock and raw order",
+    "SigV4 validation",
+    "original read/HTTP budgets",
+    "original 29 controls and positive check",
+    "post-return rejection",
+    "production source and APIs"
+  ],
+  "schema": "scap-discovery-request-clock-v1",
+  "service_build_input_count": 278,
+  "status": "FIXTURE_UNITS_PASS_ACTUAL_NOT_RUN",
+  "total_controls": 32,
+  "unit_record": {
+    "bytes": 3882,
+    "file": "summary.json",
+    "sha256": "b87111ca25f4d260e21ebedbb7beaee2f7e8d5a80499b4bbae11c4595faf910c"
+  }
+}

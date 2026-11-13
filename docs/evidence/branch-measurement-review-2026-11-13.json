@@ -1,0 +1,890 @@
+{
+  "archival_interpretation": "Earlier archive filenames and original summaries containing passed identify the original unit/checker command outcome, not fulfillment of the stricter per-file branch gate. Original bytes and hashes remain unchanged.",
+  "checker_change": {
+    "behavior": "Reject every zero denominator per production file, including branches, even when another file has a positive branch denominator.",
+    "fake_branches_added": false,
+    "original_report_rechecks": {
+      "b15": {
+        "actual_exit": 1,
+        "expected_exit": 1,
+        "failures": [
+          "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+          "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+        ]
+      },
+      "fd508": {
+        "actual_exit": 1,
+        "expected_exit": 1,
+        "failures": [
+          "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+          "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+          "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+        ]
+      }
+    },
+    "original_reports_unchanged": true,
+    "paths": [
+      {
+        "bytes": 5235,
+        "path": "scripts/check_unit_coverage.py",
+        "sha256": "5c592382c90356ebeb1e448ba5ebb67ec802690a70da93ea05e6e59a4952b0d6"
+      },
+      {
+        "bytes": 9013,
+        "path": "tests/tooling/test_check_unit_coverage.py",
+        "sha256": "e8ccd7f4a9a960512dd7bea5f6cade23ff7bec3dcc2f7595498e52845cd19a38"
+      }
+    ],
+    "policy_lowered": false,
+    "production_rust_changed": false,
+    "record": {
+      "bytes": 3361,
+      "file": "summary.json",
+      "sha256": "ce3bd21f45b4aaa6b5e1ea400dff53f0b1bfe9d4bcbf5e85240ebd94bfff460e"
+    },
+    "three_python_production_files_exact": true,
+    "tooling_totals": {
+      "covered_branches": 184,
+      "covered_lines": 401,
+      "excluded_lines": 0,
+      "missing_branches": 0,
+      "missing_lines": 0,
+      "num_branches": 184,
+      "num_partial_branches": 0,
+      "num_statements": 401,
+      "percent_covered": 100.0,
+      "percent_covered_display": "100"
+    },
+    "unit_tests": 76
+  },
+  "date_utc": "2026-11-13",
+  "merge_ready": false,
+  "next_condition": "A truthful full source/edge measurement and explicit treatment of branchless entries require a separately reviewed validation solution; no normative exception adopted in this change.",
+  "official_sources": [
+    {
+      "finding": "Open known-limitations issue: individual match arms/or-patterns and try are not yet supported.",
+      "url": "https://github.com/rust-lang/rust/issues/124118"
+    },
+    {
+      "finding": "block/branch/condition options; condition does not supply the missing match/try measurements in the fixed compiler probe.",
+      "url": "https://doc.rust-lang.org/unstable-book/compiler-flags/coverage-options.html"
+    },
+    {
+      "finding": "Open Draft prototype; not a verified complete replacement compiler.",
+      "url": "https://github.com/rust-lang/rust/pull/124154"
+    }
+  ],
+  "original_archive": {
+    "bytes": 2888970,
+    "file": "scap-branch-gate-repair-and-research.tar.gz",
+    "sha256": "80d659ad69f73b81635c54ef21fdc74b4595e8989fffe9ab9d3d281d087ec039"
+  },
+  "original_reports": {
+    "b15": {
+      "bytes": 50275530,
+      "sha256": "76caf2c763b998f0cbfbd1fc4c1fd9d9b14071019aea38512d205a1d0484fc50"
+    },
+    "fd508": {
+      "bytes": 50392284,
+      "sha256": "be1548f7a809e88ff8515fbce26b862804da8e33020d4b9c3534e3321c1b9609"
+    }
+  },
+  "original_runtime_sources": {
+    "baseline": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+    "optimization": "fd508cc052c21dba0e3c54b8e8e82d11c167777a"
+  },
+  "original_semantic_review": {
+    "bytes": 13209,
+    "file": "branch-denominator-semantic-review.json",
+    "sha256": "c453e80c8d18175f87059ea5c3c568f2fb067fc01bd360d7dcf328becf15a072"
+  },
+  "original_tests": {
+    "baseline_nightly": 783,
+    "baseline_stable": 783,
+    "optimization_nightly": 791,
+    "optimization_stable": 791
+  },
+  "policy_files": [
+    "AGENTS.md",
+    "docs/engineering/validation.md"
+  ],
+  "production_source_maps": 67,
+  "schema": "scap-branch-measurement-review-v1",
+  "scope": "Correct gate-tool false acceptance; unchanged Rust source, original unit executions and LLVM JSON. Not a new Rust test failure or a production defect verdict.",
+  "standalone_probe": {
+    "mixed_with_product_profiles": false,
+    "options": [
+      "branch",
+      "condition"
+    ],
+    "record": {
+      "bytes": 23245,
+      "file": "summary.json",
+      "sha256": "88a5e845e37e3921350220ff9a7af75f8b654717cedaf827e12483b9730403fd"
+    },
+    "results": {
+      "branch-full": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      },
+      "branch-omit_arm": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 5,
+            "percent": 83.33333333333334
+          },
+          "regions": {
+            "count": 6,
+            "covered": 5,
+            "notcovered": 1,
+            "percent": 83.33333333333334
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      },
+      "branch-omit_error": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 5,
+            "notcovered": 1,
+            "percent": 83.33333333333334
+          }
+        }
+      },
+      "branch-omit_or": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      },
+      "condition-full": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      },
+      "condition-omit_arm": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 5,
+            "percent": 83.33333333333334
+          },
+          "regions": {
+            "count": 6,
+            "covered": 5,
+            "notcovered": 1,
+            "percent": 83.33333333333334
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      },
+      "condition-omit_error": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 5,
+            "notcovered": 1,
+            "percent": 83.33333333333334
+          }
+        }
+      },
+      "condition-omit_or": {
+        "if_only.rs": {
+          "branches": {
+            "count": 2,
+            "covered": 2,
+            "notcovered": 0,
+            "percent": 100
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 3,
+            "covered": 3,
+            "percent": 100
+          },
+          "regions": {
+            "count": 5,
+            "covered": 5,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "match_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 6,
+            "covered": 6,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        },
+        "try_only.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0,
+            "notcovered": 0,
+            "percent": 0
+          },
+          "functions": {
+            "count": 1,
+            "covered": 1,
+            "percent": 100
+          },
+          "lines": {
+            "count": 4,
+            "covered": 4,
+            "percent": 100
+          },
+          "regions": {
+            "count": 6,
+            "covered": 6,
+            "notcovered": 0,
+            "percent": 100
+          }
+        }
+      }
+    },
+    "scope": "Standalone hand-written probe, not SCAP validation. Frozen repositories untouched.",
+    "source_inputs": {
+      "if_only.rs": {
+        "bytes": 87,
+        "sha256": "7ec1b413717281de147c2f7fc7227c986e885408f63ec1002a018ad8013c2f63"
+      },
+      "main.rs": {
+        "bytes": 855,
+        "sha256": "482539f1f25ce302f93100d7dbed418a1395b2198dbaf0315728c7388148b5c2"
+      },
+      "match_only.rs": {
+        "bytes": 134,
+        "sha256": "913a27487eb5b4b2133861511c87dd02693737cbb3623927ccd83f193bb91992"
+      },
+      "run_probe.py": {
+        "bytes": 3430,
+        "sha256": "0b78a0480aa93b271e8e01bf3bf8788111fe80089997afbedd01ace468edc4a0"
+      },
+      "try_only.rs": {
+        "bytes": 130,
+        "sha256": "73515a1c0c31ad999beb0eef2db8045f5d93cc694c3e251e60924f48bd95ea2f"
+      }
+    }
+  },
+  "status": "STRICT_RUST_COVERAGE_GATE_NOT_SATISFIED",
+  "wider_instrumentation_limit": "Other files with positive if/while branch counts can also contain uncounted match/or-pattern/? paths; the semantic blind spot is not confined to seven files.",
+  "zero_branch_file_measurements": [
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-object/src/catalogue/types.rs",
+      "functions": {
+        "count": 1,
+        "covered": 1
+      },
+      "lines": {
+        "count": 8,
+        "covered": 8
+      },
+      "regions": {
+        "count": 8,
+        "covered": 8
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-object/src/object_frame.rs",
+      "functions": {
+        "count": 5,
+        "covered": 5
+      },
+      "lines": {
+        "count": 60,
+        "covered": 60
+      },
+      "regions": {
+        "count": 101,
+        "covered": 101
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-service/src/catalogue.rs",
+      "functions": {
+        "count": 3,
+        "covered": 3
+      },
+      "lines": {
+        "count": 55,
+        "covered": 55
+      },
+      "regions": {
+        "count": 103,
+        "covered": 103
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-service/src/lib.rs",
+      "functions": {
+        "count": 2,
+        "covered": 2
+      },
+      "lines": {
+        "count": 44,
+        "covered": 44
+      },
+      "regions": {
+        "count": 42,
+        "covered": 42
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-service/src/main.rs",
+      "functions": {
+        "count": 1,
+        "covered": 1
+      },
+      "lines": {
+        "count": 3,
+        "covered": 3
+      },
+      "regions": {
+        "count": 6,
+        "covered": 6
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-service/src/owner_wire.rs",
+      "functions": {
+        "count": 12,
+        "covered": 12
+      },
+      "lines": {
+        "count": 81,
+        "covered": 81
+      },
+      "regions": {
+        "count": 144,
+        "covered": 144
+      }
+    },
+    {
+      "branches": {
+        "count": 0,
+        "covered": 0
+      },
+      "file": "crates/scap-service/src/snapshot_wire.rs",
+      "functions": {
+        "count": 16,
+        "covered": 16
+      },
+      "lines": {
+        "count": 78,
+        "covered": 78
+      },
+      "regions": {
+        "count": 146,
+        "covered": 146
+      }
+    }
+  ],
+  "zero_branch_interpretation": "Six files contain match/error decisions; main is a thin delegation entry. A collector-produced zero is not a positive independent branch measurement."
+}

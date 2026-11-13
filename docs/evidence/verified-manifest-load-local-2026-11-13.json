@@ -1,0 +1,1443 @@
+{
+  "actual_scope_count": 4,
+  "aws_standard": "NOT_RUN",
+  "fixture_source_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+  "http_posts_per_actual": 871,
+  "independent_small_record_review": {
+    "bytes": 11095,
+    "path": "/workspace/scratch/47b68d41143d/validation/paired-load-review-20261113.json",
+    "sha256": "6c62f25fde32f7c6b044908718b36d7b43aaadd8b1ca7ad45e70e0917889d9f9"
+  },
+  "interpretation": {
+    "all_185_executes_typed_individually": "NOT_CLAIMED",
+    "full_run_get_delta_not_used_as_per_execute_proof": true,
+    "measured_phase_aggregate_manifest_gets_saved_per_pair": 160,
+    "measured_write_phase_counts": [
+      32,
+      64,
+      64
+    ],
+    "multi_write_rate_change_percent_by_pair": [
+      -24.000090785979534,
+      -24.523516041871808
+    ],
+    "new_execute_path_reuses_original_manifest_verification": true,
+    "ordinary_read_each_fresh_head_get_unchanged": true,
+    "other_measured_kind_method_counts_unchanged": true,
+    "per_execute_http_interval_binding": "NOT_REQUESTED; not claimed by supplemental phase-aggregate classifier",
+    "performance_merge_blocker": "Repeated lower multi-database rates are unresolved; no post-hoc numeric SLO or causal attribution is asserted. Keep the candidate Draft pending targeted profile or an explicit reviewed request-cost tradeoff.",
+    "repeat_policy": "Stop repeated small local TPS pairs. Next measure bounded product CPU/allocation/waiting and observer/backend costs; preserve both completed pairs.",
+    "stable_throughput_improvement_proved": false,
+    "throughput_regression_excluded": false
+  },
+  "measured_calls_per_actual": 288,
+  "negative_controls_per_actual": 14,
+  "overall_merge_ready": false,
+  "pairs": [
+    {
+      "comparison": {
+        "bytes": 32863,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/comparison.json",
+        "sha256": "bba99cde274ddc9da5e0449a3fcb2cd46e297e1dbb237dd10ae03ea8090466be"
+      },
+      "comparisons": {
+        "read_multi": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:head": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 113.259382,
+            "p50": 37.02624,
+            "p95": 84.01368,
+            "p99": 113.259382,
+            "samples": 64
+          },
+          "baseline_s3_requests": 64,
+          "baseline_success_per_second": 94.99734538824313,
+          "candidate_request_latency_ms": {
+            "maximum": 121.712534,
+            "p50": 35.635451,
+            "p95": 89.947667,
+            "p99": 121.712534,
+            "samples": 64
+          },
+          "candidate_s3_requests": 64,
+          "candidate_success_per_second": 90.24551219678743,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -5.002069449451996,
+          "offered_per_candidate": 64
+        },
+        "read_same": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:head": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 115.627843,
+            "p50": 30.664701,
+            "p95": 81.46343,
+            "p99": 115.627843,
+            "samples": 64
+          },
+          "baseline_s3_requests": 64,
+          "baseline_success_per_second": 97.39175254043685,
+          "candidate_request_latency_ms": {
+            "maximum": 108.510044,
+            "p50": 33.545509,
+            "p95": 82.852659,
+            "p99": 108.510044,
+            "samples": 64
+          },
+          "candidate_s3_requests": 64,
+          "candidate_success_per_second": 92.83191102975722,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -4.681958576303879,
+          "offered_per_candidate": 64
+        },
+        "write_multi": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 64,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 627.852797,
+            "p50": 340.16092,
+            "p95": 534.340663,
+            "p99": 627.852797,
+            "samples": 64
+          },
+          "baseline_s3_requests": 1152,
+          "baseline_success_per_second": 10.737803451269285,
+          "candidate_request_latency_ms": {
+            "maximum": 801.917376,
+            "p50": 460.188014,
+            "p95": 710.358618,
+            "p99": 801.917376,
+            "samples": 64
+          },
+          "candidate_s3_requests": 1088,
+          "candidate_success_per_second": 8.160720874544612,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -24.000090785979534,
+          "offered_per_candidate": 64
+        },
+        "write_same": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 64,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 1037.126853,
+            "p50": 744.670179,
+            "p95": 979.133456,
+            "p99": 1037.126853,
+            "samples": 64
+          },
+          "baseline_s3_requests": 1267,
+          "baseline_success_per_second": 5.215922984325687,
+          "candidate_request_latency_ms": {
+            "maximum": 1051.721888,
+            "p50": 616.955058,
+            "p95": 933.962008,
+            "p99": 1051.721888,
+            "samples": 64
+          },
+          "candidate_s3_requests": 1203,
+          "candidate_success_per_second": 5.808069373810899,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": 11.352667423669116,
+          "offered_per_candidate": 64
+        },
+        "write_seq": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 32,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 267.445629,
+            "p50": 148.787077,
+            "p95": 227.634368,
+            "p99": 267.445629,
+            "samples": 32
+          },
+          "baseline_s3_requests": 593,
+          "baseline_success_per_second": 6.3799735501249675,
+          "candidate_request_latency_ms": {
+            "maximum": 276.61379,
+            "p50": 141.805683,
+            "p95": 202.344236,
+            "p99": 276.61379,
+            "samples": 32
+          },
+          "candidate_s3_requests": 561,
+          "candidate_success_per_second": 6.716988791993249,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": 5.282392461669061,
+          "offered_per_candidate": 32
+        }
+      },
+      "execution": {
+        "bytes": 2723,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/execution01/result.json",
+        "sha256": "eb9df20975a21791e5a81f8d079daa26943f5c85408f068ccecb884443a2f452"
+      },
+      "limits": [
+        "single paired local instrumented closed-loop sample",
+        "not AWS",
+        "not production SLO",
+        "no hard resource bound",
+        "no MVCC/group commit/lazy VFS claim",
+        "One ordered baseline-then-candidate pair, no randomized crossover or repeated-sample confidence interval.",
+        "Same fixed schema, SQL structure, workload cardinality and payload sizes; original fixture generates fresh random BLOB bytes separately for each run.",
+        "Latency includes local proxy, evidence writes and service queue; host load can vary even with all owned heavy work serialized.",
+        "Frame classification supplements two completed original oracles and complete original controls; it is not a replacement correctness oracle.",
+        "Counts demonstrate the removed round trip; rates are observations from this pair and are not a causal production speedup guarantee."
+      ],
+      "plan": {
+        "bytes": 2868,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/paired-plan.json",
+        "sha256": "d41431fad9cf7d7e5c783948746bdc624fda5b8333efd09615c66d807c8b18fb"
+      },
+      "run_order": [
+        "baseline",
+        "candidate"
+      ],
+      "scopes": {
+        "baseline": {
+          "actual_summary": {
+            "bytes": 274,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/actual/summary.json",
+            "sha256": "6898959413a3296b47ea104d0c3f7e73d72abc6a382664ce0aeb3f9394bb16aa"
+          },
+          "cold_recovery": {
+            "database_pages": 8258,
+            "downloaded_dependencies": 281,
+            "gate_hold_ms": 697.068552,
+            "hot_control_calls": 11,
+            "open_ms": 2718.669335,
+            "user_bytes": 33554432
+          },
+          "controls": {
+            "bytes": 1336,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/controls/controls.json",
+            "sha256": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353"
+          },
+          "fixture_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "frame_typed_measured_counts": {
+            "read_multi": {
+              "GET:head": 64
+            },
+            "read_same": {
+              "GET:head": 64
+            },
+            "write_multi": {
+              "GET:chunk": 128,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 192,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 64,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_same": {
+              "GET:chunk": 204,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 192,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 103,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_seq": {
+              "GET:chunk": 75,
+              "GET:head": 32,
+              "GET:index": 96,
+              "GET:manifest": 96,
+              "GET:node": 64,
+              "GET:result": 32,
+              "PUT:chunk": 38,
+              "PUT:head": 32,
+              "PUT:index": 32,
+              "PUT:manifest": 32,
+              "PUT:node": 32,
+              "PUT:result": 32
+            }
+          },
+          "http_posts": 871,
+          "independent_oracle": {
+            "bytes": 5387,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/commands/003-load-independent-oracle/stdout",
+            "sha256": "67cc29e645d9abc89d2e0ec3b11b0810edc668ab53d3da6f5e0691b555127eaa"
+          },
+          "inputs": {
+            "bytes": 32513,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/actual/inputs.json",
+            "sha256": "1d89a4f0331cb1bf41de761ca58ba6db5d020b6e0423e8252ed5428939900cb6"
+          },
+          "negative_controls": 14,
+          "official_binary": {
+            "path": "/workspace/scratch/47b68d41143d/validation/build-targets/b15-service-release/release/scapd",
+            "sha256": "7d349e94f875ab445aff4c1570bc3f46765590b547f727684662c539861e1a83"
+          },
+          "original_outcomes": {
+            "rejected": 1,
+            "success": 870
+          },
+          "original_result": {
+            "bytes": 7530,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/result.json",
+            "sha256": "60b490cfcae342747dcb1c9e4cdd28d79af24507858562b94324a3ca3d0fea5a"
+          },
+          "original_results": {
+            "ack_observations": 690,
+            "measured_write_resolutions": {
+              "committed": 160
+            },
+            "original_committed": 185,
+            "verified_rows": {
+              "cold": 512,
+              "hot": 1,
+              "m0": 16,
+              "m1": 16,
+              "m2": 16,
+              "m3": 16,
+              "same": 64,
+              "seq": 32
+            }
+          },
+          "original_s3_authority": {
+            "accepted_versions": 1462,
+            "ambiguous_http_intervals": 0,
+            "blackholed_before_forward": 0,
+            "causal_constraints": 5198,
+            "conditional_put_responses": 1462,
+            "exact_get_body_etag_pairs": 4804,
+            "http_interval_binding": "NOT_REQUESTED"
+          },
+          "positive_controls": 3,
+          "resources": [
+            {
+              "first_sample_delay_ms": 1.599623,
+              "hard_peak_or_limit_proved": false,
+              "instance": 1,
+              "kernel_lifetime_maxrss_bytes": 73441280,
+              "last_sample_to_exit_ms": 174.801825,
+              "maximum_sample_collection_ms": 62.622143,
+              "maximum_sample_gap_ms": 162.893358,
+              "observed_hwm_decreases": 13,
+              "sampled_backend_allocated_peak_bytes": 55095296,
+              "sampled_backend_logical_peak_bytes": 54902152,
+              "sampled_cache_allocated_peak_bytes": 34914304,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 49,
+              "sampled_hwm_max_bytes": 74403840,
+              "sampled_rss_peak_bytes": 74403840,
+              "sampled_thread_peak": 15,
+              "samples": 364
+            },
+            {
+              "first_sample_delay_ms": 2.443876,
+              "hard_peak_or_limit_proved": false,
+              "instance": 2,
+              "kernel_lifetime_maxrss_bytes": 58617856,
+              "last_sample_to_exit_ms": 93.3175,
+              "maximum_sample_collection_ms": 44.18899,
+              "maximum_sample_gap_ms": 146.872827,
+              "observed_hwm_decreases": 3,
+              "sampled_backend_allocated_peak_bytes": 56369152,
+              "sampled_backend_logical_peak_bytes": 56169626,
+              "sampled_cache_allocated_peak_bytes": 34885632,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 41,
+              "sampled_hwm_max_bytes": 58986496,
+              "sampled_rss_peak_bytes": 58986496,
+              "sampled_thread_peak": 15,
+              "samples": 208
+            }
+          ],
+          "runtime_build_sha256": "d95a682e8fc69b98af044f9c48d9bcee78f6622f57885c9e6989325174708608",
+          "runtime_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "s3_ledger": {
+            "bytes": 25602107,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/actual/s3.jsonl",
+            "sha256": "43e15391f3cf08bbdc88f9c0970708b518bc3ef589d5d2d9f9bd672f2a917754"
+          },
+          "s3_requests": 6266,
+          "source_fingerprint": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+          "source_manifest": {
+            "bytes": 190780,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/source-before.json",
+            "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+          },
+          "workload": {
+            "bytes": 397449,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline01/actual/workload.json",
+            "sha256": "ace9b1e26c3d3d779965729674837d82847cb5ad2cfeadb82eb214634ff96385"
+          }
+        },
+        "candidate": {
+          "actual_summary": {
+            "bytes": 275,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/actual/summary.json",
+            "sha256": "c1a71d4e8de5b59bbac6b4ee482b3993b31b058050914146be2f5a22caab6262"
+          },
+          "cold_recovery": {
+            "database_pages": 8258,
+            "downloaded_dependencies": 281,
+            "gate_hold_ms": 399.912164,
+            "hot_control_calls": 11,
+            "open_ms": 2874.75966,
+            "user_bytes": 33554432
+          },
+          "controls": {
+            "bytes": 1336,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/controls/controls.json",
+            "sha256": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353"
+          },
+          "fixture_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "frame_typed_measured_counts": {
+            "read_multi": {
+              "GET:head": 64
+            },
+            "read_same": {
+              "GET:head": 64
+            },
+            "write_multi": {
+              "GET:chunk": 128,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 128,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 64,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_same": {
+              "GET:chunk": 204,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 128,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 103,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_seq": {
+              "GET:chunk": 75,
+              "GET:head": 32,
+              "GET:index": 96,
+              "GET:manifest": 64,
+              "GET:node": 64,
+              "GET:result": 32,
+              "PUT:chunk": 38,
+              "PUT:head": 32,
+              "PUT:index": 32,
+              "PUT:manifest": 32,
+              "PUT:node": 32,
+              "PUT:result": 32
+            }
+          },
+          "http_posts": 871,
+          "independent_oracle": {
+            "bytes": 5383,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/commands/003-load-independent-oracle/stdout",
+            "sha256": "88a59d2f76befb36cf54e0e8176379ef9a30e8a915a137f2fbf9e63a32469e6d"
+          },
+          "inputs": {
+            "bytes": 32640,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/actual/inputs.json",
+            "sha256": "79851c7b10bc8d31182549c7d9ca9a3d601d3aa3ffa8f09e38d047aaf24c5cdc"
+          },
+          "negative_controls": 14,
+          "official_binary": {
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-service-target-fd508/release/scapd",
+            "sha256": "445e91d6b796a61e60baba900355684bac48603b7087d82c54315b1b4b4e427c"
+          },
+          "original_outcomes": {
+            "rejected": 1,
+            "success": 870
+          },
+          "original_result": {
+            "bytes": 7633,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/result.json",
+            "sha256": "6f0c6655df7ba38987935e8beb38ab66287ec2b838cb5ce336d0aad4cce4e07b"
+          },
+          "original_results": {
+            "ack_observations": 690,
+            "measured_write_resolutions": {
+              "committed": 160
+            },
+            "original_committed": 185,
+            "verified_rows": {
+              "cold": 512,
+              "hot": 1,
+              "m0": 16,
+              "m1": 16,
+              "m2": 16,
+              "m3": 16,
+              "same": 64,
+              "seq": 32
+            }
+          },
+          "original_s3_authority": {
+            "accepted_versions": 1462,
+            "ambiguous_http_intervals": 0,
+            "blackholed_before_forward": 0,
+            "causal_constraints": 5013,
+            "conditional_put_responses": 1462,
+            "exact_get_body_etag_pairs": 4619,
+            "http_interval_binding": "NOT_REQUESTED"
+          },
+          "positive_controls": 3,
+          "resources": [
+            {
+              "first_sample_delay_ms": 5.130295,
+              "hard_peak_or_limit_proved": false,
+              "instance": 1,
+              "kernel_lifetime_maxrss_bytes": 77312000,
+              "last_sample_to_exit_ms": 70.28263,
+              "maximum_sample_collection_ms": 80.427684,
+              "maximum_sample_gap_ms": 180.954187,
+              "observed_hwm_decreases": 7,
+              "sampled_backend_allocated_peak_bytes": 56303616,
+              "sampled_backend_logical_peak_bytes": 56100181,
+              "sampled_cache_allocated_peak_bytes": 34914304,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 48,
+              "sampled_hwm_max_bytes": 77987840,
+              "sampled_rss_peak_bytes": 77987840,
+              "sampled_thread_peak": 15,
+              "samples": 382
+            },
+            {
+              "first_sample_delay_ms": 0.71343,
+              "hard_peak_or_limit_proved": false,
+              "instance": 2,
+              "kernel_lifetime_maxrss_bytes": 59056128,
+              "last_sample_to_exit_ms": 51.821197,
+              "maximum_sample_collection_ms": 114.54195,
+              "maximum_sample_gap_ms": 253.651485,
+              "observed_hwm_decreases": 2,
+              "sampled_backend_allocated_peak_bytes": 56303616,
+              "sampled_backend_logical_peak_bytes": 56100721,
+              "sampled_cache_allocated_peak_bytes": 34889728,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 41,
+              "sampled_hwm_max_bytes": 59277312,
+              "sampled_rss_peak_bytes": 59277312,
+              "sampled_thread_peak": 15,
+              "samples": 233
+            }
+          ],
+          "runtime_build_sha256": "8d02d474ca342f0eafec253eac4a184b62bad1fd8b84bf663b00138ad5d04d10",
+          "runtime_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "s3_ledger": {
+            "bytes": 24837234,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/actual/s3.jsonl",
+            "sha256": "bd5133610c725eb2b2f06860fdbc3b5cf522d32ca535e59d338d7e1c0bb7afaa"
+          },
+          "s3_requests": 6081,
+          "source_fingerprint": "c43a4af430cf9a0c2b6265cfd347feab676f68b6719d57e2cd0a5bfdb1336f80",
+          "source_manifest": {
+            "bytes": 191325,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/source-before.json",
+            "sha256": "1b0c248edb634304df56cabd416457f48a9e7850d1eba662f9d1e19644b50865"
+          },
+          "workload": {
+            "bytes": 397449,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate01/actual/workload.json",
+            "sha256": "ff269d9dcf05821e6f7eacfca19fcce225ac66af4604710e3c9452d3f61fd3ba"
+          }
+        }
+      }
+    },
+    {
+      "comparison": {
+        "bytes": 33148,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/comparison02.json",
+        "sha256": "197ce2c611a00bead23fc028257ba9154e345cbd138250835633293e4d92d58e"
+      },
+      "comparisons": {
+        "read_multi": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:head": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 99.905363,
+            "p50": 30.886976,
+            "p95": 74.897838,
+            "p99": 99.905363,
+            "samples": 64
+          },
+          "baseline_s3_requests": 64,
+          "baseline_success_per_second": 106.68058172614508,
+          "candidate_request_latency_ms": {
+            "maximum": 129.392295,
+            "p50": 31.963307,
+            "p95": 105.31065,
+            "p99": 129.392295,
+            "samples": 64
+          },
+          "candidate_s3_requests": 64,
+          "candidate_success_per_second": 95.73140185856383,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -10.263517212240558,
+          "offered_per_candidate": 64
+        },
+        "read_same": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:head": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 92.745018,
+            "p50": 33.000796,
+            "p95": 73.295024,
+            "p99": 92.745018,
+            "samples": 64
+          },
+          "baseline_s3_requests": 64,
+          "baseline_success_per_second": 105.1116413653995,
+          "candidate_request_latency_ms": {
+            "maximum": 89.71921,
+            "p50": 30.012423,
+            "p95": 71.829298,
+            "p99": 89.71921,
+            "samples": 64
+          },
+          "candidate_s3_requests": 64,
+          "candidate_success_per_second": 108.49509048611756,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": 3.2189099863412673,
+          "offered_per_candidate": 64
+        },
+        "write_multi": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 64,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 395.345958,
+            "p50": 315.456646,
+            "p95": 367.213731,
+            "p99": 395.345958,
+            "samples": 64
+          },
+          "baseline_s3_requests": 1152,
+          "baseline_success_per_second": 12.271821229087626,
+          "candidate_request_latency_ms": {
+            "maximum": 1191.489571,
+            "p50": 356.651142,
+            "p95": 1097.600895,
+            "p99": 1191.489571,
+            "samples": 64
+          },
+          "candidate_s3_requests": 1088,
+          "candidate_success_per_second": 9.262339181342492,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -24.523516041871808,
+          "offered_per_candidate": 64
+        },
+        "write_same": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 64,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 877.848786,
+            "p50": 602.954536,
+            "p95": 838.837521,
+            "p99": 877.848786,
+            "samples": 64
+          },
+          "baseline_s3_requests": 1267,
+          "baseline_success_per_second": 6.355882704596744,
+          "candidate_request_latency_ms": {
+            "maximum": 1242.443609,
+            "p50": 717.73349,
+            "p95": 1062.277439,
+            "p99": 1242.443609,
+            "samples": 64
+          },
+          "candidate_s3_requests": 1203,
+          "candidate_success_per_second": 5.537877858169521,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -12.870043146573796,
+          "offered_per_candidate": 64
+        },
+        "write_seq": {
+          "baseline_minus_candidate_request_counts": {
+            "GET:chunk": 0,
+            "GET:head": 0,
+            "GET:index": 0,
+            "GET:manifest": 32,
+            "GET:node": 0,
+            "GET:result": 0,
+            "PUT:chunk": 0,
+            "PUT:head": 0,
+            "PUT:index": 0,
+            "PUT:manifest": 0,
+            "PUT:node": 0,
+            "PUT:result": 0
+          },
+          "baseline_request_latency_ms": {
+            "maximum": 188.663239,
+            "p50": 117.394863,
+            "p95": 188.196448,
+            "p99": 188.663239,
+            "samples": 32
+          },
+          "baseline_s3_requests": 593,
+          "baseline_success_per_second": 7.837971585938248,
+          "candidate_request_latency_ms": {
+            "maximum": 298.666751,
+            "p50": 142.750814,
+            "p95": 257.44169,
+            "p99": 298.666751,
+            "samples": 32
+          },
+          "candidate_s3_requests": 561,
+          "candidate_success_per_second": 6.442052202898252,
+          "checks": {
+            "all_other_operation_counts_equal": true,
+            "manifest_get_delta_matches_original_new_executes": true,
+            "put_counts_equal": true,
+            "total_get_reduction_matches_manifest_reduction": true
+          },
+          "observed_rate_change_percent": -17.809702009437643,
+          "offered_per_candidate": 32
+        }
+      },
+      "execution": {
+        "bytes": 2723,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/execution02/result.json",
+        "sha256": "18291d2643e4272af09d5e5044545137d30cae7fffc6a19648beadf81535bb6b"
+      },
+      "limits": [
+        "single paired local instrumented closed-loop sample",
+        "not AWS",
+        "not production SLO",
+        "no hard resource bound",
+        "no MVCC/group commit/lazy VFS claim",
+        "One adaptive reverse-order follow-up; first and second pair results both reported, no selection of the better run.",
+        "Fresh random payload bytes in each unmodified fixture; equal workload/cardinality/payload-size, not identical BLOB contents.",
+        "One adaptive candidate-then-baseline reverse-order pair; no repeated-sample confidence interval and not a new performance gate.",
+        "Same fixed schema, SQL structure, workload cardinality and payload sizes; original fixture generates fresh random BLOB bytes separately for each run.",
+        "Latency includes local proxy, evidence writes and service queue; host load can vary even with all owned heavy work serialized.",
+        "Frame classification supplements two completed original oracles and complete original controls; it is not a replacement correctness oracle.",
+        "Counts demonstrate the removed round trip; rates are observations from this pair and are not a causal production speedup guarantee."
+      ],
+      "plan": {
+        "bytes": 4689,
+        "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/reversed-plan.json",
+        "sha256": "7da2ec46319eb445465d1c127a4377f6025743194b721814b4374ab976f24190"
+      },
+      "run_order": [
+        "candidate",
+        "baseline"
+      ],
+      "scopes": {
+        "baseline": {
+          "actual_summary": {
+            "bytes": 274,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/actual/summary.json",
+            "sha256": "3229fb8a4f9394b289bad701559bf4317718ea7cb575330b8fb90ebc9b409e95"
+          },
+          "cold_recovery": {
+            "database_pages": 8258,
+            "downloaded_dependencies": 281,
+            "gate_hold_ms": 247.857742,
+            "hot_control_calls": 11,
+            "open_ms": 1916.126328,
+            "user_bytes": 33554432
+          },
+          "controls": {
+            "bytes": 1336,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/controls/controls.json",
+            "sha256": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353"
+          },
+          "fixture_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "frame_typed_measured_counts": {
+            "read_multi": {
+              "GET:head": 64
+            },
+            "read_same": {
+              "GET:head": 64
+            },
+            "write_multi": {
+              "GET:chunk": 128,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 192,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 64,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_same": {
+              "GET:chunk": 204,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 192,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 103,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_seq": {
+              "GET:chunk": 75,
+              "GET:head": 32,
+              "GET:index": 96,
+              "GET:manifest": 96,
+              "GET:node": 64,
+              "GET:result": 32,
+              "PUT:chunk": 38,
+              "PUT:head": 32,
+              "PUT:index": 32,
+              "PUT:manifest": 32,
+              "PUT:node": 32,
+              "PUT:result": 32
+            }
+          },
+          "http_posts": 871,
+          "independent_oracle": {
+            "bytes": 5383,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/commands/003-load-independent-oracle/stdout",
+            "sha256": "a4d4f7d255dd5cda96ebef779be93c06d2fc97c7efdb7d09c2e8f37724695076"
+          },
+          "inputs": {
+            "bytes": 32513,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/actual/inputs.json",
+            "sha256": "1d89a4f0331cb1bf41de761ca58ba6db5d020b6e0423e8252ed5428939900cb6"
+          },
+          "negative_controls": 14,
+          "official_binary": {
+            "path": "/workspace/scratch/47b68d41143d/validation/build-targets/b15-service-release/release/scapd",
+            "sha256": "7d349e94f875ab445aff4c1570bc3f46765590b547f727684662c539861e1a83"
+          },
+          "original_outcomes": {
+            "rejected": 1,
+            "success": 870
+          },
+          "original_result": {
+            "bytes": 7528,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/result.json",
+            "sha256": "258638a3dc6e8ad66b5749f462af421980c1c63d951e08393294a71189d7a677"
+          },
+          "original_results": {
+            "ack_observations": 690,
+            "measured_write_resolutions": {
+              "committed": 160
+            },
+            "original_committed": 185,
+            "verified_rows": {
+              "cold": 512,
+              "hot": 1,
+              "m0": 16,
+              "m1": 16,
+              "m2": 16,
+              "m3": 16,
+              "same": 64,
+              "seq": 32
+            }
+          },
+          "original_s3_authority": {
+            "accepted_versions": 1462,
+            "ambiguous_http_intervals": 0,
+            "blackholed_before_forward": 0,
+            "causal_constraints": 5198,
+            "conditional_put_responses": 1462,
+            "exact_get_body_etag_pairs": 4804,
+            "http_interval_binding": "NOT_REQUESTED"
+          },
+          "positive_controls": 3,
+          "resources": [
+            {
+              "first_sample_delay_ms": 2.3488,
+              "hard_peak_or_limit_proved": false,
+              "instance": 1,
+              "kernel_lifetime_maxrss_bytes": 70254592,
+              "last_sample_to_exit_ms": 75.087092,
+              "maximum_sample_collection_ms": 33.256298,
+              "maximum_sample_gap_ms": 134.080737,
+              "observed_hwm_decreases": 4,
+              "sampled_backend_allocated_peak_bytes": 55107584,
+              "sampled_backend_logical_peak_bytes": 54909083,
+              "sampled_cache_allocated_peak_bytes": 34914304,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 49,
+              "sampled_hwm_max_bytes": 71045120,
+              "sampled_rss_peak_bytes": 71045120,
+              "sampled_thread_peak": 15,
+              "samples": 331
+            },
+            {
+              "first_sample_delay_ms": 2.297111,
+              "hard_peak_or_limit_proved": false,
+              "instance": 2,
+              "kernel_lifetime_maxrss_bytes": 58839040,
+              "last_sample_to_exit_ms": 123.770818,
+              "maximum_sample_collection_ms": 84.477516,
+              "maximum_sample_gap_ms": 187.212703,
+              "observed_hwm_decreases": 2,
+              "sampled_backend_allocated_peak_bytes": 56385536,
+              "sampled_backend_logical_peak_bytes": 56177575,
+              "sampled_cache_allocated_peak_bytes": 34885632,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 41,
+              "sampled_hwm_max_bytes": 59011072,
+              "sampled_rss_peak_bytes": 59011072,
+              "sampled_thread_peak": 15,
+              "samples": 219
+            }
+          ],
+          "runtime_build_sha256": "d95a682e8fc69b98af044f9c48d9bcee78f6622f57885c9e6989325174708608",
+          "runtime_commit": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+          "s3_ledger": {
+            "bytes": 25602107,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/actual/s3.jsonl",
+            "sha256": "912ba5a910ce150669e226f29aafb29028c8c2556678dd97068a3dc0f4b63efe"
+          },
+          "s3_requests": 6266,
+          "source_fingerprint": "9abb38b1ff0d7bd250161b56cb1cb23ba75efe96baa2d045789edbecd75f89c2",
+          "source_manifest": {
+            "bytes": 190780,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/source-before.json",
+            "sha256": "08fe07e1275328e7f0cd53062841fcee39e2896c8b1ade2bec18768d34d64fac"
+          },
+          "workload": {
+            "bytes": 397449,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/baseline02/actual/workload.json",
+            "sha256": "d686c1c394a7720fb6e41692c6cf750585db9536c76573f0e86efc3a8c165948"
+          }
+        },
+        "candidate": {
+          "actual_summary": {
+            "bytes": 275,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/actual/summary.json",
+            "sha256": "d95d39500cf9b9387db1b3f0040121753c7ad5ec72a146513b76b36ff0c9c978"
+          },
+          "cold_recovery": {
+            "database_pages": 8258,
+            "downloaded_dependencies": 281,
+            "gate_hold_ms": 658.827654,
+            "hot_control_calls": 11,
+            "open_ms": 2748.535226,
+            "user_bytes": 33554432
+          },
+          "controls": {
+            "bytes": 1336,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/controls/controls.json",
+            "sha256": "f9cf3dfeedcbfb11a24f8f1c26839de3d4c7f03a1a36533f9ab1dafc8f928353"
+          },
+          "fixture_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "frame_typed_measured_counts": {
+            "read_multi": {
+              "GET:head": 64
+            },
+            "read_same": {
+              "GET:head": 64
+            },
+            "write_multi": {
+              "GET:chunk": 128,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 128,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 64,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_same": {
+              "GET:chunk": 204,
+              "GET:head": 64,
+              "GET:index": 192,
+              "GET:manifest": 128,
+              "GET:node": 128,
+              "GET:result": 64,
+              "PUT:chunk": 103,
+              "PUT:head": 64,
+              "PUT:index": 64,
+              "PUT:manifest": 64,
+              "PUT:node": 64,
+              "PUT:result": 64
+            },
+            "write_seq": {
+              "GET:chunk": 75,
+              "GET:head": 32,
+              "GET:index": 96,
+              "GET:manifest": 64,
+              "GET:node": 64,
+              "GET:result": 32,
+              "PUT:chunk": 38,
+              "PUT:head": 32,
+              "PUT:index": 32,
+              "PUT:manifest": 32,
+              "PUT:node": 32,
+              "PUT:result": 32
+            }
+          },
+          "http_posts": 871,
+          "independent_oracle": {
+            "bytes": 5391,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/commands/003-load-independent-oracle/stdout",
+            "sha256": "35b31ad3ab0ba70464339bc79c6cda1e729de6bc257a8638d46b2675e970c0a3"
+          },
+          "inputs": {
+            "bytes": 32640,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/actual/inputs.json",
+            "sha256": "79851c7b10bc8d31182549c7d9ca9a3d601d3aa3ffa8f09e38d047aaf24c5cdc"
+          },
+          "negative_controls": 14,
+          "official_binary": {
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-service-target-fd508/release/scapd",
+            "sha256": "445e91d6b796a61e60baba900355684bac48603b7087d82c54315b1b4b4e427c"
+          },
+          "original_outcomes": {
+            "rejected": 1,
+            "success": 870
+          },
+          "original_result": {
+            "bytes": 7634,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/result.json",
+            "sha256": "3838ce0098a54bf71ecb0c75817f997c3f9d429466223b57b5c5f6f8cef79159"
+          },
+          "original_results": {
+            "ack_observations": 690,
+            "measured_write_resolutions": {
+              "committed": 160
+            },
+            "original_committed": 185,
+            "verified_rows": {
+              "cold": 512,
+              "hot": 1,
+              "m0": 16,
+              "m1": 16,
+              "m2": 16,
+              "m3": 16,
+              "same": 64,
+              "seq": 32
+            }
+          },
+          "original_s3_authority": {
+            "accepted_versions": 1462,
+            "ambiguous_http_intervals": 0,
+            "blackholed_before_forward": 0,
+            "causal_constraints": 5013,
+            "conditional_put_responses": 1462,
+            "exact_get_body_etag_pairs": 4619,
+            "http_interval_binding": "NOT_REQUESTED"
+          },
+          "positive_controls": 3,
+          "resources": [
+            {
+              "first_sample_delay_ms": 2.595867,
+              "hard_peak_or_limit_proved": false,
+              "instance": 1,
+              "kernel_lifetime_maxrss_bytes": 73523200,
+              "last_sample_to_exit_ms": 85.119445,
+              "maximum_sample_collection_ms": 55.276381,
+              "maximum_sample_gap_ms": 643.17078,
+              "observed_hwm_decreases": 10,
+              "sampled_backend_allocated_peak_bytes": 56303616,
+              "sampled_backend_logical_peak_bytes": 56101275,
+              "sampled_cache_allocated_peak_bytes": 34914304,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 49,
+              "sampled_hwm_max_bytes": 74092544,
+              "sampled_rss_peak_bytes": 74092544,
+              "sampled_thread_peak": 15,
+              "samples": 376
+            },
+            {
+              "first_sample_delay_ms": 0.504558,
+              "hard_peak_or_limit_proved": false,
+              "instance": 2,
+              "kernel_lifetime_maxrss_bytes": 59015168,
+              "last_sample_to_exit_ms": 111.966467,
+              "maximum_sample_collection_ms": 2852.41809,
+              "maximum_sample_gap_ms": 3217.097632,
+              "observed_hwm_decreases": 1,
+              "sampled_backend_allocated_peak_bytes": 56303616,
+              "sampled_backend_logical_peak_bytes": 56101815,
+              "sampled_cache_allocated_peak_bytes": 34885632,
+              "sampled_cache_logical_peak_bytes": 34885632,
+              "sampled_fd_peak": 41,
+              "sampled_hwm_max_bytes": 59064320,
+              "sampled_rss_peak_bytes": 59064320,
+              "sampled_thread_peak": 15,
+              "samples": 256
+            }
+          ],
+          "runtime_build_sha256": "8d02d474ca342f0eafec253eac4a184b62bad1fd8b84bf663b00138ad5d04d10",
+          "runtime_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+          "s3_ledger": {
+            "bytes": 24837234,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/actual/s3.jsonl",
+            "sha256": "1d914a3d2226db6e717a5972fb6acac514137b242810b7f677f80072fdd5d07e"
+          },
+          "s3_requests": 6081,
+          "source_fingerprint": "c43a4af430cf9a0c2b6265cfd347feab676f68b6719d57e2cd0a5bfdb1336f80",
+          "source_manifest": {
+            "bytes": 191325,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/source-before.json",
+            "sha256": "1b0c248edb634304df56cabd416457f48a9e7850d1eba662f9d1e19644b50865"
+          },
+          "workload": {
+            "bytes": 397449,
+            "path": "/workspace/scratch/47b68d41143d/validation/manifest-runtime-fd508-20261113/paired-load/candidate02/actual/workload.json",
+            "sha256": "ec96aef937a3adf4998549beb75b96f50dd1abbff2c2a2d05fa960ff24aee34b"
+          }
+        }
+      }
+    }
+  ],
+  "positive_checks_per_actual": 3,
+  "production_slo_passed": false,
+  "production_static_cost_review": {
+    "bytes": 17135,
+    "path": "/workspace/scratch/47b68d41143d/validation/manifest-static-cost-review-20261113.json",
+    "sha256": "a9fe3b9bd12162203729dabe14c6e6007c965c7abb82354189c649262eeac571"
+  },
+  "profile_status": "NOT_RUN",
+  "read_only_proxy_timing_observation": {
+    "actual_scope_count": 4,
+    "additional_actuals": 0,
+    "clock_boundary": {
+      "authentication": "The observer checks and records signing-field shape/hashes; complete SigV4 MAC authentication is performed by the backend.",
+      "definition": "request event monotonic timestamp to response event monotonic timestamp. Includes subsequent logging, forwarding/backend and response body persistence. Excludes earlier request receipt, body reading/hashing/persistence and signing-field parsing.",
+      "not_claimed": [
+        "complete proxy processing time",
+        "product dispatch time",
+        "pure S3 service latency"
+      ],
+      "source_commit": "fd508cc052c21dba0e3c54b8e8e82d11c167777a",
+      "source_file": "experiments/object-load/support.py"
+    },
+    "head_wire_body_byte_lengths": {
+      "baseline01": {
+        "read_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 768
+        },
+        "read_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 769
+        },
+        "write_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 759
+        },
+        "write_multi:PUT": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 761
+        },
+        "write_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_same:PUT": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 761
+        },
+        "write_seq:GET": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_seq:PUT": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 761
+        }
+      },
+      "baseline02": {
+        "read_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 768
+        },
+        "read_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 769
+        },
+        "write_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 759
+        },
+        "write_multi:PUT": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 761
+        },
+        "write_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_same:PUT": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 761
+        },
+        "write_seq:GET": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_seq:PUT": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 761
+        }
+      },
+      "candidate01": {
+        "read_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 768
+        },
+        "read_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 769
+        },
+        "write_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 759
+        },
+        "write_multi:PUT": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 761
+        },
+        "write_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_same:PUT": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 761
+        },
+        "write_seq:GET": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_seq:PUT": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 761
+        }
+      },
+      "candidate02": {
+        "read_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 768
+        },
+        "read_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 769
+        },
+        "write_multi:GET": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 759
+        },
+        "write_multi:PUT": {
+          "count": 64,
+          "maximum": 768,
+          "minimum": 761
+        },
+        "write_same:GET": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_same:PUT": {
+          "count": 64,
+          "maximum": 769,
+          "minimum": 761
+        },
+        "write_seq:GET": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 759
+        },
+        "write_seq:PUT": {
+          "count": 32,
+          "maximum": 769,
+          "minimum": 761
+        }
+      }
+    },
+    "limits": [
+      "No new actual, profiler, SQL execution or benchmark; read-only analysis of four completed original histories.",
+      "Clock intervals are local proxy observations including its logging, network and backend handling; not pure S3 service latency.",
+      "Concurrent per-request intervals overlap; their sums are not phase wall time or additive causal shares.",
+      "No product CPU stacks, allocation samples, SQLite or actor-queue decomposition were collected.",
+      "Correlation with slower phases cannot establish whether proof CPU, host scheduling, proxy I/O or backend behavior caused a rate change."
+    ],
+    "record": {
+      "bytes": 31425,
+      "path": "validation/manifest-runtime-fd508-20261113/paired-load/proxy-timing-observation.json",
+      "sha256": "ddcf2257b84ead3745a397656e608932b34473387018d432ed0dc54778a561bc"
+    },
+    "script": {
+      "bytes": 4950,
+      "path": "validation/inspect_paired_proxy_timings_v1.py",
+      "sha256": "7790e704e7a0e25f71d7d91909bc7011eb1773b97f2b157f6dfa1e728057b647"
+    },
+    "status": "EXISTING_PROXY_CLOCKS_ANALYZED"
+  },
+  "runtime_candidates": {
+    "baseline": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+    "candidate": "fd508cc052c21dba0e3c54b8e8e82d11c167777a"
+  },
+  "schema": 1,
+  "static_cost_findings": [
+    "Publication matches recomputes full original HEAD serialization plus SHA-256; original context creation already computed its fingerprint.",
+    "The new proof introduces two 64-character root copies; existing health checks and Knowledge lock call counts remain unchanged.",
+    "The removed GET also removes remote object reading, hashing and frame parsing. Net CPU/allocation effects are not measured.",
+    "Do not remove original HEAD/body/ETag, backend/lineage, Scope/generation, root, quota, health or deadline bindings to chase a timing number."
+  ],
+  "status": "ACTUAL_AND_ORIGINAL_CONTROLS_PASSED_REQUEST_REDUCTION_VERIFIED_THROUGHPUT_UNRESOLVED",
+  "strict_per_file_branch_coverage_closed": false,
+  "updated_utc": "2026-11-13"
+}

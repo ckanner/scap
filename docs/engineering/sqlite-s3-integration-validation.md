@@ -1,5 +1,12 @@
 # PR #59：SQLite on S3 组合验收
 
+> 2026-11-13 接续：执行环境已恢复，旧原件缺失的门禁正在重新采集；当前结果见
+> [本轮代码与验证](sqlite-s3-review-2026-11-13.md)。本轮发现并修复检查器允许单文件
+> branch 0/0 的缺口，严格逐文件覆盖门禁仍未满足，PR 继续 Draft；见
+> [测量说明](branch-coverage-measurement-gap.md)。以下保留 11–12 日的原计划与历史结果，
+> 其中“环境不可用”“只余两项”及旧 checker PASS 不代表当前状态。
+
+
 复核更新：2026-11-12（UTC）。本组合的主线基准是 HEAD7 `fab8ca0`。
 [PR #59](https://github.com/ckanner/scap/pull/59) 的组合提交 `fc10287` 同时保留
 #56 `1d709db`、#57 `df922b95`、#58 `4216523` 的 ancestry、实现和原证据；
