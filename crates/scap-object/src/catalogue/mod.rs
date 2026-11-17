@@ -391,6 +391,9 @@ impl Catalogue {
         // cannot be paired with a previously observed absent/Provisioning HEAD.
         let proof = self.read_proof(source, deadline)?;
         let head = self.read_slot(&source.creation.scope, deadline)?;
+        if head.is_none() {
+            self.verify_absent_restore_head(source, deadline)?;
+        }
         // Records across keys are not an atomic snapshot. A monotonic name
         // revision and this second exact GET distinguish a changing name from
         // a corrupt stable relationship; no failed candidate is rebased here.

@@ -424,3 +424,53 @@ fn copy_budget_and_filesystem_failures_release_actual_resources_without_publishi
         "INVALID"
     );
 }
+
+#[test]
+fn metadata_failures_preserve_restore_identity_without_allocating_copy_resources() {
+    let (objects, control, mut worker, directory, prepared) = fixture();
+    let reference = &prepared["reference"];
+    let mut prepare = prepared["input"].clone();
+    prepare["version"] = json!(1);
+    prepare["operation"] = json!("prepare_restore");
+    let inspect =
+        json!({"version":1,"operation":"inspect_restore","creator":"3","restore_operation":"8"});
+    let abort = json!({"version":1,"operation":"abort_restore","reference":reference,
+        "control_operation":"10","expected_name_revision":"1","nonce":"11"});
+    let original = objects.values.lock().unwrap().clone();
+    for request in [prepare, inspect.clone(), abort] {
+        objects.calls.lock().unwrap().clear();
+        *objects.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+        assert_eq!(
+            control
+                .execute(&principal(), call(request), until())
+                .unwrap_err()
+                .code,
+            "UNKNOWN"
+        );
+        assert_eq!(objects.calls.lock().unwrap().len(), 1);
+        assert_eq!(*objects.values.lock().unwrap(), original);
+    }
+
+    // Inspection succeeds at NotReserved; the subsequent metadata PUT returns
+    // UNKNOWN. No copy permit or native image was ever needed.
+    *objects.fail_put.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+    assert_eq!(
+        worker
+            .execute(&principal(), resume(reference), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    assert_eq!(*objects.values.lock().unwrap(), original);
+    let observed = control
+        .execute(&principal(), call(inspect), until())
+        .unwrap();
+    assert_eq!(observed["phase"], "not_reserved");
+    assert_eq!(observed["prepared"], prepared);
+    assert_eq!(worker.staging.usage.lock().unwrap().total, 0);
+    assert_eq!(worker.recovery.available_permits(), 1);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}

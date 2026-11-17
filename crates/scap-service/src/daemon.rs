@@ -51,12 +51,15 @@ pub fn assemble_with_storage(
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
-    if let Some(restore) = &prepared.restore {
-        if prepared.catalogue.is_none() {
-            return Err(Failure::new("CONFIG"));
+    let restore = match &prepared.restore {
+        Some(restore) => {
+            if prepared.catalogue.is_none() {
+                return Err(Failure::new("CONFIG"));
+            }
+            Some(restore.prepare()?)
         }
-        restore.validate()?;
-    }
+        None => None,
+    };
     let collector = match prepared.gc_deployment {
         Some(deployment) => {
             if deployment == 0 {
@@ -85,18 +88,15 @@ pub fn assemble_with_storage(
         None => None,
     };
     let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
-    let restore = match prepared.restore {
+    let restore = match restore {
         Some(profile) => {
-            let intake = Arc::new(profile.admission.build_for_class(Class::Recovery)?);
-            let staging = Arc::new(crate::restore::Pool::new(
-                profile.max_staging_bytes,
-                profile.max_staging_bytes_per_tenant,
-            )?);
+            let intake = Arc::new(profile.intake);
+            let staging = Arc::new(profile.staging);
             let objects = objects.clone();
             let options = options.clone();
             let directory = prepared.cache_directory.clone();
             let recovery = recovery.clone();
-            let budget = profile.budget.native()?;
+            let budget = profile.budget;
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
                 Ok(Box::new(crate::restore::Worker::new(
                     objects.clone(),
@@ -111,14 +111,14 @@ pub fn assemble_with_storage(
             Some(RestoreState {
                 pool: CatalogueState {
                     scheduler: Arc::new(crate::catalogue_scheduler::Scheduler::new_recovery(
-                        profile.admission.limits(),
+                        profile.limits,
                         factory,
                     )?),
-                    max_body_bytes: profile.admission.max_body_bytes,
-                    timeout: Duration::from_millis(profile.admission.timeout_ms),
+                    max_body_bytes: profile.max_body_bytes,
+                    timeout: profile.timeout,
                     intake,
                 },
-                timeout: Duration::from_millis(profile.recovery_timeout_ms),
+                timeout: profile.recovery_timeout,
             })
         }
         None => None,

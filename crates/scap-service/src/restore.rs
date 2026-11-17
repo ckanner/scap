@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use scap_object::{catalogue as core, Options};
 use scap_object_store::Objects;
@@ -18,6 +18,7 @@ use tokio::sync::Semaphore;
 use crate::{
     auth::Principal,
     catalogue_wire::{Call, NativeAction},
+    intake::{Class, Intake},
     Failure,
 };
 
@@ -63,15 +64,40 @@ impl Budget {
 
 impl Profile {
     pub fn validate(&self) -> Result<(), Failure> {
-        self.admission.limits().validate()?;
-        self.admission
-            .build_for_class(crate::intake::Class::Recovery)?;
-        self.budget.native()?;
+        self.prepare().map(|_| ())
+    }
+
+    /// Resolve every local limit before startup consumes an identity or starts
+    /// workers. Assembly later consumes these exact checked resources.
+    pub(crate) fn prepare(&self) -> Result<PreparedProfile, Failure> {
+        let limits = self.admission.limits();
+        limits.validate()?;
+        let intake = self.admission.build_for_class(Class::Recovery)?;
+        let budget = self.budget.native()?;
         if !(self.admission.timeout_ms..=604800000).contains(&self.recovery_timeout_ms) {
             return Err(Failure::new("CONFIG"));
         }
-        Pool::new(self.max_staging_bytes, self.max_staging_bytes_per_tenant).map(|_| ())
+        let staging = Pool::new(self.max_staging_bytes, self.max_staging_bytes_per_tenant)?;
+        Ok(PreparedProfile {
+            limits,
+            intake,
+            staging,
+            budget,
+            max_body_bytes: self.admission.max_body_bytes,
+            timeout: Duration::from_millis(self.admission.timeout_ms),
+            recovery_timeout: Duration::from_millis(self.recovery_timeout_ms),
+        })
     }
+}
+
+pub(crate) struct PreparedProfile {
+    pub limits: crate::catalogue_scheduler::Limits,
+    pub intake: Intake,
+    pub staging: Pool,
+    pub budget: core::RestoreBudget,
+    pub max_body_bytes: usize,
+    pub timeout: Duration,
+    pub recovery_timeout: Duration,
 }
 
 #[derive(Default)]

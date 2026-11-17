@@ -388,6 +388,24 @@ impl Catalogue {
         Ok(record.map(|record| record.body))
     }
 
+    pub(super) fn verify_absent_restore_head(
+        &self,
+        source: &Source,
+        deadline: Instant,
+    ) -> Result<(), CatalogueError> {
+        if source.recipe.is_some() && self.read_completion(source, deadline)?.is_some() {
+            // A completion was formed only after an own Provisioning HEAD and
+            // a complete authorized copy. Its permanent HEAD cannot be rebuilt
+            // from absence. A legal concurrent provision/copy can appear after
+            // our first missing observation; recheck without adopting its ETag.
+            if self.read_slot(&source.creation.scope, deadline)?.is_some() {
+                return Err(CatalogueError::Conflict);
+            }
+            return Err(CatalogueError::Corrupt);
+        }
+        Ok(())
+    }
+
     pub(super) fn verify_restore_origin(
         &self,
         source: &Source,

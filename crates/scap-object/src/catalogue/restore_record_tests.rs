@@ -90,7 +90,7 @@ fn restore_descriptor_versions_and_every_recipe_binding_are_strict() {
         records::decode::<Descriptor>(source.bytes()).unwrap(),
         source
     );
-    for field in 0..13 {
+    for field in 0..15 {
         let mut invalid = source.raw().clone();
         match field {
             0 => invalid.format = 1,
@@ -115,7 +115,9 @@ fn restore_descriptor_versions_and_every_recipe_binding_are_strict() {
                     9 => point.source_revision = snapshot.capture_serial,
                     10 => *rewrap_version = 2,
                     11 => *native_format = 2,
-                    _ => snapshot_limits.max_points = 65,
+                    12 => snapshot_limits.max_points = 65,
+                    13 => source_scope.deployment += 1,
+                    _ => point.page_count = crate::format::MAX_PAGES,
                 }
             }
         }
@@ -327,7 +329,7 @@ fn head9_restore_origin_cannot_be_unbound_partial_or_downgraded() {
             .verify_restore_origin(&source, &erased, deadline()),
         Err(CatalogueError::Corrupt)
     );
-    let mut ready_copying = copied;
+    let mut ready_copying = copied.clone();
     ready_copying.restore_origin = copying.restore_origin;
     fixture.memory.set(
         &head_key(&ready_copying.scope),
@@ -357,6 +359,351 @@ fn head9_restore_origin_cannot_be_unbound_partial_or_downgraded() {
         fixture
             .catalogue
             .resolve(CREATOR, &prepared.reference.creation.name, deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+    let view = fixture.catalogue.view(&source, deadline()).unwrap();
+    let binding = view.binding.as_ref().unwrap();
+    let base = view.head.as_ref().unwrap();
+    assert_eq!(
+        fixture
+            .catalogue
+            .complete(&source, binding, base, deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+    assert_eq!(
+        fixture.catalogue.metadata_state(&source, &view, deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+    let cancellation = AbortCreate {
+        creation: prepared.reference.creation.clone(),
+        operation: 710,
+        expected_name_revision: 1,
+        nonce: 711,
+    };
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(CREATOR, &prepared.reference, &cancellation, deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+    fixture.memory.remove(&fixture.completion_key(&prepared));
+    let original = Snapshot {
+        head: copied,
+        etag: base.etag.clone(),
+    };
+    assert_eq!(
+        fixture
+            .catalogue
+            .complete(&source, binding, &original, deadline()),
+        Err(CatalogueError::Corrupt)
+    );
+}
+
+#[test]
+fn public_admission_and_internal_scope_bindings_reject_substituted_restore_authority() {
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    let source = fixture
+        .catalogue
+        .restore_descriptor(&prepared.reference, deadline())
+        .unwrap();
+    for field in 0..4 {
+        let mut input = fixture.input();
+        match field {
+            0 => input.name.clear(),
+            1 => input.source_scope.deployment += 1,
+            2 => input.source_scope.tenant += 1,
+            _ => {
+                input.operation += 1;
+                input.source_scope = records::derive_scope(1, 2, 7, input.operation).unwrap();
+            }
+        }
+        assert_eq!(
+            fixture
+                .catalogue
+                .prepare_restore(CREATOR, &input, deadline()),
+            Err(CatalogueError::Invalid)
+        );
+    }
+    for field in 0..2 {
+        let mut scope = scope();
+        if field == 0 {
+            scope.deployment += 1;
+        } else {
+            scope.tenant += 1;
+        }
+        assert!(matches!(
+            fixture.catalogue.restore_source_database(&scope),
+            Err(CatalogueError::Invalid)
+        ));
+    }
+    for (creator, operation) in [(8, 700), (7, 701)] {
+        assert_eq!(
+            fixture
+                .catalogue
+                .restore_existing(creator, operation, source.clone()),
+            Err(CatalogueError::Corrupt)
+        );
+    }
+    for field in 0..2 {
+        let mut record = source.raw().clone();
+        let Recipe::SnapshotRestore { source_scope, .. } = record.recipe.as_mut().unwrap();
+        if field == 0 {
+            source_scope.deployment += 1;
+        } else {
+            source_scope.tenant += 1;
+        }
+        record.creation.scope =
+            records::derive_scope(source_scope.deployment, source_scope.tenant, 7, 700).unwrap();
+        assert_eq!(
+            fixture
+                .catalogue
+                .restore_existing(7, 700, Canonical::new(record).unwrap()),
+            Err(CatalogueError::Corrupt)
+        );
+    }
+    assert_eq!(
+        fixture.catalogue.inspect_restore(CREATOR, 7, 0, deadline()),
+        Err(CatalogueError::Invalid)
+    );
+    assert_eq!(
+        fixture
+            .catalogue
+            .inspect_restore(CREATOR, 7, 999, deadline()),
+        Err(CatalogueError::NotFound)
+    );
+    assert_eq!(
+        fixture
+            .catalogue
+            .inspect_restore(CREATOR, 8, 700, deadline()),
+        Err(CatalogueError::Denied)
+    );
+    let mut denied = CREATOR;
+    denied.provision = false;
+    let path = fixture.directory.path().join("not-admitted");
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            denied,
+            &prepared.reference,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Denied)
+    );
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &path,
+            RestoreBudget {
+                source_gets: u64::MAX,
+                ..RestoreBudget::default()
+            },
+            deadline()
+        ),
+        Err(CatalogueError::Invalid)
+    );
+    let mut wrong = prepared.reference.clone();
+    wrong.descriptor_hash = digest(b"other valid hash");
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &wrong,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Conflict)
+    );
+    wrong.descriptor_hash.clear();
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &wrong,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Invalid)
+    );
+    let empty = fixture
+        .catalogue
+        .prepare(
+            CREATOR,
+            &PrepareCreate {
+                name: "empty".into(),
+                operation: 701,
+                expected_name_revision: None,
+                options: CreateOptions::default(),
+            },
+            deadline(),
+        )
+        .unwrap();
+    let empty = fixture
+        .catalogue
+        .descriptor(&empty.creation, deadline())
+        .unwrap();
+    let empty_ref = RestoreRef {
+        creation: empty.creation.clone(),
+        descriptor_hash: empty.hash().into(),
+    };
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &empty_ref,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Conflict)
+    );
+    assert_eq!(
+        fixture
+            .catalogue
+            .inspect_restore(CREATOR, 7, 701, deadline()),
+        Err(CatalogueError::Conflict)
+    );
+    let cancellation = AbortCreate {
+        creation: empty.creation.clone(),
+        operation: 710,
+        expected_name_revision: 1,
+        nonce: 711,
+    };
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(CREATOR, &prepared.reference, &cancellation, deadline()),
+        Err(CatalogueError::Conflict)
+    );
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(denied, &prepared.reference, &cancellation, deadline()),
+        Err(CatalogueError::Denied)
+    );
+    assert!(!path.exists());
+}
+
+#[test]
+fn completion_and_cold_open_bind_every_origin_field_and_preserve_metadata_failure_classes() {
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    for step in 0..3 {
+        fixture.resume(&prepared, step);
+    }
+    let source = fixture
+        .catalogue
+        .restore_descriptor(&prepared.reference, deadline())
+        .unwrap();
+    let copied = fixture
+        .catalogue
+        .read_slot(&prepared.reference.creation.scope, deadline())
+        .unwrap()
+        .unwrap()
+        .head;
+    for field in 0..6 {
+        let mut invalid = copied.clone();
+        let origin = invalid.restore_origin.as_mut().unwrap().as_mut().unwrap();
+        let RestoreCopyPhase::Copied {
+            completion_hash,
+            data_root,
+            page_count,
+        } = &mut origin.phase
+        else {
+            panic!()
+        };
+        match field {
+            0 => origin.descriptor_hash = digest(b"another descriptor"),
+            1 => *completion_hash = digest(b"other completion"),
+            2 => *data_root = digest(b"other import"),
+            3 => *page_count += 1,
+            4 => invalid.windows[0].root = digest(b"other requests"),
+            _ => invalid.restore_origin = Some(None),
+        }
+        assert_eq!(
+            fixture
+                .catalogue
+                .verify_restore_origin(&source, &invalid, deadline()),
+            Err(CatalogueError::Corrupt),
+            "field {field}"
+        );
+    }
+    let target = fixture.catalogue.database(&source);
+    for field in 0..3 {
+        let mut invalid = copied.clone();
+        match field {
+            0 => invalid.creation = None,
+            1 => invalid.scope.incarnation += 1,
+            _ => invalid.creation.as_mut().unwrap().descriptor_hash = digest(b"other origin"),
+        }
+        assert!(matches!(
+            Catalogue::verify_database_restore(&target, &invalid, deadline()),
+            Err(Error::Corrupt)
+        ));
+    }
+    for fault in [StoreError::Unknown, StoreError::Budget] {
+        fixture.memory.cut(
+            false,
+            &fixture.catalogue.descriptor_key(7, 700),
+            None,
+            0,
+            Fault::Before(fault.clone()),
+        );
+        let result = Catalogue::verify_database_restore(&target, &copied, deadline());
+        assert!(matches!(
+            (fault, result),
+            (StoreError::Unknown, Err(Error::Unknown)) | (StoreError::Budget, Err(Error::Limit))
+        ));
+    }
+    // Independent semantic validators reject malformed private callers too;
+    // the public full HEAD decoder often detects these common fields earlier.
+    let mut copying = copied.clone();
+    copying
+        .restore_origin
+        .as_mut()
+        .unwrap()
+        .as_mut()
+        .unwrap()
+        .phase = RestoreCopyPhase::Copying {};
+    for field in 0..5 {
+        let mut invalid = copying.clone();
+        match field {
+            0 => invalid.active = true,
+            1 => invalid.sequence = 1,
+            2 => invalid.request_epoch = 2,
+            3 => invalid.windows[0].count = 1,
+            _ => invalid.windows[0].result_bytes = 1,
+        }
+        assert!(crate::restore_format::validate_head(&invalid).is_err());
+    }
+    let mut without_origin = copying.clone();
+    without_origin.restore_origin = Some(None);
+    assert_eq!(
+        Catalogue::provisioning(&source, &without_origin),
+        Err(CatalogueError::Corrupt)
+    );
+    let empty = fixture
+        .catalogue
+        .prepare(
+            CREATOR,
+            &PrepareCreate {
+                name: "empty".into(),
+                operation: 701,
+                expected_name_revision: None,
+                options: CreateOptions::default(),
+            },
+            deadline(),
+        )
+        .unwrap();
+    let empty = fixture
+        .catalogue
+        .descriptor(&empty.creation, deadline())
+        .unwrap();
+    copying.scope = empty.creation.scope.clone();
+    copying.creation = Some(empty.origin());
+    assert_eq!(
+        Catalogue::provisioning(&empty, &copying),
         Err(CatalogueError::Corrupt)
     );
 }

@@ -54,6 +54,27 @@ fn assembly_validates_restore_before_io_and_builds_a_separate_bounded_pool() {
 }
 
 #[test]
+fn restore_worker_startup_rejects_cache_loss_without_starting_other_pools() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = prepared(directory.path()).service;
+    let profile = || {
+        serde_json::from_value::<crate::restore::Profile>(crate::restore::tests::profile()).unwrap()
+    };
+    config.catalogue = Some(profile().admission);
+    config.restore = Some(profile());
+    // The path was valid during configuration preparation, but is gone by
+    // actual worker construction. Startup must join the failed restore pool.
+    std::fs::remove_dir(directory.path()).unwrap();
+    let objects = Arc::new(Memory::default());
+    assert_eq!(
+        assemble(config, objects.clone()).err().unwrap().code,
+        "CACHE_IO"
+    );
+    assert!(objects.calls.lock().unwrap().is_empty());
+    assert!(!directory.path().exists());
+}
+
+#[test]
 fn output_validation_and_budgeted_factory_are_wired_into_actual_assembly() {
     use crate::output::{tests::usage, BASE_BYTES};
     let directory = tempfile::tempdir().unwrap();

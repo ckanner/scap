@@ -218,3 +218,49 @@ fn restore_authorization_prevents_cross_tenant_and_different_creator_adoption() 
         }
     }
 }
+
+#[test]
+fn restore_actions_reject_invalid_nested_native_values_before_dispatch() {
+    for (index, path, value) in [
+        (
+            0,
+            vec!["options", "quota"],
+            json!({"mode":"limited","max_bytes":"4097"}),
+        ),
+        (0, vec!["source_scope", "generation"], json!("0")),
+        (0, vec!["snapshot", "capture_serial"], json!("0")),
+        (
+            3,
+            vec!["reference", "descriptor_hash"],
+            json!("A".repeat(64)),
+        ),
+    ] {
+        let mut request = requests()[index].clone();
+        let mut target = &mut request;
+        for key in path {
+            target = &mut target[key];
+        }
+        *target = value;
+        assert_eq!(
+            parse(request.to_string().as_bytes()).unwrap_err().code,
+            "INVALID"
+        );
+    }
+
+    // Trusted Rust callers can construct a typed action without parse(). Its
+    // authorization boundary must still reject malformed source/target scopes.
+    for index in [0, 1, 3] {
+        let mut action = parse(requests()[index].to_string().as_bytes())
+            .unwrap()
+            .action;
+        let scope = match &mut action {
+            Action::PrepareRestore { source_scope, .. } => source_scope,
+            Action::ResumeRestore { reference } | Action::AbortRestore { reference, .. } => {
+                &mut reference.creation.scope
+            }
+            _ => panic!("fixture must carry a restore scope"),
+        };
+        scope.deployment.0 = 0;
+        assert_eq!(action.authorize(&principal()).unwrap_err().code, "INVALID");
+    }
+}

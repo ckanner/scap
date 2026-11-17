@@ -7,10 +7,16 @@ use crate::{request, Resolution};
 use scap_object_store::Stored;
 use scap_sql::{Statement, Value};
 
+#[path = "restore_consumer_tests.rs"]
+mod consumers;
 #[path = "restore_fault_tests.rs"]
 mod faults;
+#[path = "restore_interleaving_tests.rs"]
+mod interleavings;
 #[path = "restore_record_tests.rs"]
 mod records;
+#[path = "restore_transcode_tests.rs"]
+mod transcode;
 
 struct Quoted(Arc<Memory>);
 
@@ -51,6 +57,19 @@ struct Fixture {
 }
 
 impl Fixture {
+    fn fork(&self) -> Self {
+        let memory = self.memory.fork();
+        let objects = Arc::new(Quoted(memory.clone()));
+        Self {
+            memory,
+            source: Database::with_options(objects.clone(), scope(), 10, test_options()).unwrap(),
+            catalogue: Catalogue::new(objects.clone(), 1, 2, 11, test_options()).unwrap(),
+            objects,
+            snapshot: self.snapshot.clone(),
+            directory: tempfile::tempdir().unwrap(),
+        }
+    }
+
     fn new(data: bool) -> Self {
         let memory = Arc::new(Memory::default());
         let objects = Arc::new(Quoted(memory.clone()));

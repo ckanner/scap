@@ -507,3 +507,32 @@ fn release_during_an_admitted_copy_uses_accepted_proof_at_the_final_barrier() {
     );
     assert_eq!(fixture.resume(&prepared, 2).phase, RestorePhase::Copied);
 }
+
+#[test]
+fn released_prepare_and_in_progress_abort_do_not_create_new_authority() {
+    let fixture = Fixture::new(false);
+    fixture
+        .source
+        .snapshot_release(7, &fixture.snapshot.reference, deadline())
+        .unwrap();
+    assert_eq!(
+        fixture
+            .catalogue
+            .prepare_restore(CREATOR, &fixture.input(), deadline()),
+        Err(CatalogueError::Conflict)
+    );
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(CREATOR, &prepared.reference, &abort(&prepared), deadline())
+            .unwrap()
+            .phase,
+        AbortPhase::Aborting
+    );
+    fixture.memory.clear_calls();
+    assert_eq!(fixture.resume(&prepared, 4).phase, RestorePhase::Aborting);
+    assert!(fixture.memory.calls().iter().all(|call| !call.put));
+}
