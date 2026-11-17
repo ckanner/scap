@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use scap_object::format::MAX_OBJECT_BYTES;
 use scap_object_store::S3Config;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::{
     auth::{Authenticator, Credential},
@@ -26,7 +26,7 @@ pub struct Config {
     /// Ordinary /v1 encoding backings only; not other routes or process RSS.
     #[serde(default)]
     pub output: crate::output::Profile,
-    pub worker_instance: Decimal,
+    pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
     /// Missing GC credentials leave physical deletion unavailable.
@@ -39,6 +39,61 @@ pub struct Config {
     /// Per owner-resume payload reads; independent of output, quota and RSS.
     pub owner_recovery: Option<OwnerRecoveryConfig>,
     pub credentials: Vec<Credential>,
+}
+
+/// JSON keeps the existing canonical decimal strings and adds exactly "auto".
+/// The direct Rust API distinguishes selection from the final assigned number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkerInstance {
+    Explicit(u64),
+    Auto,
+}
+
+impl<'de> Deserialize<'de> for WorkerInstance {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        if text == "auto" {
+            return Ok(Self::Auto);
+        }
+        let number = text.parse::<u64>().map_err(serde::de::Error::custom)?;
+        if number.to_string() != text {
+            return Err(serde::de::Error::custom("noncanonical worker identity"));
+        }
+        Ok(Self::Explicit(number))
+    }
+}
+
+/// An automatic identity is resolved before deriving its startup-specific
+/// cursor codec. Key material is validated during configuration, never logged.
+pub enum PreparedDiscovery {
+    Ready(std::sync::Arc<crate::discovery_cursor::CursorCodec>),
+    Automatic {
+        master: [u8; 32],
+        namespace: [u8; 32],
+    },
+}
+
+impl PreparedDiscovery {
+    pub(crate) fn accepts(&self, worker: WorkerInstance) -> bool {
+        matches!(
+            (self, worker),
+            (Self::Ready(_), WorkerInstance::Explicit(_))
+                | (Self::Automatic { .. }, WorkerInstance::Auto)
+        )
+    }
+
+    pub(crate) fn bind(
+        self,
+        worker: u64,
+    ) -> Result<std::sync::Arc<crate::discovery_cursor::CursorCodec>, Failure> {
+        match self {
+            Self::Ready(codec) => Ok(codec),
+            Self::Automatic { master, namespace } => {
+                crate::discovery_cursor::CursorCodec::new(master, namespace, worker)
+                    .map(std::sync::Arc::new)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -193,11 +248,11 @@ pub struct ServiceConfig {
     pub listen: SocketAddr,
     pub transport: crate::transport::Profile,
     pub output: crate::output::Profile,
-    pub worker_instance: u64,
+    pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
-    pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
+    pub discovery: Option<PreparedDiscovery>,
     pub gc_deployment: Option<u64>,
     pub cache: Cache,
     pub auth: Authenticator,
@@ -263,7 +318,7 @@ impl Config {
         // a separately configured authenticated TLS reverse proxy.
         if self.version != 1
             || !self.listen.ip().is_loopback()
-            || self.worker_instance.0 == 0
+            || self.worker_instance == WorkerInstance::Explicit(0)
             || !self.cache_directory.is_absolute()
             || !self.cache_directory.is_dir()
             || self.cache.pages_per_actor == 0
@@ -362,11 +417,15 @@ impl Config {
                     &self.s3.region,
                     &self.s3.bucket,
                 );
-                Some(std::sync::Arc::new(create_cursor(
-                    key,
-                    namespace,
-                    self.worker_instance.0,
-                )?))
+                Some(match self.worker_instance {
+                    WorkerInstance::Explicit(worker) => PreparedDiscovery::Ready(
+                        std::sync::Arc::new(create_cursor(key, namespace, worker)?),
+                    ),
+                    WorkerInstance::Auto => PreparedDiscovery::Automatic {
+                        master: key,
+                        namespace,
+                    },
+                })
             }
             None => None,
         };
@@ -388,7 +447,7 @@ impl Config {
                 listen: self.listen,
                 transport: self.transport,
                 output: self.output,
-                worker_instance: self.worker_instance.0,
+                worker_instance: self.worker_instance,
                 cache_directory: self.cache_directory,
                 admission: self.admission,
                 catalogue: self.catalogue,

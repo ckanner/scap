@@ -21,7 +21,8 @@ impl Backend {
         let stop = Arc::new(AtomicBool::new(false));
         let stopped = stop.clone();
         let thread = std::thread::spawn(move || {
-            let mut objects = BTreeMap::<String, Vec<u8>>::new();
+            let mut objects = BTreeMap::<String, (String, Vec<u8>)>::new();
+            let mut revision = 0_u64;
             for connection in listener.incoming() {
                 let mut connection = connection.unwrap();
                 if stopped.load(Ordering::SeqCst) {
@@ -36,7 +37,10 @@ impl Backend {
                 let words: Vec<_> = request.split_whitespace().collect();
                 assert_eq!(words.len(), 3);
                 let (method, key) = (words[0], words[1]);
-                assert!(key.starts_with("/scap-test/scap-worker/v1/instances/"));
+                assert!(
+                    key.starts_with("/scap-test/scap-worker/v1/instances/")
+                        || key == "/scap-test/scap-worker/v1/allocator"
+                );
                 let mut headers = BTreeMap::new();
                 loop {
                     let mut line = String::new();
@@ -56,30 +60,42 @@ impl Backend {
                 let mut bytes = vec![0; length];
                 input.read_exact(&mut bytes).unwrap();
                 drop(input);
-                let (status, response) = match method {
+                let (status, response, etag) = match method {
                     "PUT" => {
-                        assert_eq!(headers["if-none-match"], "*");
-                        if objects.contains_key(key) {
+                        let accepted = match headers.get("if-none-match") {
+                            Some(value) => {
+                                assert_eq!(value, "*");
+                                !objects.contains_key(key)
+                            }
+                            None => objects
+                                .get(key)
+                                .is_some_and(|(etag, _)| headers.get("if-match") == Some(etag)),
+                        };
+                        if !accepted {
                             (
                                 "412 Precondition Failed",
                                 b"<Error><Code>PreconditionFailed</Code></Error>".to_vec(),
+                                String::new(),
                             )
                         } else {
-                            objects.insert(key.into(), bytes);
-                            ("200 OK", vec![])
+                            revision += 1;
+                            let etag = format!("\"version-{revision}\"");
+                            objects.insert(key.into(), (etag.clone(), bytes));
+                            ("200 OK", vec![], etag)
                         }
                     }
                     "GET" => match objects.get(key) {
-                        Some(bytes) => ("200 OK", bytes.clone()),
+                        Some((etag, bytes)) => ("200 OK", bytes.clone(), etag.clone()),
                         None => (
                             "404 Not Found",
                             b"<Error><Code>NoSuchKey</Code></Error>".to_vec(),
+                            String::new(),
                         ),
                     },
                     _ => panic!("unexpected startup request"),
                 };
                 write!(connection,
-                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nETag: \"instance\"\r\nLast-Modified: Tue, 17 Nov 2026 00:00:00 GMT\r\nConnection: close\r\n\r\n",
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nETag: {etag}\r\nLast-Modified: Tue, 17 Nov 2026 00:00:00 GMT\r\nConnection: close\r\n\r\n",
                     response.len()).unwrap();
                 connection.write_all(&response).unwrap();
             }

@@ -10,8 +10,9 @@
 `expected_worker_instance` 不能区分它们，HEAD 的 `owner_instance` 比较也无法识别
 它们属于不同启动。只增加随机数生成或本地文件锁不能证明不同主机永不误用同一身份。
 
-本实现保留显式配置数值，增加对象存储中的一次性占用。它是防止误复用的永久登记，
-不是自动编号分配器，也不是数据库所有权、租约或自动接管。
+本协议保留显式配置数值，并用对象存储中的一次性占用防止误复用。
+后续[自动编号分配](worker-instance-allocation.md)在它之前预留新数值，再执行完全相同的
+永久登记。登记本身不是数据库所有权、租约或自动接管。
 
 ## 2. 固定命名与协议
 
@@ -53,8 +54,8 @@ PUT 可能已成功的 UNKNOWN 会保留一条无人使用的 marker，这是保
 
 ## 3. 服务接入与原 fencing 的关系
 
-[`assemble_with_storage`](../../crates/scap-service/src/daemon.rs) 是共同接入点，
-`assemble`、`assemble_with_listings`、真实 `serve` 均经过这里。
+[`assemble_identified`](../../crates/scap-service/src/daemon.rs) 是共同接入点，
+`assemble`、`assemble_with_listings`、`assemble_with_storage` 和真实 `serve` 均经过这里。
 transport、output、Options、调度额度、三个 intake、catalogue、discovery/GC 能力、
 worker 数值、监听地址和缓存目录先验证，再使用原后端完成 claim，最后启动数据库/
 catalogue worker 和 HTTP listener。不存在测试或生产 bypass 开关。
@@ -111,8 +112,9 @@ AWS 支持用 `s3:if-none-match` 条件键约束创建；应对 worker prefix �
 不要为了获得空 registry 把现存数据库随意复制到新 bucket 后继续复用旧身份；
 独立 authority 迁移与恢复协议不在本功能范围内。
 
-后续可在这个永久记录约束上设计经过验收的自动编号分配器；本次不会默认采用
-随机 u64、墙钟、PID、主机名或递增 Pod ordinal 来冒充持久分配。
+[自动分配器](worker-instance-allocation.md)使用另外的持久 CAS 计数器，不使用随机 u64、
+墙钟、PID、主机名或递增 Pod ordinal 来冒充持久分配。该计数器必须显式初始化，
+仍不能推断旧版程序未记录的历史身份。
 
 ## 6. 验证边界
 
