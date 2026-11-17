@@ -853,6 +853,114 @@ fn claim_failure_starts_no_service_workers_or_local_cache() {
 }
 
 #[test]
+fn cache_loss_after_claim_fails_startup_and_does_not_release_the_identity() {
+    use scap_object_store::{Condition, StoreError, Stored};
+
+    struct RemoveCache {
+        memory: Arc<Memory>,
+        path: std::path::PathBuf,
+    }
+    impl Objects for RemoveCache {
+        fn get(&self, key: &str, maximum: usize, deadline: Instant) -> Result<Stored, StoreError> {
+            let stored = self.memory.get(key, maximum, deadline)?;
+            // The directory was valid before the claim. Remove it at the
+            // external I/O boundary to exercise a real worker creation error.
+            std::fs::remove_dir(&self.path).unwrap();
+            Ok(stored)
+        }
+
+        fn put(
+            &self,
+            key: &str,
+            bytes: &[u8],
+            condition: Condition<'_>,
+            deadline: Instant,
+        ) -> Result<String, StoreError> {
+            self.memory.put(key, bytes, condition, deadline)
+        }
+    }
+
+    let parent = tempfile::tempdir().unwrap();
+    let cache = parent.path().join("cache");
+    std::fs::create_dir(&cache).unwrap();
+    let memory = Arc::new(Memory::default());
+    let backend = Arc::new(RemoveCache {
+        memory: memory.clone(),
+        path: cache.clone(),
+    });
+    assert_eq!(
+        assemble(prepared(&cache).service, backend)
+            .err()
+            .unwrap()
+            .code,
+        "CACHE_IO"
+    );
+    assert!(!cache.exists());
+    assert_eq!(memory.calls.lock().unwrap().len(), 2);
+    assert_eq!(memory.values.lock().unwrap().len(), 1);
+    std::fs::create_dir(&cache).unwrap();
+    assert_eq!(
+        assemble(prepared(&cache).service, memory.clone())
+            .err()
+            .unwrap()
+            .code,
+        "INSTANCE_REUSED"
+    );
+    let mut next = prepared(&cache).service;
+    next.worker_instance = 101;
+    let (_, state) = assemble(next, memory).unwrap();
+    drop(state);
+    assert!(std::fs::read_dir(&cache).unwrap().next().is_none());
+}
+
+#[test]
+fn catalogue_construction_failure_after_claim_does_not_release_the_identity() {
+    fn failed_catalogue(
+        limits: crate::catalogue_scheduler::Limits,
+        _factory: crate::catalogue_scheduler::Factory,
+    ) -> Result<crate::catalogue_scheduler::Scheduler, Failure> {
+        // This seam models an OS thread-creation failure after valid admission,
+        // without exhausting process-wide resources used by concurrent tests.
+        limits.validate().unwrap();
+        Err(Failure::new("UNAVAILABLE"))
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+        intake_profile: None,
+    });
+    assert_eq!(
+        assemble_using(configuration, memory.clone(), None, None, failed_catalogue)
+            .err()
+            .unwrap()
+            .code,
+        "UNAVAILABLE"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 2);
+    assert_eq!(memory.values.lock().unwrap().len(), 1);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    assert_eq!(
+        assemble(prepared(directory.path()).service, memory)
+            .err()
+            .unwrap()
+            .code,
+        "INSTANCE_REUSED"
+    );
+}
+
+#[test]
 fn gc_assembly_requires_exact_capabilities_and_wires_the_collector_into_workers() {
     let directory = tempfile::tempdir().unwrap();
     let memory = Arc::new(Memory::default());

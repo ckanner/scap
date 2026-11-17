@@ -48,6 +48,28 @@ pub fn assemble_with_storage(
     listings: Option<Arc<dyn Listings>>,
     garbage: Option<Arc<dyn Garbage>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    assemble_using(
+        prepared,
+        objects,
+        listings,
+        garbage,
+        crate::catalogue_scheduler::Scheduler::new,
+    )
+}
+
+/// Keep validation and durable claim ordering unchanged when testing a
+/// post-claim thread creation failure. Only the catalogue construction effect
+/// varies; public assembly always uses the real constructor.
+fn assemble_using(
+    prepared: ServiceConfig,
+    objects: Arc<dyn Objects>,
+    listings: Option<Arc<dyn Listings>>,
+    garbage: Option<Arc<dyn Garbage>>,
+    create_catalogue: fn(
+        crate::catalogue_scheduler::Limits,
+        crate::catalogue_scheduler::Factory,
+    ) -> Result<crate::catalogue_scheduler::Scheduler, Failure>,
+) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
     prepared.transport.checked()?;
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
@@ -112,12 +134,15 @@ pub fn assemble_with_storage(
         }
     };
     let discovery = match prepared.discovery {
-        Some(codec) => Some(Arc::new(crate::discovery::Discovery::new(
-            objects.clone(),
-            listings.ok_or_else(|| Failure::new("CONFIG"))?,
-            prepared.worker_instance,
-            codec,
-        )?)),
+        Some(codec) => Some(Arc::new(
+            crate::discovery::Discovery::new(
+                objects.clone(),
+                listings.ok_or_else(|| Failure::new("CONFIG"))?,
+                prepared.worker_instance,
+                codec,
+            )
+            .expect("validated nonzero worker identity"),
+        )),
         None => None,
     };
     // Every local configuration/capability check above precedes this durable
@@ -140,10 +165,7 @@ pub fn assemble_with_storage(
                 )))
             });
             Some(CatalogueState {
-                scheduler: Arc::new(crate::catalogue_scheduler::Scheduler::new(
-                    admission.limits(),
-                    factory,
-                )?),
+                scheduler: Arc::new(create_catalogue(admission.limits(), factory)?),
                 max_body_bytes: admission.max_body_bytes,
                 timeout: Duration::from_millis(admission.timeout_ms),
                 intake: catalogue_intake.expect("validated catalogue admission"),
