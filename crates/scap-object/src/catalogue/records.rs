@@ -155,12 +155,17 @@ pub(super) struct Descriptor {
     pub options: CreateOptions,
     pub initial_quota: DatabaseQuota,
     pub retention: Retention,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<super::restore_records::Recipe>,
 }
 
 impl Record for Descriptor {
     type Shape = ();
     fn validate(&self) -> Result<(), CatalogueError> {
-        valid(self.format == 1)?;
+        valid(
+            (self.format == 1 && self.recipe.is_none())
+                || (self.format == 2 && self.recipe.is_some()),
+        )?;
         creation_valid(&self.creation)?;
         self.initial_quota
             .validate()
@@ -168,6 +173,16 @@ impl Record for Descriptor {
         self.retention
             .validate()
             .map_err(|_| CatalogueError::Invalid)?;
+        if let Some(recipe) = &self.recipe {
+            recipe.validate(&self.creation.scope)?;
+            valid(
+                recipe.point().page_count
+                    <= self
+                        .initial_quota
+                        .max_pages()
+                        .map_err(|_| CatalogueError::Invalid)?,
+            )?;
+        }
         match self.options.quota {
             QuotaChoice::Default => Ok(()),
             QuotaChoice::Unlimited => valid(self.initial_quota.max_bytes.is_none()),

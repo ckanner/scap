@@ -192,7 +192,7 @@ fn descriptor_never_matches_a_new_head_etag_or_mutable_field() {
     adopted.head.format = 9;
     adopted.head.snapshots = Some(vec![]);
     adopted.head.snapshot_limits = Some(SnapshotLimits::default());
-    adopted.head.restore_origin = Some(());
+    adopted.head.restore_origin = Some(None);
     let fixed =
         SnapshotDescriptor::new(&adopted, &descriptor.input, 0, SnapshotLimits::default()).unwrap();
     assert!(fixed.matches(&adopted));

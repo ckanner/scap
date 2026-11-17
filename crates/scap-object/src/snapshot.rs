@@ -228,7 +228,7 @@ impl Database {
         })
     }
 
-    fn snapshot_view(
+    pub(crate) fn snapshot_view(
         &self,
         principal: u64,
         identity: &SnapshotIdentity,
@@ -291,7 +291,7 @@ impl Database {
             .get_or_insert_with(Vec::new)
             .push(descriptor.entry());
         next.snapshot_limits = Some(descriptor.limits.clone());
-        next.restore_origin = Some(());
+        next.restore_origin.get_or_insert(None);
         descriptor
             .limits
             .fits(entries(&next))
@@ -557,7 +557,7 @@ impl Database {
         next.format = 9;
         next.snapshots.get_or_insert_with(Vec::new);
         next.snapshot_limits = Some(limits);
-        next.restore_origin = Some(());
+        next.restore_origin.get_or_insert(None);
         database.snapshot_publish(base, next.clone(), deadline)?;
         Ok(next)
     }

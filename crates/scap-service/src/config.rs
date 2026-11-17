@@ -33,6 +33,7 @@ pub struct Config {
     pub gc: Option<GarbageConfig>,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
+    pub restore: Option<crate::restore::Profile>,
     pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
     pub execution: Option<ExecutionConfig>,
@@ -135,16 +136,18 @@ impl CatalogueAdmission {
     /// The same checked construction is used by parsed configuration and the
     /// direct ServiceConfig entry point, before starting catalogue workers.
     pub(crate) fn build_intake(&self) -> Result<crate::intake::Intake, Failure> {
+        self.build_for_class(crate::intake::Class::Catalogue)
+    }
+
+    pub(crate) fn build_for_class(
+        &self,
+        class: crate::intake::Class,
+    ) -> Result<crate::intake::Intake, Failure> {
         if !(1..=65536).contains(&self.max_body_bytes) || !(1..=86400000).contains(&self.timeout_ms)
         {
             return Err(Failure::new("CONFIG"));
         }
-        crate::intake::Intake::new(
-            crate::intake::Class::Catalogue,
-            self.intake,
-            self.max_body_bytes,
-            self.intake_profile,
-        )
+        crate::intake::Intake::new(class, self.intake, self.max_body_bytes, self.intake_profile)
     }
 }
 
@@ -197,6 +200,7 @@ pub struct ServiceConfig {
     pub cache_directory: PathBuf,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
+    pub restore: Option<crate::restore::Profile>,
     pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
     pub gc_deployment: Option<u64>,
     pub cache: Cache,
@@ -289,6 +293,12 @@ impl Config {
         }
         if let Some(catalogue) = &self.catalogue {
             catalogue.validate()?;
+        }
+        if let Some(restore) = &self.restore {
+            if self.catalogue.is_none() {
+                return Err(Failure::new("CONFIG"));
+            }
+            restore.validate()?;
         }
         if let Some(gc) = &self.gc {
             let ordinary = [
@@ -392,6 +402,7 @@ impl Config {
                 cache_directory: self.cache_directory,
                 admission: self.admission,
                 catalogue: self.catalogue,
+                restore: self.restore,
                 discovery,
                 gc_deployment,
                 cache: self.cache,

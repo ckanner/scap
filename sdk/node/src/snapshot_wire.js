@@ -67,7 +67,7 @@ export function reference(value) {
     capture_serial: decimal(value.capture_serial), descriptor_hash: hash(value.descriptor_hash) });
 }
 
-function point(value) {
+export function point(value) {
   record(value, ['data_root', 'page_count', 'sequence', 'source_revision']);
   requireValue(Number.isSafeInteger(value.page_count) && value.page_count >= 0 && value.page_count <= MAX_PAGES,
     'Snapshot page count exceeds the persisted format');

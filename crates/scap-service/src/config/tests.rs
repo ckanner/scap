@@ -5,6 +5,33 @@ use serde_json::json;
 fn parsed(value: serde_json::Value) -> Config {
     Config::parse(&serde_json::to_vec(&value).unwrap()).unwrap()
 }
+
+#[test]
+fn restore_requires_its_explicit_recovery_profile_and_control_catalogue() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    value["restore"] = crate::restore::tests::profile();
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("validate restore before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    value["catalogue"] = value["restore"]["admission"].clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.restore.unwrap().recovery_timeout_ms, 30000);
+    value["restore"]["max_staging_bytes_per_tenant"] = json!(0);
+    assert_eq!(
+        parsed(value)
+            .prepare_with(&|_| panic!("validate restore before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}
 fn environment(_: &str) -> Option<OsString> {
     Some(OsString::from("unit-secret"))
 }

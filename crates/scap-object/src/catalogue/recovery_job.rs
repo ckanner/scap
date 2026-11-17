@@ -353,12 +353,7 @@ impl RecoveryJob {
         if snapshot.head.scope != *scope {
             return Err(RecoveryStop::Corrupt);
         }
-        let state = match snapshot.head.lifecycle {
-            Lifecycle::Ready => MetadataState::Ready,
-            Lifecycle::Maintenance => MetadataState::Maintenance,
-            Lifecycle::Provisioning => MetadataState::Provisioning,
-            Lifecycle::Deleted => MetadataState::Deleted,
-        };
+        let state = super::discovery_records::restore_lifecycle(&snapshot.head);
         let record = DiscoveredRecord {
             key: format::head_key(scope),
             kind: RecordKind::Head,

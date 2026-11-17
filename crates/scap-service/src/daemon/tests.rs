@@ -11,6 +11,49 @@ fn prepared(parent: &std::path::Path) -> Prepared {
 }
 
 #[test]
+fn assembly_validates_restore_before_io_and_builds_a_separate_bounded_pool() {
+    let directory = tempfile::tempdir().unwrap();
+    let profile = || {
+        serde_json::from_value::<crate::restore::Profile>(crate::restore::tests::profile()).unwrap()
+    };
+    let mut config = prepared(directory.path()).service;
+    config.restore = Some(profile());
+    assert_eq!(
+        assemble(config, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    let mut config = prepared(directory.path()).service;
+    config.catalogue = Some(profile().admission);
+    config.restore = Some(profile());
+    config.restore.as_mut().unwrap().max_staging_bytes = 1;
+    assert_eq!(
+        assemble(config, Arc::new(Memory::default()))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    let mut config = prepared(directory.path()).service;
+    config.catalogue = Some(profile().admission);
+    config.restore = Some(profile());
+    let (_, state) = assemble(config, Arc::new(Memory::default())).unwrap();
+    assert!(state.catalogue.is_some());
+    let restore = state.restore.as_ref().unwrap();
+    assert_eq!(restore.timeout, Duration::from_secs(30));
+    restore.pool.intake.validate(Class::Recovery, 4096).unwrap();
+    assert!(!Arc::ptr_eq(&restore.pool.intake, &state.recovery_intake));
+    drop(http::router(state.clone()).unwrap());
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
 fn output_validation_and_budgeted_factory_are_wired_into_actual_assembly() {
     use crate::output::{tests::usage, BASE_BYTES};
     let directory = tempfile::tempdir().unwrap();

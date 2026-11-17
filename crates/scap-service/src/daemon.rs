@@ -13,7 +13,7 @@ use tokio::sync::Semaphore;
 use crate::{
     config::{Config, Prepared, PreparedGarbage, ServiceConfig},
     engine::{Collector, Engine},
-    http::{self, CatalogueState, HttpState},
+    http::{self, CatalogueState, HttpState, RestoreState},
     intake::{Class, Intake},
     scheduler::{Factory, Scheduler},
     Failure,
@@ -51,6 +51,12 @@ pub fn assemble_with_storage(
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
+    if let Some(restore) = &prepared.restore {
+        if prepared.catalogue.is_none() {
+            return Err(Failure::new("CONFIG"));
+        }
+        restore.validate()?;
+    }
     let collector = match prepared.gc_deployment {
         Some(deployment) => {
             if deployment == 0 {
@@ -76,6 +82,45 @@ pub fn assemble_with_storage(
             prepared.worker_instance,
             codec,
         )?)),
+        None => None,
+    };
+    let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
+    let restore = match prepared.restore {
+        Some(profile) => {
+            let intake = Arc::new(profile.admission.build_for_class(Class::Recovery)?);
+            let staging = Arc::new(crate::restore::Pool::new(
+                profile.max_staging_bytes,
+                profile.max_staging_bytes_per_tenant,
+            )?);
+            let objects = objects.clone();
+            let options = options.clone();
+            let directory = prepared.cache_directory.clone();
+            let recovery = recovery.clone();
+            let budget = profile.budget.native()?;
+            let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
+                Ok(Box::new(crate::restore::Worker::new(
+                    objects.clone(),
+                    prepared.worker_instance,
+                    options.clone(),
+                    &directory,
+                    recovery.clone(),
+                    staging.clone(),
+                    budget,
+                )?))
+            });
+            Some(RestoreState {
+                pool: CatalogueState {
+                    scheduler: Arc::new(crate::catalogue_scheduler::Scheduler::new_recovery(
+                        profile.admission.limits(),
+                        factory,
+                    )?),
+                    max_body_bytes: profile.admission.max_body_bytes,
+                    timeout: Duration::from_millis(profile.admission.timeout_ms),
+                    intake,
+                },
+                timeout: Duration::from_millis(profile.recovery_timeout_ms),
+            })
+        }
         None => None,
     };
     let catalogue = match prepared.catalogue {
@@ -105,7 +150,6 @@ pub fn assemble_with_storage(
         None => None,
     };
     let limits = prepared.admission.limits();
-    let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
     let factory: Factory = Arc::new(move |_| {
         Ok(Box::new(
             Engine::new(
@@ -129,6 +173,7 @@ pub fn assemble_with_storage(
             scheduler,
             output,
             catalogue,
+            restore,
             discovery,
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),

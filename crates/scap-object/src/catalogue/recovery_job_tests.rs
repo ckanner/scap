@@ -362,7 +362,7 @@ fn complete_recovery_includes_held_roots_beyond_the_current_native_image() {
         assert_ne!(head.data_root, old.data_root);
         head.format = 9;
         head.head_serial += 1;
-        head.restore_origin = Some(());
+        head.restore_origin = Some(None);
         head.snapshot_limits = Some(SnapshotLimits::default());
         head.snapshots = Some(vec![SnapshotEntry {
             reference: SnapshotRef {

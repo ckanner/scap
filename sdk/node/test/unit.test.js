@@ -16,6 +16,7 @@ import './routing.test.js';
 import './owner.test.js';
 import './owner_plan.test.js';
 import './snapshot.test.js';
+import './restore.test.js';
 import './controller.test.js';
 import './controller_fleet.test.js';
 import './controller_http.test.js';

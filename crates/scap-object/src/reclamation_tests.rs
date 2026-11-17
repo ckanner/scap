@@ -232,7 +232,7 @@ fn install_held_data(objects: &Memory, database: &Database) -> (Head, Vec<String
     let mut head = database.status(7, deadline()).unwrap();
     head.format = 9;
     head.head_serial += 1;
-    head.restore_origin = Some(());
+    head.restore_origin = Some(None);
     head.snapshot_limits = Some(SnapshotLimits::default());
     head.snapshots = Some(vec![SnapshotEntry {
         reference: SnapshotRef {

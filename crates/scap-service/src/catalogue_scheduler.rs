@@ -219,6 +219,7 @@ pub struct Scheduler {
     lane: Arc<Lane>,
     threads: Vec<JoinHandle<()>>,
     limits: Limits,
+    admission: &'static str,
 }
 
 type Task = Box<dyn FnOnce() + Send>;
@@ -236,11 +237,25 @@ impl Scheduler {
     }
 
     fn with_spawner(limits: Limits, factory: Factory, spawn: Spawn) -> Result<Self, Failure> {
+        Self::with_class(limits, factory, spawn, "catalogue")
+    }
+
+    pub fn new_recovery(limits: Limits, factory: Factory) -> Result<Self, Failure> {
+        Self::with_class(limits, factory, spawn, "recovery")
+    }
+
+    fn with_class(
+        limits: Limits,
+        factory: Factory,
+        spawn: Spawn,
+        admission: &'static str,
+    ) -> Result<Self, Failure> {
         limits.validate()?;
         let mut scheduler = Self {
             lane: Arc::new(Lane::default()),
             threads: Vec::new(),
             limits,
+            admission,
         };
         for index in 0..limits.workers {
             let lane = scheduler.lane.clone();
@@ -294,7 +309,7 @@ impl Scheduler {
         deadline: Instant,
         reservation: Arc<crate::intake::Lease>,
     ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
-        reservation.claim(&principal, "catalogue")?;
+        reservation.claim(&principal, self.admission)?;
         self.submit_with(principal, call, deadline, Some(reservation))
     }
 
@@ -307,6 +322,9 @@ impl Scheduler {
     ) -> Result<oneshot::Receiver<Result<Value, Failure>>, Failure> {
         call.action.validate()?;
         call.action.authorize(&principal)?;
+        if call.action.admission() != self.admission {
+            return Err(Failure::new("INVALID"));
+        }
         let (reply, receiver) = oneshot::channel();
         self.lane
             .queue

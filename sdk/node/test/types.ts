@@ -3,7 +3,7 @@ import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, Ow
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type SavedSnapshotInput, type PreparedSnapshot, type SnapshotObservation, type SnapshotListing,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
-  type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
+  type CreationProgress, type AbortProgress, type DeletionProgress, type Named, type PreparedRestore, type RestoreProgress,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
 const scope = { deployment: '1', tenant: '2', database: '3', incarnation: '1', generation: '1' };
@@ -83,6 +83,21 @@ async function contract() {
     expected_revision: guarded.revision, expected_head_serial: guarded.head_serial, label: 'before migration' });
   const snapshotSaved: SavedSnapshotInput = db.restoreSnapshotInput(db.saveSnapshotInput(snapshotInput));
   const snapshotPrepared: PreparedSnapshot = await db.snapshotPrepare(snapshotSaved);
+  const restoreIntent = client.prepareIntent({ operation: 'prepare_restore', name: 'restored-notes',
+    restore_operation: '72', expected_name_revision: null, options: { quota: { mode: 'default' } },
+    source_scope: scope, snapshot: snapshotPrepared.reference });
+  const restoredDatabase: PreparedRestore = await client.submit(restoreIntent);
+  const copyProgress: RestoreProgress = await client.resumeRestore(restoredDatabase.reference);
+  const restoreInspection: RestoreProgress = await client.inspectRestore('72');
+  const abortRestore: AbortProgress = await client.abortRestore({ reference: restoredDatabase.reference,
+    control_operation: '73', expected_name_revision: '1', nonce: '73' });
+  // @ts-expect-error Restore references are descriptor-bound and cannot be replaced with raw Creation.
+  client.resumeRestore(creation);
+  // @ts-expect-error Source provenance remains deeply readonly after preparation.
+  restoreIntent.action.snapshot.capture_serial = '99';
+  // @ts-expect-error Restore never accepts a caller-supplied completion proof.
+  client.resumeRestore({ ...restoredDatabase.reference, completion: {} });
+  void copyProgress; void restoreInspection; void abortRestore;
   const snapshotObserved: SnapshotObservation<PreparedSnapshot> = await db.snapshotInspect(snapshotSaved);
   const snapshotHistory: SnapshotObservation = await db.snapshotObserve({ creator: '7', operation: '61' });
   const snapshotListing: SnapshotListing = await db.snapshotList();

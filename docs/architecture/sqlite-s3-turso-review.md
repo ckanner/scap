@@ -96,7 +96,7 @@ SCAP 当前已使用 128 KiB chunk/COW 数据树和分段请求索引，但冷�
 详细实现标准仍由[主方案](object-storage-native-proposal.md)、[资源预算](resource-budgets.md)
 和[回收方案](storage-reclamation-plan.md)约束。HEAD6 代际复制／GC 与 HEAD7 终态 seal
 现已合入 main，HEAD9 S1 保留根位于 #59 候选；不能沿用 11 月 9 日“尚无产品 GC”
-作为当前状态。lazy VFS、同库多 writer、group commit、S2／PITR 和生产 SLO 仍未交付。
+作为当前状态。lazy VFS、同库多 writer、group commit、任意时间 PITR 和生产 SLO 仍未交付。S2 在 2026-11-17 接续分支已有 Rust/HTTP/SDK 实现候选，必须独立验收。
 
 ## 5. 原生引擎补丁不能由存储架构代替
 
@@ -105,3 +105,6 @@ SCAP 当前已使用 128 KiB chunk/COW 数据树和分段请求索引，但冷�
 但这不等于引擎已修补。精确版本、源文件身份、官方补丁和保留 publication hooks
 的升级门禁见[独立评估](sqlite-wal-reset-assessment.md)。未来引入同文件读池或
 后台 checkpoint 前必须重新证明这条边界。
+
+2026-11-17 本轮已采用的机制、保留 FULL 同步的判断，以及 group commit、lazy VFS、
+动态 fleet 和 PITR 的分别实施出口见[接续实现决策](turso-adoption-next.md)。

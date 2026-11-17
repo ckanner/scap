@@ -128,6 +128,15 @@ impl PreparedHead {
         self.domain
     }
 
+    pub(super) fn restore(
+        database: &Database,
+        candidate: crate::catalogue::VerifiedRestoreTransition,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        let (base, next) = candidate.into_parts();
+        Self::bound(database, &base, &next, deadline)
+    }
+
     fn bound(
         database: &Database,
         base: &Snapshot,

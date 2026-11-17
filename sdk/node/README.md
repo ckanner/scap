@@ -513,7 +513,7 @@ try {
 | `resolveName(name, options?)` | 严格只读，按当前 READ 权限返回 `{creation, binding_revision, head}` |
 | `deleteName({creation, control_operation, expected_name_revision, expected_head_revision, nonce}, options?)` | 使用当前 ADMIN 和两个原预期 revision 正常删除，返回 `DeletionProgress`；调用者可不同于 creator |
 
-六个便利方法各自在内部构造意图后发出一次 POST。需要发送前持久化时，用显式的 `prepareIntent` → `saveIntent` → `submit`。所有目录操作使用 `x-scap-admission: catalogue` 和普通调用 deadline，`callOptions` 仍只有 `timeoutMs`、`signal`；SDK 不循环推进阶段、不自动刷新预期 revision、不重新准备另一 Scope、不重投 SQL。
+这些便利方法各自在内部构造意图后发出一次 POST。需要发送前持久化时，用显式的 `prepareIntent` → `saveIntent` → `submit`。普通目录操作使用 `x-scap-admission: catalogue` 和普通调用 deadline；下节的 `resumeRestore` 使用独立 recovery 类及恢复 deadline。`callOptions` 仍只有 `timeoutMs`、`signal`；SDK 不循环推进阶段、不自动刷新预期 revision、不重新准备另一 Scope、不重投 SQL。
 
 创建 options 固定为 `{quota: {mode: 'default'}}`、`{quota: {mode: 'unlimited'}}` 或 `{quota: {mode: 'limited', max_bytes: '4096'}}`。limited 值必须为有效页对齐十进制字节数；其他 mode 不接受 `max_bytes`。名称按原 UTF-8 字节保留，长度 1–128 字节，不接受控制字符或非法 surrogate，不做 Unicode 归一化。operation、nonce 等 u64 始终使用规范十进制字符串。应用负责在相应的部署／租户／主体命名空间分配和持久化操作 ID。
 
@@ -528,6 +528,48 @@ try {
 所有 progress 保留 nullable `binding_revision`、`head_revision`；名称重用后属于后继 Creation 的 revision 不能当成原操作的新条件。创建进度还包含 `initial_quota` 和 `retention`；控制进度包含原 `operation` 和 `nonce`。目录的 `provisioning` phase 不会成为可供普通 SQL 操作的 DatabaseStatus。
 
 目录 mutation 的 `UnknownError.reference.intent` 保留完整原意图。查创建用 `inspectCreateOperation`；它不证明某个 abort/delete control ID 已成功。原 abort/delete 的查证及收敛应在应用明确决定后，用保存的原完整 intent 再调用 `submit`；这可能继续尚未完成的阶段，不能当作只读查询。`NOT_FOUND`、`IDENTITY_CONFLICT`、`CONFLICT`、`DENIED`、`CORRUPT`、`LIMIT`、`UNKNOWN` 分开返回。未知或 malformed phase 拒绝，不能转成 ready/aborted/deleted。
+
+## 从保留快照恢复新库（S2 候选）
+
+`CatalogueClient` 增加 `prepareRestore(input)`、`resumeRestore(reference)`、
+`inspectRestore(restoreOperation)` 和 `abortRestore(input)`。恢复与普通创建共用操作编号
+空间；每次新业务 restore 必须分配一个没有使用过的编号，UNKNOWN 后保留原编号。
+
+```javascript
+const intent = names.prepareIntent({
+  operation: 'prepare_restore',
+  name: 'notes-before-migration',
+  restore_operation: '1001',
+  expected_name_revision: null,
+  options: { quota: { mode: 'default' } },
+  source_scope: sourceScope,
+  snapshot: retainedSnapshot.reference,
+});
+await persist(names.saveIntent(intent));
+const prepared = await names.submit(intent);
+await persist(JSON.stringify(prepared.reference));
+
+// 每次只请求下一步；应用先保存响应并检查 phase，再决定是否继续。
+const progress = await names.resumeRestore(prepared.reference);
+const observed = await names.inspectRestore('1001');
+```
+
+`PreparedRestore` 保存 `{reference, input, initial_quota, retention, point}`；reference 是
+`{creation, descriptor_hash}`，不能用普通 Creation、ETag 或源 data root 替代。progress
+为 `{prepared, phase, binding_revision, head_revision}`，正常阶段依次是 not_reserved、
+reserved、copying、copied、bound、ready。并发冲突、取消和删除各有明确终态。
+
+prepare/inspect/abort 是普通 catalogue 调用；resume 使用 recovery header 和长期限。
+只有 copying 可能创建完整 native 验证镜像。SDK 严格核对原 creator、Scope、snapshot、
+名称条件、配额选择和 descriptor 哈希；丢失或不能验证 mutation 响应时返回保留完整
+原意图的 UnknownError，不隐藏重试、不自动跳过复制或换源。
+
+`abortRestore({reference, control_operation, expected_name_revision, nonce})` 竞争原 Reserved
+名称。已经 Bound 时返回 cannot_abort_bound，需使用正常具名删除。源 snapshot 释放、
+权限撤销和取消屏障由服务端重新验证；客户端保存的 metadata 不授予恢复权限。
+
+完整配置、资源与错误语义见[服务 S2 合同](../../crates/scap-service/docs/restore.md)。
+这不是任意时间 PITR、metadata-only clone 或按需读页。
 
 ## 原始结果和回执校验
 

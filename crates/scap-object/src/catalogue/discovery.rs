@@ -130,6 +130,8 @@ pub enum MetadataState {
     DescriptorOnly,
     Reserved,
     Provisioning,
+    RestoreCopying,
+    RestoreCopied,
     Bound,
     Ready,
     Maintenance,

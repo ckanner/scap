@@ -25,6 +25,7 @@ pub struct HttpState {
     pub scheduler: Arc<Scheduler>,
     pub output: Arc<crate::output::Pool>,
     pub catalogue: Option<CatalogueState>,
+    pub restore: Option<RestoreState>,
     pub discovery: Option<Arc<crate::discovery::Discovery>>,
     pub max_body_bytes: usize,
     pub timeout: Duration,
@@ -39,6 +40,11 @@ pub struct CatalogueState {
     pub max_body_bytes: usize,
     pub timeout: Duration,
     pub intake: Arc<Intake>,
+}
+
+pub struct RestoreState {
+    pub pool: CatalogueState,
+    pub timeout: Duration,
 }
 
 pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
@@ -67,6 +73,19 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
         catalogue
             .intake
             .validate(Class::Catalogue, catalogue.max_body_bytes)?;
+    }
+    if let Some(restore) = &state.restore {
+        let pool = &restore.pool;
+        if state.catalogue.is_none()
+            || !(1..=65536).contains(&pool.max_body_bytes)
+            || pool.timeout.is_zero()
+            || pool.timeout > Duration::from_secs(86400)
+            || restore.timeout < pool.timeout
+            || restore.timeout > Duration::from_secs(7 * 86400)
+        {
+            return Err(Failure::new("CONFIG"));
+        }
+        pool.intake.validate(Class::Recovery, pool.max_body_bytes)?;
     }
     Ok(Router::new()
         .route("/healthz", get(health))
@@ -217,24 +236,36 @@ async fn catalogue_call(State(state): State<Arc<HttpState>>, request: Request) -
         Ok(principal) => principal,
         Err(error) => return failure(error),
     };
-    if single(request.headers(), "x-scap-admission") != Some("catalogue") {
-        return failure(Failure::new("INVALID"));
-    }
-    let catalogue = match &state.catalogue {
-        Some(catalogue) => catalogue,
-        None => return failure(Failure::new("UNAVAILABLE")),
+    let (catalogue, execution_timeout) = match single(request.headers(), "x-scap-admission") {
+        Some("catalogue") => match &state.catalogue {
+            Some(catalogue) => (catalogue, catalogue.timeout),
+            None => return failure(Failure::new("UNAVAILABLE")),
+        },
+        Some("recovery") => match &state.restore {
+            Some(restore) => (&restore.pool, restore.timeout),
+            None => return failure(Failure::new("UNAVAILABLE")),
+        },
+        _ => return failure(Failure::new("INVALID")),
     };
     let reservation = match catalogue.intake.acquire(&principal) {
         Ok(reservation) => reservation,
         Err(error) => return failure(error),
     };
-    let response =
-        catalogue_admitted(catalogue, principal, reservation.clone(), received, request).await;
+    let response = catalogue_admitted(
+        catalogue,
+        execution_timeout,
+        principal,
+        reservation.clone(),
+        received,
+        request,
+    )
+    .await;
     reserved(response, reservation)
 }
 
 async fn catalogue_admitted(
     state: &CatalogueState,
+    execution_timeout: Duration,
     principal: Principal,
     reservation: Arc<Lease>,
     received: Instant,
@@ -261,6 +292,7 @@ async fn catalogue_admitted(
         Ok(call) => call,
         Err(error) => return failure(error),
     };
+    let deadline = received + execution_timeout;
     let receiver = match state
         .scheduler
         .submit_reserved(principal, call, deadline, reservation)

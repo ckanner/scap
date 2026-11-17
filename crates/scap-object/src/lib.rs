@@ -7,6 +7,7 @@ pub mod owner;
 pub mod snapshot;
 
 mod owner_format;
+mod restore_format;
 mod snapshot_format;
 mod snapshot_records;
 
@@ -983,6 +984,7 @@ impl Database {
         directory: &Path,
         deadline: Instant,
     ) -> Result<Session, Error> {
+        catalogue::Catalogue::verify_database_restore(self, &base.head, deadline)?;
         let manifest = data_tree::manifest(objects, &base.head.data_root, deadline)
             .map_err(|error| objects.observe(error))?;
         let limits = self.options.writer(&base.head.quota)?;

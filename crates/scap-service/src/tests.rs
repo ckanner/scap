@@ -384,6 +384,33 @@ pub(crate) fn until() -> Instant {
     Instant::now() + Duration::from_secs(30)
 }
 
+pub(crate) fn named_creation(name: &str, operation: u64) -> scap_object::catalogue::Creation {
+    use scap_object::catalogue::{Caller, Catalogue, CreateOptions, PrepareCreate};
+    Catalogue::new(
+        std::sync::Arc::new(Memory::default()),
+        1,
+        2,
+        100,
+        scap_object::Options::default(),
+    )
+    .unwrap()
+    .prepare(
+        Caller {
+            principal: 3,
+            provision: true,
+        },
+        &PrepareCreate {
+            name: name.into(),
+            operation,
+            expected_name_revision: None,
+            options: CreateOptions::default(),
+        },
+        until(),
+    )
+    .unwrap()
+    .creation
+}
+
 pub(crate) fn sample_config(parent: &std::path::Path) -> serde_json::Value {
     use sha2::{Digest, Sha256};
     serde_json::json!({

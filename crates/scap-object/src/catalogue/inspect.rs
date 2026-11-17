@@ -4,6 +4,7 @@ pub(super) enum CreateStep<'a> {
     None,
     Reserve(Option<&'a Name>),
     Provision,
+    RestoreCopy(&'a Snapshot),
     Bind(&'a Name),
     Complete(&'a Name, &'a Snapshot),
 }
@@ -35,6 +36,9 @@ impl Catalogue {
         records::valid(create_operation != 0)?;
         let deadline = self.options.deadline(deadline, false);
         let source = self.read_descriptor(caller.principal, create_operation, deadline)?;
+        if source.recipe.is_some() {
+            return Err(CatalogueError::Conflict);
+        }
         let view = self.view(&source, deadline)?;
         let plan = self.creation_plan(&source, &view, deadline)?;
         Ok(Self::progress(&source, &view, plan.phase))
@@ -84,6 +88,13 @@ impl Catalogue {
                 match head.lifecycle {
                     Lifecycle::Provisioning => {
                         Self::provisioning(&source, head)?;
+                        require(!matches!(
+                            head.restore_origin
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(|origin| &origin.phase),
+                            Some(format::RestoreCopyPhase::Copying {})
+                        ))?;
                         Err(CatalogueError::NotFound)
                     }
                     Lifecycle::Deleted => {
@@ -168,7 +179,18 @@ impl Catalogue {
                         Self::provisioning(source, &head.head)?;
                         Ok(CreationPlan {
                             phase: CreationPhase::Provisioning,
-                            step: CreateStep::Bind(binding),
+                            step: if matches!(
+                                head.head
+                                    .restore_origin
+                                    .as_ref()
+                                    .and_then(Option::as_ref)
+                                    .map(|origin| &origin.phase),
+                                Some(format::RestoreCopyPhase::Copying {})
+                            ) {
+                                CreateStep::RestoreCopy(head)
+                            } else {
+                                CreateStep::Bind(binding)
+                            },
                         })
                     }
                 }
@@ -179,6 +201,14 @@ impl Catalogue {
                 match head.head.lifecycle {
                     Lifecycle::Provisioning => {
                         Self::provisioning(source, &head.head)?;
+                        require(!matches!(
+                            head.head
+                                .restore_origin
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(|origin| &origin.phase),
+                            Some(format::RestoreCopyPhase::Copying {})
+                        ))?;
                         Ok(CreationPlan {
                             phase: CreationPhase::Bound,
                             step: CreateStep::Complete(binding, head),

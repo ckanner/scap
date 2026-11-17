@@ -67,6 +67,7 @@ pub(super) fn state() -> Arc<HttpState> {
         scheduler,
         output: Arc::new(crate::output::Pool::new(crate::output::Profile::default()).unwrap()),
         catalogue: None,
+        restore: None,
         discovery: None,
         max_body_bytes: 4096,
         timeout: Duration::from_millis(500),

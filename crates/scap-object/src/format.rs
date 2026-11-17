@@ -1,6 +1,7 @@
 //! Strict live v6 / terminal v7 HEADs and unchanged v2 immutable frames.
 //! Large chunk and original-result bytes are raw, never JSON byte arrays.
 
+pub use crate::restore_format::{RestoreCopyPhase, RestoreOrigin};
 pub use crate::snapshot_format::{
     SnapshotEntry, SnapshotIdentity, SnapshotLimits, SnapshotPoint, SnapshotRef,
     MAX_SNAPSHOT_LABEL_BYTES, MAX_SNAPSHOT_LOGICAL_BYTES, MAX_SNAPSHOT_POINTS,
@@ -269,14 +270,14 @@ pub struct Head {
         deserialize_with = "crate::snapshot_format::present_limits"
     )]
     pub snapshot_limits: Option<crate::snapshot_format::SnapshotLimits>,
-    /// S1 recognizes only null. Cross-Scope restore origins require S2's
-    /// complete creation/inspection/publication consumers before admission.
+    /// Outer absence is legal only before HEAD9. HEAD9 requires explicit null
+    /// or a strictly validated immutable restore provenance record.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::snapshot_format::present_null_origin"
+        deserialize_with = "crate::restore_format::present_origin"
     )]
-    pub restore_origin: Option<()>,
+    pub restore_origin: Option<Option<crate::restore_format::RestoreOrigin>>,
     pub active: bool,
     pub auth_epoch: u64,
     pub policy: Vec<Permission>,

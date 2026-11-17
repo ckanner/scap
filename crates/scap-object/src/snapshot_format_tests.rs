@@ -9,7 +9,7 @@ fn head() -> Head {
     value.head_serial = 10;
     value.snapshots = Some(vec![]);
     value.snapshot_limits = Some(SnapshotLimits::default());
-    value.restore_origin = Some(());
+    value.restore_origin = Some(None);
     value
 }
 

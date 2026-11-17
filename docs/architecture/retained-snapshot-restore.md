@@ -1,6 +1,6 @@
 # HEAD9：显式保留快照与新 Scope 恢复
 
-状态：设计、独立可执行模型及 S1 产品实现候选；S2 新 Scope 恢复尚未实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
+状态更新（2026-11-17）：S2 新 Scope 恢复已有 Rust core、独立服务恢复池、严格 HTTP 和 Node SDK 实现候选，正在独立冻结验收。实现及预算见[服务 S2 合同](../../crates/scap-service/docs/restore.md)，实际故障专项见[object-restore-runtime](../../experiments/object-restore-runtime/README.md)。以下历史模型与 S1 结果不认证新 S2 实现。模型运行结论以带完整源码指纹的独立manifest为准；本文不预先声明通过。本次精化的固定实现输入为 HEAD8 候选 `e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492`。方案初稿基于 `3e850357478133ae2b76007c3e0e9609d3d8ac02`；原 `core-freeze-01.json` 摘要 `4ef26b654748b1d21a1d483ba22c7e2f6ebeba2de4a25884d27c93cc3916927b` 只对应当时 core 字节。HEAD8 的正式验收不认证本文的新协议。
 
 2026-11-11 接续审查：S1 已进入 #59 组合，专项真实历史及独立负控见
 [组合验收](../engineering/sqlite-s3-integration-validation.md)；该本地结果没有实现 S2。
@@ -38,7 +38,7 @@
 
 HEAD9 新增必填 `snapshots: []`（至多 64 条）、`snapshot_limits: {max_points,max_logical_bytes}`、必填 nullable `restore_origin`。HEAD6/7/8 必须完全省略这些字段；不能把未知/缺失字段默认为空。HEAD9 的 owner_plan 可省略仅表示尚未采用 V2，显式null仍拒绝；一旦已有 owner marker，任何后继必须保留或经现有 owner V2 合法替换，legacy owner 永久拒绝。HEAD9 的普通/终态 storage 规则与现有 HEAD6/7 一致，额外要求 terminal => snapshots 为空。
 
-S1 的实际解码和所有写入只接受 **显式 `restore_origin:null`**。缺字段、`Copying`、`Copied` 或任何其他非 null 内容都失败关闭；不能先接受未来 origin 再让旧 Catalogue 路径忽略它。第5节非 null 形状属于 S2，必须与 Catalogue recipe、CompletionRecord、inspect/discovery/recovery/abort 以及 Bind/Ready 的全部消费者同时开放。S1 对普通 HEAD9 的保留快照不需要非 null origin。
+S1 冻结候选的实际解码和所有写入只接受 **显式 `restore_origin:null`**。当前 S2 分支同步实现下面的完整消费者后，才开放 strict Copying/Copied；旧 S1 候选仍拒绝这些记录。缺字段、`Copying`、`Copied` 或任何其他非 null 内容都失败关闭；不能先接受未来 origin 再让旧 Catalogue 路径忽略它。第5节非 null 形状属于 S2，必须与 Catalogue recipe、CompletionRecord、inspect/discovery/recovery/abort 以及 Bind/Ready 的全部消费者同时开放。S1 对普通 HEAD9 的保留快照不需要非 null origin。
 
 限额是持久业务策略：默认 `max_points=64`、`max_logical_bytes=32GiB`；格式硬界为最多64点、总字节最多 `64 × MAX_PAGES × 4096`，可配为0以禁止新增点。当前ADMIN可在Ready/Maintenance用原HEAD/ETag更新限额，更新推进业务revision/transition及技术serial；新限额必须容纳已有live数量和gross逻辑字节。Deleted/terminal不开放这个业务更新入口，避免改变原delete/abort barrier；那里只释放旧点、保留原R/transition。服务本地copy/read预算不参与格式合法性，换一个较小预算的实例不能把原来合法HEAD判Corrupt；它只能对新复制尝试返回Budget。限额进入CopyBasis，copy期间不更新。
 
@@ -224,9 +224,9 @@ prepare 竞态是先前实际模型错误：原合法交错返回 Corrupt，而�
 
 产品门禁另含所有生产文件四维精确单位、真实native/HTTP/signed S3、多个snapshot重叠chunk与不同根、原SQL随机值/BLOB、暂停GET/PUT/CAS/DELETE、两Scope进程退出及全冷恢复、独立oracle和负控。S1 已执行的具体范围以组合验收为准；S2 产品及实际 AWS 故障域／成本仍为 NOT_RUN，不能由 HEAD8 单位、S1 专项或任何模型结果替代。
 
-## 11. S2 实现闭环与当前代码缺口
+## 11. S2 实现闭环与原代码缺口
 
-本节按 #59 组合的正式代码核对，限定后续 S2 的改动边界；列出入口不等于已经实现。
+本节保留 #59 的原缺口和实现要求。当前分支已经按这张表新增 restore.rs、restore_copy.rs、restore_records.rs、restore_format.rs 与服务/SDK；每项是否验收通过以新候选报告为准，不由这张设计表推导。
 格式、Catalogue 消费者、跨 Scope copy、资源归属和传输必须作为同一功能验收，
 各可审查提交可以先进入 Draft，但没有任何中间提交独立开放半套 restore 协议。
 

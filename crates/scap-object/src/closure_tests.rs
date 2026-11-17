@@ -1499,7 +1499,7 @@ fn retain_tree(target: &mut Fixture, historical: &Fixture, pages: u32) {
     let h = &mut target.snapshot.head;
     h.format = 9;
     h.snapshot_limits = Some(SnapshotLimits::default());
-    h.restore_origin = Some(());
+    h.restore_origin = Some(None);
     h.head_serial += 1;
     let entries = h.snapshots.get_or_insert_with(Vec::new);
     let operation = entries.len() as u64 + 1;

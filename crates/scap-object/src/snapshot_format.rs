@@ -131,7 +131,7 @@ pub(crate) fn gross_bytes(entries: &[SnapshotEntry]) -> Result<u64, FormatError>
 }
 
 /// Preserve absence as a separate wire state. Explicit null is invalid for
-/// the list and limits, while S1 admits only the mandatory-null origin.
+/// the list and limits; restore origin preserves absent/null separately.
 pub(crate) fn present_entries<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Vec<SnapshotEntry>>, D::Error> {
@@ -142,12 +142,6 @@ pub(crate) fn present_limits<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<SnapshotLimits>, D::Error> {
     SnapshotLimits::deserialize(deserializer).map(Some)
-}
-
-pub(crate) fn present_null_origin<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<()>, D::Error> {
-    <()>::deserialize(deserializer).map(Some)
 }
 
 pub(crate) fn validate_head(head: &Head) -> Result<(), FormatError> {
@@ -161,6 +155,7 @@ pub(crate) fn validate_head(head: &Head) -> Result<(), FormatError> {
     let entries = head.snapshots.as_ref().ok_or(FormatError::Invalid)?;
     let limits = head.snapshot_limits.as_ref().ok_or(FormatError::Invalid)?;
     valid(head.restore_origin.is_some())?;
+    crate::restore_format::validate_head(head)?;
     limits.fits(entries)?;
     valid(
         entries.is_empty()

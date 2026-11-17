@@ -60,6 +60,16 @@ impl Worker {
             NativeAction::Inspect(operation) => {
                 wire::progress(catalogue.inspect_create_operation(caller, operation, deadline)?)
             }
+            NativeAction::PrepareRestore(input) => {
+                crate::restore_wire::prepared(&catalogue.prepare_restore(caller, &input, deadline)?)
+            }
+            NativeAction::InspectRestore { creator, operation } => crate::restore_wire::progress(
+                &catalogue.inspect_restore(caller, creator, operation, deadline)?,
+            ),
+            NativeAction::AbortRestore { reference, input } => {
+                wire::aborted(catalogue.abort_restore(caller, &reference, &input, deadline)?)
+            }
+            NativeAction::ResumeRestore(_) => return Err(Failure::new("INVALID")),
             NativeAction::Resolve(name) => wire::named(catalogue.resolve(caller, &name, deadline)?),
             NativeAction::Delete(input) => {
                 wire::deleted(catalogue.delete(caller, &input, deadline)?)

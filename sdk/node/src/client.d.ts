@@ -418,11 +418,39 @@ export interface RetireNamedStorageInput {
   readonly creation: Creation;
   readonly expected_head_serial: Decimal;
 }
+export interface PrepareRestoreInput extends Omit<PrepareCreateInput, 'create_operation'> {
+  readonly restore_operation: Decimal;
+  readonly source_scope: Scope;
+  readonly snapshot: SnapshotRef;
+}
+export interface RestoreRef {
+  readonly creation: Creation;
+  readonly descriptor_hash: string;
+}
+export interface AbortRestoreInput extends Omit<AbortCreateInput, 'creation'> {
+  readonly reference: RestoreRef;
+}
+export interface PreparedRestore extends Omit<PreparedCreate, 'creation'> {
+  readonly reference: RestoreRef;
+  readonly input: PrepareRestoreInput;
+  readonly point: SnapshotPoint;
+}
+export interface RestoreProgress {
+  readonly prepared: PreparedRestore;
+  readonly phase: 'not_reserved' | 'reserved' | 'copying' | 'copied' | 'bound' | 'ready' |
+    'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict';
+  readonly binding_revision: Decimal | null;
+  readonly head_revision: Decimal | null;
+}
 export type CatalogueAction =
   ({ readonly operation: 'prepare_create' } & PrepareCreateInput) |
   { readonly operation: 'resume_create'; readonly creation: Creation } |
   ({ readonly operation: 'abort_create' } & AbortCreateInput) |
   { readonly operation: 'inspect_create_operation'; readonly create_operation: Decimal } |
+  ({ readonly operation: 'prepare_restore' } & PrepareRestoreInput) |
+  { readonly operation: 'resume_restore'; readonly reference: RestoreRef } |
+  { readonly operation: 'inspect_restore'; readonly creator: Decimal; readonly restore_operation: Decimal } |
+  ({ readonly operation: 'abort_restore' } & AbortRestoreInput) |
   { readonly operation: 'resolve_name'; readonly name: string } |
   ({ readonly operation: 'delete_name' } & DeleteNameInput) |
   { readonly operation: 'named_storage_status'; readonly creation: Creation } |
@@ -485,9 +513,11 @@ export interface Named {
   readonly head: DatabaseStatus;
 }
 export type CatalogueResult<A extends CatalogueAction = CatalogueAction> =
+  A extends { readonly operation: 'prepare_restore' } ? PreparedRestore :
+  A extends { readonly operation: 'resume_restore' | 'inspect_restore' } ? RestoreProgress :
   A extends { readonly operation: 'prepare_create' } ? PreparedCreate :
   A extends { readonly operation: 'resume_create' | 'inspect_create_operation' } ? CreationProgress :
-  A extends { readonly operation: 'abort_create' } ? AbortProgress :
+  A extends { readonly operation: 'abort_create' | 'abort_restore' } ? AbortProgress :
   A extends { readonly operation: 'delete_name' } ? DeletionProgress :
   A extends { readonly operation: 'named_storage_status' | 'retire_named_storage' } ? DatabaseStatus : Named;
 export interface CatalogueClientOptions extends Omit<ClientOptions, 'scope' | 'resultLimits' | 'allocation'> {
@@ -510,6 +540,11 @@ export class CatalogueClient {
   resumeCreate(creation: Creation, options?: CallOptions): Promise<CreationProgress>;
   abortCreate(input: AbortCreateInput, options?: CallOptions): Promise<AbortProgress>;
   inspectCreateOperation(createOperation: Decimal, options?: CallOptions): Promise<CreationProgress>;
+  prepareRestore(input: PrepareRestoreInput, options?: CallOptions): Promise<PreparedRestore>;
+  /** One transition; copying uses the independently bounded recovery class. */
+  resumeRestore(reference: RestoreRef, options?: CallOptions): Promise<RestoreProgress>;
+  inspectRestore(restoreOperation: Decimal, options?: CallOptions): Promise<RestoreProgress>;
+  abortRestore(input: AbortRestoreInput, options?: CallOptions): Promise<AbortProgress>;
   resolveName(name: string, options?: CallOptions): Promise<Named>;
   deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
   /** Deleted metadata only; verifies the original named deletion or abort intent. */
@@ -534,7 +569,7 @@ export interface NamePage {
 export interface InventoryRecord {
   readonly key: string;
   readonly kind: 'name' | 'create' | 'control' | 'abort_proof' | 'head' | 'orphan_prefix';
-  readonly state: 'descriptor_only' | 'reserved' | 'provisioning' | 'bound' | 'ready' | 'maintenance' |
+  readonly state: 'descriptor_only' | 'reserved' | 'provisioning' | 'restore_copying' | 'restore_copied' | 'bound' | 'ready' | 'maintenance' |
     'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict' | 'control_admitted' | 'orphan';
   readonly creation: Creation | null;
   readonly scope: Scope | null;

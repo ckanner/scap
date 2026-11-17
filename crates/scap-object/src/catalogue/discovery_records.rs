@@ -186,7 +186,7 @@ impl Catalogue {
             self.metadata_state(&source, &view, deadline)?;
             let current = &view.head.as_ref().ok_or(DiscoveryError::Corrupt)?.head;
             require(Self::own(&source, current))?;
-            let state = lifecycle(current.lifecycle.clone());
+            let state = restore_lifecycle(current);
             return Ok(Some(record(&key, RecordKind::Head, state, &source, &view)));
         }
         Ok(Some(DiscoveredRecord {
@@ -230,7 +230,7 @@ impl Catalogue {
                     (_, None) => Ok(MetadataState::IdentityConflict),
                     (_, Some(head)) => {
                         Self::provisioning(source, &head.head)?;
-                        Ok(MetadataState::Provisioning)
+                        Ok(restore_lifecycle(&head.head))
                     }
                 }
             }
@@ -240,6 +240,13 @@ impl Catalogue {
                 match head.lifecycle {
                     Lifecycle::Provisioning => {
                         Self::provisioning(source, head)?;
+                        require(!matches!(
+                            head.restore_origin
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(|origin| &origin.phase),
+                            Some(format::RestoreCopyPhase::Copying {})
+                        ))?;
                         Ok(MetadataState::Bound)
                     }
                     Lifecycle::Ready => Ok(MetadataState::Ready),
@@ -323,6 +330,18 @@ fn lifecycle(value: Lifecycle) -> MetadataState {
         Lifecycle::Maintenance => MetadataState::Maintenance,
         Lifecycle::Deleted => MetadataState::Deleted,
     }
+}
+
+pub(super) fn restore_lifecycle(head: &Head) -> MetadataState {
+    if head.lifecycle == Lifecycle::Provisioning {
+        if let Some(Some(origin)) = &head.restore_origin {
+            return match origin.phase {
+                format::RestoreCopyPhase::Copying {} => MetadataState::RestoreCopying,
+                format::RestoreCopyPhase::Copied { .. } => MetadataState::RestoreCopied,
+            };
+        }
+    }
+    lifecycle(head.lifecycle.clone())
 }
 
 fn record(

@@ -4,6 +4,10 @@
 
 普通数据库接口以完整 `deployment / tenant / database / incarnation / generation` 标识接入；调用方必须持久保存原始身份。可选的独立 [名称目录接口](catalogue.md)使用 `POST /v1/catalogue`，协调原创建意图、同名 reservation、取消和删除；其新增实现仍须单独冻结验收。HEAD 的 key 保持单库固定以隔离旧身份，本地缓存键另包含 incarnation 和 generation，不能用缓存把两代身份混用。
 
+S2 候选增加[从保留快照恢复新数据库](docs/restore.md)。跨 Scope 数据会重新封装和完整
+验证；长复制使用独立 recovery worker/队列及 staging 预算，检查和取消仍使用目录控制池。
+每次显式 resume 最多一个 Name/HEAD CAS，Ready 仍需另行激活 writer。
+
 ## 启动
 
 ```bash
