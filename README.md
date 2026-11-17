@@ -17,6 +17,7 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 | [PR #62](https://github.com/ckanner/scap/pull/62) | 永久 high-water counter、显式初始化、自动分配和永久占用；UNKNOWN 不收养、不复用身份 | 独立 stable/nightly 各 808 单位、实际自动分配 18 场景及显式 ID 兼容 10 场景通过；原 7 个 branch 零分母仍阻断，继续 Draft |
 | [PR #63](https://github.com/ckanner/scap/pull/63) | S2 retained point 恢复到全新 Scope；核心、HTTP、Node SDK、取消、发现、GC 消费者与独立恢复资源 | 已实现并提交；原生故障与精确候选验证见恢复专项记录，保持 Draft |
 | [PR #64](https://github.com/ckanner/scap/pull/64) | 实际服务 CPU／分配／对象等待／建连诊断；共享 S3 空闲连接从 2 调至有界 8 | 存储 45 单位与实际 TCP 负控通过；四库写建连 83→4；不宣布普遍 TPS 提升或历史 24% 回退已修复 |
+| [PR #65](https://github.com/ckanner/scap/pull/65) | 以上能力的完整组合；恢复资源在身份占用前校验，各 worker 使用实际分配身份 | stable/nightly 各877单位；Node161；实际自动编号18、显式ID10、恢复7场景及独立审计126负控通过；严格覆盖仍失败，保持Draft |
 
 各份结果对应各自的源码组合，测试数不能相加，也没有借用旧候选的实际合同认证新代码。
 本轮 #59/#61 fresh unit-only 报告已发出的计数全部命中，**但原有 7 个文件 branch
@@ -24,6 +25,11 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 结构无分支；没有改门槛、排除生产文件或用 region 冒充分支。代码、设计与证据见
 [2026-11-17 审查和修复](docs/engineering/sqlite-s3-review-2026-11-17.md)，测量规则见
 [分支测量说明](docs/engineering/branch-coverage-measurement-gap.md)。
+
+#65 的最终新组合另有4个核心文件存在未命中计数；新增 restore_wire 后共有8个文件
+branch分母为零，完整门禁仍失败。S2的源码、实际、审计器漏检修复和最终边界见
+[恢复验证](docs/engineering/snapshot-restore-validation-2026-11-17.md)，完整组合结果见
+[PR #65 验证记录](https://github.com/ckanner/scap/blob/feat/sqlite-s3-combined-20261117/docs/engineering/sqlite-s3-followup-validation-2026-11-17.md)。
 
 2026-11-13 的历史补验：原 11–12 日部分 raw originals 未能恢复，当日重新构建正式
 release，按原合同重新执行，分别保存原失败、新通过和未运行项。HEAD6、终态退休、

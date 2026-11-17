@@ -582,6 +582,12 @@ fn public_admission_and_internal_scope_bindings_reject_substituted_restore_autho
             .abort_restore(denied, &prepared.reference, &cancellation, deadline()),
         Err(CatalogueError::Denied)
     );
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(CREATOR, &wrong, &cancellation, deadline()),
+        Err(CatalogueError::Invalid)
+    );
     assert!(!path.exists());
 }
 
@@ -706,4 +712,81 @@ fn completion_and_cold_open_bind_every_origin_field_and_preserve_metadata_failur
         Catalogue::provisioning(&empty, &copying),
         Err(CatalogueError::Corrupt)
     );
+}
+
+#[test]
+fn completed_copy_validation_rejects_unbound_records_and_mismatched_target_page_counts() {
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    fixture.memory.cut(
+        true,
+        &fixture.completion_key(&prepared),
+        None,
+        0,
+        Fault::AfterPut,
+    );
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &fixture.directory.path().join("copy"),
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Unknown)
+    );
+    let source = fixture
+        .catalogue
+        .restore_descriptor(&prepared.reference, deadline())
+        .unwrap();
+    let base = fixture
+        .catalogue
+        .read_slot(&prepared.reference.creation.scope, deadline())
+        .unwrap()
+        .unwrap();
+    let original = fixture
+        .catalogue
+        .read_completion(&source, deadline())
+        .unwrap()
+        .unwrap();
+    for field in 0..4 {
+        let mut record = original.raw().clone();
+        match field {
+            0 => record.descriptor_hash = digest(b"other descriptor"),
+            1 => record.request_root = digest(b"other request window"),
+            2 => record.data_root = digest(b"missing data tree"),
+            _ => record.page_count = 1,
+        }
+        let path = fixture.directory.path().join("unbound-completion");
+        assert_eq!(
+            fixture.catalogue.validate_completed_copy(
+                &source,
+                &base,
+                &record,
+                &path,
+                RestoreBudget::default(),
+                deadline()
+            ),
+            Err(CatalogueError::Corrupt),
+            "field {field}"
+        );
+        assert!(!path.exists());
+    }
+    assert_eq!(
+        fixture.catalogue.validate_completed_copy(
+            &source,
+            &base,
+            original.raw(),
+            &fixture.directory.path().join("zero-disk"),
+            RestoreBudget {
+                max_image_bytes: 0,
+                ..RestoreBudget::default()
+            },
+            deadline()
+        ),
+        Ok(())
+    );
+    // An empty database is legitimately zero logical image bytes; the caller
+    // disables copying through the I/O directions, not this image limit alone.
 }
