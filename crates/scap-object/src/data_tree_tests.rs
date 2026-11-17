@@ -96,6 +96,19 @@ fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(600)
 }
 
+// Existing tree-shape fixtures need only the resulting root. Production
+// publication consumes the opaque proof; proof boundaries are tested below.
+fn update(
+    store: &impl DataObjects,
+    base_root: &str,
+    batch: &PageBatch,
+    max_pages: u32,
+    deadline: Instant,
+) -> Result<String, Error> {
+    super::update(store, base_root, batch, max_pages, deadline)
+        .map(|verified| verified.root().to_owned())
+}
+
 fn page(number: u32) -> PageChange {
     PageChange {
         number,
@@ -642,6 +655,35 @@ fn every_object_io_failure_and_stream_consumer_failure_propagates() {
 }
 
 #[test]
+fn truncating_to_empty_propagates_manifest_save_failure_without_a_proof() {
+    let (store, root) = build(1);
+    let original = store.objects.borrow().clone();
+    let end = deadline();
+    store.fail_at.set(Some(2));
+    assert!(matches!(
+        super::update(
+            &store,
+            &root,
+            &PageBatch {
+                size_after: 0,
+                pages: vec![],
+            },
+            MAX_PAGES,
+            end,
+        ),
+        Err(Error::Store(StoreError::Unknown))
+    ));
+    assert!(matches!(
+        store.calls.borrow().as_slice(),
+        [Call::Load(hash), Call::Save] if hash == &root
+    ));
+    assert_eq!(store.deadlines.borrow().as_slice(), &[end, end]);
+    assert_eq!(*store.objects.borrow(), original);
+    store.reset();
+    verify_image(&store, &root, 1, None);
+}
+
+#[test]
 fn recursive_read_edit_and_root_shrink_propagate_object_io_failure() {
     let (original, root) = build(8193);
     for (batch, point) in [
@@ -711,4 +753,44 @@ fn geometry_covers_native_maximum_and_never_fills_growth_holes_with_zeroes() {
     };
     assert!(matches!(edit.chunk(None, 0), Err(Error::Corrupt)));
     assert_eq!(store.counts(), (0, 0));
+}
+
+#[test]
+fn manifest_proofs_bind_the_original_store_root_quota_and_deadline() {
+    let (store, root) = build(2);
+    let other = store.clone();
+    let batch = PageBatch {
+        size_after: 2,
+        pages: vec![],
+    };
+    let until = deadline();
+    for fault in 0..6 {
+        let verified = super::update(&store, &root, &batch, MAX_PAGES, until).unwrap();
+        let before = store.counts();
+        let result = verified.validate(
+            if fault == 0 { &other } else { &store },
+            if fault == 5 { "another base" } else { &root },
+            if fault == 1 { "another root" } else { &root },
+            if fault == 3 { 1 } else { MAX_PAGES },
+            if fault == 2 {
+                until + Duration::from_secs(1)
+            } else {
+                until
+            },
+        );
+        match fault {
+            0..=2 | 5 => assert!(matches!(result, Err(Error::Corrupt))),
+            3 => assert!(matches!(result, Err(Error::Limit))),
+            _ => result.unwrap(),
+        }
+        assert_eq!(store.counts(), before, "proof checks perform no object I/O");
+    }
+    // This decoded-object port ignores time, allowing a deterministic expiry
+    // check at the proof consumer without a clock race or sleep.
+    let expired = Instant::now();
+    let verified = super::update(&store, &root, &batch, MAX_PAGES, expired).unwrap();
+    assert!(matches!(
+        verified.validate(&store, &root, &root, MAX_PAGES, expired),
+        Err(Error::Unknown)
+    ));
 }

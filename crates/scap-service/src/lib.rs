@@ -12,6 +12,7 @@ pub mod discovery_cursor;
 pub mod discovery_wire;
 pub mod engine;
 pub mod http;
+mod instance;
 pub mod intake;
 pub mod output;
 pub mod owner_wire;

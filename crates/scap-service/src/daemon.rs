@@ -5,13 +5,13 @@ use std::future::Future;
 use std::io::Read;
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use scap_object_store::{Garbage, GcS3, Listings, Objects, S3Config, S3};
 use tokio::sync::Semaphore;
 
 use crate::{
-    config::{Config, Prepared, PreparedGarbage, ServiceConfig},
+    config::{Config, Prepared, PreparedDiscovery, PreparedGarbage, ServiceConfig, WorkerInstance},
     engine::{Collector, Engine},
     http::{self, CatalogueState, HttpState, RestoreState},
     intake::{Class, Intake},
@@ -21,8 +21,17 @@ use crate::{
 
 pub type Shutdown = std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
-/// Build without entering an asynchronous runtime. Cache files and object I/O
-/// are created by the worker factory on their own confined worker threads.
+/// Resolved identity and service state. Claim success is not listener readiness
+/// or database ownership; callers still bind the listener and perform owner
+/// operations through the normal protocol.
+pub struct Assembly {
+    pub address: std::net::SocketAddr,
+    pub worker_instance: u64,
+    pub state: Arc<HttpState>,
+}
+
+/// Build without entering an asynchronous runtime. Startup permanently claims
+/// its configured identity on the supplied authority before starting workers.
 pub fn assemble(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
@@ -48,6 +57,46 @@ pub fn assemble_with_storage(
     listings: Option<Arc<dyn Listings>>,
     garbage: Option<Arc<dyn Garbage>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    assemble_identified(prepared, objects, listings, garbage)
+        .map(|assembly| (assembly.address, assembly.state))
+}
+
+/// Like the tuple wrappers, but also returns the allocated numeric identity for
+/// trusted embedders. All capabilities must refer to the same authority.
+pub fn assemble_identified(
+    prepared: ServiceConfig,
+    objects: Arc<dyn Objects>,
+    listings: Option<Arc<dyn Listings>>,
+    garbage: Option<Arc<dyn Garbage>>,
+) -> Result<Assembly, Failure> {
+    assemble_using(
+        prepared,
+        objects,
+        listings,
+        garbage,
+        crate::catalogue_scheduler::Scheduler::new,
+        PreparedDiscovery::bind,
+    )
+}
+
+/// Keep validation and durable claim ordering unchanged when testing a
+/// post-claim thread creation failure. Only the catalogue construction effect
+/// varies; public assembly always uses the real constructor.
+fn assemble_using(
+    prepared: ServiceConfig,
+    objects: Arc<dyn Objects>,
+    listings: Option<Arc<dyn Listings>>,
+    garbage: Option<Arc<dyn Garbage>>,
+    create_catalogue: fn(
+        crate::catalogue_scheduler::Limits,
+        crate::catalogue_scheduler::Factory,
+    ) -> Result<crate::catalogue_scheduler::Scheduler, Failure>,
+    bind_discovery: fn(
+        PreparedDiscovery,
+        u64,
+    ) -> Result<Arc<crate::discovery_cursor::CursorCodec>, Failure>,
+) -> Result<Assembly, Failure> {
+    prepared.transport.checked()?;
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
@@ -60,11 +109,52 @@ pub fn assemble_with_storage(
         }
         None => None,
     };
+    let limits = prepared.admission.limits();
+    limits.validate()?;
+    let admission = &prepared.admission;
+    if !prepared.listen.ip().is_loopback()
+        || prepared.worker_instance == WorkerInstance::Explicit(0)
+        || !prepared.cache_directory.is_absolute()
+        || prepared.cache.pages_per_actor == 0
+        || !(1..=256).contains(&prepared.cache.parallel_recoveries)
+        || !(1..=86400000).contains(&admission.timeout_ms)
+        || !(admission.timeout_ms..=604800000).contains(&admission.recovery_timeout_ms)
+    {
+        return Err(Failure::new("CONFIG"));
+    }
+    scap_object_sqlite::validate_cache_directory(&prepared.cache_directory)
+        .map_err(|_| Failure::new("CACHE_IO"))?;
+    let intake = Arc::new(Intake::new(
+        Class::Data,
+        admission.data_intake,
+        admission.max_body_bytes,
+        admission.data_profile,
+    )?);
+    let control_intake = Arc::new(Intake::new(
+        Class::Control,
+        admission.control_intake,
+        admission.max_body_bytes,
+        admission.control_profile,
+    )?);
+    let recovery_intake = Arc::new(Intake::new(
+        Class::Recovery,
+        admission.recovery_intake,
+        admission.max_body_bytes,
+        admission.recovery_profile,
+    )?);
+    let catalogue_intake = match &prepared.catalogue {
+        Some(admission) => {
+            admission.limits().validate()?;
+            Some(Arc::new(admission.build_intake()?))
+        }
+        None => None,
+    };
     let collector = match prepared.gc_deployment {
         Some(deployment) => {
             if deployment == 0 {
                 return Err(Failure::new("CONFIG"));
             }
+            prepared.auth.validate_gc_deployment(deployment)?;
             Some(Collector {
                 deployment,
                 listings: listings.clone().ok_or_else(|| Failure::new("CONFIG"))?,
@@ -79,12 +169,35 @@ pub fn assemble_with_storage(
         }
     };
     let discovery = match prepared.discovery {
-        Some(codec) => Some(Arc::new(crate::discovery::Discovery::new(
-            objects.clone(),
-            listings.ok_or_else(|| Failure::new("CONFIG"))?,
-            prepared.worker_instance,
-            codec,
-        )?)),
+        Some(codec) => {
+            if !codec.accepts(prepared.worker_instance) {
+                return Err(Failure::new("CONFIG"));
+            }
+            Some((codec, listings.ok_or_else(|| Failure::new("CONFIG"))?))
+        }
+        None => None,
+    };
+    // Every local configuration/capability check above precedes this durable
+    // effect. There are no service workers or listeners yet. A later runtime,
+    // thread or bind failure still consumes the ID; cleanup never releases it.
+    let deadline = Instant::now() + options.operation_timeout;
+    let worker = match prepared.worker_instance {
+        WorkerInstance::Explicit(worker) => {
+            crate::instance::claim(objects.as_ref(), worker, deadline)?;
+            worker
+        }
+        WorkerInstance::Auto => crate::instance::allocate(objects.as_ref(), deadline)?,
+    };
+    let discovery = match discovery {
+        Some((codec, listings)) => Some(Arc::new(
+            crate::discovery::Discovery::new(
+                objects.clone(),
+                listings,
+                worker,
+                bind_discovery(codec, worker)?,
+            )
+            .expect("claimed nonzero worker identity"),
+        )),
         None => None,
     };
     let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
@@ -100,7 +213,7 @@ pub fn assemble_with_storage(
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
                 Ok(Box::new(crate::restore::Worker::new(
                     objects.clone(),
-                    prepared.worker_instance,
+                    worker,
                     options.clone(),
                     &directory,
                     recovery.clone(),
@@ -125,36 +238,29 @@ pub fn assemble_with_storage(
     };
     let catalogue = match prepared.catalogue {
         Some(admission) => {
-            // The scheduler validates queue/worker limits at construction;
-            // transport budgets must also hold for this direct entry point.
-            let intake = Arc::new(admission.build_intake()?);
             let objects = objects.clone();
             let options = options.clone();
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
                 Ok(Box::new(crate::catalogue::Worker::new(
                     objects.clone(),
-                    prepared.worker_instance,
+                    worker,
                     options.clone(),
                 )))
             });
             Some(CatalogueState {
-                scheduler: Arc::new(crate::catalogue_scheduler::Scheduler::new(
-                    admission.limits(),
-                    factory,
-                )?),
+                scheduler: Arc::new(create_catalogue(admission.limits(), factory)?),
                 max_body_bytes: admission.max_body_bytes,
                 timeout: Duration::from_millis(admission.timeout_ms),
-                intake,
+                intake: catalogue_intake.expect("validated catalogue admission"),
             })
         }
         None => None,
     };
-    let limits = prepared.admission.limits();
     let factory: Factory = Arc::new(move |_| {
         Ok(Box::new(
             Engine::new(
                 objects.clone(),
-                prepared.worker_instance,
+                worker,
                 options.clone(),
                 &prepared.cache_directory,
                 1,
@@ -166,9 +272,10 @@ pub fn assemble_with_storage(
     });
     let scheduler = Arc::new(Scheduler::new(limits, factory)?);
     let admission = prepared.admission;
-    Ok((
-        prepared.listen,
-        Arc::new(HttpState {
+    Ok(Assembly {
+        address: prepared.listen,
+        worker_instance: worker,
+        state: Arc::new(HttpState {
             auth: prepared.auth,
             scheduler,
             output,
@@ -178,26 +285,11 @@ pub fn assemble_with_storage(
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),
             recovery_timeout: Duration::from_millis(admission.recovery_timeout_ms),
-            intake: Arc::new(Intake::new(
-                Class::Data,
-                admission.data_intake,
-                admission.max_body_bytes,
-                admission.data_profile,
-            )?),
-            control_intake: Arc::new(Intake::new(
-                Class::Control,
-                admission.control_intake,
-                admission.max_body_bytes,
-                admission.control_profile,
-            )?),
-            recovery_intake: Arc::new(Intake::new(
-                Class::Recovery,
-                admission.recovery_intake,
-                admission.max_body_bytes,
-                admission.recovery_profile,
-            )?),
+            intake,
+            control_intake,
+            recovery_intake,
         }),
-    ))
+    })
 }
 
 pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
@@ -209,9 +301,12 @@ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
     let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
-    let (address, state) =
-        assemble_with_storage(prepared.service, backend.clone(), Some(backend), garbage)?;
-    run(address, state, transport, shutdown, runtime)
+    let assembly = assemble_identified(prepared.service, backend.clone(), Some(backend), garbage)?;
+    eprintln!(
+        "{}",
+        serde_json::json!({"event":"worker_identity_claimed", "worker_instance":assembly.worker_instance.to_string()})
+    );
+    run(assembly, transport, shutdown, runtime)
 }
 
 fn gc_backend(
@@ -253,18 +348,26 @@ fn runtime() -> std::io::Result<tokio::runtime::Runtime> {
 }
 
 fn run(
-    address: std::net::SocketAddr,
-    state: Arc<HttpState>,
+    assembly: Assembly,
     transport: crate::transport::Limits,
     shutdown: Shutdown,
     create_runtime: fn() -> std::io::Result<tokio::runtime::Runtime>,
 ) -> Result<(), Failure> {
+    let Assembly {
+        address,
+        worker_instance,
+        state,
+    } = assembly;
     let router = http::router(state.clone())?;
     let runtime = create_runtime().map_err(|_| Failure::new("RUNTIME"))?;
     let outcome = runtime.block_on(async {
         let listener = tokio::net::TcpListener::bind(address)
             .await
             .map_err(|_| Failure::new("LISTEN"))?;
+        eprintln!(
+            "{}",
+            serde_json::json!({"event":"worker_identity_ready", "worker_instance":worker_instance.to_string()})
+        );
         crate::transport::serve(listener, router, transport, shutdown).await;
         Ok(())
     });
@@ -286,21 +389,56 @@ async fn shutdown(signal: std::pin::Pin<Box<dyn Future<Output = std::io::Result<
     let _ = signal.await;
 }
 
-fn start(args: Vec<OsString>, launch: fn(Config) -> Result<(), Failure>) -> Result<(), Failure> {
-    if args.len() != 1 {
-        return Err(Failure::new("USAGE"));
+fn initialize_allocator(config: Config, high_water: u64) -> Result<(), Failure> {
+    if config.worker_instance != WorkerInstance::Auto {
+        return Err(Failure::new("CONFIG"));
     }
+    let prepared = config.prepare()?;
+    let backend = S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?;
+    crate::instance::initialize(
+        &backend,
+        high_water,
+        Instant::now() + prepared.service.options.operation_timeout,
+    )?;
+    eprintln!(
+        "{}",
+        serde_json::json!({"event":"worker_allocator_initialized", "high_water":high_water.to_string()})
+    );
+    Ok(())
+}
+
+fn start(
+    args: Vec<OsString>,
+    launch: fn(Config) -> Result<(), Failure>,
+    initialize: fn(Config, u64) -> Result<(), Failure>,
+) -> Result<(), Failure> {
+    let (path, high_water) = match args.as_slice() {
+        [path] => (path, None),
+        [command, path, floor] if command == "--init-worker-allocator" => {
+            let floor = floor.to_str().ok_or_else(|| Failure::new("USAGE"))?;
+            let number = floor.parse::<u64>().map_err(|_| Failure::new("USAGE"))?;
+            if number.to_string() != floor {
+                return Err(Failure::new("USAGE"));
+            }
+            (path, Some(number))
+        }
+        _ => return Err(Failure::new("USAGE")),
+    };
     let mut bytes = Vec::new();
-    std::fs::File::open(&args[0])
+    std::fs::File::open(path)
         .map_err(|_| Failure::new("CONFIG"))?
         .take(4 * 1024 * 1024 + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| Failure::new("CONFIG"))?;
-    launch(Config::parse(&bytes)?)
+    let config = Config::parse(&bytes)?;
+    match high_water {
+        Some(high_water) => initialize(config, high_water),
+        None => launch(config),
+    }
 }
 
 pub fn entry(args: Vec<OsString>) -> ExitCode {
-    exit(start(args, launch))
+    exit(start(args, launch, initialize_allocator))
 }
 
 fn exit(result: Result<(), Failure>) -> ExitCode {

@@ -2,6 +2,8 @@ use super::*;
 use crate::tests::{call, principal, sample_config, until, Memory};
 use crate::wire::{Action, Decimal};
 
+mod startup_s3;
+
 fn prepared(parent: &std::path::Path) -> Prepared {
     let _credentials = crate::tests::test_credentials();
     Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
@@ -18,24 +20,23 @@ fn assembly_validates_restore_before_io_and_builds_a_separate_bounded_pool() {
     };
     let mut config = prepared(directory.path()).service;
     config.restore = Some(profile());
+    let objects = Arc::new(Memory::default());
     assert_eq!(
-        assemble(config, Arc::new(Memory::default()))
-            .err()
-            .unwrap()
-            .code,
+        assemble(config, objects.clone()).err().unwrap().code,
         "CONFIG"
     );
+    assert!(objects.calls.lock().unwrap().is_empty());
     let mut config = prepared(directory.path()).service;
     config.catalogue = Some(profile().admission);
     config.restore = Some(profile());
     config.restore.as_mut().unwrap().max_staging_bytes = 1;
+    config.worker_instance = WorkerInstance::Auto;
+    let objects = Arc::new(Memory::default());
     assert_eq!(
-        assemble(config, Arc::new(Memory::default()))
-            .err()
-            .unwrap()
-            .code,
+        assemble(config, objects.clone()).err().unwrap().code,
         "CONFIG"
     );
+    assert!(objects.calls.lock().unwrap().is_empty());
     let mut config = prepared(directory.path()).service;
     config.catalogue = Some(profile().admission);
     config.restore = Some(profile());
@@ -54,7 +55,7 @@ fn assembly_validates_restore_before_io_and_builds_a_separate_bounded_pool() {
 }
 
 #[test]
-fn restore_worker_startup_rejects_cache_loss_without_starting_other_pools() {
+fn restore_configuration_with_missing_cache_fails_before_identity_claim() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = prepared(directory.path()).service;
     let profile = || {
@@ -62,8 +63,8 @@ fn restore_worker_startup_rejects_cache_loss_without_starting_other_pools() {
     };
     config.catalogue = Some(profile().admission);
     config.restore = Some(profile());
-    // The path was valid during configuration preparation, but is gone by
-    // actual worker construction. Startup must join the failed restore pool.
+    // Parsed preparation cannot substitute for the assembly-time local check:
+    // no durable identity is consumed when this cache is already missing.
     std::fs::remove_dir(directory.path()).unwrap();
     let objects = Arc::new(Memory::default());
     assert_eq!(
@@ -541,10 +542,15 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         serve(configuration, Box::pin(async {})).unwrap_err().code,
         "CONFIG"
     );
-    serve(prepared(directory.path()), Box::pin(async {})).unwrap();
+    let backend = startup_s3::Backend::new();
+    let mut configuration = prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    serve(configuration, Box::pin(async {})).unwrap();
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let mut configuration = prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    configuration.service.worker_instance = WorkerInstance::Explicit(101);
     configuration.service.listen = listener.local_addr().unwrap();
     assert_eq!(
         serve(configuration, Box::pin(async {})).unwrap_err().code,
@@ -560,8 +566,11 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
     }
     assert_eq!(
         run(
-            "127.0.0.1:0".parse().unwrap(),
-            state,
+            Assembly {
+                address: "127.0.0.1:0".parse().unwrap(),
+                worker_instance: 100,
+                state,
+            },
             crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             failed_runtime
@@ -578,8 +587,11 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
     Arc::get_mut(&mut state).unwrap().max_body_bytes = 0;
     assert_eq!(
         run(
-            "127.0.0.1:0".parse().unwrap(),
-            state,
+            Assembly {
+                address: "127.0.0.1:0".parse().unwrap(),
+                worker_instance: 100,
+                state,
+            },
             crate::transport::Profile::default().checked().unwrap(),
             Box::pin(async {}),
             runtime
@@ -613,29 +625,48 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
         assert_eq!(config.version, 1);
         Ok(())
     }
-    assert!(start(vec![file.clone().into()], accepted).is_ok());
-    assert_eq!(start(vec![], accepted).unwrap_err().code, "USAGE");
+    assert!(start(vec![file.clone().into()], accepted, initialize_allocator).is_ok());
     assert_eq!(
-        start(vec![file.clone().into(), file.clone().into()], accepted)
+        start(vec![], accepted, initialize_allocator)
             .unwrap_err()
             .code,
         "USAGE"
     );
     assert_eq!(
-        start(vec![directory.path().join("missing").into()], accepted)
-            .unwrap_err()
-            .code,
+        start(
+            vec![file.clone().into(), file.clone().into()],
+            accepted,
+            initialize_allocator
+        )
+        .unwrap_err()
+        .code,
+        "USAGE"
+    );
+    assert_eq!(
+        start(
+            vec![directory.path().join("missing").into()],
+            accepted,
+            initialize_allocator
+        )
+        .unwrap_err()
+        .code,
         "CONFIG"
     );
     assert_eq!(
-        start(vec![directory.path().into()], accepted)
-            .unwrap_err()
-            .code,
+        start(
+            vec![directory.path().into()],
+            accepted,
+            initialize_allocator
+        )
+        .unwrap_err()
+        .code,
         "CONFIG"
     );
     std::fs::write(&file, vec![0; 4 * 1024 * 1024 + 2]).unwrap();
     assert_eq!(
-        start(vec![file.clone().into()], accepted).unwrap_err().code,
+        start(vec![file.clone().into()], accepted, initialize_allocator)
+            .unwrap_err()
+            .code,
         "CONFIG"
     );
     std::fs::write(&file, b"{}").unwrap();
@@ -664,6 +695,115 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
 }
 
 #[test]
+fn allocator_cli_is_explicit_bounded_and_does_not_launch_a_service() {
+    use std::os::unix::ffi::OsStringExt;
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("config.json");
+    std::fs::write(&file, sample_config(directory.path()).to_string()).unwrap();
+    fn no_service(_: Config) -> Result<(), Failure> {
+        panic!("initialization must not launch a service")
+    }
+    fn accepted(config: Config, floor: u64) -> Result<(), Failure> {
+        assert_eq!(config.version, 1);
+        assert_eq!(floor, 17);
+        Ok(())
+    }
+    assert!(start(
+        vec![
+            "--init-worker-allocator".into(),
+            file.clone().into(),
+            "17".into()
+        ],
+        no_service,
+        accepted
+    )
+    .is_ok());
+    for floor in ["", "01", "+1", "-1", "18446744073709551616"] {
+        assert_eq!(
+            start(
+                vec![
+                    "--init-worker-allocator".into(),
+                    file.clone().into(),
+                    floor.into()
+                ],
+                no_service,
+                accepted
+            )
+            .unwrap_err()
+            .code,
+            "USAGE"
+        );
+    }
+    assert_eq!(
+        start(
+            vec![
+                "--init-worker-allocator".into(),
+                file.clone().into(),
+                OsString::from_vec(vec![255])
+            ],
+            no_service,
+            accepted
+        )
+        .unwrap_err()
+        .code,
+        "USAGE"
+    );
+    assert_eq!(
+        start(
+            vec!["--reset-worker-allocator".into(), file.into(), "17".into()],
+            no_service,
+            accepted
+        )
+        .unwrap_err()
+        .code,
+        "USAGE"
+    );
+}
+
+#[test]
+fn real_startup_adapter_initializes_once_and_restarts_auto_without_config_edits() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    let parse = |value: &serde_json::Value| Config::parse(value.to_string().as_bytes()).unwrap();
+    assert_eq!(
+        initialize_allocator(parse(&value), 0).unwrap_err().code,
+        "CONFIG"
+    );
+    value["worker_instance"] = serde_json::json!("auto");
+    value["version"] = serde_json::json!(2);
+    assert_eq!(
+        initialize_allocator(parse(&value), 0).unwrap_err().code,
+        "CONFIG"
+    );
+    value["version"] = serde_json::json!(1);
+    let _credentials = crate::tests::test_credentials();
+    value["s3"]["endpoint"] = serde_json::json!("invalid");
+    assert_eq!(
+        initialize_allocator(parse(&value), 0).unwrap_err().code,
+        "CONFIG"
+    );
+    let backend = startup_s3::Backend::new();
+    value["s3"]["endpoint"] = serde_json::json!(backend.endpoint());
+    let config_path = directory.path().join("config.json");
+    std::fs::write(&config_path, value.to_string()).unwrap();
+    assert_eq!(
+        entry(vec![
+            "--init-worker-allocator".into(),
+            config_path.into(),
+            "100".into()
+        ]),
+        ExitCode::SUCCESS
+    );
+    assert_eq!(
+        initialize_allocator(parse(&value), 0).unwrap_err().code,
+        "INSTANCE_ALLOCATOR_EXISTS"
+    );
+    for _ in 0..2 {
+        serve(parse(&value).prepare().unwrap(), Box::pin(async {})).unwrap();
+    }
+}
+
+#[test]
 fn prepared_startup_failure_and_completed_shutdown_signal_are_observable() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = prepared(directory.path());
@@ -686,11 +826,11 @@ fn discovery_startup_requires_a_listing_transport_and_validates_the_direct_worke
     let directory = tempfile::tempdir().unwrap();
     let memory = Arc::new(Memory::default());
     let mut p = prepared(directory.path()).service;
-    p.discovery = Some(crate::discovery::tests::codec());
+    p.discovery = Some(PreparedDiscovery::Ready(crate::discovery::tests::codec()));
     assert_eq!(assemble(p, memory.clone()).err().unwrap().code, "CONFIG");
     let mut p = prepared(directory.path()).service;
-    p.discovery = Some(crate::discovery::tests::codec());
-    p.worker_instance = 0;
+    p.discovery = Some(PreparedDiscovery::Ready(crate::discovery::tests::codec()));
+    p.worker_instance = WorkerInstance::Explicit(0);
     assert_eq!(
         assemble_with_listings(p, memory.clone(), Some(memory.clone()))
             .err()
@@ -699,7 +839,7 @@ fn discovery_startup_requires_a_listing_transport_and_validates_the_direct_worke
         "CONFIG"
     );
     let mut p = prepared(directory.path()).service;
-    p.discovery = Some(crate::discovery::tests::codec());
+    p.discovery = Some(PreparedDiscovery::Ready(crate::discovery::tests::codec()));
     let (_, state) = assemble_with_listings(p, memory.clone(), Some(memory)).unwrap();
     assert!(state.discovery.is_some());
     drop(state);
@@ -773,7 +913,385 @@ fn direct_prepared_gc_cannot_rebind_authority_or_silently_enable_delete() {
     );
     // Production construction/drop remains outside its request runtime even when
     // both ordinary and dedicated S3 adapters are present.
-    serve(gc_prepared(directory.path()), Box::pin(async {})).unwrap();
+    let backend = startup_s3::Backend::new();
+    let mut configuration = gc_prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    configuration.gc.as_mut().unwrap().s3.endpoint = backend.endpoint();
+    serve(configuration, Box::pin(async {})).unwrap();
+}
+
+#[test]
+fn startup_claim_is_shared_by_all_public_assembly_paths_and_survives_exit() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    let (_, state) = assemble(prepared(directory.path()).service, memory.clone()).unwrap();
+    // Same backend, a different set of enabled capabilities and different
+    // disposable cache directories cannot create a second incarnation.
+    let other = tempfile::tempdir().unwrap();
+    assert_eq!(
+        assemble_with_listings(
+            prepared(other.path()).service,
+            memory.clone(),
+            Some(memory.clone())
+        )
+        .err()
+        .unwrap()
+        .code,
+        "INSTANCE_REUSED"
+    );
+    assert!(std::fs::read_dir(other.path()).unwrap().next().is_none());
+    drop(state);
+    assert_eq!(
+        assemble_with_storage(prepared(other.path()).service, memory.clone(), None, None)
+            .err()
+            .unwrap()
+            .code,
+        "INSTANCE_REUSED"
+    );
+    let mut next = prepared(other.path()).service;
+    next.worker_instance = WorkerInstance::Explicit(101);
+    let (_, replacement) = assemble(next, memory.clone()).unwrap();
+    drop(replacement);
+    assert_eq!(memory.values.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn automatic_restart_returns_the_real_identity_before_database_workers_are_built() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    crate::instance::initialize(memory.as_ref(), 40, until()).unwrap();
+    for worker in [41, 42] {
+        let mut config = prepared(directory.path()).service;
+        config.worker_instance = WorkerInstance::Auto;
+        config.discovery = Some(PreparedDiscovery::Automatic {
+            master: [1; 32],
+            namespace: [2; 32],
+        });
+        let assembly =
+            assemble_identified(config, memory.clone(), Some(memory.clone()), None).unwrap();
+        assert_eq!(assembly.worker_instance, worker);
+        assert!(assembly.state.discovery.is_some());
+        let wrong = assembly
+            .state
+            .scheduler
+            .submit(
+                principal(),
+                call(Action::Status {
+                    expected_worker_instance: Some(Decimal(worker - 1)),
+                }),
+                until(),
+            )
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(wrong.code, "TARGET_MISMATCH");
+        drop(assembly);
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+    let memory = Arc::new(Memory::default());
+    let mut config = prepared(directory.path()).service;
+    config.worker_instance = WorkerInstance::Auto;
+    assert_eq!(
+        assemble(config, memory.clone()).err().unwrap().code,
+        "INSTANCE_ALLOCATOR_MISSING"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 1);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+}
+
+#[test]
+fn discovery_identity_mismatch_precedes_allocation_and_late_failure_burns_reservation() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    for (worker, discovery) in [
+        (
+            WorkerInstance::Auto,
+            PreparedDiscovery::Ready(crate::discovery::tests::codec()),
+        ),
+        (
+            WorkerInstance::Explicit(100),
+            PreparedDiscovery::Automatic {
+                master: [1; 32],
+                namespace: [2; 32],
+            },
+        ),
+    ] {
+        let mut config = prepared(directory.path()).service;
+        config.worker_instance = worker;
+        config.discovery = Some(discovery);
+        assert_eq!(
+            assemble_identified(config, memory.clone(), Some(memory.clone()), None)
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+    }
+    fn failed_discovery(
+        _: PreparedDiscovery,
+        _: u64,
+    ) -> Result<Arc<crate::discovery_cursor::CursorCodec>, Failure> {
+        Err(Failure::new("UNAVAILABLE"))
+    }
+    crate::instance::initialize(memory.as_ref(), 0, until()).unwrap();
+    let mut config = prepared(directory.path()).service;
+    config.worker_instance = WorkerInstance::Auto;
+    config.discovery = Some(PreparedDiscovery::Automatic {
+        master: [1; 32],
+        namespace: [2; 32],
+    });
+    assert_eq!(
+        assemble_using(
+            config,
+            memory.clone(),
+            Some(memory.clone()),
+            None,
+            crate::catalogue_scheduler::Scheduler::new,
+            failed_discovery
+        )
+        .err()
+        .unwrap()
+        .code,
+        "UNAVAILABLE"
+    );
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    assert_eq!(
+        crate::instance::claim(memory.as_ref(), 1, until())
+            .unwrap_err()
+            .code,
+        "INSTANCE_REUSED"
+    );
+    assert_eq!(
+        crate::instance::allocate(memory.as_ref(), until()).unwrap(),
+        2
+    );
+}
+
+#[test]
+fn direct_assembly_validates_every_local_profile_before_consuming_an_identity() {
+    let directory = tempfile::tempdir().unwrap();
+    let changes: &[fn(&mut ServiceConfig)] = &[
+        |p| p.transport.max_connections = 0,
+        |p| p.output.version = 0,
+        |p| p.options.operation_timeout = Duration::ZERO,
+        |p| p.admission.active_database_actors = 0,
+        |p| p.listen = "0.0.0.0:0".parse().unwrap(),
+        |p| p.worker_instance = WorkerInstance::Explicit(0),
+        |p| p.cache_directory = "relative".into(),
+        |p| p.cache.pages_per_actor = 0,
+        |p| p.cache.parallel_recoveries = 0,
+        |p| p.cache.parallel_recoveries = 257,
+        |p| p.admission.timeout_ms = 0,
+        |p| p.admission.recovery_timeout_ms = 0,
+        |p| p.admission.recovery_timeout_ms = 604800001,
+        |p| p.admission.max_body_bytes = 0,
+        |p| p.admission.data_intake = 0,
+        |p| p.admission.control_intake = 0,
+        |p| p.admission.recovery_intake = 0,
+        |p| p.gc_deployment = Some(0),
+        |p| p.gc_deployment = Some(1),
+        |p| p.discovery = Some(PreparedDiscovery::Ready(crate::discovery::tests::codec())),
+    ];
+    for change in changes {
+        let memory = Arc::new(Memory::default());
+        let mut configuration = prepared(directory.path()).service;
+        change(&mut configuration);
+        assert_eq!(
+            assemble(configuration, memory.clone()).err().unwrap().code,
+            "CONFIG"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.gc_deployment = Some(2);
+    assert_eq!(
+        assemble_with_storage(
+            configuration,
+            memory.clone(),
+            Some(memory.clone()),
+            Some(memory.clone())
+        )
+        .err()
+        .unwrap()
+        .code,
+        "CONFIG"
+    );
+    assert!(memory.calls.lock().unwrap().is_empty());
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.cache_directory = directory.path().join("missing");
+    assert_eq!(
+        assemble(configuration, memory.clone()).err().unwrap().code,
+        "CACHE_IO"
+    );
+    assert!(memory.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn claim_failure_starts_no_service_workers_or_local_cache() {
+    for error in [
+        scap_object_store::StoreError::Conflict,
+        scap_object_store::StoreError::Unknown,
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let memory = Arc::new(Memory::default());
+        *memory.fail_put.lock().unwrap() = Some(error.clone());
+        let expected = if error == scap_object_store::StoreError::Conflict {
+            "INSTANCE_REUSED"
+        } else {
+            "INSTANCE_UNKNOWN"
+        };
+        assert_eq!(
+            assemble(prepared(directory.path()).service, memory.clone())
+                .err()
+                .unwrap()
+                .code,
+            expected
+        );
+        assert_eq!(memory.calls.lock().unwrap().len(), 1);
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+}
+
+#[test]
+fn cache_loss_after_claim_fails_startup_and_does_not_release_the_identity() {
+    use scap_object_store::{Condition, StoreError, Stored};
+
+    struct RemoveCache {
+        memory: Arc<Memory>,
+        path: std::path::PathBuf,
+    }
+    impl Objects for RemoveCache {
+        fn get(&self, key: &str, maximum: usize, deadline: Instant) -> Result<Stored, StoreError> {
+            let stored = self.memory.get(key, maximum, deadline)?;
+            // The directory was valid before the claim. Remove it at the
+            // external I/O boundary to exercise a real worker creation error.
+            std::fs::remove_dir(&self.path).unwrap();
+            Ok(stored)
+        }
+
+        fn put(
+            &self,
+            key: &str,
+            bytes: &[u8],
+            condition: Condition<'_>,
+            deadline: Instant,
+        ) -> Result<String, StoreError> {
+            self.memory.put(key, bytes, condition, deadline)
+        }
+    }
+
+    for with_restore in [false, true] {
+        let parent = tempfile::tempdir().unwrap();
+        let cache = parent.path().join("cache");
+        std::fs::create_dir(&cache).unwrap();
+        let memory = Arc::new(Memory::default());
+        let backend = Arc::new(RemoveCache {
+            memory: memory.clone(),
+            path: cache.clone(),
+        });
+        let mut config = prepared(&cache).service;
+        if with_restore {
+            let profile: crate::restore::Profile =
+                serde_json::from_value(crate::restore::tests::profile()).unwrap();
+            config.catalogue = Some(
+                serde_json::from_value::<crate::restore::Profile>(crate::restore::tests::profile())
+                    .unwrap()
+                    .admission,
+            );
+            config.restore = Some(profile);
+        }
+        assert_eq!(assemble(config, backend).err().unwrap().code, "CACHE_IO");
+        assert!(!cache.exists());
+        assert_eq!(memory.calls.lock().unwrap().len(), 2);
+        assert_eq!(memory.values.lock().unwrap().len(), 1);
+        std::fs::create_dir(&cache).unwrap();
+        assert_eq!(
+            assemble(prepared(&cache).service, memory.clone())
+                .err()
+                .unwrap()
+                .code,
+            "INSTANCE_REUSED"
+        );
+        let mut next = prepared(&cache).service;
+        next.worker_instance = WorkerInstance::Explicit(101);
+        let (_, state) = assemble(next, memory).unwrap();
+        drop(state);
+        assert!(std::fs::read_dir(&cache).unwrap().next().is_none());
+    }
+}
+
+#[test]
+fn catalogue_construction_failure_after_claim_does_not_release_the_identity() {
+    fn failed_catalogue(
+        limits: crate::catalogue_scheduler::Limits,
+        _factory: crate::catalogue_scheduler::Factory,
+    ) -> Result<crate::catalogue_scheduler::Scheduler, Failure> {
+        // This seam models an OS thread-creation failure after valid admission,
+        // without exhausting process-wide resources used by concurrent tests.
+        limits.validate().unwrap();
+        Err(Failure::new("UNAVAILABLE"))
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.catalogue = Some(crate::config::CatalogueAdmission {
+        workers: 1,
+        queued_total: 4,
+        queued_per_tenant: 3,
+        queued_per_name: 2,
+        intake: 2,
+        max_body_bytes: 65536,
+        timeout_ms: 1000,
+        intake_profile: None,
+    });
+    assert_eq!(
+        assemble_using(
+            configuration,
+            memory.clone(),
+            None,
+            None,
+            failed_catalogue,
+            PreparedDiscovery::bind
+        )
+        .err()
+        .unwrap()
+        .code,
+        "UNAVAILABLE"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 2);
+    assert_eq!(memory.values.lock().unwrap().len(), 1);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
+    assert_eq!(
+        assemble(prepared(directory.path()).service, memory)
+            .err()
+            .unwrap()
+            .code,
+        "INSTANCE_REUSED"
+    );
 }
 
 #[test]

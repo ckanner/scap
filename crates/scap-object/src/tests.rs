@@ -39,7 +39,7 @@ pub(super) fn attempt(
 ) -> AttemptContext {
     AttemptContext {
         base: base.clone(),
-        objects: ObjectContext::capture(database, &base.head).unwrap(),
+        objects: ObjectContext::from_snapshot(database, base, deadline).unwrap(),
         request: request.clone(),
         deadline,
     }

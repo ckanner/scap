@@ -1,8 +1,9 @@
 # 实际 daemon TCP 合同
 
 这个实验只装配正式 `scapd`，通过原始 loopback TCP 调用 `/healthz`。
-它独立于 Rust unit/LLVM profile，不使用内存 router 替代实际 listener，也不需要 S3 后端。
-配置使用一个不会被健康接口调用的 dummy S3 endpoint；这不构成任何 S3 或数据库验收。
+它独立于 Rust unit/LLVM profile，不使用内存 router 替代实际 listener。
+启动需要 pinned SeaweedFS 本地 S3 后端完成永久实例 claim；不再使用不可达的 dummy S3
+来绕过生产启动协议。后续健康请求不访问 S3，这不构成 AWS S3 或数据库完整验收。
 
 ## 固定合同
 
@@ -40,6 +41,7 @@ runner 记录所提供二进制的 SHA-256，但仅凭二进制 hash 不声称�
 CARGO_TARGET_DIR=/tmp/scap-tcp-target cargo build --release -p scap-service --bin scapd --locked
 python3 experiments/bounded-transport/run.py \
   --binary /tmp/scap-tcp-target/release/scapd \
+  --weed /path/to/pinned/weed \
   --evidence /tmp/scap-tcp-evidence
 python3 experiments/bounded-transport/oracle.py /tmp/scap-tcp-evidence/observations.json
 python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v

@@ -8,6 +8,7 @@ use crate::format::{
 };
 use crate::{Database, Error, Snapshot};
 use scap_object_store::{Condition, Objects, StoreError};
+use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
@@ -30,10 +31,10 @@ struct AuthorityBasis {
     active: u64,
     allocated: u64,
     etag: String,
-    fingerprint: String,
+    fingerprint: [u8; 32],
 }
-fn head_fingerprint(head: &Head) -> String {
-    digest(&serde_json::to_vec(head).expect("HEAD values serialize"))
+fn head_fingerprint(head: &Head) -> [u8; 32] {
+    Sha256::digest(serde_json::to_vec(head).expect("HEAD values serialize")).into()
 }
 
 impl Knowledge {
@@ -199,6 +200,29 @@ impl ObjectContext {
         head.storage.terminal.is_none()
             && self.scope == head.scope
             && self.storage_generation == head.storage.active_generation
+    }
+
+    /// Reusing an immutable-read proof cannot move publication to another
+    /// backend, handle lineage, physical namespace or operation deadline.
+    /// Database clones share these bindings; independently constructed handles
+    /// do not, even when they happen to name the same database and backend.
+    pub(super) fn publication_matches(
+        &self,
+        database: &Database,
+        base: &Snapshot,
+        deadline: Instant,
+    ) -> bool {
+        Arc::ptr_eq(&self.objects, &database.objects)
+            && Arc::ptr_eq(&self.knowledge, &database.knowledge)
+            && self.matches(&base.head)
+            && self.deadline.get() == Some(&deadline)
+            && self.basis.as_ref().is_some_and(|basis| {
+                basis.serial == base.head.head_serial
+                    && basis.active == base.head.storage.active_generation
+                    && basis.allocated == base.head.storage.allocated_through
+                    && basis.etag == base.etag
+                    && basis.fingerprint == head_fingerprint(&base.head)
+            })
     }
 
     fn check(&self, deadline: Instant) -> Result<Instant, Error> {
@@ -380,3 +404,7 @@ impl DataObjects for ObjectContext {
         Ok(root)
     }
 }
+
+#[cfg(test)]
+#[path = "head_fingerprint_tests.rs"]
+mod fingerprint_tests;

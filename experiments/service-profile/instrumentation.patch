@@ -1,0 +1,320 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index d12dbbd..e59947d 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1459,6 +1459,7 @@ version = "0.1.0"
+ dependencies = [
+  "scap-object-sqlite",
+  "scap-object-store",
++ "scap-profile-metrics",
+  "scap-sql",
+  "serde",
+  "serde_json",
+@@ -1472,6 +1473,7 @@ version = "0.1.0"
+ dependencies = [
+  "libsql-sys",
+  "rustix 0.38.44",
++ "scap-profile-metrics",
+  "scap-sql",
+  "tempfile",
+ ]
+@@ -1491,6 +1493,14 @@ dependencies = [
+  "tokio",
+ ]
+ 
++[[package]]
++name = "scap-profile-metrics"
++version = "0.0.0"
++dependencies = [
++ "libc",
++ "tracing",
++]
++
+ [[package]]
+ name = "scap-service"
+ version = "0.1.0"
+@@ -1504,6 +1514,7 @@ dependencies = [
+  "scap-object",
+  "scap-object-sqlite",
+  "scap-object-store",
++ "scap-profile-metrics",
+  "scap-sql",
+  "serde",
+  "serde_json",
+diff --git a/Cargo.toml b/Cargo.toml
+index 4391d36..6fb9a5c 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,5 +1,5 @@
+ [workspace]
+-members = ["crates/scap-sql", "crates/scap-object", "crates/scap-object-store", "crates/scap-object-sqlite", "crates/scap-service"]
++members = ["experiments/service-profile/metrics", "crates/scap-sql", "crates/scap-object", "crates/scap-object-store", "crates/scap-object-sqlite", "crates/scap-service"]
+ resolver = "2"
+ 
+ [workspace.package]
+diff --git a/crates/scap-object-sqlite/Cargo.toml b/crates/scap-object-sqlite/Cargo.toml
+index 446bcf3..832e1c1 100644
+--- a/crates/scap-object-sqlite/Cargo.toml
++++ b/crates/scap-object-sqlite/Cargo.toml
+@@ -6,6 +6,7 @@ rust-version.workspace = true
+ publish.workspace = true
+ 
+ [dependencies]
++scap-profile-metrics = { path = "../../experiments/service-profile/metrics" }
+ scap-sql = { path = "../scap-sql" }
+ libsql-sys = { git = "https://github.com/tursodatabase/libsql", rev = "d8bc862d20bedc72945a1da27c8b7045414c0261", features = ["rusqlite"] }
+ rustix = { version = "=0.38.44", features = ["fs"] }
+diff --git a/crates/scap-object-sqlite/src/gate.rs b/crates/scap-object-sqlite/src/gate.rs
+index 11e1d19..98e7cf7 100644
+--- a/crates/scap-object-sqlite/src/gate.rs
++++ b/crates/scap-object-sqlite/src/gate.rs
+@@ -158,6 +158,7 @@ impl<W: Wal, G: CommitGate> WrapWal<W> for GateWal<G> {
+             if !self.state.borrow_mut().decide_caught(batch) {
+                 return Err(wal::Error::new(ffi::SQLITE_ABORT));
+             }
++            let _span = scap_profile_metrics::Span::new(14);
+             wrapped.insert_frames(page_size, page_headers, size_after, is_commit, sync_flags)
+         })
+     }
+diff --git a/crates/scap-object-sqlite/src/lib.rs b/crates/scap-object-sqlite/src/lib.rs
+index e7661fb..9d1be45 100644
+--- a/crates/scap-object-sqlite/src/lib.rs
++++ b/crates/scap-object-sqlite/src/lib.rs
+@@ -202,15 +202,20 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
+         self.stopped = true;
+         scap_sql::validate_statements(statements, self.limits.sql).map_err(Error::Sql)?;
+         self.state.borrow_mut().reset();
+-        let result =
+-            match sql::execute_transaction(&self.connection, statements, self.limits, &interrupt) {
+-                Ok(result) => result,
+-                Err(error) => {
+-                    sql::rollback(&self.connection);
+-                    return Err(self.state.borrow_mut().take_error(error));
+-                }
+-            };
+-        let encoded = match encode(&result, self.limits.sql) {
++        let result = match {
++            let _span = scap_profile_metrics::Span::new(3);
++            sql::execute_transaction(&self.connection, statements, self.limits, &interrupt)
++        } {
++            Ok(result) => result,
++            Err(error) => {
++                sql::rollback(&self.connection);
++                return Err(self.state.borrow_mut().take_error(error));
++            }
++        };
++        let encoded = match {
++            let _span = scap_profile_metrics::Span::new(4);
++            encode(&result, self.limits.sql)
++        } {
+             Ok(encoded) => encoded,
+             Err(error) => {
+                 sql::rollback(&self.connection);
+@@ -228,7 +233,10 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
+             base_pages: self.pages,
+             result: encoded,
+         });
+-        if let Err(error) = sql::commit(&self.connection, &interrupt) {
++        if let Err(error) = {
++            let _span = scap_profile_metrics::Span::new(5);
++            sql::commit(&self.connection, &interrupt)
++        } {
+             sql::rollback(&self.connection);
+             return self.finish(Err(error), &interrupt);
+         }
+@@ -255,16 +263,22 @@ impl<G: CommitGate + 'static> SqliteWriter<G> {
+                     return Err(Error::CommittedButUnavailable);
+                 }
+                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
+-                config::checkpoint(&*self.connection)
+-                    .map_err(|_| Error::CommittedButUnavailable)?;
++                {
++                    let _span = scap_profile_metrics::Span::new(6);
++                    config::checkpoint(&*self.connection)
++                }
++                .map_err(|_| Error::CommittedButUnavailable)?;
+                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
+                 // Only decide(), with an installed attempt, can accept.
+                 let encoded = self.state.borrow_mut().attempt.take().unwrap().result;
+-                let result = scap_sql::decode_result_with_memory_limit(
+-                    &encoded,
+-                    self.limits.sql,
+-                    self.limits.result_memory_bytes,
+-                )
++                let result = {
++                    let _span = scap_profile_metrics::Span::new(7);
++                    scap_sql::decode_result_with_memory_limit(
++                        &encoded,
++                        self.limits.sql,
++                        self.limits.result_memory_bytes,
++                    )
++                }
+                 .map_err(|_| Error::CommittedButUnavailable)?;
+                 query::check(interrupt).map_err(|_| Error::CommittedButUnavailable)?;
+                 self.pages = pages;
+diff --git a/crates/scap-object/Cargo.toml b/crates/scap-object/Cargo.toml
+index c107d3c..a77d4ac 100644
+--- a/crates/scap-object/Cargo.toml
++++ b/crates/scap-object/Cargo.toml
+@@ -6,6 +6,7 @@ rust-version.workspace = true
+ publish.workspace = true
+ 
+ [dependencies]
++scap-profile-metrics = { path = "../../experiments/service-profile/metrics" }
+ scap-object-store = { path = "../scap-object-store" }
+ scap-object-sqlite = { path = "../scap-object-sqlite" }
+ scap-sql = { path = "../scap-sql" }
+diff --git a/crates/scap-object/src/format.rs b/crates/scap-object/src/format.rs
+index 927aff4..4070e19 100644
+--- a/crates/scap-object/src/format.rs
++++ b/crates/scap-object/src/format.rs
+@@ -666,6 +666,7 @@ pub fn object_key(scope: &Scope, storage_generation: u64, hash: &str) -> String
+ }
+ 
+ pub fn encode_head(head: &Head) -> Result<Vec<u8>, FormatError> {
++    let _span = scap_profile_metrics::Span::new(10);
+     head.validate()?;
+     encode(head, MAX_HEAD_BYTES)
+ }
+@@ -699,6 +700,7 @@ pub(crate) struct DatabaseSlot {
+ /// Discovery knows the permanent physical slot, not an expected incarnation.
+ /// Validate the complete stored Scope without manufacturing a placeholder.
+ pub(crate) fn decode_head_at_slot(bytes: &[u8], slot: &DatabaseSlot) -> Result<Head, FormatError> {
++    let _span = scap_profile_metrics::Span::new(9);
+     budget(bytes.len(), MAX_HEAD_BYTES)?;
+     let head: Head = serde_json::from_slice(bytes).map_err(|_| FormatError::Corrupt)?;
+     head.validate().map_err(|_| FormatError::Corrupt)?;
+@@ -712,6 +714,7 @@ pub(crate) fn decode_head_at_slot(bytes: &[u8], slot: &DatabaseSlot) -> Result<H
+ }
+ 
+ pub fn encode_object(envelope: &Envelope) -> Result<Vec<u8>, FormatError> {
++    let _span = scap_profile_metrics::Span::new(11);
+     envelope.validate()?;
+     let (payload, raw) = match &envelope.payload {
+         Payload::Chunk { first_page, bytes } => (
+diff --git a/crates/scap-object/src/object_context.rs b/crates/scap-object/src/object_context.rs
+index 23d1490..3c03081 100644
+--- a/crates/scap-object/src/object_context.rs
++++ b/crates/scap-object/src/object_context.rs
+@@ -34,6 +34,7 @@ struct AuthorityBasis {
+     fingerprint: [u8; 32],
+ }
+ fn head_fingerprint(head: &Head) -> [u8; 32] {
++    let _span = scap_profile_metrics::Span::new(8);
+     Sha256::digest(serde_json::to_vec(head).expect("HEAD values serialize")).into()
+ }
+ 
+diff --git a/crates/scap-object/src/object_frame.rs b/crates/scap-object/src/object_frame.rs
+index d5319aa..db84c3a 100644
+--- a/crates/scap-object/src/object_frame.rs
++++ b/crates/scap-object/src/object_frame.rs
+@@ -28,6 +28,7 @@ impl<'a> ValidatedFrame<'a> {
+         scope: &Scope,
+         expected_hash: &str,
+     ) -> Result<Self, FormatError> {
++        let _span = scap_profile_metrics::Span::new(12);
+         // Preserve the public decoder's limit/error precedence. The metadata
+         // and raw bounds also make the later offset sum and usize cast safe.
+         budget(bytes.len(), MAX_OBJECT_BYTES)?;
+diff --git a/crates/scap-service/Cargo.toml b/crates/scap-service/Cargo.toml
+index 9e5490c..bb6e974 100644
+--- a/crates/scap-service/Cargo.toml
++++ b/crates/scap-service/Cargo.toml
+@@ -6,6 +6,7 @@ rust-version.workspace = true
+ publish.workspace = true
+ 
+ [dependencies]
++scap-profile-metrics = { path = "../../experiments/service-profile/metrics" }
+ scap-object = { path = "../scap-object" }
+ scap-object-store = { path = "../scap-object-store" }
+ scap-object-sqlite = { path = "../scap-object-sqlite" }
+diff --git a/crates/scap-service/src/daemon.rs b/crates/scap-service/src/daemon.rs
+index efcf1dd..c951e17 100644
+--- a/crates/scap-service/src/daemon.rs
++++ b/crates/scap-service/src/daemon.rs
+@@ -156,6 +156,7 @@ pub fn assemble_with_storage(
+ }
+ 
+ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
++    scap_profile_metrics::install_connections();
+     // Direct Prepared callers receive the same validation as parsed configs,
+     // before S3 clients or any workers are created.
+     let transport = prepared.service.transport.checked()?;
+@@ -164,8 +165,12 @@ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
+     // Construction and final drop remain outside the request runtime. Each S3
+     // object owns a separate bounded I/O runtime shared by the worker threads.
+     let backend = Arc::new(S3::new(prepared.s3).map_err(|_| Failure::new("CONFIG"))?);
+-    let (address, state) =
+-        assemble_with_storage(prepared.service, backend.clone(), Some(backend), garbage)?;
++    let (address, state) = assemble_with_storage(
++        prepared.service,
++        Arc::new(crate::profile::Measured(backend.clone())),
++        Some(backend),
++        garbage,
++    )?;
+     run(address, state, transport, shutdown, runtime)
+ }
+ 
+@@ -214,7 +219,8 @@ fn run(
+     shutdown: Shutdown,
+     create_runtime: fn() -> std::io::Result<tokio::runtime::Runtime>,
+ ) -> Result<(), Failure> {
+-    let router = http::router(state.clone())?;
++    let router = http::router(state.clone())?
++        .route("/__profile", axum::routing::get(crate::profile::snapshot));
+     let runtime = create_runtime().map_err(|_| Failure::new("RUNTIME"))?;
+     let outcome = runtime.block_on(async {
+         let listener = tokio::net::TcpListener::bind(address)
+diff --git a/crates/scap-service/src/engine.rs b/crates/scap-service/src/engine.rs
+index fe98549..d89f70f 100644
+--- a/crates/scap-service/src/engine.rs
++++ b/crates/scap-service/src/engine.rs
+@@ -158,6 +158,7 @@ impl Engine {
+         deadline: Instant,
+         output: Option<&mut crate::output::OutputContext>,
+     ) -> Result<Value, Failure> {
++        let _span = scap_profile_metrics::Span::new(0);
+         if call.version != 1 {
+             return Err(Failure::new("VERSION"));
+         }
+diff --git a/crates/scap-service/src/lib.rs b/crates/scap-service/src/lib.rs
+index 04f1af9..082fd84 100644
+--- a/crates/scap-service/src/lib.rs
++++ b/crates/scap-service/src/lib.rs
+@@ -15,6 +15,8 @@ pub mod http;
+ pub mod intake;
+ pub mod output;
+ pub mod owner_wire;
++#[path = "../../../experiments/service-profile/service.rs"]
++pub mod profile;
+ pub mod scheduler;
+ pub mod snapshot_wire;
+ pub mod transport;
+diff --git a/crates/scap-service/src/scheduler.rs b/crates/scap-service/src/scheduler.rs
+index 5a76fc8..9c7e16d 100644
+--- a/crates/scap-service/src/scheduler.rs
++++ b/crates/scap-service/src/scheduler.rs
+@@ -98,6 +98,7 @@ impl Limits {
+ type Tenant = (u64, u64);
+ 
+ struct Job {
++    profile_queued: Instant,
+     principal: Principal,
+     call: Call,
+     key: String,
+@@ -489,6 +490,7 @@ impl Drop for Exit {
+ }
+ 
+ fn execute(worker: &mut dyn Worker, mut job: Job) {
++    scap_profile_metrics::queue_wait(job.profile_queued.elapsed().as_nanos() as u64);
+     if job.reply.is_closed() {
+         return;
+     }
+@@ -714,6 +716,7 @@ impl Scheduler {
+         let key = scap_object::format::head_key(&scope);
+         let hold = output.as_ref().map(crate::output::OutputContext::work_hold);
+         let job = Job {
++            profile_queued: Instant::now(),
+             principal,
+             call,
+             key: key.clone(),

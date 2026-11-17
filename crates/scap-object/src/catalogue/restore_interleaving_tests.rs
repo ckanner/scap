@@ -573,3 +573,176 @@ fn a_completion_arriving_after_missing_head_observation_is_conflict_if_head_now_
         RestorePhase::Copied
     );
 }
+
+#[test]
+fn every_existing_completion_io_failure_withholds_copied_without_touching_source() {
+    let fixture = Fixture::new(true);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    fixture.memory.cut(
+        true,
+        &fixture.completion_key(&prepared),
+        None,
+        0,
+        Fault::AfterPut,
+    );
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &fixture.directory.path().join("lost-completion"),
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Unknown)
+    );
+    fixture.remove_source_payload();
+    let baseline = fixture.fork();
+    assert_eq!(baseline.resume(&prepared, 3).phase, RestorePhase::Copied);
+    let calls = baseline.memory.calls();
+    for (index, call) in calls.iter().enumerate() {
+        for after in [false, true].into_iter().filter(|after| !after || call.put) {
+            let candidate = fixture.fork();
+            candidate.memory.fail_at(
+                index + 1,
+                if after {
+                    Fault::AfterPut
+                } else {
+                    Fault::Before(StoreError::Unknown)
+                },
+            );
+            let path = candidate.directory.path().join("existing-completion-cut");
+            assert_eq!(
+                candidate.catalogue.resume_restore(
+                    CREATOR,
+                    &prepared.reference,
+                    &path,
+                    RestoreBudget::default(),
+                    deadline()
+                ),
+                Err(CatalogueError::Unknown),
+                "IO {index}, after={after}"
+            );
+            assert!(!path.exists());
+            assert!(candidate
+                .memory
+                .calls()
+                .iter()
+                .all(|call| call.key != head_key(&scope())
+                    && !call.key.starts_with(&object_key(&scope(), 1, ""))));
+            for step in 0..3 {
+                candidate.resume(&prepared, 10 + step);
+            }
+            assert_eq!(
+                candidate
+                    .catalogue
+                    .inspect_restore(CREATOR, 7, 700, deadline())
+                    .unwrap()
+                    .phase,
+                RestorePhase::Ready
+            );
+        }
+    }
+}
+
+#[test]
+fn every_prepare_io_unknown_preserves_the_original_restore_identity() {
+    let fixture = Fixture::new(false);
+    let baseline = fixture.fork();
+    let prepared = baseline.prepare();
+    let calls = baseline.memory.calls();
+    for (index, call) in calls.iter().enumerate() {
+        for after in [false, true].into_iter().filter(|after| !after || call.put) {
+            let candidate = fixture.fork();
+            candidate.memory.fail_at(
+                index + 1,
+                if after {
+                    Fault::AfterPut
+                } else {
+                    Fault::Before(StoreError::Unknown)
+                },
+            );
+            assert_eq!(
+                candidate
+                    .catalogue
+                    .prepare_restore(CREATOR, &candidate.input(), deadline()),
+                Err(CatalogueError::Unknown),
+                "IO {index}, after={after}"
+            );
+            assert_eq!(candidate.prepare(), prepared);
+            assert!(candidate
+                .memory
+                .calls()
+                .iter()
+                .all(|call| !call.put || call.key.contains("/catalogue/v1/create/")));
+        }
+    }
+}
+
+#[test]
+fn source_snapshot_rebinding_or_disappearance_cannot_retarget_an_admitted_restore() {
+    use crate::snapshot_records::{self, SnapshotDescriptor};
+    for stage in 0..3 {
+        let fixture = Fixture::new(true);
+        let prepared = fixture.prepare();
+        fixture.copying(&prepared);
+        let source = fixture.source.clone();
+        let memory = fixture.memory.clone();
+        let point = fixture.snapshot.point.clone();
+        let action = Arc::new(move || {
+            let base = source.read_head(deadline()).unwrap();
+            let mut head = base.head.clone();
+            head.head_serial += 1;
+            if stage == 2 {
+                // External authority damage, deliberately bypassing release's
+                // permanent accepted-proof write. It must not become completion.
+                head.snapshots = Some(Vec::new());
+            } else {
+                let input = PrepareSnapshotInput {
+                    creator: 7,
+                    operation: 901,
+                    expected_revision: base.head.revision,
+                    expected_head_serial: base.head.head_serial,
+                    label: "rebound permanent identity".into(),
+                };
+                let descriptor = SnapshotDescriptor::new(
+                    &base,
+                    &input,
+                    point.page_count,
+                    base.head.snapshot_limits.clone().unwrap(),
+                )
+                .unwrap();
+                memory.set(
+                    &snapshot_records::key(&scope(), &input.identity(), false),
+                    descriptor.bytes().unwrap(),
+                );
+                head.snapshots = Some(vec![descriptor.entry()]);
+            }
+            memory.set(&head_key(&scope()), encode_head(&head).unwrap());
+        });
+        if stage == 0 {
+            action();
+        } else {
+            fixture
+                .memory
+                .cut(false, &head_key(&scope()), None, 2, Fault::Run(action));
+        }
+        let path = fixture.directory.path().join("rebound-source");
+        assert_eq!(
+            fixture.catalogue.resume_restore(
+                CREATOR,
+                &prepared.reference,
+                &path,
+                RestoreBudget::default(),
+                deadline()
+            ),
+            Err(CatalogueError::Corrupt),
+            "stage {stage}"
+        );
+        assert!(!path.exists());
+        assert!(fixture
+            .memory
+            .get_value(&fixture.completion_key(&prepared))
+            .is_none());
+    }
+}

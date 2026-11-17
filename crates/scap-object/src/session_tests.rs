@@ -577,7 +577,9 @@ fn quota_and_corrupt_physical_image_boundaries_fail_before_publication() {
             64,
             deadline(),
         )
-        .unwrap();
+        .unwrap()
+        .root()
+        .to_owned();
         let mut malformed = base.clone();
         malformed.head.data_root = root;
         assert!(matches!(

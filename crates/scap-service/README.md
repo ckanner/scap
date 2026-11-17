@@ -13,10 +13,22 @@ S2 候选增加[从保留快照恢复新数据库](docs/restore.md)。跨 Scope 
 ```bash
 cargo build --release -p scap-service --bin scapd --locked
 mkdir -p /absolute/private-cache
+# Once per provably fresh authority bucket, before starting any auto workers:
+./target/release/scapd --init-worker-allocator /absolute/scap-service.json 0
+# Every normal start/restart then uses the unchanged "worker_instance":"auto" config:
 ./target/release/scapd /absolute/scap-service.json
 ```
 
-配置采用严格 JSON，未知字段和不合法整数拒绝。身份数值使用规范十进制字符串；`worker_instance` 为本次计算实例的非零独立 ID，每次重启及其他服务实例必须使用新 ID。不要复制一个仍在运行的实例 ID。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
+配置采用严格 JSON，未知字段和不合法整数拒绝。`worker_instance` 可用 `"auto"`，正常重启无需改写 ID；同一 S3 authority 中的持久计数器分配新数值，再永久条件创建并回读 `scap-worker/v1/instances/{ID}`。既有规范十进制字符串如 `"5001"` 仍支持显式身份，但每次启动必须换用未使用过的 ID。S3 不可得、分配或登记结果不明、回读损坏都拒绝启动，不会重试或收养不确定候选。
+
+自动模式需要一次明确初始化；上例中的 `0` **仅适用于可以证明从未发过身份的新 authority**。已有环境必须停止旧版进程，并把所有历史已发 ID 的可证明上界作为初始化参数。普通启动发现计数器缺失时返回 `INSTANCE_ALLOCATOR_MISSING`；初始化冲突返回 `INSTANCE_ALLOCATOR_EXISTS`，不能清空或重置计数器来恢复。初始化命令使用同一配置和 S3 凭据，但不会启动 listener。两条 JSON stderr 记录区分 `worker_identity_claimed` 和监听绑定后才发出的 `worker_identity_ready`，均携带实际分配的十进制 `worker_instance`。IAM、历史边界、冲突次数及故障处理详见[自动分配设计](../../docs/architecture/worker-instance-allocation.md)。
+
+分配身份不授予数据库 owner。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
+
+自动身份也不会更新静态 `OwnerController` 或 route registry。重启后 ready 记录中的 ID 已改变，
+仍携带旧 `expected_worker_instance` 的路由会正确返回 `TARGET_MISMATCH`；部署控制器必须消费
+新的实例登记并更新目标期望。自动分配、路由登记和数据库 owner 交接分别完成，动态 fleet
+控制器不在此实现范围内。
 
 ```json
 {
@@ -32,7 +44,7 @@ mkdir -p /absolute/private-cache
     "response_timeout_ms": 30000,
     "shutdown_timeout_ms": 30000
   },
-  "worker_instance": "5001",
+  "worker_instance": "auto",
   "cache_directory": "/absolute/private-cache",
   "s3": {
     "endpoint": "https://s3.REGION.amazonaws.com",

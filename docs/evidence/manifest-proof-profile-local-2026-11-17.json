@@ -1,0 +1,291 @@
+{
+  "schema": "scap-head-fingerprint-microprofile-v1",
+  "date": "2026-11-17",
+  "base_commit": "b25b7855eaa478636c8763be0a23caf8d03b0c5b",
+  "candidate_commit": "9b5e9aebd61a8315c98f13d915e24367006616ec",
+  "candidate_files": {
+    "crates/scap-object/src/object_context.rs": {
+      "sha256": "d65e6fc798093e3d41324d8a4af7c4f79309a7da2823c36bd7414d659ed20a1e",
+      "git_blob": "23d1490956713a24d53a975a6d08960c4b4ff218"
+    },
+    "crates/scap-object/src/data_tree.rs": {
+      "sha256": "fce13a52680289b2faf44db00ada77a7b07792c4e0cb6e5ed2f320aff25ec730",
+      "git_blob": "b48e454ccd59a12d1eb04861ff50af3e816dbe2d"
+    },
+    "crates/scap-object/src/manifest_publication_tests.rs": {
+      "sha256": "65155247be23ae823be06b45ec67f905721675a70e2a86acc7938c3653cfb7a6",
+      "git_blob": "0c1fcae8a3c2b37b59dfbdc00ebf2f755ce3021b"
+    },
+    "crates/scap-object/src/head_fingerprint_tests.rs": {
+      "sha256": "a93579de2220b59737572d80683dcf7a15d411ba49d79d5404d41e6747f7222a",
+      "git_blob": "456757c77ad298e160df93cebd3daefd6448f5e6"
+    },
+    "contracts/coverage-policy.json": {
+      "sha256": "5f642babdee65d456ae9b68636221731a52e57f31ae174149da49e25c90c507d",
+      "git_blob": "7e06a98aa334094d335771816da8849f7b2ada2f"
+    }
+  },
+  "toolchain": {
+    "rust": "1.90.0",
+    "rustc_commit": "1159e78c4747b02ef996e55082b704c09b970588",
+    "host": "x86_64-unknown-linux-gnu",
+    "llvm": "20.1.8",
+    "profile_opt_level": 3
+  },
+  "validation": {
+    "stable_workspace_unit": {
+      "status": "PASSED",
+      "command": "cargo test --locked --workspace --lib",
+      "passed": 792,
+      "failed": 0,
+      "ignored": 0,
+      "per_crate": {
+        "scap-object": 436,
+        "scap-object-sqlite": 81,
+        "scap-object-store": 44,
+        "scap-service": 194,
+        "scap-sql": 37
+      },
+      "target": "dedicated fresh target for the final candidate",
+      "stdout_sha256": "0ef961bb69591020e557b58b995693a2d7dddd5d1fc91f80b33d8cb2b85df368"
+    },
+    "clippy": {
+      "status": "PASSED",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "stdout_sha256": "86c06310e78ed03d9df4f9fe5a16651d1b03dfc8fcc4815b8de399400c7568cd"
+    },
+    "production_and_cargo_inputs_unchanged_after_validation": true,
+    "required_unit_tests_ignored": 0,
+    "strict_per_file_four_dimension_coverage": "NOT_RUN_FOR_NEW_CANDIDATE",
+    "native_signed_s3_runtime_contracts": "NOT_RUN_FOR_NEW_CANDIDATE",
+    "product_cpu_allocation_wait_profile": "NOT_RUN",
+    "end_to_end_throughput": "NOT_RUN_FOR_NEW_CANDIDATE",
+    "validated_production_and_cargo_input_count": 155,
+    "source_manifest_sha256": "3af1e416016b821bf38c0436b3e081ce4185f48976769e0d19ebaf46e00b16b4"
+  },
+  "protocol": {
+    "timed_function": "object_context::head_fingerprint through a test-only nested harness",
+    "harness": "experiments/head-fingerprint/profile.rs",
+    "harness_sha256": "343e4163a034c7bf51c7135e7318801260e6353b759e256284441581e48c7193",
+    "sample_rounds": 9,
+    "iterations_per_sample": {
+      "small": 20000,
+      "max_principals": 1000
+    },
+    "order": "rotate legacy, binary, streamed by one position each round",
+    "unit": "wall-clock nanoseconds per fingerprint",
+    "in_house_heavy_builds_paused_during_timing": true,
+    "exclusive_host_resources_proven": false,
+    "shared_and_isolated_executables_identical": true,
+    "all_original_samples_retained": true
+  },
+  "runs": [
+    {
+      "kind": "preliminary_shared_target",
+      "started_at_utc": "2026-11-17T16:11:07.225800+00:00",
+      "exit_code": 0,
+      "binary_sha256": "ff0d6d0c4529fb80a61d5b8a52e081a5669973c0e677a581883a725cec15dfc2",
+      "stdout_sha256": "7edde08c6d37f4f95c3f5643d8069d0ab32b092fc705d361cd39779b8d13e1f7",
+      "source_hashes_unchanged": true,
+      "cases": [
+        {
+          "binary_ns_per_iteration": [
+            888,
+            869,
+            863,
+            872,
+            856,
+            855,
+            868,
+            854,
+            914
+          ],
+          "body_bytes": 745,
+          "body_sha256": "d12180c6db0396c5d01f1aafd8555b7b115dffdc07d0f97d07c5922deb3a3916",
+          "case": "small",
+          "iterations_per_sample": 20000,
+          "legacy_ns_per_iteration": [
+            907,
+            895,
+            892,
+            893,
+            916,
+            910,
+            904,
+            907,
+            916
+          ],
+          "order": "rotating three alternatives, nine rounds",
+          "streamed_ns_per_iteration": [
+            801,
+            798,
+            799,
+            806,
+            802,
+            811,
+            793,
+            790,
+            801
+          ],
+          "median_ns_per_iteration": {
+            "legacy": 907,
+            "binary": 868,
+            "streamed": 801
+          }
+        },
+        {
+          "binary_ns_per_iteration": [
+            59159,
+            58613,
+            59001,
+            68468,
+            64434,
+            62942,
+            71449,
+            59903,
+            61636
+          ],
+          "body_bytes": 58975,
+          "body_sha256": "c895c12f986045ee7e7bc84c7afaa24fafd047c4d5739e98487b0f320dc186cf",
+          "case": "max_principals",
+          "iterations_per_sample": 1000,
+          "legacy_ns_per_iteration": [
+            58945,
+            59508,
+            70953,
+            59558,
+            63065,
+            68599,
+            80374,
+            62782,
+            62124
+          ],
+          "order": "rotating three alternatives, nine rounds",
+          "streamed_ns_per_iteration": [
+            62298,
+            62246,
+            64269,
+            69261,
+            73509,
+            65728,
+            64018,
+            65615,
+            64252
+          ],
+          "median_ns_per_iteration": {
+            "legacy": 62782,
+            "binary": 61636,
+            "streamed": 64269
+          }
+        }
+      ]
+    },
+    {
+      "kind": "isolated_target",
+      "started_at_utc": "2026-11-17T16:16:35.540162+00:00",
+      "exit_code": 0,
+      "binary_sha256": "ff0d6d0c4529fb80a61d5b8a52e081a5669973c0e677a581883a725cec15dfc2",
+      "stdout_sha256": "3f15b1a8c70b6b034d0fa0a601692d6bfabb8fb4b9a35c142d0c35e23369b148",
+      "source_hashes_unchanged": true,
+      "cases": [
+        {
+          "binary_ns_per_iteration": [
+            893,
+            1223,
+            988,
+            893,
+            909,
+            872,
+            859,
+            862,
+            881
+          ],
+          "body_bytes": 745,
+          "body_sha256": "d12180c6db0396c5d01f1aafd8555b7b115dffdc07d0f97d07c5922deb3a3916",
+          "case": "small",
+          "iterations_per_sample": 20000,
+          "legacy_ns_per_iteration": [
+            934,
+            976,
+            950,
+            918,
+            953,
+            918,
+            910,
+            938,
+            994
+          ],
+          "order": "rotating three alternatives, nine rounds",
+          "streamed_ns_per_iteration": [
+            911,
+            959,
+            805,
+            834,
+            812,
+            822,
+            785,
+            820,
+            804
+          ],
+          "median_ns_per_iteration": {
+            "legacy": 938,
+            "binary": 893,
+            "streamed": 820
+          }
+        },
+        {
+          "binary_ns_per_iteration": [
+            60703,
+            59759,
+            60499,
+            60476,
+            61596,
+            64700,
+            61703,
+            61195,
+            61048
+          ],
+          "body_bytes": 58975,
+          "body_sha256": "c895c12f986045ee7e7bc84c7afaa24fafd047c4d5739e98487b0f320dc186cf",
+          "case": "max_principals",
+          "iterations_per_sample": 1000,
+          "legacy_ns_per_iteration": [
+            61334,
+            59415,
+            60295,
+            61056,
+            61078,
+            63003,
+            63192,
+            59575,
+            59783
+          ],
+          "order": "rotating three alternatives, nine rounds",
+          "streamed_ns_per_iteration": [
+            63421,
+            64349,
+            65682,
+            65614,
+            64790,
+            73267,
+            65083,
+            64556,
+            64309
+          ],
+          "median_ns_per_iteration": {
+            "legacy": 61056,
+            "binary": 61048,
+            "streamed": 64790
+          }
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "selected": "binary SHA-256 with original JSON buffering, plus borrowed proof input/Cow output",
+    "streaming_sha256": "not selected; larger-body tradeoff observed",
+    "allocation_claim_scope": "Source-level removal of hexadecimal fingerprint and root-clone allocations; no allocator or RSS measurement",
+    "end_to_end_claim": "No stable throughput claim; previous approximately 24 percent four-database regression remains unresolved"
+  },
+  "previous_evidence": "docs/evidence/verified-manifest-load-local-2026-11-13.json"
+}
