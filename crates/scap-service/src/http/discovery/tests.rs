@@ -1,5 +1,5 @@
 use super::*;
-use crate::discovery::tests::{codec, discovery, seed};
+use crate::discovery::tests::{codec, discovery, join_workers, seed};
 use crate::http::tests::{decoded, runtime, state};
 use crate::tests::{principal, Memory};
 use axum::http::{HeaderValue, Method};
@@ -59,6 +59,9 @@ fn enabled_discovery_is_authenticated_and_has_independent_bounded_response_lifet
         let control = state.control_intake.acquire(&principal()).unwrap();
         let recovery = state.recovery_intake.acquire(&principal()).unwrap();
         let response = app.clone().oneshot(request("list_names")).await.unwrap();
+        // The body must retain admission after the plain OS worker has fully
+        // exited, and releasing it must then make the slot available.
+        join_workers(scan);
         assert!(scan.admission.acquire(&principal()).is_err());
         assert_eq!(
             decoded(response).await["value"]["names"]
@@ -79,6 +82,7 @@ fn enabled_discovery_is_authenticated_and_has_independent_bounded_response_lifet
             .await["error"]["code"],
             "DENIED"
         );
+        join_workers(scan);
         for mode in 0..4 {
             let mut req = request("list_names");
             match mode {

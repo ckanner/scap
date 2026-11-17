@@ -21,6 +21,11 @@ mkdir -p /absolute/private-cache
 
 分配身份不授予数据库 owner。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
 
+自动身份也不会更新静态 `OwnerController` 或 route registry。重启后 ready 记录中的 ID 已改变，
+仍携带旧 `expected_worker_instance` 的路由会正确返回 `TARGET_MISMATCH`；部署控制器必须消费
+新的实例登记并更新目标期望。自动分配、路由登记和数据库 owner 交接分别完成，动态 fleet
+控制器不在此实现范围内。
+
 ```json
 {
   "version": 1,

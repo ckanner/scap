@@ -14,10 +14,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
 import struct
 import subprocess
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("explicit_instance_fixture", Path(__file__).with_name("run.py"))
@@ -107,9 +109,28 @@ class Service(BASE.Service):
 
 
 class Suite(BASE.Suite):
+    def __init__(self, binary, weed, evidence, private):
+        self.binary, self.evidence, self.private = binary, evidence, private
+        self.ports, self.services, self.cases = set(), [], []
+        # Seaweed allocates volumes per bucket collection. Reserve a bounded
+        # fixture capacity for three buckets; the inherited single-bucket
+        # fixture's two volume slots cannot provision this suite. The pinned
+        # master scaffold grows seven volumes for each unreplicated bucket.
+        self.backend = NET.Backend(weed, private / "backend", max_volumes=24)
+        self.proxy = None
+
     def environment(self):
         return dict(os.environ, SCAP_INSTANCE_ACCESS=self.backend.access,
                     SCAP_INSTANCE_SECRET=self.backend.secret)
+
+    def prepare_bucket(self, bucket):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if self.backend.signed("PUT", "/" + bucket) and self.backend.signed("PUT", "/" + bucket + "/fixture-ready", "ready"):
+                NET.record(self.evidence, "fixture_bucket_ready", bucket=bucket)
+                return
+            time.sleep(.1)
+        raise TimeoutError("additional fixture bucket readiness")
 
     def initialize(self, label, deployment, floor, error=None):
         path = self.evidence / (label + ".stderr.log")
@@ -192,10 +213,19 @@ class Suite(BASE.Suite):
         assert restarted.wait_ready() == 102
         self.verified("same-config-clean-restart", (1, 0, 1, 1, 1), configuration_sha256=deployment.sha256, assigned="102")
         restarted.stop(crash=True)
+        shutil.rmtree(deployment.cache)
+        deployment.cache.mkdir()
+        NET.record(self.evidence, "fixture_all_compute_cache_lost", configuration_sha256=deployment.sha256)
         self.phase("same-config-crash-restart")
         restarted = Service(self, "crash-restart", deployment)
         assert restarted.wait_ready() == 103
-        self.verified("same-config-crash-restart", (1, 0, 1, 1, 1), configuration_sha256=deployment.sha256, assigned="103")
+        stale = restarted.api("status", expected_worker_instance="101")
+        assert not stale["ok"] and stale["error"]["code"] == "TARGET_MISMATCH", stale
+        observed = restarted.api("status", expected_worker_instance="103")
+        assert observed["ok"] and observed["value"]["owner_instance"] == "101", observed
+        self.verified("same-config-crash-restart", (1, 0, 1, 1, 1), configuration_sha256=deployment.sha256,
+                      assigned="103", all_compute_cache_lost=True, stale_route_rejected=True,
+                      prior_database_owner_unchanged="101")
         restarted.stop()
 
         self.phase("concurrent-auto-startups")
@@ -261,7 +291,7 @@ class Suite(BASE.Suite):
         self.verified("restart-after-listener-failure", (1, 0, 1, 1, 1), assigned="113", configuration_sha256=blocked.sha256)
         restarted.stop()
 
-        assert self.backend.signed("PUT", "/scap-overflow-test")
+        self.prepare_bucket("scap-overflow-test")
         overflow = Deployment(self, "overflow", bucket="scap-overflow-test")
         self.phase("last-u64-in-independent-bucket")
         self.initialize("overflow-initialize", overflow, 2**64 - 2)
@@ -273,7 +303,7 @@ class Suite(BASE.Suite):
         Service(self, "exhausted", overflow).expect_failure("INSTANCE_EXHAUSTED")
         self.verified("allocator-exhausted-without-wrap", (1, 0, 0, 0, 0))
 
-        assert self.backend.signed("PUT", "/scap-corrupt-test")
+        self.prepare_bucket("scap-corrupt-test")
         corrupt = Deployment(self, "corrupt", bucket="scap-corrupt-test")
         self.phase("corrupt-counter")
         self.initialize("corrupt-initialize", corrupt, 0)
@@ -300,6 +330,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="scap-auto-instance-") as temporary:
             suite = Suite(args.binary.resolve(), args.weed.resolve(), evidence, Path(temporary))
+            result["backend_capacity"] = suite.backend.capacity
             try:
                 cases = suite.run()
             finally:

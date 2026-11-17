@@ -109,6 +109,12 @@ counter 不会随显式 ID 自动提高到全局最大值。较大的未来显�
 只有 claimed 记录可能随后以 LISTEN/RUNTIME 失败退出；没有 ready 不能解释为已经监听。
 healthz 仍然只表示 liveness，不增加 S3、数据库可用性或 owner 权限承诺。
 
+分配和 ready 记录不会改写现有静态 `OwnerController` 或 route registry。相同地址上的新
+进程取得新 ID 后，仍带旧 `expected_worker_instance` 的请求返回 `TARGET_MISMATCH`；部署
+控制器必须消费新的实例登记并更新目标期望。数据库原 owner 也保持不变，后续仍需按当前
+HEAD 和持久 owner 计划完成明确交接。此候选提供可自动重启的身份分配，不实现动态 fleet
+登记、路由刷新或数据库自动接管。
+
 discovery 的 master key 格式和 namespace 在分配前验证；auto 使用 `PreparedDiscovery::Automatic`
 保留准备材料，拿到最终数值后调用原 `CursorCodec::new`。原每次启动随机盐、HKDF 绑定、
 递增 nonce 及 cursor 不跨进程恢复的规则均不变。显式模式的预构造 codec 继续使用

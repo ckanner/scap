@@ -31,7 +31,8 @@ runner 保存源码文件摘要、实际 executable/backend 摘要、每次原�
 
 `auto.py` 进一步运行实际初始化管理命令和 `"worker_instance":"auto"` daemon。
 18 个固定场景覆盖缺 counter 失败关闭、一次初始化、拒绝重置、首次分配、真实 SQLite
-创建/激活/`SELECT 42` 和实际 worker guard、逐字相同配置的正常/崩溃重启、两个进程竞争、
+创建/激活/`SELECT 42` 和实际 worker guard、逐字相同配置的正常/崩溃重启（丢弃全部计算 cache 后
+仍能分配新 ID，且不会自动改变原数据库 owner）、两个进程竞争、
 显式 marker 抢占已预留候选、counter CAS 与 marker PUT 丢 ACK 后跳过空洞、listener 失败时
 只有 claimed 没有 ready、同配置重新启动、独立 bucket 的最后一个 u64、耗尽无回绕和坏 counter。
 
@@ -43,6 +44,10 @@ python3 experiments/worker-instance/auto.py \
 ```
 
 counter 损坏通过独立测试 bucket 的管理员故障写入注入，不调用产品重置功能。
+固定 SeaweedFS 的 `weed scaffold -config=master` 声明 `copy_1 = 7`：每个未复制
+bucket 的 collection 默认增长七个 volume。因此三个测试 bucket 使用 24 个有界
+volume 槽位（每个 64 MiB、不预分配），并在
+额外 bucket 进入产品测试前写入夹具 readiness 对象；不把后端未完成 provision 当作分配器行为。
 counter GET/CAS、marker PUT/GET 次数分别检查；明确冲突后的新候选与 UNKNOWN 后立即退出
 使用不同观察条件。分配由产品完成，夹具只核对结果，不能贡献单位覆盖。
 运行、源码冻结和全部原始失败应分别保留；当前方案见[自动分配设计](../../docs/architecture/worker-instance-allocation.md)。
