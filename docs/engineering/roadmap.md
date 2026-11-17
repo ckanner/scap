@@ -5,35 +5,37 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-13（UTC）。执行环境已经恢复；本轮重新构建和执行缺少原始记录的
-必要合同。主线、候选实现和验证工具各自保留身份，当前状态见
-[本轮代码与验证](sqlite-s3-review-2026-11-13.md)。
+更新：2026-11-17。主线、候选实现和验证工具各自保留身份，最新提交、验证与剩余工作见
+[本轮代码与验证](sqlite-s3-review-2026-11-17.md)。
 
 | 代码范围 | 当前状态 |
 | --- | --- |
 | main `fab8ca0`（#54/#55） | 已合入 HEAD6 代际复制／持久 sweep 与 HEAD7 Deleted 终态 seal |
-| [PR #59](https://github.com/ckanner/scap/pull/59) 的生产基线 `b15bc45` | 组合 HEAD8 owner-plan、有限 controller 与 HEAD9 S1 retained snapshots；继续 Draft |
-| #59 验证接续 `8a5bd65`／`642383c` | 修正单文件 branch 0/0 检查与 service discovery 请求接收见证；分别保留工具源码、构建输入和新实际身份 |
-| [PR #60](https://github.com/ckanner/scap/pull/60) 的生产候选 `fd508cc` | 已实现一次事务内消费已验证 Manifest 的私有证明，减少重复 GET；继续 Draft，吞吐回退尚未排除 |
+| [PR #59](https://github.com/ckanner/scap/pull/59)，新代码 `b4c5236` | owner/controller/S1 组合接续修复过期 admission；隔离 stable/nightly 各 787 单位通过，继续 Draft |
+| [PR #60](https://github.com/ckanner/scap/pull/60)，新代码 `9b5e9ae` | 已验证 Manifest 的完整私有证明减少临时分配；隔离 792 单位与严格 Clippy 通过；原吞吐回退未定位，继续 Draft |
+| [PR #61](https://github.com/ckanner/scap/pull/61)，新代码 `841da9c` | 防复用启动身份永久登记；隔离 stable/nightly 各 797 单位、真实进程 10 个启动故障及 8 个 TCP 场景通过；继续 Draft |
 
-**当前不能签发整体 merge-ready。** 两份 Rust 基线的单位测试均通过，但 67 个生产
-文件中有 7 个只报告 branch 0/0；其他文件的正分母不能替它们提供分支证明。修复后的
-检查器按现行规则拒绝这两份报告，未修改 `AGENTS.md` 或覆盖门槛。已发出计数全部
+**当前不能签发整体 merge-ready。** #59/#61 的新单位覆盖报告仍有原 7 个生产文件
+只报告 branch 0/0；其他文件的正分母不能替它们提供分支证明。检查器按现行规则
+拒绝报告，未修改 `AGENTS.md` 或覆盖门槛。已发出计数全部
 命中不等于逐文件四维覆盖已满足，详见[测量缺口](branch-coverage-measurement-gap.md)。
 
 | 阶段 | 当前实现与已取得的证据 | 尚需完成的退出条件 |
 | --- | --- | --- |
 | N0 协议与格式 | SCAPOBJ2、HEAD6/7 复制／GC／seal、HEAD8 owner-plan 与 HEAD9 retained roots 已有代码；新 HEAD6 与终态全套实际／oracle／原负控通过 | 关闭逐文件分支测量缺口，按受影响源码重新核对组合门禁；模型与局部合同不替代整体出口 |
 | N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证／取消、增量页树、Session、逻辑配额和本地全计算丢失恢复；本轮 b15 固定 1 GiB 与完整原结果／BLOB 独立审计通过 | 真实 AWS Standard、完整 OT 合同及部署故障域另验；1 GiB 不认证默认 10 GiB 或任意容量 |
-| N2 多库接入 | HTTP/SDK、目录／发现、按库 actor、控制／恢复／intake／output 期限；owner-plan、isolation、Missing、单 controller 与固定 12 场景矩阵已重新通过；新 `642383c` service discovery 完整验收通过 | 动态 fleet、在线策略、持久实例身份、持续过载、公平性与硬资源隔离 |
+| N2 多库接入 | HTTP/SDK、目录／发现、按库 actor、控制／恢复／intake／output 期限；历史 owner/controller/isolation 合同分别绑定；本轮过期 admission 和 #61 永久身份登记另有证据 | 动态 fleet、在线策略、自动实例分配与历史迁移、持续过载、公平性与硬资源隔离 |
 | N3 可持续存储 | HEAD6 持久 sweep、HEAD7 终态 seal；HEAD9 S1 保留根和多根 COPY/GC 实际／10 负控／1 正控通过 | S2 新 Scope 恢复、任意时间 PITR、长期保留／GC 成本；冷恢复优化另验 |
 | N4 首发 | 已有绑定源码的本地故障与负载记录；Manifest 请求数减少取得两组对照证据，吞吐未取得一致收益 | 冻结目标后端／IAM／故障域与开环负载，实测吞吐、p95/p99、错误、恢复及成本，再判断非关键试运行条件 |
 
-本轮 b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单位通过；b15 的 SDK
+2026-11-13 历史 b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单位通过；b15 的 SDK
 157 项、codec 13 项、HTTP/TLS/CLI loopback 19 项及类型／工具／固定模型另有记录。
 这些结果不补足 Rust 未被计数的分支，也不是产品完成率，历史候选的单位数不能相加。
 
-### 本批合入门禁
+### 历史组合合同与接续合入门禁
+
+下表的 b15／fd508／642 是 2026-11-13 冻结来源。新代码只按本轮 review 的明确范围
+认证，不能借旧结果认证新的合并组合。
 
 | 本轮回归 | 已完成的范围与仍需判定的部分 |
 | --- | --- |
@@ -54,7 +56,7 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 环境中断本身已不是当前阻断，当前也不再是“只余 HEAD6 两项”。
 
 必要门禁全部满足后，重新核对精确 PR head/main 与最终 tree，再按既有授权合入。
-当前两 PR 均保持 Draft；不修改分支保护，不把本地结果改称远端 CI 通过。
+当前三份产品 PR 均保持 Draft；不修改分支保护，不把本地结果改称远端 CI 通过。
 
 ## 接续实施顺序与验收
 
@@ -79,8 +81,8 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 四库 C4 为 12.272→9.262 次／秒（下降 24.52%）。翻转顺序没有排除回退，下一步是
 定位等待与资源成本，不用反复运行小样本替代分析，也不由此给出生产 SLO。
 
-动态fleet、在线策略与持久实例分配另行验收；当前部署必须提供不复用的
-`worker_instance`，数值guard不等于进程身份认证。
+动态fleet、在线策略与自动实例分配另行验收；#61 永久登记可以拒绝已登记数值复用，
+当前部署仍须为每次启动提供新 `worker_instance`，首次升级还须处理旧进程及历史分配。
 
 完整设计与代码映射见[安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、
 [owner计划](../architecture/accepted-owner-plan.md)、[控制器](../architecture/owner-controller-plan.md)和

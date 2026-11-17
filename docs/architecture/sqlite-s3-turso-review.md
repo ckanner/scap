@@ -1,9 +1,17 @@
 # SQLite、S3 与 Turso：实现边界和可借鉴的机制
 
-本次复核日期为 2026-11-09。SCAP 当前生产切片为 `3b93b9a`；
+源码对照的冻结日期为 2026-11-09，SCAP 当时生产切片为 `3b93b9a`；
 后续 `4456fc4`、`586e11b` 只修正测试或实际验收夹具。
 本文是设计判断和源码比较，不是 Turso Cloud 内部实现审计，也不把上游性能数字
 当作 SCAP 的 AWS、可用性或成本验收。
+
+2026-11-17 重新核对官方 WAL、S3 和 Turso 文档：
+[libSQL README](https://github.com/tursodatabase/libsql) 将自身单写者模型与新 Rust 引擎区分；
+[Turso 0.8](https://turso.tech/blog/turso-0.8.0) 描述 MVCC、`BEGIN CONCURRENT` 和 group commit；
+[Cloud 平台说明](https://turso.tech/blog/upcoming-changes-to-the-turso-platform-and-roadmap)
+明确新的多租户服务端闭源，而开源引擎保留。下方固定 commit 的源码分析仍认证原切片，
+不冒充最新 Cloud 服务端源码审计。SCAP 最新三份 PR、修复和边界见
+[2026-11-17 review](../engineering/sqlite-s3-review-2026-11-17.md)。
 
 ## 1. 为什么本方案避开共享 NFS 文件锁
 
@@ -86,8 +94,9 @@ SCAP 当前已使用 128 KiB chunk/COW 数据树和分段请求索引，但冷�
 5. 总体资源预算、自动协调与真实目标后端的数字 SLO 分别完成；逐阶段报告请求数、字节、延迟分布和完整失败分母。
 
 详细实现标准仍由[主方案](object-storage-native-proposal.md)、[资源预算](resource-budgets.md)
-和[回收方案](storage-reclamation-plan.md)约束。以上借鉴不代表当前已经实现 lazy VFS、
-多 writer、group commit、产品 GC 或生产 SLO。
+和[回收方案](storage-reclamation-plan.md)约束。HEAD6 代际复制／GC 与 HEAD7 终态 seal
+现已合入 main，HEAD9 S1 保留根位于 #59 候选；不能沿用 11 月 9 日“尚无产品 GC”
+作为当前状态。lazy VFS、同库多 writer、group commit、S2／PITR 和生产 SLO 仍未交付。
 
 ## 5. 原生引擎补丁不能由存储架构代替
 

@@ -6,23 +6,23 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 ## 当前实现与验证状态
 
-最新核查：2026-11-13（UTC）。main 为 `fab8ca0`（HEAD7），已合入 #54 代际复制／GC 和
+最新核查：2026-11-17。main 为 `fab8ca0`（HEAD7），已合入 #54 代际复制／GC 和
 #55 Deleted 最后一代退休。当前产品路线仍是 S3 唯一持久权威、SQLite 私有本地执行。
 
 | 代码 | 内容 | 当前状态 |
 | --- | --- | --- |
-| [PR #59](https://github.com/ckanner/scap/pull/59)，生产基线 `b15bc45`，观测修复 `642383c` | 汇集 #56 可恢复 owner plan、#57 有限自动 controller 和 #58 保留快照 S1 | 代码已提交；新完整 service discovery／32 负控与固定 1 GiB 全量审计／5 负控通过；严格分支测量缺口未闭合，继续 Draft |
-| [PR #60](https://github.com/ckanner/scap/pull/60)，冻结 `fd508cc` | 新业务提交复用本次已经验证的 Manifest，减少一次重复 GET | 两组完整配对确认请求减少；四库写入速率分别下降 24.00%／24.52%，回退原因未定位，继续 Draft |
-| 本轮门禁工具修复 | 拒绝被其他文件正计数掩盖的单文件 branch 0/0 | 完整 76 项 tooling 测试及精确 Python 覆盖通过；原 Rust 报告严格重验按预期拒绝 |
+| [PR #59](https://github.com/ckanner/scap/pull/59)，本轮代码 `b4c5236` | 汇集 #56 owner plan、#57 有限 controller、#58 保留快照 S1；修复锁内入队前的期限检查，过期请求不创建 actor | 隔离 stable/nightly 各 787 单位通过；两个调度文件四维精确覆盖；原有 7 文件的分支测量缺口仍阻断，继续 Draft |
+| [PR #60](https://github.com/ckanner/scap/pull/60)，本轮代码 `9b5e9ae` | 保留 Manifest 证明全部绑定，取消内部 HEAD 十六进制摘要和部分根字符串分配 | 隔离 792 单位及严格 Clippy 通过；指纹微型分析不代表服务吞吐；历史两组四库写入回退 24.00%／24.52% 尚未定位，继续 Draft |
+| [PR #61](https://github.com/ckanner/scap/pull/61)，本轮代码 `841da9c` | 同一 S3 后端永久登记每次启动的 worker ID，拒绝复用及不确定启动；基于 #59 `b4c5236` | 隔离 stable/nightly 各 797 单位、真实进程 10 个启动故障及 8 个 TCP 场景通过；自动发号尚未实现，继续 Draft |
 
-b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单元测试通过。两份报告都映射
-67 个生产文件，已发出的计数全部命中，**但 7 个文件 branch 为 0/0，完整逐文件四维
-门禁未满足**。其中 6 个含有 `match` 等决策路径，不能称为结构无分支。旧检查器允许
-单文件零分母的行为已经修正；原报告和旧 exit 0 保留，不扩大为合入证明。详见
-[测量缺口与修复](docs/engineering/branch-coverage-measurement-gap.md)及
-[机器记录](docs/evidence/branch-measurement-review-2026-11-13.json)。
+三份结果对应各自的源码组合，测试数不能相加，也没有借用旧候选的实际合同认证新代码。
+本轮 #59/#61 fresh unit-only 报告已发出的计数全部命中，**但原有 7 个文件 branch
+仍为 0/0，完整逐文件四维门禁未满足**。其中 6 个含有 `match` 等决策路径，不能称为
+结构无分支；没有改门槛、排除生产文件或用 region 冒充分支。代码、设计与证据见
+[2026-11-17 审查和修复](docs/engineering/sqlite-s3-review-2026-11-17.md)，测量规则见
+[分支测量说明](docs/engineering/branch-coverage-measurement-gap.md)。
 
-执行环境已经恢复。原 11–12 日部分 raw originals 未能恢复，因此本轮重新构建正式
+2026-11-13 的历史补验：原 11–12 日部分 raw originals 未能恢复，当日重新构建正式
 release，按原合同重新执行，分别保存原失败、新通过和未运行项。HEAD6、终态退休、
 native／deployment discovery、owner-plan、isolation、controller 矩阵、S1、资源与
 GC transport 已取得完整新结果；service discovery 在新 `642383c` 上也已完成，固定 b15
@@ -30,7 +30,7 @@ GC transport 已取得完整新结果；service discovery 在新 `642383c` 上�
 [2026-11-13 交付与验收](docs/engineering/sqlite-s3-review-2026-11-13.md)。不能把只补
 HEAD6 和终态两个尾项当作所有旧证据已恢复，也不以当前检查器的绿色文字代替严格门禁。
 
-动态 fleet、持久实例身份分配、S2/PITR、硬 RSS／磁盘隔离、持续过载与长期成本、真实
+动态 fleet、自动实例身份分配、S2/PITR、硬 RSS／磁盘隔离、持续过载与长期成本、真实
 AWS 和生产 SLO 仍未交付。单库仍串行，冷恢复仍完整读取闭包；同环境请求账本与实际
 吞吐分别报告。两组配对的完整正确性和原负控通过，但不能宣称减少一个 GET 已解决
 热点吞吐。原计数、尾延迟、采样限制和下一步 profile 见
@@ -43,7 +43,7 @@ SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SH
 | 问题 | 当前处理 | 保留的边界 |
 | --- | --- | --- |
 | 共享网络文件的锁／同步风险 | 本地私有执行镜像，跨节点只通过对象 API 协调 | 本地 I/O、overlay 底层和挂载稳定性仍由部署保证；真实 NFS/EFS/FUSE 挂载验收不能用类型分类测试替代 |
-| 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS | `worker_instance` 必须由部署为每次进程 incarnation 分配不复用值；当前 guard 只比较该数值 |
+| 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS；#61 候选另加启动身份永久登记 | 每次启动仍须提供新 ID；自动分配、首次升级历史和目标 IAM 另验；登记不授予数据库 owner 权限 |
 | 热点单库吞吐 | 同库 actor 串行，短事务和一个事务内多 SQL 语句 | 没有同库并行 reader pool、MVCC 或独立事务 group commit；增加 pod 不会自动提高该库吞吐 |
 | 多库与冷恢复 | 不同库有界 actor，独立控制池与恢复准入，空闲 actor 回收 | CPU、网络、磁盘和 S3 仍共享；冷恢复仍读取完整数据及保留结果闭包，没有 lazy VFS |
 | 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；S1 候选保护 retained roots | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
@@ -86,7 +86,7 @@ S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不�
 
 关闭窗口只变更引用。**HEAD6 的显式管理员 compaction、退休世代 GC 和 HEAD7 的永久终态退休均已合入主线，默认仍未启用 GC 权限。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。HEAD7 通过显式 seal 退休 Deleted 最后一代；HEAD9 S1 候选还要求 live retained roots 为空才允许终态退休。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
 
-HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使用 legacy `takeover`／`activate`；接受 owner plan 升级为 HEAD8/9 后，旧入口永久拒绝，必须使用固定计划的 prepare/claim/resume/abort。每次服务启动的 `worker_instance` 不得复用；该唯一性目前是部署要求，尚无产品内持久实例分配。全部计算丢失后仍以原 Scope 查 HEAD，再按对应格式完成恢复。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
+HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使用 legacy `takeover`／`activate`；接受 owner plan 升级为 HEAD8/9 后，旧入口永久拒绝，必须使用固定计划的 prepare/claim/resume/abort。每次服务启动的 `worker_instance` 不得复用；#61 候选在 S3 永久登记并拒绝复用，尚无自动分配器，首次升级还须处理旧实例和历史发号。全部计算丢失后仍以原 Scope 查 HEAD，再按对应格式完成恢复。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
 
 `RoutedClient` 使用受信静态路由，fresh status 后最多派发一次原业务请求。legacy `OwnerClient`
 保存的意图只能按[旧 owner 合同](docs/architecture/owner-reconciliation.md)显式协调和查证；

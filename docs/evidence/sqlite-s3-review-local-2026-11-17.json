@@ -1,0 +1,188 @@
+{
+  "schema": "scap-sqlite-s3-review-v1",
+  "date": "2026-11-17",
+  "main_at_review": "fab8ca09aa05fdaf612cdcf47a9fce8e65373896",
+  "scheduler_candidate": {
+    "commit": "b4c52365d0b4f84539df9c6ebd156d8da1570b3d",
+    "tree": "05a7aa50ee6fecbf8d9f0475967ed1b8ebcc4eed",
+    "changed_files": {
+      "crates/scap-service/src/scheduler.rs": {
+        "sha256": "7de13d9b1f1e73bf7b6d909a3795e2e8683804e3522bc8abfb89c2c4358c78ac",
+        "git_blob": "5a76fc8e637c1ad191d39989fdb67319489abb17"
+      },
+      "crates/scap-service/src/scheduler/tests.rs": {
+        "sha256": "d170dbbc76975d42c6e5b940d9fa9cd3f2e36e1c9026ee71741ed5d920ec9597",
+        "git_blob": "2baecd39b0699fc701d85087e878b641862664ca"
+      },
+      "crates/scap-service/src/catalogue_scheduler.rs": {
+        "sha256": "3cd4175d59b3b6927f30a4d28f50d7919835a9dbd620693351f12820ec03f74e",
+        "git_blob": "fda2711db91615fcc21d57b3e97499f6becb6e12"
+      },
+      "crates/scap-service/src/catalogue_scheduler/tests.rs": {
+        "sha256": "3a58901dba0d5566a3c6133625be0804d94432303c036e3b1279a771926f0df2",
+        "git_blob": "a126df3df52aa792196c8d63c2dc0031a03add83"
+      }
+    },
+    "source_unchanged_after_validation": true,
+    "stable_units": {
+      "status": "PASSED",
+      "passed": 787,
+      "failed": 0,
+      "ignored": 0,
+      "target": "fresh scheduler-only stable target",
+      "log_sha256": "4b1cedd27fe3b1a9a5eeb206338c8125bfb1a4e1a10284094f72d92f039834d5"
+    },
+    "nightly_units": {
+      "status": "PASSED",
+      "passed": 787,
+      "failed": 0,
+      "ignored": 0,
+      "target": "fresh scheduler-only unit coverage target",
+      "log_sha256": "ee792b8a0b9c2cd7f5b33d7b94e66a12f0c46b59d03991fae4d9f494274a959a"
+    },
+    "format_clippy_repository": [
+      {
+        "name": "format",
+        "argv": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.4924144744873047,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--locked",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "log_sha256": "fd402b84c6050e1a9ac6b90f3fabb75f7850f41ea1168cfa23f49e7f3ae10f6e",
+        "target": "fresh scheduler-only stable target"
+      },
+      {
+        "name": "repository",
+        "argv": [
+          "python3",
+          "scripts/check_repo.py"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.17539691925048828,
+        "log_sha256": "6e636d5108e939004de7d106e456bb90e0735f180df6c49f8a82e33e2c0a40fd"
+      }
+    ],
+    "coverage": {
+      "status": "FAILED",
+      "policy_unchanged": true,
+      "mapped_production_files": 67,
+      "emitted_counters_all_covered": true,
+      "zero_branch_denominator_files": [
+        "crates/scap-object/src/catalogue/types.rs",
+        "crates/scap-object/src/object_frame.rs",
+        "crates/scap-service/src/catalogue.rs",
+        "crates/scap-service/src/lib.rs",
+        "crates/scap-service/src/main.rs",
+        "crates/scap-service/src/owner_wire.rs",
+        "crates/scap-service/src/snapshot_wire.rs"
+      ],
+      "log_sha256": "fc8b254b7099b8c3b041bbc9611d14cda741a67ecc75304ae5117e34f0726054",
+      "unit_json_sha256": "ce071f61509331d877917258b016f07f9d514e7a4eae8ce46727e1a2a1cd7bc6",
+      "changed_production": {
+        "scheduler.rs": {
+          "lines": [
+            560,
+            560
+          ],
+          "functions": [
+            55,
+            55
+          ],
+          "regions": [
+            863,
+            863
+          ],
+          "branches": [
+            112,
+            112
+          ]
+        },
+        "catalogue_scheduler.rs": {
+          "lines": [
+            225,
+            225
+          ],
+          "functions": [
+            32,
+            32
+          ],
+          "regions": [
+            312,
+            312
+          ],
+          "branches": [
+            34,
+            34
+          ]
+        }
+      }
+    },
+    "earlier_shared_target_run": {
+      "status": "FAILED_NOT_CANDIDATE_ATTESTATION",
+      "exit_code": 101,
+      "log_sha256": "c1318e07840aaf86df0cfcc817e726171c0c106c82c9d9e12922fe4e905becd6",
+      "failure_count": 4,
+      "observed_binary_sha256": "e8920a3355e0e6425837a1cbd0e36dcb22c835c7420b719b6b0717e6827fc5b9",
+      "dwarf_compile_directory": "scap-admission-before",
+      "explanation": "The service binary came from a different worktree containing old production code plus new regression tests; fresh isolated target passed. Original failure retained."
+    },
+    "regression_negative_control": {
+      "scope": "old production with new admission tests",
+      "direct_expiry_cases_failed": 2,
+      "fixed_scheduler_test_set_passed": 24
+    }
+  },
+  "other_candidates": {
+    "manifest_allocation": {
+      "commit": "9b5e9aebd61a8315c98f13d915e24367006616ec",
+      "stable_units_passed": 792,
+      "strict_clippy": "PASSED",
+      "new_strict_coverage": "NOT_RUN",
+      "overall_throughput_regression": "UNRESOLVED",
+      "report": "https://github.com/ckanner/scap/blob/0fb883dfeab281def53b4b086485111999b1280a/docs/engineering/manifest-proof-profile-2026-11-17.md"
+    },
+    "worker_identity": {
+      "commit": "841da9c76913232d98e409ab7a3b12a8633af25e",
+      "tree": "0047a419d3f09b76d9da8ab82425ffb2a6cf5981",
+      "tested_local_commit": "2c0d18f0c68fecdf337451ea134cc15f23f6c03e",
+      "stable_units_passed": 797,
+      "nightly_units_passed": 797,
+      "actual_startup_cases": 10,
+      "actual_bounded_tcp_cases": 8,
+      "oracle_controls": 5,
+      "strict_coverage": "FAILED_SAME_SEVEN_ZERO_BRANCH_DENOMINATORS",
+      "report_pr": "https://github.com/ckanner/scap/pull/61",
+      "report": "https://github.com/ckanner/scap/blob/1b667078b7f66145a4967054cb4526abb3ec2b7e/docs/engineering/worker-instance-validation-2026-11-17.md"
+    }
+  },
+  "not_run": [
+    "real AWS S3 Standard",
+    "target IAM enforcement",
+    "real NFS/EFS/FUSE mount qualification",
+    "historical worker identity migration",
+    "new-candidate sustained open-loop throughput and production SLO",
+    "all historical native/network contracts on the new identity candidate"
+  ],
+  "merge_state": "All three current product PRs remain draft; main not merged; AGENTS.md gates unchanged",
+  "remote_ci": "New scheduler workflows failed quickly; root cause not verified. Local pass is not remote CI pass."
+}

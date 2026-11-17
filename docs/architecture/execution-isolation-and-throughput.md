@@ -1,9 +1,14 @@
 # 活跃数据库执行隔离与吞吐边界
 
-当前实现仍采用按库 actor。主线 HEAD7 已完成对应本地隔离合同；PR #59 汇集的
-owner/controller/S1已新执行本次局部实际合同与固定负载，见[组合验收](../engineering/sqlite-s3-integration-validation.md)。
-本轮单库C1/C4写5.149/2.822次每秒、四库C4写7.206次每秒；包含本地审计开销，
-不能继承下方历史计数或据此承诺生产吞吐。完整压力、故障矩阵和硬资源边界仍待完成。
+当前实现仍采用按库 actor。2026-11-17 的 `b4c5236` 在持有调度锁后、创建 actor 或
+占用队列前重新检查原 deadline；已经过期的请求不会再启动冷库或占用活跃库槽位。
+隔离 stable/nightly 各 787 项通过，两个调度文件四维精确覆盖；整仓原分支测量缺口
+仍在。最新状态见[本轮 review](../engineering/sqlite-s3-review-2026-11-17.md)。
+
+主线 HEAD7 的本地隔离合同和 #59 早期 owner/controller/S1 组合的固定负载分别保留
+源码身份，见[历史组合验收](../engineering/sqlite-s3-integration-validation.md)。其中
+单库 C1/C4 写 5.149/2.822 次每秒、四库 C4 写 7.206 次每秒是历史本地样本，包含审计
+开销；不能代表本轮候选或生产吞吐。完整压力和硬资源边界仍待完成。
 控制器的后台策略不改变服务中单库 SQL 串行执行的边界。
 
 ## 问题与决定
@@ -22,6 +27,7 @@ owner/controller/S1已新执行本次局部实际合同与固定负载，见[组
 6. 同库优先恢复/管理任务最多连续执行三个后让普通 SQL 获得一次机会；control pool 在租户及库之间轮转。这个调度是非抢占的；正在执行的单库 SQL 仍可占用自己的 actor 到原始 deadline。
 7. 关闭、启动失败、工厂失败及 panic 都关闭相应队列并返回稳定错误。已经失去响应的在途操作不自动重放。全局关闭先封闭 admission，再在锁外等待线程退出。
 8. 恢复并发继续由同一全局 semaphore 限制，获取失败返回 `RECOVERY_BUSY`。调度器本身不探测故障或自动接管，不刷新候选 ETag、修改请求身份或重放 SQL；候选独立 controller 只能通过既定 owner-plan 协议推进。
+9. data/control 与 catalogue 提交均在各自调度锁内检查原 deadline，先拒绝过期请求，再改变预算或创建 actor。有效提交排队后才超时仍按原出队规则丢弃；本次 lookup/cancel 超时不能推断旧 SQL 结果。
 
 ## 显式配置
 
