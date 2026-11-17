@@ -20,7 +20,7 @@ fn batch() -> PageBatch {
 
 fn prepared<'a>(
     context: &'a ObjectContext,
-    base: &Snapshot,
+    base: &'a Snapshot,
     until: Instant,
 ) -> (Head, data_tree::VerifiedManifest<'a, ObjectContext>) {
     let verified = data_tree::update(context, &base.head.data_root, &batch(), 64, until).unwrap();

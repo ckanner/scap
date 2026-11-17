@@ -1,6 +1,7 @@
 //! Bounded, content-addressed physical page tree. Unchanged subtrees inherit the
 //! base HEAD's immutable-object guarantee; cold recovery validates every block.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -19,10 +20,12 @@ pub(crate) trait DataObjects {
 /// ObjectContext, so its backend, Scope and physical generation cannot change
 /// while this proof exists. Only update can construct it, after loading an
 /// unchanged manifest or saving and exactly reading back its replacement.
+/// The input root remains borrowed and cannot be changed while the proof lives;
+/// an unchanged output borrows that same string without duplicating its hash.
 pub(crate) struct VerifiedManifest<'a, S: DataObjects> {
     store: &'a S,
-    base_root: String,
-    root: String,
+    base_root: &'a str,
+    root: Cow<'a, str>,
     page_count: u32,
     deadline: Instant,
 }
@@ -355,7 +358,7 @@ impl<S: DataObjects> Edit<'_, S> {
 
 pub(crate) fn update<'a, S: DataObjects>(
     store: &'a S,
-    base_root: &str,
+    base_root: &'a str,
     batch: &PageBatch,
     max_pages: u32,
     deadline: Instant,
@@ -384,8 +387,8 @@ pub(crate) fn update<'a, S: DataObjects>(
     if batch.size_after == base.page_count && changes.is_empty() {
         return Ok(VerifiedManifest {
             store,
-            base_root: base_root.to_owned(),
-            root: base_root.to_owned(),
+            base_root,
+            root: Cow::Borrowed(base_root),
             page_count: base.page_count,
             deadline,
         });
@@ -393,8 +396,8 @@ pub(crate) fn update<'a, S: DataObjects>(
     if batch.size_after == 0 {
         return Ok(VerifiedManifest {
             store,
-            base_root: base_root.to_owned(),
-            root: empty(store, deadline)?,
+            base_root,
+            root: Cow::Owned(empty(store, deadline)?),
             page_count: 0,
             deadline,
         });
@@ -437,8 +440,8 @@ pub(crate) fn update<'a, S: DataObjects>(
     )?;
     Ok(VerifiedManifest {
         store,
-        base_root: base_root.to_owned(),
-        root,
+        base_root,
+        root: Cow::Owned(root),
         page_count: batch.size_after,
         deadline,
     })
