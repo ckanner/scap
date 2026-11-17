@@ -45,7 +45,7 @@ impl Direct {
             .https_only(!self.allow_http)
             .timeout(self.timeout)
             .connect_timeout(self.timeout)
-            .pool_max_idle_per_host(2);
+            .pool_max_idle_per_host(crate::MAX_IDLE_CONNECTIONS_PER_HOST);
         let client = construct(builder).map_err(|error| object_store::Error::Generic {
             store: "scap explicit HTTP client",
             source: Box::new(error),

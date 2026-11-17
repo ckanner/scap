@@ -29,6 +29,11 @@ use object_store::{
 };
 use tokio::runtime::{Handle, Runtime};
 
+// Shared by the SDK configuration and its explicit HTTP connector. Retain a
+// bounded set across concurrent database actors; a two-connection idle pool
+// repeatedly discarded reusable sockets between four-lane request bursts.
+const MAX_IDLE_CONNECTIONS_PER_HOST: usize = 8;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stored {
     pub bytes: Vec<u8>,
@@ -148,7 +153,7 @@ impl S3 {
                     .with_allow_http(config.allow_http)
                     .with_timeout(config.timeout)
                     .with_connect_timeout(config.timeout)
-                    .with_pool_max_idle_per_host(2),
+                    .with_pool_max_idle_per_host(MAX_IDLE_CONNECTIONS_PER_HOST),
             );
         if let Some(token) = config.session_token {
             builder = builder.with_token(token);

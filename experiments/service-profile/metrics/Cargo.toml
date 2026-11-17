@@ -1,0 +1,9 @@
+[package]
+name = "scap-profile-metrics"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libc = "=0.2.191"
+tracing = "=0.1.44"

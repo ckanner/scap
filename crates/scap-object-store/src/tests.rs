@@ -22,6 +22,91 @@ pub(crate) fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(2)
 }
 
+#[test]
+fn four_concurrent_object_lanes_reuse_the_same_connections_after_an_idle_boundary() {
+    use std::io::BufRead;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{mpsc, Barrier};
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let connections = Arc::new(AtomicUsize::new(0));
+    let accepted = connections.clone();
+    let first_wave = Arc::new(Barrier::new(4));
+    let (stop, stopped) = mpsc::channel();
+    let server = thread::spawn(move || {
+        let mut handlers = Vec::new();
+        loop {
+            if !matches!(stopped.try_recv(), Err(mpsc::TryRecvError::Empty)) {
+                break;
+            }
+            match listener.accept() {
+                Ok((socket, _)) => {
+                    accepted.fetch_add(1, Ordering::SeqCst);
+                    let barrier = first_wave.clone();
+                    handlers.push(thread::spawn(move || {
+                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let mut socket = std::io::BufReader::new(socket);
+                        loop {
+                            let mut request = String::new();
+                            match socket.read_line(&mut request) {
+                                Ok(0) => break,
+                                Ok(_) => {}
+                                Err(error) => panic!("keep-alive request: {error}"),
+                            }
+                            let mut headers = String::new();
+                            loop {
+                                let mut line = String::new();
+                                assert!(socket.read_line(&mut line).unwrap() > 0);
+                                if line == "\r\n" { break; }
+                                headers.push_str(&line);
+                            }
+                            assert!(headers.to_ascii_lowercase().contains("authorization: aws4-hmac-sha256"));
+                            assert!(request.contains("/first-") || request.contains("/second-"));
+                            // Each wave needs four simultaneous live sockets;
+                            // fast responses cannot hide a pool limit of two.
+                            barrier.wait();
+                            socket.get_mut().write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nETag: \"reused\"\r\nConnection: keep-alive\r\n\r\nhello").unwrap();
+                        }
+                    }));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => panic!("keep-alive accept: {error}"),
+            }
+        }
+        for handler in handlers {
+            handler.join().unwrap();
+        }
+    });
+    let store = S3::new(config(endpoint)).unwrap();
+    for wave in ["first", "second"] {
+        let clients: Vec<_> = (0..4)
+            .map(|lane| {
+                let store = store.clone();
+                thread::spawn(move || {
+                    let object = store.get(&format!("{wave}-{lane}"), 5, deadline()).unwrap();
+                    assert_eq!(object.bytes, b"hello");
+                    assert_eq!(object.etag, "\"reused\"");
+                })
+            })
+            .collect();
+        for client in clients {
+            client.join().unwrap();
+        }
+    }
+    drop(store);
+    stop.send(()).unwrap();
+    server.join().unwrap();
+    assert_eq!(
+        connections.load(Ordering::SeqCst),
+        4,
+        "the second burst must reuse all four first-wave connections"
+    );
+}
+
 pub(crate) struct Reply {
     pub status: u16,
     pub declared_size: usize,
