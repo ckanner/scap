@@ -63,6 +63,7 @@
     "crates/scap-service/src/catalogue_wire/tests.rs",
     "crates/scap-service/src/config/tests.rs",
     "crates/scap-service/src/daemon/tests.rs",
+    "crates/scap-service/src/daemon/tests/startup_s3.rs",
     "crates/scap-service/src/discovery/tests.rs",
     "crates/scap-service/src/discovery_cursor/tests.rs",
     "crates/scap-service/src/discovery_wire/tests.rs",
@@ -74,6 +75,7 @@
     "crates/scap-service/src/http/intake_tests.rs",
     "crates/scap-service/src/http/output_tests.rs",
     "crates/scap-service/src/http/tests.rs",
+    "crates/scap-service/src/instance/tests.rs",
     "crates/scap-service/src/intake/tests.rs",
     "crates/scap-service/src/output/tests.rs",
     "crates/scap-service/src/owner_wire/tests.rs",
@@ -100,7 +102,8 @@
     "experiments/guarded-status",
     "experiments/output-pool",
     "experiments/object-reclamation-runtime",
-    "experiments/object-load"
+    "experiments/object-load",
+    "experiments/worker-instance"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

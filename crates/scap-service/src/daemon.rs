@@ -5,7 +5,7 @@ use std::future::Future;
 use std::io::Read;
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use scap_object_store::{Garbage, GcS3, Listings, Objects, S3Config, S3};
 use tokio::sync::Semaphore;
@@ -21,8 +21,8 @@ use crate::{
 
 pub type Shutdown = std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
-/// Build without entering an asynchronous runtime. Cache files and object I/O
-/// are created by the worker factory on their own confined worker threads.
+/// Build without entering an asynchronous runtime. Startup permanently claims
+/// its configured identity on the supplied authority before starting workers.
 pub fn assemble(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
@@ -48,14 +48,56 @@ pub fn assemble_with_storage(
     listings: Option<Arc<dyn Listings>>,
     garbage: Option<Arc<dyn Garbage>>,
 ) -> Result<(std::net::SocketAddr, Arc<HttpState>), Failure> {
+    prepared.transport.checked()?;
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
+    let limits = prepared.admission.limits();
+    limits.validate()?;
+    let admission = &prepared.admission;
+    if !prepared.listen.ip().is_loopback()
+        || prepared.worker_instance == 0
+        || !prepared.cache_directory.is_absolute()
+        || prepared.cache.pages_per_actor == 0
+        || !(1..=256).contains(&prepared.cache.parallel_recoveries)
+        || !(1..=86400000).contains(&admission.timeout_ms)
+        || !(admission.timeout_ms..=604800000).contains(&admission.recovery_timeout_ms)
+    {
+        return Err(Failure::new("CONFIG"));
+    }
+    scap_object_sqlite::validate_cache_directory(&prepared.cache_directory)
+        .map_err(|_| Failure::new("CACHE_IO"))?;
+    let intake = Arc::new(Intake::new(
+        Class::Data,
+        admission.data_intake,
+        admission.max_body_bytes,
+        admission.data_profile,
+    )?);
+    let control_intake = Arc::new(Intake::new(
+        Class::Control,
+        admission.control_intake,
+        admission.max_body_bytes,
+        admission.control_profile,
+    )?);
+    let recovery_intake = Arc::new(Intake::new(
+        Class::Recovery,
+        admission.recovery_intake,
+        admission.max_body_bytes,
+        admission.recovery_profile,
+    )?);
+    let catalogue_intake = match &prepared.catalogue {
+        Some(admission) => {
+            admission.limits().validate()?;
+            Some(Arc::new(admission.build_intake()?))
+        }
+        None => None,
+    };
     let collector = match prepared.gc_deployment {
         Some(deployment) => {
             if deployment == 0 {
                 return Err(Failure::new("CONFIG"));
             }
+            prepared.auth.validate_gc_deployment(deployment)?;
             Some(Collector {
                 deployment,
                 listings: listings.clone().ok_or_else(|| Failure::new("CONFIG"))?,
@@ -78,11 +120,16 @@ pub fn assemble_with_storage(
         )?)),
         None => None,
     };
+    // Every local configuration/capability check above precedes this durable
+    // effect. There are no service workers or listeners yet. A later runtime,
+    // thread or bind failure still consumes the ID; cleanup never releases it.
+    crate::instance::claim(
+        objects.as_ref(),
+        prepared.worker_instance,
+        Instant::now() + options.operation_timeout,
+    )?;
     let catalogue = match prepared.catalogue {
         Some(admission) => {
-            // The scheduler validates queue/worker limits at construction;
-            // transport budgets must also hold for this direct entry point.
-            let intake = Arc::new(admission.build_intake()?);
             let objects = objects.clone();
             let options = options.clone();
             let factory: crate::catalogue_scheduler::Factory = Arc::new(move |_| {
@@ -99,12 +146,11 @@ pub fn assemble_with_storage(
                 )?),
                 max_body_bytes: admission.max_body_bytes,
                 timeout: Duration::from_millis(admission.timeout_ms),
-                intake,
+                intake: catalogue_intake.expect("validated catalogue admission"),
             })
         }
         None => None,
     };
-    let limits = prepared.admission.limits();
     let recovery = Arc::new(Semaphore::new(prepared.cache.parallel_recoveries));
     let factory: Factory = Arc::new(move |_| {
         Ok(Box::new(
@@ -133,24 +179,9 @@ pub fn assemble_with_storage(
             max_body_bytes: admission.max_body_bytes,
             timeout: Duration::from_millis(admission.timeout_ms),
             recovery_timeout: Duration::from_millis(admission.recovery_timeout_ms),
-            intake: Arc::new(Intake::new(
-                Class::Data,
-                admission.data_intake,
-                admission.max_body_bytes,
-                admission.data_profile,
-            )?),
-            control_intake: Arc::new(Intake::new(
-                Class::Control,
-                admission.control_intake,
-                admission.max_body_bytes,
-                admission.control_profile,
-            )?),
-            recovery_intake: Arc::new(Intake::new(
-                Class::Recovery,
-                admission.recovery_intake,
-                admission.max_body_bytes,
-                admission.recovery_profile,
-            )?),
+            intake,
+            control_intake,
+            recovery_intake,
         }),
     ))
 }

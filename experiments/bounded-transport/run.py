@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Raw TCP contract against the real scapd binary, without LLVM unit profiles.
 
-Only /healthz is used. The dummy S3 endpoint is never needed by these transport
-checks; this experiment does not prove database, S3, TLS or total RSS contracts.
+Only /healthz is queried after startup. A real pinned local S3 backend is needed
+for the permanent instance claim; this experiment does not prove database,
+cloud S3, TLS or total RSS contracts.
 """
 from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -103,11 +105,11 @@ class Client:
         self.socket.close()
 
 
-def configuration(port, cache):
+def configuration(port, cache, endpoint):
     return {
         "version": 1, "listen": f"127.0.0.1:{port}", "transport": PROFILE,
         "worker_instance": "7001", "cache_directory": str(cache),
-        "s3": {"endpoint": "http://127.0.0.1:9", "region": "us-east-1", "bucket": "unused",
+        "s3": {"endpoint": endpoint, "region": "us-east-1", "bucket": "scap-test",
                "access_key_env": "SCAP_TCP_ACCESS", "secret_key_env": "SCAP_TCP_SECRET",
                "session_token_env": None, "allow_http": True, "timeout_ms": 1000},
         "admission": {"active_database_actors": 1, "active_database_actors_per_tenant": 1,
@@ -122,7 +124,7 @@ def configuration(port, cache):
     }
 
 
-def exercise(binary, evidence):
+def exercise(binary, evidence, weed):
     if os.environ.get("LLVM_PROFILE_FILE"):
         raise ValueError("real TCP execution must not write unit profiles")
     evidence.mkdir(parents=True, exist_ok=False)
@@ -132,21 +134,24 @@ def exercise(binary, evidence):
     (evidence / "plan.json").write_text(json.dumps({"schema": 1, "profile": PROFILE,
         "cases": ["capacity", "first_header_deadline", "keepalive_header_deadline",
                   "header_bytes_at", "header_bytes_over", "header_count_at", "header_count_over", "h2"],
-        "scope": "real scapd TCP, healthz only, no S3 or RSS verdict"}, indent=2) + "\n")
-    clients, process = [], None
+        "scope": "real scapd TCP, healthz only after local S3 identity claim, no cloud S3 or RSS verdict"}, indent=2) + "\n")
+    clients, process, backend = [], None, None
     try:
-        with tempfile.TemporaryDirectory(prefix="scap-tcp-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="scap-tcp-") as temporary, contextlib.ExitStack() as teardown:
+            backend = NETWORK.Backend(weed, Path(temporary) / "backend")
+            teardown.callback(backend.stop)
+            backend.start()
             cache = Path(temporary) / "cache"
             cache.mkdir()
             with socket.socket() as available:
                 available.bind(("127.0.0.1", 0))
                 port = available.getsockname()[1]
             config = evidence / "config.json"
-            config.write_text(json.dumps(configuration(port, cache), indent=2) + "\n")
+            config.write_text(json.dumps(configuration(port, cache, backend.endpoint), indent=2) + "\n")
             with (evidence / "daemon.stdout.log").open("wb") as output, (evidence / "daemon.stderr.log").open("wb") as errors:
                 process = subprocess.Popen([str(binary), str(config)], stdin=subprocess.DEVNULL,
                     stdout=output, stderr=errors, env=dict(os.environ,
-                        SCAP_TCP_ACCESS="unused-transport-access", SCAP_TCP_SECRET="unused-transport-secret"))
+                        SCAP_TCP_ACCESS=backend.access, SCAP_TCP_SECRET=backend.secret))
             identity = NETWORK.process_identity(process)
             trace.emit("started", identity=identity, binary=observations["binary"])
 
@@ -255,15 +260,18 @@ def exercise(binary, evidence):
                 pass
             code, usage = NETWORK.wait_child(process, 6)
             trace.emit("failure_cleanup_reaped", returncode=code, usage=usage)
+        if backend is not None:
+            backend.stop()
         (evidence / "observations.json").write_text(json.dumps(observations, indent=2, sort_keys=True) + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--weed", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
     args = parser.parse_args()
-    observations = exercise(args.binary.resolve(strict=True), args.evidence.resolve())
+    observations = exercise(args.binary.resolve(strict=True), args.evidence.resolve(), args.weed.resolve(strict=True))
     print(json.dumps({"verified": verify(observations), "evidence": str(args.evidence)}, sort_keys=True))
 
 

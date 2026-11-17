@@ -12,7 +12,7 @@ mkdir -p /absolute/private-cache
 ./target/release/scapd /absolute/scap-service.json
 ```
 
-配置采用严格 JSON，未知字段和不合法整数拒绝。身份数值使用规范十进制字符串；`worker_instance` 为本次计算实例的非零独立 ID，每次重启及其他服务实例必须使用新 ID。不要复制一个仍在运行的实例 ID。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
+配置采用严格 JSON，未知字段和不合法整数拒绝。身份数值使用规范十进制字符串；`worker_instance` 为本次计算实例的非零独立 ID，每次重启及其他服务实例必须使用新 ID。启动现在通过同一对象后端对 bucket 内的 `scap-worker/v1/instances/{ID}` 做永久条件创建和精确回读；即使上次正常退出或正文相同，重复 ID 也拒绝启动。S3 不可得、启动登记结果不明或回读损坏时不会开放服务。它是[防误复用登记](../../docs/architecture/worker-instance-claim.md)，尚不是自动编号分配器；IAM 新增 prefix 白名单、禁止删除及旧环境首次采用的历史边界见该文档。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
 
 ```json
 {

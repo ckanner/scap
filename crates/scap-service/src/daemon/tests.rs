@@ -2,6 +2,8 @@ use super::*;
 use crate::tests::{call, principal, sample_config, until, Memory};
 use crate::wire::{Action, Decimal};
 
+mod startup_s3;
+
 fn prepared(parent: &std::path::Path) -> Prepared {
     let _credentials = crate::tests::test_credentials();
     Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
@@ -477,10 +479,15 @@ fn startup_and_listener_failures_do_not_leave_workers_or_connections_running() {
         serve(configuration, Box::pin(async {})).unwrap_err().code,
         "CONFIG"
     );
-    serve(prepared(directory.path()), Box::pin(async {})).unwrap();
+    let backend = startup_s3::Backend::new();
+    let mut configuration = prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    serve(configuration, Box::pin(async {})).unwrap();
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let mut configuration = prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    configuration.service.worker_instance = 101;
     configuration.service.listen = listener.local_addr().unwrap();
     assert_eq!(
         serve(configuration, Box::pin(async {})).unwrap_err().code,
@@ -709,7 +716,140 @@ fn direct_prepared_gc_cannot_rebind_authority_or_silently_enable_delete() {
     );
     // Production construction/drop remains outside its request runtime even when
     // both ordinary and dedicated S3 adapters are present.
-    serve(gc_prepared(directory.path()), Box::pin(async {})).unwrap();
+    let backend = startup_s3::Backend::new();
+    let mut configuration = gc_prepared(directory.path());
+    configuration.s3.endpoint = backend.endpoint();
+    configuration.gc.as_mut().unwrap().s3.endpoint = backend.endpoint();
+    serve(configuration, Box::pin(async {})).unwrap();
+}
+
+#[test]
+fn startup_claim_is_shared_by_all_public_assembly_paths_and_survives_exit() {
+    let directory = tempfile::tempdir().unwrap();
+    let memory = Arc::new(Memory::default());
+    let (_, state) = assemble(prepared(directory.path()).service, memory.clone()).unwrap();
+    // Same backend, a different set of enabled capabilities and different
+    // disposable cache directories cannot create a second incarnation.
+    let other = tempfile::tempdir().unwrap();
+    assert_eq!(
+        assemble_with_listings(
+            prepared(other.path()).service,
+            memory.clone(),
+            Some(memory.clone())
+        )
+        .err()
+        .unwrap()
+        .code,
+        "INSTANCE_REUSED"
+    );
+    assert!(std::fs::read_dir(other.path()).unwrap().next().is_none());
+    drop(state);
+    assert_eq!(
+        assemble_with_storage(prepared(other.path()).service, memory.clone(), None, None)
+            .err()
+            .unwrap()
+            .code,
+        "INSTANCE_REUSED"
+    );
+    let mut next = prepared(other.path()).service;
+    next.worker_instance = 101;
+    let (_, replacement) = assemble(next, memory.clone()).unwrap();
+    drop(replacement);
+    assert_eq!(memory.values.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn direct_assembly_validates_every_local_profile_before_consuming_an_identity() {
+    let directory = tempfile::tempdir().unwrap();
+    let changes: &[fn(&mut ServiceConfig)] = &[
+        |p| p.transport.max_connections = 0,
+        |p| p.output.version = 0,
+        |p| p.options.operation_timeout = Duration::ZERO,
+        |p| p.admission.active_database_actors = 0,
+        |p| p.listen = "0.0.0.0:0".parse().unwrap(),
+        |p| p.worker_instance = 0,
+        |p| p.cache_directory = "relative".into(),
+        |p| p.cache.pages_per_actor = 0,
+        |p| p.cache.parallel_recoveries = 0,
+        |p| p.cache.parallel_recoveries = 257,
+        |p| p.admission.timeout_ms = 0,
+        |p| p.admission.recovery_timeout_ms = 0,
+        |p| p.admission.recovery_timeout_ms = 604800001,
+        |p| p.admission.max_body_bytes = 0,
+        |p| p.admission.data_intake = 0,
+        |p| p.admission.control_intake = 0,
+        |p| p.admission.recovery_intake = 0,
+        |p| p.gc_deployment = Some(0),
+        |p| p.gc_deployment = Some(1),
+        |p| p.discovery = Some(crate::discovery::tests::codec()),
+    ];
+    for change in changes {
+        let memory = Arc::new(Memory::default());
+        let mut configuration = prepared(directory.path()).service;
+        change(&mut configuration);
+        assert_eq!(
+            assemble(configuration, memory.clone()).err().unwrap().code,
+            "CONFIG"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.gc_deployment = Some(2);
+    assert_eq!(
+        assemble_with_storage(
+            configuration,
+            memory.clone(),
+            Some(memory.clone()),
+            Some(memory.clone())
+        )
+        .err()
+        .unwrap()
+        .code,
+        "CONFIG"
+    );
+    assert!(memory.calls.lock().unwrap().is_empty());
+    let memory = Arc::new(Memory::default());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.cache_directory = directory.path().join("missing");
+    assert_eq!(
+        assemble(configuration, memory.clone()).err().unwrap().code,
+        "CACHE_IO"
+    );
+    assert!(memory.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn claim_failure_starts_no_service_workers_or_local_cache() {
+    for error in [
+        scap_object_store::StoreError::Conflict,
+        scap_object_store::StoreError::Unknown,
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let memory = Arc::new(Memory::default());
+        *memory.fail_put.lock().unwrap() = Some(error.clone());
+        let expected = if error == scap_object_store::StoreError::Conflict {
+            "INSTANCE_REUSED"
+        } else {
+            "INSTANCE_UNKNOWN"
+        };
+        assert_eq!(
+            assemble(prepared(directory.path()).service, memory.clone())
+                .err()
+                .unwrap()
+                .code,
+            expected
+        );
+        assert_eq!(memory.calls.lock().unwrap().len(), 1);
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
 }
 
 #[test]

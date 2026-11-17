@@ -21,7 +21,7 @@
 上述所有 u64 均为非零规范十进制字符串，不能使用 JSON number；hash 为 64 个小写
 十六进制字符。重复、未知、缺失或不规范字段均拒绝。claim/resume 的 worker guard
 在 S3、缓存和恢复槽位操作之前与实际配置比较；不匹配返回 `TARGET_MISMATCH`。
-该数值比较要求部署端不复用 worker identity，尚不是进程 incarnation 的持久分配机制。
+该数值比较要求不复用 worker identity。daemon 启动已增加[永久条件登记](../../../docs/architecture/worker-instance-claim.md)，在同一 bucket 内拒绝再次使用已登记 ID；这仍不是自动编号分配器，首次采用前的历史 ID 与旧版混合部署不由新 marker 自动解决。
 
 调用人在第一次网络请求前保存完整 Scope 和以下 input：
 
