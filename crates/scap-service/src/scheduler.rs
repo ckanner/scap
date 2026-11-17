@@ -727,6 +727,12 @@ impl Scheduler {
         if state.closed {
             return Err(Failure::new("UNAVAILABLE"));
         }
+        // Parsing and this mutex wait spend the original request budget too.
+        // Expired work must not reserve an actor or run its factory: an idle
+        // actor would otherwise hold capacity after SQL was already forbidden.
+        if Instant::now() >= deadline {
+            return Err(Failure::new("DEADLINE"));
+        }
         state.usage.check(&job, self.limits)?;
         if job.control() {
             let hash = Sha256::digest(key.as_bytes());

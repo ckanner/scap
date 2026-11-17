@@ -114,6 +114,11 @@ impl Queue {
         if self.closed {
             return Err(Failure::new("UNAVAILABLE"));
         }
+        // The caller holds the queue lock. Recheck after any admission wait,
+        // before expired work can consume a tenant/name/global queue slot.
+        if Instant::now() >= job.deadline {
+            return Err(Failure::new("DEADLINE"));
+        }
         if self.tenants.iter().map(TenantQueue::len).sum::<usize>() >= limits.queued_total {
             return Err(Failure::new("BACKPRESSURE"));
         }
