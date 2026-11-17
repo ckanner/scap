@@ -13,6 +13,12 @@
 [#64 S3 连接保留及实际热路径分析](https://github.com/ckanner/scap/pull/64)。
 这三项已从设计进入实现和实际验证，不能再归为“自动编号/S2 未实现”。
 它们各自的候选身份、结果和后续组合验收分开保存；main 与生产承诺没有因此自动更新。
+
+[PR #65](https://github.com/ckanner/scap/pull/65) 已形成完整组合：stable/nightly各877单位、
+Node161、实际自动编号18/显式ID10/恢复7场景及126个恢复审计负控通过。4个核心文件
+未命中计数与8个branch零分母仍使严格门禁失败，保持Draft。最终源码、二进制、
+初版审计器19条漏检及其修正、新实际和NOT_RUN均在
+[组合验证](https://github.com/ckanner/scap/blob/feat/sqlite-s3-combined-20261117/docs/engineering/sqlite-s3-followup-validation-2026-11-17.md)中独立记录。
 2026-11-13 的补验见[历史 review](sqlite-s3-review-2026-11-13.md)，原组合身份与结果见
 [组合验收](sqlite-s3-integration-validation.md)，不回写成新源码的认证。
 

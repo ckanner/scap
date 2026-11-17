@@ -115,6 +115,8 @@
     "experiments/output-pool",
     "experiments/object-reclamation-runtime",
     "experiments/object-load",
+    "experiments/head-fingerprint",
+    "experiments/service-profile",
     "experiments/worker-instance"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
