@@ -209,7 +209,8 @@ def network(history, calls, observed, originals, facts, configuration):
     require(all(row["event"] in allowed for row in history), "unplanned/failed S3 trace event")
     equal([row["phase"] for row in history if row["event"] == "phase_started"], list(PHASES), "S3 phase inventory changed")
     standard = [row for row in history if row["event"] != "gate_released"]
-    requests, responses = object_exchanges(standard, phases=PHASES)
+    from audit_wire import service_startups
+    requests, responses = object_exchanges(standard, phases=PHASES, startups=service_startups(facts))
     require(len(requests) == len(responses), "incomplete original object exchange")
     held_marker = only([row for row in history if row["event"] == "transport_fault_observed"], "observed GET gate inventory")
     released_marker = only([row for row in history if row["event"] == "gate_released"], "GET gate release inventory")

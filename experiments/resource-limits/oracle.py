@@ -356,7 +356,12 @@ def audit(directory):
             config['admission']['timeout_ms'] == PLAN['timeout_ms'], 'actual deadline/body profile changed')
     history = rows(directory / 'history.jsonl')
     numbered(history)
-    requests, responses = object_exchanges(history, phases=set(CALLS))
+    listening = only([row for row in all_rows if row['event'] == 'worker_event'
+                      and parse(raw(row, 'raw'))['event'] == 'listening'], 'worker listening inventory')
+    startups = [{'worker': PLAN['worker_instance'], 'role': None,
+                 'start': event(all_rows, 'worker_started')['identity']['spawn_monotonic_ns'],
+                 'ready': listening['monotonic_ns']}]
+    requests, responses = object_exchanges(history, phases=set(CALLS), startups=startups)
     for row in history:
         if row['event'].startswith('object_'):
             payload = b64(row['request_body'])

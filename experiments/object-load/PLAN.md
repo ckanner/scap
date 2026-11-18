@@ -6,7 +6,9 @@ SQLite 和需要签名的 SeaweedFS 4.51。夹具只生成输入、限制并发�
 
 ## 固定工作负载
 
-八库、两租户、一个 worker。seq/same/m0/m1/cold 属于租户 7，m2/m3/hot 属于租户 8。
+八库、两租户、同一时刻一个 worker。两次顺序启动分别永久使用 5001、5002；新进程
+只做已有原身份查证和读取，不通过复用旧 worker ID 取得写者权力。seq/same/m0/m1/cold
+属于租户 7，m2/m3/hot 属于租户 8。
 每库独立 create/activate/DDL；hot 写一行 4 KiB 随机 BLOB；cold 用 16 次事务写入
 512 行各 64 KiB 独立随机 BLOB，共 32 MiB 用户数据。所有输入在发送前保存并 fsync。
 种子共 41 POST、25 次原始 execute。数据库真实页数须至少覆盖用户字节，不用稀疏或零
@@ -39,6 +41,13 @@ Open 共 14 POST。cold Open 报告总耗时与 gate 保持时长，不能把人
 从不第二次 execute。另有 16 个分块 cold payload query 与 7 个其余数据库完整 payload
 query。独立 oracle 逐字节/逐 hash 核对全部输入与实际 committed 集合、每份原 receipt
 和随机结果。原 UNKNOWN 以后查到 committed 也不改写原响应。全实验固定 **871 POST**。
+
+2026-11-18 启动合同修正：旧夹具在两次启动中重复使用 5001，新增永久身份登记会在
+第二次条件创建返回 412；这是服务拒绝身份复用，不能以删除登记或绕过启动检查修复。
+两个独立 startup phase 各有一次精确 marker 条件创建和完整回读；正文为固定 magic
+加该 ID 的大端 u64，PUT/GET 的原 ETag 必须一致，并都完成于本次服务就绪前。四次
+调用计入全程 S3 分母，不能混入 read_multi 或任何业务测量。其余工作量、预算和
+原 14 个负控制不变，另增加 9 个身份、正文、条件、ETag、完整交换与启动窗口反例。
 
 ## 固定边界
 

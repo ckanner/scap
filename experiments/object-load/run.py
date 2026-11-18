@@ -111,7 +111,8 @@ class Suite:
         self.start_daemon()
 
     def configuration(self, cache):
-        return {'version': 1, 'listen': f'127.0.0.1:{self.port}', 'worker_instance': '5001',
+        return {'version': 1, 'listen': f'127.0.0.1:{self.port}',
+            'worker_instance': str(spec.WORKER_INSTANCES[self.round - 1]),
             'cache_directory': str(cache), 'transport': spec.TRANSPORT, 'output': spec.OUTPUT,
             's3': {'endpoint': self.proxy.endpoint, 'region': 'us-east-1', 'bucket': 'scap-test',
                 'access_key_env': 'SCAP_TEST_ACCESS', 'secret_key_env': 'SCAP_TEST_SECRET',
@@ -122,6 +123,10 @@ class Suite:
 
     def start_daemon(self):
         self.round += 1
+        if self.round > len(spec.WORKER_INSTANCES):
+            raise ValueError('fixed daemon startup count exceeded')
+        self.phase = f'startup-{self.round}'
+        self.proxy.set_phase(self.phase)
         self.cache = self.private / f'cache-{self.round}'
         self.cache.mkdir(mode=0o700)
         empty_cache = resources.disk_tree(self.cache)
@@ -131,6 +136,8 @@ class Suite:
         save_json(self.evidence / f'service-config-{self.round}.json', config)
         path = self.private / f'service-{self.round}.private.json'
         save_json(path, config)
+        self.events.emit('service_start_requested', instance=self.round,
+                         worker_instance=config['worker_instance'], cache=str(self.cache))
         environment = dict(os.environ, TMPDIR=str(temporary), SCAP_TEST_ACCESS=self.backend.access,
                            SCAP_TEST_SECRET=self.backend.secret)
         self.process, self.proc, self.identity, proof = resources.spawn_owned(
@@ -163,7 +170,7 @@ class Suite:
             raise TimeoutError('owned formal daemon startup deadline')
         self.events.emit('service_started', instance=self.round, identity=self.identity,
                          proof=proof, binary=actual, endpoint=self.endpoint, cache=str(self.cache),
-                         initial_cache=empty_cache)
+                         initial_cache=empty_cache, worker_instance=config['worker_instance'])
         self.sampler = resources.Sampler(self.proc, self.identity, self.cache, self.private / 'backend',
             self.evidence / f'resources-{self.round}.jsonl', lambda: self.phase)
         self.proc = None  # Sampler owns the passed directory fd until close.

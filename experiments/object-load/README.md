@@ -11,6 +11,11 @@ execute、288 次测量调用。任何原 execute 都只发送一次；后续只
 局限见[本轮验收](../../docs/engineering/head6-runtime-validation.md)和[机器记录](../../docs/evidence/head6-runtime-local-2026-11-10.json)。
 本段是后续结果说明，不改变原固定计划、夹具运行身份或 raw summary。
 
+2026-11-18 修复了永久 worker 身份上线后暴露的夹具失配：两次 daemon 启动分别使用
+5001、5002，各自在监听之前完整验证一次永久 marker。启动 S3 请求归属独立的
+startup-1/startup-2 阶段，仍计入全程分母；不计入原来的五个业务测量阶段。原公共 CI
+的第二次 5001 条件创建 412、启动失败和原始 artifact 保留，不能用新结果覆盖。
+
 ## 执行与身份
 
 需要 Python 3.12、Node 22.16.0、正式 release 服务及其完整 build receipt、SeaweedFS
@@ -41,7 +46,8 @@ archive、Cargo 日志、二进制摘要，以及本夹具的 commit、逐文件
 使用同一份计划和独立 wire reader；不导入产品或 runner，也不读取 runner 的成功汇总
 作结论。负控制修改独立副本，原始证据通过前后都重新审核。
 
-runner 成功仅产生 `OBSERVED_NOT_AUDITED`。独立 oracle 与全部 14 个负控制都通过之后，
+runner 成功仅产生 `OBSERVED_NOT_AUDITED`。独立 oracle、原 14 个及新增 9 个启动身份
+负控制都通过之后，
 才可报告这次本机实验完成。单位测试验证观察器边界，不能替代真实运行，也不是产品
 单位覆盖。失败保留原始目录及退出信息；修复后另开 attempt，不能覆盖旧失败。
 每个负控制及修改 summary 的正控制都有持久副本与结果，失败也不自动删除；原始大 body
@@ -62,6 +68,7 @@ runner 成功仅产生 `OBSERVED_NOT_AUDITED`。独立 oracle 与全部 14 个�
 | `s3_requests`、各阶段 S3 字节 | 全部正式产品 S3 GET/PUT 和完整 request/response body；不是网卡协议字节 |
 | `cold_recovery` | 丢弃 compute cache 后 32 MiB 数据恢复时间、人工 gate 时间、完整依赖下载与热库/control 探针 |
 | `results` | 原始 receipt/随机结果、160 份写入最终解析、全部 cold BLOB 与各库全部行的核对 |
+| `worker_claims` | 两次独立身份的条件创建、完整正文/原 ETag 回读及监听前时间窗口；四次对象调用仍在总分母内 |
 | `resources` | 每次 daemon 的采样 RSS/HWM/FD/线程/缓存与后端磁盘，实际采样间隔及独立 kernel wait4 maxrss |
 
 未出现的状态在 JSON 的计数字典中可能省略，解释时其计数为零；总分母始终显式保留。
@@ -73,6 +80,9 @@ runner 成功仅产生 `OBSERVED_NOT_AUDITED`。独立 oracle 与全部 14 个�
 SeaweedFS 用随机私有凭据启动，既有 HEAD 的无签名读取必须得到 403。签名摘要验证不是
 另一套密码学认证实现；实际签名校验由兼容端点执行。后端自身的 bucket provisioning、
 服务 `/healthz` 及进程管理不是这 871 次 POST 的一部分；就绪 GET 另行保留原始观察。
+身份命名空间只接受固定的两个精确 marker 键，不忽略未知前缀；marker 也经过相同的
+签名、原始字节和对象版本审计。新增语义负控同步修复 raw hash、签名正文摘要、序号
+和请求总数等外围字段，要求因真实身份/条件/读回/时间窗口违反而被拒绝。
 
 ## 资源与测量边界
 

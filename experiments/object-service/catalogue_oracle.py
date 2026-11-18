@@ -299,12 +299,13 @@ def bind_requests(requests,calls,observed,creations,*,responses=None):
     return bindings
 
 
-def object_exchanges(history):
-    return wire_exchanges(history,phases=PHASES)
+def object_exchanges(history,startups=()):
+    return wire_exchanges(history,phases=PHASES,startups=startups)
 
 
 def network(directory,history,facts,calls,observed,creations,acks):
-    requests,responses=object_exchanges(history)
+    from audit_wire import service_startups
+    requests,responses=object_exchanges(history,service_startups(facts))
     bindings=bind_requests(requests,calls,observed,creations,responses=responses)
     versions=object_versions(requests,responses,calls=calls,bindings=bindings)
     faults={row["label"]:row for row in facts if row["event"]=="catalogue_fault_observed"}

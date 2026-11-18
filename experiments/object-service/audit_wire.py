@@ -244,7 +244,105 @@ def capture(row, *, response=False):
     return raw
 
 
-def object_exchanges(history, *, phases, blackhole_phases=()):
+def worker_claims(startups, observations, *, check=require):
+    """Verify explicit startup identities independently of the production codec.
+
+    Observations have already passed their transport's full lifecycle audit.
+    Complete body digests are compared with the one exact versioned wire value;
+    no arbitrary worker-prefix request may be removed from database accounting.
+    Startup bounds use the owned Popen spawn clock, not the later log callback.
+    """
+    check(len(observations) == 2 * len(startups), 'worker-identity-request-denominator')
+    workers, accepted = set(), set()
+    empty = hashlib.sha256(b'').hexdigest()
+    for startup in startups:
+        worker = startup['worker']
+        check(isinstance(worker, str) and re.fullmatch(r'[1-9][0-9]*', worker) is not None
+              and int(worker) < 2**64 and worker not in workers, 'worker-identity-unique')
+        workers.add(worker)
+        check(type(startup['start']) is int and type(startup['ready']) is int
+              and 0 < startup['start'] < startup['ready'], 'worker-identity-startup-interval')
+    for startup in startups:
+        worker = startup['worker']
+        path = '/scap-test/scap-worker/v1/instances/' + worker
+        observed = [row for row in observations if row['role'] == startup['role'] and row['path'] == path]
+        check(len(observed) == 2, 'worker-identity-exact-key')
+        observed.sort(key=lambda row: row['start'])
+        put, get = observed
+        check(put['method'] == 'PUT' and get['method'] == 'GET', 'worker-identity-create-readback')
+        check(all(type(row['start']) is int and type(row['end']) is int for row in observed)
+              and startup['start'] <= put['start'] < put['end'] < get['start'] < get['end']
+              <= startup['ready'], 'worker-identity-before-ready')
+        check(all(row['status'] == 200 and row['delivered'] is True for row in observed),
+              'worker-identity-unambiguous-delivery')
+        check(put['if_none_match'] == '*' and put['if_match'] is None
+              and get['if_none_match'] is None and get['if_match'] is None,
+              'worker-identity-absent-only')
+        value = b'SCAP-WORKER-INSTANCE-v1\0' + int(worker).to_bytes(8, 'big')
+        digest = hashlib.sha256(value).hexdigest()
+        check(put['request_bytes'] == get['response_bytes'] == len(value)
+              and put['request_sha256'] == get['response_sha256'] == digest
+              and put['response_bytes'] == get['request_bytes'] == 0
+              and put['response_sha256'] == get['request_sha256'] == empty,
+              'worker-identity-exact-body')
+        check(isinstance(put['etag'], str) and put['etag']
+              and get['etag'] == put['etag'], 'worker-identity-same-etag')
+        check(len({row['key'] for row in observed}) == 2
+              and all(row['key'] not in accepted for row in observed), 'worker-identity-exchange-unique')
+        accepted.update(row['key'] for row in observed)
+    check(len(accepted) == len(observations), 'worker-identity-unbound-request')
+    return accepted
+
+
+def service_startups(events, *, workers=None):
+    """Bind known service roles to their owned spawn and readiness witnesses."""
+    field = 'owner_instance' if workers is None else 'worker'
+    starts = [row for row in events if row['event'] == 'service_started']
+    ready = [row for row in events if row['event'] == 'service_ready']
+    require(len(starts) == len(ready), 'worker-identity-readiness-denominator')
+    result = []
+    for start in starts:
+        matches = [row for row in ready if row[field] == start[field]]
+        require(len(matches) == 1 and matches[0]['identity'] == start['identity'],
+                'worker-identity-owned-ready')
+        worker = str(start[field]) if workers is None else workers[start[field]]
+        result.append({'worker': worker, 'role': None if workers is None else start[field],
+                       'start': start['identity']['spawn_monotonic_ns'],
+                       'ready': int(matches[0]['monotonic_ns'])})
+    return result
+
+
+def raw_worker_claims(events, exchanges, normal_access, *, check=require):
+    """Adapt fully audited raw S3 ledgers to the explicit identity contract."""
+    starts = {row['id']: row for row in events if row['event'] == 'child_started'}
+    startups = [{'worker': row['worker'], 'role': row['role'],
+                 'start': starts[row['id']]['identity']['spawn_monotonic_ns'],
+                 'ready': int(row['monotonic_ns'])}
+                for row in events if row['event'] == 'service_ready']
+    observations = []
+    for exchange in exchanges:
+        request = exchange['request']
+        if not request['path'].startswith('/scap-test/scap-worker/'):
+            continue
+        response = exchange['backend']
+        check(response is not None and request['access_sha256'] == normal_access,
+              'worker-identity-normal-authority')
+        finished = exchange['group'].get('s3_delivery_finished', response)
+        observations.append({'key': (request['role'], request['serial']), 'role': request['role'],
+                             'method': request['method'], 'path': request['path'],
+                             'start': int(request['monotonic_ns']), 'end': int(finished['monotonic_ns']),
+                             'status': response['status'], 'delivered': exchange['delivered'],
+                             'if_none_match': request['headers'].get('if-none-match'),
+                             'if_match': request['headers'].get('if-match'),
+                             'etag': response['headers'].get('etag'),
+                             'request_bytes': len(exchange['payload']),
+                             'request_sha256': hashlib.sha256(exchange['payload']).hexdigest(),
+                             'response_bytes': len(exchange['bytes']),
+                             'response_sha256': hashlib.sha256(exchange['bytes']).hexdigest()})
+    return worker_claims(startups, observations, check=check)
+
+
+def object_exchanges(history, *, phases, blackhole_phases=(), startups=()):
     """Verify complete original wire pairs; no summary or controller imports."""
     serials = defaultdict(list)
     require(not any(row["event"] in ("transport_fixture_failed", "caller_disconnected") for row in history),
@@ -257,7 +355,7 @@ def object_exchanges(history, *, phases, blackhole_phases=()):
     require(serials and all(type(serial) is int and serial > 0 for serial in serials), "invalid object serial")
     require(sorted(serials) == list(range(1, len(serials) + 1)), "object request serial gap")
     requests, responses = {}, {}
-    common = ("phase", "method", "path", "request_bytes", "request_sha256", "if_match", "if_none_match",
+    common = ("phase", "method", "path", "worker", "request_bytes", "request_sha256", "if_match", "if_none_match",
               "head_request_bytes", "catalogue_request_bytes")
     response_fields = ("status", "response_bytes", "response_sha256", "etag", "head_response_bytes", "catalogue_response_bytes")
     allowed = {"object_request", "object_forwarded", "object_response", "object_response_delivered", "transport_fault_observed"}
@@ -268,8 +366,9 @@ def object_exchanges(history, *, phases, blackhole_phases=()):
             by_event[row["event"]].append(row)
         require(len(by_event["object_request"]) == 1, "missing/duplicate object request")
         request = by_event["object_request"][0]
-        require(request["phase"] in phases and request["method"] in ("GET", "PUT"), "unplanned object method/phase")
-        require(isinstance(request["path"], str) and request["path"].startswith("/scap-test/scap-object/v1/")
+        worker = isinstance(request["path"], str) and request["path"].startswith("/scap-test/scap-worker/")
+        require((request["phase"] in phases or worker and startups) and request["method"] in ("GET", "PUT"), "unplanned object method/phase")
+        require(isinstance(request["path"], str) and (request["path"].startswith("/scap-test/scap-object/v1/") or worker and startups)
                 and "?" not in request["path"] and "#" not in request["path"], "object path escaped exact authority")
         if "/objects/" in request["path"]:
             key = re.fullmatch(r"/scap-test/scap-object/v1/([1-9][0-9]*)/([1-9][0-9]*)/([1-9][0-9]*)"
@@ -322,7 +421,23 @@ def object_exchanges(history, *, phases, blackhole_phases=()):
             for key in response_fields:
                 equal(delivered.get(key), response.get(key), "delivery changed original backend body/ETag/status")
         responses[serial] = response
-    return requests, responses
+    claims = []
+    for serial, request in requests.items():
+        if not request['path'].startswith('/scap-test/scap-worker/'):
+            continue
+        response = responses.get(serial)
+        require(response is not None, 'worker-identity-backend-response')
+        delivered = [row for row in serials[serial] if row['event'] == 'object_response_delivered']
+        claims.append({'key': serial, 'role': request.get('worker'), 'method': request['method'], 'path': request['path'],
+                       'start': moment(request), 'end': moment(delivered[0]) if delivered else moment(response),
+                       'status': response['status'], 'delivered': not response['suppressed'] and len(delivered) == 1,
+                       'if_none_match': request['if_none_match'], 'if_match': request['if_match'],
+                       'etag': response['etag'], 'request_bytes': request['request_bytes'],
+                       'request_sha256': request['request_sha256'], 'response_bytes': response['response_bytes'],
+                       'response_sha256': response['response_sha256']})
+    verified = worker_claims(startups, claims)
+    return ({key: value for key, value in requests.items() if key not in verified},
+            {key: value for key, value in responses.items() if key not in verified})
 
 
 def object_versions(requests, responses, *, calls=None, bindings=None):

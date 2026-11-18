@@ -389,7 +389,7 @@ def publication_before_acks(calls, original, published):
             need(published < moment(call['terminal']), 'head-before-every-committed-ack')
 
 
-def s3_audit(directory, calls, committed, final_request_count):
+def s3_audit(directory, calls, committed, final_request_count, events, readiness):
     history = rows(directory / 's3.jsonl')
     need([r['sequence'] for r in history] == list(range(1, len(history) + 1)), 's3-trace-sequence')
     need(not any(r['event'] == 'proxy_error' for r in history), 's3-proxy-error')
@@ -402,6 +402,8 @@ def s3_audit(directory, calls, committed, final_request_count):
     requests, responses, bodies, accepted = {}, {}, {}, []
     prefixes = {}
     heads = {}
+    workers = {f'/scap-test/scap-worker/v1/instances/{worker}': worker
+               for worker in spec.WORKER_INSTANCES}
     for name, scope in spec.SCOPES.items():
         prefix = ('/scap-test/scap-object/v1/{deployment}/{tenant}/{database}/inc/{incarnation}/gen/{generation}/storage/1/objects/').format(**scope)
         prefixes[name] = prefix
@@ -418,11 +420,21 @@ def s3_audit(directory, calls, committed, final_request_count):
         request_raw, response_raw = raw(directory, request['request']), raw(directory, response['response'])
         path, method = request['path'], request['method']
         bound = [name for name in spec.SCOPES if path == heads[name] or re.fullmatch(re.escape(prefixes[name]) + '[0-9a-f]{64}', path)]
-        need(len(bound) == 1 and method in ('GET', 'PUT'), 's3-exact-namespace')
+        need((len(bound) == 1 or path in workers) and method in ('GET', 'PUT'), 's3-exact-namespace')
         signature = request['signing']
         need({'host', 'x-amz-date', 'x-amz-content-sha256'} <= set(signature['signed_headers'])
              and re.fullmatch('[0-9a-f]{64}', signature['access_key_sha256']) is not None
              and signature['payload_sha256'] == digest(request_raw), 'signed-s3')
+        if path in workers:
+            expected = b'SCAP-WORKER-INSTANCE-v1\0' + struct.pack('>Q', workers[path])
+            need(response['status'] == 200 and type(response['etag']) is str
+                 and bool(response['etag']), 'worker-claim-success')
+            if method == 'PUT':
+                need(request['if_none_match'] == '*' and request['if_match'] is None,
+                     'worker-claim-create-only')
+                need(request_raw == expected, 'worker-claim-body')
+            else:
+                need(response_raw == expected, 'worker-claim-body')
         normalized = {'monotonic_ns': moment(request), 'phase': request['phase'], 'method': method, 'path': path,
             'request_bytes': len(request_raw), 'request_sha256': digest(request_raw), 'if_match': request['if_match'],
             'if_none_match': request['if_none_match']}
@@ -446,6 +458,7 @@ def s3_audit(directory, calls, committed, final_request_count):
                     frame(request_raw, path, {k: int(v) for k, v in spec.SCOPES[bound[0]].items()})
                     bodies[path] = request_raw
         requests[serial], responses[serial] = normalized, normalized_response
+    worker_claims = worker_claim_audit(requests, responses, events, readiness)
     try:
         authority = wire.object_versions(requests, responses)
     except (ValueError, KeyError):
@@ -475,11 +488,51 @@ def s3_audit(directory, calls, committed, final_request_count):
     warm = calls['cold-warm']
     during = [r for r in requests.values() if moment(warm['sent']) < r['monotonic_ns'] < moment(warm['terminal'])]
     need(len(during) == 1 and during[0]['method'] == 'GET' and during[0]['path'] == heads['cold'], 'warm-cold-head-only')
-    return history, requests, responses, accepted, bodies, authority, heads, prefixes
+    return history, requests, responses, accepted, bodies, authority, heads, prefixes, worker_claims
+
+
+def worker_claim_audit(requests, responses, events, readiness):
+    """Audit the fixed pre-listener effects, never exempt an arbitrary namespace."""
+    claims = {serial: row for serial, row in requests.items()
+              if row['path'].startswith('/scap-test/scap-worker/')}
+    need(len(claims) == 2 * len(spec.WORKER_INSTANCES), 'worker-claim-denominator')
+    launches = [row for row in events if row['event'] == 'service_start_requested']
+    need([row['instance'] for row in launches] == [1, 2], 'worker-startup-denominator')
+    result = []
+    for instance, worker in enumerate(spec.WORKER_INSTANCES, 1):
+        path = f'/scap-test/scap-worker/v1/instances/{worker}'
+        serials = [serial for serial, row in claims.items() if row['path'] == path]
+        need(len(serials) == 2 and [claims[serial]['method'] for serial in serials] == ['PUT', 'GET'],
+             'worker-claim-order')
+        put, get = (claims[serial] for serial in serials)
+        published, readback = (responses[serial] for serial in serials)
+        launch = launches[instance - 1]
+        start = one([row for row in events if row['event'] == 'service_started'
+                     and row['instance'] == instance], 'worker-startup-observation')
+        ready = one([row for row in readiness if row['instance'] == instance and row['status'] == 200],
+                    'worker-startup-readiness')
+        need(launch['worker_instance'] == start['worker_instance'] == str(worker)
+             and launch['cache'] == start['cache'], 'worker-startup-identity')
+        need(put['phase'] == get['phase'] == f'startup-{instance}', 'worker-startup-phase')
+        need(moment(launch) < moment(put) < moment(published) < moment(get) < moment(readback)
+             < moment(ready) <= moment(start), 'worker-startup-window')
+        need(published['etag'] == readback['etag']
+             and put['request_bytes'] == readback['response_bytes']
+             and put['request_sha256'] == readback['response_sha256'], 'worker-claim-readback')
+        if instance > 1:
+            stopped = one([row for row in events if row['event'] == 'service_stopped'
+                           and row['instance'] == instance - 1], 'worker-prior-stop')
+            removed = one([row for row in events if row['event'] == 'compute_cache_removed'
+                           and row['instance'] == instance - 1], 'worker-prior-cache-loss')
+            need(moment(stopped) < moment(removed) < moment(launch), 'worker-fresh-restart')
+        result.append({'instance': instance, 'worker_instance': str(worker), 'path': path,
+                       'object_requests': serials, 'marker_sha256': put['request_sha256']})
+    return {'instances': result, 'object_requests': len(claims),
+            'bound_to_pre_listener_startup': True, 'included_in_s3_denominator': True}
 
 
 def cold_audit(directory, calls, network, events):
-    history, requests, responses, accepted, bodies, _, heads, prefixes = network
+    history, requests, responses, accepted, bodies, _, heads, prefixes, _ = network
     arrived = one([r for r in history if r['event'] == 'gate_arrived'], 'one-cold-gate')
     release = one([r for r in history if r['event'] == 'gate_released'], 'one-cold-release')
     cold = calls['cold-open']
@@ -637,8 +690,11 @@ def audit(directory):
     for key, expected in (('admission', spec.ADMISSION), ('cache', spec.CACHE), ('transport', spec.TRANSPORT), ('output', spec.OUTPUT)):
         same(config[key], expected, 'fixed-service-profile')
     changed = dict(second); changed['cache_directory'] = config['cache_directory']
+    changed['worker_instance'] = config['worker_instance']
     same(changed, config, 'same-restarted-configuration')
-    need(config['s3']['timeout_ms'] == 15000 and config['worker_instance'] == '5001'
+    need([config['worker_instance'], second['worker_instance']] == [str(value) for value in spec.WORKER_INSTANCES],
+         'fixed-startup-identities')
+    need(config['s3']['timeout_ms'] == 15000
          and config['execution'] == {'result_memory_bytes': 134217728}, 'fixed-runtime-profile')
     planned = workload_audit(directory)
     calls, outcomes = http_audit(directory, planned, config)
@@ -661,7 +717,7 @@ def audit(directory):
     need(unsigned['status'] == 403, 'signed-backend')
     raw(directory, unsigned['response'])
     proxy = one([r for r in events if r['event'] == 'proxy_stopped'], 'proxy-cleanup')
-    network = s3_audit(directory, calls, committed, proxy['request_count'])
+    network = s3_audit(directory, calls, committed, proxy['request_count'], events, readiness)
     cold = cold_audit(directory, calls, network, events)
     resources = resource_audit(directory, events, inputs)
     measured = {}
@@ -684,6 +740,7 @@ def audit(directory):
     return {'status': 'PASSED', 'measurement_scope': 'fixed local instrumented observation, unchanged release product',
             'http_posts': len(calls), 'all_outcomes': dict(outcomes), 'measured': measured, 'cold_recovery': cold,
             'results': result_summary, 'resources': resources, 's3_authority': network[5],
+            'worker_claims': network[8],
             's3_requests': len(network[1]), 'aws_standard': 'NOT_RUN', 'production_slo_passed': False,
             'readiness_gets': len(readiness), 'raw_evidence_unique_bytes': raw_bytes,
             'sampled_resource_peak_is_hard_bound': False}

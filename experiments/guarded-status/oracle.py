@@ -309,7 +309,9 @@ def network_audit(data, http):
     history = data['history']
     numbered(history)
     equal([r['phase'] for r in history if r['event'] == 'phase_started'], list(CASES), 'S3 phase order changed')
-    requests, responses = object_exchanges(history, phases=set(CASES), blackhole_phases={'authority_unavailable'})
+    from audit_wire import service_startups
+    requests, responses = object_exchanges(history, phases=set(CASES), blackhole_phases={'authority_unavailable'},
+                                          startups=service_startups(data['events'], workers=WORKERS))
     objects, accepted, bindings, by_command = {}, {}, {}, defaultdict(list)
     for number, request in requests.items():
         name = request['phase']

@@ -94,7 +94,7 @@ jobs:
       - name: Run protocol and negative-oracle unit tests
         run: python3 -m unittest discover -s experiments/object-authority-model -p 'test_*.py' -v
       - name: Explore bounded schedules and retain raw histories
-        run: python3 experiments/object-authority-model/explore.py --output target/evidence/object-authority-model
+        run: python3 experiments/object-authority-model/explore.py --output "$GITHUB_WORKSPACE/target/evidence/object-authority-model"
       - name: Explore named catalogue publication races and negative controls
         run: python3 experiments/object-authority-model/named_catalogue_model.py --output "$GITHUB_WORKSPACE/target/evidence/named-catalogue-model"
       - name: Check the terminal retirement model and independent observer
@@ -526,9 +526,11 @@ jobs:
             target/evidence/object-service/*.json
             target/evidence/object-service/*.jsonl
             target/evidence/object-service/*.log
+            target/evidence/object-service/*.tar
             target/evidence/catalogue-service/*.json
             target/evidence/catalogue-service/*.jsonl
             target/evidence/catalogue-service/*.log
+            target/evidence/catalogue-service/*.tar
             target/evidence/isolation-service/*
             target/evidence/isolation-controls/**
             target/evidence/listing-build/**

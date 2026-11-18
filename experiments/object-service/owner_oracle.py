@@ -741,7 +741,9 @@ def network(history, events, calls, by_command, configuration):
                'object_response_delivered', 'transport_fault_observed'}
     require(all(row['event'] in allowed for row in history), 'unplanned or failed real S3 trace event')
     phases = set(NAMES) | {'seed', 'setup', 'bootstrap', 'cleanup'}
-    requests, responses = object_exchanges(history, phases=phases, blackhole_phases={'rejects'})
+    from audit_wire import service_startups
+    requests, responses = object_exchanges(history, phases=phases, blackhole_phases={'rejects'},
+                                          startups=service_startups(events, workers=WORKERS))
     objects, accepted_objects, bindings, by_call = {}, {}, {}, defaultdict(list)
     seed_corrupt = value_of(by_command['seed'][NAMES.index('corrupt') * 4 + 2])['receipt']
     corrupt_path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/storage/1/objects/' + seed_corrupt['data_root']

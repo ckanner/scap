@@ -191,7 +191,6 @@ fn main() -> Result<(), String> {
     if prepared.service.catalogue.is_some() || prepared.service.discovery.is_some() {
         return Err("resource experiment enables only database API".into());
     }
-    let owner = prepared.service.worker_instance;
     let options = prepared.service.options.clone();
     let cache = prepared.service.cache_directory.clone();
     let pages = prepared.service.cache.pages_per_actor;
@@ -205,7 +204,11 @@ fn main() -> Result<(), String> {
         inner: backend,
         gate: gate.clone(),
     });
-    let (address, mut state) = daemon::assemble(prepared.service, objects.clone())
+    let daemon::Assembly {
+        address,
+        worker_instance: owner,
+        mut state,
+    } = daemon::assemble_identified(prepared.service, objects.clone(), None, None)
         .map_err(|e| format!("assemble: {e:?}"))?;
     let calls = Arc::new(AtomicU64::new(0));
     let factory: Factory = Arc::new(move |_| {

@@ -293,6 +293,27 @@ def network(data, calls):
                 response[prefix + "_request_bytes"] = list(incoming)
                 response[prefix + "_response_bytes"] = list(upstream)
             version_requests[serial], version_responses[serial] = row, response
+    from audit_wire import service_startups, worker_claims
+    startups = service_startups(data.get('process-ledger.jsonl', ()))
+    claims = []
+    for serial, obj in objects.items():
+        request = obj['request']
+        if not request['key'].startswith('scap-worker/'):
+            continue
+        require(not request['query'] and request['fault'] is None and request['latency'] is None,
+                'worker-identity-unfaulted-startup')
+        claims.append({'key': serial, 'role': None, 'method': request['method'], 'path': request['path'],
+                       'start': stamp(request), 'end': stamp(obj['terminal']),
+                       'status': obj['backend']['status'],
+                       'delivered': obj['terminal']['event'] == 'delivery_finished',
+                       'if_none_match': request['if_none_match'], 'if_match': request['if_match'],
+                       'etag': obj['backend']['etag'], 'request_bytes': len(obj['incoming']),
+                       'request_sha256': sha(obj['incoming']), 'response_bytes': len(obj['upstream']),
+                       'response_sha256': sha(obj['upstream'])})
+    claimed = worker_claims(startups, claims)
+    objects = {serial: value for serial, value in objects.items() if serial not in claimed}
+    version_requests = {serial: value for serial, value in version_requests.items() if serial not in claimed}
+    version_responses = {serial: value for serial, value in version_responses.items() if serial not in claimed}
     versions = object_versions(version_requests, version_responses)
     # Exact reads can outlive a disconnected HTTP client, but only the two
     # observed held requests receive this bounded original 5-second window.
@@ -341,7 +362,9 @@ def network(data, calls):
         equal(entries, expected[:32], "actual backend LIST omitted/added a candidate from prior accepted writes")
         require(field("KeyCount") == str(len(entries)) and field("IsTruncated") == str(len(expected) > 32).lower(),
                 "LIST completeness/count differs from observed permanent inventory")
-    return ObjectHistory(objects), {"signed_backend_requests": len(objects), "list_requests": listing_count, "versions": versions,
+    return ObjectHistory(objects), {"signed_backend_requests": len(objects) + len(claimed),
+                     "database_s3_requests": len(objects), "worker_identity_claims": len(startups),
+                     "list_requests": listing_count, "versions": versions,
                      "request_observation_clock": "handler_entry_after_headers_before_authentication_locks_and_trace_io",
                      "exact_gets_with_observed_30ms_latency": delayed,
                      "original_backend_response_body_bytes": sum(len(obj["upstream"]) for obj in objects.values()),
