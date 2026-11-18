@@ -380,6 +380,12 @@ fn observations_keep_fixed_history_separate_from_current_authority() {
             Some(OwnerPhaseKind::Aborted),
         ),
     ] {
+        let (OwnerState::Prepared
+        | OwnerState::Claimed
+        | OwnerState::Cancelling
+        | OwnerState::Active
+        | OwnerState::Aborted
+        | OwnerState::Fenced) = state;
         let accepted = phase.map(marker);
         let value = observation(&OwnerObservation {
             head: current.clone(),

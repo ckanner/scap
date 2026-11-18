@@ -5,9 +5,11 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use scap_object_sqlite::{GateDecision, ImageBuilder, PreparedImage, SqliteWriter};
+use scap_object_sqlite::{
+    GateDecision, ImageBuilder, PreparedImage, ReadInterrupt, SqliteWriter, WriterLimits,
+};
 
-use super::restore_records::Completion;
+use super::restore_records::{Completion, Recipe, Restoring};
 use super::*;
 use crate::data_tree::{self, DataObjects};
 use crate::format::{Manifest, Payload};
@@ -23,6 +25,14 @@ pub(super) struct CopyResources<'a> {
     pub source_objects: Arc<dyn Objects>,
     pub directory: &'a Path,
     pub budget: RestoreBudget,
+}
+
+/// The initial fresh READ barrier and its exact immutable-object context travel
+/// together. The database retains the same metered backend for the final fresh
+/// barrier; neither phase can silently switch to another source generation.
+struct RestoreSource {
+    database: Database,
+    objects: ObjectContext,
 }
 
 impl CompleteCopy {
@@ -61,14 +71,10 @@ fn target_error(error: Error) -> Error {
 }
 
 fn validate_native(
-    database: &Database,
+    mut limits: WriterLimits,
     image: PreparedImage,
-    deadline: Instant,
+    interrupt: ReadInterrupt,
 ) -> Result<(), CatalogueError> {
-    let mut limits = database
-        .options
-        .writer(&database.options.quota)
-        .map_err(core_error)?;
     // Validation never invokes execute. Even an accidental commit cannot pass
     // the rejecting gate; its changed-page allowance is independently bounded.
     limits.max_changed_pages = 1;
@@ -76,11 +82,11 @@ fn validate_native(
         image,
         limits,
         |_: &scap_object_sqlite::PageBatch, _: &[u8]| GateDecision::Rejected,
-        Arc::new(move || Instant::now() >= deadline),
+        interrupt.clone(),
     )
     .map_err(native_error)?;
     drop(writer);
-    if Instant::now() >= deadline {
+    if interrupt() {
         return Err(CatalogueError::Unknown);
     }
     Ok(())
@@ -151,24 +157,32 @@ impl Transcode<'_> {
 }
 
 impl Catalogue {
-    pub(super) fn copy_restore_point(
+    fn restore_writer_limits(&self, source: &Source) -> WriterLimits {
+        // Catalogue construction validates the runtime options; the immutable
+        // descriptor retains its validated quota bound. No new admission or
+        // mutable default can change native limits midway through this copy.
+        WriterLimits {
+            sql: self.options.sql,
+            max_vm_steps: self.options.max_vm_steps,
+            max_database_pages: source.maximum_pages(),
+            max_changed_pages: 1,
+            cache_bytes: self.options.cache_bytes,
+            result_memory_bytes: self.options.result_memory_bytes,
+        }
+    }
+
+    fn restore_source(
         &self,
         caller: Caller,
-        source: &Source,
-        target_base: &Snapshot,
-        resources: CopyResources<'_>,
+        recipe: &Recipe,
+        source_objects: Arc<dyn Objects>,
+        budget: RestoreBudget,
         deadline: Instant,
-    ) -> Result<CompleteCopy, CatalogueError> {
-        let CopyResources {
-            source_objects,
-            directory,
-            budget,
-        } = resources;
-        let recipe = source.recipe.as_ref().ok_or(CatalogueError::Conflict)?;
+    ) -> Result<RestoreSource, CatalogueError> {
         let (scope, reference) = recipe.source();
-        let mut source_db = self.restore_source_database(scope)?;
-        source_db.objects = super::restore_budget::Meter::source(source_objects, budget, deadline);
-        let (base, _, observation) = source_db
+        let mut database = self.restore_source_database(scope)?;
+        database.objects = super::restore_budget::Meter::source(source_objects, budget, deadline);
+        let (base, _, observation) = database
             .snapshot_view(caller.principal, &reference.identity(), true, deadline)
             .map_err(core_error)?;
         require(
@@ -178,19 +192,41 @@ impl Catalogue {
         if observation.state != crate::snapshot::SnapshotState::Retained {
             return Err(CatalogueError::Conflict);
         }
-        let original =
-            ObjectContext::from_snapshot(&source_db, &base, deadline).map_err(core_error)?;
-        let manifest = data_tree::manifest(&original, &recipe.point().data_root, deadline)
+        // snapshot_view supplied strict nonterminal authority; this database
+        // owns a new, unshared Knowledge. Keep context admission in the same
+        // constructor instead of reconstructing either invariant in copying.
+        ObjectContext::from_snapshot(&database, &base, deadline)
+            .map_err(core_error)
+            .map(|objects| RestoreSource { database, objects })
+    }
+
+    pub(super) fn copy_restore_point(
+        &self,
+        caller: Caller,
+        source: Restoring<'_>,
+        target_base: &Snapshot,
+        resources: CopyResources<'_>,
+        deadline: Instant,
+    ) -> Result<CompleteCopy, CatalogueError> {
+        let CopyResources {
+            source_objects,
+            directory,
+            budget,
+        } = resources;
+        let recipe = source.recipe();
+        let (scope, reference) = recipe.source();
+        let original = self.restore_source(caller, recipe, source_objects, budget, deadline)?;
+        let manifest = data_tree::manifest(&original.objects, &recipe.point().data_root, deadline)
             .map_err(core_error)?;
         require(manifest.page_count == recipe.point().page_count)?;
-        let database = self.database(source);
+        let database = self.database(&source);
         let target =
             ObjectContext::from_snapshot(&database, target_base, deadline).map_err(core_error)?;
         let mut image = self.restore_image(source, directory, budget)?;
         let root = match &manifest.root {
             Some(root) => Some(
                 Transcode {
-                    source: &original,
+                    source: &original.objects,
                     target: &target,
                     image: &mut image,
                     pages: manifest.page_count,
@@ -210,9 +246,13 @@ impl Catalogue {
                 deadline,
             )
             .map_err(|error| core_error(target_error(error)))?;
-        validate_native(&database, image.finish().map_err(native_error)?, deadline)?;
+        validate_native(
+            self.restore_writer_limits(&source),
+            image.finish().map_err(native_error)?,
+            Arc::new(move || Instant::now() >= deadline),
+        )?;
         self.verify_restore_closure(
-            source,
+            &source,
             target_base,
             &data_root,
             manifest.page_count,
@@ -221,7 +261,8 @@ impl Catalogue {
         )?;
         // Every payload operation is finished before this stable authorization
         // barrier. A failed attempt cannot retain an image/cursor for later use.
-        let (_, _, final_observation) = source_db
+        let (_, _, final_observation) = original
+            .database
             .snapshot_view(caller.principal, &reference.identity(), true, deadline)
             .map_err(core_error)?;
         require(
@@ -250,18 +291,15 @@ impl Catalogue {
 
     pub(super) fn restore_image(
         &self,
-        source: &Source,
+        source: Restoring<'_>,
         directory: &Path,
         budget: RestoreBudget,
     ) -> Result<ImageBuilder, CatalogueError> {
-        let prepared = source.prepared_restore()?;
+        let prepared = source.prepared();
         if prepared.image_bytes() > budget.max_image_bytes {
             return Err(CatalogueError::Limit);
         }
-        let pages = source
-            .initial_quota
-            .max_pages()
-            .map_err(|_| CatalogueError::Corrupt)?;
+        let pages = source.maximum_pages();
         ImageBuilder::create_new(directory, prepared.point.page_count, pages).map_err(native_error)
     }
 
@@ -286,18 +324,18 @@ impl Catalogue {
 
     pub(super) fn validate_completed_copy(
         &self,
-        source: &Source,
+        source: Restoring<'_>,
         base: &Snapshot,
         record: &Completion,
         directory: &Path,
         budget: RestoreBudget,
         deadline: Instant,
     ) -> Result<(), CatalogueError> {
-        require(record.matches(source) && record.request_root == base.head.windows[0].root)?;
-        let database = self.database(source);
+        require(record.matches(&source) && record.request_root == base.head.windows[0].root)?;
+        let database = self.database(&source);
         let target = ObjectContext::from_snapshot(&database, base, deadline).map_err(core_error)?;
         self.verify_restore_closure(
-            source,
+            &source,
             base,
             &record.data_root,
             record.page_count,
@@ -311,6 +349,10 @@ impl Catalogue {
             image.append_pages(first, bytes).map_err(Error::Engine)
         })
         .map_err(|error| copy_error(target_error(error)))?;
-        validate_native(&database, image.finish().map_err(native_error)?, deadline)
+        validate_native(
+            self.restore_writer_limits(&source),
+            image.finish().map_err(native_error)?,
+            Arc::new(move || Instant::now() >= deadline),
+        )
     }
 }

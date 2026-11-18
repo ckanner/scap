@@ -19,7 +19,19 @@ pub struct PrepareRestore {
 impl PrepareRestore {
     pub fn validate(&self) -> Result<(), CatalogueError> {
         super::records::name_valid(&self.name)?;
-        super::records::valid(self.operation != 0 && self.expected_name_revision != Some(0))?;
+        super::records::valid(self.operation != 0)?;
+        self.admit_quota(&DatabaseQuota { max_bytes: None })
+            .map(|_| ())
+    }
+
+    /// Validate the remaining fields once the caller has admitted the name and
+    /// operation identity. Retain the effective quota and its native page bound
+    /// together; later copy steps cannot recalculate either from new defaults.
+    pub(super) fn admit_quota(
+        &self,
+        default: &DatabaseQuota,
+    ) -> Result<(DatabaseQuota, u32), CatalogueError> {
+        super::records::valid(self.expected_name_revision != Some(0))?;
         self.expected_name_revision
             .unwrap_or(0)
             .checked_add(3)
@@ -27,13 +39,12 @@ impl PrepareRestore {
         self.source_scope
             .validate()
             .map_err(|_| CatalogueError::Invalid)?;
-        self.options
-            .effective_quota(&DatabaseQuota { max_bytes: None })
-            .validate()
-            .map_err(|_| CatalogueError::Invalid)?;
+        let quota = self.options.effective_quota(default);
+        let maximum_pages = quota.max_pages().map_err(|_| CatalogueError::Invalid)?;
         self.snapshot
             .validate()
-            .map_err(|_| CatalogueError::Invalid)
+            .map_err(|_| CatalogueError::Invalid)?;
+        Ok((quota, maximum_pages))
     }
 }
 

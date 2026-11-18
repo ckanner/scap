@@ -3,7 +3,6 @@
 use std::ffi::OsString;
 use std::future::Future;
 use std::io::Read;
-use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -437,18 +436,10 @@ fn start(
     }
 }
 
-pub fn entry(args: Vec<OsString>) -> ExitCode {
-    exit(start(args, launch, initialize_allocator))
-}
-
-fn exit(result: Result<(), Failure>) -> ExitCode {
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("scapd: {}", error.code);
-            ExitCode::FAILURE
-        }
-    }
+/// Execute the selected startup operation. The process entrypoint owns stderr
+/// and the exit status; embedders retain the original structured failure.
+pub fn entry(args: Vec<OsString>) -> Result<(), Failure> {
+    start(args, launch, initialize_allocator)
 }
 
 #[cfg(test)]

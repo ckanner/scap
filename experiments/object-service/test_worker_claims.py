@@ -13,10 +13,10 @@ def witness(worker='5001', role=None):
     startup = {'worker': worker, 'role': role, 'start': 10, 'ready': 50}
     common = {'role': role, 'path': '/scap-test/scap-worker/v1/instances/' + worker,
               'status': 200, 'delivered': True, 'etag': '"original"', 'if_match': None}
-    put = {**common, 'key': (worker, 1), 'method': 'PUT', 'start': 20, 'end': 25,
+    put = {**common, 'key': (worker, 1), 'method': 'PUT', 'start': 20, 'response': 22, 'end': 25,
            'if_none_match': '*', 'request_bytes': len(value), 'request_sha256': digest,
            'response_bytes': 0, 'response_sha256': empty}
-    get = {**common, 'key': (worker, 2), 'method': 'GET', 'start': 30, 'end': 35,
+    get = {**common, 'key': (worker, 2), 'method': 'GET', 'start': 30, 'response': 32, 'end': 35,
            'if_none_match': None, 'request_bytes': 0, 'request_sha256': empty,
            'response_bytes': len(value), 'response_sha256': digest}
     return startup, [put, get]
@@ -46,8 +46,8 @@ class WorkerClaimControls(unittest.TestCase):
             (0, 'method', 'DELETE', 'create-readback'),
             (1, 'method', 'PUT', 'create-readback'),
             (0, 'start', 9, 'before-ready'),
-            (1, 'start', 24, 'before-ready'),
-            (1, 'end', 51, 'before-ready'),
+            (1, 'start', 21, 'before-ready'),
+            (1, 'response', 51, 'before-ready'),
             (0, 'status', 412, 'unambiguous-delivery'),
             (1, 'status', 404, 'unambiguous-delivery'),
             (0, 'delivered', False, 'unambiguous-delivery'),
@@ -86,6 +86,113 @@ class WorkerClaimControls(unittest.TestCase):
         more[0]['key'] = rows[0]['key']
         with self.assertRaisesRegex(ValueError, 'exchange-unique'):
             wire.worker_claims([first, second], rows + more)
+
+    def test_late_delivery_callbacks_do_not_change_original_network_order(self):
+        startup, rows = witness()
+        rows[0]['end'] = 70
+        rows[1]['end'] = 80
+        self.assertEqual(wire.worker_claims([startup], rows), {('5001', 1), ('5001', 2)})
+        rows[0]['response'] = rows[1]['start']
+        with self.assertRaisesRegex(ValueError, 'before-ready'):
+            wire.worker_claims([startup], rows)
+        rows[0]['response'] = 22
+        startup['ready'] = rows[1]['response']
+        with self.assertRaisesRegex(ValueError, 'before-ready'):
+            wire.worker_claims([startup], rows)
+
+
+def raw_witness():
+    value = b'SCAP-WORKER-INSTANCE-v1\0' + (5001).to_bytes(8, 'big')
+    events = [{'event': 'child_started', 'id': 'service-A',
+               'identity': {'spawn_monotonic_ns': 5}},
+              {'event': 'service_ready', 'id': 'service-A', 'role': 'A',
+               'worker': '5001', 'monotonic_ns': 60}]
+    stages = ('s3_handler_started', 's3_request', 's3_forward_started',
+              's3_backend_response', 's3_delivery_started',
+              's3_delivery_finished', 's3_handler_finished')
+    for serial, method, start in ((1, 'PUT', 10), (2, 'GET', 30)):
+        request, response = (value, b'') if method == 'PUT' else (b'', value)
+        for offset, stage in enumerate(stages):
+            row = {'event': stage, 'role': 'A', 'serial': serial, 'phase': 'setup',
+                   'path': '/scap-test/scap-worker/v1/instances/5001', 'method': method,
+                   'monotonic_ns': start + offset}
+            if stage == 's3_request':
+                row.update(request=request, signature_valid=True, access_sha256='normal',
+                           headers={'x-amz-content-sha256': hashlib.sha256(request).hexdigest(),
+                                    'content-length': str(len(request)),
+                                    **({'if-none-match': '*'} if method == 'PUT' else {})})
+            elif stage == 's3_backend_response':
+                row.update(response=response, status=200, headers={'etag': '"original"'})
+            elif stage == 's3_delivery_started':
+                row.update(response=response, status=200, origin='backend')
+            elif stage == 's3_delivery_finished':
+                row['complete'] = True
+            events.append(row)
+    return events
+
+
+class ClosedRawWorkerClaims(unittest.TestCase):
+    def test_complete_raw_lifetimes_bind_owned_startup(self):
+        self.assertEqual(wire.closed_worker_claims(raw_witness(), lambda value: value, 'normal'),
+                         {('A', 1), ('A', 2)})
+
+    def test_missing_or_duplicate_stage_is_rejected(self):
+        original = raw_witness()
+        for stage in ('s3_handler_started', 's3_forward_started', 's3_backend_response',
+                      's3_delivery_started', 's3_delivery_finished', 's3_handler_finished'):
+            target = next(row for row in original if row['event'] == stage and row['serial'] == 1)
+            for changed in ([row for row in original if row is not target], original + [copy.deepcopy(target)]):
+                with self.subTest(stage=stage, count=len(changed)), self.assertRaisesRegex(ValueError, 'closed-stages'):
+                    wire.closed_worker_claims(changed, lambda value: value, 'normal')
+
+    def test_faulted_or_changed_raw_delivery_cannot_be_certified(self):
+        cases = (
+            ('s3_forward_started', 'path', '/wrong', 'original-exchange'),
+            ('s3_delivery_finished', 'phase', 'database', 'original-exchange'),
+            ('s3_forward_started', 'monotonic_ns', 1, 'stage-order'),
+            ('s3_request', 'signature_valid', False, 'signed-request'),
+            ('s3_request', 'request', b'wrong', 'signed-body'),
+            ('s3_request', 'access_sha256', 'gc', 'normal-authority'),
+            ('s3_delivery_started', 'origin', 'fixture', 'original-delivery'),
+            ('s3_delivery_started', 'response', b'wrong', 'original-delivery'),
+            ('s3_delivery_started', 'status', 412, 'original-delivery'),
+            ('s3_delivery_finished', 'complete', False, 'unambiguous-delivery'),
+        )
+        for event, field, value, guard in cases:
+            changed = raw_witness()
+            next(row for row in changed if row['event'] == event and row['serial'] == 1)[field] = value
+            with self.subTest(event=event, field=field), self.assertRaisesRegex(ValueError, guard):
+                wire.closed_worker_claims(changed, lambda value: value, 'normal')
+        changed = raw_witness() + [{'event': 'fault_suppressed', 'role': 'A', 'serial': 1}]
+        with self.assertRaisesRegex(ValueError, 'no-fault'):
+            wire.closed_worker_claims(changed, lambda value: value, 'normal')
+
+    def test_readiness_cannot_borrow_another_owned_process(self):
+        for change in ('missing', 'extra', 'duplicate', 'wrong-id', 'wrong-role', 'wrong-incarnation'):
+            rows = raw_witness()
+            ready = rows[1]
+            if change == 'missing':
+                rows.remove(ready)
+            elif change == 'extra':
+                rows.append({'event': 'child_started', 'id': 'service-B',
+                             'identity': {'spawn_monotonic_ns': 1}})
+            elif change == 'duplicate':
+                rows.append(copy.deepcopy(ready))
+                rows.append({'event': 'child_started', 'id': 'service-B',
+                             'identity': {'spawn_monotonic_ns': 1}})
+            elif change == 'wrong-id':
+                ready['id'] = 'node-version'
+            elif change == 'wrong-role':
+                ready['role'] = 'B'
+            else:
+                ready['incarnation'] = 0
+            guard = 'owned-role' if change in ('wrong-role', 'wrong-incarnation') else 'owned-readiness'
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, guard):
+                wire.closed_worker_claims(rows, lambda value: value, 'normal')
+        rows = raw_witness()
+        rows[0]['id'] = rows[1]['id'] = 'service-A-1'
+        rows[1]['incarnation'] = 1
+        self.assertEqual(wire.closed_worker_claims(rows, lambda value: value, 'normal'), {('A', 1), ('A', 2)})
 
 
 if __name__ == '__main__':

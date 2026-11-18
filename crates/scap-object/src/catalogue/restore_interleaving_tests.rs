@@ -517,6 +517,159 @@ fn permanent_completion_prevents_recreating_a_physically_missing_target_head() {
 }
 
 #[test]
+fn completion_with_unknown_final_head_recheck_never_recreates_authority() {
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    assert_eq!(fixture.resume(&prepared, 2).phase, RestorePhase::Copied);
+    let key = head_key(&prepared.reference.creation.scope);
+    fixture.memory.remove(&key);
+    for inspect in [true, false] {
+        let attempt = fixture.fork();
+        attempt
+            .memory
+            .cut(false, &key, None, 1, Fault::Before(StoreError::Unknown));
+        let path = attempt.directory.path().join("missing-head-recheck");
+        let result = if inspect {
+            attempt
+                .catalogue
+                .inspect_restore(CREATOR, 7, 700, deadline())
+        } else {
+            attempt.catalogue.resume_restore(
+                CREATOR,
+                &prepared.reference,
+                &path,
+                RestoreBudget::default(),
+                deadline(),
+            )
+        };
+        assert_eq!(result, Err(CatalogueError::Unknown));
+        assert!(!path.exists());
+        assert!(attempt.memory.get_value(&key).is_none());
+        let calls = attempt.memory.calls();
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| !call.put && call.key == key)
+                .count(),
+            2
+        );
+        assert!(calls.iter().all(|call| !call.put));
+    }
+}
+
+#[test]
+fn invalid_provisioning_quota_and_exhausted_cleanup_room_withhold_copied() {
+    for exhausted in [false, true] {
+        let fixture = Fixture::new(false);
+        let prepared = fixture.prepare();
+        fixture.copying(&prepared);
+        let key = head_key(&prepared.reference.creation.scope);
+        let mut head = fixture
+            .catalogue
+            .read_slot(&prepared.reference.creation.scope, deadline())
+            .unwrap()
+            .unwrap()
+            .head;
+        if exhausted {
+            // This base is valid: delete+seal still fit. Copying would spend
+            // one of those reserved serials, so the actual publication rejects.
+            head.head_serial = u64::MAX - 2;
+        } else {
+            // Individually valid HEAD data, but not the immutable recipe's
+            // effective quota. The public resume must reject its plan.
+            head.quota.max_bytes = None;
+        }
+        fixture.memory.set(&key, encode_head(&head).unwrap());
+        let original = fixture.memory.get_value(&key).unwrap();
+        fixture.memory.clear_calls();
+        let path = fixture.directory.path().join("invalid-copy-transition");
+        assert_eq!(
+            fixture.catalogue.resume_restore(
+                CREATOR,
+                &prepared.reference,
+                &path,
+                RestoreBudget::default(),
+                deadline()
+            ),
+            Err(if exhausted {
+                CatalogueError::Limit
+            } else {
+                CatalogueError::Corrupt
+            })
+        );
+        assert!(!path.exists());
+        assert_eq!(fixture.memory.get_value(&key).unwrap(), original);
+        assert!(fixture
+            .memory
+            .calls()
+            .iter()
+            .all(|call| !call.put || call.key != key));
+        assert_eq!(
+            fixture
+                .memory
+                .get_value(&fixture.completion_key(&prepared))
+                .is_some(),
+            exhausted
+        );
+        if exhausted {
+            // A permanent completion does not authorize spending cleanup debt
+            // on a later explicit resume either.
+            fixture.memory.clear_calls();
+            assert_eq!(
+                fixture.catalogue.resume_restore(
+                    CREATOR,
+                    &prepared.reference,
+                    &path,
+                    RestoreBudget::default(),
+                    deadline()
+                ),
+                Err(CatalogueError::Limit)
+            );
+            assert_eq!(fixture.memory.get_value(&key).unwrap(), original);
+            assert!(!path.exists());
+        }
+    }
+}
+
+#[test]
+fn saturated_restore_candidates_never_fold_into_a_valid_serial_transition() {
+    let fixture = Fixture::new(false);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    let original = fixture
+        .catalogue
+        .read_slot(&prepared.reference.creation.scope, deadline())
+        .unwrap()
+        .unwrap();
+    let source = fixture
+        .catalogue
+        .restore_descriptor(&prepared.reference, deadline())
+        .unwrap();
+    let database = fixture.catalogue.database(&source);
+    fixture.memory.clear_calls();
+    for serial in [u64::MAX - 2, u64::MAX - 1, u64::MAX] {
+        let mut base = original.clone();
+        base.head.head_serial = serial;
+        let mut next = base.head.clone();
+        next.head_serial = serial.saturating_add(1);
+        let result = PreparedHead::restore(
+            &database,
+            VerifiedRestoreTransition { base, next },
+            deadline(),
+        );
+        assert!(
+            matches!(
+                result,
+                Err(Error::Limit | Error::Format(crate::format::FormatError::Invalid))
+            ),
+            "serial {serial}"
+        );
+    }
+    assert!(fixture.memory.calls().is_empty());
+}
+
+#[test]
 fn a_completion_arriving_after_missing_head_observation_is_conflict_if_head_now_exists() {
     let fixture = Fixture::new(true);
     let prepared = fixture.prepare();

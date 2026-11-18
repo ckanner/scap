@@ -303,7 +303,7 @@ def network(data, calls):
         require(not request['query'] and request['fault'] is None and request['latency'] is None,
                 'worker-identity-unfaulted-startup')
         claims.append({'key': serial, 'role': None, 'method': request['method'], 'path': request['path'],
-                       'start': stamp(request), 'end': stamp(obj['terminal']),
+                       'start': stamp(request), 'response': stamp(obj['backend']), 'end': stamp(obj['terminal']),
                        'status': obj['backend']['status'],
                        'delivered': obj['terminal']['event'] == 'delivery_finished',
                        'if_none_match': request['if_none_match'], 'if_match': request['if_match'],

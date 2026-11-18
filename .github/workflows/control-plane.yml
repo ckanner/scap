@@ -1,0 +1,220 @@
+name: Owner, snapshot, restore and worker identity contracts
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol-models:
+    name: Independent owner and snapshot models
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check the independent observers
+        run: |
+          python3 -B -m unittest discover -s experiments/object-owner-controller-model -p 'test_*.py' -v
+          python3 -B -m unittest discover -s experiments/object-snapshot-restore-model -p 'test_*.py' -v
+      - name: Explore the full frozen owner controller model
+        run: |
+          python3 -B experiments/object-owner-controller-model/explore.py "$RUNNER_TEMP/scap-controller-model"
+          python3 -B experiments/object-owner-controller-model/oracle.py "$RUNNER_TEMP/scap-controller-model"
+          python3 -B experiments/object-owner-controller-model/oracle.py "$RUNNER_TEMP/scap-controller-model" --controls
+      - name: Explore the full frozen S1 and S2 model
+        run: |
+          python3 -B experiments/object-snapshot-restore-model/codec_budget.py
+          python3 -B experiments/object-snapshot-restore-model/explore.py --out "$RUNNER_TEMP/scap-snapshot-model"
+      - name: Retain original finite model evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owner-snapshot-models
+          path: |
+            ${{ runner.temp }}/scap-controller-model/**
+            ${{ runner.temp }}/scap-snapshot-model/**
+          if-no-files-found: warn
+
+  owner-snapshot-runtime:
+    name: Actual ${{ matrix.fixture }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - fixture: object-owner-plan-runtime
+            native: true
+            controls: --output
+          - fixture: object-owner-absence-runtime
+            native: true
+            controls: --output
+          - fixture: object-snapshot-runtime
+            native: true
+            controls: --out
+          - fixture: object-controller-runtime
+            native: false
+            controls: ''
+          - fixture: object-controller-matrix
+            native: false
+            controls: --output
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      SCAP_FIXTURE: ${{ matrix.fixture }}
+      SCAP_CONTROL_OUTPUT: ${{ matrix.controls }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-control-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-control-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-control-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-control-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-control-tools" weed
+      - name: Verify independent observers and startup claim controls
+        run: |
+          python3 -B -m unittest discover -s experiments/object-service -p test_worker_claims.py -v
+          python3 -B -m unittest discover -s "experiments/$SCAP_FIXTURE" -p 'test_*.py' -v
+          node --check experiments/object-owner-plan-runtime/client.mjs
+          if [ -f "experiments/$SCAP_FIXTURE/client.mjs" ]; then
+            node --check "experiments/$SCAP_FIXTURE/client.mjs"
+          fi
+      - name: Build and bind the actual service
+        run: |
+          mkdir "$RUNNER_TEMP/scap-control-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-control-release" \
+            --evidence "$RUNNER_TEMP/scap-control-evidence/service-build"
+      - name: Build and bind the native seed worker
+        if: matrix.native
+        run: |
+          python3 -B experiments/object-network/build.py \
+            --target-dir "$RUNNER_TEMP/scap-control-release" \
+            --evidence "$RUNNER_TEMP/scap-control-evidence/native-build"
+      - name: Observe the complete fixed runtime history
+        env:
+          SCAP_NATIVE_SEED: ${{ matrix.native }}
+        run: |
+          arguments=(
+            --server "$RUNNER_TEMP/scap-control-release/release/scapd"
+            --build-record "$RUNNER_TEMP/scap-control-evidence/service-build/build.json"
+            --weed "$RUNNER_TEMP/scap-control-tools/weed"
+            --node "$(command -v node)"
+            --evidence "$RUNNER_TEMP/scap-control-evidence/run"
+          )
+          if [ "$SCAP_NATIVE_SEED" = true ]; then
+            arguments+=(
+              --worker "$RUNNER_TEMP/scap-control-release/release/scap-object-network"
+              --seed-build-record "$RUNNER_TEMP/scap-control-evidence/native-build/build.json"
+            )
+          fi
+          python3 -B "experiments/$SCAP_FIXTURE/run.py" "${arguments[@]}"
+      - name: Independently verify original bytes and directed counterexamples
+        run: |
+          python3 -B "experiments/$SCAP_FIXTURE/oracle.py" \
+            "$RUNNER_TEMP/scap-control-evidence/run" \
+            > "$RUNNER_TEMP/scap-control-evidence/oracle.json"
+          arguments=("$RUNNER_TEMP/scap-control-evidence/run")
+          if [ -n "$SCAP_CONTROL_OUTPUT" ]; then
+            arguments+=("$SCAP_CONTROL_OUTPUT" "$RUNNER_TEMP/scap-control-evidence/controls")
+          fi
+          python3 -B "experiments/$SCAP_FIXTURE/controls.py" "${arguments[@]}" \
+            > "$RUNNER_TEMP/scap-control-evidence/controls.json"
+      - name: Retain original local compatibility evidence and failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.fixture }}-local-s3
+          path: ${{ runner.temp }}/scap-control-evidence/**
+          if-no-files-found: warn
+
+  restore-worker-runtime:
+    name: Actual ${{ matrix.contract }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        contract: [snapshot-restore, explicit-worker-identity, automatic-worker-identity]
+    env:
+      CARGO_BUILD_JOBS: 2
+      CXXFLAGS: -g0
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      SCAP_CONTRACT: ${{ matrix.contract }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install fixed native and Rust tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libclang-18-dev
+          rustup toolchain install 1.90.0 --profile minimal
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.16.0'
+      - name: Fetch the pinned authenticated local S3 backend
+        run: |
+          mkdir "$RUNNER_TEMP/scap-startup-tools"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            https://github.com/seaweedfs/seaweedfs/releases/download/4.51/linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/scap-startup-tools/weed.tar.gz"
+          echo "c03be37416a8ee672c77766e20b22a4e1430744c3af2668599a4b6eeaec14cee  $RUNNER_TEMP/scap-startup-tools/weed.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/scap-startup-tools/weed.tar.gz" -C "$RUNNER_TEMP/scap-startup-tools" weed
+      - name: Build and bind the uninstrumented service
+        run: |
+          mkdir "$RUNNER_TEMP/scap-startup-evidence"
+          python3 -B experiments/object-service/build.py \
+            --target-dir "$RUNNER_TEMP/scap-startup-release" \
+            --evidence "$RUNNER_TEMP/scap-startup-evidence/build"
+      - name: Run the complete contract including original failure evidence
+        run: |
+          case "$SCAP_CONTRACT" in
+            snapshot-restore)
+              python3 -B experiments/object-restore-runtime/run.py \
+                --server "$RUNNER_TEMP/scap-startup-release/release/scapd" \
+                --weed "$RUNNER_TEMP/scap-startup-tools/weed" \
+                --node "$(command -v node)" \
+                --evidence "$RUNNER_TEMP/scap-startup-evidence/run"
+              ;;
+            explicit-worker-identity|automatic-worker-identity)
+              script=run.py
+              if [ "$SCAP_CONTRACT" = automatic-worker-identity ]; then script=auto.py; fi
+              python3 -B "experiments/worker-instance/$script" \
+                --binary "$RUNNER_TEMP/scap-startup-release/release/scapd" \
+                --weed "$RUNNER_TEMP/scap-startup-tools/weed" \
+                --evidence "$RUNNER_TEMP/scap-startup-evidence/run"
+              ;;
+            *) exit 2 ;;
+          esac
+      - name: Retain build bindings and original local compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.contract }}-local-s3
+          path: ${{ runner.temp }}/scap-startup-evidence/**
+          if-no-files-found: warn

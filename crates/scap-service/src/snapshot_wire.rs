@@ -31,7 +31,9 @@ impl Prepare {
             expected_head_serial: self.expected_head_serial.0,
             label: self.label.clone(),
         };
-        input.validate().map_err(|_| Failure::new("INVALID"))?;
+        if input.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(input)
     }
 }
@@ -49,7 +51,9 @@ impl Identity {
             creator: self.creator.0,
             operation: self.operation.0,
         };
-        identity.validate().map_err(|_| Failure::new("INVALID"))?;
+        if identity.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(identity)
     }
 }
@@ -71,7 +75,9 @@ impl Reference {
             capture_serial: self.capture_serial.0,
             descriptor_hash: self.descriptor_hash.clone(),
         };
-        reference.validate().map_err(|_| Failure::new("INVALID"))?;
+        if reference.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(reference)
     }
 }
@@ -89,7 +95,9 @@ impl Limits {
             max_points: self.max_points,
             max_logical_bytes: self.max_logical_bytes.0,
         };
-        limits.validate().map_err(|_| Failure::new("INVALID"))?;
+        if limits.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(limits)
     }
 }
@@ -124,20 +132,37 @@ pub fn prepared(value: &PreparedSnapshot) -> Value {
 }
 
 pub fn observation(value: &SnapshotObservation) -> Value {
-    let state = match value.state {
-        SnapshotState::Prepared => "prepared",
-        SnapshotState::Retained => "retained",
-        SnapshotState::ReleasedObserved => "released_observed",
-        SnapshotState::Fenced => "fenced",
+    let state = if value.state == SnapshotState::Prepared {
+        "prepared"
+    } else if value.state == SnapshotState::Retained {
+        "retained"
+    } else if value.state == SnapshotState::ReleasedObserved {
+        "released_observed"
+    } else {
+        "fenced"
+    };
+    let accepted = if let Some(accepted) = &value.accepted {
+        entry(accepted)
+    } else {
+        Value::Null
     };
     json!({"state": state, "status": wire::status(&value.head), "prepared": prepared(&value.prepared),
-        "accepted": value.accepted.as_ref().map(entry)})
+        "accepted": accepted})
 }
 
 pub fn listing(head: &Head) -> Value {
+    let snapshots = if let Some(snapshots) = &head.snapshots {
+        snapshots.iter().map(entry).collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let limits = if let Some(limit) = &head.snapshot_limits {
+        limits(limit)
+    } else {
+        Value::Null
+    };
     json!({"status": wire::status(head),
-        "snapshots": head.snapshots.as_deref().unwrap_or(&[]).iter().map(entry).collect::<Vec<_>>(),
-        "limits": head.snapshot_limits.as_ref().map(limits)})
+        "snapshots": snapshots, "limits": limits})
 }
 
 #[cfg(test)]

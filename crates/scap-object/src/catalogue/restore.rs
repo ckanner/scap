@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::inspect::CreateStep;
 use super::records::BindingState;
-use super::restore_records::{Completion, Recipe};
+use super::restore_records::{Completion, Recipe, Restoring};
 use super::*;
 use crate::format::{RestoreCopyPhase, RestoreOrigin};
 use crate::head_publication::PreparedHead;
@@ -67,22 +67,7 @@ impl Catalogue {
         deadline: Instant,
     ) -> Result<PreparedRestore, CatalogueError> {
         Self::creator(caller, caller.principal)?;
-        input.validate()?;
-        records::valid(
-            input.source_scope.deployment == self.deployment
-                && input.source_scope.tenant == self.tenant,
-        )?;
-        let deadline = self.options.deadline(deadline, false);
-        if let Some(record) = self.read::<Descriptor>(
-            &self.descriptor_key(caller.principal, input.operation),
-            deadline,
-        )? {
-            let stored = self.restore_existing(caller.principal, input.operation, record.body)?;
-            if stored.input != *input {
-                return Err(CatalogueError::Conflict);
-            }
-            return Ok(stored);
-        }
+        records::name_valid(&input.name)?;
         let creation = Creation {
             creator: caller.principal,
             operation: input.operation,
@@ -95,8 +80,20 @@ impl Catalogue {
                 input.operation,
             )?,
         };
-        records::valid(creation.scope != input.source_scope)?;
+        let quota = input.admit_quota(&self.options.quota)?;
         let database = self.restore_source_database(&input.source_scope)?;
+        let deadline = self.options.deadline(deadline, false);
+        if let Some(record) = self.read::<Descriptor>(
+            &self.descriptor_key(caller.principal, input.operation),
+            deadline,
+        )? {
+            let stored = self.restore_existing(caller.principal, input.operation, record.body)?;
+            if stored.input != *input {
+                return Err(CatalogueError::Conflict);
+            }
+            return Ok(stored);
+        }
+        records::valid(creation.scope != input.source_scope)?;
         let (_, _, observation) = database
             .snapshot_view(caller.principal, &input.snapshot.identity(), true, deadline)
             .map_err(core_error)?;
@@ -105,28 +102,8 @@ impl Catalogue {
         {
             return Err(CatalogueError::Conflict);
         }
-        let initial_quota = input.options.effective_quota(&self.options.quota);
-        let maximum = initial_quota
-            .max_pages()
-            .map_err(|_| CatalogueError::Invalid)?;
-        if observation.prepared.point.page_count > maximum {
-            return Err(CatalogueError::Limit);
-        }
-        let candidate = Canonical::new(Descriptor {
-            format: 2,
-            creation,
-            options: input.options.clone(),
-            initial_quota,
-            retention: self.options.retention.clone(),
-            recipe: Some(Recipe::SnapshotRestore {
-                source_scope: input.source_scope.clone(),
-                snapshot: input.snapshot.clone(),
-                point: observation.prepared.point,
-                rewrap_version: 1,
-                native_format: 1,
-                snapshot_limits: self.options.snapshot_limits.clone(),
-            }),
-        })?;
+        let candidate =
+            self.restore_candidate(input, creation, observation.prepared.point, quota)?;
         let key = self.descriptor_key(caller.principal, input.operation);
         match self
             .objects
@@ -141,6 +118,35 @@ impl Catalogue {
             return Err(CatalogueError::Conflict);
         }
         Ok(prepared)
+    }
+
+    /// Freeze the admitted source point and target defaults into one canonical
+    /// recipe. A quota overflow is a caller limit, not malformed source bytes.
+    fn restore_candidate(
+        &self,
+        input: &PrepareRestore,
+        creation: Creation,
+        point: format::SnapshotPoint,
+        (initial_quota, maximum_pages): (format::DatabaseQuota, u32),
+    ) -> Result<Source, CatalogueError> {
+        if point.page_count > maximum_pages {
+            return Err(CatalogueError::Limit);
+        }
+        Canonical::new(Descriptor {
+            format: 2,
+            creation,
+            options: input.options.clone(),
+            initial_quota,
+            retention: self.options.retention.clone(),
+            recipe: Some(Recipe::SnapshotRestore {
+                source_scope: input.source_scope.clone(),
+                snapshot: input.snapshot.clone(),
+                point,
+                rewrap_version: 1,
+                native_format: 1,
+                snapshot_limits: self.options.snapshot_limits.clone(),
+            }),
+        })
     }
 
     fn restore_existing(
@@ -179,7 +185,7 @@ impl Catalogue {
     ) -> Result<Source, CatalogueError> {
         reference.validate()?;
         let source = self.descriptor(&reference.creation, deadline)?;
-        if source.hash() != reference.descriptor_hash || source.recipe.is_none() {
+        if source.hash() != reference.descriptor_hash {
             return Err(CatalogueError::Conflict);
         }
         Ok(source)
@@ -196,32 +202,27 @@ impl Catalogue {
         records::valid(operation != 0)?;
         let deadline = self.options.deadline(deadline, false);
         let source = self.read_descriptor(creator, operation, deadline)?;
-        source.prepared_restore()?;
-        self.restore_progress(&source, deadline)
+        self.restore_progress(source.restoring()?, deadline)
     }
 
     fn restore_progress(
         &self,
-        source: &Source,
+        source: Restoring<'_>,
         deadline: Instant,
     ) -> Result<RestoreProgress, CatalogueError> {
-        let view = self.view(source, deadline)?;
-        let plan = self.creation_plan(source, &view, deadline)?;
+        let view = self.view(&source, deadline)?;
+        let plan = self.creation_plan(&source, &view, deadline)?;
         let phase = match plan.phase {
             CreationPhase::NotReserved => RestorePhase::NotReserved,
             CreationPhase::Reserved => RestorePhase::Reserved,
             CreationPhase::Provisioning => {
-                let head = &view.head.as_ref().ok_or(CatalogueError::Corrupt)?.head;
-                match &head.restore_origin {
-                    Some(Some(RestoreOrigin {
-                        phase: RestoreCopyPhase::Copying {},
-                        ..
-                    })) => RestorePhase::Copying,
-                    Some(Some(RestoreOrigin {
-                        phase: RestoreCopyPhase::Copied { .. },
-                        ..
-                    })) => RestorePhase::Copied,
-                    _ => return Err(CatalogueError::Corrupt),
+                // creation_plan already validated the exact own Provisioning
+                // HEAD and its restore origin. Project that admitted step;
+                // never independently reconstruct a phase/HEAD relationship.
+                if matches!(plan.step, CreateStep::Prepare { copying: true, .. }) {
+                    RestorePhase::Copying
+                } else {
+                    RestorePhase::Copied
                 }
             }
             CreationPhase::Bound => RestorePhase::Bound,
@@ -233,9 +234,9 @@ impl Catalogue {
             CreationPhase::NameConflict => RestorePhase::NameConflict,
             CreationPhase::IdentityConflict => RestorePhase::IdentityConflict,
         };
-        let (binding_revision, head_revision) = Self::revisions(source, &view);
+        let (binding_revision, head_revision) = Self::revisions(&source, &view);
         Ok(RestoreProgress {
-            prepared: source.prepared_restore()?,
+            prepared: source.prepared(),
             phase,
             binding_revision,
             head_revision,
@@ -254,6 +255,7 @@ impl Catalogue {
         budget.validate()?;
         let deadline = self.options.deadline(deadline, true);
         let source = self.restore_descriptor(reference, deadline)?;
+        let source = source.restoring()?;
         let view = self.view(&source, deadline)?;
         let plan = self.creation_plan(&source, &view, deadline)?;
         match plan.step {
@@ -284,14 +286,18 @@ impl Catalogue {
                 Self::initial_restore_origin(&source, &mut head);
                 database.create_head(&head, deadline).map_err(core_error)?;
             }
-            CreateStep::RestoreCopy(base) => {
+            CreateStep::Prepare {
+                base,
+                copying: true,
+                ..
+            } => {
                 let mut copying = self.clone();
                 copying.objects =
                     super::restore_budget::Meter::target(self.objects.clone(), budget, deadline);
                 let completion = match copying.read_completion(&source, deadline)? {
                     Some(record) => {
                         copying.validate_completed_copy(
-                            &source,
+                            source,
                             base,
                             record.raw(),
                             directory,
@@ -303,7 +309,7 @@ impl Catalogue {
                     None => {
                         let complete = copying.copy_restore_point(
                             caller,
-                            &source,
+                            source,
                             base,
                             super::restore_copy::CopyResources {
                                 source_objects: self.objects.clone(),
@@ -321,7 +327,11 @@ impl Catalogue {
                 };
                 copying.install_copied(&source, &view, base, &completion, deadline)?;
             }
-            CreateStep::Bind(binding) => {
+            CreateStep::Prepare {
+                binding,
+                copying: false,
+                ..
+            } => {
                 let mut next = binding.body.raw().clone();
                 next.state = BindingState::Bound;
                 next.revision += 1;
@@ -331,7 +341,7 @@ impl Catalogue {
                 self.complete(&source, binding, base, deadline)?
             }
         }
-        self.restore_progress(&source, deadline)
+        self.restore_progress(source, deadline)
     }
 
     pub fn abort_restore(
@@ -343,7 +353,7 @@ impl Catalogue {
     ) -> Result<AbortProgress, CatalogueError> {
         Self::creator(caller, reference.creation.creator)?;
         let deadline = self.options.deadline(deadline, false);
-        self.restore_descriptor(reference, deadline)?;
+        self.restore_descriptor(reference, deadline)?.restoring()?;
         if input.creation != reference.creation {
             return Err(CatalogueError::Conflict);
         }
@@ -458,10 +468,10 @@ impl Catalogue {
             return Err(CatalogueError::Conflict);
         }
         let mut next = base.head.clone();
-        next.head_serial = next
-            .head_serial
-            .checked_add(1)
-            .ok_or(CatalogueError::Limit)?;
+        // The strict Copying HEAD9 has cleanup serial room. PreparedHead is
+        // still the single checked boundary for the base, increment and the
+        // remaining cleanup debt; a saturated candidate can never be accepted.
+        next.head_serial = next.head_serial.saturating_add(1);
         next.data_root = completion.data_root.clone();
         next.restore_origin = Some(Some(RestoreOrigin {
             descriptor_hash: source.hash().into(),

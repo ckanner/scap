@@ -591,7 +591,9 @@ def audit(directory):
          'successful-bounded-observation-cleanup')
     return {'schema': 1, 'status': 'PASSED', 'profile': 'head9-s1-native-http-signed-s3-v1',
             'fixture_source_commit': inputs['commit'], 'runtime_source_commit': inputs['runtime_source_commit'],
-            'http_posts': len(calls), 's3_requests': len(values), 'sql_original_acks': 6, 'cold_original_lookups': 6,
+            'http_posts': len(calls), 's3_requests': len(e.selection(events, 's3_request')),
+            'database_s3_requests': len(values), 'worker_identity_claims': len(e.selection(events, 'service_ready')),
+            'sql_original_acks': 6, 'cold_original_lookups': 6,
             'snapshot_descriptors': 2, 'snapshot_proofs': 2, 'held_roots_in_copy_and_cold_recovery': 2,
             'original_unknowns': 2, 'sweep_rounds': 2, 'owned_wait4': 13,
             'oracle_python_sqlite': sqlite3.sqlite_version, 'aws_standard': 'NOT_RUN', 'production_slo': 'NOT_RUN', 'restore_s2': 'NOT_RUN',

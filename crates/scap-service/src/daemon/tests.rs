@@ -670,8 +670,7 @@ fn cli_reads_exactly_one_bounded_configuration_and_reports_only_stable_codes() {
         "CONFIG"
     );
     std::fs::write(&file, b"{}").unwrap();
-    assert_eq!(entry(vec![file.into()]), ExitCode::FAILURE);
-    assert_eq!(exit(Ok(())), ExitCode::SUCCESS);
+    assert_eq!(entry(vec![file.into()]).unwrap_err().code, "CONFIG");
 
     let mut config =
         Config::parse(&serde_json::to_vec(&sample_config(directory.path())).unwrap()).unwrap();
@@ -786,14 +785,12 @@ fn real_startup_adapter_initializes_once_and_restarts_auto_without_config_edits(
     value["s3"]["endpoint"] = serde_json::json!(backend.endpoint());
     let config_path = directory.path().join("config.json");
     std::fs::write(&config_path, value.to_string()).unwrap();
-    assert_eq!(
-        entry(vec![
-            "--init-worker-allocator".into(),
-            config_path.into(),
-            "100".into()
-        ]),
-        ExitCode::SUCCESS
-    );
+    entry(vec![
+        "--init-worker-allocator".into(),
+        config_path.into(),
+        "100".into(),
+    ])
+    .unwrap();
     assert_eq!(
         initialize_allocator(parse(&value), 0).unwrap_err().code,
         "INSTANCE_ALLOCATOR_EXISTS"

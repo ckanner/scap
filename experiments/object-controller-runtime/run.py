@@ -68,7 +68,8 @@ class Harness:
         self.backend = io.network.Backend(self.args.weed, self.private / 'backend',
                                           volume_size_mib=128, max_volumes=4)
         self.backend.start()
-        self.trace.emit('backend_started', identities=self.backend.identities(), binary=tools['weed'])
+        self.trace.emit('backend_started', identities=self.backend.identities(), binary=tools['weed'],
+                        normal_access_sha256=io.sha(self.backend.access.encode()))
         connection = http.client.HTTPConnection('127.0.0.1', self.backend.port, timeout=5)
         try:
             connection.request('GET', '/scap-test/unsigned-controller-probe')

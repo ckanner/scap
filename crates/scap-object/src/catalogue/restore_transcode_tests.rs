@@ -29,7 +29,7 @@ fn capture_current(fixture: &mut Fixture) {
 
 #[test]
 fn hash_valid_source_edges_and_native_bytes_are_verified_before_completion() {
-    for damage in 0..9 {
+    for damage in 0..10 {
         let mut fixture = Fixture::new(false);
         let objects = ObjectContext::bootstrap_at(&fixture.source, deadline()).unwrap();
         let empty = objects
@@ -68,6 +68,20 @@ fn hash_valid_source_edges_and_native_bytes_are_verified_before_completion() {
         };
         let node = if damage == 0 {
             empty
+        } else if damage == 9 {
+            // A structurally valid multilevel root whose first child is the
+            // wrong object kind must propagate the recursive failure, without
+            // accepting a partial first subtree or allocating a giant image.
+            objects
+                .save(
+                    Payload::Node {
+                        level: 1,
+                        first_chunk: 0,
+                        children: vec![empty.clone(), empty],
+                    },
+                    deadline(),
+                )
+                .unwrap()
         } else {
             objects
                 .save(
@@ -87,7 +101,7 @@ fn hash_valid_source_edges_and_native_bytes_are_verified_before_completion() {
         let root = objects
             .save(
                 Payload::Manifest(Manifest {
-                    page_count: 1,
+                    page_count: if damage == 9 { 8193 } else { 1 },
                     root: Some(node),
                 }),
                 deadline(),
@@ -98,11 +112,23 @@ fn hash_valid_source_edges_and_native_bytes_are_verified_before_completion() {
         // cannot emit these edges/images; S2 must still reject them on restore.
         let mut head = fixture.source.status(7, deadline()).unwrap();
         head.data_root = root;
+        if damage == 9 {
+            head.quota.max_bytes = Some(40 * 1024 * 1024);
+        }
         fixture
             .memory
             .set(&head_key(&scope()), encode_head(&head).unwrap());
         capture_current(&mut fixture);
-        let prepared = fixture.prepare();
+        let mut input = fixture.input();
+        if damage == 9 {
+            input.options.quota = QuotaChoice::Limited {
+                max_bytes: 40 * 1024 * 1024,
+            };
+        }
+        let prepared = fixture
+            .catalogue
+            .prepare_restore(CREATOR, &input, deadline())
+            .unwrap();
         fixture.copying(&prepared);
         let path = fixture.directory.path().join("invalid-source");
         assert_eq!(
@@ -136,6 +162,65 @@ fn hash_valid_source_edges_and_native_bytes_are_verified_before_completion() {
             RestorePhase::Copying
         );
     }
+}
+
+#[test]
+fn a_retained_descriptor_with_a_hash_valid_wrong_manifest_count_cannot_complete() {
+    use crate::snapshot_records::{self, SnapshotDescriptor};
+    let mut fixture = Fixture::new(false);
+    let base = fixture.source.read_head(deadline()).unwrap();
+    let input = PrepareSnapshotInput {
+        creator: 7,
+        operation: 902,
+        expected_revision: base.head.revision,
+        expected_head_serial: base.head.head_serial,
+        label: "corrupt retained page count".into(),
+    };
+    // Inject mutually bound metadata with an incorrect page count. Its original
+    // immutable data_root is still the genuine zero-page manifest. The public
+    // snapshot capture path cannot produce this damage; restore must detect it.
+    let descriptor =
+        SnapshotDescriptor::new(&base, &input, 1, base.head.snapshot_limits.clone().unwrap())
+            .unwrap();
+    fixture.memory.set(
+        &snapshot_records::key(&scope(), &input.identity(), false),
+        descriptor.bytes().unwrap(),
+    );
+    let mut head = base.head;
+    head.head_serial += 1;
+    head.snapshots.as_mut().unwrap().push(descriptor.entry());
+    fixture
+        .memory
+        .set(&head_key(&scope()), encode_head(&head).unwrap());
+    fixture.snapshot = PreparedSnapshot {
+        scope: scope(),
+        input,
+        reference: descriptor.reference(),
+        point: descriptor.point,
+    };
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    let target = head_key(&prepared.reference.creation.scope);
+    let original = fixture.memory.get_value(&target).unwrap();
+    fixture.memory.clear_calls();
+    let path = fixture.directory.path().join("wrong-manifest-count");
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Corrupt)
+    );
+    assert!(!path.exists());
+    assert_eq!(fixture.memory.get_value(&target).unwrap(), original);
+    assert!(fixture
+        .memory
+        .get_value(&fixture.completion_key(&prepared))
+        .is_none());
+    assert!(fixture.memory.calls().iter().all(|call| !call.put));
 }
 
 #[test]

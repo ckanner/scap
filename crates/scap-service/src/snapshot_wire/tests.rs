@@ -171,6 +171,10 @@ fn snapshot_wire_states_keep_original_descriptor_and_optional_acceptance() {
         (SnapshotState::ReleasedObserved, "released_observed"),
         (SnapshotState::Fenced, "fenced"),
     ] {
+        let (SnapshotState::Prepared
+        | SnapshotState::Retained
+        | SnapshotState::ReleasedObserved
+        | SnapshotState::Fenced) = state;
         let value = SnapshotObservation {
             head: head.clone(),
             prepared: saved.clone(),

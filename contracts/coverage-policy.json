@@ -45,6 +45,7 @@
     "crates/scap-object/src/catalogue/restore_transcode_tests.rs",
     "crates/scap-object/src/catalogue/terminal_tests.rs",
     "crates/scap-object/src/catalogue/tests.rs",
+    "crates/scap-object/src/catalogue/types_tests.rs",
     "crates/scap-object/src/closure_tests.rs",
     "crates/scap-object/src/data_tree_tests.rs",
     "crates/scap-object/src/format_tests.rs",
@@ -87,6 +88,7 @@
     "crates/scap-service/src/http/tests.rs",
     "crates/scap-service/src/instance/tests.rs",
     "crates/scap-service/src/intake/tests.rs",
+    "crates/scap-service/src/main_tests.rs",
     "crates/scap-service/src/output/tests.rs",
     "crates/scap-service/src/owner_wire/tests.rs",
     "crates/scap-service/src/restore/tests.rs",
@@ -99,7 +101,8 @@
     "crates/scap-sql/src/result_memory_decode_tests.rs",
     "crates/scap-sql/src/result_memory_tests.rs",
     "crates/scap-sql/src/result_validation_tests.rs",
-    "crates/scap-sql/src/tests.rs"
+    "crates/scap-sql/src/tests.rs",
+    "tests/tooling/fixtures/branch_question_unwind.rs"
   ],
   "research_harness_roots": [
     "experiments/object-authority-model",

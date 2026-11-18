@@ -729,6 +729,9 @@ def s3_exchanges(directory, events, backend):
             one(events, 'fault_suppressed', role=key[0], serial=key[1])
         values.append(value)
     need(not selection(events, 's3_fixture_error'), 's3-observer-errors')
+    claims = wire.raw_worker_claims(events, values, backend['normal_access_sha256'], check=need)
+    values = [value for value in values
+              if (value['request']['role'], value['request']['serial']) not in claims]
     return ObservationIndex(sorted(values, key=lambda value: moment(value['request'])))
 
 

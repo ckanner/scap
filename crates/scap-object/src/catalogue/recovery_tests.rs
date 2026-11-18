@@ -485,6 +485,6 @@ fn canonical_source_keeps_validated_bytes_hash_and_shape_when_raw_clone_changes(
     assert_eq!(source.bytes(), before);
     assert_eq!(source.origin(), origin);
     assert_eq!(source.hash(), format::digest(&before));
-    assert_eq!(source.shape(), &());
+    assert_eq!(*source.shape(), source.initial_quota.max_pages().unwrap());
     assert_eq!(records::decode::<Descriptor>(&before).unwrap(), source);
 }

@@ -99,8 +99,7 @@ impl Catalogue {
                     head.creation = Some(source.origin());
                     database.create_head(&head, deadline).map_err(core_error)?;
                 }
-                CreateStep::RestoreCopy(_) => return Err(CatalogueError::Conflict),
-                CreateStep::Bind(binding) => {
+                CreateStep::Prepare { binding, .. } => {
                     let mut next = binding.body.raw().clone();
                     next.state = BindingState::Bound;
                     next.revision += 1;

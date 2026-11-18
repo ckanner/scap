@@ -5,6 +5,8 @@
 PR #59 的 `b15bc455349ea36162b8004c2c73fc7d812d4c10` 和
 PR #60 的 `fd508cc052c21dba0e3c54b8e8e82d11c167777a`。
 
+2026-11-18 的代码重构及新增反例见文末；前述日期与下表保留历史冻结版本的原值。
+
 ## 结论与合入影响
 
 两份源码分别完成 stable/nightly 各 783 和 791 项单元测试，67 个生产文件均出现在
@@ -81,3 +83,61 @@ PR #60 的 `fd508cc052c21dba0e3c54b8e8e82d11c167777a`。
 无源码分支的薄入口与测量器尚不支持的决策结构是两类情况。若今后选择明确的
 “无适用分支”规范，须作为可审查的验收规范变更处理，不能在这次产品合入时
 暗中当作现有严格门禁的例外。本轮没有作出这一规范变更。
+
+## 2026-11-18：显式表达已有边界决策
+
+S2 增加的 `restore_wire.rs` 使零分母文件成为 8 个。本次保持检查器、逐文件四维
+100% 阈值、固定工具链和 unit-only 采集方式不变，修改这些模块的实际控制流：
+
+- `object_frame.rs` 在读取帧字段前依次检查大小、哈希、固定头、元数据和 raw 长度；
+  JSON 解析、Chunk/Result 的空 embedded bytes、payload 验证和完整 scope 检查
+  均有显式拒绝路径。错误码、先后顺序、原始帧借用和延迟复制语义不变。
+- 配额计算将“显式上限”“无限制”“继承默认”分开。owner/snapshot/restore 的 wire
+  转换将输入验证、状态选择和可选字段的有无显式表达，不新增 wire 能力或可信证明。
+- catalogue 对每类 action 单独分派，统一在结果投影边界区分成功和原始失败；
+  `ResumeRestore` 仍拒绝在 catalogue 控制池执行。错误码映射将原 or-pattern 的
+  不同错误来源分开判定，保留 UNKNOWN、CONFLICT、LIMIT 以及已提交收据的区别。
+- `main.rs` 承担原来位于 daemon 的 stderr/退出码决策；`daemon::entry` 返回原始
+  `Result<(), Failure>`。这将进程职责归回入口，没有增加与业务无关的条件。
+
+分派的末尾只剩原枚举中无需提取 payload 的默认项；相应单位测试有穷尽枚举 pattern，
+增加 enum variant 会使测试编译失败，要求显式更新分派和测试。数据型双分支
+`OwnerPreparation::{Prepared, Pending}` 保留穷尽 `match`，避免为了计数引入不可能
+的错误分支或改变核心 DTO。它的两个 arm 有分别检查 wire 结果的单位测试，但编译器
+仍未为该 `match` 发出独立 branch counter。
+
+因此须分别报告**实际 LLVM 门禁计数**和**编译器语法测量边界**：这次改动并没有
+声称全仓库剩余的 `match`、or-pattern 或 `?` 均已获得完整插桩，也不能将某个文件
+新出现正分母扩大为该文件中所有 Rust 语法的分支都已测量。
+
+### 为什么不采用 region 差值补算 `?`
+
+新增独立测量 fixture：
+[`tests/tooling/fixtures/branch_question_unwind.rs`](../../tests/tooling/fixtures/branch_question_unwind.rs)。
+它不链接到任何生产或 workspace unit target，profile 也不并入正式 unit 报告。
+fixture 源码 SHA-256 为
+`ea3a2e1c8b2b55ac1b6f9d5b1a6446ec6b030f6cf40db74d265210873453724a`。
+
+固定 `rustc 1.92.0-nightly (4645a7988 2025-09-17)`、LLVM 21.1.1 下，仅执行
+“callee 返回 Err”和“callee panic，调用者 catch_unwind”两次调用。成功路径上的
+原子计数器确认实际成功次数为 **0**，而 `?` 后成功语句的 LLVM region 次数为 **1**；
+`?` 本身仍无 branch counter。不能用“入口 2 − Err 1”声称成功边执行过。
+同一 fixture 中显式 Result 判断的成功分支 counter 保持 **0**，会阻止完整分支
+门禁通过。此对照只证明这组遗漏被识别，不声称编译器在所有 unwind 场景下都能
+给出准确的绝对执行次数。
+
+可使用同一固定工具链在全新临时目录复现；以下命令不会读写 workspace profile：
+
+```bash
+probe_dir="$(mktemp -d)"
+rustc +nightly-2025-09-18 --edition=2021 -Cinstrument-coverage \
+  -Zcoverage-options=branch tests/tooling/fixtures/branch_question_unwind.rs \
+  -o "$probe_dir/probe"
+LLVM_PROFILE_FILE="$probe_dir/probe.profraw" "$probe_dir/probe"
+probe_sysroot="$(rustc +nightly-2025-09-18 --print sysroot)"
+probe_llvm="$probe_sysroot/lib/rustlib/x86_64-unknown-linux-gnu/bin"
+"$probe_llvm/llvm-profdata" merge -sparse "$probe_dir/probe.profraw" \
+  -o "$probe_dir/probe.profdata"
+"$probe_llvm/llvm-cov" export "$probe_dir/probe" \
+  -instr-profile="$probe_dir/probe.profdata" > "$probe_dir/coverage.json"
+```

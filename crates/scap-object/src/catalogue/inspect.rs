@@ -4,8 +4,13 @@ pub(super) enum CreateStep<'a> {
     None,
     Reserve(Option<&'a Name>),
     Provision,
-    RestoreCopy(&'a Snapshot),
-    Bind(&'a Name),
+    /// A verified own Provisioning HEAD. Empty creation has no copy step;
+    /// restoration must finish the captured native copy before binding.
+    Prepare {
+        binding: &'a Name,
+        base: &'a Snapshot,
+        copying: bool,
+    },
     Complete(&'a Name, &'a Snapshot),
 }
 
@@ -179,17 +184,17 @@ impl Catalogue {
                         Self::provisioning(source, &head.head)?;
                         Ok(CreationPlan {
                             phase: CreationPhase::Provisioning,
-                            step: if matches!(
-                                head.head
-                                    .restore_origin
-                                    .as_ref()
-                                    .and_then(Option::as_ref)
-                                    .map(|origin| &origin.phase),
-                                Some(format::RestoreCopyPhase::Copying {})
-                            ) {
-                                CreateStep::RestoreCopy(head)
-                            } else {
-                                CreateStep::Bind(binding)
+                            step: CreateStep::Prepare {
+                                binding,
+                                base: head,
+                                copying: matches!(
+                                    head.head
+                                        .restore_origin
+                                        .as_ref()
+                                        .and_then(Option::as_ref)
+                                        .map(|origin| &origin.phase),
+                                    Some(format::RestoreCopyPhase::Copying {})
+                                ),
                             },
                         })
                     }

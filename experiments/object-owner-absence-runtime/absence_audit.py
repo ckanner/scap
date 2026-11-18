@@ -318,7 +318,9 @@ def audit(directory):
          'successful-bounded-observation-cleanup')
     return {'schema': 1, 'status': 'PASSED', 'profile': 'head8-real-owner-absence-races-v1',
         'fixture_source_commit': inputs['commit'], 'runtime_source_commit': inputs['runtime_source_commit'],
-        'http_posts': len(calls), 'owner_posts': 27, 's3_requests': len(values), 'saved_owner_inputs': 7,
+        'http_posts': len(calls), 'owner_posts': 27,
+        's3_requests': len(e.selection(events, 's3_request')), 'database_s3_requests': len(values),
+        'worker_identity_claims': len(e.selection(events, 'service_ready')), 'saved_owner_inputs': 7,
         'descriptors': 7, 'proofs': 4, 'phases': dict(phases), 'races': actual_races,
         'original_native_sql_acks': sql, 'original_lookups': 6, 'business_queries': 3,
         'recovered_closures': recovered, 'exact_status_observations': observed, 'owned_wait4': 12,

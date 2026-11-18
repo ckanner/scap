@@ -195,6 +195,7 @@ def exchanges(events, read):
     need(len(closed_http) == 3 and all(row['joined'] and row['errors'] == [] and row['request_count'] ==
          len([request for request in http if request['role'] == row['role']]) for row in closed_http), 'http-listener-closure')
     need(not select(events, 'http_proxy_fixture_error') and not select(events, 's3_fixture_error'), 'no-observer-errors')
+    wire.closed_worker_claims(events, read, one(events, 'backend_started')['normal_access_sha256'], check=need)
     return http, responses
 
 

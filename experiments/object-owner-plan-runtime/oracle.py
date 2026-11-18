@@ -899,7 +899,9 @@ def audit(directory):
                  for name, head in final.items() if name != 'named_old'), 'all-surviving-scopes-cold-active')
     return {'schema': 1, 'status': 'PASSED', 'profile': 'head8-owner-plan-native-http-signed-s3-v1',
         'fixture_source_commit': inputs['commit'], 'runtime_source_commit': inputs['runtime_source_commit'],
-        'http_posts': len(calls), 'owner_posts': 200, 's3_requests': len(values),
+        'http_posts': len(calls), 'owner_posts': 200,
+        's3_requests': len(e.selection(events, 's3_request')), 'database_s3_requests': len(values),
+        'worker_identity_claims': len(e.selection(events, 'service_ready')),
         'saved_owner_inputs': 50, 'permanent_descriptors': 46, 'permanent_proofs': 28,
         'accepted_phases': dict(phases), 'recovered_closures': recovered, 'exact_status_observations': observed,
         'original_sql_acks': len(actual), 'native_original_sql_acks': 260, 'cold_original_lookups': 292,

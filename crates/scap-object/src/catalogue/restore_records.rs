@@ -62,9 +62,41 @@ impl Recipe {
 
 impl Canonical<Descriptor> {
     pub fn prepared_restore(&self) -> Result<PreparedRestore, CatalogueError> {
+        self.restoring().map(Restoring::prepared)
+    }
+
+    pub fn restoring(&self) -> Result<Restoring<'_>, CatalogueError> {
         let recipe = self.recipe.as_ref().ok_or(CatalogueError::Conflict)?;
-        let (source_scope, snapshot) = recipe.source();
-        Ok(PreparedRestore {
+        Ok(Restoring {
+            source: self,
+            recipe,
+        })
+    }
+}
+
+/// A canonical descriptor whose restore recipe was selected once. Borrowed
+/// fields cannot drift independently or turn an empty recipe into restoration.
+#[derive(Clone, Copy)]
+pub(super) struct Restoring<'a> {
+    source: &'a Canonical<Descriptor>,
+    recipe: &'a Recipe,
+}
+
+impl std::ops::Deref for Restoring<'_> {
+    type Target = Canonical<Descriptor>;
+    fn deref(&self) -> &Self::Target {
+        self.source
+    }
+}
+
+impl Restoring<'_> {
+    pub fn recipe(&self) -> &Recipe {
+        self.recipe
+    }
+
+    pub fn prepared(self) -> PreparedRestore {
+        let (source_scope, snapshot) = self.recipe.source();
+        PreparedRestore {
             reference: RestoreRef {
                 creation: self.creation.clone(),
                 descriptor_hash: self.hash().into(),
@@ -79,8 +111,8 @@ impl Canonical<Descriptor> {
             },
             initial_quota: self.initial_quota.clone(),
             retention: self.retention.clone(),
-            point: recipe.point().clone(),
-        })
+            point: self.recipe.point().clone(),
+        }
     }
 }
 

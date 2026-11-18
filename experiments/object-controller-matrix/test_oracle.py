@@ -119,7 +119,7 @@ class OracleTests(unittest.TestCase):
         return self.assertRaisesRegex(audit.Rejected, '^' + guard + '$')
 
     def test_rejected_412_candidate_is_checked_by_full_s3_audit(self):
-        store, events = Bytes(), []
+        store, events = Bytes(), [{'event': 'backend_started', 'normal_access_sha256': 'test-normal-authority'}]
         path = '/scap-test/scap-object/v1/1/7/8701/head'
         original, proposed = original_get(), candidate()
         for serial, method, body, status, response, headers in (

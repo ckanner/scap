@@ -15,11 +15,17 @@ pub struct Reference {
 
 impl Reference {
     pub fn native(&self) -> Result<core::RestoreRef, Failure> {
+        let creation = self.creation.native();
+        let Ok(creation) = creation else {
+            return Err(creation.expect_err("creation validation failed"));
+        };
         let reference = core::RestoreRef {
-            creation: self.creation.native()?,
+            creation,
             descriptor_hash: self.descriptor_hash.clone(),
         };
-        reference.validate()?;
+        if let Err(error) = reference.validate() {
+            return Err(error.into());
+        }
         Ok(reference)
     }
 }
@@ -29,15 +35,20 @@ pub fn reference(value: &core::RestoreRef) -> Value {
 }
 
 pub fn input(value: &core::PrepareRestore) -> Value {
-    let quota = match value.options.quota {
-        core::QuotaChoice::Default => json!({"mode":"default"}),
-        core::QuotaChoice::Unlimited => json!({"mode":"unlimited"}),
-        core::QuotaChoice::Limited { max_bytes } => {
-            json!({"mode":"limited", "max_bytes":Decimal(max_bytes)})
-        }
+    let quota = if let core::QuotaChoice::Limited { max_bytes } = value.options.quota {
+        json!({"mode":"limited", "max_bytes":Decimal(max_bytes)})
+    } else if value.options.quota == core::QuotaChoice::Unlimited {
+        json!({"mode":"unlimited"})
+    } else {
+        json!({"mode":"default"})
+    };
+    let expected_name_revision = if let Some(revision) = value.expected_name_revision {
+        json!(Decimal(revision))
+    } else {
+        Value::Null
     };
     json!({"name":value.name, "restore_operation":Decimal(value.operation),
-        "expected_name_revision":value.expected_name_revision.map(Decimal),
+        "expected_name_revision":expected_name_revision,
         "options":{"quota":quota}, "source_scope":wire::scope(&value.source_scope),
         "snapshot":snapshot::reference(&value.snapshot)})
 }
@@ -49,9 +60,18 @@ pub fn prepared(value: &core::PreparedRestore) -> Value {
 }
 
 pub fn progress(value: &core::RestoreProgress) -> Value {
+    let binding_revision = if let Some(revision) = value.binding_revision {
+        json!(Decimal(revision))
+    } else {
+        Value::Null
+    };
+    let head_revision = if let Some(revision) = value.head_revision {
+        json!(Decimal(revision))
+    } else {
+        Value::Null
+    };
     json!({"prepared":prepared(&value.prepared), "phase":value.phase,
-        "binding_revision":value.binding_revision.map(Decimal),
-        "head_revision":value.head_revision.map(Decimal)})
+        "binding_revision":binding_revision, "head_revision":head_revision})
 }
 
 #[cfg(test)]

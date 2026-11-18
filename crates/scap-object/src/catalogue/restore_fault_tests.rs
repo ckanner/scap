@@ -536,3 +536,182 @@ fn released_prepare_and_in_progress_abort_do_not_create_new_authority() {
     assert_eq!(fixture.resume(&prepared, 4).phase, RestorePhase::Aborting);
     assert!(fixture.memory.calls().iter().all(|call| !call.put));
 }
+
+#[test]
+fn real_image_directory_loss_during_sync_never_publishes_fresh_or_existing_completion() {
+    use crate::format::{decode_object, digest, Payload};
+    for existing_completion in [false, true] {
+        let fixture = Fixture::new(true);
+        let prepared = fixture.prepare();
+        fixture.copying(&prepared);
+        let completion_key = fixture.completion_key(&prepared);
+        if existing_completion {
+            fixture
+                .memory
+                .cut(true, &completion_key, None, 0, Fault::AfterPut);
+            assert_eq!(
+                fixture.catalogue.resume_restore(
+                    CREATOR,
+                    &prepared.reference,
+                    &fixture.directory.path().join("accepted-completion"),
+                    RestoreBudget::default(),
+                    deadline()
+                ),
+                Err(CatalogueError::Unknown)
+            );
+        }
+        let baseline = fixture.fork();
+        assert_eq!(baseline.resume(&prepared, 3).phase, RestorePhase::Copied);
+        let calls = baseline.memory.calls();
+        let target_scope = &prepared.reference.creation.scope;
+        let target_prefix = object_key(target_scope, 1, "");
+        let fault_index = if existing_completion {
+            let (index, call) = calls
+                .iter()
+                .enumerate()
+                .rfind(|(_, call)| !call.put && call.key.starts_with(&target_prefix))
+                .unwrap();
+            let body = baseline.memory.get_value(&call.key).unwrap();
+            assert!(matches!(
+                decode_object(&body.bytes, target_scope, &digest(&body.bytes))
+                    .unwrap()
+                    .payload,
+                Payload::Chunk { .. }
+            ));
+            index
+        } else {
+            let (saved, call) = calls
+                .iter()
+                .enumerate()
+                .find(|(_, call)| {
+                    call.put
+                        && call.key.starts_with(&target_prefix)
+                        && matches!(
+                            decode_object(&call.bytes, target_scope, &digest(&call.bytes))
+                                .unwrap()
+                                .payload,
+                            Payload::Manifest(_)
+                        )
+                })
+                .unwrap();
+            calls
+                .iter()
+                .enumerate()
+                .skip(saved + 1)
+                .find(|(_, read)| !read.put && read.key == call.key)
+                .unwrap()
+                .0
+        };
+        let candidate = fixture.fork();
+        let before_head = candidate.memory.get_value(&head_key(target_scope)).unwrap();
+        let before_completion = candidate.memory.get_value(&completion_key);
+        let path = candidate.directory.path().join("kernel-sync-failure");
+        let removed = path.clone();
+        candidate.memory.fail_at(
+            fault_index + 1,
+            Fault::Run(Arc::new(move || {
+                assert!(removed.join("database.sqlite").is_file());
+                // Keep the open file descriptor real; unlink its owned directory.
+                // Subsequent directory fsync reaches the kernel and fails ENOENT.
+                std::fs::remove_dir_all(&removed).unwrap();
+            })),
+        );
+        assert_eq!(
+            candidate.catalogue.resume_restore(
+                CREATOR,
+                &prepared.reference,
+                &path,
+                RestoreBudget::default(),
+                deadline()
+            ),
+            Err(CatalogueError::Unknown)
+        );
+        assert!(!path.exists());
+        assert_eq!(
+            candidate.memory.get_value(&head_key(target_scope)),
+            Some(before_head)
+        );
+        assert_eq!(
+            candidate.memory.get_value(&completion_key),
+            before_completion
+        );
+        assert!(candidate
+            .memory
+            .calls()
+            .iter()
+            .all(|call| !call.put || call.key != head_key(target_scope)));
+        assert_eq!(
+            candidate
+                .catalogue
+                .inspect_restore(CREATOR, 7, 700, deadline())
+                .unwrap()
+                .phase,
+            RestorePhase::Copying
+        );
+        assert_eq!(candidate.resume(&prepared, 4).phase, RestorePhase::Copied);
+    }
+}
+
+#[test]
+fn existing_completion_cannot_replace_a_callers_occupied_staging_directory() {
+    let fixture = Fixture::new(true);
+    let prepared = fixture.prepare();
+    fixture.copying(&prepared);
+    fixture.memory.cut(
+        true,
+        &fixture.completion_key(&prepared),
+        None,
+        0,
+        Fault::AfterPut,
+    );
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &fixture.directory.path().join("lost-completion"),
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Unknown)
+    );
+    fixture.remove_source_payload();
+    let path = fixture.directory.path().join("occupied-staging");
+    std::fs::create_dir(&path).unwrap();
+    let sentinel = path.join("caller-owned");
+    std::fs::write(&sentinel, b"preserve this directory").unwrap();
+    let head = head_key(&prepared.reference.creation.scope);
+    let original_head = fixture.memory.get_value(&head).unwrap();
+    let original_completion = fixture
+        .memory
+        .get_value(&fixture.completion_key(&prepared))
+        .unwrap();
+    fixture.memory.clear_calls();
+    assert_eq!(
+        fixture.catalogue.resume_restore(
+            CREATOR,
+            &prepared.reference,
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Unknown)
+    );
+    assert_eq!(
+        std::fs::read(&sentinel).unwrap(),
+        b"preserve this directory"
+    );
+    assert_eq!(fixture.memory.get_value(&head).unwrap(), original_head);
+    assert_eq!(
+        fixture
+            .memory
+            .get_value(&fixture.completion_key(&prepared))
+            .unwrap(),
+        original_completion
+    );
+    assert!(fixture
+        .memory
+        .calls()
+        .iter()
+        .all(|call| !call.put && !call.key.starts_with(&object_key(&scope(), 1, ""))));
+    assert_eq!(fixture.resume(&prepared, 3).phase, RestorePhase::Copied);
+}

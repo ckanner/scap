@@ -365,6 +365,7 @@ def s3_exchanges(events, read, scope):
          all(row['joined'] and row['errors'] == [] and row['request_count'] ==
              len([request for request in requests if request['role'] == row['role']]) for row in closed), 's3-listener-closure')
     need(not select(events, 's3_fixture_error') and not select(events, 'fault_body_replaced'), 'no-s3-observer-errors')
+    wire.closed_worker_claims(events, read, one(events, 'backend_started')['normal_access_sha256'], check=need)
     return exchanges, heads, descriptors
 
 

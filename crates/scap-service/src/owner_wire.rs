@@ -48,7 +48,9 @@ impl Prepare {
                 abort: self.nonces.abort.0,
             },
         };
-        input.validate().map_err(|_| Failure::new("INVALID"))?;
+        if input.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(input)
     }
 }
@@ -66,7 +68,9 @@ impl Identity {
             creator: self.creator.0,
             operation: self.operation.0,
         };
-        identity.validate().map_err(|_| Failure::new("INVALID"))?;
+        if identity.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(identity)
     }
 }
@@ -86,7 +90,9 @@ impl Reference {
             operation: self.operation.0,
             descriptor_hash: self.descriptor_hash.clone(),
         };
-        reference.validate().map_err(|_| Failure::new("INVALID"))?;
+        if reference.validate().is_err() {
+            return Err(Failure::new("INVALID"));
+        }
         Ok(reference)
     }
 }
@@ -134,16 +140,26 @@ pub fn preparation(value: &OwnerPreparation) -> Value {
 /// The accepted marker is historical. Today's status remains separate, and no
 /// wire field can materialize a native Session or turn a past UNKNOWN into ACK.
 pub fn observation(value: &OwnerObservation) -> Value {
-    let state = match value.state {
-        OwnerState::Prepared => "prepared",
-        OwnerState::Claimed => "claimed",
-        OwnerState::Cancelling => "cancelling",
-        OwnerState::Active => "active",
-        OwnerState::Aborted => "aborted",
-        OwnerState::Fenced => "fenced",
+    let state = if value.state == OwnerState::Prepared {
+        "prepared"
+    } else if value.state == OwnerState::Claimed {
+        "claimed"
+    } else if value.state == OwnerState::Cancelling {
+        "cancelling"
+    } else if value.state == OwnerState::Active {
+        "active"
+    } else if value.state == OwnerState::Aborted {
+        "aborted"
+    } else {
+        "fenced"
+    };
+    let accepted = if let Some(accepted) = &value.accepted {
+        plan(accepted)
+    } else {
+        Value::Null
     };
     json!({"state": state, "status": wire::status(&value.head),
-        "prepared": prepared(&value.prepared), "accepted": value.accepted.as_ref().map(plan)})
+        "prepared": prepared(&value.prepared), "accepted": accepted})
 }
 
 #[cfg(test)]

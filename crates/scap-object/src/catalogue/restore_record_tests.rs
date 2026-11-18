@@ -24,6 +24,18 @@ fn public_restore_inputs_preserve_strict_identities_and_lowerable_budgets() {
             _ => invalid.options.quota = QuotaChoice::Limited { max_bytes: 0 },
         }
         assert!(invalid.validate().is_err(), "input field {field}");
+        fixture.memory.clear_calls();
+        assert!(
+            fixture
+                .catalogue
+                .prepare_restore(CREATOR, &invalid, deadline())
+                .is_err(),
+            "public input field {field}"
+        );
+        assert!(
+            fixture.memory.calls().is_empty(),
+            "invalid field {field} performed I/O"
+        );
     }
     let prepared = fixture.prepare();
     prepared.reference.validate().unwrap();
@@ -570,6 +582,14 @@ fn public_admission_and_internal_scope_bindings_reject_substituted_restore_autho
         expected_name_revision: 1,
         nonce: 711,
     };
+    // A syntactically valid RestoreRef cannot reinterpret an Empty recipe as
+    // restoration, even when the cancellation's creation matches it exactly.
+    assert_eq!(
+        fixture
+            .catalogue
+            .abort_restore(CREATOR, &empty_ref, &cancellation, deadline()),
+        Err(CatalogueError::Conflict)
+    );
     assert_eq!(
         fixture
             .catalogue
@@ -761,7 +781,7 @@ fn completed_copy_validation_rejects_unbound_records_and_mismatched_target_page_
         let path = fixture.directory.path().join("unbound-completion");
         assert_eq!(
             fixture.catalogue.validate_completed_copy(
-                &source,
+                source.restoring().unwrap(),
                 &base,
                 &record,
                 &path,
@@ -775,7 +795,7 @@ fn completed_copy_validation_rejects_unbound_records_and_mismatched_target_page_
     }
     assert_eq!(
         fixture.catalogue.validate_completed_copy(
-            &source,
+            source.restoring().unwrap(),
             &base,
             original.raw(),
             &fixture.directory.path().join("zero-disk"),
@@ -789,4 +809,57 @@ fn completed_copy_validation_rejects_unbound_records_and_mismatched_target_page_
     );
     // An empty database is legitimately zero logical image bytes; the caller
     // disables copying through the I/O directions, not this image limit alone.
+
+    let mut terminal = base.clone();
+    terminal.head.storage.terminal = Some(crate::format::TerminalSeal { serial: 3 });
+    let path = fixture.directory.path().join("sealed-target");
+    assert_eq!(
+        fixture.catalogue.validate_completed_copy(
+            source.restoring().unwrap(),
+            &terminal,
+            original.raw(),
+            &path,
+            RestoreBudget::default(),
+            deadline()
+        ),
+        Err(CatalogueError::Corrupt)
+    );
+    assert_eq!(
+        fixture
+            .catalogue
+            .copy_restore_point(
+                CREATOR,
+                source.restoring().unwrap(),
+                &terminal,
+                crate::catalogue::restore_copy::CopyResources {
+                    source_objects: fixture.objects.clone(),
+                    directory: &path,
+                    budget: RestoreBudget::default(),
+                },
+                deadline()
+            )
+            .err(),
+        Some(CatalogueError::Corrupt)
+    );
+    assert!(!path.exists());
+
+    let foreign = Catalogue::new(fixture.objects.clone(), 2, 2, 11, test_options()).unwrap();
+    fixture.memory.clear_calls();
+    assert_eq!(
+        foreign
+            .copy_restore_point(
+                CREATOR,
+                source.restoring().unwrap(),
+                &base,
+                crate::catalogue::restore_copy::CopyResources {
+                    source_objects: fixture.objects.clone(),
+                    directory: &path,
+                    budget: RestoreBudget::default(),
+                },
+                deadline()
+            )
+            .err(),
+        Some(CatalogueError::Invalid)
+    );
+    assert!(fixture.memory.calls().is_empty());
 }
