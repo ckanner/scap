@@ -91,6 +91,7 @@
     "crates/scap-service/src/main_tests.rs",
     "crates/scap-service/src/output/tests.rs",
     "crates/scap-service/src/owner_wire/tests.rs",
+    "crates/scap-service/src/resource_envelope/tests.rs",
     "crates/scap-service/src/restore/tests.rs",
     "crates/scap-service/src/restore_wire/tests.rs",
     "crates/scap-service/src/scheduler/tests.rs",

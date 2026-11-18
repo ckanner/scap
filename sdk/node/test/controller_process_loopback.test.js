@@ -59,7 +59,23 @@ function child(t, endpoint, value) {
     if (processChild.exitCode === null && processChild.signalCode === null) processChild.kill('SIGKILL');
     await exited; fs.rmSync(directory, { recursive: true });
   });
-  return { process: processChild, first, exited, stdout: () => out, stderr: () => err };
+  function replaceConfiguration(value) {
+    const next = configuration + '.next', fd = fs.openSync(next, 'wx', 0o600);
+    try { fs.writeFileSync(fd, JSON.stringify(value)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(next, configuration);
+    const parent = fs.openSync(directory, 'r'); try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
+  }
+  function report(predicate) {
+    return new Promise((resolve) => {
+      const inspect = () => {
+        const lines = out.slice(0, out.lastIndexOf('\n') + 1).split('\n').filter(Boolean).map(JSON.parse);
+        const found = lines.find(predicate);
+        if (found !== undefined) { processChild.stdout.removeListener('data', inspect); resolve(found); }
+      };
+      processChild.stdout.on('data', inspect); inspect();
+    });
+  }
+  return { process: processChild, first, exited, report, replaceConfiguration, stdout: () => out, stderr: () => err };
 }
 
 test('CLI reads a real bounded config, emits a healthy observation and joins on SIGTERM', async (t) => {
@@ -98,4 +114,32 @@ test('invalid configuration prints no raw values, and opening a FIFO cannot hang
   const exited = once(blocked, 'exit'); blocked.stdout.resume(); blocked.stderr.resume();
   t.after(async () => { if (blocked.exitCode === null && blocked.signalCode === null) blocked.kill('SIGKILL'); await exited; });
   assert.deepEqual(await bounded(exited, 'FIFO guard'), [1, null]);
+});
+
+test('SIGHUP reload joins a real stalled request, replaces one trusted snapshot, and rejects a later rollback', async (t) => {
+  let started; const admitted = new Promise((resolve) => { started = resolve; }); let stalled = true;
+  const service = await backend(t, (_body, response) => {
+    if (stalled) { started(); return; }
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ ok: true, value: head() }));
+  });
+  const policy = { scope: SCOPE, authorityId: 'dynamic-process-loopback', principal: '7',
+    metadataEndpoints: [service.endpoint], workers: [{ workerInstance: '100', endpoint: service.endpoint, rank: 0 }],
+    modes: { takeover: true, activate: true, cancel: true } };
+  const document = (revision) => ({ version: 2, revision,
+    scopes: [{ policy, previousPolicies: [], tokenEnv: variable }] });
+  const cli = child(t, service.endpoint, document('1'));
+  await bounded(admitted, 'original stalled request');
+  const socket = [...service.sockets][0], closed = once(socket, 'close'); stalled = false;
+  cli.replaceConfiguration(document('2')); cli.process.kill('SIGHUP');
+  const reloaded = await bounded(cli.report((value) => value.event === 'fleet_reloaded'), 'atomic reload');
+  assert.equal(reloaded.revision, '2'); assert.equal(reloaded.scopes, 1);
+  await bounded(closed, 'old request peer closure');
+  assert.equal((await bounded(cli.report((value) => value.state === 'healthy'), 'new healthy tick')).mutations, 0);
+  cli.replaceConfiguration(document('1')); cli.process.kill('SIGHUP');
+  const rejected = await bounded(cli.report((value) => value.event === 'fleet_reload_rejected'), 'rollback rejection');
+  assert.equal(rejected.revision, '2');
+  cli.process.kill('SIGTERM'); assert.deepEqual(await bounded(cli.exited, 'dynamic shutdown'), [0, null]);
+  assert.ok(service.requests.length >= 3); assert.ok(service.requests.every((request) => request.operation === 'status'));
+  assert.equal(cli.stderr(), ''); assert.equal(cli.stdout().includes(OPTIONS.token), false);
 });

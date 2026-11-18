@@ -16,6 +16,7 @@ mod instance;
 pub mod intake;
 pub mod output;
 pub mod owner_wire;
+pub mod resource_envelope;
 pub mod restore;
 pub mod restore_wire;
 pub mod scheduler;

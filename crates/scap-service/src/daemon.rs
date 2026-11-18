@@ -96,6 +96,10 @@ fn assemble_using(
     ) -> Result<Arc<crate::discovery_cursor::CursorCodec>, Failure>,
 ) -> Result<Assembly, Failure> {
     prepared.transport.checked()?;
+    crate::resource_envelope::admit(
+        prepared.resource_envelope.as_ref(),
+        &prepared.cache_directory,
+    )?;
     let output = Arc::new(crate::output::Pool::new(prepared.output)?);
     let options = prepared.options;
     options.validate().map_err(|_| Failure::new("CONFIG"))?;
@@ -110,6 +114,10 @@ fn assemble_using(
     };
     let limits = prepared.admission.limits();
     limits.validate()?;
+    let read_pool = prepared.admission.read_pool;
+    if let Some(read_pool) = read_pool {
+        read_pool.validate(limits)?;
+    }
     let admission = &prepared.admission;
     if !prepared.listen.ip().is_loopback()
         || prepared.worker_instance == WorkerInstance::Explicit(0)
@@ -255,7 +263,7 @@ fn assemble_using(
         }
         None => None,
     };
-    let factory: Factory = Arc::new(move |_| {
+    let factory: Factory = Arc::new(move |index| {
         Ok(Box::new(
             Engine::new(
                 objects.clone(),
@@ -266,10 +274,11 @@ fn assemble_using(
                 prepared.cache.pages_per_actor,
                 recovery.clone(),
             )?
-            .with_collector(collector.clone()),
+            .with_collector(collector.clone())
+            .with_query_refresh(index >= limits.active_database_actors + limits.control_workers),
         ))
     });
-    let scheduler = Arc::new(Scheduler::new(limits, factory)?);
+    let scheduler = Arc::new(Scheduler::with_read_pool(limits, read_pool, factory)?);
     let admission = prepared.admission;
     Ok(Assembly {
         address: prepared.listen,
@@ -296,6 +305,10 @@ pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {
     // before S3 clients or any workers are created.
     let transport = prepared.service.transport.checked()?;
     prepared.service.output.checked()?;
+    crate::resource_envelope::admit(
+        prepared.service.resource_envelope.as_ref(),
+        &prepared.service.cache_directory,
+    )?;
     let garbage = gc_backend(prepared.gc, prepared.service.gc_deployment, &prepared.s3)?;
     // Construction and final drop remain outside the request runtime. Each S3
     // object owns a separate bounded I/O runtime shared by the worker threads.
@@ -406,20 +419,31 @@ fn initialize_allocator(config: Config, high_water: u64) -> Result<(), Failure> 
     Ok(())
 }
 
+fn check_config(config: Config) -> Result<(), Failure> {
+    let prepared = config.prepare()?;
+    eprintln!(
+        "{}",
+        serde_json::json!({"event":"configuration_validated",
+            "kernel_resource_envelope":prepared.service.resource_envelope.is_some()})
+    );
+    Ok(())
+}
+
 fn start(
     args: Vec<OsString>,
     launch: fn(Config) -> Result<(), Failure>,
     initialize: fn(Config, u64) -> Result<(), Failure>,
 ) -> Result<(), Failure> {
-    let (path, high_water) = match args.as_slice() {
-        [path] => (path, None),
+    let (path, high_water, check) = match args.as_slice() {
+        [path] => (path, None, false),
+        [command, path] if command == "--check-config" => (path, None, true),
         [command, path, floor] if command == "--init-worker-allocator" => {
             let floor = floor.to_str().ok_or_else(|| Failure::new("USAGE"))?;
             let number = floor.parse::<u64>().map_err(|_| Failure::new("USAGE"))?;
             if number.to_string() != floor {
                 return Err(Failure::new("USAGE"));
             }
-            (path, Some(number))
+            (path, Some(number), false)
         }
         _ => return Err(Failure::new("USAGE")),
     };
@@ -430,6 +454,9 @@ fn start(
         .read_to_end(&mut bytes)
         .map_err(|_| Failure::new("CONFIG"))?;
     let config = Config::parse(&bytes)?;
+    if check {
+        return check_config(config);
+    }
     match high_water {
         Some(high_water) => initialize(config, high_water),
         None => launch(config),

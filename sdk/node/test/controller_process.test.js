@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import timers from 'node:timers/promises';
-import { readControllerEntries, runControllerFleet, controllerMain } from '../src/controller_process.js';
+import { readControllerEntries, readControllerConfiguration, runControllerFleet, controllerMain } from '../src/controller_process.js';
 import { OwnerControllerFleet } from '../src/controller_fleet.js';
 import { config, policy } from './controller_policy.test.js';
 import { OPTIONS } from './owner_fixture.js';
@@ -147,4 +147,78 @@ test('CLI uses one file, handles real signal delivery, removes listeners, and ne
   assert.equal(messages[0].includes(OPTIONS.token), false); output.mock.restore();
   t.mock.method(fs, 'writeSync', () => { throw new Error('private destination'); });
   assert.equal(await controllerMain(), 1);
+});
+
+test('version two reads a canonical revision and complete explicitly authorized previous policies', (t) => {
+  const old = config(), next = { ...config(), retiredWorkers: ['100'] };
+  file(t, { version: 2, revision: '9', scopes: [{ policy: next, previousPolicies: [old], tokenEnv: variable }] });
+  const value = readControllerConfiguration('/config', environment);
+  assert.equal(value.revision, '9'); assert.equal(Object.isFrozen(value), true);
+  assert.equal(value.entries[0].previousPolicies[0].digest, policy().digest);
+  assert.equal(Object.isFrozen(value.entries[0].previousPolicies), true);
+  const previous = process.env[variable]; process.env[variable] = OPTIONS.token;
+  try { assert.equal(readControllerConfiguration('/config').revision, '9'); }
+  finally { if (previous === undefined) delete process.env[variable]; else process.env[variable] = previous; }
+});
+
+test('version two rejects missing or invalid revision, implicit history and rewritten old policy', (t) => {
+  const base = () => ({ version: 2, revision: '2', scopes: [{ policy: config(), previousPolicies: [], tokenEnv: variable }] });
+  for (const change of [
+    (value) => { delete value.revision; }, (value) => { value.revision = '0'; },
+    (value) => { value.revision = '02'; }, (value) => { delete value.scopes[0].previousPolicies; },
+    (value) => { value.scopes[0].previousPolicies = null; },
+    (value) => { value.scopes[0].previousPolicies = [config()]; },
+    (value) => { value.scopes[0].previousPolicies = [{ ...config(), principal: '8' }]; },
+    (value) => { value.version = 1; },
+  ]) {
+    const value = base(); change(value); file(t, value);
+    assert.throws(() => readControllerConfiguration('/config', environment), { code: 'CONFIG' }); t.mock.restoreAll();
+  }
+});
+
+test('process reload reports success and rejected configuration without replacing the last valid snapshot', async (t) => {
+  const stopped = new AbortController(), messages = [], p = policy(); let turns = 0;
+  const f = new OwnerControllerFleet({ entries: [{ policy: p, token: OPTIONS.token }], revision: '1' });
+  t.mock.method(f, 'poll', () => { if (++turns === 4) stopped.abort(); });
+  t.mock.method(fs, 'writeSync', (_fd, bytes) => { messages.push(JSON.parse(bytes.toString())); return bytes.length; });
+  t.mock.method(timers, 'setTimeout', async () => {});
+  let reloads = 0;
+  await runControllerFleet(f, { signal: stopped.signal, reload: () => {
+    reloads++;
+    if (reloads === 1) return { revision: '2', entries: [{ policy: p, token: OPTIONS.token }] };
+    if (reloads === 2) throw new Error('private path and token');
+    if (reloads === 3) return { revision: '1', entries: [{ policy: p, token: OPTIONS.token }] };
+    return null;
+  } });
+  assert.equal(f.revision, '2'); assert.equal(messages.length, 3);
+  assert.equal(messages[0].event, 'fleet_reloaded'); assert.equal(messages[0].revision, '2');
+  assert.deepEqual(messages.slice(1).map((item) => item.event), ['fleet_reload_rejected', 'fleet_reload_rejected']);
+  assert.equal(JSON.stringify(messages).includes('private'), false);
+});
+
+test('shutdown delivered during reload prevents another poll and invalid reload source never admits work', async (t) => {
+  const p = policy(), stopped = new AbortController(), f = new OwnerControllerFleet({ entries: [{ policy: p, token: OPTIONS.token }], revision: '1' });
+  let polls = 0; t.mock.method(f, 'poll', () => { polls++; });
+  t.mock.method(fs, 'writeSync', (_fd, bytes) => bytes.length);
+  await runControllerFleet(f, { signal: stopped.signal, reload: () => {
+    stopped.abort(); return { revision: '2', entries: [{ policy: p, token: OPTIONS.token }] };
+  } });
+  assert.equal(polls, 0); assert.equal(f.snapshot().closed, true);
+  const other = fleet(); await assert.rejects(runControllerFleet(other, { signal: AbortSignal.abort(), reload: 7 })); await other.close();
+});
+
+test('CLI SIGHUP requests are coalesced and a stale reload is rejected with original signal handlers removed', async (t) => {
+  file(t, { version: 2, revision: '1', scopes: [{ policy: config(), previousPolicies: [], tokenEnv: variable }] });
+  const argv = process.argv, previous = process.env[variable], before = process.listenerCount('SIGHUP');
+  process.argv = ['node', 'owner-controller.mjs', '/config']; process.env[variable] = OPTIONS.token;
+  t.after(() => { process.argv = argv; if (previous === undefined) delete process.env[variable]; else process.env[variable] = previous; });
+  let polls = 0; const reports = [];
+  t.mock.method(OwnerControllerFleet.prototype, 'poll', () => {
+    if (++polls === 1) { process.emit('SIGHUP'); process.emit('SIGHUP'); } else process.emit('SIGTERM');
+  });
+  t.mock.method(timers, 'setTimeout', async () => {});
+  t.mock.method(fs, 'writeSync', (_fd, bytes) => { reports.push(JSON.parse(bytes.toString())); return bytes.length; });
+  assert.equal(await controllerMain(), 0); assert.equal(polls, 2);
+  assert.equal(reports.length, 1); assert.equal(reports[0].event, 'fleet_reload_rejected');
+  assert.equal(process.listenerCount('SIGHUP'), before);
 });

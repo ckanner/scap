@@ -1,11 +1,12 @@
 # Turso 实践的接续实现决策
 
-更新：2026-11-17。依据与固定上游源码在[Turso 对照](sqlite-s3-turso-review.md)。本页
+更新：2026-11-18。依据与固定上游源码在[Turso 对照](sqlite-s3-turso-review.md)。本页
 描述 SCAP 的实现选择，不把 Turso Cloud 的源码可见性或上游性能数字当成 SCAP 的证据。
 
 ## 1. 本轮采用的做法
 
-优先完成 S2 和启动身份这两个可独立使用的产品行为，再按正式服务剖析处理吞吐。
+S2 和启动身份已随 #65 合入。本批继续实现独立强读池、受信动态 fleet 和内核资源
+准入，并用固定开环负载、相同逻辑工作量的 SQL batch 比较约束吞吐结论。
 
 | 上游实践 | SCAP 本轮落实 | 必须保留的约束 |
 | --- | --- | --- |
@@ -14,6 +15,8 @@
 | 快照有明确来源和生命周期 | Restore descriptor 与 Empty 共享原编号槽；完成证明、Copying/Copied、取消、删除全部接入 | 不恢复旧 ACL、owner、请求和取消屏障；provenance 不永久 pin 旧数据根 |
 | 后台工作有独立资源边界 | 长恢复单独 worker/queue/intake、每租户 staging、分方向 S3 I/O 预算 | HTTP 超时不能提前归还实际工作资源；逻辑额度不等于 OS 硬隔离 |
 | 先分析实际数据路径 | 分开 native 发布/检查点、对象等待、CPU、分配和建连计数 | 正式正确性、诊断、性能结论各自保存身份，不为提速省略校验 |
+| 读执行与单 writer 解耦 | 固定 reader pool，每个 worker 独占完整镜像，每次读 exact HEAD 授权，SQL 前仅一次 stale 重建 | 不共享活动 WAL；新 MVCC 或按需读页仍未实现，额外缓存需要独立资源预算 |
+| 租户与后台资源有界 | 读池活跃额度、动态 fleet quiesce、可选真实 cgroup/tmpfs 准入、固定开环进展验收 | 实际 I/O 与 DNS 未结束不能提前归还；不能把逻辑上限或采样峰值称为 OS 硬隔离 |
 
 本轮评估了本地 `synchronous=FULL`。NORMAL 在当前“提交后立即检查 TRUNCATE”结构下
 仍保留检查点同步，但几种实测负载结果方向不一致；OFF 又会减少正在运行时的本地
@@ -56,8 +59,9 @@ S2 的具体实现与完整 HTTP 语义见[恢复合同](../../crates/scap-servi
   区分合法过期与真实损坏；正在进行的不完整恢复保留取消路径。
 - 全局/tenant 的请求、在途 GET、解码、page cache、结果和 backing 生命周期均有
   明确预算。下载量下降不能靠无界缓存换取。
-- writable pager 仍将全部 dirty pages 与原结果接入提交前 gate；启用 reader pool
-  或后台 checkpoint 前先完成固定 native WAL-reset 补丁及回归。
+- writable pager 仍将全部 dirty pages 与原结果接入提交前 gate；按需 pager 与后台
+  checkpoint 需要自己的固定 native WAL-reset 协议和回归。本批 reader pool 采用
+  已完整物化的独占连接，沿用现有受检同步 checkpoint，没有增加共享 WAL。
 
 验收使用冷工作集 1%、10%、100% 的固定访问集、错误注入与缓存全丢失，分别报告首个
 成功强读时间、下载量、GET 次数和 CPU。若提供快速目标可用，还须区分“目标已有全部
@@ -70,7 +74,9 @@ Turso Rust MVCC 属于执行引擎协议。替换当前 native 引擎需要完�
 
 自动 worker 编号解决启动身份复用，不更新静态 controller route。新的 readiness ID
 需要由部署控制器验证并注册；旧 guard 继续 TARGET_MISMATCH，不能盲目刷新后重投 SQL。
-动态成员的可信注册、退出、重载、有界 fleet 和旧 UNKNOWN 收敛是另一项实现。
+本批已实现受信配置的有界更新、不可逆退出、SIGHUP 重载和旧 UNKNOWN 观察继承，见
+[动态 fleet](dynamic-owner-fleet.md)。它没有新增持久全局成员表、自动扩缩容或业务
+路由自动刷新；部署器须协调并发控制器的配置，原 SQL 仍不能重发。
 
 S2 从显式 retained point 恢复，不提供按墙钟时间任意选点。PITR 要定义连续历史、时间
 索引、保留策略、日志链完整性、跨时间权限和 GC 保护；没有连续历史不能把 S2 命名成 PITR。

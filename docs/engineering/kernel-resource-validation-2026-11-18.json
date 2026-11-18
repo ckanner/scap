@@ -1,0 +1,1234 @@
+{
+  "artifact": {
+    "id": 14407665312,
+    "name": "next-kernel-envelope-evidence",
+    "url": "https://github.com/ckanner/scap/actions/runs/44258165625/artifacts/14407665312",
+    "zip_bytes": 35402649,
+    "zip_members": 6810,
+    "zip_sha256": "04a79fa1e1d9ef9df489259dbab45dff6fafde2f1b03c78040bf154b7f25dd76"
+  },
+  "candidate": {
+    "ci_checkout_sha": "b1fd8ff64b8f159f8dea7aed883f6831c725df61",
+    "head_sha": "a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "head_tree_sha": "a1cc6966e11918aee9a51b498e3ebf20b49528ca",
+    "later_head_qualified": false,
+    "pull_request": 66
+  },
+  "cases": [
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 0,
+      "is_active": "inactive",
+      "is_active_exit_code": 4,
+      "name": "valid",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "valid.cleanup.json": "d9e926df03ef99c797573dfa7844b1676b57522762b8a7e8ba2a642ecaeb36b9",
+        "valid.config.json": "79afa84dccb9185915fe38c9ce2a16bb1dcc63606cef629b1ad5f0fc94608b47",
+        "valid.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.is-active.stdout": "cb6f82a52d11c260ee6936511d22d5a7db55f8e7c5afe9f03ea847350ce860c5",
+        "valid.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.preexec.json": "2f8beeb5df434775df009d815e3733b49d66ebdd9d43ca295511bb6685664773",
+        "valid.reset-failed.stderr": "9aedd83bdfd783613d05dd8f25e1d9e00b1af903c4ec1a54b851038b9b4b2e38",
+        "valid.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.stderr": "82b3672b2d0a6c6702bc7a9b09b29d8430bcf983239e68ee8bd933253e4af0a6",
+        "valid.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.stopped-systemd.stdout": "77fd3e34d7e926e00b11da6839640ada15dd35c9c29c2e0d9449d08d5c58664d",
+        "valid.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "valid.systemd.stdout": "35ca81605a663aa3b7d66c37d00fa664d82e690e7bfca0d30cbfdf8702ca4a52"
+      },
+      "result": "success",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "max",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "memory-unlimited",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "memory-unlimited.cleanup.json": "7232194d45f0df6b77d6619e48ef58cb97d78a508d4467fb0654af621516d9b0",
+        "memory-unlimited.config.json": "1cd162265b132e0c04fc3b55d300e0c4c1cfba9b399f3928e5508f196c85a2fe",
+        "memory-unlimited.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "memory-unlimited.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.preexec.json": "61185e8a604550dac79e9f907730bd95850e4431d967d1b76ccf736fa64084a1",
+        "memory-unlimited.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "memory-unlimited.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.stopped-systemd.stdout": "48b8b77e6ffbc2be7d0e00c38389fd7a266015f1c32107b0bca8e349ede39e0a",
+        "memory-unlimited.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-unlimited.systemd.stdout": "48b8b77e6ffbc2be7d0e00c38389fd7a266015f1c32107b0bca8e349ede39e0a"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741823,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "memory-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "memory-over-budget.cleanup.json": "eb1ea76ca2eb542c9714121df9219755bb2490a6583b185b654a6dfcbe5fd8ab",
+        "memory-over-budget.config.json": "56e4ffb39cb5f4ada7b7bdfca79b036ad50867e670536493158b494d81815060",
+        "memory-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "memory-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.preexec.json": "8d6e6700958763c214fdc8e38ebc433c4588a9813b89489e3775d24459075bad",
+        "memory-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "memory-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.stopped-systemd.stdout": "7c0639d9919858f4bbd2d4d138a5a1d274c3cf60e15ab229782da15d52786e1c",
+        "memory-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-over-budget.systemd.stdout": "7c0639d9919858f4bbd2d4d138a5a1d274c3cf60e15ab229782da15d52786e1c"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "1048576",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "swap-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "swap-over-budget.cleanup.json": "7b76be9f532b9dfe7f003447810e65d697a715fc38503f08e7c007a89e51c7d9",
+        "swap-over-budget.config.json": "fc0532c458fcd8369b005e537ac80ab0eb62b7a2b5f259d1e77fea357c5d9004",
+        "swap-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "swap-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.preexec.json": "45e47e567aee3ce7f9ec99ed66345f22de663a9072023c0120558f1a1acad865",
+        "swap-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "swap-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.stopped-systemd.stdout": "2a7b829d4ee460079318ded0c016e14cddc56039c16def75fc7d93dfa703ac58",
+        "swap-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "swap-over-budget.systemd.stdout": "2a7b829d4ee460079318ded0c016e14cddc56039c16def75fc7d93dfa703ac58"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 1999,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "cpu-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "cpu-over-budget.cleanup.json": "734b69cd5e2bc75e513a30f5e1402ee49012b0ab83c43ab8c6ed94a1fcb3b02a",
+        "cpu-over-budget.config.json": "9a26d35dd6aadb2898e0f1dcee0ab5acc040c55f226e3b3d228e446c0f1cc1e3",
+        "cpu-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "cpu-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.preexec.json": "f94e8bff316d317a34a6853eed050c07ba0c81180efe4fa5c1968240fe6fcaa5",
+        "cpu-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "cpu-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.stopped-systemd.stdout": "0854c7e2d260d9d3abc614fc43b36811e788dee7d955ea1568b402e67f18fd90",
+        "cpu-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-over-budget.systemd.stdout": "0854c7e2d260d9d3abc614fc43b36811e788dee7d955ea1568b402e67f18fd90"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 255,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "tasks-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "tasks-over-budget.cleanup.json": "aa505ad0ef47d51fef27a5d16ac7c1b764568badc036226d8b18a953f801e8b9",
+        "tasks-over-budget.config.json": "a3fbeac468987a5210a0270ad3fc83c168627e3f9d67aab8ece25d835d90aa90",
+        "tasks-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "tasks-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.preexec.json": "aa5a067beb9b426489881473f9e063913dcd2b43ac8c2345663b243923382637",
+        "tasks-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "tasks-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.stopped-systemd.stdout": "e3d3710fcc4f24bfeb7235abeb44bc0e881084bf68a68233235067ffc7100382",
+        "tasks-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-over-budget.systemd.stdout": "e3d3710fcc4f24bfeb7235abeb44bc0e881084bf68a68233235067ffc7100382"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663295,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "storage-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "storage-over-budget.cleanup.json": "63d937e881b8b38d69509a2563df15497f8cd5792df9bcfcdb74a72394e219da",
+        "storage-over-budget.config.json": "3b0e7bfe67e87685093fdf7962cbf178c255a87d0ffaf8738b36585980142ffe",
+        "storage-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "storage-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.preexec.json": "408c314cc848ea2d6515518d08b6c239717a24eb8cd6b4ac3bda07136abd14be",
+        "storage-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "storage-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.stopped-systemd.stdout": "14291c9df65f56ab8e73113728f2a684ed3612fdc62cdc04426d558902eb40fa",
+        "storage-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-over-budget.systemd.stdout": "14291c9df65f56ab8e73113728f2a684ed3612fdc62cdc04426d558902eb40fa"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6143,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "inodes-over-budget",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "inodes-over-budget.cleanup.json": "7ef7f7a5184fdb3d47701b8f5e981cf4481e6a602544b5940de00be196378887",
+        "inodes-over-budget.config.json": "d0115fd3314a58be764e6e28365c82808fa268ccec101fc501fd8bd7f6efe771",
+        "inodes-over-budget.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "inodes-over-budget.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.preexec.json": "8796189809c5fdb49994a33e63574843d2865a1b2e5970255f0d0c4f9ceaf37e",
+        "inodes-over-budget.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "inodes-over-budget.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.stopped-systemd.stdout": "5cc5826bb93b868a3a0f9b867abf1399ff98168c1b09b70de45a579464b1c5ba",
+        "inodes-over-budget.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "inodes-over-budget.systemd.stdout": "5cc5826bb93b868a3a0f9b867abf1399ff98168c1b09b70de45a579464b1c5ba"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "unbounded-fallback",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "unbounded-fallback.cleanup.json": "635e97b6180f73a3e2d8f0cae3398f758f32689772bb4aaa3fa6490e769ea708",
+        "unbounded-fallback.config.json": "90aefd34a64fc7e6cec4b2d66a16dc985ef24b1220591025005987e8774b3573",
+        "unbounded-fallback.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "unbounded-fallback.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.preexec.json": "b48d8fce493f30af804793ac9b65bffeb51b00865348bee06f3d3f8a7654de1a",
+        "unbounded-fallback.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "unbounded-fallback.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.stopped-systemd.stdout": "c90847dd543e809eef7af192ba9586b043af0234f1dc22548b1edfb8ae495dd9",
+        "unbounded-fallback.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unbounded-fallback.systemd.stdout": "c90847dd543e809eef7af192ba9586b043af0234f1dc22548b1edfb8ae495dd9"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "0",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 1,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "oom-not-grouped",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "oom-not-grouped.cleanup.json": "196f0c52ac379c1df2fc0183b38b7ccfb75d693eb1e93f874c1df811733d8f82",
+        "oom-not-grouped.config.json": "96b5a41ba5a9258163e40b14626866454e2a87a9d295d6c3571017818e98130a",
+        "oom-not-grouped.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "oom-not-grouped.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.preexec.json": "7ca42a01bad2a07ad6a13bd1a864cc5774fb587c652a2295744908801df9b71a",
+        "oom-not-grouped.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.stderr": "69967f0ac0559b1862c2cd4dc446aa03aa216f8fe5cdd840865123d81bc99b55",
+        "oom-not-grouped.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.stopped-systemd.stdout": "4b820dc442f2636e1683e3dcf31f8b5f254499b79b46f001552562faa18bf711",
+        "oom-not-grouped.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "oom-not-grouped.systemd.stdout": "4b820dc442f2636e1683e3dcf31f8b5f254499b79b46f001552562faa18bf711"
+      },
+      "result": "exit-code",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "67108864",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 2,
+      "exec_main_status": 9,
+      "is_active": "failed",
+      "is_active_exit_code": 3,
+      "name": "memory-pressure",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "memory-pressure.cleanup.json": "6132e0e614aa224a2f6b6533407f7bcf426433d7cdbdaff6466fb8c328d4baa7",
+        "memory-pressure.config.json": "76c0c718777356e85aed3db45cc02d6810c79a148d5a404e38d3cb52b5075225",
+        "memory-pressure.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.is-active.stdout": "6da5b18878e110928643ebcc38dbb7552cf3a296eea56493e23edc2b93eecff8",
+        "memory-pressure.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.preexec.json": "207eb14d30e66157db9a675bade8434fe134d4e3458a316e7aed16cc8f33c2dd",
+        "memory-pressure.reset-failed.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.stdout": "b908e85c49f91236d6d15f8463e22279c704702784b94fe5dd3e3e9596bbb0ec",
+        "memory-pressure.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.stopped-systemd.stdout": "24a0dda5d16efc1f4b6c82a060a3ff016b481ee1a7ecd4850ccbb6224178e302",
+        "memory-pressure.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "memory-pressure.systemd.stdout": "24a0dda5d16efc1f4b6c82a060a3ff016b481ee1a7ecd4850ccbb6224178e302"
+      },
+      "result": "oom-kill",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "20000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 0,
+      "is_active": "inactive",
+      "is_active_exit_code": 4,
+      "name": "cpu-pressure",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "cpu-pressure.cleanup.json": "a51cb2bb12aa76d46a8d71147ed0e0da618e0360d62b6cf88f87a8963e0608f5",
+        "cpu-pressure.config.json": "a29839c5d8998deb72b699bb422964621d49990317fcabfca6c3b19c231dad25",
+        "cpu-pressure.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.is-active.stdout": "cb6f82a52d11c260ee6936511d22d5a7db55f8e7c5afe9f03ea847350ce860c5",
+        "cpu-pressure.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.preexec.json": "709ea87f6936927f0a9c8dfd667e71288dcb7e339f7236639fdc2f20e346ba8d",
+        "cpu-pressure.reset-failed.stderr": "50f9ff22134d63dddc647b5449e207da309bd53e248979dd629ee90a9ece452f",
+        "cpu-pressure.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.stdout": "30e61d18ce56000bafd62fa6763647f5a792dd4ce12d26e3083751fa0e1c87f7",
+        "cpu-pressure.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.stopped-systemd.stdout": "72c4a68e4220693341a068ebd55c0a20283dad0ff44f3be331f4656965216244",
+        "cpu-pressure.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpu-pressure.systemd.stdout": "6bc0de6ae5ac50b1c576acabf83a4c4a19e4670ffef406817a4bcb297ef71a93"
+      },
+      "result": "success",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "16"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 0,
+      "is_active": "inactive",
+      "is_active_exit_code": 4,
+      "name": "tasks-pressure",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "tasks-pressure.cleanup.json": "c66c04f72569e205e74b1d955b13d1f860e1adc806e8e704bad044f8dd11e016",
+        "tasks-pressure.config.json": "e850f499b7acecd7381d28921ec9b307f2644f77556edfd1e4d7ec12ef6a05d8",
+        "tasks-pressure.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.is-active.stdout": "cb6f82a52d11c260ee6936511d22d5a7db55f8e7c5afe9f03ea847350ce860c5",
+        "tasks-pressure.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.preexec.json": "3ac0f3ab4d12c410c5c4d8175366df1e0fe4239163fa7380501d4216000b11d7",
+        "tasks-pressure.reset-failed.stderr": "88ea8428f951969e52af22b68da4588ddc4f2b0dcaa1d9469128e003cf0b89f3",
+        "tasks-pressure.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.stdout": "f8d5a98467952aa57caf54b98b6564ef9ec4fdcec5cfb3a5fe494c3f45e8a185",
+        "tasks-pressure.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.stopped-systemd.stdout": "76dee97a08c55a93d70dc139a3ecf5dcf7cbb22c123d9d9cf68bbeb1368d30cb",
+        "tasks-pressure.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "tasks-pressure.systemd.stdout": "8ac24b8232b011632c43fe4c3faf189aed00616b47b6dc63a0a9f0bb40a03c12"
+      },
+      "result": "success",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    },
+    {
+      "actual_controls": {
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "memory.max": "1073741824",
+        "memory.oom.group": "1",
+        "memory.swap.max": "0",
+        "pids.max": "256"
+      },
+      "declared_profile": {
+        "cpu_millis_per_second": 2000,
+        "memory_bytes": 1073741824,
+        "swap_bytes": 0,
+        "tasks": 256,
+        "temporary_bytes": 100663296,
+        "temporary_inodes": 6144,
+        "version": 1
+      },
+      "exec_main_code": 1,
+      "exec_main_status": 0,
+      "is_active": "inactive",
+      "is_active_exit_code": 4,
+      "name": "storage-pressure",
+      "oom_score_adj": 0,
+      "original_cgroup_missing_errno": 2,
+      "process_scheduling_policy": 0,
+      "raw_files_sha256": {
+        "storage-pressure.cleanup.json": "a93ac792a81f3b109a8c66814da046fe76be5f09110f7f890caae1b392078dff",
+        "storage-pressure.config.json": "dfd5f1800c070423567507bb1007509349234568218e77e4653cca66c83bf031",
+        "storage-pressure.is-active.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.is-active.stdout": "cb6f82a52d11c260ee6936511d22d5a7db55f8e7c5afe9f03ea847350ce860c5",
+        "storage-pressure.launch.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.launch.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.preexec.json": "b0ceb4e1103a619fc4d7f3f4f9ca5f9bf979e1aeb5670def448ff0c3b820cc6b",
+        "storage-pressure.reset-failed.stderr": "f8c661cd8362e993a6c2bf93c74d741757e00604eb5b8a863744a6cfc4dbf22e",
+        "storage-pressure.reset-failed.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.stdout": "f76d15bf0ce90a53a78ae2dc6cc29b5f457ee6cc806a7d0a3f2b8f0a574f3e70",
+        "storage-pressure.stop.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.stop.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.stopped-systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.stopped-systemd.stdout": "8d60bb1aa088544ed8bae2f8dcbbfab1add4b68c8e25071ed966e773aaa985b4",
+        "storage-pressure.systemd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "storage-pressure.systemd.stdout": "40e719b6b16167032e15d5e38bcb6cf4aa77f311b0555bd320db883557e07e52"
+      },
+      "result": "success",
+      "sched_ext": {
+        "identity": {
+          "device": 26,
+          "inode": 6822
+        },
+        "kind": 1650812274,
+        "state": "disabled\n"
+      },
+      "stop_exit_code": 0
+    }
+  ],
+  "ci": {
+    "conclusion": "success",
+    "job_id": 134644762946,
+    "kernel": "Linux 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 18:46:57 UTC 2026 x86_64",
+    "run_id": 44258165625,
+    "runner_image": "ubuntu-24.04",
+    "systemd": "systemd 255 (255.4-1ubuntu8.18)",
+    "ubuntu_version": "24.04.5",
+    "url": "https://github.com/ckanner/scap/actions/runs/44258165625/job/134644762946"
+  },
+  "contract": "kernel-resource-envelope-v1",
+  "controls": {
+    "baseline": {
+      "actual_cases": 14,
+      "aws_qualification": false,
+      "build_verification": "full",
+      "kernel_pressure_cases": 4,
+      "production_slo_passed": false,
+      "startup_rejections": 9,
+      "status": "passed"
+    },
+    "negative_controls": 24,
+    "positive_controls": 2,
+    "results": [
+      {
+        "expected_rule": "complete-case-order",
+        "name": "missing-case",
+        "observed_rule": "complete-case-order",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "contract-scope",
+        "name": "production-slo-claim",
+        "observed_rule": "contract-scope",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fixed-config-variant",
+        "name": "wrong-config-budget",
+        "observed_rule": "fixed-config-variant",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fixed-requested-properties",
+        "name": "wrong-requested-limit",
+        "observed_rule": "fixed-requested-properties",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "original-command-argv",
+        "name": "wrong-launch-argv",
+        "observed_rule": "original-command-argv",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fixed-kernel-controls",
+        "name": "wrong-actual-memory",
+        "observed_rule": "fixed-kernel-controls",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fixed-kernel-controls",
+        "name": "cpu-burst",
+        "observed_rule": "fixed-kernel-controls",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "cfs-thread-policy",
+        "name": "realtime-policy",
+        "observed_rule": "cfs-thread-policy",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "no-active-bpf-scheduler",
+        "name": "active-bpf-scheduler",
+        "observed_rule": "no-active-bpf-scheduler",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "nonimmune-unit-process",
+        "name": "oom-immune",
+        "observed_rule": "nonimmune-unit-process",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "actual-cgroup-membership",
+        "name": "changed-membership",
+        "observed_rule": "actual-cgroup-membership",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "complete-native-fallbacks",
+        "name": "omitted-fallback",
+        "observed_rule": "complete-native-fallbacks",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "mount-alias-geometry",
+        "name": "alias-capacity-mismatch",
+        "observed_rule": "mount-alias-geometry",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "exec-target-identity",
+        "name": "wrong-target-bytes",
+        "observed_rule": "exec-target-identity",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "actual-execstart-target",
+        "name": "wrong-execstart-target",
+        "observed_rule": "actual-execstart-target",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fail-closed-admission",
+        "name": "ready-on-rejection",
+        "observed_rule": "fail-closed-admission",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "original-unit-exit",
+        "name": "external-sigkill",
+        "observed_rule": "original-unit-exit",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "kernel-cpu-throttle",
+        "name": "no-cpu-throttle",
+        "observed_rule": "kernel-cpu-throttle",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "owned-pressure-child-wait",
+        "name": "unreaped-pressure-child",
+        "observed_rule": "owned-pressure-child-wait",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "kernel-storage-capacity-returned",
+        "name": "storage-not-reclaimed",
+        "observed_rule": "kernel-storage-capacity-returned",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "owned-unit-inactive",
+        "name": "unit-still-active",
+        "observed_rule": "owned-unit-inactive",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "owned-cgroup-empty",
+        "name": "cgroup-still-populated",
+        "observed_rule": "owned-cgroup-empty",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "fixture-source-bytes",
+        "name": "changed-archived-fixture",
+        "observed_rule": "fixture-source-bytes",
+        "status": "passed"
+      },
+      {
+        "expected_rule": "build-receipt",
+        "name": "changed-build-binary",
+        "observed_rule": "build-receipt",
+        "status": "passed"
+      },
+      {
+        "kind": "positive",
+        "name": "untrusted-summary",
+        "status": "passed"
+      },
+      {
+        "kind": "positive",
+        "name": "unloaded-transient-unit",
+        "status": "passed"
+      }
+    ],
+    "status": "passed"
+  },
+  "date": "2026-11-18",
+  "measured": {
+    "cpu_nr_throttled_delta": 12,
+    "cpu_pressure_elapsed_seconds": 1.200145689,
+    "cpu_throttled_usec_delta": 960805,
+    "original_cgroups_absent": 14,
+    "owned_child_wait_codes": [
+      -15
+    ],
+    "owned_children_joined": 15,
+    "runner_elapsed_seconds": 3.991409229,
+    "tasks_after_wait": 1,
+    "unit_inactive_states": {
+      "failed": 10,
+      "inactive": 4
+    }
+  },
+  "oracle": {
+    "actual_cases": 14,
+    "aws_qualification": false,
+    "build_verification": "full",
+    "kernel_pressure_cases": 4,
+    "production_slo_passed": false,
+    "startup_rejections": 9,
+    "status": "passed"
+  },
+  "pressure": {
+    "cpu": {
+      "after": {
+        "burst_usec": 0,
+        "core_sched.force_idle_usec": 0,
+        "nice_usec": 0,
+        "nr_bursts": 0,
+        "nr_periods": 15,
+        "nr_throttled": 15,
+        "system_usec": 20857,
+        "throttled_usec": 1123561,
+        "usage_usec": 301498,
+        "user_usec": 280641
+      },
+      "before": {
+        "burst_usec": 0,
+        "core_sched.force_idle_usec": 0,
+        "nice_usec": 0,
+        "nr_bursts": 0,
+        "nr_periods": 3,
+        "nr_throttled": 3,
+        "system_usec": 20816,
+        "throttled_usec": 162756,
+        "usage_usec": 62450,
+        "user_usec": 41633
+      },
+      "finished_monotonic_ns": 232969896787,
+      "mode": "cpu",
+      "started_monotonic_ns": 231769751098,
+      "value": 38606
+    },
+    "memory": {
+      "memory_max": 67108864,
+      "mode": "memory",
+      "oom_group": "1"
+    },
+    "storage": {
+      "after_rejection": {
+        "blocks": 16384,
+        "inodes": 4095
+      },
+      "after_release": {
+        "blocks": 16384,
+        "inodes": 4095
+      },
+      "before": {
+        "blocks": 16384,
+        "inodes": 4095
+      },
+      "capacity": 67108864,
+      "enospc": true,
+      "mode": "storage",
+      "owned_file_absent": true,
+      "reallocated_and_released_bytes": 1048576
+    },
+    "tasks": {
+      "after": {
+        "max": 2
+      },
+      "before": {
+        "max": 0
+      },
+      "children": [
+        {
+          "pid": 6635,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137429276
+        },
+        {
+          "pid": 6636,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137440472
+        },
+        {
+          "pid": 6637,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137447883
+        },
+        {
+          "pid": 6638,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137454223
+        },
+        {
+          "pid": 6639,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137461073
+        },
+        {
+          "pid": 6640,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137467452
+        },
+        {
+          "pid": 6641,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137472720
+        },
+        {
+          "pid": 6642,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137477958
+        },
+        {
+          "pid": 6643,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137484627
+        },
+        {
+          "pid": 6644,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137489555
+        },
+        {
+          "pid": 6645,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137494562
+        },
+        {
+          "pid": 6646,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137499980
+        },
+        {
+          "pid": 6647,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137505608
+        },
+        {
+          "pid": 6648,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137511006
+        },
+        {
+          "pid": 6649,
+          "start_ticks": 23313,
+          "wait_exit_code": -15,
+          "wait_monotonic_ns": 233137516004
+        }
+      ],
+      "children_joined": 15,
+      "current_after_wait": 1,
+      "current_at_rejection": 16,
+      "current_before": 1,
+      "members_at_rejection": [
+        6630,
+        6635,
+        6636,
+        6637,
+        6638,
+        6639,
+        6640,
+        6641,
+        6642,
+        6643,
+        6644,
+        6645,
+        6646,
+        6647,
+        6648,
+        6649
+      ],
+      "mode": "tasks",
+      "rejected": true
+    }
+  },
+  "provenance": {
+    "all_inputs_match_frozen_head": true,
+    "build_source_files": 309,
+    "ci_independent_build_verification": "full",
+    "file_sha256": {
+      "controls.json": "07bb8eedd0a952f72b21969455b9ce477c995b256ceb08466f4bece65512453f",
+      "oracle.json": "30c3fe0834e15474a8f8589ef77577ff247f3f8c2838303b2cf61ac3cafbe69d",
+      "run/build/build-receipt.json": "538ac34d19c00a11b516ddc31eda610c0e2d45368c5f66c1fb9b6246ffece5f6",
+      "run/build/build-source-manifest.json": "51b8577a4f7699580595e6731c7baa98b7e889e7de9b5174be26452f4406bc9f",
+      "run/build/build-source.tar": "2e5880fe958e4df2b5b32cda686ce8414f0c2dbddce062fd3711dffa05c0fd65",
+      "run/fixture-source-manifest.json": "e3b582024a8601a00df87f1a6e9db367c230eaeccce8fa0056431f5244c3c6e4",
+      "run/fixture-source.tar": "4b7596a467fd78cba3cd502cde37457311637ccae70f6b0dd530fd89762700c2",
+      "run/run.json": "5d3a59ba2f4456d6b30a7a5cbb0390a0a515b07c31300260d92be5f3055462a6"
+    },
+    "fixture_source_files": 13,
+    "local_full_runtime_requalification": false,
+    "local_reaudit_scope": "archived_source_and_cargo_only_plus_original_case_bytes",
+    "original_case_files_hash_verified": 238,
+    "release_binary": {
+      "path": "/home/runner/work/_temp/scap-next-release/release/scapd",
+      "sha256": "40afacb26c85aae968ce10c17b233f13f6254bdc7e7f56e62f14f5a07d566c80"
+    }
+  },
+  "qualification": "PASSED_FOR_FROZEN_CANDIDATE",
+  "schema": 1,
+  "scope": {
+    "aws_standard": "NOT_RUN",
+    "daemon_oom_recovery": false,
+    "fixed_kernel_pressure": true,
+    "instantaneous_process_rss_hard_cap_claimed": false,
+    "per_tenant_kernel_isolation": false,
+    "production_slo_passed": false,
+    "sql_or_s3_workload": false,
+    "startup_admission": true
+  },
+  "toolchain": {
+    "node": "v22.16.0",
+    "python": {
+      "path": "/usr/bin/python3.12",
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+      "version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+    },
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n"
+  }
+}

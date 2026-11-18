@@ -707,6 +707,8 @@ export interface ControllerPolicyOptions {
   readonly modes: { readonly takeover: boolean; readonly activate: boolean; readonly cancel: boolean };
   readonly allowInsecureHttp?: boolean;
   readonly recoveryTimeoutMs?: number;
+  /** Explicit irreversible deployment retirement; old identities remain in workers. */
+  readonly retiredWorkers?: readonly Decimal[];
 }
 declare const controllerPolicy: unique symbol;
 export interface ControllerPolicy {
@@ -717,6 +719,7 @@ export interface ControllerPolicy {
   readonly principal: Decimal;
   readonly metadataEndpoints: readonly string[];
   readonly workers: readonly ControllerWorker[];
+  readonly retiredWorkers?: readonly Decimal[];
   readonly modes: ControllerPolicyOptions['modes'];
   readonly allowInsecureHttp: boolean;
   readonly canonical: string;
@@ -749,7 +752,8 @@ export interface ControllerReport {
 }
 export class OwnerController {
   /** Injected fetch must honor the owned-resource contract; the default fleet transport supplies it. */
-  constructor(options: { readonly policy: ControllerPolicy; readonly token: string; readonly fetch: typeof globalThis.fetch });
+  constructor(options: { readonly policy: ControllerPolicy; readonly token: string; readonly fetch: typeof globalThis.fetch;
+    readonly previousPolicies?: readonly ControllerPolicy[] });
   readonly policy: ControllerPolicy;
   readonly needsRecovery: boolean;
   readonly nextTickAt: number;
@@ -762,6 +766,8 @@ export interface OwnedControllerTransport {
   readonly fetch: typeof globalThis.fetch;
   /** Join every original request, socket and DNS callback owned by this transport. */
   close(): Promise<void>;
+  /** Required by dynamic fleets: stop admission and join old resources, then allow reuse. */
+  quiesce?(): Promise<void>;
 }
 export interface ControllerHttpSnapshot {
   readonly closed: boolean;
@@ -774,6 +780,7 @@ export class ControllerHttp implements OwnedControllerTransport {
   constructor(options?: { readonly maxRequests?: number });
   readonly fetch: typeof globalThis.fetch;
   snapshot(): ControllerHttpSnapshot;
+  quiesce(): Promise<void>;
   /** Aborts attempts and joins resources; a system DNS callback has no fixed shutdown bound. */
   close(): Promise<void>;
 }
@@ -794,9 +801,15 @@ export interface ControllerFailureReport {
 }
 export class OwnerControllerFleet {
   constructor(options: {
-    readonly entries: readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+    readonly entries: readonly ControllerEntry[];
     readonly transport?: OwnedControllerTransport;
+    readonly revision?: Decimal;
   });
+  readonly revision: Decimal | null;
+  readonly updating: boolean;
+  /** One monotonic trusted snapshot, installed only after every old tick joins. */
+  replace(configuration: { readonly revision: Decimal; readonly entries: readonly ControllerEntry[] }):
+    Promise<{ readonly revision: Decimal; readonly scopes: number }>;
   snapshot(): ControllerFleetSnapshot;
   /** Admit eligible ticks into free slots; never queue another round for a busy Scope. */
   poll(): ControllerFleetSnapshot & { readonly started: number };
@@ -804,8 +817,19 @@ export class OwnerControllerFleet {
   takeReports(): readonly (ControllerReport | ControllerFailureReport)[];
   close(): Promise<void>;
 }
+export interface ControllerEntry {
+  readonly policy: ControllerPolicy;
+  readonly token: string;
+  readonly previousPolicies?: readonly ControllerPolicy[];
+}
+export interface ControllerConfiguration {
+  readonly revision: Decimal | null;
+  readonly entries: readonly ControllerEntry[];
+}
 export function readControllerEntries(path: string, environment?: Readonly<Record<string, string | undefined>>):
-  readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+  readonly ControllerEntry[];
+export function readControllerConfiguration(path: string, environment?: Readonly<Record<string, string | undefined>>): ControllerConfiguration;
 /** Runs bounded polling and joins the fleet on shutdown; synchronous output has no logging queue. */
 export function runControllerFleet(fleet: OwnerControllerFleet,
-  options: { readonly signal: AbortSignal; readonly outputFd?: number }): Promise<void>;
+  options: { readonly signal: AbortSignal; readonly outputFd?: number;
+    readonly reload?: () => ControllerConfiguration | null }): Promise<void>;

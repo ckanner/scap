@@ -22,6 +22,7 @@ base64 = "=0.22.1"
 subtle = "=2.6.1"
 ring = "=0.17.14"
 tempfile = "=3.27.0"
+rustix = { version = "=0.38.44", features = ["fs"] }
 
 [dev-dependencies]
 tower = { version = "=0.5.3", features = ["util"] }

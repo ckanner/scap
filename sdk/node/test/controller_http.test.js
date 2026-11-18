@@ -403,3 +403,38 @@ test('default eight slots have no implicit HTTP queue and HTTPS keeps certificat
   for (let index = 0; index < 8; ++index) io.finish(index);
   await closing; assert.equal(io.transport.snapshot().completed, 8);
 });
+
+test('quiesce joins old DNS and sockets before reopening admission, without closing the transport', async (t) => {
+  const io = fixture(t); let done;
+  t.mock.method(dns, 'lookup', (_host, _options, callback) => { done = callback; });
+  const pending = io.transport.fetch(URL, input()); io.socket();
+  io.calls[0].args.lookup('worker.test', {}, () => {});
+  const checked = assert.rejects(pending, code('ABORTED'));
+  const joined = io.transport.quiesce();
+  assert.equal(io.transport.quiesce(), joined);
+  await checked;
+  assert.equal(io.calls[0].request.destroyed, true);
+  assert.equal(io.transport.snapshot().closed, false);
+  await assert.rejects(io.transport.fetch(URL, input()), code('LIMIT'));
+  io.finish();
+  let complete = false; const observed = joined.then(() => { complete = true; });
+  await Promise.resolve(); assert.equal(complete, false);
+  done(null, '127.0.0.1', 4); await observed;
+  assert.equal(io.transport.snapshot().active, 0);
+  const next = io.transport.fetch(URL, input()); io.socket(1);
+  const response = io.receive(1); response.emit('data', Buffer.from('{}')); response.emit('end');
+  assert.equal(await (await next).text(), '{}'); io.finish(1);
+  await io.transport.quiesce();
+  assert.deepEqual(io.transport.snapshot(), { closed: false, active: 0, peak: 1, started: 2, completed: 2 });
+});
+
+test('close racing quiesce joins the same originals and never reopens a closed transport', async (t) => {
+  const io = fixture(t), pending = io.transport.fetch(URL, input()); io.socket();
+  const checked = assert.rejects(pending, code('ABORTED'));
+  const joined = io.transport.quiesce(), closing = io.transport.close();
+  assert.equal(io.transport.quiesce(), closing);
+  await checked;
+  io.finish(); await Promise.all([joined, closing]);
+  await assert.rejects(io.transport.fetch(URL, input()), code('CLOSED'));
+  assert.deepEqual(io.transport.snapshot(), { closed: true, active: 0, peak: 1, started: 1, completed: 1 });
+});

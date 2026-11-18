@@ -21,6 +21,7 @@ import './controller.test.js';
 import './controller_fleet.test.js';
 import './controller_http.test.js';
 import './controller_process.test.js';
+import './controller_dynamic.test.js';
 import './reclamation.test.js';
 import './terminal.test.js';
 

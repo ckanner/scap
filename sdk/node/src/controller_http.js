@@ -106,6 +106,9 @@ export class ControllerHttp {
   #closed = false;
   #closing;
   #finishClose;
+  #quiescing;
+  #finishQuiesce;
+  #paused = false;
   #started = 0;
   #completed = 0;
   #peak = 0;
@@ -126,6 +129,7 @@ export class ControllerHttp {
 
   async fetch(input, init) {
     if (this.#closed) throw failure('CLOSED');
+    if (this.#paused) throw failure('LIMIT');
     const { url, body, headers, signal } = argumentsFor(input, init);
     if (signal.aborted) throw failure('ABORTED');
     if (this.#entries.size >= this.#maximum) throw failure('LIMIT');
@@ -142,6 +146,7 @@ export class ControllerHttp {
           signal.removeEventListener('abort', abort);
           ++this.#completed;
           if (this.#closed && this.#entries.size === 0) this.#finishClose();
+          if (this.#paused && this.#entries.size === 0) this.#finishQuiesce();
         }
       };
       const stop = (code) => {
@@ -231,6 +236,20 @@ export class ControllerHttp {
       } catch (error) { stop(networkCode(error)); }
       finally { entry.constructing = false; release(); }
     });
+  }
+
+  /** Stop admission, abort old attempts and join every socket and DNS callback.
+   * Unlike close, successful quiescence permits the next trusted fleet snapshot.
+   */
+  quiesce() {
+    if (this.#closed) return this.close();
+    if (this.#quiescing !== undefined) return this.#quiescing;
+    this.#paused = true;
+    const joined = new Promise((resolve) => { this.#finishQuiesce = resolve; });
+    this.#quiescing = joined.then(() => { this.#paused = false; this.#quiescing = undefined; });
+    for (const entry of this.#entries) entry.stop('ABORTED');
+    if (this.#entries.size === 0) this.#finishQuiesce();
+    return this.#quiescing;
   }
 
   close() {

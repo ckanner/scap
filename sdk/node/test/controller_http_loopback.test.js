@@ -205,3 +205,29 @@ test('a real TLS connection to a plaintext HTTP endpoint is rejected without a w
   assert.equal(calls, 0); assert.equal(owned.snapshot().active, 0);
   assert.equal(owned.snapshot().started, 1); assert.equal(owned.snapshot().completed, 1);
 });
+
+test('real ClientRequest quiescence waits for delayed DNS before reopening transport admission', { timeout: 5000 }, async (t) => {
+  let calls = 0, callback;
+  const app = await server(t, (_request, response) => { ++calls; response.end('{}'); });
+  const owned = transport(t), original = signal(t);
+  t.mock.method(dns, 'lookup', (_host, options, done) => {
+    assert.notEqual(options.all, true); callback = done;
+  });
+  const endpoint = app.endpoint.replace('127.0.0.1', 'quiescing-owner.invalid');
+  const pending = owned.fetch(endpoint, init(original.signal));
+  const checked = assert.rejects(pending, code('ABORTED'));
+  try {
+    assert.equal(typeof callback, 'function');
+    let complete = false; const joined = owned.quiesce().then(() => { complete = true; });
+    await checked; await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(complete, false); assert.equal(owned.snapshot().active, 1);
+    await assert.rejects(owned.fetch(app.endpoint, init(original.signal)), code('LIMIT'));
+    callback(null, '127.0.0.1', 4); callback = null; await joined;
+    assert.equal(calls, 0); assert.equal(owned.snapshot().active, 0);
+    const result = await owned.fetch(app.endpoint, init(original.signal));
+    assert.equal(await result.text(), '{}'); await owned.close();
+    assert.equal(calls, 1); assert.equal(owned.snapshot().completed, 2);
+  } finally {
+    callback?.(null, '127.0.0.1', 4);
+  }
+});

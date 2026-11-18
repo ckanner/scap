@@ -72,6 +72,174 @@ fn result(value: &Value) -> scap_sql::TransactionResult {
     scap_sql::decode_result(&bytes, scap_object::options::durable_sql_limits()).unwrap()
 }
 
+#[test]
+fn reader_refreshes_a_stale_private_image_before_sql_and_preserves_fresh_authorization() {
+    let (directory, memory, mut writer) = fixture(4, 10000);
+    active(&mut writer);
+    invoke(
+        &mut writer,
+        action(1, "CREATE TABLE read_pool(value INTEGER)"),
+    );
+    let mut reader = Engine::new(
+        memory.clone(),
+        200,
+        Options::default(),
+        directory.path(),
+        1,
+        10000,
+        Arc::new(Semaphore::new(1)),
+    )
+    .unwrap()
+    .with_query_refresh(true);
+    let query = Action::Query {
+        statements: statements("SELECT value FROM read_pool"),
+    };
+    assert!(result(&invoke(&mut reader, query.clone())).statements[0]
+        .rows
+        .is_empty());
+    let make_reader = || {
+        Engine::new(
+            memory.clone(),
+            201,
+            Options::default(),
+            directory.path(),
+            1,
+            10000,
+            Arc::new(Semaphore::new(1)),
+        )
+        .unwrap()
+    };
+    let mut legacy = make_reader();
+    let mut faulted = make_reader().with_query_refresh(true);
+    invoke(&mut legacy, query.clone());
+    invoke(&mut faulted, query.clone());
+    invoke(&mut writer, action(2, "INSERT INTO read_pool VALUES (42)"));
+    assert_eq!(
+        legacy
+            .execute(&principal(), call(query.clone()), until())
+            .unwrap_err()
+            .code,
+        "STALE_SNAPSHOT"
+    );
+    // Once the stale pre-SQL image has been rebuilt, even the next HEAD GET
+    // failure is returned directly. There is no second reactivation attempt.
+    memory.calls.lock().unwrap().clear();
+    *memory.fail_head_after.lock().unwrap() = Some(2);
+    assert_eq!(
+        faulted
+            .execute(&principal(), call(query.clone()), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    assert_eq!(
+        memory
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|call| call.ends_with("/head"))
+            .count(),
+        3
+    );
+    let values = result(&invoke(&mut reader, query.clone()));
+    assert_eq!(
+        values.statements[0].rows,
+        vec![vec![scap_sql::Value::Integer(42)]]
+    );
+    assert_eq!(reader.cache.len(), 1);
+    assert!(reader.cache.values().next().unwrap().session.is_some());
+    // Every warm read still GETs HEAD. A failed GET must not fall back to the
+    // successfully rebuilt local image or rerun the original query.
+    memory.calls.lock().unwrap().clear();
+    *memory.fail_get.lock().unwrap() = Some(scap_object_store::StoreError::Unknown);
+    assert_eq!(
+        reader
+            .execute(&principal(), call(query.clone()), until())
+            .unwrap_err()
+            .code,
+        "UNKNOWN"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 1);
+    assert!(reader.cache.values().next().unwrap().session.is_none());
+    invoke(&mut reader, query.clone());
+    let database = Database::new(memory.clone(), scope().native().unwrap(), 100).unwrap();
+    let status = database.status(3, until()).unwrap();
+    database
+        .set_policy(
+            3,
+            status.revision,
+            18,
+            vec![scap_object::format::Permission {
+                principal: 3,
+                read: false,
+                write: true,
+                admin: true,
+            }],
+            until(),
+        )
+        .unwrap();
+    assert_eq!(
+        reader
+            .execute(&principal(), call(query), until())
+            .unwrap_err()
+            .code,
+        "DENIED"
+    );
+}
+
+#[test]
+fn read_refresh_does_not_hide_sql_errors_or_retry_when_recovery_has_no_capacity() {
+    let (directory, memory, mut writer) = fixture(4, 10000);
+    active(&mut writer);
+    invoke(
+        &mut writer,
+        action(1, "CREATE TABLE read_pool(value INTEGER)"),
+    );
+    let recovery = Arc::new(Semaphore::new(1));
+    let mut reader = Engine::new(
+        memory.clone(),
+        200,
+        Options::default(),
+        directory.path(),
+        1,
+        10000,
+        recovery.clone(),
+    )
+    .unwrap()
+    .with_query_refresh(true);
+    let query = Action::Query {
+        statements: statements("SELECT value FROM read_pool"),
+    };
+    invoke(&mut reader, query.clone());
+    invoke(&mut writer, action(2, "INSERT INTO read_pool VALUES (8)"));
+    let held = recovery.try_acquire().unwrap();
+    assert_eq!(
+        reader
+            .execute(&principal(), call(query.clone()), until())
+            .unwrap_err()
+            .code,
+        "RECOVERY_BUSY"
+    );
+    drop(held);
+    invoke(&mut reader, query);
+    memory.calls.lock().unwrap().clear();
+    assert_eq!(
+        reader
+            .execute(
+                &principal(),
+                call(Action::Query {
+                    statements: statements("INSERT INTO read_pool VALUES (9)")
+                }),
+                until()
+            )
+            .unwrap_err()
+            .code,
+        "ENGINE"
+    );
+    assert_eq!(memory.calls.lock().unwrap().len(), 1);
+}
+
 fn budgeted(engine: &mut Engine, action: Action, pool: &Arc<crate::output::Pool>) -> Value {
     let deadline = until();
     let mut context = pool

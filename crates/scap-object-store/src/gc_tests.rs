@@ -1,7 +1,8 @@
 use super::*;
 use crate::tests::{config, deadline, reply, transport};
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const PREFIX: &str = "scap-object/v1/1/2/3/inc/4/gen/5/storage/6/objects/";
@@ -13,6 +14,90 @@ const NO_LOCK: &[u8] =
 
 fn ready_replies() -> Vec<crate::tests::Reply> {
     vec![reply(200, EMPTY), reply(404, NO_LOCK)]
+}
+
+#[derive(Debug)]
+struct TimedReply {
+    status: u16,
+    body: Vec<u8>,
+    delay: Duration,
+}
+
+#[derive(Debug)]
+struct TimedRequest {
+    method: Method,
+    uri: String,
+    headers: HeaderMap,
+}
+
+type TimedRequests = Arc<Mutex<Vec<TimedRequest>>>;
+
+#[derive(Debug)]
+struct TimedTransport {
+    replies: Mutex<VecDeque<TimedReply>>,
+    requests: TimedRequests,
+    completed: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl object_store::client::HttpService for TimedTransport {
+    async fn call(
+        &self,
+        request: HttpRequest,
+    ) -> Result<object_store::client::HttpResponse, object_store::client::HttpError> {
+        self.requests.lock().unwrap().push(TimedRequest {
+            method: request.method().clone(),
+            uri: request.uri().to_string(),
+            headers: request.headers().clone(),
+        });
+        let response = self.replies.lock().unwrap().pop_front().unwrap();
+        tokio::time::sleep(response.delay).await;
+        self.completed.fetch_add(1, Ordering::SeqCst);
+        Ok(http::Response::builder()
+            .status(response.status)
+            .body(response.body.into())
+            .unwrap())
+    }
+}
+
+/// Deterministic async timeout effects, separate from the real HTTP fixtures.
+/// The caller still supplies one original std::Instant. Only Tokio's timer is
+/// paused, so preflight and DELETE/GET share that exact deadline without a TCP
+/// scheduling race. This does not freeze std::Instant's post-completion guard.
+fn timed_store(replies: Vec<crate::tests::Reply>) -> (GcS3, TimedRequests, Arc<AtomicUsize>) {
+    let mut store = GcS3::new(config("http://127.0.0.1:1"), 1).unwrap();
+    store.inner.runtime = Arc::new(
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .unwrap(),
+    );
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let completed = Arc::new(AtomicUsize::new(0));
+    store.client = HttpClient::new(TimedTransport {
+        replies: Mutex::new(
+            replies
+                .into_iter()
+                .map(|value| TimedReply {
+                    status: value.status,
+                    body: value.body,
+                    delay: value.delay,
+                })
+                .collect(),
+        ),
+        requests: Arc::clone(&requests),
+        completed: Arc::clone(&completed),
+    });
+    (store, requests, completed)
+}
+
+fn delayed_preflight() -> Vec<crate::tests::Reply> {
+    let mut replies = ready_replies();
+    for response in &mut replies {
+        response.delay = Duration::from_millis(250);
+    }
+    replies
 }
 
 #[test]
@@ -246,18 +331,34 @@ fn truncated_large_redirected_and_late_responses_stay_unknown() {
         server.join().unwrap();
         assert_eq!(capture.lock().unwrap().len(), 1);
     }
-    let mut replies = ready_replies();
+    let mut replies = delayed_preflight();
     let mut late = reply(204, b"");
-    late.delay = Duration::from_millis(80);
+    late.delay = Duration::from_secs(2);
     replies.push(late);
-    let (endpoint, server, capture) = transport(replies);
-    let store = GcS3::new(config(endpoint), 1).unwrap();
-    let mut batch = store
-        .begin_batch(PREFIX, Instant::now() + Duration::from_millis(40))
-        .unwrap();
+    let (store, capture, completed) = timed_store(replies);
+    let original = deadline();
+    let mut batch = store.begin_batch(PREFIX, original).unwrap();
+    assert_eq!(batch.deadline, original);
     assert_eq!(batch.delete(HASH, "\"x\""), Err(GcError::Unknown));
-    server.join().unwrap();
-    assert_eq!(capture.lock().unwrap().len(), 3);
+    assert_eq!(batch.deadline, original);
+    assert_eq!(batch.delete(HASH, "\"x\""), Err(GcError::Limit));
+    assert_eq!(completed.load(Ordering::SeqCst), 2);
+    let requests = capture.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[0].method, Method::GET);
+    assert_eq!(requests[1].method, Method::GET);
+    assert_eq!(requests[2].method, Method::DELETE);
+    assert_eq!(
+        requests[2].uri,
+        format!("http://127.0.0.1:1/scap-unit/{PREFIX}{HASH}")
+    );
+    assert_eq!(requests[2].headers[http::header::IF_MATCH], "\"x\"");
+    assert!(requests
+        .iter()
+        .all(|request| request.headers[http::header::AUTHORIZATION]
+            .to_str()
+            .unwrap()
+            .starts_with("AWS4-HMAC-SHA256 ")));
 }
 
 #[test]
@@ -307,15 +408,52 @@ fn unexpected_version_metadata_and_malformed_delete_results_are_uncertain() {
 #[test]
 fn preflight_timeout_does_not_create_a_batch_after_the_original_deadline() {
     let mut delayed = reply(200, EMPTY);
-    delayed.delay = Duration::from_millis(600);
-    let (endpoint, server, capture) = transport(vec![delayed]);
-    let store = GcS3::new(config(endpoint), 1).unwrap();
+    delayed.delay = Duration::from_secs(3);
+    let (store, capture, completed) = timed_store(vec![delayed]);
+    let original = deadline();
     assert!(matches!(
-        store.begin_batch(PREFIX, Instant::now() + Duration::from_millis(250)),
+        store.begin_batch(PREFIX, original),
         Err(GcError::Unknown)
     ));
-    server.join().unwrap();
     assert_eq!(capture.lock().unwrap().len(), 1);
+    assert_eq!(completed.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn wall_clock_guard_rejects_a_ready_future_finishing_after_the_original_deadline() {
+    let store = GcS3::new(config("http://127.0.0.1:1"), 1).unwrap();
+    for case in ["expired", "timely", "late"] {
+        let original = if case == "expired" {
+            Instant::now()
+        } else {
+            deadline()
+        };
+        let mut completed = false;
+        let result = store.execute(original, async {
+            if case == "late" {
+                // A synchronous completion can hold its poll past Tokio's timer.
+                // Keep the original real clock guard independently exercised;
+                // no paused timer or renewed deadline stands in for this check.
+                std::thread::sleep(original.saturating_duration_since(Instant::now()));
+                assert!(Instant::now() >= original);
+            }
+            completed = true;
+            Ok(())
+        });
+        assert_eq!(
+            result,
+            if case == "timely" {
+                Ok(())
+            } else {
+                Err(GcError::Unknown)
+            }
+        );
+        assert_eq!(
+            completed,
+            case != "expired",
+            "expired work must not be polled"
+        );
+    }
 }
 
 #[test]
@@ -578,17 +716,20 @@ fn garbage_capability_rejects_bad_namespace_inputs_and_keeps_original_deadlines(
     }
 
     let mut late = reply(200, b"complete but too late");
-    late.delay = Duration::from_millis(150);
-    let mut replies = ready_replies();
+    late.delay = Duration::from_secs(2);
+    let mut replies = delayed_preflight();
     replies.push(late);
-    let (endpoint, server, capture) = transport(replies);
-    let store = GcS3::new(config(endpoint), 1).unwrap();
+    let (store, capture, completed) = timed_store(replies);
+    let original = deadline();
+    assert_eq!(store.inspect(PREFIX, HASH, original), Err(GcError::Unknown));
+    let requests = capture.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[2].method, Method::GET);
     assert_eq!(
-        store.inspect(PREFIX, HASH, Instant::now() + Duration::from_millis(80)),
-        Err(GcError::Unknown)
+        requests[2].uri,
+        format!("http://127.0.0.1:1/scap-unit/{PREFIX}{HASH}")
     );
-    server.join().unwrap();
-    assert_eq!(capture.lock().unwrap().len(), 3);
+    assert_eq!(completed.load(Ordering::SeqCst), 2);
 }
 
 fn candidate_response() -> Response {

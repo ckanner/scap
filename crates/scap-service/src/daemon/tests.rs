@@ -4,12 +4,133 @@ use crate::wire::{Action, Decimal};
 
 mod startup_s3;
 
+#[test]
+fn kernel_envelope_is_revalidated_before_permanent_worker_claim() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = prepared(directory.path()).service;
+    config.resource_envelope = Some(crate::resource_envelope::tests::profile());
+    config.resource_envelope.as_mut().unwrap().tasks = 0;
+    let objects = Arc::new(Memory::default());
+    assert_eq!(
+        assemble(config, objects.clone()).err().unwrap().code,
+        "CONFIG"
+    );
+    assert!(objects.calls.lock().unwrap().is_empty());
+    let mut config = prepared(directory.path());
+    config.service.resource_envelope = Some(crate::resource_envelope::tests::profile());
+    config.service.resource_envelope.as_mut().unwrap().tasks = 0;
+    assert_eq!(
+        serve(config, Box::pin(async {})).unwrap_err().code,
+        "CONFIG"
+    );
+}
+
+#[test]
+fn check_config_validates_without_opening_a_listener_or_consuming_an_identity() {
+    let directory = tempfile::tempdir().unwrap();
+    let _credentials = crate::tests::test_credentials();
+    let path = directory.path().join("config.json");
+    // The configured backend need not exist: checking is a local operation.
+    let mut value = sample_config(directory.path());
+    value["s3"]["endpoint"] = serde_json::json!("http://127.0.0.1:1");
+    std::fs::write(&path, value.to_string()).unwrap();
+    entry(vec!["--check-config".into(), path.clone().into()]).unwrap();
+    value["worker_instance"] = serde_json::json!("0");
+    std::fs::write(&path, value.to_string()).unwrap();
+    assert_eq!(
+        entry(vec!["--check-config".into(), path.clone().into()])
+            .unwrap_err()
+            .code,
+        "CONFIG"
+    );
+    assert_eq!(
+        entry(vec!["--unknown".into(), path.into()])
+            .unwrap_err()
+            .code,
+        "USAGE"
+    );
+}
+
 fn prepared(parent: &std::path::Path) -> Prepared {
     let _credentials = crate::tests::test_credentials();
     Config::parse(&serde_json::to_vec(&sample_config(parent)).unwrap())
         .unwrap()
         .prepare()
         .unwrap()
+}
+
+#[test]
+fn read_pool_is_validated_before_identity_claim_and_wired_to_native_readers() {
+    let directory = tempfile::tempdir().unwrap();
+    let objects = Arc::new(Memory::default());
+    let profile = crate::scheduler::ReadPool {
+        workers: 2,
+        active_per_tenant: 2,
+        active_per_database: 2,
+    };
+    let mut configuration = prepared(directory.path()).service;
+    configuration.admission.read_pool = Some(crate::scheduler::ReadPool {
+        workers: 0,
+        ..profile
+    });
+    assert_eq!(
+        assemble(configuration, objects.clone()).err().unwrap().code,
+        "CONFIG"
+    );
+    assert!(objects.calls.lock().unwrap().is_empty());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.admission.read_pool = Some(profile);
+    let (_, state) = assemble(configuration, objects.clone()).unwrap();
+    let create = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Create { nonce: Decimal(1) }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(create["revision"], "1");
+    let activated = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Activate {
+                expected_worker_instance: None,
+                expected_revision: Decimal(1),
+                nonce: Decimal(2),
+            }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(activated["active"], true);
+    let read = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Query {
+                statements: vec![crate::wire::WireStatement {
+                    sql: "SELECT 42".into(),
+                    params: vec![],
+                }],
+            }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert!(read["result"].is_string());
+    drop(state);
+    assert!(std::fs::read_dir(directory.path())
+        .unwrap()
+        .next()
+        .is_none());
 }
 
 #[test]
