@@ -4,15 +4,31 @@
 
 普通数据库接口以完整 `deployment / tenant / database / incarnation / generation` 标识接入；调用方必须持久保存原始身份。可选的独立 [名称目录接口](catalogue.md)使用 `POST /v1/catalogue`，协调原创建意图、同名 reservation、取消和删除；其新增实现仍须单独冻结验收。HEAD 的 key 保持单库固定以隔离旧身份，本地缓存键另包含 incarnation 和 generation，不能用缓存把两代身份混用。
 
+S2 候选增加[从保留快照恢复新数据库](docs/restore.md)。跨 Scope 数据会重新封装和完整
+验证；长复制使用独立 recovery worker/队列及 staging 预算，检查和取消仍使用目录控制池。
+每次显式 resume 最多一个 Name/HEAD CAS，Ready 仍需另行激活 writer。
+
 ## 启动
 
 ```bash
 cargo build --release -p scap-service --bin scapd --locked
 mkdir -p /absolute/private-cache
+# Once per provably fresh authority bucket, before starting any auto workers:
+./target/release/scapd --init-worker-allocator /absolute/scap-service.json 0
+# Every normal start/restart then uses the unchanged "worker_instance":"auto" config:
 ./target/release/scapd /absolute/scap-service.json
 ```
 
-配置采用严格 JSON，未知字段和不合法整数拒绝。身份数值使用规范十进制字符串；`worker_instance` 为本次计算实例的非零独立 ID，每次重启及其他服务实例必须使用新 ID。不要复制一个仍在运行的实例 ID。重启后先查询 HEAD，再显式 `takeover` 和 `activate`；过程不依赖旧计算目录。
+配置采用严格 JSON，未知字段和不合法整数拒绝。`worker_instance` 可用 `"auto"`，正常重启无需改写 ID；同一 S3 authority 中的持久计数器分配新数值，再永久条件创建并回读 `scap-worker/v1/instances/{ID}`。既有规范十进制字符串如 `"5001"` 仍支持显式身份，但每次启动必须换用未使用过的 ID。S3 不可得、分配或登记结果不明、回读损坏都拒绝启动，不会重试或收养不确定候选。
+
+自动模式需要一次明确初始化；上例中的 `0` **仅适用于可以证明从未发过身份的新 authority**。已有环境必须停止旧版进程，并把所有历史已发 ID 的可证明上界作为初始化参数。普通启动发现计数器缺失时返回 `INSTANCE_ALLOCATOR_MISSING`；初始化冲突返回 `INSTANCE_ALLOCATOR_EXISTS`，不能清空或重置计数器来恢复。初始化命令使用同一配置和 S3 凭据，但不会启动 listener。两条 JSON stderr 记录区分 `worker_identity_claimed` 和监听绑定后才发出的 `worker_identity_ready`，均携带实际分配的十进制 `worker_instance`。IAM、历史边界、冲突次数及故障处理详见[自动分配设计](../../docs/architecture/worker-instance-allocation.md)。
+
+分配身份不授予数据库 owner。重启后先查询 HEAD，再进行显式 owner 接管；已采用 HEAD8 的库必须使用[持久 owner 计划](docs/accepted-owner-plan.md)，旧格式仍保留 `takeover` / `activate`。过程不依赖旧计算目录。
+
+自动身份也不会更新静态 `OwnerController` 或 route registry。重启后 ready 记录中的 ID 已改变，
+仍携带旧 `expected_worker_instance` 的路由会正确返回 `TARGET_MISMATCH`；部署控制器必须消费
+新的实例登记并更新目标期望。自动分配、路由登记和数据库 owner 交接分别完成，动态 fleet
+控制器不在此实现范围内。
 
 ```json
 {
@@ -28,7 +44,7 @@ mkdir -p /absolute/private-cache
     "response_timeout_ms": 30000,
     "shutdown_timeout_ms": 30000
   },
-  "worker_instance": "5001",
+  "worker_instance": "auto",
   "cache_directory": "/absolute/private-cache",
   "s3": {
     "endpoint": "https://s3.REGION.amazonaws.com",
@@ -63,6 +79,10 @@ mkdir -p /absolute/private-cache
   "execution": {
     "result_memory_bytes": 134217728
   },
+  "owner_recovery": {
+    "payload_gets": 1048576,
+    "payload_bytes": 68719476736
+  },
   "credentials": [
     {
       "sha256": "REPLACE_WITH_64_LOWERCASE_HEX_SHA256_OF_A_RANDOM_BEARER_TOKEN",
@@ -76,6 +96,12 @@ mkdir -p /absolute/private-cache
 ```
 
 示例中的占位值必须替换。没有临时 session token 时明确写 `null`。程序只读取配置中指定的环境变量，不搜索本机 AWS 配置或实例元数据。S3 单对象预算取当前持久格式上限；数据库默认 10 GiB，管理员可经 `quota` 修改或取消业务配额。可选 `execution.result_memory_bytes` 单独配置每次操作的 Rust typed 结果图预算，省略时为 128 MiB；它不改变 SQL 结果 wire 上限、持久结果格式或已有库配额。其实际 Engine 接线和失败语义见[资源边界](docs/intake-reservations.md)。
+
+可选 `owner_recovery` 仅限制每次 `owner_resume` 的 payload GET 数和累计返回体预算；默认值
+如上，可降低或设零禁用该类恢复，不能提高到默认上限以上。它不改变持久 quota、保留
+结果、普通查询或目录 RecoveryJob 的预算。HEAD/owner 控制元数据另有每调用 8 次 I/O
+上限，恢复仍占用原 `parallel_recoveries` 槽位和原总期限。此配置不等同于进程 RSS 或
+底层传输流量上限，见[具体计量与失败语义](docs/accepted-owner-plan.md#恢复预算)。
 
 配置的 Bearer token 应为独立生成的高熵值；服务接受 32–1024 字节的可打印 ASCII token，通过固定长度 SHA-256 摘要比较映射到可信 deployment、tenant、principal 和 provisioning 权限。摘要不是 HEAD 权限替代品：每次正式数据库操作仍由当前 HEAD 授权。请求中的 `principal` 只是原请求身份的一部分，必须等于 token 对应的主体。
 
@@ -94,8 +120,8 @@ mkdir -p /absolute/private-cache
 | admission | 操作 | 总时间预算 |
 | --- | --- | --- |
 | `data`（可省略） | `create`、`query`、`execute` | `timeout_ms` |
-| `control` | `status`、`storage_status`、`retire_storage`、`lookup`、`cancel`、`takeover`、`close_full`、`policy`、`quota`、`lifecycle`、`compact_begin`、`compact_promote`、`compact_abort` | `timeout_ms` |
-| `recovery` | `open`、`activate`、`compact_copy`、`gc_prepare`、`gc_resume` | `recovery_timeout_ms` |
+| `control` | `status`、`storage_status`、`retire_storage`、`lookup`、`cancel`、`takeover`、`owner_prepare`、`owner_inspect`、`owner_claim`、`owner_abort`、`close_full`、`policy`、`quota`、`lifecycle`、`compact_begin`、`compact_promote`、`compact_abort` | `timeout_ms` |
+| `recovery` | `open`、`activate`、`owner_resume`、`compact_copy`、`gc_prepare`、`gc_resume` | `recovery_timeout_ms` |
 
 两种时间预算都从最初接收请求时开始；body 读取仍须在短预算内结束，排队也占用原预算。数据库内部更短的操作期限继续有效。HTTP 超时或响应消失不表示 SQL 已回滚。
 
@@ -111,6 +137,11 @@ mkdir -p /absolute/private-cache
 ```
 
 `create` 还需非零 `nonce`，仅允许 provisioning 凭据；成功后库处于未激活状态。`activate`、`takeover`、`close_full`、`policy`、`quota` 和 `lifecycle` 必须给出 `expected_revision` 与 `nonce`；冲突或 UNKNOWN 不会被服务自动换 revision 重发。
+
+`owner_*` 使用持久计划的独立输入与阶段；`owner_claim` / `owner_resume` 必须提供目标
+worker guard。状态响应始终包含 `owner_plan: null | object`。第一次接受 Claim 或
+Cancelling 后，该库永久进入 HEAD8，旧 `takeover` / `activate` 失败关闭，不能绕过
+已取消的计划。完整请求和跨重启恢复规则见[持久 owner 计划](docs/accepted-owner-plan.md)。
 
 HEAD6 的手动 `compact_*` 使用物理 `head_serial` / `plan_serial`，不改变原业务 receipt。
 可选 GC 凭据默认关闭；`gc_prepare` 只安装最多 32 项的原 ETag checkpoint，`gc_resume`

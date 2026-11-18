@@ -13,6 +13,11 @@ mod inspect;
 mod records;
 mod recovery_budget;
 mod recovery_job;
+mod restore;
+mod restore_budget;
+mod restore_copy;
+mod restore_records;
+mod restore_types;
 mod terminal;
 mod types;
 
@@ -20,6 +25,8 @@ pub use discovery::*;
 pub use discovery_names::*;
 pub use recovery_budget::{RecoveryBudget, RecoveryUsage};
 pub use recovery_job::*;
+pub(crate) use restore::VerifiedRestoreTransition;
+pub use restore_types::*;
 pub(crate) use terminal::VerifiedDeletionSource;
 pub use types::*;
 
@@ -352,6 +359,7 @@ impl Catalogue {
             let source =
                 authority(self.read_descriptor(origin.creator, origin.operation, deadline))?;
             require(source.creation.scope == head.scope && source.origin() == *origin)?;
+            self.verify_restore_origin(&source, &head, deadline)?;
         }
         Ok(Some(Snapshot {
             head,
@@ -383,6 +391,9 @@ impl Catalogue {
         // cannot be paired with a previously observed absent/Provisioning HEAD.
         let proof = self.read_proof(source, deadline)?;
         let head = self.read_slot(&source.creation.scope, deadline)?;
+        if head.is_none() {
+            self.verify_absent_restore_head(source, deadline)?;
+        }
         // Records across keys are not an atomic snapshot. A monotonic name
         // revision and this second exact GET distinguish a changing name from
         // a corrupt stable relationship; no failed candidate is rebased here.
@@ -422,6 +433,21 @@ impl Catalogue {
         require(Self::own(source, head) && head.lifecycle == Lifecycle::Provisioning)?;
         require(head.revision == 1 && head.owner_epoch == 1 && head.auth_epoch == 1)?;
         require(head.quota == source.initial_quota && head.retention == source.retention)?;
+        if source.recipe.is_some() {
+            require(
+                head.restore_origin
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .is_some_and(|origin| origin.descriptor_hash == source.hash()),
+            )?;
+        } else {
+            require(
+                head.restore_origin
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .is_none(),
+            )?;
+        }
         require(
             head.policy
                 == vec![Permission {

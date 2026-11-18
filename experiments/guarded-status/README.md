@@ -13,7 +13,7 @@ fixture 单位、真实运行、独立 oracle、31 个语义负控和完整副�
 完整来源和先前失败见[组合验收](../../docs/engineering/runtime-completion-validation.md)。
 
 该程序固定30个操作/29个POST、三个一次性故障、五次HEAD发布和唯一SQL执行身份。
-P/Q的完整S3流量只能是HEAD GET；错误guard不能触碰S3、SQLite payload或旧cache。
+P/Q的数据库业务S3流量只能是HEAD GET；错误guard不能触碰S3、SQLite payload或旧cache。
 替换必须真实kill/wait4 P、删除其cache，再在同一端口启动具有新identity的Q。
 SDK保留此前已构造的OwnerClient，不能用重新构造的client冒充旧registry测试。
 
@@ -43,12 +43,20 @@ oracle重新读取原POST、SDK Fetch、同一次S3 GET body/ETag、每个完整
 核对原SQL receipt、固定查询结果、readback-before-publication和全部owned child/listener退出。
 只读取已完成的证据，不重试产品操作，不从runner的成功标记推导协议正确性。
 
+永久 worker 的启动 PUT/GET 先按精确身份、32 字节 wire hash、原 Absent 条件、相同 ETag、
+完整交付与 ready 区间认证，完整原始正文及签名也必须一致。随后按已认证的原 serial
+集合分离启动与数据库业务；每个 listener 的 accepted_handlers 和 proxy 总数仍使用
+全部物理请求，不增加固定的六次例外。报告单列 `physical_s3_exchanges` 与
+`startup_s3_exchanges`，原 `s3_exchanges` 及 P/Q 9/2 个 HEAD GET 保持业务含义。
+
 31个负控针对请求删减/追加、guard或身份被改、跟随不可信地址、错误目标访问S3、stale ACL、
 body/ETag错配、metadata路径写S3、伪造wait4、worker identity复用、旧client重建、期限提前释放、
 UNKNOWN被升级、原receipt改写、payload cache、错误binary和handler未join。
 它们也检查实际接收进程/监听器的生命周期、Node时钟、fault原请求与hold切点；每个变体
 必须命中预先声明的确切拒绝规则，不能用无关schema或分母失败替代目标边界。
 每个控制只修改审计投影，原实际证据逐文件哈希保持不变；完整原证据复制后必须再次通过oracle。
+foreign-daemon 投影同步使用 Q 的已知签名 host，保持 wire 检查完整，仍须因原 HTTP
+接收进程与 S3 worker 不一致而拒绝；不以更早的 host 格式错误替代这个语义反例。
 
 观察器另外定义五个边界单测：日志写入失败后真实 Service/Node 子进程仍被登记并wait4、
 已启动listener仍关闭并join、超长未结束Node输出行在解析前受限，以及缓慢分段输入不能

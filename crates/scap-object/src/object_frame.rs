@@ -2,8 +2,8 @@
 //! This is local frame validation, not a proof of any referenced objects.
 
 use super::{
-    budget, check, digest, Envelope, FormatError, Metadata, Payload, Scope, StoredResult,
-    FRAME_BYTES, MAGIC, MAX_OBJECT_BYTES, MAX_RESULT_BYTES, SMALL_METADATA_BYTES,
+    digest, Envelope, FormatError, Metadata, Payload, Scope, StoredResult, FRAME_BYTES, MAGIC,
+    MAX_OBJECT_BYTES, MAX_RESULT_BYTES, SMALL_METADATA_BYTES,
 };
 
 /// Owns bounded JSON metadata and borrows the exact hash-checked frame. Raw
@@ -30,34 +30,57 @@ impl<'a> ValidatedFrame<'a> {
     ) -> Result<Self, FormatError> {
         // Preserve the public decoder's limit/error precedence. The metadata
         // and raw bounds also make the later offset sum and usize cast safe.
-        budget(bytes.len(), MAX_OBJECT_BYTES)?;
-        check(digest(bytes) == expected_hash).map_err(|_| FormatError::Corrupt)?;
-        check(bytes.len() >= FRAME_BYTES).map_err(|_| FormatError::Corrupt)?;
-        check(&bytes[..8] == MAGIC).map_err(|_| FormatError::Corrupt)?;
+        if bytes.len() > MAX_OBJECT_BYTES {
+            return Err(FormatError::Limit);
+        }
+        if digest(bytes) != expected_hash {
+            return Err(FormatError::Corrupt);
+        }
+        if bytes.len() < FRAME_BYTES {
+            return Err(FormatError::Corrupt);
+        }
+        if &bytes[..8] != MAGIC {
+            return Err(FormatError::Corrupt);
+        }
         let metadata_len =
             u32::from_le_bytes(bytes[8..12].try_into().expect("fixed frame field")) as usize;
         let raw_len = u64::from_le_bytes(bytes[12..20].try_into().expect("fixed frame field"));
-        check(metadata_len <= SMALL_METADATA_BYTES).map_err(|_| FormatError::Corrupt)?;
-        check(raw_len <= MAX_RESULT_BYTES as u64).map_err(|_| FormatError::Corrupt)?;
+        if metadata_len > SMALL_METADATA_BYTES {
+            return Err(FormatError::Corrupt);
+        }
+        if raw_len > MAX_RESULT_BYTES as u64 {
+            return Err(FormatError::Corrupt);
+        }
         let raw_offset = FRAME_BYTES + metadata_len;
-        check(bytes.len() == raw_offset + raw_len as usize).map_err(|_| FormatError::Corrupt)?;
-        let metadata: Metadata = serde_json::from_slice(&bytes[FRAME_BYTES..raw_offset])
-            .map_err(|_| FormatError::Corrupt)?;
-        match &metadata.payload {
-            Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
-                check(bytes.is_empty()).map_err(|_| FormatError::Corrupt)?;
+        if bytes.len() != raw_offset + raw_len as usize {
+            return Err(FormatError::Corrupt);
+        }
+        let metadata = serde_json::from_slice::<Metadata>(&bytes[FRAME_BYTES..raw_offset]);
+        let Ok(metadata) = metadata else {
+            return Err(FormatError::Corrupt);
+        };
+        if let Payload::Chunk { bytes, .. } = &metadata.payload {
+            if !bytes.is_empty() {
+                return Err(FormatError::Corrupt);
             }
-            _ => check(raw_len == 0).map_err(|_| FormatError::Corrupt)?,
+        } else if let Payload::Result(StoredResult { bytes, .. }) = &metadata.payload {
+            if !bytes.is_empty() {
+                return Err(FormatError::Corrupt);
+            }
+        } else if raw_len != 0 {
+            return Err(FormatError::Corrupt);
         }
         let envelope = Envelope {
             format: metadata.format,
             scope: metadata.scope,
             payload: metadata.payload,
         };
-        envelope
-            .validate_with_raw_len(raw_len as usize)
-            .map_err(|_| FormatError::Corrupt)?;
-        check(envelope.scope == *scope).map_err(|_| FormatError::Corrupt)?;
+        if envelope.validate_with_raw_len(raw_len as usize).is_err() {
+            return Err(FormatError::Corrupt);
+        }
+        if envelope.scope != *scope {
+            return Err(FormatError::Corrupt);
+        }
         Ok(Self {
             bytes,
             raw_offset,
@@ -86,11 +109,10 @@ impl<'a> ValidatedFrame<'a> {
     pub(crate) fn into_envelope(self) -> Envelope {
         let raw = self.raw_payload();
         let mut envelope = self.envelope;
-        match &mut envelope.payload {
-            Payload::Chunk { bytes, .. } | Payload::Result(StoredResult { bytes, .. }) => {
-                bytes.extend_from_slice(raw);
-            }
-            _ => {}
+        if let Payload::Chunk { bytes, .. } = &mut envelope.payload {
+            bytes.extend_from_slice(raw);
+        } else if let Payload::Result(StoredResult { bytes, .. }) = &mut envelope.payload {
+            bytes.extend_from_slice(raw);
         }
         envelope
     }

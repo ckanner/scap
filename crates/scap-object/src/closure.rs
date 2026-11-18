@@ -235,6 +235,11 @@ pub(super) struct Cursor<'a> {
     path: [Option<PathFrame>; MAX_PATH],
     depth: usize,
     manifest_pages: u32,
+    expected_pages: Option<u32>,
+    next_retained: usize,
+    root_start_pages: u64,
+    root_start_chunks: u64,
+    data_complete: bool,
     totals: ClosureTotals,
 }
 
@@ -292,6 +297,11 @@ impl<'a> Cursor<'a> {
             path: std::array::from_fn(|_| None),
             depth: 0,
             manifest_pages: 0,
+            expected_pages: None,
+            next_retained: 0,
+            root_start_pages: 0,
+            root_start_chunks: 0,
+            data_complete: false,
             totals: ClosureTotals::default(),
         }))
     }
@@ -366,6 +376,30 @@ impl<'a> Cursor<'a> {
                 }
             }
         }
+        if !self.data_complete {
+            self.check_data_root()?;
+            self.data_complete = true;
+        }
+        if let Some(entry) = self
+            .basis
+            .snapshot
+            .head
+            .snapshots
+            .as_deref()
+            .unwrap_or(&[])
+            .get(self.next_retained)
+        {
+            self.next = Some(Edge {
+                hash: entry.point.data_root.clone(),
+                role: Role::Manifest,
+            });
+            self.next_retained += 1;
+            self.expected_pages = Some(entry.point.page_count);
+            self.root_start_pages = self.totals.pages;
+            self.root_start_chunks = self.totals.chunks;
+            self.data_complete = false;
+            return Ok(());
+        }
         if let Some(window) = self.basis.snapshot.head.windows.get(self.next_window) {
             self.next = Some(Edge {
                 hash: window.root.clone(),
@@ -390,7 +424,11 @@ impl<'a> Cursor<'a> {
         let head = &self.basis.snapshot.head;
         match (visit.role, metadata) {
             (Role::Manifest, Payload::Manifest(manifest)) => {
-                if manifest.page_count > head.quota.max_pages().map_err(Error::Format)? {
+                if let Some(expected) = self.expected_pages {
+                    if manifest.page_count != expected {
+                        return Err(Error::Corrupt);
+                    }
+                } else if manifest.page_count > head.quota.max_pages().map_err(Error::Format)? {
                     return Err(Error::Limit);
                 }
                 Ok(Action::Manifest(manifest))
@@ -520,13 +558,19 @@ impl<'a> Cursor<'a> {
         Ok(())
     }
 
-    fn complete(self: Box<Self>) -> Result<VerifiedClosure<'a>, Error> {
-        self.basis.check()?;
-        if self.totals.pages != self.manifest_pages as u64
-            || self.totals.chunks != self.manifest_pages.div_ceil(CHUNK_PAGES) as u64
+    fn check_data_root(&self) -> Result<(), Error> {
+        if self.totals.pages.checked_sub(self.root_start_pages) != Some(self.manifest_pages as u64)
+            || self.totals.chunks.checked_sub(self.root_start_chunks)
+                != Some(self.manifest_pages.div_ceil(CHUNK_PAGES) as u64)
         {
             return Err(self.basis.objects.observe(Error::Corrupt));
         }
+        Ok(())
+    }
+
+    fn complete(self: Box<Self>) -> Result<VerifiedClosure<'a>, Error> {
+        self.basis.check()?;
+        self.check_data_root()?;
         for (window, total) in self
             .basis
             .snapshot

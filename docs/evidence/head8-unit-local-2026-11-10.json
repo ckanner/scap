@@ -1,0 +1,2819 @@
+{
+  "command_records": [
+    {
+      "path": "head8-stable-gates-01/clippy-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--locked",
+          "--offline",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18914131282286,
+        "name": "clippy-1",
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "start_monotonic_ns": 18855582509504,
+        "stderr_sha256": "00223c4789f88aa9974b00ecd1cb44b97f7e496592428346eb9626179e960d27",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 1800
+      },
+      "sha256": "47a71c294834ed08dba9b81c222bf0da49c231712eb448f0c0cbfb4e0dae08d1"
+    },
+    {
+      "path": "head8-stable-gates-01/fmt-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18855581274186,
+        "name": "fmt-1",
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "start_monotonic_ns": 18852772455609,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 120
+      },
+      "sha256": "063e28b2eaa3a3895595e4471bad2c4171269352a3c214ee7fd7e25dea1c3d1c"
+    },
+    {
+      "path": "head8-stable-gates-01/source-after.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18914354343154,
+        "name": "source-after",
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "start_monotonic_ns": 18914134795608,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "738217a9aebd4877fcc6decf690ad25987779c02622ebe8f377fb569ec3bf53f"
+    },
+    {
+      "path": "head8-stable-gates-01/source-before.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18477410844891,
+        "name": "source-before",
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "start_monotonic_ns": 18476903247928,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "c0b5fdec2a931a2a5fc8d16cca15e4c755dc545c241aabc51ab2e6b59b973568"
+    },
+    {
+      "path": "head8-stable-gates-01/stable-units-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "test",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--locked",
+          "--offline",
+          "--",
+          "--test-threads=1"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18852766272669,
+        "name": "stable-units-1",
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "start_monotonic_ns": 18477412046813,
+        "stderr_sha256": "44789ac978b926fcf1b069afb62d96a2a9bea945a2b1d0ae1f1fcf3c9f1500a9",
+        "stdout_sha256": "579d2bc9c4ec7918c193e988bdd861052a7d07cb7fd349197e745b2289b093ac",
+        "timeout": false,
+        "timeout_seconds": 1800
+      },
+      "sha256": "9a781122cc6c93018690ca57c784d7db3234972e7698522d375215e545be2802"
+    },
+    {
+      "path": "head8-coverage-gates-01/source-after.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18879308946913,
+        "name": "source-after",
+        "plan_sha256": "830d0674be71e08f933f03c3edb631af656807a9964c4b0295c2988127ad6696",
+        "start_monotonic_ns": 18879136848624,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "df0af9d5a8229e7ace9cb5a82db5d693e765ef5cd53adaf0b71bd78b522d2431"
+    },
+    {
+      "path": "head8-coverage-gates-01/source-before.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18477557843506,
+        "name": "source-before",
+        "plan_sha256": "830d0674be71e08f933f03c3edb631af656807a9964c4b0295c2988127ad6696",
+        "start_monotonic_ns": 18476892929720,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "ccf381a523ea32100fcbb1b486002c7e3e162eefc3d8ee2f047f26979205e698"
+    },
+    {
+      "path": "head8-coverage-gates-01/unit-coverage-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+nightly-2025-09-18",
+          "llvm-cov",
+          "--workspace",
+          "--lib",
+          "--bins",
+          "--all-features",
+          "--locked",
+          "--offline",
+          "--branch",
+          "--no-cfg-coverage",
+          "--no-cfg-coverage-nightly",
+          "--json",
+          "--output-path",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-unit-coverage.json",
+          "--",
+          "--test-threads=1"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18877904161241,
+        "name": "unit-coverage-1",
+        "plan_sha256": "830d0674be71e08f933f03c3edb631af656807a9964c4b0295c2988127ad6696",
+        "start_monotonic_ns": 18477559346175,
+        "stderr_sha256": "3aabe1508c517b591238a317820ec061052b6e45ccb52ecc49c6d372b370b290",
+        "stdout_sha256": "bd57001a1fe23ad8b9cf208de719a96c771f3b4e49942d7d206fcd2e33320379",
+        "timeout": false,
+        "timeout_seconds": 2400
+      },
+      "sha256": "07ad4ed406a705100b76b589c58b32b724a3dc9c26de9104558efcd9eade77cb"
+    },
+    {
+      "path": "head8-coverage-gates-01/unit-coverage-2.json",
+      "record": {
+        "argv": [
+          "python3",
+          "scripts/check_unit_coverage.py",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-unit-coverage.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18879135702648,
+        "name": "unit-coverage-2",
+        "plan_sha256": "830d0674be71e08f933f03c3edb631af656807a9964c4b0295c2988127ad6696",
+        "start_monotonic_ns": 18877906184281,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "ff711c0421dfe0007e75635ba3ccd1b8625928a94971e93d029337a54f3a96c6",
+        "timeout": false,
+        "timeout_seconds": 2400
+      },
+      "sha256": "2bada4f197d51be40b9d70d69da58c0fc5298248886fe375e17ae30f104922e3"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/actionlint-1.json",
+      "record": {
+        "argv": [
+          "/workspace/scratch/3ff9bab58e00/scap-env/actionlint/actionlint",
+          "-shellcheck=",
+          "-pyflakes=",
+          ".github/workflows/quality.yml",
+          ".github/workflows/docs.yml",
+          ".github/workflows/developer-tools.yml",
+          ".github/workflows/node-codec.yml",
+          ".github/workflows/node-sdk.yml"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18508677382898,
+        "name": "actionlint-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18508659011367,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "a27a3cffeb41f4e1d1948b97822f0b60e63be3455c6e8ec8c313fc344cac34e5"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/codec-unit-1.json",
+      "record": {
+        "argv": [
+          "env",
+          "NODE_V8_COVERAGE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-codec-v8",
+          "npm",
+          "--prefix",
+          "sdk/node-codec",
+          "test"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18484751606569,
+        "name": "codec-unit-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18483359468875,
+        "stderr_sha256": "1463bfd89e9a68ec258b4916cdafdcbf063830d7936363b7e80f6106d07af8bb",
+        "stdout_sha256": "3ced413d97c9f4a68ccf0abbec80fa94c5b6d2c2caf2c544e121c6d2355bb8b5",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "6370681257e404fd0db6a2d84d51dc242f61108c9a8d7c87a2a0c522c1d1c21b"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/codec-unit-2.json",
+      "record": {
+        "argv": [
+          "env",
+          "NODE_V8_COVERAGE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-codec-v8",
+          "python3",
+          "-c",
+          "import json, os\nfrom pathlib import Path\nfrom urllib.parse import unquote, urlsplit\nsource = Path('sdk/node-codec/src').resolve()\nexpected = set()\nfor path in source.rglob('*'):\n    if not path.is_file():\n        continue\n    if path.is_symlink() or path.suffix not in {'.js', '.mjs', '.cjs'}:\n        raise SystemExit('Unclassified production source: ' + str(path))\n    expected.add(path.resolve())\nif not expected:\n    raise SystemExit('Empty production source inventory')\nfound = {}\nreports = list(Path(os.environ['NODE_V8_COVERAGE']).glob('coverage-*.json'))\nif not reports:\n    raise SystemExit('No raw V8 profiles')\nfor report in reports:\n    for script in json.loads(report.read_text())['result']:\n        url = urlsplit(script['url'])\n        if url.scheme != 'file':\n            continue\n        path = Path(unquote(url.path)).resolve()\n        if path not in expected:\n            continue\n        if path in found:\n            raise SystemExit('Unexpected duplicate production profile: ' + str(path))\n        functions = script['functions']\n        if not functions:\n            raise SystemExit('Empty function denominator')\n        count = 0\n        for function in functions:\n            if function['isBlockCoverage'] is not True or not function['ranges']:\n                raise SystemExit('Incomplete block coverage map')\n            for region in function['ranges']:\n                hit, begin, end = region['count'], region['startOffset'], region['endOffset']\n                if (type(hit) is not int or hit <= 0 or type(begin) is not int\n                    or type(end) is not int or not 0 <= begin < end):\n                    raise SystemExit('Invalid or uncovered V8 counter')\n                count += 1\n        found[path] = {'functions': len(functions), 'ranges': count}\nif set(found) != expected:\n    raise SystemExit('Missing production coverage: ' + str(expected - set(found)))\nprint('Exact positive V8 counters for every production module:', found)\nprint('Codec unit evidence only; Rust, HTTP and S3 integration are separate.')"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18484869835386,
+        "name": "codec-unit-2",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18484754348862,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "a0716435844d8fcd14063abe384abf2eaf00c6213ec421d96bee04567bf63d31",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "5d12405c79663e7f1f4975032d31a9620d21fd5d91231694106e7c23766cb0f0"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/discovery-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-discovery",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 1,
+        "finish_monotonic_ns": 18500844540698,
+        "name": "discovery-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18499407231858,
+        "stderr_sha256": "56a1b5edae52510cdd70d4408ef792970da7712e2d02c4c9197972a9b4bd473f",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "d30687cf842379d6c0f6b18e1cf3601e15a6c753e945aa542f1299c1d94de081"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/gc-store-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-gc-store",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18504181125280,
+        "name": "gc-store-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18503452250743,
+        "stderr_sha256": "86d083ba9f416fa549bcfee2cf8d4059f3caba73ee81b3e30657d754f138ad54",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "676b493075559d20887da618d37d1bf2bde9ae88d467bad07e08b7a0516a378c"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/guarded-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/guarded-status",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18502843112153,
+        "name": "guarded-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18501795831354,
+        "stderr_sha256": "38e43f6c1b85bb1d96ef5fd07e3fe603fac2b95e7ff0766826423826243e001c",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "1f3826ed94aaf9343929f94b09c2692b1c3fe133b1387e9043b54ffacd55e80f"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/metadata-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-metadata",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18501794518541,
+        "name": "metadata-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18500846286956,
+        "stderr_sha256": "2acc2b08e548b3b77423ba4786788a3e49a5058f60fb0d68573da5a540cf43c2",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "db7d88e6f4d45d66b0ae8ca538a7dec1b19773ffb77f99e098567018de1be7b9"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/network-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-network",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18492000815796,
+        "name": "network-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18484871078124,
+        "stderr_sha256": "21542e44824ff78aeffd30a049db8f14745f65590034ea93ecef4f83268d9144",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "3332b05aa70e005cd0c689b779e4725ba3a8138596ffab86a6bcb12eb6979a17"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-load-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-load",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18513181201539,
+        "name": "object-load-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18510793610123,
+        "stderr_sha256": "ccd5d6c39c26049d6380b507da38a2c615b38c556ce0babc5524b292c7da3578",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 600
+      },
+      "sha256": "6a829260cde8ee11211a7ba53485fe94cd90898da76e2f9a2ba2c2d8b62d3400"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-owner-plan-model-explore-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "experiments/object-owner-plan-model/explore.py",
+          "--output",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/object-owner-plan-explore-head8-01"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18526691596669,
+        "name": "object-owner-plan-model-explore-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18516674009952,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "8e4b345cb4cae18a151306d2139845d7cd6134b33d841e9e22b513f3fef46592",
+        "timeout": false,
+        "timeout_seconds": 150
+      },
+      "sha256": "f0b69fde2bc343b1abb4b1369c8ff87a7c312c8b0794cae59558ab541adea964"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-owner-plan-model-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-owner-plan-model",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18516672666025,
+        "name": "object-owner-plan-model-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18514933221950,
+        "stderr_sha256": "e1fa3561b2c9aded89e7537598fd2140759dda60fd4ea5054ef0531db7b1f62d",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 120
+      },
+      "sha256": "4c54127a484917c7c8f16cb4ef7370f5e740f904a8ff06d4ee78bba17e424204"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-reclamation-runtime-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-reclamation-runtime",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18510792055614,
+        "name": "object-reclamation-runtime-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18509693950463,
+        "stderr_sha256": "8ed3a0e55c6fdf089e73d6f7620a158bf02bc10fc544073e0c46ef187c2d77cc",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 600
+      },
+      "sha256": "9928fbcd1a2adf539a4c62fd66ce272f2e6d20d3c3a48f12b212866d39f7fb8f"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-terminal-retirement-model-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-terminal-retirement-model",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18509692534378,
+        "name": "object-terminal-retirement-model-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18508679273631,
+        "stderr_sha256": "1edb9ee683e2973371817889ba72dd14a8f77bff074aa24a4c8c737a85d1e395",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 600
+      },
+      "sha256": "c2a8420d8f1baba0f4e676889808de6a212278c13bc13cf6ef3f683f7819b7b9"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/object-terminal-retirement-runtime-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-terminal-retirement-runtime",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18514930743429,
+        "name": "object-terminal-retirement-runtime-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18513195501674,
+        "stderr_sha256": "1be35b734ab34fe21c483c796d6b62307a73517360626cb1e994a26b43444b9b",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 600
+      },
+      "sha256": "cc6d5171c7504d797aa6a4df85c39fa430299545a8746b716ebb5d20c0c72ce5"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/output-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/output-pool",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18503165703688,
+        "name": "output-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18502844801236,
+        "stderr_sha256": "0dcd2620598d0c9e31eb695667e16fe96b9d8583d89261b2ecb632646dc3afa9",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "356844511de765d897c32c83b08d8014ed68948390f4da60a10524dc416ff46f"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/repo-docs-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "scripts/check_repo.py"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18508657705520,
+        "name": "repo-docs-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18508384181801,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "442973ac27d291e0bae90b51481b6942eb642e351a0a2989c4c68cdaba5d5ab9",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "79f3eef5dfe0a966c3a007c536d13f7b61873fae46631fbd24177499724658ee"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/resource-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/resource-limits",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18503450676104,
+        "name": "resource-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18503334484003,
+        "stderr_sha256": "e9511e8724b8bab88b547c55d1deb9348d7876af0ebd431a9dc3af78295781cd",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "0c097499accfa86703b2e9f79efb99abaa3e46dbd0331f9fb63720ac48ad9131"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/response-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/bounded-transport/response",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18503333446549,
+        "name": "response-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18503167286090,
+        "stderr_sha256": "de76dc775a058d7e5809886e33f7aafdf4daeb7f9b1518b29cb2c29cbda1ace4",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "1a6bf42436229d9a39f78e638f097e011faa50eee4463208f690cf06fd3cb882"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/sdk-real-fetch-1.json",
+      "record": {
+        "argv": [
+          "npm",
+          "--prefix",
+          "sdk/node",
+          "run",
+          "test:http"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18479828191762,
+        "name": "sdk-real-fetch-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18479201795937,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "735f7082afc90c76a6a1f1e1432ddb5a6e4a15533aa8efc8c908f7f67574bf2a",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "09303953c99b4b668901ecc5e64e4abe6d09a1609c37d57263aff07e12dcb525"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/sdk-types-1.json",
+      "record": {
+        "argv": [
+          "node",
+          "/home/agent/.npm/_npx/a322a253dbd59f36/node_modules/typescript/bin/tsc",
+          "--strict",
+          "--noEmit",
+          "--target",
+          "es2022",
+          "--module",
+          "nodenext",
+          "--moduleResolution",
+          "nodenext",
+          "sdk/node/test/types.ts"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18483340231857,
+        "name": "sdk-types-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18479830151366,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "f45f7643b9f82664858292549d28c72c7c9c878f23a85d96820e7660ffafb2ef"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/sdk-unit-1.json",
+      "record": {
+        "argv": [
+          "env",
+          "NODE_V8_COVERAGE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-sdk-v8",
+          "npm",
+          "--prefix",
+          "sdk/node",
+          "test"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18479199181207,
+        "name": "sdk-unit-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18477528915468,
+        "stderr_sha256": "c775d51a0fdcf6f053c977fbd96ecb508027ee3243c04c375d659dc779059118",
+        "stdout_sha256": "512c708ff30bd2ae25f97ba3308f1be62ad96c5907259bbf32791c00ca766637",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "c038ed4906e91d5ac99100351e35e11390624258652ff5fe9a460750d37d69e5"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/service-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-service",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18499404644556,
+        "name": "service-fixture-units-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18492007161213,
+        "stderr_sha256": "c0f1e4fab67244b388a7bd48941a6ae8b40ba620a4ca3b6b1ee6b5e56a163482",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "e69a92d85a6dbebf587a334dd7e42824300018ebe9c4bf73241719ee9a89a9ca"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/source-after.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18526963152103,
+        "name": "source-after",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18526693242070,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "4f5efb6ee1b8966db2aa1cbbc1c56f894315120456d1b6c3775cd7982d51f8f5"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/source-before.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18477522059204,
+        "name": "source-before",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18476911367369,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "f9db4118a66c379cbec7a29f4149b725bcd4a66f108e3025636483f38479ba15"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/tooling-unit-1.json",
+      "record": {
+        "argv": [
+          "env",
+          "COVERAGE_FILE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-tooling.coverage",
+          "python3",
+          "-m",
+          "coverage",
+          "run",
+          "--branch",
+          "--source=scripts",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests/tooling"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18506728805446,
+        "name": "tooling-unit-1",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18504183630177,
+        "stderr_sha256": "5ebdbb1a2dfcde6dac79816c8422720ed68dabb9c348591f36e6675aef9a37d4",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "eff9348e136fdf80d7e51915b01c17c6c9e2801c21e3292f82ad5d49eb01508c"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/tooling-unit-2.json",
+      "record": {
+        "argv": [
+          "env",
+          "COVERAGE_FILE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-tooling.coverage",
+          "python3",
+          "-m",
+          "coverage",
+          "report",
+          "--show-missing",
+          "--fail-under=100"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18506949660621,
+        "name": "tooling-unit-2",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18506730796116,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "15732b5f4a95feee69dbbf7c6ed7e6441dea30eb8197dd190c0edad38ff3dba0",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "b39a303a51b94eed8b5ef709e6574ca9a8b740a23ae646c1b3ba7475286c9335"
+    },
+    {
+      "path": "head8-client-tooling-gates-01/tooling-unit-3.json",
+      "record": {
+        "argv": [
+          "env",
+          "COVERAGE_FILE=/workspace/scratch/3ff9bab58e00/scap-evidence/head8-tooling.coverage",
+          "python3",
+          "-m",
+          "coverage",
+          "json",
+          "-o",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-tooling.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18508366688668,
+        "name": "tooling-unit-3",
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "start_monotonic_ns": 18506953051208,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "758c709450c2fc49d1c941e89032ca266982b31967a4f0f43aa1c9ce1ccab1ba",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "8b458c2ff9cd6c136ef8c0ef0b559a358d177ea2d98af7d9aff3949d5d220226"
+    },
+    {
+      "path": "head8-discovery-fixture-gates-01/discovery-fixture-units-1.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "experiments/object-discovery",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8-discovery-fixture",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18949792506330,
+        "name": "discovery-fixture-units-1",
+        "plan_sha256": "9302027e29ccef9e0b17adbb21197b45bfbd842b5252b8a32eaee44bb59942b0",
+        "start_monotonic_ns": 18948714431935,
+        "stderr_sha256": "7eaf5ff17d9866258e5e95b60d06e34fdf2742b5ebc6df870b07d27a81a8ecdb",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 300
+      },
+      "sha256": "b7398b91ad0215b38690e28f6f933ea6e8138548128692c6beabee9355bc34fb"
+    },
+    {
+      "path": "head8-discovery-fixture-gates-01/source-after.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-discovery-fixture-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8-discovery-fixture",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18950271764054,
+        "name": "source-after",
+        "plan_sha256": "9302027e29ccef9e0b17adbb21197b45bfbd842b5252b8a32eaee44bb59942b0",
+        "start_monotonic_ns": 18949798675551,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "ae9dd7be5c44a410c26a06b7e81fdf616355a67ffdccae2b238a807464780e28",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "20210b24994a8bab12aa9a9f04746eeb978e280f23e958805d952af11d8e2636"
+    },
+    {
+      "path": "head8-discovery-fixture-gates-01/source-before.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-discovery-fixture-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8-discovery-fixture",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 18948713199289,
+        "name": "source-before",
+        "plan_sha256": "9302027e29ccef9e0b17adbb21197b45bfbd842b5252b8a32eaee44bb59942b0",
+        "start_monotonic_ns": 18948295291783,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "ae9dd7be5c44a410c26a06b7e81fdf616355a67ffdccae2b238a807464780e28",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "d826c2eac40022c163fa348c1b1eb9e8d1be16d3427dc5aaa26f8c1a245d64e3"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/object-gc-store-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/object-gc-store/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19741469749052,
+        "name": "object-gc-store-1",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19740349625927,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 1200
+      },
+      "sha256": "81b58ba035deafae792a01341af1c8e38ba6d26337a30238cbbf3cdea34f0861"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/object-gc-store-2.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/object-gc-store/Cargo.toml",
+          "--all-targets",
+          "--locked",
+          "--offline",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19746638054066,
+        "name": "object-gc-store-2",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19741470556521,
+        "stderr_sha256": "e412ea52b8b3fab4f6dc1a8d26c04d786005960be104e1ee28ac36430ab278dc",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 1200
+      },
+      "sha256": "30495eebd33e0ab7cc344f3b07d6f7d2f7b89df9172266cfd9ccce6463784b50"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/resource-limits-1.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "fmt",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19738862389898,
+        "name": "resource-limits-1",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19737742503511,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 1200
+      },
+      "sha256": "5c7ec97b25335b6ef5a30b95a4ab73a6f8f40e0f4d8dad22c63636ba51bf4e05"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/resource-limits-2.json",
+      "record": {
+        "argv": [
+          "cargo",
+          "+1.90.0",
+          "clippy",
+          "--manifest-path",
+          "experiments/resource-limits/Cargo.toml",
+          "--all-targets",
+          "--locked",
+          "--offline",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19740346811634,
+        "name": "resource-limits-2",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19738863568439,
+        "stderr_sha256": "eafa5d345530ea96d87c65df6d2919b9cfce9df32c635322ed5d883d1468f4c4",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout": false,
+        "timeout_seconds": 1200
+      },
+      "sha256": "339ce55b6818b68bfa6eea675d04452bb6a1b048e30f32862f3a129b3f28da10"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/source-after.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19746856221806,
+        "name": "source-after",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19746639343359,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "00e22789bc3ef6a879b0e8b152ed53897bc5e4cdc5739ef1569f9caa80d9aee4"
+    },
+    {
+      "path": "head8-harness-lint-resume-gates-02/source-before.json",
+      "record": {
+        "argv": [
+          "python3",
+          "-B",
+          "scripts/source_manifest.py",
+          "verify",
+          "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+        ],
+        "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "exit_code": 0,
+        "finish_monotonic_ns": 19737741028151,
+        "name": "source-before",
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "start_monotonic_ns": 19737524331268,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+        "timeout": false,
+        "timeout_seconds": 60
+      },
+      "sha256": "07585b8405cf6b54cf067348b567a1118f075bb44ccbf7fccb4b9bf432319a87"
+    }
+  ],
+  "gates": {
+    "client_tooling_composition": {
+      "composition": "All original successful gates remain separate; only discovery fixture units are supplied by clean fixture 2da2443. Product and actual fixture implementations/deadlines are unchanged.",
+      "correction": {
+        "corrected_file_sha256": "729b1646b19fc189e975e77113c537909eef142a52cf02ca80fc0bd21eab02aa",
+        "corrected_source_commit": "2da24432080a20b3a379416fb78bc85bb7465117",
+        "correction": "Use original Worker 12-second startup contract for the healthy-child cleanup and invalid-ready tests. ShortWorker 0.1 seconds remains only in the deliberately incomplete-line deadline test. No product, actual fixture Worker implementation, actual process deadlines, or oracle changes.",
+        "observed_failure": "Healthy Python child did not deliver its ready line within ShortWorker 0.1 seconds. The intended failed-stop-log cleanup path was never entered. Other compiles were concurrent; no exclusive cause is inferred.",
+        "original_file_sha256": "fbcb3a93f52162fcb2884102ed11bb13bd9849a00d3327c8cb30c3281b97f077",
+        "original_gate": "head8-client-tooling-gates-01/discovery-fixture-units-1.json",
+        "original_source_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02",
+        "original_stderr": "head8-client-tooling-gates-01/discovery-fixture-units-1.stderr",
+        "status": "FAILED_ORIGINAL_PRESERVED_FIXTURE_ONLY_CORRECTION_PASSED",
+        "verification": {
+          "gate_summary": "head8-discovery-fixture-gates-01/summary.json",
+          "product_and_actual_deadlines_unchanged": true,
+          "source_before_after": "PASSED",
+          "source_manifest": "head8-discovery-fixture-source.json",
+          "tests": 23
+        }
+      },
+      "original_failed_gate_preserved": true,
+      "original_summary": {
+        "all_commands_passed": false,
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "gates": {
+          "actionlint": true,
+          "codec-unit": true,
+          "discovery-fixture-units": false,
+          "gc-store-fixture-units": true,
+          "guarded-fixture-units": true,
+          "metadata-fixture-units": true,
+          "network-fixture-units": true,
+          "object-load-units": true,
+          "object-owner-plan-model-explore": true,
+          "object-owner-plan-model-units": true,
+          "object-reclamation-runtime-units": true,
+          "object-terminal-retirement-model-units": true,
+          "object-terminal-retirement-runtime-units": true,
+          "output-fixture-units": true,
+          "repo-docs": true,
+          "resource-fixture-units": true,
+          "response-fixture-units": true,
+          "sdk-real-fetch": true,
+          "sdk-types": true,
+          "sdk-unit": true,
+          "service-fixture-units": true,
+          "source-after": true,
+          "tooling-unit": true
+        },
+        "plan_sha256": "e7f290c075237671b6171e7c42d175cf3dab1b240616199e3c299e50095df424",
+        "source_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02"
+      },
+      "original_summary_sha256": "f8f0544be5103e384cc392d8aebc0955a230a2d66a0c03cfbe86a4407256b963"
+    },
+    "harness_lint_composition": {
+      "completed_original_commands": [
+        {
+          "path": "head8-harness-lint-gates-01/source-before.json",
+          "record": {
+            "argv": [
+              "python3",
+              "-B",
+              "scripts/source_manifest.py",
+              "verify",
+              "/workspace/scratch/3ff9bab58e00/scap-evidence/head8-source.json"
+            ],
+            "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+            "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+            "exit_code": 0,
+            "finish_monotonic_ns": 18959064328308,
+            "name": "source-before",
+            "plan_sha256": "9c5a30775f5edf86ec5d41f30037040ddf5b368483ef4514a5c49776ae0ab486",
+            "start_monotonic_ns": 18958847015679,
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdout_sha256": "833e716831eb05caf4d71f726ce3e6db172e41a1ef1fd70c041a93e50b26a461",
+            "timeout": false,
+            "timeout_seconds": 60
+          },
+          "sha256": "16f49903b3b4a3f7f8104bc5709636f7bf475574efa1a26440a8642651a46320"
+        },
+        {
+          "path": "head8-harness-lint-gates-01/object-network-1.json",
+          "record": {
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "fmt",
+              "--manifest-path",
+              "experiments/object-network/Cargo.toml",
+              "--all",
+              "--",
+              "--check"
+            ],
+            "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+            "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+            "exit_code": 0,
+            "finish_monotonic_ns": 18960036588390,
+            "name": "object-network-1",
+            "plan_sha256": "9c5a30775f5edf86ec5d41f30037040ddf5b368483ef4514a5c49776ae0ab486",
+            "start_monotonic_ns": 18959065690728,
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "timeout": false,
+            "timeout_seconds": 1200
+          },
+          "sha256": "281f1cb0031b6a1736aa4734f5440a9b15d84c8f8849c156a2bd9ce482e83cce"
+        },
+        {
+          "path": "head8-harness-lint-gates-01/object-network-2.json",
+          "record": {
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "clippy",
+              "--manifest-path",
+              "experiments/object-network/Cargo.toml",
+              "--all-targets",
+              "--locked",
+              "--offline",
+              "--",
+              "-D",
+              "warnings"
+            ],
+            "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+            "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+            "exit_code": 0,
+            "finish_monotonic_ns": 18980089366800,
+            "name": "object-network-2",
+            "plan_sha256": "9c5a30775f5edf86ec5d41f30037040ddf5b368483ef4514a5c49776ae0ab486",
+            "start_monotonic_ns": 18960037867470,
+            "stderr_sha256": "99c58bf0ab8739223cf284a100ffe7ac6cd6736db77b88be6e898b704389d2be",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "timeout": false,
+            "timeout_seconds": 1200
+          },
+          "sha256": "97d83b66300c21a8278411f95726e62acb19e584aff4d9018f796b2302ac026b"
+        },
+        {
+          "path": "head8-harness-lint-gates-01/object-discovery-1.json",
+          "record": {
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "fmt",
+              "--manifest-path",
+              "experiments/object-discovery/Cargo.toml",
+              "--all",
+              "--",
+              "--check"
+            ],
+            "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+            "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+            "exit_code": 0,
+            "finish_monotonic_ns": 18981419757609,
+            "name": "object-discovery-1",
+            "plan_sha256": "9c5a30775f5edf86ec5d41f30037040ddf5b368483ef4514a5c49776ae0ab486",
+            "start_monotonic_ns": 18980090866448,
+            "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "timeout": false,
+            "timeout_seconds": 1200
+          },
+          "sha256": "0d6b1880ae8efe5d415bc52cf6c727367a8aeeda8c2c8922fbb92bb90e4f0be5"
+        },
+        {
+          "path": "head8-harness-lint-gates-01/object-discovery-2.json",
+          "record": {
+            "argv": [
+              "cargo",
+              "+1.90.0",
+              "clippy",
+              "--manifest-path",
+              "experiments/object-discovery/Cargo.toml",
+              "--all-targets",
+              "--locked",
+              "--offline",
+              "--",
+              "-D",
+              "warnings"
+            ],
+            "cwd": "/workspace/scratch/3ff9bab58e00/scap-head8",
+            "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+            "exit_code": 0,
+            "finish_monotonic_ns": 18982246360573,
+            "name": "object-discovery-2",
+            "plan_sha256": "9c5a30775f5edf86ec5d41f30037040ddf5b368483ef4514a5c49776ae0ab486",
+            "start_monotonic_ns": 18981421082768,
+            "stderr_sha256": "266602aa07ae64cd023d3751e725507fec3c17e5c1f7a19034137381037daa3b",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "timeout": false,
+            "timeout_seconds": 1200
+          },
+          "sha256": "71ccfb9a5a636314371b355361422fd97a003d5f6d6b65c1aa9ab5c6a3081dd4"
+        }
+      ],
+      "interrupted_original": "head8-harness-lint-gates-01",
+      "interruption_record_sha256": "e469d915afa91198d52ce730a0e59cb41e5e1041131978f9e4d50b095e9a51ae",
+      "resumed_group": "head8-harness-lint-resume-gates-02"
+    },
+    "head8-coverage-gates-01": {
+      "path": "head8-coverage-gates-01/summary.json",
+      "sha256": "f673579d2bfc2f2bde9877122c3a47d74468b8222dbb07887040b7a911fdeda2",
+      "summary": {
+        "all_commands_passed": true,
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "gates": {
+          "source-after": true,
+          "unit-coverage": true
+        },
+        "plan_sha256": "830d0674be71e08f933f03c3edb631af656807a9964c4b0295c2988127ad6696",
+        "source_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02"
+      }
+    },
+    "head8-discovery-fixture-gates-01": {
+      "path": "head8-discovery-fixture-gates-01/summary.json",
+      "sha256": "334eba1021274035ea3509d80d98c738701fbf6819e7c250f0d926580ed6d9c9",
+      "summary": {
+        "all_commands_passed": true,
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "gates": {
+          "discovery-fixture-units": true,
+          "source-after": true
+        },
+        "plan_sha256": "9302027e29ccef9e0b17adbb21197b45bfbd842b5252b8a32eaee44bb59942b0",
+        "source_commit": "2da24432080a20b3a379416fb78bc85bb7465117"
+      }
+    },
+    "head8-harness-lint-resume-gates-02": {
+      "path": "head8-harness-lint-resume-gates-02/summary.json",
+      "sha256": "db234df4bc529be26aaa8f43f125b434d5ce81df4eb38162b83dcd09f2a80aa5",
+      "summary": {
+        "all_commands_passed": true,
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "gates": {
+          "object-gc-store": true,
+          "resource-limits": true,
+          "source-after": true
+        },
+        "plan_sha256": "9124acb2439dc067bb24270b93085fab94552c039a6f9e536689e9e7e627ca94",
+        "source_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02"
+      }
+    },
+    "head8-stable-gates-01": {
+      "path": "head8-stable-gates-01/summary.json",
+      "sha256": "6138b285ebd29274c0380826e5c7e5d13743f06709f229e19eb6b1e497ce7b16",
+      "summary": {
+        "all_commands_passed": true,
+        "driver_sha256": "0b9414ddcad4ef47fe75cca9bec28feaa46dd640dae1c589632059b253d18fb3",
+        "gates": {
+          "clippy": true,
+          "fmt": true,
+          "source-after": true,
+          "stable-units": true
+        },
+        "plan_sha256": "e1af845ef1f9968e1c994d5084384f9619575ca9efff57fd8ffea5dae5eb7a6f",
+        "source_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02"
+      }
+    }
+  },
+  "limitations": [
+    "Original failed discovery fixture test and interrupted lint/build records remain failed/incomplete, not overwritten as passed.",
+    "No SQL/HTTP/S3/native integration profiles supply unit coverage.",
+    "This record does not certify later controller, HEAD9 snapshots, AWS, deployment SLO or unexecuted actual gates."
+  ],
+  "owner_plan_model": {
+    "formal_evidence": "object-owner-plan-explore-head8-01",
+    "negative": 48,
+    "positive": 989,
+    "positive_controls": 3,
+    "product_certification": false,
+    "unit_tests": 19
+  },
+  "per_file": [
+    {
+      "branches": [
+        16,
+        16
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "lines": [
+        129,
+        129
+      ],
+      "path": "crates/scap-object-sqlite/src/config.rs",
+      "regions": [
+        205,
+        205
+      ],
+      "source_sha256": "0e271120f953cc9683470f5ccf3f59f2e839349b014b0a3790835dacd5ee12ee"
+    },
+    {
+      "branches": [
+        24,
+        24
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "lines": [
+        131,
+        131
+      ],
+      "path": "crates/scap-object-sqlite/src/file.rs",
+      "regions": [
+        163,
+        163
+      ],
+      "source_sha256": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932"
+    },
+    {
+      "branches": [
+        20,
+        20
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "lines": [
+        104,
+        104
+      ],
+      "path": "crates/scap-object-sqlite/src/gate.rs",
+      "regions": [
+        123,
+        123
+      ],
+      "source_sha256": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d"
+    },
+    {
+      "branches": [
+        38,
+        38
+      ],
+      "functions": [
+        3,
+        3
+      ],
+      "lines": [
+        64,
+        64
+      ],
+      "path": "crates/scap-object-sqlite/src/image.rs",
+      "regions": [
+        74,
+        74
+      ],
+      "source_sha256": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42"
+    },
+    {
+      "branches": [
+        12,
+        12
+      ],
+      "functions": [
+        8,
+        8
+      ],
+      "lines": [
+        130,
+        130
+      ],
+      "path": "crates/scap-object-sqlite/src/lib.rs",
+      "regions": [
+        181,
+        181
+      ],
+      "source_sha256": "ccf265866e1fdf8761ee331c5fe28a7a7c831a9b59aa1072377bea18449dbcbb"
+    },
+    {
+      "branches": [
+        6,
+        6
+      ],
+      "functions": [
+        6,
+        6
+      ],
+      "lines": [
+        46,
+        46
+      ],
+      "path": "crates/scap-object-sqlite/src/query.rs",
+      "regions": [
+        75,
+        75
+      ],
+      "source_sha256": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377"
+    },
+    {
+      "branches": [
+        72,
+        72
+      ],
+      "functions": [
+        21,
+        21
+      ],
+      "lines": [
+        392,
+        392
+      ],
+      "path": "crates/scap-object-sqlite/src/sql.rs",
+      "regions": [
+        476,
+        476
+      ],
+      "source_sha256": "9c164bd72134118239da03142c6d08b49aeab77b70053c234d9ea3f8ac282df3"
+    },
+    {
+      "branches": [
+        10,
+        10
+      ],
+      "functions": [
+        10,
+        10
+      ],
+      "lines": [
+        70,
+        70
+      ],
+      "path": "crates/scap-object-sqlite/src/storage.rs",
+      "regions": [
+        100,
+        100
+      ],
+      "source_sha256": "7f852057de3797725f29f95b73cdbdf9bf81cc07aa3a26933312057eb1813782"
+    },
+    {
+      "branches": [
+        114,
+        114
+      ],
+      "functions": [
+        31,
+        31
+      ],
+      "lines": [
+        321,
+        321
+      ],
+      "path": "crates/scap-object-store/src/gc.rs",
+      "regions": [
+        461,
+        461
+      ],
+      "source_sha256": "c16af1daeb1896dd57db18d24050c156427005464bfce57f981943c356fcc1ac"
+    },
+    {
+      "branches": [
+        44,
+        44
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "lines": [
+        118,
+        118
+      ],
+      "path": "crates/scap-object-store/src/gc_xml.rs",
+      "regions": [
+        188,
+        188
+      ],
+      "source_sha256": "bc4ef60668dc40bde643a6ad477d443de3c871bd1240b78c86458f4466fa0228"
+    },
+    {
+      "branches": [
+        68,
+        68
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "lines": [
+        207,
+        207
+      ],
+      "path": "crates/scap-object-store/src/lib.rs",
+      "regions": [
+        289,
+        289
+      ],
+      "source_sha256": "84b63ccb39c14e2e8c457d1868036570efbcd9bbe23279f59cf2a438dd5f03fd"
+    },
+    {
+      "branches": [
+        46,
+        46
+      ],
+      "functions": [
+        12,
+        12
+      ],
+      "lines": [
+        121,
+        121
+      ],
+      "path": "crates/scap-object-store/src/listing.rs",
+      "regions": [
+        186,
+        186
+      ],
+      "source_sha256": "7324a3802e5f62e23b36ececb1e4cca0bd681084dcdd4e258a399171fe7779dd"
+    },
+    {
+      "branches": [
+        16,
+        16
+      ],
+      "functions": [
+        11,
+        11
+      ],
+      "lines": [
+        79,
+        79
+      ],
+      "path": "crates/scap-object-store/src/listing_guard.rs",
+      "regions": [
+        143,
+        143
+      ],
+      "source_sha256": "216d0acf7425faee9de01646576adde4e9d6dde6e10a1b8407af978d031114c8"
+    },
+    {
+      "branches": [
+        66,
+        66
+      ],
+      "functions": [
+        14,
+        14
+      ],
+      "lines": [
+        216,
+        216
+      ],
+      "path": "crates/scap-object-store/src/listing_xml.rs",
+      "regions": [
+        379,
+        379
+      ],
+      "source_sha256": "ab547a73cb0dad46e269a0ecd1f86a7887d7d0a5ccf9cf71c071de04097eefcc"
+    },
+    {
+      "branches": [
+        78,
+        78
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "lines": [
+        403,
+        403
+      ],
+      "path": "crates/scap-object/src/catalogue/control.rs",
+      "regions": [
+        670,
+        670
+      ],
+      "source_sha256": "252513f669e88fb1eec3ebd7c700ba83e68791a11e81f6d1b8baa30506dd723c"
+    },
+    {
+      "branches": [
+        10,
+        10
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "lines": [
+        112,
+        112
+      ],
+      "path": "crates/scap-object/src/catalogue/create.rs",
+      "regions": [
+        224,
+        224
+      ],
+      "source_sha256": "86614901b0f4cc9cecf77e2591bca4e99c68b3f7cd01541a2a1a1b1ceef615fa"
+    },
+    {
+      "branches": [
+        76,
+        76
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "lines": [
+        294,
+        294
+      ],
+      "path": "crates/scap-object/src/catalogue/discovery.rs",
+      "regions": [
+        398,
+        398
+      ],
+      "source_sha256": "93005f12a3234c3a1fc2a3656aaac3a86f4605bed4840dcc94492c31a85afe4d"
+    },
+    {
+      "branches": [
+        24,
+        24
+      ],
+      "functions": [
+        10,
+        10
+      ],
+      "lines": [
+        97,
+        97
+      ],
+      "path": "crates/scap-object/src/catalogue/discovery_budget.rs",
+      "regions": [
+        127,
+        127
+      ],
+      "source_sha256": "ed2a8bd91615dd6ddade16e9a35078f3f389e20d77b5851a84ec0de59f2cfa4d"
+    },
+    {
+      "branches": [
+        30,
+        30
+      ],
+      "functions": [
+        7,
+        7
+      ],
+      "lines": [
+        143,
+        143
+      ],
+      "path": "crates/scap-object/src/catalogue/discovery_names.rs",
+      "regions": [
+        167,
+        167
+      ],
+      "source_sha256": "d34043b9ebf8bfebee4b421255f84874ce70ca7386d1131440b885972a45d18e"
+    },
+    {
+      "branches": [
+        48,
+        48
+      ],
+      "functions": [
+        16,
+        16
+      ],
+      "lines": [
+        279,
+        279
+      ],
+      "path": "crates/scap-object/src/catalogue/discovery_records.rs",
+      "regions": [
+        555,
+        555
+      ],
+      "source_sha256": "02535cc7c81ca3f621ff2ad8aff0f733648a066b6cc45a8495268249c67520b4"
+    },
+    {
+      "branches": [
+        26,
+        26
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "lines": [
+        247,
+        247
+      ],
+      "path": "crates/scap-object/src/catalogue/inspect.rs",
+      "regions": [
+        403,
+        403
+      ],
+      "source_sha256": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252"
+    },
+    {
+      "branches": [
+        52,
+        52
+      ],
+      "functions": [
+        34,
+        34
+      ],
+      "lines": [
+        327,
+        327
+      ],
+      "path": "crates/scap-object/src/catalogue/mod.rs",
+      "regions": [
+        526,
+        526
+      ],
+      "source_sha256": "3579e9b3a48ca2ff3c5b5a0fbfc600c697be9156c04b75d70252d3d9eaaba108"
+    },
+    {
+      "branches": [
+        54,
+        54
+      ],
+      "functions": [
+        23,
+        23
+      ],
+      "lines": [
+        230,
+        230
+      ],
+      "path": "crates/scap-object/src/catalogue/records.rs",
+      "regions": [
+        350,
+        350
+      ],
+      "source_sha256": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe"
+    },
+    {
+      "branches": [
+        52,
+        52
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "lines": [
+        162,
+        162
+      ],
+      "path": "crates/scap-object/src/catalogue/recovery_budget.rs",
+      "regions": [
+        207,
+        207
+      ],
+      "source_sha256": "46f12f2296245188271a1fd4fa249017d51d069e2b085e8956c4424187ab97ad"
+    },
+    {
+      "branches": [
+        32,
+        32
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "lines": [
+        292,
+        292
+      ],
+      "path": "crates/scap-object/src/catalogue/recovery_job.rs",
+      "regions": [
+        398,
+        398
+      ],
+      "source_sha256": "b069985adfdc0450f19103960dc8c05261631ca9fb35f0a5e3ceeac105b93ee7"
+    },
+    {
+      "branches": [
+        2,
+        2
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "lines": [
+        46,
+        46
+      ],
+      "path": "crates/scap-object/src/catalogue/terminal.rs",
+      "regions": [
+        81,
+        81
+      ],
+      "source_sha256": "6de5dfc8b672b6167fe1662d5970b12fe73fe2e0b7bfdea4361f8b470683c1db"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        1,
+        1
+      ],
+      "lines": [
+        8,
+        8
+      ],
+      "path": "crates/scap-object/src/catalogue/types.rs",
+      "regions": [
+        8,
+        8
+      ],
+      "source_sha256": "f0f28940542f71f283fe0cbc010ca20b0d08553806888a966ee990286a502e3a"
+    },
+    {
+      "branches": [
+        56,
+        56
+      ],
+      "functions": [
+        20,
+        20
+      ],
+      "lines": [
+        361,
+        361
+      ],
+      "path": "crates/scap-object/src/closure.rs",
+      "regions": [
+        490,
+        490
+      ],
+      "source_sha256": "86394cf0a18a93131bfb8cac06a5d0406bee4eb4acdb4893f1852a236ebf9dad"
+    },
+    {
+      "branches": [
+        60,
+        60
+      ],
+      "functions": [
+        23,
+        23
+      ],
+      "lines": [
+        291,
+        291
+      ],
+      "path": "crates/scap-object/src/data_tree.rs",
+      "regions": [
+        434,
+        434
+      ],
+      "source_sha256": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9"
+    },
+    {
+      "branches": [
+        54,
+        54
+      ],
+      "functions": [
+        41,
+        41
+      ],
+      "lines": [
+        368,
+        368
+      ],
+      "path": "crates/scap-object/src/format.rs",
+      "regions": [
+        674,
+        674
+      ],
+      "source_sha256": "1ade0403b66df3fb8ae2d126395350a606de04156529011a8e9160f36b1bb4f2"
+    },
+    {
+      "branches": [
+        42,
+        42
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "lines": [
+        111,
+        111
+      ],
+      "path": "crates/scap-object/src/head_publication.rs",
+      "regions": [
+        136,
+        136
+      ],
+      "source_sha256": "8e72fcea3dc0ea8601fc6e3bbc9c0e75a8684ea3c68742522107f523695d22eb"
+    },
+    {
+      "branches": [
+        134,
+        134
+      ],
+      "functions": [
+        83,
+        83
+      ],
+      "lines": [
+        943,
+        943
+      ],
+      "path": "crates/scap-object/src/lib.rs",
+      "regions": [
+        1527,
+        1527
+      ],
+      "source_sha256": "177122bd61cfa745d9b08ee7580e2a5babdc558a0b42b311154dda122f36a38b"
+    },
+    {
+      "branches": [
+        76,
+        76
+      ],
+      "functions": [
+        36,
+        36
+      ],
+      "lines": [
+        287,
+        287
+      ],
+      "path": "crates/scap-object/src/object_context.rs",
+      "regions": [
+        405,
+        405
+      ],
+      "source_sha256": "3de4bcce2131f1e30fb39ab090413f46eb5e01544aec4a12ec05def82a64ace7"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        5,
+        5
+      ],
+      "lines": [
+        60,
+        60
+      ],
+      "path": "crates/scap-object/src/object_frame.rs",
+      "regions": [
+        101,
+        101
+      ],
+      "source_sha256": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5"
+    },
+    {
+      "branches": [
+        42,
+        42
+      ],
+      "functions": [
+        6,
+        6
+      ],
+      "lines": [
+        102,
+        102
+      ],
+      "path": "crates/scap-object/src/options.rs",
+      "regions": [
+        115,
+        115
+      ],
+      "source_sha256": "706e37b30dc87ad573d2ca78879558e09e872df665f96479aa72654927e58cae"
+    },
+    {
+      "branches": [
+        102,
+        102
+      ],
+      "functions": [
+        41,
+        41
+      ],
+      "lines": [
+        515,
+        515
+      ],
+      "path": "crates/scap-object/src/owner.rs",
+      "regions": [
+        901,
+        901
+      ],
+      "source_sha256": "2e62d18321d40754ac31166c30e5bfa289fe3e6e60a563f1a1016552a152664e"
+    },
+    {
+      "branches": [
+        108,
+        108
+      ],
+      "functions": [
+        30,
+        30
+      ],
+      "lines": [
+        259,
+        259
+      ],
+      "path": "crates/scap-object/src/owner_format.rs",
+      "regions": [
+        376,
+        376
+      ],
+      "source_sha256": "8d4f87e8b3b18ecc2d8d02aaeb39d6b4972703228df55b032e1090074991e448"
+    },
+    {
+      "branches": [
+        86,
+        86
+      ],
+      "functions": [
+        28,
+        28
+      ],
+      "lines": [
+        398,
+        398
+      ],
+      "path": "crates/scap-object/src/reclamation.rs",
+      "regions": [
+        634,
+        634
+      ],
+      "source_sha256": "d633a81db60d2ab69f7a520e06c39a2c4dc59b60a5e32d7a97ab6d31a8df436c"
+    },
+    {
+      "branches": [
+        28,
+        28
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "lines": [
+        221,
+        221
+      ],
+      "path": "crates/scap-object/src/request_index.rs",
+      "regions": [
+        298,
+        298
+      ],
+      "source_sha256": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063"
+    },
+    {
+      "branches": [
+        72,
+        72
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "lines": [
+        105,
+        105
+      ],
+      "path": "crates/scap-object/src/storage.rs",
+      "regions": [
+        179,
+        179
+      ],
+      "source_sha256": "0f542a6368ea53c696ef459b0bca210fcd6d0b7e31df98d136fec66bedb73ee2"
+    },
+    {
+      "branches": [
+        28,
+        28
+      ],
+      "functions": [
+        11,
+        11
+      ],
+      "lines": [
+        69,
+        69
+      ],
+      "path": "crates/scap-service/src/auth.rs",
+      "regions": [
+        102,
+        102
+      ],
+      "source_sha256": "47521bd5e320ec0ecc74a49e85be0fd6be3ba17d0d358a58940f341630429d63"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        3,
+        3
+      ],
+      "lines": [
+        55,
+        55
+      ],
+      "path": "crates/scap-service/src/catalogue.rs",
+      "regions": [
+        103,
+        103
+      ],
+      "source_sha256": "f03b8e39995cc84fdb3ba5494ed54fab4d7d65e604eef712c5480f03b36c2d99"
+    },
+    {
+      "branches": [
+        32,
+        32
+      ],
+      "functions": [
+        32,
+        32
+      ],
+      "lines": [
+        222,
+        222
+      ],
+      "path": "crates/scap-service/src/catalogue_scheduler.rs",
+      "regions": [
+        309,
+        309
+      ],
+      "source_sha256": "83ccad815ce32348657ec9ab32c7b9f5f9911ca4cbec9617ad6ac6a4a90c6c00"
+    },
+    {
+      "branches": [
+        24,
+        24
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "lines": [
+        214,
+        214
+      ],
+      "path": "crates/scap-service/src/catalogue_wire.rs",
+      "regions": [
+        386,
+        386
+      ],
+      "source_sha256": "5ae70d66f675ddb7dbae0d6b563c6c385fdb5cbd6b5479ea989a5574b25244a9"
+    },
+    {
+      "branches": [
+        62,
+        62
+      ],
+      "functions": [
+        21,
+        21
+      ],
+      "lines": [
+        214,
+        214
+      ],
+      "path": "crates/scap-service/src/config.rs",
+      "regions": [
+        281,
+        281
+      ],
+      "source_sha256": "dfb0f58f32b674b3e1957978113e26479f0c08e7e21e3a345290ffd1db38d579"
+    },
+    {
+      "branches": [
+        24,
+        24
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "lines": [
+        211,
+        211
+      ],
+      "path": "crates/scap-service/src/daemon.rs",
+      "regions": [
+        317,
+        317
+      ],
+      "source_sha256": "a33a3dcaa071f2f9902624bdb5a88b641d9293d601445a6b505e08e1a8e7cbc5"
+    },
+    {
+      "branches": [
+        32,
+        32
+      ],
+      "functions": [
+        17,
+        17
+      ],
+      "lines": [
+        206,
+        206
+      ],
+      "path": "crates/scap-service/src/discovery.rs",
+      "regions": [
+        273,
+        273
+      ],
+      "source_sha256": "d061985a7191f828d7bf49a9953a3125ed2089541f57ea89e709fb37546c8091"
+    },
+    {
+      "branches": [
+        20,
+        20
+      ],
+      "functions": [
+        19,
+        19
+      ],
+      "lines": [
+        165,
+        165
+      ],
+      "path": "crates/scap-service/src/discovery_cursor.rs",
+      "regions": [
+        258,
+        258
+      ],
+      "source_sha256": "184e17a45d1f13be5267c2c980f387271f8708ed8a5fe0ca64e0a81a287b2c01"
+    },
+    {
+      "branches": [
+        2,
+        2
+      ],
+      "functions": [
+        13,
+        13
+      ],
+      "lines": [
+        95,
+        95
+      ],
+      "path": "crates/scap-service/src/discovery_wire.rs",
+      "regions": [
+        160,
+        160
+      ],
+      "source_sha256": "815f667ed8c5a2825d33d60a4024c6e5c145b92b08125cd1fefc8db9aba794cb"
+    },
+    {
+      "branches": [
+        34,
+        34
+      ],
+      "functions": [
+        32,
+        32
+      ],
+      "lines": [
+        432,
+        432
+      ],
+      "path": "crates/scap-service/src/engine.rs",
+      "regions": [
+        675,
+        675
+      ],
+      "source_sha256": "e28233a7492baa5804fe6773b095ccb36b558975786bad3911cd19904b449ef9"
+    },
+    {
+      "branches": [
+        42,
+        42
+      ],
+      "functions": [
+        25,
+        25
+      ],
+      "lines": [
+        256,
+        256
+      ],
+      "path": "crates/scap-service/src/http.rs",
+      "regions": [
+        427,
+        427
+      ],
+      "source_sha256": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1"
+    },
+    {
+      "branches": [
+        4,
+        4
+      ],
+      "functions": [
+        4,
+        4
+      ],
+      "lines": [
+        57,
+        57
+      ],
+      "path": "crates/scap-service/src/http/discovery.rs",
+      "regions": [
+        101,
+        101
+      ],
+      "source_sha256": "5c1e2921ea205e53b57eefa94677281b4126e0fd4a53466a4813d23eda15e3fd"
+    },
+    {
+      "branches": [
+        36,
+        36
+      ],
+      "functions": [
+        15,
+        15
+      ],
+      "lines": [
+        137,
+        137
+      ],
+      "path": "crates/scap-service/src/intake.rs",
+      "regions": [
+        183,
+        183
+      ],
+      "source_sha256": "7ba5a48e61a07f12ac97ee89db950965fdaf1b6f0e742dd8f07fcbc5883d5739"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        2,
+        2
+      ],
+      "lines": [
+        44,
+        44
+      ],
+      "path": "crates/scap-service/src/lib.rs",
+      "regions": [
+        42,
+        42
+      ],
+      "source_sha256": "4c3bf8ae1deb464ce31c3f7fae43768a03c7fb6b635f97ae7949c28442ce6b80"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        1,
+        1
+      ],
+      "lines": [
+        3,
+        3
+      ],
+      "path": "crates/scap-service/src/main.rs",
+      "regions": [
+        6,
+        6
+      ],
+      "source_sha256": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8"
+    },
+    {
+      "branches": [
+        54,
+        54
+      ],
+      "functions": [
+        45,
+        45
+      ],
+      "lines": [
+        333,
+        333
+      ],
+      "path": "crates/scap-service/src/output.rs",
+      "regions": [
+        465,
+        465
+      ],
+      "source_sha256": "fdbb3b8e2e858d15c97eff73b88cd195de0293a75bc61da120130f5635ee587f"
+    },
+    {
+      "branches": [
+        0,
+        0
+      ],
+      "functions": [
+        12,
+        12
+      ],
+      "lines": [
+        81,
+        81
+      ],
+      "path": "crates/scap-service/src/owner_wire.rs",
+      "regions": [
+        144,
+        144
+      ],
+      "source_sha256": "b816cb0872ecd40b9178c230685faba4a51a5bf0dbc75068c84bff464fdc8556"
+    },
+    {
+      "branches": [
+        110,
+        110
+      ],
+      "functions": [
+        55,
+        55
+      ],
+      "lines": [
+        557,
+        557
+      ],
+      "path": "crates/scap-service/src/scheduler.rs",
+      "regions": [
+        860,
+        860
+      ],
+      "source_sha256": "b3a23d1fb19afbf6f05ab055fc325ff0bc8f5546724625d9de78e41aff7bb7dc"
+    },
+    {
+      "branches": [
+        36,
+        36
+      ],
+      "functions": [
+        25,
+        25
+      ],
+      "lines": [
+        193,
+        193
+      ],
+      "path": "crates/scap-service/src/transport.rs",
+      "regions": [
+        279,
+        279
+      ],
+      "source_sha256": "ea0fc43e0b77a1538829b188ed8974d9e52860659ce6afc88b69f608b1c3c77e"
+    },
+    {
+      "branches": [
+        50,
+        50
+      ],
+      "functions": [
+        46,
+        46
+      ],
+      "lines": [
+        365,
+        365
+      ],
+      "path": "crates/scap-service/src/wire.rs",
+      "regions": [
+        610,
+        610
+      ],
+      "source_sha256": "39ca8b58439c07ddb404e0d3481b646a22c77b647f89868f44b9210f84ba3609"
+    },
+    {
+      "branches": [
+        52,
+        52
+      ],
+      "functions": [
+        26,
+        26
+      ],
+      "lines": [
+        279,
+        279
+      ],
+      "path": "crates/scap-sql/src/lib.rs",
+      "regions": [
+        494,
+        494
+      ],
+      "source_sha256": "f2a1f8ec2be3f0f88392c748e51faab46e155f0220294366985aa64b5e5c7f78"
+    },
+    {
+      "branches": [
+        4,
+        4
+      ],
+      "functions": [
+        9,
+        9
+      ],
+      "lines": [
+        73,
+        73
+      ],
+      "path": "crates/scap-sql/src/result_memory.rs",
+      "regions": [
+        133,
+        133
+      ],
+      "source_sha256": "75e14884ce39552e54e683e33e8e72fe069a25a0b6dee80302d07bc295504afb"
+    },
+    {
+      "branches": [
+        12,
+        12
+      ],
+      "functions": [
+        2,
+        2
+      ],
+      "lines": [
+        42,
+        42
+      ],
+      "path": "crates/scap-sql/src/result_validation.rs",
+      "regions": [
+        92,
+        92
+      ],
+      "source_sha256": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70"
+    }
+  ],
+  "reports": {
+    "coverage_sha256": "ff20711925f4fafb6e7f2aa8301c0cd13bf460d32176bb2b845eaf6dcedf9a9d",
+    "fixture_correction_source": "2da24432080a20b3a379416fb78bc85bb7465117"
+  },
+  "runtime_commit": "3e850357478133ae2b76007c3e0e9609d3d8ac02",
+  "rust": {
+    "integration_profile_used": false,
+    "metrics": {
+      "branches": [
+        2554,
+        2554
+      ],
+      "functions": [
+        1184,
+        1184
+      ],
+      "lines": [
+        13092,
+        13092
+      ],
+      "regions": [
+        20127,
+        20127
+      ]
+    },
+    "production_files": 63,
+    "test_binary_denominators": {
+      "head8-coverage-gates-01/unit-coverage-1.stdout": [
+        352,
+        81,
+        44,
+        186,
+        0,
+        37
+      ],
+      "head8-stable-gates-01/stable-units-1.stdout": [
+        352,
+        81,
+        44,
+        186,
+        0,
+        37
+      ]
+    },
+    "unit_tests": {
+      "nightly": 700,
+      "stable": 700
+    },
+    "zero_denominator_policy": "Measured 0/0 maps are not independently measured 100 percent rates."
+  },
+  "schema_version": 1,
+  "sdk": {
+    "exact_positive_unit_v8": true,
+    "production_modules": 15,
+    "real_fetch_is_separate": true,
+    "tests": 92
+  },
+  "source_files": 582,
+  "source_manifest_sha256": "8a7a6489f7474a5b03c54e702d96bedc853b3ea44dd41e10185b40e5df6922f4",
+  "source_sha256": "20f8beeddec2dad782b39e17b6ddfa1ea0a3f1a18fa0d83794e083d87b417a77",
+  "status": "PASSED_UNIT_AND_STATIC_COMPOSITION_REAL_ACCEPTANCE_SEPARATE",
+  "tree": "a4e5860de2ce091f1b0631dcfac77b43ec985498"
+}

@@ -168,10 +168,14 @@ def audit(directory):
     need(proxy['joined'] is True and proxy['errors'] == [] and len(backend['processes']) == 4
          and all(r['wait_status'] == -9 and r['kernel_usage'].get('source') == 'kernel_wait4_owned_child'
                  for r in backend['processes']), 'owned-cleanup')
+    startup = common.startup_objects(config, events, history,
+        phases=('setup', 'after-stalled', 'after-drip', 'lookup', *SLOW), binary=inputs['tools']['scapd'],
+        configuration_sha256=common.digest((directory / 'service-config.json').read_bytes()))
     return {'status': 'PASSED', 'profile': inputs['profile'], 'http_posts': len(requests),
         'peer_truncated_responses': len(SLOW), 'body_drips': 3, 'business_sql_executions': 1,
         'committed_result_bytes': len(recovered), 'committed_result_sha256': common.digest(recovered),
         'connection_shutdown_seconds': (time_of(stopped) - time_of(stopping)) / 1e9,
+        'worker_startup': startup,
         'aws_standard': 'NOT_RUN', 'production_slo_passed': False}
 
 

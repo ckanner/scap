@@ -32,10 +32,15 @@ struct Trace {
     memory: Memory,
     calls: Mutex<Vec<Call>>,
     pause: Mutex<Option<Pause>>,
+    forbid_head_reads: AtomicBool,
 }
 
 impl Objects for Trace {
     fn get(&self, key: &str, maximum: usize, deadline: Instant) -> Result<Stored, StoreError> {
+        assert!(
+            !self.forbid_head_reads.load(Ordering::Acquire) || key != head_key(&scope()),
+            "publication must not re-read HEAD after admission"
+        );
         self.calls.lock().unwrap().push(Call {
             key: key.into(),
             operation: Operation::Get,
@@ -221,30 +226,9 @@ fn paused_bootstrap_does_not_follow_a_replacement_scope_or_publish_over_it() {
     assert_eq!(old_calls[4].operation, Operation::Create);
 }
 
-struct HeadOnly {
-    inner: Arc<Trace>,
-}
-
-impl Objects for HeadOnly {
-    fn get(&self, _: &str, _: usize, _: Instant) -> Result<Stored, StoreError> {
-        panic!("publication must not re-read HEAD or rebind immutable I/O")
-    }
-
-    fn put(
-        &self,
-        key: &str,
-        bytes: &[u8],
-        condition: Condition<'_>,
-        deadline: Instant,
-    ) -> Result<String, StoreError> {
-        assert_eq!(key, "scap-object/v1/1/2/3/head");
-        self.inner.put(key, bytes, condition, deadline)
-    }
-}
-
 #[test]
 fn publish_gate_consumes_the_admitted_context_request_etag_and_deadline() {
-    let (objects, mut database) = traced();
+    let (objects, database) = traced();
     let until = Instant::now() + Duration::from_secs(5);
     let request = identity(1);
     let Admission::Fresh(context) = database
@@ -257,11 +241,10 @@ fn publish_gate_consumes_the_admitted_context_request_etag_and_deadline() {
     assert_eq!(context.request, request);
     assert_eq!(context.deadline, until);
     objects.calls.lock().unwrap().clear();
-    // A HEAD-only facade detects every accidental re-capture during commit.
-    // Immutable reads/writes must use the previously admitted backend Arc.
-    database.objects = Arc::new(HeadOnly {
-        inner: objects.clone(),
-    });
+    // The original backend forbids a fresh HEAD read after admission. The
+    // final Manifest GET still uses this admitted context and original deadline;
+    // it must not refresh the HEAD or rebase the publication's original ETag.
+    objects.forbid_head_reads.store(true, Ordering::Release);
     let state = Rc::new(RefCell::new(Publication {
         context: Some(context),
         outcome: None,
@@ -295,6 +278,7 @@ fn publish_gate_consumes_the_admitted_context_request_etag_and_deadline() {
         call.key
             .starts_with("scap-object/v1/1/2/3/inc/4/gen/5/storage/1/objects/")
     }));
+    objects.forbid_head_reads.store(false, Ordering::Release);
     let reader = Database::with_options(objects, scope(), 10, test_options()).unwrap();
     assert_eq!(
         reader.lookup(7, &request, deadline()).unwrap(),

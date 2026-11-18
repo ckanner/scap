@@ -99,6 +99,101 @@ def projection_fixture():
                                   exchange(41, "success", "PUT", request_raw=raw, worker="S", path=path)]}
 
 
+def startup_fixture():
+    config = {'backend': {'access_key_sha256': 'a' * 64},
+              's3_endpoints': {'S': 'http://127.0.0.1:10001', 'M': 'http://127.0.0.1:10002'}}
+    events, items = [], []
+    for worker, spawn, observed, ready in (('S', 900, 1000, 1050), ('M', 1050, 1090, 1100)):
+        child = {'pid': int(oracle.WORKERS[worker]), 'pid_source': 'owned_Popen_child', 'spawn_monotonic_ns': observed}
+        events.extend([{'event': 'service_started', 'worker': worker, 'identity': child,
+                        'spawn_requested_ns': spawn, 'monotonic_ns': observed + 1},
+                       {'event': 'service_ready', 'worker': worker, 'identity': child, 'monotonic_ns': ready}])
+        value = b'SCAP-WORKER-INSTANCE-v1\0' + int(oracle.WORKERS[worker]).to_bytes(8, 'big')
+        path = '/scap-test/scap-worker/v1/instances/' + oracle.WORKERS[worker]
+        items.append(exchange(len(items) + 1, 'success', 'PUT', request_raw=value, worker=worker, path=path))
+        items.append(exchange(len(items) + 1, 'success', 'GET', response_raw=value, worker=worker, path=path))
+    items.append(exchange(5, 'success', 'GET', response_raw=encoded(base_head('success')), worker='M'))
+    trace, counters = [], {}
+    for item in items:
+        worker = item['request']['worker']
+        counters[worker] = counters.get(worker, 0) + 1
+        handler = 's3-' + worker + ':' + str(counters[worker])
+        for key in ('request', 'forwarded', 'response', 'terminal'):
+            row = item[key]
+            row['handler_id'] = handler
+            row['signing'].update(algorithm='AWS4-HMAC-SHA256', access_key_sha256='a' * 64,
+                credential_scope='20261118/us-east-1/s3/aws4_request', signature_sha256='b' * 64,
+                host=oracle.endpoint(config['s3_endpoints'][worker]), date='20261118T000000Z',
+                signed_headers=['host', 'x-amz-content-sha256', 'x-amz-date'])
+        common = {'schema': 1, 'listener_id': 's3-' + worker, 'handler_id': handler, 'worker': worker, 'channel': 's3'}
+        trace.append({**common, 'event': 'handler_started', 'monotonic_ns': oracle.stamp(item['request']) - 1})
+        trace.extend(item[key] for key in ('request', 'forwarded', 'response', 'terminal'))
+        trace.append({**common, 'event': 'handler_finished', 'monotonic_ns': oracle.stamp(item['terminal']) + 1, 'failed': False})
+    for number, row in enumerate(trace, 1):
+        row['sequence'] = number
+    return trace, config, events
+
+
+class StartupOracleTests(unittest.TestCase):
+    def test_private_identity_accepts_original_evidence_parent_on_any_mount(self):
+        for parent in ('/tmp', '/home/runner/work/_temp', '/workspace/scratch/evidence'):
+            with self.subTest(parent=parent):
+                oracle.private_runtime_identity({'path': parent + '/scap-metadata-private-ab_123',
+                                                 'device': 27, 'inode': 12345})
+
+    def test_private_identity_rejects_aliases_wrong_owner_shape_and_invalid_inode(self):
+        valid = {'path': '/workspace/scap-metadata-private-owned', 'device': 27, 'inode': 12345}
+        changed = [dict(valid, path=path) for path in ('scap-metadata-private-owned',
+            '/workspace/../scap-metadata-private-owned', '/workspace//scap-metadata-private-owned',
+            '/workspace/./scap-metadata-private-owned', '/workspace/unowned', '/workspace/scap-metadata-private-')]
+        changed += [dict(valid, inode=0), dict(valid, device=True), dict(valid, extra=1)]
+        for value in changed:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'private runtime identity changed'):
+                oracle.private_runtime_identity(value)
+
+    def test_filters_only_four_proven_claims_and_keeps_all_handlers(self):
+        trace, config, events = startup_fixture()
+        exchanges, handlers, startup = oracle.s3_exchanges(trace, config, events)
+        self.assertEqual((len(exchanges), len(handlers)), (1, 5))
+        self.assertEqual(exchanges[0]['request']['path'], oracle.head_path('success'))
+        self.assertEqual(startup, {'instances': {'S': '8101', 'M': '8202'}, 'requests': 4, 'physical_requests': 5})
+
+    def test_six_raw_controls_reach_the_exact_startup_rule(self):
+        trace, config, events = startup_fixture()
+        for case, rule in controls.STARTUP_CASES.items():
+            with self.subTest(case=case), self.assertRaisesRegex(ValueError, '^' + rule + '$'):
+                oracle.s3_exchanges(controls.startup_mutated(trace, events, case), config, events)
+        self.assertEqual(len(oracle.s3_exchanges(trace, config, events)[0]), 1)
+
+    def test_prefix_is_not_an_unverified_namespace_exemption(self):
+        trace, config, events = startup_fixture()
+        for row in trace:
+            if row.get('path', '').endswith('/instances/8101'):
+                row['path'] = '/scap-test/scap-worker/v1/instances/9999'
+        with self.assertRaisesRegex(ValueError, 'S3 request escaped exact Scope/physical generation'):
+            oracle.s3_exchanges(trace, config, events)
+
+    def test_readiness_must_belong_to_the_same_owned_process(self):
+        trace, config, events = startup_fixture()
+        events[1]['identity'] = {**events[1]['identity'], 'pid': 9999}
+        with self.assertRaisesRegex(ValueError, 'worker-identity-owned-ready'):
+            oracle.s3_exchanges(trace, config, events)
+
+    def test_hidden_startup_cannot_share_the_two_claims(self):
+        trace, config, events = startup_fixture()
+        events.append(deepcopy(events[0]))
+        with self.assertRaisesRegex(ValueError, 'worker-identity-lifecycle-denominator'):
+            oracle.s3_exchanges(trace, config, events)
+
+    def test_callback_after_ready_keeps_original_response_order(self):
+        trace, config, events = startup_fixture()
+        for row in trace:
+            if row['handler_id'] == 's3-S:2' and row['event'] in ('object_response_delivered', 'handler_finished'):
+                row['monotonic_ns'] += 20
+        trace.sort(key=oracle.stamp)
+        oracle.s3_exchanges(trace, config, events)
+
+
 def number_observer(trace, calls):
     """Keep mutations causal-looking; the oracle must reject the actual rule."""
     for number, row in enumerate(trace, 1):

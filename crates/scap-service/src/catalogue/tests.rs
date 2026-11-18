@@ -5,7 +5,21 @@ use scap_object::{format::Permission, Database};
 use serde_json::json;
 
 fn call(value: Value) -> Call {
-    parse(value.to_string().as_bytes()).unwrap()
+    let call = parse(value.to_string().as_bytes()).unwrap();
+    // Every new native action needs a deliberate pool/dispatch decision.
+    let (NativeAction::Prepare(_)
+    | NativeAction::Resume(_)
+    | NativeAction::Abort(_)
+    | NativeAction::Inspect(_)
+    | NativeAction::PrepareRestore(_)
+    | NativeAction::InspectRestore { .. }
+    | NativeAction::ResumeRestore(_)
+    | NativeAction::AbortRestore { .. }
+    | NativeAction::Resolve(_)
+    | NativeAction::Delete(_)
+    | NativeAction::StorageStatus(_)
+    | NativeAction::RetireStorage(_)) = call.action.native().unwrap();
+    call
 }
 fn prepare(name: &str, operation: u64) -> Call {
     call(
@@ -274,6 +288,15 @@ fn catalogue_errors_preserve_unknown_missing_identity_and_authorization_distinct
         (core::CatalogueError::Limit, "LIMIT"),
         (core::CatalogueError::Unknown, "UNKNOWN"),
     ] {
+        let (core::CatalogueError::Invalid
+        | core::CatalogueError::Denied
+        | core::CatalogueError::NotFound
+        | core::CatalogueError::Conflict
+        | core::CatalogueError::IdentityConflict
+        | core::CatalogueError::Corrupt
+        | core::CatalogueError::SnapshotExpired
+        | core::CatalogueError::Limit
+        | core::CatalogueError::Unknown) = error;
         assert_eq!(Failure::from(error).code, expected);
     }
 }

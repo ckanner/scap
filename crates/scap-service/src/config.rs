@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use scap_object::format::MAX_OBJECT_BYTES;
 use scap_object_store::S3Config;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::{
     auth::{Authenticator, Credential},
@@ -26,17 +26,75 @@ pub struct Config {
     /// Ordinary /v1 encoding backings only; not other routes or process RSS.
     #[serde(default)]
     pub output: crate::output::Profile,
-    pub worker_instance: Decimal,
+    pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
     /// Missing GC credentials leave physical deletion unavailable.
     pub gc: Option<GarbageConfig>,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
+    pub restore: Option<crate::restore::Profile>,
     pub discovery: Option<DiscoveryConfig>,
     pub cache: Cache,
     pub execution: Option<ExecutionConfig>,
+    /// Per owner-resume payload reads; independent of output, quota and RSS.
+    pub owner_recovery: Option<OwnerRecoveryConfig>,
     pub credentials: Vec<Credential>,
+}
+
+/// JSON keeps the existing canonical decimal strings and adds exactly "auto".
+/// The direct Rust API distinguishes selection from the final assigned number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkerInstance {
+    Explicit(u64),
+    Auto,
+}
+
+impl<'de> Deserialize<'de> for WorkerInstance {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        if text == "auto" {
+            return Ok(Self::Auto);
+        }
+        let number = text.parse::<u64>().map_err(serde::de::Error::custom)?;
+        if number.to_string() != text {
+            return Err(serde::de::Error::custom("noncanonical worker identity"));
+        }
+        Ok(Self::Explicit(number))
+    }
+}
+
+/// An automatic identity is resolved before deriving its startup-specific
+/// cursor codec. Key material is validated during configuration, never logged.
+pub enum PreparedDiscovery {
+    Ready(std::sync::Arc<crate::discovery_cursor::CursorCodec>),
+    Automatic {
+        master: [u8; 32],
+        namespace: [u8; 32],
+    },
+}
+
+impl PreparedDiscovery {
+    pub(crate) fn accepts(&self, worker: WorkerInstance) -> bool {
+        matches!(
+            (self, worker),
+            (Self::Ready(_), WorkerInstance::Explicit(_))
+                | (Self::Automatic { .. }, WorkerInstance::Auto)
+        )
+    }
+
+    pub(crate) fn bind(
+        self,
+        worker: u64,
+    ) -> Result<std::sync::Arc<crate::discovery_cursor::CursorCodec>, Failure> {
+        match self {
+            Self::Ready(codec) => Ok(codec),
+            Self::Automatic { master, namespace } => {
+                crate::discovery_cursor::CursorCodec::new(master, namespace, worker)
+                    .map(std::sync::Arc::new)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -133,16 +191,18 @@ impl CatalogueAdmission {
     /// The same checked construction is used by parsed configuration and the
     /// direct ServiceConfig entry point, before starting catalogue workers.
     pub(crate) fn build_intake(&self) -> Result<crate::intake::Intake, Failure> {
+        self.build_for_class(crate::intake::Class::Catalogue)
+    }
+
+    pub(crate) fn build_for_class(
+        &self,
+        class: crate::intake::Class,
+    ) -> Result<crate::intake::Intake, Failure> {
         if !(1..=65536).contains(&self.max_body_bytes) || !(1..=86400000).contains(&self.timeout_ms)
         {
             return Err(Failure::new("CONFIG"));
         }
-        crate::intake::Intake::new(
-            crate::intake::Class::Catalogue,
-            self.intake,
-            self.max_body_bytes,
-            self.intake_profile,
-        )
+        crate::intake::Intake::new(class, self.intake, self.max_body_bytes, self.intake_profile)
     }
 }
 
@@ -151,6 +211,13 @@ impl CatalogueAdmission {
 #[serde(deny_unknown_fields)]
 pub struct ExecutionConfig {
     pub result_memory_bytes: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OwnerRecoveryConfig {
+    pub payload_gets: u64,
+    pub payload_bytes: u64,
 }
 
 #[derive(Deserialize)]
@@ -184,11 +251,12 @@ pub struct ServiceConfig {
     pub listen: SocketAddr,
     pub transport: crate::transport::Profile,
     pub output: crate::output::Profile,
-    pub worker_instance: u64,
+    pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub admission: Admission,
     pub catalogue: Option<CatalogueAdmission>,
-    pub discovery: Option<std::sync::Arc<crate::discovery_cursor::CursorCodec>>,
+    pub restore: Option<crate::restore::Profile>,
+    pub discovery: Option<PreparedDiscovery>,
     pub gc_deployment: Option<u64>,
     pub cache: Cache,
     pub auth: Authenticator,
@@ -243,6 +311,10 @@ impl Config {
         if let Some(execution) = self.execution {
             options.result_memory_bytes = execution.result_memory_bytes;
         }
+        if let Some(recovery) = self.owner_recovery {
+            options.owner_recovery_gets = recovery.payload_gets;
+            options.owner_recovery_bytes = recovery.payload_bytes;
+        }
         options.validate().map_err(|_| Failure::new("CONFIG"))?;
         let admission = &self.admission;
         admission.limits().validate()?;
@@ -250,7 +322,7 @@ impl Config {
         // a separately configured authenticated TLS reverse proxy.
         if self.version != 1
             || !self.listen.ip().is_loopback()
-            || self.worker_instance.0 == 0
+            || self.worker_instance == WorkerInstance::Explicit(0)
             || !self.cache_directory.is_absolute()
             || !self.cache_directory.is_dir()
             || self.cache.pages_per_actor == 0
@@ -276,6 +348,12 @@ impl Config {
         }
         if let Some(catalogue) = &self.catalogue {
             catalogue.validate()?;
+        }
+        if let Some(restore) = &self.restore {
+            if self.catalogue.is_none() {
+                return Err(Failure::new("CONFIG"));
+            }
+            restore.validate()?;
         }
         if let Some(gc) = &self.gc {
             let ordinary = [
@@ -349,11 +427,15 @@ impl Config {
                     &self.s3.region,
                     &self.s3.bucket,
                 );
-                Some(std::sync::Arc::new(create_cursor(
-                    key,
-                    namespace,
-                    self.worker_instance.0,
-                )?))
+                Some(match self.worker_instance {
+                    WorkerInstance::Explicit(worker) => PreparedDiscovery::Ready(
+                        std::sync::Arc::new(create_cursor(key, namespace, worker)?),
+                    ),
+                    WorkerInstance::Auto => PreparedDiscovery::Automatic {
+                        master: key,
+                        namespace,
+                    },
+                })
             }
             None => None,
         };
@@ -375,10 +457,11 @@ impl Config {
                 listen: self.listen,
                 transport: self.transport,
                 output: self.output,
-                worker_instance: self.worker_instance.0,
+                worker_instance: self.worker_instance,
                 cache_directory: self.cache_directory,
                 admission: self.admission,
                 catalogue: self.catalogue,
+                restore: self.restore,
                 discovery,
                 gc_deployment,
                 cache: self.cache,

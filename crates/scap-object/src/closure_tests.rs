@@ -247,6 +247,10 @@ fn fixture(pages: u32, windows: u64) -> Fixture {
         sequence: 5,
         owner_epoch: 1,
         owner_instance: 10,
+        owner_plan: None,
+        snapshots: None,
+        snapshot_limits: None,
+        restore_origin: None,
         active: true,
         auth_epoch: 1,
         policy: vec![crate::format::Permission {
@@ -1385,8 +1389,56 @@ fn raw_edge_checks_reject_wrong_physical_key_and_out_of_range_window() {
 }
 
 #[test]
+fn a_resumed_root_rejects_counter_damage_before_visiting_the_next_root() {
+    // The cursor is private and cannot be supplied by a client. Inject only
+    // local accounting damage after an actual verified manifest/node prefix,
+    // then require the normal resume path to withhold all later dependencies.
+    for fault in 0..4 {
+        let fixture = fixture(1, 1);
+        let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
+        let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
+        let mut visited = Vec::new();
+        let Step::Pending(mut cursor) = cursor
+            .advance(
+                StepBudget {
+                    max_frames: 2,
+                    max_read_bytes: 2 * MAX_OBJECT_BYTES as u64,
+                },
+                &mut |visit| {
+                    visited.push(visit.hash.to_owned());
+                    Ok(())
+                },
+            )
+            .unwrap()
+        else {
+            panic!("the one-page root still has a chunk to verify")
+        };
+        assert_eq!(visited, fixture.expected[..2]);
+        assert_eq!((cursor.totals.pages, cursor.totals.chunks), (0, 0));
+        match fault {
+            0 => cursor.totals.pages = 1,
+            1 => cursor.totals.chunks = 1,
+            2 => cursor.root_start_pages = 1,
+            3 => cursor.root_start_chunks = 1,
+            _ => unreachable!(),
+        }
+        assert!(matches!(
+            cursor.advance(StepBudget::default(), &mut |visit| {
+                visited.push(visit.hash.to_owned());
+                Ok(())
+            }),
+            Err(Error::Corrupt)
+        ));
+        assert_eq!(visited, fixture.expected[..3]);
+        assert_eq!(fixture.trace.reads.lock().unwrap().len(), 3);
+        assert_eq!(fixture.trace.writes.load(Ordering::Relaxed), 0);
+        assert!(fixture.database.quarantined.load(Ordering::Acquire));
+    }
+}
+
+#[test]
 fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
-    for fault in 0..6 {
+    for fault in 0..8 {
         let fixture = fixture(1, 1);
         let context = ObjectContext::capture(&fixture.database, &fixture.snapshot.head).unwrap();
         let cursor = Cursor::new(&context, &fixture.snapshot, deadline(), &not_stopped).unwrap();
@@ -1406,6 +1458,11 @@ fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
             path: std::array::from_fn(|_| None),
             depth: 0,
             manifest_pages: 1,
+            expected_pages: None,
+            next_retained: 0,
+            root_start_pages: 0,
+            root_start_chunks: 0,
+            data_complete: true,
         });
         match fault {
             0 => cursor.totals.pages = 0,
@@ -1414,6 +1471,8 @@ fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
             3 => cursor.totals.windows[0].bytes -= 1,
             4 => cursor.totals.windows[0].cancelled = 0,
             5 => cursor.totals.windows[0].committed = u64::MAX,
+            6 => cursor.root_start_pages = 2,
+            7 => cursor.root_start_chunks = 2,
             _ => unreachable!(),
         }
         let result = cursor.complete();
@@ -1429,5 +1488,112 @@ fn completion_rejects_inconsistent_totals_of_an_actually_verified_graph() {
             fixture.expected.len()
         );
         assert_eq!(fixture.trace.writes.load(Ordering::Relaxed), 0);
+    }
+}
+
+fn retain_tree(target: &mut Fixture, historical: &Fixture, pages: u32) {
+    use crate::format::{SnapshotEntry, SnapshotLimits, SnapshotPoint, SnapshotRef};
+    for (key, value) in historical.trace.memory.entries() {
+        target.trace.memory.set(key, value.bytes);
+    }
+    let h = &mut target.snapshot.head;
+    h.format = 9;
+    h.snapshot_limits = Some(SnapshotLimits::default());
+    h.restore_origin = Some(None);
+    h.head_serial += 1;
+    let entries = h.snapshots.get_or_insert_with(Vec::new);
+    let operation = entries.len() as u64 + 1;
+    entries.push(SnapshotEntry {
+        reference: SnapshotRef {
+            creator: 7,
+            operation,
+            capture_serial: h.head_serial,
+            descriptor_hash: digest(format!("point-{operation}").as_bytes()),
+        },
+        label: format!("point-{operation}"),
+        point: SnapshotPoint {
+            data_root: historical.snapshot.head.data_root.clone(),
+            page_count: pages,
+            sequence: historical.snapshot.head.sequence,
+            source_revision: historical.snapshot.head.revision,
+        },
+    });
+    h.validate().unwrap();
+    let at = target
+        .expected
+        .iter()
+        .position(|hash| hash == &h.windows[0].root)
+        .unwrap();
+    let historical_frames = historical.expected.len() - 2 * historical.snapshot.head.windows.len();
+    target.expected.splice(
+        at..at,
+        historical.expected[..historical_frames].iter().cloned(),
+    );
+}
+
+#[test]
+fn retained_trees_are_each_verified_before_request_windows_and_ignore_later_live_quota() {
+    for single in [false, true] {
+        let mut current = fixture(1, 3);
+        retain_tree(&mut current, &fixture(33, 1), 33);
+        retain_tree(&mut current, &fixture(0, 1), 0);
+        // This policy still admits the live one-page tree. The captured
+        // 33-page tree is independently admitted by its immutable point.
+        current.snapshot.head.quota.max_bytes = Some(PAGE_SIZE as u64);
+        let (totals, visited) = drive(&current, single).unwrap();
+        assert_eq!(visited, current.expected);
+        assert_eq!((totals.pages, totals.chunks), (34, 3));
+        assert!(totals.windows.iter().all(|window| window.entries == 2));
+    }
+}
+
+#[test]
+fn retained_manifest_counts_cannot_balance_errors_between_independent_roots() {
+    for wrong in [0, 1] {
+        let mut current = fixture(0, 1);
+        retain_tree(&mut current, &fixture(1, 1), 1);
+        retain_tree(&mut current, &fixture(2, 1), 2);
+        let entries = current.snapshot.head.snapshots.as_mut().unwrap();
+        if wrong == 0 {
+            entries[0].point.page_count = 2;
+            entries[1].point.page_count = 1;
+        } else {
+            entries[1].point.page_count = 1;
+        }
+        current.snapshot.head.validate().unwrap();
+        assert!(matches!(drive(&current, true), Err(Error::Corrupt)));
+        assert!(current.database.quarantined.load(Ordering::Acquire));
+    }
+}
+
+#[test]
+fn missing_or_invalid_retained_data_cannot_finish_a_healthy_current_root() {
+    for missing in [true, false] {
+        let mut current = fixture(0, 1);
+        let historical = fixture(33, 1);
+        retain_tree(&mut current, &historical, 33);
+        if missing {
+            let key = object_key(&scope(), 1, &historical.expected[3]);
+            current.trace.memory.remove(&key);
+            assert!(matches!(
+                drive(&current, true),
+                Err(Error::Store(StoreError::Missing))
+            ));
+        } else {
+            let entries = current.snapshot.head.snapshots.as_mut().unwrap();
+            entries[0].point.data_root = put(
+                &current.trace,
+                Payload::Node {
+                    level: 0,
+                    first_chunk: 0,
+                    children: vec![historical.expected[2].clone()],
+                },
+            );
+            assert!(matches!(drive(&current, true), Err(Error::Corrupt)));
+        }
+        assert!(matches!(
+            current.database.healthy_in(1),
+            Err(Error::Corrupt)
+        ));
     }
 }

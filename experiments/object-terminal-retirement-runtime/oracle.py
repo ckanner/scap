@@ -20,7 +20,7 @@ def projection(head):
     result = {key: str(head[key]) for key in ('revision', 'head_serial', 'sequence', 'owner_epoch',
                                              'owner_instance', 'auth_epoch', 'request_epoch')}
     storage = head['storage']
-    result.update(scope={key: str(value) for key, value in head['scope'].items()},
+    result.update(owner_plan=None, scope={key: str(value) for key, value in head['scope'].items()},
         active=head['active'], lifecycle=head['lifecycle'],
         max_bytes=None if head['quota']['max_bytes'] is None else str(head['quota']['max_bytes']),
         transition={key: str(value) for key, value in head['transition'].items()},
@@ -663,7 +663,9 @@ def audit(directory):
          and summary['private_removed'] is True and summary['elapsed_seconds'] < 1200, 'actual-bounded-run-complete')
     return {'schema': 1, 'status': 'PASSED', 'profile': 'head7-terminal-retirement-native-http-signed-s3-v1',
         'fixture_source_commit': inputs['commit'], 'runtime_source_commit': inputs['runtime_source_commit'],
-        'http_posts': len(calls), 's3_requests': len(values), 'original_sql_inputs': 23,
+        'http_posts': len(calls), 's3_requests': len(values) + 2 * process_report['services'],
+        'database_s3_requests': len(values), 'worker_identity_claims': process_report['services'],
+        'original_sql_inputs': 23,
         'native_original_acks': len(original_results), 'cold_survivor_lookups': 6,
         'terminal_seals': len(seals), 'public_status_observations': public_count,
         'copy_closures': copy_report, 'catalogue': metadata_report,

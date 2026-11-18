@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "recorded_utc": "2026-11-11",
+  "status": "PASSED",
+  "scope": "Local bounded controller-policy model only; production controller, native SQLite, HTTP and S3 are separate gates.",
+  "source": {
+    "dirty_declared_inputs": "",
+    "files": {
+      "AGENTS.md": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6",
+      "docs/architecture/owner-controller-plan.md": "c47a30ff5bfc469034585ec7c84b605d0b885bf12a2b1a588edd65d9b2d13873",
+      "docs/architecture/owner-controller-v2.md": "4c978be08af22bb10f85f661cfeeba3624cebd154a436b43de8cca78ac2ec76b",
+      "experiments/object-owner-controller-model/PLAN.md": "bce28be3b729066aabcbc333e140660d69b78598d7c8134bf964e591a5503659",
+      "experiments/object-owner-controller-model/README.md": "c1e0a819b1d5f70f7edbb23d93a705d43e5e4ad822d818c0af346665e3de081e",
+      "experiments/object-owner-controller-model/cases.py": "f1e4098b35166b6b4b6ec801560a1bbb5e50609ed2824bab89c05dcfa5a34d8d",
+      "experiments/object-owner-controller-model/controls.py": "9e5cd4dceb4ace20add883c387c8cecbb6ff65fed1b97757b06d1c92c110e6d1",
+      "experiments/object-owner-controller-model/explore.py": "d317d8e2de7c7138d4ffc048cac4b997008690e76f854289629fc5e34d868d14",
+      "experiments/object-owner-controller-model/model.py": "5a02f890b19da8253363e32daf6aea6ec032850e65d46e4115b1079088346ac1",
+      "experiments/object-owner-controller-model/oracle.py": "728c24f43a375169b77a8bccfb8000e4d0f7b9c6a06070ef20719869f2dcea8e",
+      "experiments/object-owner-controller-model/test_model.py": "d81ef7827e316fdd61b35d3dacd59cc75611fb29928467cc57f3a1e8ce4fd5e4",
+      "experiments/object-owner-plan-model/model.py": "c9cba007b6027f0bc094c263d99be72c4d026815338e53052bb37b3df8b23062",
+      "experiments/object-owner-plan-model/oracle.py": "0449521cc6b125859f978a766f2e7075a06f70092d1e5405a5cb0d06b3730655"
+    },
+    "repository_head": "157da42ddca4663f3b00147750a887ad01f2c000",
+    "sha256": "c19ab6fe26e1b005fbaf951abc56817121d6f8fe32fe6f626d3aeb8e49b6d114"
+  },
+  "source_after": "clean; declared inputs unchanged",
+  "python": {
+    "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+    "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+    "version": "3.12.14"
+  },
+  "diagnostic": false,
+  "unit_tests": {
+    "passed": 19,
+    "log_sha256": "cfe11659174489a2e3738bbb64b78f02ba4e3d20d6a69fd715b6756482d7abf8"
+  },
+  "positive_cases": 402,
+  "unique_raw_histories": 402,
+  "negative_controls": 40,
+  "positive_controls": 3,
+  "matrix": "3 preparation races x 60 schedules x 2 restart variants + 42 distinct policy cases",
+  "families": {
+    "activate-current": 1,
+    "authority-change": 3,
+    "bounds": 3,
+    "cancel-then-activate": 1,
+    "counter": 3,
+    "foreign": 4,
+    "healthy": 1,
+    "intervals": 1,
+    "late-claim": 2,
+    "late-prepare": 1,
+    "maintenance": 4,
+    "mode-off": 3,
+    "nondeath": 7,
+    "prepare-race": 360,
+    "rank-exhausted": 1,
+    "restart-pending": 2,
+    "sql-unknown": 1,
+    "window-reset": 4
+  },
+  "aggregate": {
+    "core_calls": 21577,
+    "core_unknowns": 184,
+    "mutations": 2319,
+    "probe_failures": 5052,
+    "restarts": 1445,
+    "ticks": 6526
+  },
+  "elapsed_seconds": {
+    "exploration": 7.856381893157959,
+    "oracle": 5.87939715385437,
+    "controls": 0.19419074058532715
+  },
+  "fixed_limits": {
+    "calls_per_tick": 8,
+    "configured_workers": 3,
+    "controllers": 2,
+    "evidence_bytes": 536870912,
+    "maximum_counter": 40,
+    "mutations_per_tick": 1,
+    "processes": 1,
+    "replacement_worker": 4,
+    "scope": 1,
+    "seconds": 180
+  },
+  "evidence": {
+    "inputs.json": {
+      "bytes": 2179,
+      "sha256": "16d879a17983a2b5cabff4668eb1228ea6abb7554e38cb8ad72eec0a2a40092f"
+    },
+    "inventory.json": {
+      "bytes": 25031,
+      "sha256": "d315bb13c303bcc1695302e1ab3fff0e00bd6ea19c63120631383fb5ff77c280"
+    },
+    "traces.json": {
+      "bytes": 127437,
+      "sha256": "0e9080c4e272c35ec3464059c1437d2c47ac49c9dc36d5efb6365ec60283b8da"
+    },
+    "exploration.json": {
+      "bytes": 733,
+      "sha256": "447261021b9451fa8d4707c264e132053132d0357e2a582453c188247c6f2987"
+    },
+    "oracle.json": {
+      "bytes": 105729,
+      "sha256": "5b77fe88d868319eb9b0f7eae1c5c1524d7551110a7baafac4f8809b24349985"
+    },
+    "controls.json": {
+      "bytes": 8412,
+      "sha256": "1fc2527f2efb023e2ca3e0916641e22bd0221b02da0a8db9cb42e9099f7de7aa"
+    }
+  },
+  "raw_evidence_directory": "tooling/controller-157da42-model01",
+  "former_354_48_3_matrix": "NOT_RUN: no complete case decomposition or runnable historical matrix; this declared 402/40/3 contract is separate.",
+  "production_controller": "NOT_EXECUTED_BY_THIS_MODEL",
+  "native_sqlite_http_s3": "NOT_RUN_BY_THIS_MODEL",
+  "aws": "NOT_RUN",
+  "throughput_slo": "NOT_RUN"
+}

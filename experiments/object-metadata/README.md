@@ -29,6 +29,14 @@
 
 S/O worker 为 8101，M worker 为 8202。writer principal 11 有 provision 权限；manager 12 和 reader 13 没有 provision。原 bearer 只存在 private runtime；公共证据保存 SHA，不保存 token/access secret。
 
+每个 daemon 在 ready 之前还必须条件创建并完整回读自己的永久 worker marker。
+oracle 对这四次原始 S3 交换验证完整 handler/签名/交付、精确 32 字节 wire 值、
+`If-None-Match: *`、同一 PUT/GET ETag，以及原 `Popen` 调用前时钟到 ready 的区间。
+启动后记录的 child identity 时钟可以晚于第一条 S3 请求，不能拿它错误地限定启动下界。
+只从数据库业务计数移出这四次已经证明的交换；所有 handler 仍参与完整 listener 生命周期审计。
+`worker_startup` 单列身份与物理总请求数，原 `s3_by_worker` 仍是数据库业务计数。
+任何额外 worker key、借用角色、缺失回读或 ready 后的 marker 都拒绝，没有 prefix 白名单跳过。
+
 每个 Scope 的四个种子调用严格按 `create → activate → execute → policy`。seed nonce 分别为 `10000 + 10*i`、`+1` 和 `+2`，activate 的 worker guard 为 8101。execute 使用保存到文件的原 `epoch=1/id=1/principal=11` 请求，只有两条 SQL：
 
 ```sql
@@ -103,6 +111,11 @@ F 的最后一次恢复可能让内容派生的 ETag 重复。oracle 只对这�
 
 共 10 个长期/维护 owned child：4 backend、2 daemon、1 Node、3 curl。版本探测与有限 backend readiness provisioning 单列为启动设施，不虚报为 10 个对象或 F 请求。后端计划 SIGKILL 与 daemon/Node 失败后的 forced cleanup 区分，任何后者都不能通过。归档复制不要求原路径再次存在；历史 absence 必须来自原始记录，不用现在的 `stat()` 改写过去事实。
 
+private runtime 由 runner 建在调用方 evidence 目录的同级位置，可以位于 `/tmp`、CI 的
+`RUNNER_TEMP` 或其他文件系统。独立 oracle 验证规范化绝对路径、固定临时目录名字及原
+device/inode，并在创建、daemon cache 配置和删除全过程绑定同一个身份；不能硬编码
+`/tmp`，也不能把原证据复制后的目录当作原运行目录。
+
 ### 固定 Node 的完成后 informational disposal
 
 原 relay 明确发送 `Connection: close`。固定 Node22.16.0 的内置 `internal/deps/undici/undici` 源码为 601703 bytes、SHA256 `b6ba65bd17b764b8eaae71a81e358f82b3efcd5954f2bd0da6f6b6206f0250e7`。其 `onMessageComplete` 先校验响应长度并调用 `request.onComplete`，后者发布 trailers diagnostic，再在不保持连接的路径以 InformationalError 销毁 socket；该 error 的 code 是 `UND_ERR_INFO`。这是固定二进制内置源码的静态分析；[相同版本的官方源码位置](https://github.com/nodejs/node/blob/v22.16.0/deps/undici/undici.js)用于定位，不把未单独核对的远端文件冒充本次提取字节。
@@ -135,6 +148,12 @@ F 的最后一次恢复可能让内容派生的 ETag 重复。oracle 只对这�
 | DENIED 原 reader 的实际 credential digest 改成 manager | `M_PERMISSION` |
 
 一个负控必须命中这一精确 rule 才计通过；KeyError、schema、body hash、普通分母失败或其他更早的拒绝会被原样保存为**控制失败**。额外单位检查还包含 permission HEAD PUT、UNKNOWN 被改成 NotApplied、完整尾部与原 bytes/Scope/guard 条件。它们是规则测试，不计入九个实际投影控制的分母。
+
+此外，`startup_negative_controls` 单列六个**完整原始目录**负控：删除 marker GET 的
+整个 exchange 并修复 serial/handler 分母；连贯地改变 PUT/GET 的 wire body；改变回读 ETag；
+把条件创建改成原 ETag replacement；把 S marker 绑定到 M 的实例号；把 GET 移到 ready 之后。
+每个副本都重新执行完整 `audit`，必须分别命中 worker identity 的确切拒绝规则。
+这六项不混入原九个 metadata 语义投影负控。原始目录在前后保持相同字节清单。
 
 ## 6. 执行接口与状态边界
 

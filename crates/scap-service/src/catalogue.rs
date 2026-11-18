@@ -34,59 +34,124 @@ impl Worker {
         call: Call,
         deadline: Instant,
     ) -> Result<Value, Failure> {
-        let action = call.action.native()?;
-        call.action.authorize(principal)?;
+        let action = call.action.native();
+        let Ok(action) = action else {
+            return Err(action.err().expect("native action validation failed"));
+        };
+        let authorization = call.action.authorize(principal);
+        let Ok(()) = authorization else {
+            return Err(authorization.expect_err("catalogue authorization failed"));
+        };
         let catalogue = core::Catalogue::new(
             self.objects.clone(),
             principal.deployment,
             principal.tenant,
             self.worker,
             self.options.clone(),
-        )?;
+        );
+        if let Err(error) = catalogue {
+            return Err(error.into());
+        }
+        let catalogue = catalogue.expect("catalogue configuration validation succeeded");
         let caller = core::Caller {
             principal: principal.principal,
             provision: principal.provision,
         };
-        Ok(match action {
-            NativeAction::Prepare(input) => {
-                wire::prepared(catalogue.prepare(caller, &input, deadline)?)
-            }
-            NativeAction::Resume(creation) => {
-                wire::progress(catalogue.resume_create(caller, &creation, deadline)?)
-            }
-            NativeAction::Abort(input) => {
-                wire::aborted(catalogue.abort_create(caller, &input, deadline)?)
-            }
-            NativeAction::Inspect(operation) => {
-                wire::progress(catalogue.inspect_create_operation(caller, operation, deadline)?)
-            }
-            NativeAction::Resolve(name) => wire::named(catalogue.resolve(caller, &name, deadline)?),
-            NativeAction::Delete(input) => {
-                wire::deleted(catalogue.delete(caller, &input, deadline)?)
-            }
-            NativeAction::StorageStatus(creation) => {
-                crate::wire::status(&catalogue.storage_status(caller, &creation, deadline)?)
-            }
-            NativeAction::RetireStorage(input) => {
-                crate::wire::status(&catalogue.retire_storage(caller, &input, deadline)?)
-            }
-        })
+        if let NativeAction::Prepare(input) = action {
+            return project(catalogue.prepare(caller, &input, deadline), wire::prepared);
+        }
+        if let NativeAction::Resume(creation) = action {
+            return project(
+                catalogue.resume_create(caller, &creation, deadline),
+                wire::progress,
+            );
+        }
+        if let NativeAction::Abort(input) = action {
+            return project(
+                catalogue.abort_create(caller, &input, deadline),
+                wire::aborted,
+            );
+        }
+        if let NativeAction::Inspect(operation) = action {
+            return project(
+                catalogue.inspect_create_operation(caller, operation, deadline),
+                wire::progress,
+            );
+        }
+        if let NativeAction::PrepareRestore(input) = action {
+            return project(
+                catalogue.prepare_restore(caller, &input, deadline),
+                |value| crate::restore_wire::prepared(&value),
+            );
+        }
+        if let NativeAction::InspectRestore { creator, operation } = action {
+            return project(
+                catalogue.inspect_restore(caller, creator, operation, deadline),
+                |value| crate::restore_wire::progress(&value),
+            );
+        }
+        if let NativeAction::AbortRestore { reference, input } = action {
+            return project(
+                catalogue.abort_restore(caller, &reference, &input, deadline),
+                wire::aborted,
+            );
+        }
+        if let NativeAction::Resolve(name) = action {
+            return project(catalogue.resolve(caller, &name, deadline), wire::named);
+        }
+        if let NativeAction::Delete(input) = action {
+            return project(catalogue.delete(caller, &input, deadline), wire::deleted);
+        }
+        if let NativeAction::StorageStatus(creation) = action {
+            return project(
+                catalogue.storage_status(caller, &creation, deadline),
+                |value| crate::wire::status(&value),
+            );
+        }
+        if let NativeAction::RetireStorage(input) = action {
+            return project(
+                catalogue.retire_storage(caller, &input, deadline),
+                |value| crate::wire::status(&value),
+            );
+        }
+        // ResumeRestore belongs to the separately bounded native recovery
+        // worker. The catalogue control pool must never run its copy stage.
+        Err(Failure::new("INVALID"))
     }
+}
+
+fn project<T>(
+    result: Result<T, core::CatalogueError>,
+    encode: impl FnOnce(T) -> Value,
+) -> Result<Value, Failure> {
+    if let Err(error) = result {
+        return Err(error.into());
+    }
+    Ok(encode(result.expect("catalogue operation succeeded")))
 }
 
 impl From<core::CatalogueError> for Failure {
     fn from(error: core::CatalogueError) -> Self {
-        Self::new(match error {
-            core::CatalogueError::Invalid => "INVALID",
-            core::CatalogueError::Denied => "DENIED",
-            core::CatalogueError::NotFound => "NOT_FOUND",
-            core::CatalogueError::Conflict => "CONFLICT",
-            core::CatalogueError::IdentityConflict => "IDENTITY_CONFLICT",
-            core::CatalogueError::Corrupt => "CORRUPT",
-            core::CatalogueError::SnapshotExpired => "SNAPSHOT_EXPIRED",
-            core::CatalogueError::Limit => "LIMIT",
-            core::CatalogueError::Unknown => "UNKNOWN",
-        })
+        let code = if error == core::CatalogueError::Invalid {
+            "INVALID"
+        } else if error == core::CatalogueError::Denied {
+            "DENIED"
+        } else if error == core::CatalogueError::NotFound {
+            "NOT_FOUND"
+        } else if error == core::CatalogueError::Conflict {
+            "CONFLICT"
+        } else if error == core::CatalogueError::IdentityConflict {
+            "IDENTITY_CONFLICT"
+        } else if error == core::CatalogueError::Corrupt {
+            "CORRUPT"
+        } else if error == core::CatalogueError::SnapshotExpired {
+            "SNAPSHOT_EXPIRED"
+        } else if error == core::CatalogueError::Limit {
+            "LIMIT"
+        } else {
+            "UNKNOWN"
+        };
+        Self::new(code)
     }
 }
 

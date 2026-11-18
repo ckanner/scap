@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "subject": "Owner runtime gates completed before execution environment loss",
+  "fixture_commit": "dbd181cb9fe7632c612499a3c60ef179766fa5fe",
+  "fixture_tree": "f57326cdb00d2a33001fa9337bd2935a9165e86a",
+  "product_commit": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+  "evidence_origin": "Direct results from the recorded clean-source acceptance driver, observed before the execution environment became unavailable.",
+  "gates": [
+    {
+      "contract": "owner-plan",
+      "evidence_directory": "tooling/owner-e3-actual04",
+      "ledger": "tooling/owner-e3-actual04-ledger/commands.json",
+      "status": "PASSED",
+      "source_before_exit": 0,
+      "source_after_exit": 0,
+      "owner_unit_count": 74,
+      "absence_unit_count": 9,
+      "actual": {
+        "exit_code": 0,
+        "elapsed_seconds": 105.14195551000012
+      },
+      "oracle": {
+        "exit_code": 0,
+        "elapsed_seconds": 8.326535862000128
+      },
+      "controls": {
+        "exit_code": 0,
+        "elapsed_seconds": 318.6261705050001,
+        "negative": 42,
+        "positive": 1
+      }
+    },
+    {
+      "contract": "owner-absence",
+      "evidence_directory": "tooling/owner-absence-e3-actual03",
+      "ledger": "tooling/owner-absence-e3-actual03-ledger/commands.json",
+      "status": "PASSED",
+      "source_before_exit": 0,
+      "source_after_exit": 0,
+      "owner_unit_count": 74,
+      "absence_unit_count": 9,
+      "actual": {
+        "exit_code": 0,
+        "elapsed_seconds": 23.481382243999178
+      },
+      "oracle": {
+        "exit_code": 0,
+        "elapsed_seconds": 0.41657852699972864
+      },
+      "controls": {
+        "exit_code": 0,
+        "elapsed_seconds": 6.302452846999586,
+        "negative": 13,
+        "positive": 1
+      }
+    }
+  ],
+  "retained_prior_failures": [
+    "owner-e3-actual01: fixture held a control lane needed by its own administrative call",
+    "owner-e3-actual02: legacy takeover and claimant shared the held lane",
+    "owner-e3-actual03: raw scenarios completed; independent audit failed on catalogue Control response interpretation",
+    "owner-plan diagnostic negative control previously accepted a query dispatched after the held fault was released; fixed before this frozen run",
+    "owner-absence actual01: audit interpreted public query output as an execute wrapper"
+  ],
+  "limitations": [
+    "The recorded driver checked source equality before and after both complete attempts.",
+    "Raw evidence and per-command SHA256 ledgers were written to the local workspace, but the execution environment disconnected before a complete archival manifest could be assembled. This record does not invent missing raw-file hashes.",
+    "The direct completed gate results remain factual; this checkpoint is not a substitute for the original ledgers.",
+    "Production controller plus native SQLite/S3 acceptance, AWS Standard, throughput/SLO and whole-process hard resource limits are separate.",
+    "No merge or remote CI success is claimed."
+  ]
+}

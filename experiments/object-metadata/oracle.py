@@ -178,6 +178,7 @@ def status_from_head(head):
     return {"scope": {key: str(value) for key, value in head["scope"].items()},
             **{key: str(head[key]) for key in ("head_serial", "revision", "sequence", "owner_epoch", "owner_instance", "auth_epoch", "request_epoch")},
             "storage": {"active_generation": "1", "allocated_through": "1", "plan": None, "sweep": None, "terminal": None},
+            "owner_plan": None,
             "active": head["active"], "lifecycle": head["lifecycle"],
             "max_bytes": None if head["quota"]["max_bytes"] is None else str(head["quota"]["max_bytes"]),
             "transition": {key: str(value) for key, value in head["transition"].items()},
@@ -221,6 +222,22 @@ def endpoint(value, path=""):
     return parsed.netloc
 
 
+def private_runtime_identity(value):
+    """Validate the recorded owned directory, independent of its mount point.
+
+    The runner creates it beside the caller's evidence directory. Historical
+    create/remove device and inode witnesses are bound later by process_proof;
+    the current location of a copied evidence archive is not that identity.
+    """
+    require(type(value) is dict and set(value) == {'path', 'device', 'inode'}
+            and type(value['path']) is str, 'private runtime identity changed')
+    path = PurePosixPath(value['path'])
+    require(path.is_absolute() and path.as_posix() == value['path'] and '..' not in path.parts
+            and re.fullmatch(r'scap-metadata-private-[A-Za-z0-9_-]+', path.name) is not None
+            and all(type(value[key]) is int and value[key] > 0 for key in ('device', 'inode')),
+            'private runtime identity changed')
+
+
 def load_configuration(directory):
     directory = Path(directory)
     config = parse((directory / "metadata-configuration.json").read_bytes())
@@ -243,10 +260,7 @@ def load_configuration(directory):
         WIRE.sha256_text(digest)
     equal(set(config["services"]), {"S", "M"}, "service denominator changed")
     private = config["private"]
-    require(set(private) == {"path", "device", "inode"} and Path(private["path"]).is_absolute() and
-            Path(private["path"]).is_relative_to(Path("/tmp")) and ".." not in Path(private["path"]).parts and
-            Path(private["path"]).name.startswith("scap-metadata-private-") and
-            all(type(private[key]) is int and private[key] > 0 for key in ("device", "inode")), "private runtime identity changed")
+    private_runtime_identity(private)
     configs = {}
     for worker in ("S", "M"):
         service = config["services"][worker]
@@ -347,14 +361,34 @@ def exchange_rows(trace, channel):
     return result, handlers
 
 
-def s3_exchanges(trace, config):
+def worker_startups(events):
+    starts = [row for row in events if row['event'] == 'service_started']
+    readies = [row for row in events if row['event'] == 'service_ready']
+    require(len(starts) == len(readies) == len(WORKERS)
+            and {row['worker'] for row in starts} == {row['worker'] for row in readies} == set(WORKERS),
+            'worker-identity-lifecycle-denominator')
+    result = []
+    for role, worker in WORKERS.items():
+        start = only([row for row in starts if row['worker'] == role], 'worker-identity-owned-start')
+        ready = only([row for row in readies if row['worker'] == role], 'worker-identity-owned-ready')
+        equal(start['identity'], ready['identity'], 'worker-identity-owned-ready')
+        spawn = start['spawn_requested_ns']
+        require(type(spawn) is int and 0 < spawn < start['identity']['spawn_monotonic_ns']
+                <= stamp(start) < stamp(ready), 'worker-identity-startup-interval')
+        result.append({'worker': worker, 'role': role, 'start': spawn, 'ready': stamp(ready)})
+    return result
+
+
+def s3_exchanges(trace, config, events):
     exchanges, handlers = exchange_rows(trace, "s3")
+    worker_paths = {'/scap-test/scap-worker/v1/instances/' + worker for worker in WORKERS.values()}
+    claims = []
     for item in exchanges:
         request, response = item["request"], item["response"]
         method, path = request["method"], request["path"]
         require(method in ("GET", "PUT") and type(path) is str and "?" not in path and "#" not in path,
                 "unplanned S3 method/LIST/path")
-        require(path in {head_path(name) for name in NAMES} or any(re.fullmatch(re.escape(object_prefix(name)) + r"[0-9a-f]{64}", path)
+        require(path in worker_paths or path in {head_path(name) for name in NAMES} or any(re.fullmatch(re.escape(object_prefix(name)) + r"[0-9a-f]{64}", path)
                 for name in NAMES), "S3 request escaped exact Scope/physical generation")
         raw = raw_bytes(request, "request_body")
         if method == "GET":
@@ -377,7 +411,17 @@ def s3_exchanges(trace, config):
         headers = signing["signed_headers"]
         require(type(headers) is list and headers == sorted(set(headers)) and
                 {"host", "x-amz-date", "x-amz-content-sha256"} <= set(headers), "signed header inventory changed")
-    return exchanges, handlers
+        if path in worker_paths:
+            claims.append({'key': request['request_serial'], 'role': request['worker'], 'method': method, 'path': path,
+                           'start': stamp(request), 'response': stamp(response), 'end': stamp(item['terminal']),
+                           'status': response['status'], 'delivered': item['terminal']['event'] == 'object_response_delivered',
+                           'if_none_match': request['if_none_match'], 'if_match': request['if_match'],
+                           'etag': response['etag'], 'request_bytes': request['request_body_bytes'],
+                           'request_sha256': request['request_body_sha256'], 'response_bytes': response['response_body_bytes'],
+                           'response_sha256': response['response_body_sha256']})
+    verified = WIRE.worker_claims(worker_startups(events), claims)
+    return ([item for item in exchanges if item['request']['request_serial'] not in verified], handlers,
+            {'instances': dict(WORKERS), 'requests': len(verified), 'physical_requests': len(exchanges)})
 
 
 def projected_exchange(item):
@@ -1309,7 +1353,7 @@ def audit(directory, require_artifacts=True, *, include_projection=False):
     node, operations, _saved = node_proof(directory, events)
     calls, http_handlers = http_proof(directory, http_trace, operations, config, node)
     observation = observer_proof(directory, calls)
-    exchanges, s3_handlers = s3_exchanges(s3_trace, config)
+    exchanges, s3_handlers, startup = s3_exchanges(s3_trace, config, events)
     process = process_proof(directory, events, node, calls, http_handlers, s3_handlers, config, configs, build)
     versions = normal_versions(exchanges)
     accepted, bases, _objects, closures = head_history(exchanges, calls)
@@ -1323,6 +1367,7 @@ def audit(directory, require_artifacts=True, *, include_projection=False):
               "offered_commands": 41, "http_by_worker": {"S": 28, "M": 13}, "original_sql_acks": 6,
               "normal_head_publications": 28, "declared_fault_head_writes": 2,
               "s3_by_worker": dict(Counter(item["request"]["worker"] for item in exchanges)),
+              "worker_startup": startup,
               "metadata": metadata, "faults": fault, "process": process, "transport_observation": observation,
               "object_versions": versions, "seed_closures": closures,
               "evidence_inventory": before, "evidence_sha256": sha(canonical(before)),

@@ -1,6 +1,7 @@
 /** Strict catalogue DTOs and durable client intent identity; no I/O. */
 import { Buffer } from 'node:buffer';
 import * as wire from './wire.js';
+import * as snapshots from './snapshot_wire.js';
 
 const TRACKED = new WeakSet();
 const CONTEXT = ['deployment', 'tenant', 'principal'];
@@ -10,6 +11,10 @@ const ACTIONS = Object.freeze({
   resume_create: ['creation'],
   abort_create: ['creation', 'control_operation', 'expected_name_revision', 'nonce'],
   inspect_create_operation: ['create_operation'],
+  prepare_restore: ['name', 'restore_operation', 'expected_name_revision', 'options', 'source_scope', 'snapshot'],
+  resume_restore: ['reference'],
+  inspect_restore: ['creator', 'restore_operation'],
+  abort_restore: ['reference', 'control_operation', 'expected_name_revision', 'nonce'],
   resolve_name: ['name'],
   delete_name: ['creation', 'control_operation', 'expected_name_revision', 'expected_head_revision', 'nonce'],
   named_storage_status: ['creation'],
@@ -20,6 +25,8 @@ const CREATE_PHASES = ['not_reserved', 'reserved', 'provisioning', 'bound', 'rea
   'aborting', 'aborted', 'deleting', 'deleted', 'name_conflict', 'identity_conflict'];
 const ABORT_PHASES = ['not_reserved', 'cannot_abort_bound', 'aborting', 'aborted'];
 const DELETE_PHASES = ['not_deleted', 'deleting', 'deleted'];
+const RESTORE_PHASES = ['not_reserved', 'reserved', 'copying', 'copied', 'bound', 'ready',
+  'aborting', 'aborted', 'deleting', 'deleted', 'name_conflict', 'identity_conflict'];
 
 export function context(value) {
   wire.record(value, CONTEXT);
@@ -68,20 +75,50 @@ function quotaChoice(value) {
   return Object.freeze({ mode: value.mode });
 }
 
+function restoreReference(value, caller) {
+  wire.record(value, ['creation', 'descriptor_hash']);
+  wire.requireValue(typeof value.descriptor_hash === 'string' && /^[0-9a-f]{64}$/.test(value.descriptor_hash),
+    'Expected a restore descriptor SHA-256 identity');
+  const result = Object.freeze({ creation: creation(value.creation, caller), descriptor_hash: value.descriptor_hash });
+  wire.requireValue(result.creation.creator === caller.principal, 'Only the original creator may inspect, resume or abort restore');
+  return result;
+}
+
+function sameRestore(actual, expected) {
+  sameCreation(actual.creation, expected.creation);
+  wire.requireValue(actual.descriptor_hash === expected.descriptor_hash, 'Restore descriptor identity changed');
+}
+
 function action(value, caller) {
   wire.record(value, ['operation'], FIELDS);
   const operation = value.operation;
   wire.requireValue(typeof operation === 'string' && Object.hasOwn(ACTIONS, operation), 'Unknown catalogue operation');
   wire.record(value, ['operation', ...ACTIONS[operation]]);
   const result = { operation };
-  if (operation === 'prepare_create' || operation === 'resolve_name') result.name = name(value.name);
+  if (operation === 'prepare_create' || operation === 'prepare_restore' || operation === 'resolve_name') result.name = name(value.name);
   if (operation === 'prepare_create' || operation === 'inspect_create_operation') {
     result.create_operation = wire.decimal(value.create_operation);
   }
-  if (operation === 'prepare_create') {
+  if (operation === 'prepare_create' || operation === 'prepare_restore') {
     result.expected_name_revision = revision(value.expected_name_revision);
     wire.record(value.options, ['quota']);
     result.options = Object.freeze({ quota: quotaChoice(value.options.quota) });
+  }
+  if (operation === 'prepare_restore' || operation === 'inspect_restore') {
+    result.restore_operation = wire.decimal(value.restore_operation);
+  }
+  if (operation === 'prepare_restore') {
+    result.source_scope = wire.scope(value.source_scope);
+    wire.requireValue(result.source_scope.deployment === caller.deployment && result.source_scope.tenant === caller.tenant,
+      'Restore source belongs to another catalogue authority');
+    result.snapshot = snapshots.reference(value.snapshot);
+  }
+  if (operation === 'inspect_restore') {
+    result.creator = wire.decimal(value.creator);
+    wire.requireValue(result.creator === caller.principal, 'Only the original creator may inspect restore');
+  }
+  if (operation === 'resume_restore' || operation === 'abort_restore') {
+    result.reference = restoreReference(value.reference, caller);
   }
   if (Object.hasOwn(value, 'creation')) {
     result.creation = creation(value.creation, caller);
@@ -89,7 +126,7 @@ function action(value, caller) {
       wire.requireValue(result.creation.creator === caller.principal, 'Only the original creator may resume or abort creation');
     }
   }
-  if (operation === 'abort_create' || operation === 'delete_name') {
+  if (operation === 'abort_create' || operation === 'abort_restore' || operation === 'delete_name') {
     result.control_operation = wire.decimal(value.control_operation);
     result.expected_name_revision = wire.decimal(value.expected_name_revision);
     result.nonce = wire.decimal(value.nonce);
@@ -138,6 +175,32 @@ function progress(value, phases) {
     head_revision: revision(value.head_revision) };
 }
 
+function restorePrepared(value, intent) {
+  wire.record(value, ['reference', 'input', 'initial_quota', 'retention', 'point']);
+  wire.record(value.input, ACTIONS.prepare_restore);
+  const { operation: _, ...input } = action({ operation: 'prepare_restore', ...value.input }, intent);
+  const reference = restoreReference(value.reference, intent);
+  wire.requireValue(reference.creation.name === input.name && reference.creation.operation === input.restore_operation &&
+    reference.creation.expected_name_revision === input.expected_name_revision, 'Restore descriptor changed its original creation intent');
+  wire.requireValue(['database', 'incarnation', 'generation'].some((key) =>
+    reference.creation.scope[key] !== input.source_scope[key]), 'Restore must create a fresh database identity');
+  const result = { reference, input: Object.freeze(input), ...policy(value), point: snapshots.point(value.point) };
+  wire.requireValue(BigInt(result.point.source_revision) < BigInt(input.snapshot.capture_serial),
+    'Restored snapshot source revision must precede capture');
+  const quota = input.options.quota;
+  if (quota.mode !== 'default') wire.requireValue(result.initial_quota.max_bytes ===
+    (quota.mode === 'unlimited' ? null : quota.max_bytes), 'Restore changed the explicit initial quota');
+  return Object.freeze(result);
+}
+
+function sameRestoreInput(actual, expected) {
+  wire.sameScope(actual.source_scope, expected.source_scope);
+  wire.requireValue(['name', 'restore_operation', 'expected_name_revision'].every((key) => actual[key] === expected[key]) &&
+    ['creator', 'operation', 'capture_serial', 'descriptor_hash'].every((key) => actual.snapshot[key] === expected.snapshot[key]) &&
+    actual.options.quota.mode === expected.options.quota.mode && actual.options.quota.max_bytes === expected.options.quota.max_bytes,
+    'Prepared restore changed the original source, name or options');
+}
+
 /** Validate the response against the exact intent, never inferred current conditions. */
 export function decode(value, intent) {
   const input = intent.action;
@@ -152,13 +215,26 @@ export function decode(value, intent) {
     wire.requireValue(result.head.lifecycle !== 'deleted', 'Deleted databases cannot be resolved');
     return Object.freeze(result);
   }
-  if (operation === 'abort_create' || operation === 'delete_name') {
+  if (operation === 'abort_create' || operation === 'abort_restore' || operation === 'delete_name') {
     wire.record(value, ['creation', 'operation', 'nonce', 'phase', 'binding_revision', 'head_revision']);
     const result = { creation: creation(value.creation, intent), operation: wire.decimal(value.operation),
-      nonce: wire.decimal(value.nonce), ...progress(value, operation === 'abort_create' ? ABORT_PHASES : DELETE_PHASES) };
-    sameCreation(result.creation, input.creation);
+      nonce: wire.decimal(value.nonce), ...progress(value, operation === 'delete_name' ? DELETE_PHASES : ABORT_PHASES) };
+    sameCreation(result.creation, operation === 'abort_restore' ? input.reference.creation : input.creation);
     wire.requireValue(result.operation === input.control_operation && result.nonce === input.nonce,
       'Response changed the original control identity');
+    return Object.freeze(result);
+  }
+  if (operation === 'prepare_restore') {
+    const result = restorePrepared(value, intent);
+    sameRestoreInput(result.input, input);
+    return result;
+  }
+  if (operation === 'resume_restore' || operation === 'inspect_restore') {
+    wire.record(value, ['prepared', 'phase', 'binding_revision', 'head_revision']);
+    const result = { prepared: restorePrepared(value.prepared, intent), ...progress(value, RESTORE_PHASES) };
+    if (operation === 'resume_restore') sameRestore(result.prepared.reference, input.reference);
+    else wire.requireValue(result.prepared.reference.creation.operation === input.restore_operation,
+      'Inspection returned another restore operation');
     return Object.freeze(result);
   }
   const prepared = operation === 'prepare_create';

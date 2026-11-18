@@ -1,5 +1,6 @@
 //! Explicit administrator compaction and bounded, restartable retired-key sweep.
-//! Ordinary readers have no durable pins. This module admits no retained roots.
+//! Ordinary readers have no durable pins. Every HEAD9 retained root is copied
+//! before sealing a replacement generation and blocks terminal retirement.
 
 use crate::format::*;
 use crate::head_publication::{PreparedHead, PublicationDomain};
@@ -79,12 +80,14 @@ impl Database {
         let base = self.read_head(deadline)?;
         Self::authorize(&base.head, principal, false, false, true)?;
         Self::ready(&base.head)?;
+        Self::no_pending_owner(&base.head)?;
         Ok(base)
     }
 
     fn gc_base(&self, principal: u64, deadline: Instant) -> Result<Snapshot, Error> {
         let base = self.read_head(deadline)?;
         Self::permission(&base.head, principal, false, false, true)?;
+        Self::no_pending_owner(&base.head)?;
         if base.head.lifecycle != Lifecycle::Ready && base.head.storage.terminal.is_none() {
             return Err(Error::Lifecycle);
         }
@@ -133,15 +136,23 @@ impl Database {
         expected_head_serial: u64,
         deadline: Instant,
     ) -> Result<Head, Error> {
+        Self::no_pending_owner(&base.head)?;
         if base.head.head_serial != expected_head_serial
             || base.head.storage.terminal.is_some()
             || base.head.storage.plan.is_some()
             || base.head.storage.sweep.is_some()
+            || base
+                .head
+                .snapshots
+                .as_ref()
+                .is_some_and(|entries| !entries.is_empty())
         {
             return Err(Error::Conflict);
         }
         let mut next = technical_next(&base.head)?;
-        next.format = 7;
+        if next.format != 9 {
+            next.format = if next.owner_plan.is_some() { 8 } else { 7 };
+        }
         next.active = false;
         next.storage.terminal = Some(TerminalSeal {
             serial: next.head_serial,
@@ -156,6 +167,18 @@ impl Database {
         next: &Head,
         deadline: Instant,
     ) -> Result<(), Error> {
+        Self::no_pending_owner(&base.head)?;
+        if next.owner_plan != base.head.owner_plan
+            || next.owner_epoch != base.head.owner_epoch
+            || next.owner_instance != base.head.owner_instance
+            || (!base.head.active && next.active)
+            || next.snapshots != base.head.snapshots
+            || next.snapshot_limits != base.head.snapshot_limits
+            || next.restore_origin != base.head.restore_origin
+            || (base.head.format == 9 && next.format != 9)
+        {
+            return Err(Error::Format(FormatError::Invalid));
+        }
         if base.head.storage.terminal.is_some() {
             let mut expected = base.head.clone();
             expected.head_serial = next.head_serial;

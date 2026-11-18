@@ -52,6 +52,155 @@ fn directory(name: &str) -> Request {
         .unwrap()
 }
 
+fn restore_request() -> Request {
+    let mut request = directory("restore");
+    request
+        .headers_mut()
+        .insert("x-scap-admission", HeaderValue::from_static("recovery"));
+    *request.body_mut() = Body::from(
+        json!({"version":1,"operation":"resume_restore", "reference":{
+        "descriptor_hash":"a".repeat(64),
+        "creation":crate::catalogue_wire::creation(&crate::tests::named_creation("restore", 8))}})
+        .to_string(),
+    );
+    request
+}
+
+fn restore_enabled(factory: Factory) -> Arc<HttpState> {
+    let mut state = enabled();
+    Arc::get_mut(&mut state).unwrap().restore = Some(RestoreState {
+        pool: CatalogueState {
+            scheduler: Arc::new(
+                Scheduler::new_recovery(
+                    Limits {
+                        workers: 1,
+                        queued_total: 4,
+                        queued_per_tenant: 3,
+                        queued_per_name: 2,
+                    },
+                    factory,
+                )
+                .unwrap(),
+            ),
+            max_body_bytes: 2048,
+            timeout: Duration::from_millis(100),
+            intake: Arc::new(Intake::new(Class::Recovery, 1, 2048, None).unwrap()),
+        },
+        timeout: Duration::from_millis(500),
+    });
+    state
+}
+
+#[test]
+fn restore_copy_uses_its_own_pool_and_rejects_misclassified_calls() {
+    runtime().block_on(async {
+        let disabled = router(enabled()).unwrap();
+        assert_eq!(
+            decoded(disabled.oneshot(restore_request()).await.unwrap()).await["error"]["code"],
+            "UNAVAILABLE"
+        );
+        let state = restore_enabled(Arc::new(|_| Ok(Box::new(Echo))));
+        let app = router(state.clone()).unwrap();
+        let permit = state
+            .restore
+            .as_ref()
+            .unwrap()
+            .pool
+            .intake
+            .acquire(&principal())
+            .unwrap();
+        assert_eq!(
+            decoded(app.clone().oneshot(restore_request()).await.unwrap()).await["error"]["code"],
+            "BACKPRESSURE"
+        );
+        assert_eq!(
+            decoded(
+                app.clone()
+                    .oneshot(directory("inspect remains live"))
+                    .await
+                    .unwrap()
+            )
+            .await["value"]["name"],
+            "inspect remains live"
+        );
+        drop(permit);
+        let mut wrong = restore_request();
+        wrong
+            .headers_mut()
+            .insert("x-scap-admission", HeaderValue::from_static("catalogue"));
+        assert_eq!(
+            decoded(app.clone().oneshot(wrong).await.unwrap()).await["error"]["code"],
+            "INVALID"
+        );
+        let mut wrong = directory("restore");
+        wrong
+            .headers_mut()
+            .insert("x-scap-admission", HeaderValue::from_static("recovery"));
+        assert_eq!(
+            decoded(app.clone().oneshot(wrong).await.unwrap()).await["error"]["code"],
+            "INVALID"
+        );
+        let reply = app.oneshot(restore_request()).await.unwrap();
+        drop(state);
+        assert_eq!(decoded(reply).await["value"]["name"], "restore");
+    });
+}
+
+#[test]
+fn direct_restore_state_rejects_invalid_limits_and_wrong_intake_before_routing() {
+    for mode in 0..8 {
+        let mut state = restore_enabled(Arc::new(|_| Ok(Box::new(Echo))));
+        let state_mut = Arc::get_mut(&mut state).unwrap();
+        let restore = state_mut.restore.as_mut().unwrap();
+        match mode {
+            0 => state_mut.catalogue = None,
+            1 => restore.pool.max_body_bytes = 0,
+            2 => restore.pool.max_body_bytes = 65537,
+            3 => restore.pool.timeout = Duration::ZERO,
+            4 => restore.pool.timeout = Duration::from_secs(86401),
+            5 => restore.timeout = Duration::ZERO,
+            6 => restore.timeout = Duration::from_secs(604801),
+            _ => {
+                restore.pool.intake =
+                    Arc::new(Intake::new(Class::Catalogue, 1, 2048, None).unwrap())
+            }
+        }
+        assert_eq!(router(state).err().unwrap().code, "CONFIG");
+    }
+}
+
+#[test]
+fn restore_execution_uses_long_budget_but_upload_keeps_short_budget() {
+    struct Slow;
+    impl Worker for Slow {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            std::thread::sleep(Duration::from_millis(250));
+            Ok(json!("copied"))
+        }
+    }
+    let mut state = restore_enabled(Arc::new(|_| Ok(Box::new(Slow))));
+    Arc::get_mut(&mut state)
+        .unwrap()
+        .restore
+        .as_mut()
+        .unwrap()
+        .pool
+        .timeout = Duration::from_millis(100);
+    runtime().block_on(async {
+        let app = router(state).unwrap();
+        assert_eq!(
+            decoded(app.clone().oneshot(restore_request()).await.unwrap()).await["value"],
+            "copied"
+        );
+        let mut pending = restore_request();
+        *pending.body_mut() = Body::new(PendingBody);
+        assert_eq!(
+            decoded(app.oneshot(pending).await.unwrap()).await["error"]["code"],
+            "DEADLINE"
+        );
+    });
+}
+
 #[test]
 fn catalogue_is_explicitly_enabled_authenticated_and_never_borrows_database_capacity() {
     runtime().block_on(async {

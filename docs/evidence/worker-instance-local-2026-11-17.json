@@ -1,0 +1,523 @@
+{
+  "boundaries": {
+    "all_prior_native_network_performance_contracts_for_this_candidate": "NOT_RUN",
+    "automatic_identity_allocator": "NOT_IMPLEMENTED",
+    "aws_iam_enforcement": "NOT_RUN",
+    "aws_s3_standard": "NOT_RUN",
+    "deployment_requirements": [
+      "Fresh explicit ID for every startup, including after post-claim resource failure",
+      "Immutable worker prefix must be preserved across IAM, lifecycle, GC, backup and restore",
+      "Stop and prevent legacy binaries from restarting; retain evidence of historical issued identities",
+      "Trusted lower-level Rust embedding APIs retain caller-owned lifecycle responsibility"
+    ],
+    "historical_identity_migration": "NOT_RUN",
+    "local_backend_does_not_qualify_aws": true,
+    "production_throughput_capacity_cost": "NOT_RUN",
+    "whole_workspace_gate": "FAILED; original seven empty branch denominators remain"
+  },
+  "build": {
+    "backend_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "coverage_target": "separate dedicated identity-coverage-target; not shared with other worktrees",
+    "native_dependencies": "Bound by the frozen Cargo.lock and source tree",
+    "profile": "dev / unoptimized + debuginfo",
+    "scapd_sha256": "7bf0ddb83f9599207e4ad5a59b7a8bd0f1ae5c47f787f9f282c9ffb7f8ddff17",
+    "stable_target": "dedicated identity-target; not shared with other worktrees"
+  },
+  "candidate": {
+    "base_commit": "b4c52365d0b4f84539df9c6ebd156d8da1570b3d",
+    "local_tested_commit": "2c0d18f0c68fecdf337451ea134cc15f23f6c03e",
+    "remote_and_local_tree": "0047a419d3f09b76d9da8ab82425ffb2a6cf5981",
+    "remote_code_commit": "841da9c76913232d98e409ab7a3b12a8633af25e",
+    "report_scope": "These two reporting documents are added after testing; they are not members of the frozen code tree.",
+    "source_fingerprint_sha256": "ed5c730685a00d03aac85f42059f62a777b43c9b1a1bc5454eee7c9774de7d8b",
+    "source_manifest_files": 742,
+    "source_manifest_sha256": "dc9e7163ed42798641827336b4e8e3382420151afb2d46d0c70a56e8e8083f6d",
+    "source_verified_unchanged_after_gates": true,
+    "tree_equality_verified_by_publisher": true
+  },
+  "candidate_files": {
+    "contracts/coverage-policy.json": {
+      "bytes": 5352,
+      "git_blob": "a058087098c9b8285de016c8c849c4e196b88d7d",
+      "sha256": "9c9ead52404c399cebb0bd5157f35db58073fae9eeaadc4cd44cb2ea46455aff"
+    },
+    "crates/scap-service/README.md": {
+      "bytes": 15720,
+      "git_blob": "663b875f8239159a7845fcc2b7ec3337e9bff8ae",
+      "sha256": "70bed077ceda020f14c4463aaefcae60c0c280b827f64c9c2e53c6b25d286395"
+    },
+    "crates/scap-service/docs/accepted-owner-plan.md": {
+      "bytes": 8146,
+      "git_blob": "fbc7c015c4919cb5103b60f3b85a60290a0b7924",
+      "sha256": "f3b9c924723ddc5e612329e43440a64d3a958fe23f552964613b28fb0ec15b99"
+    },
+    "crates/scap-service/src/auth.rs": {
+      "bytes": 4036,
+      "git_blob": "ff7bc6649495c70cbe5540dfc766c3991ce3aadf",
+      "sha256": "9da3158ca10dad7627a0b6892d09c859fe55e2550bce6bc691212af377fcb54d"
+    },
+    "crates/scap-service/src/daemon.rs": {
+      "bytes": 11460,
+      "git_blob": "8f36128ff319d2dd6ed7325f195cde72498e4942",
+      "sha256": "0c6cb976636249fb963c4b162fe19c97ae5453697796e1c8509ba7aa16b84d8c"
+    },
+    "crates/scap-service/src/daemon/tests.rs": {
+      "bytes": 34342,
+      "git_blob": "9aa07589afd8b6ca28422eff74058871b954c58a",
+      "sha256": "39797963d3bb474161687ac3a9b930afe453a4c54878a14427f686c7697cc2d6"
+    },
+    "crates/scap-service/src/daemon/tests/startup_s3.rs": {
+      "bytes": 4250,
+      "git_blob": "2feaf8e78332a64285eff8c6192a9743bff1c449",
+      "sha256": "7cfa33281be21d9b479e582128ee4e73038060d53cd015430ec8c3be24b95534"
+    },
+    "crates/scap-service/src/instance.rs": {
+      "bytes": 2102,
+      "git_blob": "ab01a3991375aad0ef07c98dd3ff2a6ace1ce0f3",
+      "sha256": "3702dbeae9be9b6ba04ddc55f3f9f95d80f7b1b5b5e8c8265d84ff1468c6ed1d"
+    },
+    "crates/scap-service/src/instance/tests.rs": {
+      "bytes": 6273,
+      "git_blob": "ac27ae67f362018390a57f129e3ff184abccc66a",
+      "sha256": "f6af5ac7e459bbfb4d1cd178b609d51722b0a01aed21613571fcad797680e409"
+    },
+    "crates/scap-service/src/lib.rs": {
+      "bytes": 3396,
+      "git_blob": "4a8c8e3d19e2c1ead7ce4a28d049d6498eb4ee84",
+      "sha256": "1d5d5ce0e9d3140259357935f17c836018eedfe2675c8290dc6c103033bdac8b"
+    },
+    "docs/architecture/worker-instance-claim.md": {
+      "bytes": 8562,
+      "git_blob": "a4d8cb4b1d6bf50b9758e8dabb16be72da526739",
+      "sha256": "67db8a4b5589a3b75cc9f0bfb51fa04dc3b2beb00d1eefd514d7dac0c6365be8"
+    },
+    "experiments/bounded-transport/README.md": {
+      "bytes": 3987,
+      "git_blob": "d6e323832d2495efeef103bf39a851d6771c46e9",
+      "sha256": "a81a8f8f3d6f9ea9a8a01de3805cb5fb1f7b1fdfe9992a14fc0464fbf8a3292d"
+    },
+    "experiments/bounded-transport/run.py": {
+      "bytes": 12312,
+      "git_blob": "87e935b70b14e243962c0e8429fd58778bd81d70",
+      "sha256": "7ce4004170a3b5eae23922e6ca0461372db5f679f69978365652286efffba073"
+    },
+    "experiments/worker-instance/README.md": {
+      "bytes": 1701,
+      "git_blob": "b592a6fe330e5bddeda4d75267eba32f20c4f0af",
+      "sha256": "cf8ff17b78af20ea948c266df3e9888eb239f4339346acf51f85bd38b167938e"
+    },
+    "experiments/worker-instance/run.py": {
+      "bytes": 11617,
+      "git_blob": "89ff560bc0c541b780a12839c0464acc429b1e2b",
+      "sha256": "0c3cbea74029e892b7992375805df0a5665217dbbacebdf10ee444c9f53caa6f"
+    }
+  },
+  "date": "2026-11-17",
+  "raw_evidence_sha256": {
+    "identity-bounded-oracle-unit-final.log": "c587f7b49aabc15cc42d6ebc827f36a6a091f3f00d9b1070d2bdd23bad2abd20",
+    "identity-bounded-runtime-final.log": "52a95e3dd433e62f7ba1288b08887f668a7b39a2843f9f4b8ef52ba2a28cceb6",
+    "identity-bounded-runtime-final/observations.json": "7995dfd09096696d8b81be50835439576e8bd9408d4270191c409084880ada2a",
+    "identity-build-final.log": "6ba03bc381aa8ffe123f3fa2ff992ef384f3be60460ff71c60548e78c6e185e7",
+    "identity-clippy-final.log": "fecede7c2157efe2f16c8c8b9dce94b0fb4dd384dca8207046c8bf7636eb0ffe",
+    "identity-coverage-final.log": "524783f44d16d43fc124f58188a4404f2415b0e9260ed4da6e3229c9834f90e4",
+    "identity-runtime-7f21f2b/result.json": "b7d93eca830a68debaf012ef142b84e76f5fd90b3406fa01808e578c5702f1ae",
+    "identity-runtime-final.log": "aeb657e1e918c50b981f24d7f7a1b9b67655e095b3e1c6a1abc9ff8453f1641c",
+    "identity-runtime-final/result.json": "3ae485d3e1b49789202994ac3753fdeb4c36446f4249e8aa80b8c1237fc6600f",
+    "identity-source-final.json": "dc9e7163ed42798641827336b4e8e3382420151afb2d46d0c70a56e8e8083f6d",
+    "identity-unit-coverage-final.json": "8ebaf337926425e41722c30814de8d0d239bdffa8e1f5a42d46fac3b84c44361",
+    "identity-unit-gate-bda6ea6.log": "17091006b8f996eeb8789404bce5cf1c8af82c8eb4d20843306f54c67591beaa",
+    "identity-unit-gate-final.log": "c05a1d1a5e19aa65ed1fbd622454970fdf1b736697c9da1dd3eb5a1ddf80fa44",
+    "identity-workspace-unit-final.log": "8efa0bf6a3b1ce70a83b4fa2acbcf85fd723a84b6896630daecd5244122307d3"
+  },
+  "raw_material_policy": "Only source and evidence hashes plus structured conclusions are committed; no credentials, database files, raw logs, or runtime configurations.",
+  "raw_validation_manifest_sha256": "81e8ec06f3738bfdfe6cca4aeaf96eb6db89a7a0f479785d2ebc0a6915df48f4",
+  "retained_history": [
+    {
+      "candidate": "bda6ea6380d1781cd7a54740643f7f9c4bea2a35",
+      "daemon_uncovered_lines": 3,
+      "daemon_uncovered_regions": 4,
+      "kind": "initial_coverage_failure",
+      "resolution": "Post-claim resource failure regressions and prevalidated Discovery invariant; final fresh report has no uncovered counters"
+    },
+    {
+      "cases_passed": 10,
+      "kind": "earlier_startup_run",
+      "local_candidate": "7f21f2b",
+      "raw_evidence_hash_retained": true,
+      "superseded_for_final_verdict": true
+    }
+  ],
+  "rust_source_sha256": {
+    "crates/scap-object-sqlite/src/alter_tests.rs": "e6457e14e6da2ba86e76244814b4e4abcec97b75691d9eb502b3a2c5482a6604",
+    "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+    "crates/scap-object-sqlite/src/config.rs": "0e271120f953cc9683470f5ccf3f59f2e839349b014b0a3790835dacd5ee12ee",
+    "crates/scap-object-sqlite/src/config_tests.rs": "7095ab4d504565c41adf1c1b9b49a44671eeec9885416a531b1c4555feeed668",
+    "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+    "crates/scap-object-sqlite/src/file_tests.rs": "f72b221e396dd17547e4e2414b4e29d952489990c413792ecdb297f618752d45",
+    "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+    "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+    "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+    "crates/scap-object-sqlite/src/lib.rs": "ccf265866e1fdf8761ee331c5fe28a7a7c831a9b59aa1072377bea18449dbcbb",
+    "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+    "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+    "crates/scap-object-sqlite/src/result_memory_tests.rs": "b237a2394aa66dbca696100a987f7c7e609cb361b4b4878a57270ed073901577",
+    "crates/scap-object-sqlite/src/sql.rs": "9c164bd72134118239da03142c6d08b49aeab77b70053c234d9ea3f8ac282df3",
+    "crates/scap-object-sqlite/src/storage.rs": "7f852057de3797725f29f95b73cdbdf9bf81cc07aa3a26933312057eb1813782",
+    "crates/scap-object-sqlite/src/tests.rs": "615c0ea345a988513e8af78b00bc484baf5f4ff708109189b8bab3df0ad8905c",
+    "crates/scap-object-store/src/gc.rs": "c16af1daeb1896dd57db18d24050c156427005464bfce57f981943c356fcc1ac",
+    "crates/scap-object-store/src/gc_tests.rs": "be813a44afe60ccd8bb76514e4cf2015f185d94bfca71cd99de11ca71d922849",
+    "crates/scap-object-store/src/gc_xml.rs": "bc4ef60668dc40bde643a6ad477d443de3c871bd1240b78c86458f4466fa0228",
+    "crates/scap-object-store/src/gc_xml_tests.rs": "2645ad8eb9a7190d7bfe05a5a3dd4bf4051211f8965895529b37ca23812d5c8c",
+    "crates/scap-object-store/src/lib.rs": "84b63ccb39c14e2e8c457d1868036570efbcd9bbe23279f59cf2a438dd5f03fd",
+    "crates/scap-object-store/src/listing.rs": "7324a3802e5f62e23b36ececb1e4cca0bd681084dcdd4e258a399171fe7779dd",
+    "crates/scap-object-store/src/listing_guard.rs": "216d0acf7425faee9de01646576adde4e9d6dde6e10a1b8407af978d031114c8",
+    "crates/scap-object-store/src/listing_guard_tests.rs": "a54052bcf20f82523bb0b356a6ca35172eaf3170bfeabb69e444b33db1a2d2d9",
+    "crates/scap-object-store/src/listing_tests.rs": "6fb3f6be7ba9f882c417f4ffb859f49ad044a961a5adfe2aff0fd51ace91ba5d",
+    "crates/scap-object-store/src/listing_xml.rs": "ab547a73cb0dad46e269a0ecd1f86a7887d7d0a5ccf9cf71c071de04097eefcc",
+    "crates/scap-object-store/src/listing_xml_tests.rs": "2ddab27b8208fda0cef0b24f078cefa3998749e978bcb359c5142f1fab5b3857",
+    "crates/scap-object-store/src/tests.rs": "a9d38b1d8810301dd3a02e91c8b37b34df4f9c4e1e2b42c67883e29d9ad48310",
+    "crates/scap-object/src/catalogue/boundary_tests.rs": "5ae54d819af03acf5977105ec8c0a8cb7b7a4f08bc0fd94541b8d8106dc8ec2c",
+    "crates/scap-object/src/catalogue/control.rs": "252513f669e88fb1eec3ebd7c700ba83e68791a11e81f6d1b8baa30506dd723c",
+    "crates/scap-object/src/catalogue/control_boundary_tests.rs": "de83fb7a1651b4f102df350142071af130b01843b6e40808bc58667444035c68",
+    "crates/scap-object/src/catalogue/create.rs": "86614901b0f4cc9cecf77e2591bca4e99c68b3f7cd01541a2a1a1b1ceef615fa",
+    "crates/scap-object/src/catalogue/create_boundary_tests.rs": "e6c86caff58e34193af53c3199ba65602b3a922b9c48de7939418a3814412831",
+    "crates/scap-object/src/catalogue/discovery.rs": "93005f12a3234c3a1fc2a3656aaac3a86f4605bed4840dcc94492c31a85afe4d",
+    "crates/scap-object/src/catalogue/discovery_budget.rs": "ed2a8bd91615dd6ddade16e9a35078f3f389e20d77b5851a84ec0de59f2cfa4d",
+    "crates/scap-object/src/catalogue/discovery_names.rs": "d34043b9ebf8bfebee4b421255f84874ce70ca7386d1131440b885972a45d18e",
+    "crates/scap-object/src/catalogue/discovery_record_tests.rs": "ba79cabcab8df9a8910cb9f1a4d9825b8a247aee5c32db806425b575bf2f45ec",
+    "crates/scap-object/src/catalogue/discovery_records.rs": "02535cc7c81ca3f621ff2ad8aff0f733648a066b6cc45a8495268249c67520b4",
+    "crates/scap-object/src/catalogue/discovery_tests.rs": "7bf1e2de97512a1ad0cfac63f4d5b7782c8236da1b6bbe7ff9d9382b7d9aea02",
+    "crates/scap-object/src/catalogue/fault_tests.rs": "1823d2c69634ee678b7535f318b91d8bd1bcef3d842833d5bd28118905c540d9",
+    "crates/scap-object/src/catalogue/inspect.rs": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252",
+    "crates/scap-object/src/catalogue/inspect_boundary_tests.rs": "0a3465a927f04808f7d867dfc682be71a45ad12805fa8edb29d1465e3ea7fe07",
+    "crates/scap-object/src/catalogue/mod.rs": "3579e9b3a48ca2ff3c5b5a0fbfc600c697be9156c04b75d70252d3d9eaaba108",
+    "crates/scap-object/src/catalogue/protocol_tests.rs": "e1c8368147b8767cacd22d3c04cfe40743c1d281e9618b991a66630c87703bd1",
+    "crates/scap-object/src/catalogue/records.rs": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe",
+    "crates/scap-object/src/catalogue/records_tests.rs": "f293efb9a28541a7095784888a557710709d3e62e7e9560edefe311c4ad440d3",
+    "crates/scap-object/src/catalogue/recovery_budget.rs": "46f12f2296245188271a1fd4fa249017d51d069e2b085e8956c4424187ab97ad",
+    "crates/scap-object/src/catalogue/recovery_budget_tests.rs": "cdb2b3d9bfe5383aca7a23ecf9304fe2625f276d0422d23f53251445c3ff0a74",
+    "crates/scap-object/src/catalogue/recovery_job.rs": "95beb723eb33acde179c675367278c6f121da8b8ff77588c1491415a81122dc8",
+    "crates/scap-object/src/catalogue/recovery_job_tests.rs": "9af05c90d53920f0bac325ea573e0e1101735f3185cdae3a654948ff4f87ce41",
+    "crates/scap-object/src/catalogue/recovery_tests.rs": "bb263d6686473ac1e845949be4d365555136af7ce0d0a6f029448b339176ae4a",
+    "crates/scap-object/src/catalogue/terminal.rs": "6de5dfc8b672b6167fe1662d5970b12fe73fe2e0b7bfdea4361f8b470683c1db",
+    "crates/scap-object/src/catalogue/terminal_tests.rs": "c0355a681ef32c8452d95d06ee1d3d2a6e063974b41f2649b7fd53541261c777",
+    "crates/scap-object/src/catalogue/tests.rs": "7cb0878ca203046f8b6ebba5000d5707a85a1ab7c67e3b53d2d987112ee5011a",
+    "crates/scap-object/src/catalogue/types.rs": "f0f28940542f71f283fe0cbc010ca20b0d08553806888a966ee990286a502e3a",
+    "crates/scap-object/src/closure.rs": "14db82fc3663805b0143938505aa9f36be7e9ea15b338f45bb5179234d031fa3",
+    "crates/scap-object/src/closure_tests.rs": "4728684609f278ca37b4083e5dcd759bd11d284aeb723d867be288981d945d65",
+    "crates/scap-object/src/data_tree.rs": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9",
+    "crates/scap-object/src/data_tree_tests.rs": "c46a94c059930ea08a22cebce5cffff0cfb1cf270af0a07df7a8faeb555e9490",
+    "crates/scap-object/src/format.rs": "85f1a1f9b09fa35676e88c1e93b611e8c5be618651a98b17ed88e9c4c960d9c1",
+    "crates/scap-object/src/format_tests.rs": "28ad5b67191bfc2990581c7f0adb921eef5ba2f61d0072155642763bfee941fd",
+    "crates/scap-object/src/head_publication.rs": "6ce9eb7ffe3189a5eb3ff0a2b23364028e8bc1b11c3bd7b9f06d7b0fbc439364",
+    "crates/scap-object/src/head_publication_tests.rs": "0d591863fd8f78cddda92e0ebe28df157d69916fbbaf0ddf717d9ad199b0ac71",
+    "crates/scap-object/src/lib.rs": "717294c82ea185669fb7896597a9c273d37fb8673737c8d6b926d8a27e625438",
+    "crates/scap-object/src/object_context.rs": "3de4bcce2131f1e30fb39ab090413f46eb5e01544aec4a12ec05def82a64ace7",
+    "crates/scap-object/src/object_context_tests.rs": "d234b7fdfced5fb3b7a6a4482b8b44bb58bc10f86c995389a95fde49bf63ba34",
+    "crates/scap-object/src/object_frame.rs": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5",
+    "crates/scap-object/src/object_frame_tests.rs": "bdbad97080e22dad6f8aa7bc77edb94c4eef113da5c4cfa1e03c0039d9744679",
+    "crates/scap-object/src/options.rs": "119d4a5a145179c689b8d5b147bab1e6c178771a7df21e5febddf3cc27293365",
+    "crates/scap-object/src/options_tests.rs": "3cb3ae59ff961c7ea9a258230c9bf3d1148cea976ea70492765f656c6ec586b7",
+    "crates/scap-object/src/owner.rs": "1fd560b02d22a0fc7a923782599ed565cac263cbd27a2ad1737b107574c0818e",
+    "crates/scap-object/src/owner_format.rs": "8d4f87e8b3b18ecc2d8d02aaeb39d6b4972703228df55b032e1090074991e448",
+    "crates/scap-object/src/owner_format_tests.rs": "d72612c42591a9ae30ec84df1e11bbc4cea1929a23518fe2bc929b6a7b6e2e74",
+    "crates/scap-object/src/owner_tests.rs": "7247fba7ae822e373cc1527bb065e744357f79f80d72f2c29cb410c229fabd3f",
+    "crates/scap-object/src/quarantine_tests.rs": "367d5ad152ae07d72ae19b8fc0e8145a9974795b3df551c5c03583656ccb4e5c",
+    "crates/scap-object/src/reclamation.rs": "052d6426a27d34a363548a86ec841f08501a565f98bf89cc4b128da8ec98c44b",
+    "crates/scap-object/src/reclamation_tests.rs": "bc69faff0733a47c6e8264c4f08a46e6daa8f54be666fcd6c6758878229bf55e",
+    "crates/scap-object/src/request_index.rs": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063",
+    "crates/scap-object/src/request_index_tests.rs": "fa1d05494154f7d202a468f6ade9f9ca4450c6aa9082c3b35cefd1a93236a3bf",
+    "crates/scap-object/src/result_validation_tests.rs": "5449972d130d5e5b5ede430b4a5d550d2d9cd31a54dbbf5cf8b1da393f85cac6",
+    "crates/scap-object/src/review_tests.rs": "75d7b82670fd4377538e2048b881dceca0ef46002c2abc4c44f83de8c7c6a2fd",
+    "crates/scap-object/src/session_tests.rs": "333110a6edca8f7a50095e9272a272bb4d7b87c0d8e772ba6308747309e6cb9b",
+    "crates/scap-object/src/snapshot.rs": "ab49465c89d767792a6d11f46bdad044e82b1e6b12cbc85d5eb33b74d37e6d06",
+    "crates/scap-object/src/snapshot_format.rs": "496ebb486f86078a14072fa5f6f2cbf69790525364b318c21190e044a3003bfe",
+    "crates/scap-object/src/snapshot_format_tests.rs": "0ace9efa9d3e0de302979abb738d4bac37ef82c4919c3f56bec49aecde7be7ce",
+    "crates/scap-object/src/snapshot_integration_tests.rs": "559c61d533aea89ee714a3fb0045f3474c82edaeb0589472ca0cf7719f9d090e",
+    "crates/scap-object/src/snapshot_records.rs": "79dee390d346bd62c54bffdee4f8edb36a38f27538509e0833e7c7fb10a71314",
+    "crates/scap-object/src/snapshot_records_tests.rs": "7028532c03b7d0c264b131d61a5faf763208afa1483fa18e2b654220c1421167",
+    "crates/scap-object/src/snapshot_tests.rs": "4a80b012becbb91969318284042a02e861dfc8c89e5d853fb18fb3fb3e8dc2a0",
+    "crates/scap-object/src/storage.rs": "2a56dc6217677c47dabff92dd421909c8333735f5f0df2dc4e144cbe3c8dddc3",
+    "crates/scap-object/src/tests.rs": "50f55dd1fa29f36d173122fa934fb6bab208f3fef6eb153cf372dbbc24da5835",
+    "crates/scap-service/src/auth.rs": "9da3158ca10dad7627a0b6892d09c859fe55e2550bce6bc691212af377fcb54d",
+    "crates/scap-service/src/auth/tests.rs": "d78fb649c2a487c35251151d9837c7bad44e4589de86f3236f6511d419283bed",
+    "crates/scap-service/src/catalogue.rs": "f03b8e39995cc84fdb3ba5494ed54fab4d7d65e604eef712c5480f03b36c2d99",
+    "crates/scap-service/src/catalogue/tests.rs": "458e185c8e58dc5aa9870fa8ad969acb37c057e24743f59ad11ae859c371fcaf",
+    "crates/scap-service/src/catalogue_scheduler.rs": "3cd4175d59b3b6927f30a4d28f50d7919835a9dbd620693351f12820ec03f74e",
+    "crates/scap-service/src/catalogue_scheduler/tests.rs": "3a58901dba0d5566a3c6133625be0804d94432303c036e3b1279a771926f0df2",
+    "crates/scap-service/src/catalogue_wire.rs": "5ae70d66f675ddb7dbae0d6b563c6c385fdb5cbd6b5479ea989a5574b25244a9",
+    "crates/scap-service/src/catalogue_wire/tests.rs": "0fd3783ceea42fa87b985e48c586b400aeb546cc12f1d2d7a16a63a64a03f91e",
+    "crates/scap-service/src/config.rs": "dfb0f58f32b674b3e1957978113e26479f0c08e7e21e3a345290ffd1db38d579",
+    "crates/scap-service/src/config/tests.rs": "fceed750d32c77e25d180ac2a6dd98ef0dce340fc5e3dd005210195c1e013102",
+    "crates/scap-service/src/daemon.rs": "0c6cb976636249fb963c4b162fe19c97ae5453697796e1c8509ba7aa16b84d8c",
+    "crates/scap-service/src/daemon/tests.rs": "39797963d3bb474161687ac3a9b930afe453a4c54878a14427f686c7697cc2d6",
+    "crates/scap-service/src/daemon/tests/startup_s3.rs": "7cfa33281be21d9b479e582128ee4e73038060d53cd015430ec8c3be24b95534",
+    "crates/scap-service/src/discovery.rs": "d061985a7191f828d7bf49a9953a3125ed2089541f57ea89e709fb37546c8091",
+    "crates/scap-service/src/discovery/tests.rs": "bde6c5cda90006ae737f381e2dd6ed80f8b4dc33a308c2e160e5e90d425e2745",
+    "crates/scap-service/src/discovery_cursor.rs": "184e17a45d1f13be5267c2c980f387271f8708ed8a5fe0ca64e0a81a287b2c01",
+    "crates/scap-service/src/discovery_cursor/tests.rs": "95a999b2696646ecd86487a54cd9eeebc2613a64ec471ce71df6f9ab0a196f9d",
+    "crates/scap-service/src/discovery_wire.rs": "815f667ed8c5a2825d33d60a4024c6e5c145b92b08125cd1fefc8db9aba794cb",
+    "crates/scap-service/src/discovery_wire/tests.rs": "1da13f503f88e59c4e19c5d0ef4510291aaec9893e613debdfb0ab6c23f5e85c",
+    "crates/scap-service/src/engine.rs": "4c7adb8b0861280af3d869ab4189bd07dda1c8dce46ddafe5e072c2934fd2254",
+    "crates/scap-service/src/engine/owner_tests.rs": "fbeac12549a7a352dafe55b53e2ec0b9de0744c848db6110adeb6d312b062672",
+    "crates/scap-service/src/engine/snapshot_tests.rs": "3c073f314753a599149ce2cdda96269954a220f24cc578b4a5e2e4d8174d6949",
+    "crates/scap-service/src/engine/tests.rs": "0af5761c718e9b07a150f5dc75361f0f409b0c9a1712e5f2996f049af8b62f7b",
+    "crates/scap-service/src/http.rs": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+    "crates/scap-service/src/http/catalogue_tests.rs": "903ed1374456fe7d972e693b15c080611b8e429dc159f63512e34c3dfb7f7cd4",
+    "crates/scap-service/src/http/discovery.rs": "5c1e2921ea205e53b57eefa94677281b4126e0fd4a53466a4813d23eda15e3fd",
+    "crates/scap-service/src/http/discovery/tests.rs": "8e1fed0cef209ca62deb7556a1aea18c33780c23d5240d8ccdaa32fe0812a04e",
+    "crates/scap-service/src/http/intake_tests.rs": "697345fec732c85807e94230b435d2acc10bc9c32758b5e08cca8c75691f67c9",
+    "crates/scap-service/src/http/output_tests.rs": "65bd4653c8a9bbb48cdfeeb9242571eccc25727bb8650826195ee0cf13d6a76c",
+    "crates/scap-service/src/http/tests.rs": "dc2a55664f649014e775b5b24b08dc225e1af1481753dca36b584f5ce1e2569b",
+    "crates/scap-service/src/instance.rs": "3702dbeae9be9b6ba04ddc55f3f9f95d80f7b1b5b5e8c8265d84ff1468c6ed1d",
+    "crates/scap-service/src/instance/tests.rs": "f6af5ac7e459bbfb4d1cd178b609d51722b0a01aed21613571fcad797680e409",
+    "crates/scap-service/src/intake.rs": "7ba5a48e61a07f12ac97ee89db950965fdaf1b6f0e742dd8f07fcbc5883d5739",
+    "crates/scap-service/src/intake/tests.rs": "bea155b9b322f3553d8d8512eb299c204b600497442f704cf7e8650724707819",
+    "crates/scap-service/src/lib.rs": "1d5d5ce0e9d3140259357935f17c836018eedfe2675c8290dc6c103033bdac8b",
+    "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+    "crates/scap-service/src/output.rs": "fdbb3b8e2e858d15c97eff73b88cd195de0293a75bc61da120130f5635ee587f",
+    "crates/scap-service/src/output/tests.rs": "aa88951f5505ee72d686ea348714a18b8cd472d686f6ed9f8e1ba6d3415395fc",
+    "crates/scap-service/src/owner_wire.rs": "b816cb0872ecd40b9178c230685faba4a51a5bf0dbc75068c84bff464fdc8556",
+    "crates/scap-service/src/owner_wire/tests.rs": "6e6dbdcb076d5b2833748cd0542fabbc603af8ecae9bec3e15e1ea268c31e8b5",
+    "crates/scap-service/src/scheduler.rs": "7de13d9b1f1e73bf7b6d909a3795e2e8683804e3522bc8abfb89c2c4358c78ac",
+    "crates/scap-service/src/scheduler/tests.rs": "d170dbbc76975d42c6e5b940d9fa9cd3f2e36e1c9026ee71741ed5d920ec9597",
+    "crates/scap-service/src/snapshot_wire.rs": "a95febfbaf9118155da0b47a97b3e0164bd4112ca1fb1374e4c0c7defd36a763",
+    "crates/scap-service/src/snapshot_wire/tests.rs": "d3c3e86141d539eedfcbbd66567b134a5b0a1a41de959190baace995aee38ad5",
+    "crates/scap-service/src/tests.rs": "cacb550b58c130ac666e9c50cc786ab65bcb90113c5d4ad13ac0dd29a3cbbeec",
+    "crates/scap-service/src/transport.rs": "ea0fc43e0b77a1538829b188ed8974d9e52860659ce6afc88b69f608b1c3c77e",
+    "crates/scap-service/src/transport/tests.rs": "d90caaee9ab10321af4d6d9b7e238bcdd4715cb8fdb19e113499c2ebfd989145",
+    "crates/scap-service/src/wire.rs": "46803645fd240c6f7d840178d244bc5e2f42f7ab908936fa00902eb53fcce0bb",
+    "crates/scap-service/src/wire/tests.rs": "d1320b5f3c1e48a3b823594a9d7be0c9cbac6f584bea2accb229373a00b84193",
+    "crates/scap-sql/src/lib.rs": "f2a1f8ec2be3f0f88392c748e51faab46e155f0220294366985aa64b5e5c7f78",
+    "crates/scap-sql/src/result_memory.rs": "75e14884ce39552e54e683e33e8e72fe069a25a0b6dee80302d07bc295504afb",
+    "crates/scap-sql/src/result_memory_decode_tests.rs": "b871abdd57050284f93aa7a3170f83d725efcafd5fbdc237fa44bac9feb2ff4f",
+    "crates/scap-sql/src/result_memory_tests.rs": "980ee30f73d10988c8baf65ec8b6b39171eabba987289d0c9ce0c07ef51acef2",
+    "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+    "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+    "crates/scap-sql/src/tests.rs": "e813aecb312da55a8c0d6e9098f6f644e645143013c1afa0d4a05a06f9285ea4"
+  },
+  "schema": "scap-worker-instance-local-v1",
+  "scope": "Source-bound local startup identity verification; not AWS qualification, remote CI, or merge approval.",
+  "tools": {
+    "backend": "SeaweedFS 4.51 153ab668c99731a6d29492bf6c61d0b4fa701101 linux amd64",
+    "coverage": "rustc 1.92.0-nightly (4645a7988 2025-09-17), nightly-2025-09-18",
+    "coverage_runner": "cargo-llvm-cov 0.6.21",
+    "python": "3.12.14",
+    "stable": "rustc 1.90.0 (1159e78c4 2025-09-14)"
+  },
+  "validation": {
+    "bounded_transport_oracle": {
+      "command": "python3 -m unittest discover -s experiments/bounded-transport -p 'test_*.py' -v",
+      "includes_negative_controls": true,
+      "status": "PASSED",
+      "tests": 5
+    },
+    "bounded_transport_runtime": {
+      "case_count": 8,
+      "cases": [
+        "capacity",
+        "first_header_deadline",
+        "keepalive_header_deadline",
+        "header_bytes_at",
+        "header_bytes_over",
+        "header_count_at",
+        "header_count_over",
+        "h2"
+      ],
+      "command": "python3 experiments/bounded-transport/run.py --binary SCAPD --weed WEED --evidence NEW_DIRECTORY",
+      "normal_sigint_exit_status": 0,
+      "owned_child_reaped": true,
+      "startup_backend": "actual pinned local SeaweedFS, no claim bypass",
+      "status": "PASSED"
+    },
+    "clippy": {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "status": "PASSED"
+    },
+    "coverage": {
+      "failures": [
+        "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+        "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+      ],
+      "full_workspace_gate": "FAILED",
+      "full_workspace_gate_exit": 1,
+      "policy_changes": "No threshold or production exclusions changed; added new test sources and research harness classification only",
+      "touched_files": {
+        "crates/scap-service/src/auth.rs": {
+          "branches": {
+            "count": 30,
+            "covered": 30
+          },
+          "functions": {
+            "count": 13,
+            "covered": 13
+          },
+          "lines": {
+            "count": 79,
+            "covered": 79
+          },
+          "regions": {
+            "count": 111,
+            "covered": 111
+          }
+        },
+        "crates/scap-service/src/daemon.rs": {
+          "branches": {
+            "count": 38,
+            "covered": 38
+          },
+          "functions": {
+            "count": 28,
+            "covered": 28
+          },
+          "lines": {
+            "count": 257,
+            "covered": 257
+          },
+          "regions": {
+            "count": 373,
+            "covered": 373
+          }
+        },
+        "crates/scap-service/src/instance.rs": {
+          "branches": {
+            "count": 10,
+            "covered": 10
+          },
+          "functions": {
+            "count": 4,
+            "covered": 4
+          },
+          "lines": {
+            "count": 40,
+            "covered": 40
+          },
+          "regions": {
+            "count": 64,
+            "covered": 64
+          }
+        },
+        "crates/scap-service/src/lib.rs": {
+          "branches": {
+            "count": 0,
+            "covered": 0
+          },
+          "functions": {
+            "count": 2,
+            "covered": 2
+          },
+          "lines": {
+            "count": 44,
+            "covered": 44
+          },
+          "regions": {
+            "count": 42,
+            "covered": 42
+          }
+        }
+      }
+    },
+    "format": "PASSED",
+    "frozen_source_repository_links": "PASSED: 690 text files, 702 local links",
+    "independent_review": "Initial protocol plus final private-constructor/cache-loss delta reviewed; no unresolved protocol/public-bypass issue.",
+    "nightly_unit": {
+      "command": "cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --locked --branch --no-cfg-coverage --no-cfg-coverage-nightly --json --output-path REPORT -- --test-threads=1",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 797,
+      "per_crate": {
+        "scap-object": 427,
+        "scap-object-sqlite": 81,
+        "scap-object-store": 44,
+        "scap-service": 208,
+        "scap-sql": 37
+      },
+      "runtime_profiles_included": false,
+      "status": "PASSED"
+    },
+    "stable_unit": {
+      "command": "cargo test --locked --workspace --lib --bins --all-features",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 797,
+      "per_crate": {
+        "scap-object": 427,
+        "scap-object-sqlite": 81,
+        "scap-object-store": 44,
+        "scap-service": 208,
+        "scap-sql": 37
+      },
+      "status": "PASSED"
+    },
+    "startup_runtime": {
+      "case_count": 10,
+      "cases": [
+        {
+          "get_count": 1,
+          "name": "first-start",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-live",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-clean-exit",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "new-id",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-crash",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "competing-processes",
+          "put_count": 2
+        },
+        {
+          "get_count": 0,
+          "name": "lost-create-ack",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "unknown-id-remains-consumed",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "corrupt-readback",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "unreachable-backend",
+          "put_count": 0
+        }
+      ],
+      "command": "python3 experiments/worker-instance/run.py --binary SCAPD --weed WEED --evidence NEW_DIRECTORY",
+      "failed_startup_checks": [
+        "exit status 1",
+        "exact error code",
+        "no HTTP listener",
+        "no service worker cache"
+      ],
+      "put_conditions": "Every observed product PUT uses If-None-Match: *; no If-Match",
+      "status": "PASSED",
+      "unreachable_endpoint_count_scope": "0/0 is the proxy ledger only; the separate unreachable endpoint connection still fails closed"
+    }
+  }
+}

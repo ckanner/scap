@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nine semantic projection controls after a FULL original and copied audit.
+"""Nine metadata projection and six raw startup controls after a FULL audit.
 
 These are explicitly NOT nine complete raw-ledger forgery tests. The original
 file/sequence/handler/bytes references remain on every copied projection fact;
@@ -11,6 +11,7 @@ import argparse
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -30,6 +31,69 @@ CASES = (
     ("repaired_handle_publication", "M_KNOWN_QUARANTINE"),
     ("denied_changed_principal", "M_PERMISSION"),
 )
+
+STARTUP_CASES = {
+    'worker_missing_readback': 'worker-identity-request-denominator',
+    'worker_wrong_body': 'worker-identity-exact-body',
+    'worker_changed_etag': 'worker-identity-same-etag',
+    'worker_replacement_create': 'worker-identity-absent-only',
+    'worker_wrong_instance': 'worker-identity-exact-key',
+    'worker_after_ready': 'worker-identity-before-ready',
+}
+
+
+def startup_mutated(original, events, name):
+    """Raw startup exchange mutation; original lifecycle observations stay intact."""
+    trace = deepcopy(original)
+    path = '/scap-test/scap-worker/v1/instances/' + oracle.WORKERS['S']
+    claims = [row for row in trace if row.get('path') == path]
+    put = oracle.only([r for r in claims if r['event'] == 'object_response' and r['method'] == 'PUT'], 'original worker PUT')
+    get = oracle.only([r for r in claims if r['event'] == 'object_request' and r['method'] == 'GET'], 'original worker GET')
+    if name == 'worker_missing_readback':
+        trace = [r for r in trace if r['handler_id'] != get['handler_id']]
+    elif name == 'worker_wrong_body':
+        wrong = b'SCAP-WORKER-INSTANCE-v1\0' + int(oracle.WORKERS['M']).to_bytes(8, 'big')
+        for row in claims:
+            if row['method'] == 'PUT':
+                row.update(oracle.pack(wrong, 'request_body'))
+                row['signing']['payload_sha256'] = oracle.sha(wrong)
+            elif row['event'] in ('object_response', 'object_response_delivered'):
+                row.update(oracle.pack(wrong, 'response_body'))
+    elif name == 'worker_changed_etag':
+        for row in claims:
+            if row['method'] == 'GET' and row['event'] in ('object_response', 'object_response_delivered'):
+                row['etag'] = '"different-original-readback"'
+    elif name == 'worker_replacement_create':
+        for row in claims:
+            if row['method'] == 'PUT':
+                row.update(if_match=put['etag'], if_none_match=None)
+    elif name == 'worker_wrong_instance':
+        for row in claims:
+            row['path'] = '/scap-test/scap-worker/v1/instances/' + oracle.WORKERS['M']
+    elif name == 'worker_after_ready':
+        ready = oracle.only([r for r in events if r['event'] == 'service_ready' and r['worker'] == 'S'], 'original worker ready')
+        handler = [r for r in trace if r['handler_id'] == get['handler_id']]
+        delta = oracle.stamp(ready) + 1 - min(oracle.stamp(r) for r in handler)
+        for row in handler:
+            row['monotonic_ns'] = oracle.stamp(row) + delta
+    else:
+        raise ValueError(name)
+    # Removing an entire exchange must not pass merely because of a serial or
+    # handler gap. The exact missing marker readback remains the targeted rule.
+    trace.sort(key=oracle.stamp)
+    serials = {old: new for new, old in enumerate(sorted({r['request_serial'] for r in trace if 'request_serial' in r}), 1)}
+    handlers, counts = {}, {}
+    for row in trace:
+        old, listener = row['handler_id'], row['listener_id']
+        if old not in handlers:
+            counts[listener] = counts.get(listener, 0) + 1
+            handlers[old] = listener + ':' + str(counts[listener])
+        row['handler_id'] = handlers[old]
+        if 'request_serial' in row:
+            row['request_serial'] = serials[row['request_serial']]
+    for sequence, row in enumerate(trace, 1):
+        row['sequence'] = sequence
+    return trace
 
 
 def call(projection, name):
@@ -179,8 +243,29 @@ def run(directory):
                          "status": "passed" if failure is not None and failure["rule"] == expected else "failed",
                          "original_references": references, "before_sha256": oracle.sha(oracle.canonical(projection)),
                          "after_sha256": oracle.sha(oracle.canonical(changed)), "changed_projection": changed})
+    startup_outcomes = []
+    trace, events = oracle.rows(directory, 's3.jsonl'), oracle.rows(directory, 'events.jsonl')
+    with tempfile.TemporaryDirectory(prefix='scap-metadata-startup-', dir=directory.parent) as private:
+        for name, expected in STARTUP_CASES.items():
+            copied = Path(private) / name
+            # Only s3.jsonl is replaced; immutable original raw files stay linked.
+            shutil.copytree(directory, copied, copy_function=os.link)
+            changed = startup_mutated(trace, events, name)
+            path = copied / 's3.jsonl'
+            path.unlink()
+            path.write_text(''.join(json.dumps(row, sort_keys=True) + '\n' for row in changed))
+            observed = None
+            try:
+                oracle.audit(copied)
+            except Exception as error:
+                observed = {'type': type(error).__name__, 'message': str(error)}
+            startup_outcomes.append({'name': name, 'expected_rule': expected, 'observed_failure': observed,
+                                     'status': 'passed' if observed == {'type': 'ValueError', 'message': expected} else 'failed',
+                                     'before_sha256': oracle.sha(oracle.canonical(trace)),
+                                     'after_sha256': oracle.sha(oracle.canonical(changed))})
+            shutil.rmtree(copied)
     oracle.equal(directory_inventory(directory), original_inventory, "controls changed original evidence")
-    return {"schema": 1, "status": "passed" if all(item["status"] == "passed" for item in outcomes) else "failed",
+    return {"schema": 1, "status": "passed" if all(item["status"] == "passed" for item in [*outcomes, *startup_outcomes]) else "failed",
             "profile": "independent-metadata-semantic-projection-controls-v1",
             "original_full_audit": {"status": baseline["status"], "evidence_sha256": baseline["evidence_sha256"],
                                     "source": baseline["source"], "projection_sha256": baseline["projection_sha256"]},
@@ -188,7 +273,8 @@ def run(directory):
                               "files": len(original_inventory), "inventory_sha256": oracle.sha(oracle.canonical(original_inventory)),
                               "evidence_sha256": positive["evidence_sha256"]},
             "negative_controls": outcomes, "negative_count": 9,
-            "boundary": "Nine semantic projection mutations, NOT nine complete raw-ledger tampering audits; all original reference witnesses are retained"}
+            "startup_negative_controls": startup_outcomes, "startup_negative_count": len(startup_outcomes),
+            "boundary": "Nine metadata semantic projection mutations plus six complete raw-ledger startup audits; all originals remain unchanged"}
 
 
 def main():

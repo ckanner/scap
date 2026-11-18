@@ -89,6 +89,28 @@ pub enum Action {
     InspectCreateOperation {
         create_operation: Decimal,
     },
+    PrepareRestore {
+        name: String,
+        restore_operation: Decimal,
+        #[serde(deserialize_with = "required_revision")]
+        expected_name_revision: Option<Decimal>,
+        options: CreateOptions,
+        source_scope: wire::WireScope,
+        snapshot: crate::snapshot_wire::Reference,
+    },
+    ResumeRestore {
+        reference: crate::restore_wire::Reference,
+    },
+    InspectRestore {
+        creator: Decimal,
+        restore_operation: Decimal,
+    },
+    AbortRestore {
+        reference: crate::restore_wire::Reference,
+        control_operation: Decimal,
+        expected_name_revision: Decimal,
+        nonce: Decimal,
+    },
     ResolveName {
         name: String,
     },
@@ -115,6 +137,16 @@ pub(crate) enum NativeAction {
     Resume(core::Creation),
     Abort(core::AbortCreate),
     Inspect(u64),
+    PrepareRestore(core::PrepareRestore),
+    ResumeRestore(core::RestoreRef),
+    InspectRestore {
+        creator: u64,
+        operation: u64,
+    },
+    AbortRestore {
+        reference: core::RestoreRef,
+        input: core::AbortCreate,
+    },
     Resolve(String),
     Delete(core::DeleteNamed),
     StorageStatus(core::Creation),
@@ -126,13 +158,26 @@ impl Action {
     /// scheduling hint. The queue reserves its conservative tenant/name cost.
     pub fn name(&self) -> Option<&str> {
         match self {
-            Self::PrepareCreate { name, .. } | Self::ResolveName { name } => Some(name),
+            Self::PrepareCreate { name, .. }
+            | Self::PrepareRestore { name, .. }
+            | Self::ResolveName { name } => Some(name),
             Self::ResumeCreate { creation }
             | Self::AbortCreate { creation, .. }
             | Self::DeleteName { creation, .. }
             | Self::NamedStorageStatus { creation }
             | Self::RetireNamedStorage { creation, .. } => Some(&creation.name),
-            Self::InspectCreateOperation { .. } => None,
+            Self::ResumeRestore { reference } | Self::AbortRestore { reference, .. } => {
+                Some(&reference.creation.name)
+            }
+            Self::InspectCreateOperation { .. } | Self::InspectRestore { .. } => None,
+        }
+    }
+
+    /// Copy work never borrows the short catalogue/control worker pool.
+    pub fn admission(&self) -> &'static str {
+        match self {
+            Self::ResumeRestore { .. } => "recovery",
+            _ => "catalogue",
         }
     }
 
@@ -181,6 +226,57 @@ impl Action {
             Self::InspectCreateOperation { create_operation } => {
                 nonzero(create_operation.0)?;
                 NativeAction::Inspect(create_operation.0)
+            }
+            Self::PrepareRestore {
+                name: value,
+                restore_operation,
+                expected_name_revision,
+                options,
+                source_scope,
+                snapshot,
+            } => {
+                let input = core::PrepareRestore {
+                    name: value.clone(),
+                    operation: restore_operation.0,
+                    expected_name_revision: expected_name_revision.map(|value| value.0),
+                    options: core::CreateOptions {
+                        quota: options.quota.native()?,
+                    },
+                    source_scope: source_scope.native()?,
+                    snapshot: snapshot.native()?,
+                };
+                input.validate()?;
+                NativeAction::PrepareRestore(input)
+            }
+            Self::ResumeRestore { reference } => NativeAction::ResumeRestore(reference.native()?),
+            Self::InspectRestore {
+                creator,
+                restore_operation,
+            } => {
+                nonzero(creator.0)?;
+                nonzero(restore_operation.0)?;
+                NativeAction::InspectRestore {
+                    creator: creator.0,
+                    operation: restore_operation.0,
+                }
+            }
+            Self::AbortRestore {
+                reference,
+                control_operation,
+                expected_name_revision,
+                nonce,
+            } => {
+                let reference = reference.native()?;
+                nonzero(control_operation.0)?;
+                nonzero(expected_name_revision.0)?;
+                nonzero(nonce.0)?;
+                let input = core::AbortCreate {
+                    creation: reference.creation.clone(),
+                    operation: control_operation.0,
+                    expected_name_revision: expected_name_revision.0,
+                    nonce: nonce.0,
+                };
+                NativeAction::AbortRestore { reference, input }
             }
             Self::ResolveName { name: value } => {
                 name(value)?;
@@ -234,6 +330,23 @@ impl Action {
                     return Err(Failure::new("DENIED"));
                 }
                 principal.authorize(&creation.scope.native()?)?;
+            }
+            Self::PrepareRestore { source_scope, .. } => {
+                provision(principal)?;
+                principal.authorize(&source_scope.native()?)?;
+            }
+            Self::InspectRestore { creator, .. } => {
+                provision(principal)?;
+                if creator.0 != principal.principal {
+                    return Err(Failure::new("DENIED"));
+                }
+            }
+            Self::ResumeRestore { reference } | Self::AbortRestore { reference, .. } => {
+                provision(principal)?;
+                if reference.creation.creator.0 != principal.principal {
+                    return Err(Failure::new("DENIED"));
+                }
+                principal.authorize(&reference.creation.scope.native()?)?;
             }
             Self::DeleteName { creation, .. }
             | Self::NamedStorageStatus { creation }
@@ -340,11 +453,11 @@ pub fn creation(value: &core::Creation) -> Value {
         "expected_name_revision":value.expected_name_revision.map(Decimal)})
 }
 
-fn quota(value: &DatabaseQuota) -> Value {
+pub(crate) fn quota(value: &DatabaseQuota) -> Value {
     json!({"max_bytes":value.max_bytes.map(Decimal)})
 }
 
-fn retention(value: &Retention) -> Value {
+pub(crate) fn retention(value: &Retention) -> Value {
     json!({"max_entries":value.max_entries,"max_result_bytes":Decimal(value.max_result_bytes)})
 }
 

@@ -51,7 +51,8 @@ class Service:
         self.cache.mkdir(mode=0o700)
         self.port = fixture.free_port(set())
         self.endpoint = f"http://127.0.0.1:{self.port}"
-        config = fixture.config(self.port, PLAN["owner_instance"], self.cache, suite.proxy.endpoint,
+        self.worker = PLAN["worker_instances"][ordinal - 1]
+        config = fixture.config(self.port, self.worker, self.cache, suite.proxy.endpoint,
             {"admin": suite.token, "reader": secrets.token_hex(32), "other": secrets.token_hex(32)})
         config["s3"]["timeout_ms"] = DEADLINES["s3_request_ms"]
         config["admission"].update(timeout_ms=DEADLINES["ordinary_service_ms"],
@@ -68,7 +69,8 @@ class Service:
             requested = time.monotonic_ns()
             self.process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=output, stderr=output)
         self.identity = fixture.process_identity(self.process)
-        suite.facts.emit("service_started", ordinal=ordinal, identity=self.identity, spawn_requested_ns=requested,
+        suite.facts.emit("service_started", ordinal=ordinal, owner_instance=self.worker,
+                         identity=self.identity, spawn_requested_ns=requested,
                          endpoint=self.endpoint, cache_directory=str(self.cache), command=command,
                          configuration_sha256=build.digest(path), binary=executable)
         try:
@@ -81,7 +83,7 @@ class Service:
                     connection.request("GET", "/healthz")
                     response = connection.getresponse(); raw = response.read(4096)
                     if response.status == 200 and json.loads(raw) == {"status": "alive", "protocol": 1}:
-                        suite.facts.emit("service_ready", ordinal=ordinal, identity=self.identity,
+                        suite.facts.emit("service_ready", ordinal=ordinal, owner_instance=self.worker, identity=self.identity,
                                          response_status=200, response_body=base64.b64encode(raw).decode())
                         return
                 except (OSError, ValueError, http.client.HTTPException): pass

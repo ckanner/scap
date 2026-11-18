@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "profile": "head8-owner-absence-actual01-query-oracle-diagnosis",
+  "status": "ORIGINAL_FORMAL_ORACLE_FAILED_PRESERVED",
+  "runtime_commit": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+  "fixture_commit": "734ad66dde3686e25be9c4ffdef997f33cf74860",
+  "raw_observation": {
+    "status": "OBSERVED_NOT_AUDITED",
+    "error": null,
+    "elapsed_seconds": 28.915853928999695,
+    "cleanup_errors": [],
+    "private_removed": true
+  },
+  "original_formal_oracle_error": "KeyError: result in audit_evidence.sdk while reading a query command result",
+  "evidence_sha256": {
+    "inputs.json": "827044b9a4a7927ea56734d043052bd814237c51d1c1b5c53cef93d0206f97b6",
+    "events.jsonl": "725c29cf734f03e174f9e001ed9d210d083a8d63059c4d95db9baae3467c7fb6",
+    "summary.json": "6afc91b36be2d06e6baf8dd869b1b9b72a34dd183427ec22349e68d547662bc9",
+    "sdk-C-1.jsonl": "9e2a4cb91cf7b11eb9a52770d24823183750705a2da15906c6e88aa403af9624"
+  },
+  "original_oracle_stderr_sha256": "a13c283f4236951d8a96d27cee7eb6643abda04350303d92e7990a8922b24714",
+  "diagnosis": "Public Client.query returns TransactionResult {statements}; unlike execute/lookup it has no rawResult wrapper. The driver correctly records the actual decoded SDK result and all original HTTP raw bytes. The independent audit incorrectly assumed all three shapes were the committed wrapper.",
+  "correction": "Decode the original SCAPRES1 bytes independently and require exact query statement columns, rows, bigint decimal strings, Buffer JSON bytes, affectedRows and lastInsertRowid. Keep committed execute/lookup raw-byte and receipt checks. Mirror this exact query representation when building controlled counterexamples.",
+  "diagnostic_only": {
+    "unfrozen_corrected_oracle": "PASSED_DIAGNOSTIC_NOT_FORMAL_ACCEPTANCE",
+    "negative_controls": 13,
+    "positive_controls": 1,
+    "controls_status": "PASSED",
+    "original_unchanged": true,
+    "initial_control_failure": "The cross-Scope lookup counterexample initially replaced only result bytes, producing an unrelated hash error. It now replaces a self-consistent foreign receipt and result, and is rejected specifically by original-result binding. Original failed diagnostic controls are preserved.",
+    "oracle_stdout_sha256": "7b2a1a112a29e5feef7020652b7343839a712ab6ade231433288db6b64d1d2c9",
+    "controls_json_sha256": "6caadd56449535016696a851c5b2876331c5a9e06c09ab8f3665100e5db6e118"
+  },
+  "claim": "No formal absence-contract pass is claimed. Submit the corrected fixture, then rerun actual, oracle and all controls under a new clean commit and new attempt."
+}

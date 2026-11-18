@@ -12,9 +12,14 @@ pub mod discovery_cursor;
 pub mod discovery_wire;
 pub mod engine;
 pub mod http;
+mod instance;
 pub mod intake;
 pub mod output;
+pub mod owner_wire;
+pub mod restore;
+pub mod restore_wire;
 pub mod scheduler;
+pub mod snapshot_wire;
 pub mod transport;
 pub mod wire;
 
@@ -38,50 +43,112 @@ impl Failure {
 
 impl From<Error> for Failure {
     fn from(error: Error) -> Self {
-        let code = match error {
-            Error::Denied => "DENIED",
-            Error::Lifecycle => "LIFECYCLE",
-            Error::Fenced => "FENCED",
-            Error::Conflict | Error::Store(StoreError::Conflict) => "CONFLICT",
-            Error::RequestConflict => "REQUEST_CONFLICT",
-            Error::WindowFull => "WINDOW_FULL",
-            Error::Closed => "CLOSED",
-            Error::Retired => "RETIRED",
-            Error::Unknown | Error::Store(StoreError::Unknown) => "UNKNOWN",
-            Error::Store(StoreError::Missing) => "MISSING",
-            Error::Limit
-            | Error::Store(StoreError::Budget)
-            | Error::Store(StoreError::Limit)
-            | Error::Sql(scap_sql::SqlError::ResourceExhausted) => "LIMIT",
-            Error::Corrupt | Error::Format(_) | Error::Store(StoreError::Corrupt) => "CORRUPT",
-            Error::StaleSnapshot => "STALE_SNAPSHOT",
-            Error::SnapshotExpired => "SNAPSHOT_EXPIRED",
-            Error::Gc(error) => match error {
-                scap_object_store::GcError::Invalid => "INVALID",
-                scap_object_store::GcError::Limit => "LIMIT",
-                scap_object_store::GcError::Denied => "DENIED",
-                scap_object_store::GcError::Unsupported => "GC_UNSUPPORTED",
-                scap_object_store::GcError::Corrupt => "CORRUPT",
-                scap_object_store::GcError::Unknown => "UNKNOWN",
-            },
-            Error::CommittedButUnavailable(receipt) => {
-                return Self {
-                    code: "COMMITTED_BUT_UNAVAILABLE",
-                    receipt: Some(receipt),
-                };
-            }
-            Error::Sql(_) | Error::Store(StoreError::Invalid) => "INVALID",
-            Error::Engine(error) => match error {
-                scap_object_sqlite::Error::ResultLimit
-                | scap_object_sqlite::Error::ResourceExhausted => "LIMIT",
-                scap_object_sqlite::Error::Interrupted => "DEADLINE",
-                scap_object_sqlite::Error::OutcomeUnknown => "UNKNOWN",
-                scap_object_sqlite::Error::CommittedButUnavailable => "COMMITTED_BUT_UNAVAILABLE",
-                scap_object_sqlite::Error::InvalidImage => "CORRUPT",
-                _ => "ENGINE",
-            },
+        // Payload-bearing outcomes are handled before the scalar codebook so
+        // an accepted receipt is never discarded or reconstructed from a code.
+        if let Error::CommittedButUnavailable(receipt) = error {
+            return Self {
+                code: "COMMITTED_BUT_UNAVAILABLE",
+                receipt: Some(receipt),
+            };
+        }
+        if let Error::Store(error) = error {
+            return Self::new(store_code(error));
+        }
+        if let Error::Gc(error) = error {
+            return Self::new(gc_code(error));
+        }
+        if let Error::Engine(error) = error {
+            return Self::new(engine_code(error));
+        }
+        if let Error::Sql(error) = error {
+            let code = if error == scap_sql::SqlError::ResourceExhausted {
+                "LIMIT"
+            } else {
+                "INVALID"
+            };
+            return Self::new(code);
+        }
+        if let Error::Format(_) = error {
+            return Self::new("CORRUPT");
+        }
+        let code = if let Error::Denied = error {
+            "DENIED"
+        } else if let Error::Lifecycle = error {
+            "LIFECYCLE"
+        } else if let Error::Fenced = error {
+            "FENCED"
+        } else if let Error::Conflict = error {
+            "CONFLICT"
+        } else if let Error::RequestConflict = error {
+            "REQUEST_CONFLICT"
+        } else if let Error::WindowFull = error {
+            "WINDOW_FULL"
+        } else if let Error::Closed = error {
+            "CLOSED"
+        } else if let Error::Retired = error {
+            "RETIRED"
+        } else if let Error::Unknown = error {
+            "UNKNOWN"
+        } else if let Error::Limit = error {
+            "LIMIT"
+        } else if let Error::Corrupt = error {
+            "CORRUPT"
+        } else if let Error::StaleSnapshot = error {
+            "STALE_SNAPSHOT"
+        } else {
+            "SNAPSHOT_EXPIRED"
         };
         Self::new(code)
+    }
+}
+
+fn store_code(error: StoreError) -> &'static str {
+    if error == StoreError::Conflict {
+        "CONFLICT"
+    } else if error == StoreError::Unknown {
+        "UNKNOWN"
+    } else if error == StoreError::Missing {
+        "MISSING"
+    } else if error == StoreError::Budget || error == StoreError::Limit {
+        "LIMIT"
+    } else if error == StoreError::Corrupt {
+        "CORRUPT"
+    } else {
+        "INVALID"
+    }
+}
+
+fn gc_code(error: scap_object_store::GcError) -> &'static str {
+    use scap_object_store::GcError;
+    if error == GcError::Invalid {
+        "INVALID"
+    } else if error == GcError::Limit {
+        "LIMIT"
+    } else if error == GcError::Denied {
+        "DENIED"
+    } else if error == GcError::Unsupported {
+        "GC_UNSUPPORTED"
+    } else if error == GcError::Corrupt {
+        "CORRUPT"
+    } else {
+        "UNKNOWN"
+    }
+}
+
+fn engine_code(error: scap_object_sqlite::Error) -> &'static str {
+    use scap_object_sqlite::Error;
+    if matches!(error, Error::ResultLimit) || matches!(error, Error::ResourceExhausted) {
+        "LIMIT"
+    } else if let Error::Interrupted = error {
+        "DEADLINE"
+    } else if let Error::OutcomeUnknown = error {
+        "UNKNOWN"
+    } else if let Error::CommittedButUnavailable = error {
+        "COMMITTED_BUT_UNAVAILABLE"
+    } else if let Error::InvalidImage = error {
+        "CORRUPT"
+    } else {
+        "ENGINE"
     }
 }
 

@@ -12,7 +12,7 @@ import tarfile
 from spec import BACKPRESSURE, CALLS, CHECK_SQL, LARGE_SQL, PLAN, PROFILE, SCOPES, SMALL_SQL, UNKNOWN_SQL
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'object-service'))
-from audit_wire import b64, equal, fingerprint, object_exchanges, object_versions, parse, require, result  # noqa: E402
+from audit_wire import b64, equal, fingerprint, object_exchanges, object_versions, owned_startup_interval, parse, require, result  # noqa: E402
 
 
 def sha(raw):
@@ -275,6 +275,13 @@ def processes(all_rows, build):
     return {'owned_workload_processes': 6, 'all_recorded_children_reaped': True}
 
 
+def worker_startup(all_rows):
+    listening = only([row for row in all_rows if row['event'] == 'worker_event'
+                      and parse(raw(row, 'raw'))['event'] == 'listening'], 'worker listening inventory')
+    return {'worker': PLAN['worker_instance'], 'role': None,
+            **owned_startup_interval(event(all_rows, 'worker_started'), listening)}
+
+
 def build_evidence(directory):
     receipt = parse((directory / 'build.json').read_bytes())
     require(receipt['status'] == 'passed' and receipt['exit_code'] == 0 and receipt['source_dirty'] is False,
@@ -356,7 +363,8 @@ def audit(directory):
             config['admission']['timeout_ms'] == PLAN['timeout_ms'], 'actual deadline/body profile changed')
     history = rows(directory / 'history.jsonl')
     numbered(history)
-    requests, responses = object_exchanges(history, phases=set(CALLS))
+    startups = [worker_startup(all_rows)]
+    requests, responses = object_exchanges(history, phases=set(CALLS), startups=startups)
     for row in history:
         if row['event'].startswith('object_'):
             payload = b64(row['request_body'])

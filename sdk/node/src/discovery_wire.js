@@ -5,7 +5,7 @@ import * as catalogue from './catalogue_wire.js';
 
 const STOPPED = ['INVALID', 'DENIED', 'LIMIT', 'CONFLICT', 'UNKNOWN', 'CORRUPT', 'SNAPSHOT_EXPIRED'];
 const KINDS = ['name', 'create', 'control', 'abort_proof', 'head', 'orphan_prefix'];
-const STATES = ['descriptor_only', 'reserved', 'provisioning', 'bound', 'ready', 'maintenance',
+const STATES = ['descriptor_only', 'reserved', 'provisioning', 'restore_copying', 'restore_copied', 'bound', 'ready', 'maintenance',
   'aborting', 'aborted', 'deleting', 'deleted', 'name_conflict', 'identity_conflict', 'control_admitted', 'orphan'];
 const USAGE = { list_pages: 4, candidates: 128, exact_gets: 512,
   list_bytes: 4 * 1024 * 1024, metadata_bytes: 16 * 1024 * 1024 };

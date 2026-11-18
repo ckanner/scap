@@ -32,6 +32,7 @@ impl Catalogue {
             options: input.options.clone(),
             initial_quota: input.options.effective_quota(&self.options.quota),
             retention: self.options.retention.clone(),
+            recipe: None,
         })?;
         let deadline = self.options.deadline(deadline, false);
         let key = self.descriptor_key(caller.principal, input.operation);
@@ -45,7 +46,10 @@ impl Catalogue {
         let durable = authority(self.read_descriptor(caller.principal, input.operation, deadline))?;
         // A concurrent first admission may have used earlier server defaults.
         // The raw request must match; the first persisted effective defaults win.
-        if durable.creation != candidate.creation || durable.options != candidate.options {
+        if durable.creation != candidate.creation
+            || durable.options != candidate.options
+            || durable.recipe.is_some()
+        {
             return Err(CatalogueError::Conflict);
         }
         Ok(durable.prepared())
@@ -60,6 +64,9 @@ impl Catalogue {
         Self::creator(caller, creation.creator)?;
         let deadline = self.options.deadline(deadline, false);
         let source = self.descriptor(creation, deadline)?;
+        if source.recipe.is_some() {
+            return Err(CatalogueError::Conflict);
+        }
         for _ in 0..4 {
             let view = self.view(&source, deadline)?;
             let plan = self.creation_plan(&source, &view, deadline)?;
@@ -92,7 +99,7 @@ impl Catalogue {
                     head.creation = Some(source.origin());
                     database.create_head(&head, deadline).map_err(core_error)?;
                 }
-                CreateStep::Bind(binding) => {
+                CreateStep::Prepare { binding, .. } => {
                     let mut next = binding.body.raw().clone();
                     next.state = BindingState::Bound;
                     next.revision += 1;
@@ -108,7 +115,7 @@ impl Catalogue {
         Ok(Self::progress(&source, &view, plan.phase))
     }
 
-    fn complete(
+    pub(super) fn complete(
         &self,
         source: &Source,
         binding: &Name,
@@ -117,6 +124,15 @@ impl Catalogue {
     ) -> Result<(), CatalogueError> {
         require(binding.body.creation == source.creation && binding.stage == NameStage::Bound)?;
         Self::provisioning(source, &base.head)?;
+        require(!matches!(
+            base.head
+                .restore_origin
+                .as_ref()
+                .and_then(Option::as_ref)
+                .map(|origin| &origin.phase),
+            Some(format::RestoreCopyPhase::Copying {})
+        ))?;
+        self.verify_restore_origin(source, &base.head, deadline)?;
         let database = self.database(source);
         // The strict original HEAD was verified Provisioning, hence nonterminal.
         // database() just created an empty Knowledge with no other clone/context,

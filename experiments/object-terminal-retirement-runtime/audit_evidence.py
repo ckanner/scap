@@ -373,7 +373,10 @@ def exchanges(directory, events, backend):
                 value['delivered'] = group['s3_delivery_finished']['complete'] is True
         values.append(value)
     need(not select(events, 's3_fixture_error'), 'fixture-transport-error')
-    return ObservationIndex(sorted(values, key=lambda value: moment(value['request'])))
+    claims = wire.raw_worker_claims(events, values, backend['normal_access_sha256'], check=need)
+    return ObservationIndex(sorted((value for value in values
+        if (value['request']['role'], value['request']['serial']) not in claims),
+        key=lambda value: moment(value['request'])))
 
 
 def within(call, exchange, before=None):

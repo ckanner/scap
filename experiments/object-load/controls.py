@@ -22,6 +22,19 @@ def ledger(path, change):
     replace(path, ''.join(json.dumps(row, sort_keys=True) + '\n' for row in values).encode())
 
 
+def store_body(directory, value):
+    digest = oracle.digest(value)
+    path = directory / 'raw' / digest
+    if not path.exists():
+        budget = directory / 'raw-budget'
+        charged = int(budget.read_text()) + len(value)
+        if charged > oracle.spec.BOUNDS['raw_bytes']:
+            raise ValueError('negative-control evidence budget')
+        replace(budget, f'{charged}\n'.encode())
+        replace(path, value)
+    return {'file': 'raw/' + digest, 'bytes': len(value), 'sha256': digest}
+
+
 def body(directory, identifier, change, kind='http_response'):
     field = 'response' if kind == 'http_response' else 'request'
     def edit(values):
@@ -29,11 +42,17 @@ def body(directory, identifier, change, kind='http_response'):
         value = json.loads((directory / row[field]['file']).read_bytes())
         change(value)
         raw = json.dumps(value, separators=(',', ':')).encode()
-        digest = oracle.digest(raw)
-        path = directory / 'raw' / digest
-        replace(path, raw)
-        row[field] = {'file': 'raw/' + digest, 'bytes': len(raw), 'sha256': digest}
+        row[field] = store_body(directory, raw)
     ledger(directory / 'sdk.jsonl', edit)
+
+
+def worker_exchange(directory, method, change):
+    path = f'/scap-test/scap-worker/v1/instances/{oracle.spec.WORKER_INSTANCES[1]}'
+    def edit(values):
+        serial = next(row['request_serial'] for row in values if row['event'] == 'request'
+                      and row['path'] == path and row['method'] == method)
+        change([row for row in values if row.get('request_serial') == serial])
+    ledger(directory / 's3.jsonl', edit)
 
 
 def mutate(directory, case):
@@ -94,6 +113,59 @@ def mutate(directory, case):
     elif case == 'unreaped_service':
         ledger(directory / 'events.jsonl', lambda values: next(v for v in values
             if v['event'] == 'service_stopped')['usage'].update(source='controller_summary'))
+    elif case == 'worker_identity_reused':
+        path = directory / 'service-config-2.json'
+        value = json.loads(path.read_bytes())
+        value['worker_instance'] = str(oracle.spec.WORKER_INSTANCES[0])
+        replace(path, json.dumps(value).encode())
+    elif case == 'worker_unexpected_namespace':
+        worker_exchange(directory, 'PUT', lambda group: [row.update(
+            path='/scap-test/scap-worker/v1/instances/999999') for row in group])
+    elif case == 'worker_unconditional_put':
+        worker_exchange(directory, 'PUT', lambda group: [row.update(if_match=None, if_none_match=None)
+                                                        for row in group])
+    elif case in ('worker_wrong_marker', 'worker_wrong_readback'):
+        method, field = ('PUT', 'request') if case == 'worker_wrong_marker' else ('GET', 'response')
+        def edit(group):
+            original = next(row[field] for row in group if field in row)
+            data = bytearray((directory / original['file']).read_bytes()); data[-1] ^= 1
+            changed = store_body(directory, bytes(data))
+            for row in group:
+                if field in row:
+                    row[field] = changed
+                if field == 'request':
+                    row['signing']['payload_sha256'] = changed['sha256']
+        worker_exchange(directory, method, edit)
+    elif case == 'worker_readback_etag_changed':
+        worker_exchange(directory, 'GET', lambda group: [row.update(etag='"unobserved-marker"')
+            for row in group if row['event'] in ('response', 'delivered')])
+    elif case == 'worker_readback_omitted':
+        path = f'/scap-test/scap-worker/v1/instances/{oracle.spec.WORKER_INSTANCES[1]}'
+        def edit(values):
+            omitted = next(row['request_serial'] for row in values if row['event'] == 'request'
+                           and row['path'] == path and row['method'] == 'GET')
+            values[:] = [row for row in values if row.get('request_serial') != omitted]
+            for sequence, row in enumerate(values, 1):
+                row['sequence'] = sequence
+                if row.get('request_serial', 0) > omitted:
+                    row['request_serial'] -= 1
+        ledger(directory / 's3.jsonl', edit)
+        def count(values):
+            next(row for row in values if row['event'] == 'proxy_stopped')['request_count'] -= 1
+        ledger(directory / 'events.jsonl', count)
+    elif case == 'worker_claim_after_readiness':
+        events = oracle.rows(directory / 'events.jsonl')
+        ready = next(row for row in events if row['event'] == 'readiness_probe'
+                     and row['instance'] == 2 and row['status'] == 200)
+        path = f'/scap-test/scap-worker/v1/instances/{oracle.spec.WORKER_INSTANCES[1]}'
+        def edit(values):
+            group = [row for row in values if row.get('path') == path]
+            for offset, row in enumerate(group, 1):
+                row['monotonic_ns'] = oracle.moment(ready) + offset
+        ledger(directory / 's3.jsonl', edit)
+    elif case == 'worker_claim_in_measured_phase':
+        for method in ('PUT', 'GET'):
+            worker_exchange(directory, method, lambda group: [row.update(phase='read_multi') for row in group])
     else:
         raise ValueError(case)
 
@@ -105,7 +177,16 @@ CASES = {'missing_call': 'http-denominator', 'slow_sample_removed': 'call-clock'
          'warm_hidden_download': 'warm-head-only', 'busy_error_changed': 'sdk-error-code',
          'gate_released_early': 'hot-before-gate-release', 'wrong_process': 'resource-process-identity',
          'missing_samples': 'resource-samples', 'wrong_binary': 'runtime-binary',
-         'unreaped_service': 'owned-service-exit'}
+         'unreaped_service': 'owned-service-exit',
+         'worker_identity_reused': 'fixed-startup-identities',
+         'worker_unexpected_namespace': 's3-exact-namespace',
+         'worker_unconditional_put': 'worker-claim-create-only',
+         'worker_wrong_marker': 'worker-claim-body',
+         'worker_wrong_readback': 'worker-claim-body',
+         'worker_readback_etag_changed': 'worker-claim-readback',
+         'worker_readback_omitted': 'worker-claim-denominator',
+         'worker_claim_after_readiness': 'worker-startup-window',
+         'worker_claim_in_measured_phase': 'worker-startup-phase'}
 
 
 def save(path, value):

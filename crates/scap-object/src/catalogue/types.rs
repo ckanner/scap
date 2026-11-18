@@ -43,13 +43,16 @@ pub struct CreateOptions {
 
 impl CreateOptions {
     pub(super) fn effective_quota(&self, default: &DatabaseQuota) -> DatabaseQuota {
-        match self.quota {
-            QuotaChoice::Default => default.clone(),
-            QuotaChoice::Unlimited => DatabaseQuota { max_bytes: None },
-            QuotaChoice::Limited { max_bytes } => DatabaseQuota {
+        if let QuotaChoice::Limited { max_bytes } = self.quota {
+            return DatabaseQuota {
                 max_bytes: Some(max_bytes),
-            },
+            };
         }
+        if self.quota == QuotaChoice::Unlimited {
+            return DatabaseQuota { max_bytes: None };
+        }
+        // Default is the only choice that inherits the configured allowance.
+        default.clone()
     }
 }
 
@@ -180,3 +183,7 @@ pub struct Named {
     pub binding_revision: u64,
     pub head: Head,
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;

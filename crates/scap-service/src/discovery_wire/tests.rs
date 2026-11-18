@@ -61,6 +61,8 @@ fn all_classifications_and_failures_have_lossless_explicit_wire_values() {
         S::DescriptorOnly,
         S::Reserved,
         S::Provisioning,
+        S::RestoreCopying,
+        S::RestoreCopied,
         S::Bound,
         S::Ready,
         S::Maintenance,

@@ -209,7 +209,8 @@ def network(history, calls, observed, originals, facts, configuration):
     require(all(row["event"] in allowed for row in history), "unplanned/failed S3 trace event")
     equal([row["phase"] for row in history if row["event"] == "phase_started"], list(PHASES), "S3 phase inventory changed")
     standard = [row for row in history if row["event"] != "gate_released"]
-    requests, responses = object_exchanges(standard, phases=PHASES)
+    from audit_wire import service_startups
+    requests, responses = object_exchanges(standard, phases=PHASES, startups=service_startups(facts))
     require(len(requests) == len(responses), "incomplete original object exchange")
     held_marker = only([row for row in history if row["event"] == "transport_fault_observed"], "observed GET gate inventory")
     released_marker = only([row for row in history if row["event"] == "gate_released"], "GET gate release inventory")
@@ -354,7 +355,8 @@ def processes(directory, facts, http, history, configuration, build):
     require(ident["spawn_monotonic_ns"] < stamp(start) < stamp(ready) < stamp(requested) < stamp(stopped), "service original lifetime order")
     exited(stopped, -signal.SIGKILL)
     require(stopped["stdout_sha256"] == sha((directory / "scapd.stdout.log").read_bytes()), "original service stdout changed")
-    require(start["owner_instance"] == PLAN["owner_instance"] and start["configuration_sha256"] == sha((directory / "isolation-service-config.json").read_bytes()), "actual daemon configuration changed")
+    require(start["owner_instance"] == ready["owner_instance"] == PLAN["owner_instance"] and
+            start["configuration_sha256"] == sha((directory / "isolation-service-config.json").read_bytes()), "actual daemon configuration changed")
     require(start["command"][0] == start["binary"]["path"] and len(start["command"]) == 2, "process command did not execute recorded binary")
     if build["status"] != "NOT_PROVIDED":
         equal(start["binary"], build["binary"], "actual daemon did not execute the original release artifact")

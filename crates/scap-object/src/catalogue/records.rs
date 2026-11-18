@@ -155,30 +155,47 @@ pub(super) struct Descriptor {
     pub options: CreateOptions,
     pub initial_quota: DatabaseQuota,
     pub retention: Retention,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<super::restore_records::Recipe>,
 }
 
 impl Record for Descriptor {
-    type Shape = ();
-    fn validate(&self) -> Result<(), CatalogueError> {
-        valid(self.format == 1)?;
+    // A validated descriptor retains its effective native page bound. Consumers
+    // cannot mutate its quota or repeat a fallible calculation on known bytes.
+    type Shape = u32;
+    fn validate(&self) -> Result<u32, CatalogueError> {
+        valid(
+            (self.format == 1 && self.recipe.is_none())
+                || (self.format == 2 && self.recipe.is_some()),
+        )?;
         creation_valid(&self.creation)?;
-        self.initial_quota
-            .validate()
+        let maximum_pages = self
+            .initial_quota
+            .max_pages()
             .map_err(|_| CatalogueError::Invalid)?;
         self.retention
             .validate()
             .map_err(|_| CatalogueError::Invalid)?;
+        if let Some(recipe) = &self.recipe {
+            recipe.validate(&self.creation.scope)?;
+            valid(recipe.point().page_count <= maximum_pages)?;
+        }
         match self.options.quota {
             QuotaChoice::Default => Ok(()),
             QuotaChoice::Unlimited => valid(self.initial_quota.max_bytes.is_none()),
             QuotaChoice::Limited { max_bytes } => {
                 valid(self.initial_quota.max_bytes == Some(max_bytes))
             }
-        }
+        }?;
+        Ok(maximum_pages)
     }
 }
 
 impl Canonical<Descriptor> {
+    pub fn maximum_pages(&self) -> u32 {
+        *self.shape()
+    }
+
     pub fn origin(&self) -> NamedCreation {
         NamedCreation {
             creator: self.creation.creator,

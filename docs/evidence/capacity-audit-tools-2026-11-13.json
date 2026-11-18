@@ -1,0 +1,82 @@
+{
+  "budgets_changed": false,
+  "date_utc": "2026-11-13",
+  "expected_contract": {
+    "backend_incarnations": 8,
+    "blob_bytes_each": 65536,
+    "blob_bytes_total": 1073741824,
+    "blob_rows": 16384,
+    "cold_result_lookups": 39,
+    "compute_incarnations": 3,
+    "negative_controls": 5,
+    "original_execute_ack": 38,
+    "original_prepared_execute_identities": 39,
+    "original_unknown_with_original_warm_lookup": 1,
+    "owned_wait4": 11,
+    "unchanged_positive": 1
+  },
+  "fixed_actual_source": "b15bc455349ea36162b8004c2c73fc7d812d4c10",
+  "fixed_actual_status": "NOT_RUN",
+  "independent_reviews": {
+    "auditor": "runtime_audit independent source review and 18 tests",
+    "capture": "root source review; root did not duplicate agent 10-test run",
+    "capture_review_record": {
+      "bytes": 2747,
+      "file": "review-root-source-note.json",
+      "sha256": "f3ca1cda1e9ef5fe63dcbc72a601638a56743ef6f064516c82f2d53aa4e7dedb"
+    }
+  },
+  "limits": [
+    "Independent closed-file copy is not another S3 recovery.",
+    "No independent complete S3 object graph reconstruction from hash/length-only transport logs.",
+    "No offline SigV4 MAC recomputation.",
+    "Deleted bulk SQL input files and six overwritten historical BLOB values are not reconstructable from the final image.",
+    "No AWS/production SLO/default10GiB acceptance or contribution to Rust unit coverage."
+  ],
+  "old_external_auditor": "NOT_RECOVERED; no old script hash reused",
+  "overall_merge_ready": false,
+  "production_changed": false,
+  "schema": "scap-capacity-audit-tools-v1",
+  "status": "TOOL_TESTS_PASS_ACTUAL_NOT_RUN",
+  "tests": {
+    "auditor_boundary_tests": 18,
+    "capture_boundary_tests": 10,
+    "installed_command_record": {
+      "bytes": 880,
+      "file": "installed-tool-units.json",
+      "sha256": "cee954d0db08ec4804112d76332031af7a7beab5d3c6ccd1dc785c7942e8f5fe"
+    },
+    "installed_original_log": {
+      "bytes": 4565,
+      "file": "installed-tool-units.stderr",
+      "sha256": "6ada6da7eda403b5eee7de599323f96561f7e9d6ae609084543fb0afd9a76225"
+    },
+    "installed_repository_layout_tests": 28
+  },
+  "tool_sources": [
+    {
+      "bytes": 40178,
+      "file": "audit_capacity_gib1_v2.py",
+      "path": "experiments/object-capacity-audit/audit_capacity_gib1_v2.py",
+      "sha256": "b0aff8662bab3d68eb2a0d369f62e2beaa483359b4d3732d4a100d9c3aadc6aa"
+    },
+    {
+      "bytes": 9028,
+      "file": "test_audit_capacity_gib1_v2.py",
+      "path": "experiments/object-capacity-audit/test_audit_capacity_gib1_v2.py",
+      "sha256": "9af4ebdaf7d2f0be654f7239691a0e954946e90b8b63fbc825912a069b109650"
+    },
+    {
+      "bytes": 15531,
+      "file": "capture_closed_image.py",
+      "path": "experiments/object-capacity-audit/capture_closed_image.py",
+      "sha256": "47b6ee35df938431343e5f322db1fb0ea0ee81094c01dd324e9a0ef4cfd5eaa1"
+    },
+    {
+      "bytes": 11204,
+      "file": "test_capture_closed_image.py",
+      "path": "experiments/object-capacity-audit/test_capture_closed_image.py",
+      "sha256": "8c2d56242e113ea8c58af6c8014a931d218beaa0b772adb13b08f9a81f341d9f"
+    }
+  ]
+}

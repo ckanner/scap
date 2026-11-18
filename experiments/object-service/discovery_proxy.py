@@ -132,6 +132,10 @@ class Proxy:
                 self.dispatch()
 
             def dispatch(self):
+                # BaseHTTPRequestHandler has parsed the request headers. Take
+                # this handler-entry witness before authentication, locks or
+                # trace I/O; it is not the sender's dispatch or body-read time.
+                request_received_monotonic_ns = time.monotonic_ns()
                 selected = None
                 try:
                     self.connection.settimeout(12)
@@ -158,6 +162,7 @@ class Proxy:
                                 rule.used, rule.serial = 1, serial
                                 break
                     fields = {"request_serial": serial, "method": self.command, "path": self.path,
+                              "request_received_monotonic_ns": request_received_monotonic_ns,
                               "key": object_key, "query": query, "request": body(payload),
                               "if_match": self.headers.get("If-Match"), "if_none_match": self.headers.get("If-None-Match"),
                               "signing": signed, "fault": selected.label if selected else None,

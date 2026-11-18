@@ -7,6 +7,70 @@ use scap_object_store::{
 };
 use std::sync::Mutex;
 
+#[test]
+fn storage_candidates_cannot_change_owner_history_or_cross_a_pending_owner() {
+    let (objects, database) = fixture();
+    let mut base = database.read_head(deadline()).unwrap();
+    base.head.format = 8;
+    base.head.revision += 2;
+    base.head.head_serial += 2;
+    base.head.transition.revision = base.head.revision;
+    base.head.active = false;
+    base.head.owner_plan = Some(OwnerPlan {
+        reference: OwnerPlanRef {
+            creator: 7,
+            operation: 101,
+            descriptor_hash: digest(b"owner descriptor"),
+        },
+        admission: OwnerAdmission {
+            kind: OwnerAdmissionKind::Claim,
+            revision: base.head.revision - 1,
+            head_serial: base.head.head_serial - 1,
+        },
+        phase: OwnerPhase {
+            kind: OwnerPhaseKind::Aborted,
+            revision: base.head.revision,
+            head_serial: base.head.head_serial,
+            nonce: base.head.transition.nonce,
+            owner_epoch: base.head.owner_epoch,
+            owner_instance: base.head.owner_instance,
+        },
+    });
+    base.head.validate().unwrap();
+    let count = objects.operation_count();
+    for cut in 0..4 {
+        let mut next = technical_next(&base.head).unwrap();
+        match cut {
+            0 => next.owner_plan = None,
+            1 => next.owner_epoch += 1,
+            2 => next.owner_instance += 1,
+            _ => next.active = true,
+        }
+        assert!(
+            matches!(
+                database.publish_technical(&base, &next, deadline()),
+                Err(Error::Format(FormatError::Invalid))
+            ),
+            "storage cut {cut}"
+        );
+    }
+    let marker = base.head.owner_plan.as_mut().unwrap();
+    marker.phase.kind = OwnerPhaseKind::Claimed;
+    marker.admission.revision = marker.phase.revision;
+    marker.admission.head_serial = marker.phase.head_serial;
+    base.head.validate().unwrap();
+    let next = technical_next(&base.head).unwrap();
+    assert!(matches!(
+        database.publish_technical(&base, &next, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert!(matches!(
+        database.retire_deleted(base.clone(), base.head.head_serial, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert_eq!(objects.operation_count(), count);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Event {
     Inspect(String),
@@ -124,6 +188,261 @@ fn promote(database: &Database) -> Head {
     let serial = head.storage.plan.as_ref().unwrap().serial;
     database.compact_copy(7, serial, deadline()).unwrap();
     database.compact_promote(7, serial, deadline()).unwrap()
+}
+
+fn install_held_data(objects: &Memory, database: &Database) -> (Head, Vec<String>) {
+    let mut hashes = Vec::new();
+    let chunk = encode_object(&Envelope {
+        format: 2,
+        scope: scope(),
+        payload: Payload::Chunk {
+            first_page: 1,
+            bytes: vec![0x31; PAGE_SIZE],
+        },
+    })
+    .unwrap();
+    let hash = digest(&chunk);
+    objects.set(object_key(&scope(), 1, &hash), chunk);
+    hashes.push(hash.clone());
+    let node = encode_object(&Envelope {
+        format: 2,
+        scope: scope(),
+        payload: Payload::Node {
+            level: 0,
+            first_chunk: 0,
+            children: vec![hash],
+        },
+    })
+    .unwrap();
+    let hash = digest(&node);
+    objects.set(object_key(&scope(), 1, &hash), node);
+    hashes.push(hash.clone());
+    let manifest = encode_object(&Envelope {
+        format: 2,
+        scope: scope(),
+        payload: Payload::Manifest(Manifest {
+            page_count: 1,
+            root: Some(hash),
+        }),
+    })
+    .unwrap();
+    let hash = digest(&manifest);
+    objects.set(object_key(&scope(), 1, &hash), manifest);
+    hashes.push(hash.clone());
+    let mut head = database.status(7, deadline()).unwrap();
+    head.format = 9;
+    head.head_serial += 1;
+    head.restore_origin = Some(None);
+    head.snapshot_limits = Some(SnapshotLimits::default());
+    head.snapshots = Some(vec![SnapshotEntry {
+        reference: SnapshotRef {
+            creator: 7,
+            operation: 991,
+            capture_serial: head.head_serial,
+            descriptor_hash: digest(b"unit retained identity"),
+        },
+        label: "old".into(),
+        point: SnapshotPoint {
+            data_root: hash,
+            page_count: 1,
+            sequence: head.sequence,
+            source_revision: head.revision,
+        },
+    }]);
+    objects.set(head_key(&scope()), encode_head(&head).unwrap());
+    (head, hashes)
+}
+
+#[test]
+fn head9_copy_carries_held_data_before_retiring_and_collecting_the_old_generation() {
+    let (objects, database) = fixture();
+    let (before, hashes) = install_held_data(&objects, &database);
+    let after = promote(&database);
+    assert_eq!(after.format, 9);
+    assert_eq!(after.snapshots, before.snapshots);
+    assert_eq!(after.snapshot_limits, before.snapshot_limits);
+    for hash in &hashes {
+        let old = objects
+            .get(&object_key(&scope(), 1, hash), MAX_OBJECT_BYTES, deadline())
+            .unwrap();
+        let new = objects
+            .get(&object_key(&scope(), 2, hash), MAX_OBJECT_BYTES, deadline())
+            .unwrap();
+        assert_eq!(old.bytes, new.bytes);
+    }
+    let garbage = GarbageMemory::new(objects.clone());
+    let prepared = database
+        .gc_prepare(
+            7,
+            after.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let serial = prepared.head.storage.sweep.as_ref().unwrap().serial;
+    let report = database.gc_resume(7, serial, &garbage, deadline()).unwrap();
+    assert!(report.exhausted);
+    assert_eq!(report.head.snapshots, before.snapshots);
+    for hash in hashes {
+        assert!(matches!(
+            objects.get(
+                &object_key(&scope(), 1, &hash),
+                MAX_OBJECT_BYTES,
+                deadline()
+            ),
+            Err(StoreError::Missing)
+        ));
+        assert!(objects
+            .get(
+                &object_key(&scope(), 2, &hash),
+                MAX_OBJECT_BYTES,
+                deadline()
+            )
+            .is_ok());
+    }
+}
+
+#[test]
+fn head9_copy_never_seals_a_missing_retained_dependency() {
+    let (objects, database) = fixture();
+    let (before, hashes) = install_held_data(&objects, &database);
+    let copying = database
+        .compact_begin(7, before.head_serial, deadline())
+        .unwrap();
+    objects.remove(&object_key(&scope(), 1, &hashes[0]));
+    assert!(matches!(
+        database.compact_copy(7, copying.storage.plan.as_ref().unwrap().serial, deadline()),
+        Err(Error::Store(StoreError::Missing))
+    ));
+    assert_eq!(database.status(7, deadline()).unwrap(), copying);
+}
+
+#[test]
+fn technical_capabilities_cannot_edit_snapshot_fields_or_downgrade_head9() {
+    let (objects, database) = fixture();
+    install_held_data(&objects, &database);
+    let base = database.read_head(deadline()).unwrap();
+    let before = objects.operation_count();
+    for field in 0..4 {
+        let mut next = technical_next(&base.head).unwrap();
+        match field {
+            0 => next.snapshots = Some(vec![]),
+            1 => next.snapshot_limits.as_mut().unwrap().max_points = 1,
+            2 => next.restore_origin = None,
+            _ => next.format = 6,
+        }
+        assert!(matches!(
+            database.publish_technical(&base, &next, deadline()),
+            Err(Error::Format(FormatError::Invalid))
+        ));
+    }
+    assert_eq!(objects.operation_count(), before);
+}
+
+#[test]
+fn released_snapshot_identity_metadata_survives_terminal_payload_gc() {
+    let (objects, database, point) = crate::snapshot_integration_tests::fixture();
+    database
+        .snapshot_release(7, &point.reference, deadline())
+        .unwrap();
+    let deleted = deleted_direct(&database);
+    let terminal = database
+        .retire_storage(7, deleted.head_serial, deadline())
+        .unwrap();
+    let control_prefix = crate::snapshot_records::prefix(&scope());
+    let metadata: Vec<_> = objects
+        .0
+        .entries()
+        .into_iter()
+        .filter(|(key, _)| key.starts_with(&control_prefix))
+        .collect();
+    assert_eq!(metadata.len(), 2); // Permanent descriptor and accepted proof.
+    let garbage = GarbageMemory::new(objects.0.clone());
+    let batch = database
+        .gc_prepare(
+            7,
+            terminal.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    let result = database
+        .gc_resume(
+            7,
+            batch.head.storage.sweep.as_ref().unwrap().serial,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    assert!(result.exhausted);
+    assert!(objects
+        .0
+        .entries()
+        .iter()
+        .all(|(key, _)| !key.starts_with(&prefix(&scope(), 1))));
+    for (key, original) in metadata {
+        let current = objects.0.get(&key, MAX_OBJECT_BYTES, deadline()).unwrap();
+        assert_eq!(current.bytes, original.bytes);
+        assert_eq!(current.etag, original.etag);
+    }
+    assert_eq!(
+        database
+            .snapshot_inspect(7, &point.reference.identity(), deadline())
+            .unwrap()
+            .state,
+        crate::snapshot::SnapshotState::ReleasedObserved
+    );
+}
+
+#[test]
+fn snapshot_mutations_are_fenced_while_a_real_retired_generation_sweep_is_pending() {
+    let (objects, database, point) = crate::snapshot_integration_tests::fixture();
+    let promoted = promote(&database);
+    let garbage = GarbageMemory::new(objects.0.clone());
+    let sweep = database
+        .gc_prepare(
+            7,
+            promoted.head_serial,
+            1,
+            None,
+            &garbage,
+            &garbage,
+            deadline(),
+        )
+        .unwrap();
+    assert!(sweep.head.storage.sweep.is_some());
+    let fresh = crate::snapshot::PrepareSnapshotInput {
+        creator: 7,
+        operation: 902,
+        expected_revision: sweep.head.revision,
+        expected_head_serial: sweep.head.head_serial,
+        label: "during-sweep".into(),
+    };
+    assert!(matches!(
+        database.snapshot_prepare(7, &fresh, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert!(matches!(
+        database.snapshot_release(7, &point.reference, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert!(matches!(
+        database.set_snapshot_limits(
+            7,
+            sweep.head.revision,
+            991,
+            SnapshotLimits::default(),
+            deadline()
+        ),
+        Err(Error::Fenced)
+    ));
+    assert_eq!(database.status(7, deadline()).unwrap(), sweep.head);
 }
 
 fn plan_fixture() -> Head {

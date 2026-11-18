@@ -97,7 +97,7 @@ def process_fixture():
     services={5001:ident(301,10),5002:ident(302,20),5003:ident(303,515)}
     for owner in (5001,5002,5003):
         identity=services[owner]
-        emit("service_started",identity["spawn_monotonic_ns"]+1,owner_instance=owner,identity=copy.deepcopy(identity),endpoint=f"http://127.0.0.1:{owner}",cache_directory=f"/private/{owner}")
+        emit("service_started",identity["spawn_monotonic_ns"]+1,owner_instance=owner,identity=copy.deepcopy(identity),endpoint=f"http://127.0.0.1:{owner}",cache_directory=f"/private/{owner}",spawn_requested_ns=identity["spawn_monotonic_ns"]-1)
         emit("service_ready",identity["spawn_monotonic_ns"]+2,owner_instance=owner,identity=copy.deepcopy(identity))
     for index,phase in enumerate(oracle.PHASES):
         lower=600 if phase=="recover" else 100+index*40

@@ -9,6 +9,12 @@ pub(crate) fn codec() -> Arc<CursorCodec> {
 pub(crate) fn discovery(memory: Arc<Memory>) -> Arc<Discovery> {
     Arc::new(Discovery::new(memory.clone(), memory, 100, codec()).unwrap())
 }
+pub(crate) fn join_workers(discovery: &Discovery) {
+    let workers = std::mem::take(&mut *discovery.workers.lock().unwrap());
+    for worker in workers {
+        worker.join().unwrap();
+    }
+}
 pub(crate) fn call(operation: &str, cursor: Value) -> Call {
     wire::parse(
         json!({"version":1,"operation":operation,"cursor":cursor})

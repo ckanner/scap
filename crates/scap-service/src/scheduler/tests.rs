@@ -220,6 +220,103 @@ fn encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker() 
 }
 
 #[test]
+fn expired_admission_never_allocates_an_actor_or_retains_output_and_intake() {
+    use crate::intake::{Class, Intake};
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+    let created = Arc::new(AtomicUsize::new(0));
+    let observed = created.clone();
+    let actor_limit = limits().active_database_actors;
+    let scheduler = Scheduler::new(
+        limits(),
+        Arc::new(move |index| {
+            if index < actor_limit {
+                observed.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(Box::new(Echo::new(index)))
+        }),
+    )
+    .unwrap();
+    for action in [
+        Action::Query { statements: vec![] },
+        Action::Open {},
+        Action::Lookup {
+            request: Identity {
+                epoch: Decimal(1),
+                id: Decimal(1),
+                principal: Decimal(3),
+                fingerprint: "a".repeat(64),
+            },
+        },
+        Action::Cancel {
+            request: Identity {
+                epoch: Decimal(1),
+                id: Decimal(1),
+                principal: Decimal(3),
+                fingerprint: "a".repeat(64),
+            },
+        },
+    ] {
+        assert_eq!(
+            scheduler
+                .submit(principal(), data(10, action), Instant::now())
+                .unwrap_err()
+                .code,
+            "DEADLINE"
+        );
+    }
+    let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
+    let intake = Arc::new(Intake::new(Class::Data, 4, 4096, None).unwrap());
+    assert_eq!(
+        scheduler
+            .submit_encoded(
+                principal(),
+                query(10),
+                Instant::now(),
+                intake.acquire(&principal()).unwrap(),
+                pool.acquire(&principal(), false).unwrap(),
+            )
+            .err()
+            .unwrap()
+            .code,
+        "DEADLINE"
+    );
+    assert_eq!(usage(&pool), (0, 0, 0));
+    assert_eq!(intake.available_permits(), 4);
+    assert_eq!(created.load(Ordering::SeqCst), 0);
+    {
+        let state = lock(&scheduler.shared.state);
+        assert!(state.actors.is_empty());
+        assert_eq!(state.usage.all.total, 0);
+        assert!(state.usage.tenants.is_empty() && state.usage.databases.is_empty());
+    }
+    send(&scheduler, query(10)).unwrap();
+    assert_eq!(created.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn admission_mutex_wait_cannot_extend_the_original_request_deadline() {
+    let scheduler = Arc::new(Scheduler::new(limits(), factory()).unwrap());
+    let state = lock(&scheduler.shared.state);
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let request = scheduler.clone();
+    let (entered, started) = mpsc::sync_channel(1);
+    let thread = std::thread::spawn(move || {
+        entered.send(()).unwrap();
+        request.submit(principal(), query(10), deadline)
+    });
+    started.recv_timeout(Duration::from_secs(5)).unwrap();
+    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+    drop(state);
+    assert_eq!(thread.join().unwrap().unwrap_err().code, "DEADLINE");
+    let state = lock(&scheduler.shared.state);
+    assert!(state.actors.is_empty());
+    assert_eq!(state.usage.all.total, 0);
+}
+
+#[test]
 fn queued_expiration_and_response_loss_release_only_their_owned_output() {
     use crate::output::{
         tests::{small_pool, usage},
@@ -674,10 +771,10 @@ fn deadlines_abandoned_waiters_and_shutdown_do_not_replay_jobs() {
     entered.recv_timeout(Duration::from_secs(5)).unwrap();
     let cancelled = scheduler.submit(principal(), query(10), until()).unwrap();
     drop(cancelled);
-    let expired = scheduler
-        .submit(principal(), query(10), Instant::now())
-        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let expired = scheduler.submit(principal(), query(10), deadline).unwrap();
     let queued = scheduler.submit(principal(), query(10), until()).unwrap();
+    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
     release.send(()).unwrap();
     receive(first).unwrap();
     assert_eq!(receive(expired).unwrap_err().code, "DEADLINE");

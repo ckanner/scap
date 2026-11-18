@@ -610,3 +610,135 @@ fn initial_authority_requires_original_scope_and_first_business_and_technical_or
     assert_eq!(state.puts.len(), 1);
     assert_eq!(state.puts[0].condition, None);
 }
+
+fn owner_snapshot(mut base: Snapshot, pending: bool) -> Snapshot {
+    use crate::format::{
+        OwnerAdmission, OwnerAdmissionKind, OwnerPhase, OwnerPhaseKind, OwnerPlan, OwnerPlanRef,
+    };
+    base.head.format = 8;
+    base.head.revision += 2;
+    base.head.head_serial += 2;
+    base.head.transition.revision = base.head.revision;
+    base.head.active = false;
+    base.head.owner_plan = Some(OwnerPlan {
+        reference: OwnerPlanRef {
+            creator: 7,
+            operation: 101,
+            descriptor_hash: digest(b"original owner descriptor"),
+        },
+        admission: OwnerAdmission {
+            kind: OwnerAdmissionKind::Claim,
+            revision: base.head.revision - u64::from(!pending),
+            head_serial: base.head.head_serial - u64::from(!pending),
+        },
+        phase: OwnerPhase {
+            kind: if pending {
+                OwnerPhaseKind::Claimed
+            } else {
+                OwnerPhaseKind::Aborted
+            },
+            revision: base.head.revision,
+            head_serial: base.head.head_serial,
+            nonce: base.head.transition.nonce,
+            owner_epoch: base.head.owner_epoch,
+            owner_instance: base.head.owner_instance,
+        },
+    });
+    base.head.validate().unwrap();
+    base
+}
+
+#[test]
+fn ordinary_publication_cannot_replace_owner_history_or_reintroduce_legacy_activation() {
+    use crate::format::NamedDeletion;
+    for cut in 0..10 {
+        let (objects, database, old) = metadata();
+        let mut base = owner_snapshot(old, false);
+        if cut == 4 {
+            base.head.lifecycle = Lifecycle::Deleted;
+        }
+        if cut == 9 {
+            base.head.owner_epoch = u64::MAX;
+        }
+        let mut next = Database::next(&base.head, 222).unwrap();
+        match cut {
+            0 => next.owner_plan = None,
+            1 => next.owner_instance += 1,
+            2 => next.active = true,
+            _ => {
+                next.owner_epoch = base
+                    .head
+                    .owner_epoch
+                    .wrapping_add(if cut == 8 { 2 } else { 1 });
+                if cut == 9 {
+                    next.owner_epoch = 1;
+                }
+                if cut >= 4 {
+                    next.lifecycle = Lifecycle::Deleted;
+                }
+                if cut >= 6 {
+                    next.creation = Some(NamedCreation {
+                        creator: 7,
+                        operation: 19,
+                        name_hash: digest(b"original name"),
+                        descriptor_hash: digest(b"original create"),
+                    });
+                }
+                if cut >= 7 {
+                    next.deletion = Some(NamedDeletion {
+                        kind: if cut == 7 {
+                            NamedDeletionKind::Abort
+                        } else {
+                            NamedDeletionKind::Delete
+                        },
+                        principal: 7,
+                        operation: 20,
+                        expected_name_revision: 1,
+                        expected_head_revision: Some(base.head.revision),
+                        nonce: next.transition.nonce,
+                        descriptor_hash: digest(b"original delete"),
+                    });
+                }
+            }
+        }
+        assert!(
+            matches!(
+                PreparedHead::new(&database, &base, &next, deadline()),
+                Err(Error::Format(FormatError::Invalid))
+            ),
+            "candidate cut {cut}"
+        );
+        assert!(objects.state.lock().unwrap().puts.is_empty());
+    }
+    let (objects, database, old) = metadata();
+    let base = owner_snapshot(old, false);
+    assert!(matches!(
+        database.publish_metadata(&base, 222, MetadataUpdate::Takeover, deadline()),
+        Err(Error::Fenced)
+    ));
+    assert!(objects.state.lock().unwrap().puts.is_empty());
+}
+
+#[test]
+fn a_pending_owner_allows_only_metadata_and_keeps_a_serial_slot_for_termination() {
+    let (objects, database, old) = metadata();
+    let mut base = owner_snapshot(old, true);
+    let mut next = Database::next(&base.head, 222).unwrap();
+    next.data_root = digest(b"unverified replacement root");
+    assert!(matches!(
+        PreparedHead::new(&database, &base, &next, deadline()),
+        Err(Error::Format(FormatError::Invalid))
+    ));
+    // A prior technical gap can exhaust serial before business revision.
+    base.head.head_serial = u64::MAX - 1;
+    let marker = base.head.owner_plan.as_mut().unwrap();
+    marker.admission.head_serial = base.head.head_serial;
+    marker.phase.head_serial = base.head.head_serial;
+    base.head.validate().unwrap();
+    let next = Database::next(&base.head, 223).unwrap();
+    assert!(matches!(
+        PreparedHead::new(&database, &base, &next, deadline()),
+        Err(Error::Limit)
+    ));
+    assert!(objects.state.lock().unwrap().puts.is_empty());
+}

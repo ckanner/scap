@@ -248,210 +248,278 @@ impl Engine {
         let deployment = principal.deployment;
         let principal = principal.principal;
         let database = entry.database.clone();
-        let head =
-            match action {
-                Action::Create { nonce } => database.create(principal, nonce.0, deadline)?,
-                Action::Status { .. } => database.status(principal, deadline)?,
-                Action::StorageStatus {} => {
-                    entry.session = None;
-                    database.storage_status(principal, deadline)?
+        let head = match action {
+            Action::Create { nonce } => database.create(principal, nonce.0, deadline)?,
+            Action::Status { .. } => database.status(principal, deadline)?,
+            Action::StorageStatus {} => {
+                entry.session = None;
+                database.storage_status(principal, deadline)?
+            }
+            Action::RetireStorage {
+                expected_head_serial,
+            } => {
+                // This publishes a permanent metadata barrier. It neither
+                // needs delete credentials nor replays any application SQL.
+                entry.session = None;
+                database.retire_storage(principal, expected_head_serial.0, deadline)?
+            }
+            Action::Open {} => {
+                // An explicit recovery call has its own HTTP deadline and
+                // refreshes a cached stale root without ever replaying SQL.
+                entry.session = None;
+                self.session(principal, entry, path, deadline)?;
+                database.status(principal, deadline)?
+            }
+            Action::Query { statements } => {
+                let statements = wire::statements(&statements)?;
+                let value = self.session(principal, entry, path, deadline)?.query(
+                    principal,
+                    &statements,
+                    deadline,
+                )?;
+                return match output {
+                    Some(output) => queried_budgeted(value, output),
+                    None => queried(value),
+                };
+            }
+            Action::Execute {
+                request,
+                statements,
+            } => {
+                let identity = request.native(principal)?;
+                let statements = wire::statements(&statements)?;
+                let expected =
+                    scap_object::request(identity.epoch, identity.id, principal, &statements)?;
+                if expected != identity {
+                    return Err(Failure::new("REQUEST_CONFLICT"));
                 }
-                Action::RetireStorage {
-                    expected_head_serial,
-                } => {
-                    // This publishes a permanent metadata barrier. It neither
-                    // needs delete credentials nor replays any application SQL.
-                    entry.session = None;
-                    database.retire_storage(principal, expected_head_serial.0, deadline)?
-                }
-                Action::Open {} => {
-                    // An explicit recovery call has its own HTTP deadline and
-                    // refreshes a cached stale root without ever replaying SQL.
-                    entry.session = None;
-                    self.session(principal, entry, path, deadline)?;
-                    database.status(principal, deadline)?
-                }
-                Action::Query { statements } => {
-                    let statements = wire::statements(&statements)?;
-                    let value = self.session(principal, entry, path, deadline)?.query(
-                        principal,
-                        &statements,
-                        deadline,
-                    )?;
-                    return match output {
-                        Some(output) => queried_budgeted(value, output),
-                        None => queried(value),
-                    };
-                }
-                Action::Execute {
-                    request,
-                    statements,
-                } => {
-                    let identity = request.native(principal)?;
-                    let statements = wire::statements(&statements)?;
-                    let expected =
-                        scap_object::request(identity.epoch, identity.id, principal, &statements)?;
-                    if expected != identity {
-                        return Err(Failure::new("REQUEST_CONFLICT"));
-                    }
-                    let (receipt, result) = self
-                        .session(principal, entry, path, deadline)?
-                        .execute(principal, &identity, &statements, deadline)?;
-                    return match output {
-                        Some(output) => committed_budgeted(receipt, result, output),
-                        None => committed(receipt, result),
-                    };
-                }
-                Action::Lookup { request } => {
-                    let resolution =
-                        database.lookup(principal, &request.native(principal)?, deadline)?;
-                    return resolved(resolution, output);
-                }
-                Action::Cancel { request } => {
-                    let resolution =
-                        database.cancel(principal, &request.native(principal)?, deadline)?;
-                    return resolved(resolution, output);
-                }
-                Action::Activate {
-                    expected_revision,
-                    nonce,
-                    ..
-                } => {
-                    let _slot = self
-                        .recovery
-                        .try_acquire()
-                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
-                    entry.session = None;
-                    let (head, session) = database.activate_session(
-                        principal,
-                        expected_revision.0,
-                        nonce.0,
-                        path,
-                        deadline,
-                    )?;
-                    entry.session = Some(session);
-                    head
-                }
-                Action::Takeover {
-                    expected_revision,
-                    nonce,
-                    ..
-                } => {
-                    entry.session = None;
-                    database.takeover(principal, expected_revision.0, nonce.0, deadline)?
-                }
-                Action::CloseFull {
-                    expected_revision,
-                    nonce,
-                } => database.close_full(principal, expected_revision.0, nonce.0, deadline)?,
-                Action::Policy {
-                    expected_revision,
-                    nonce,
-                    permissions,
-                } => database.set_policy(
+                let (receipt, result) = self.session(principal, entry, path, deadline)?.execute(
+                    principal,
+                    &identity,
+                    &statements,
+                    deadline,
+                )?;
+                return match output {
+                    Some(output) => committed_budgeted(receipt, result, output),
+                    None => committed(receipt, result),
+                };
+            }
+            Action::Lookup { request } => {
+                let resolution =
+                    database.lookup(principal, &request.native(principal)?, deadline)?;
+                return resolved(resolution, output);
+            }
+            Action::Cancel { request } => {
+                let resolution =
+                    database.cancel(principal, &request.native(principal)?, deadline)?;
+                return resolved(resolution, output);
+            }
+            Action::Activate {
+                expected_revision,
+                nonce,
+                ..
+            } => {
+                let _slot = self
+                    .recovery
+                    .try_acquire()
+                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                entry.session = None;
+                let (head, session) = database.activate_session(
                     principal,
                     expected_revision.0,
                     nonce.0,
-                    permissions
-                        .iter()
-                        .map(wire::WirePermission::native)
-                        .collect(),
+                    path,
                     deadline,
-                )?,
-                Action::Quota {
-                    expected_revision,
-                    nonce,
-                    max_bytes,
-                } => {
-                    entry.session = None;
-                    database.set_quota(
-                        principal,
-                        expected_revision.0,
-                        nonce.0,
-                        DatabaseQuota {
-                            max_bytes: max_bytes.map(|value| value.0),
-                        },
-                        deadline,
-                    )?
-                }
-                Action::Lifecycle {
-                    expected_revision,
-                    nonce,
+                )?;
+                entry.session = Some(session);
+                head
+            }
+            Action::Takeover {
+                expected_revision,
+                nonce,
+                ..
+            } => {
+                entry.session = None;
+                database.takeover(principal, expected_revision.0, nonce.0, deadline)?
+            }
+            Action::OwnerPrepare { input } => {
+                let value = database.owner_prepare(principal, &input.native()?, deadline)?;
+                return control_response(crate::owner_wire::preparation(&value), output);
+            }
+            Action::OwnerInspect { identity } => {
+                let value = database.owner_inspect(principal, &identity.native()?, deadline)?;
+                return control_response(crate::owner_wire::observation(&value), output);
+            }
+            Action::OwnerClaim { plan, .. } => {
+                entry.session = None;
+                let value = database.owner_claim(principal, &plan.native()?, deadline)?;
+                return control_response(crate::owner_wire::observation(&value), output);
+            }
+            Action::OwnerResume { plan, .. } => {
+                let _slot = self
+                    .recovery
+                    .try_acquire()
+                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                entry.session = None;
+                let (value, session) =
+                    database.owner_resume(principal, &plan.native()?, path, deadline)?;
+                // Only this call's complete recovery and successful Active
+                // publication can supply Some. Historical observation alone
+                // never recreates or reuses a writer capability.
+                entry.session = session;
+                return control_response(crate::owner_wire::observation(&value), output);
+            }
+            Action::OwnerAbort { plan } => {
+                entry.session = None;
+                let value = database.owner_abort(principal, &plan.native()?, deadline)?;
+                return control_response(crate::owner_wire::observation(&value), output);
+            }
+            Action::SnapshotPrepare { input } => {
+                let value = database.snapshot_prepare(principal, &input.native()?, deadline)?;
+                return control_response(crate::snapshot_wire::prepared(&value), output);
+            }
+            Action::SnapshotInspect { identity } => {
+                let value = database.snapshot_inspect(principal, &identity.native()?, deadline)?;
+                return control_response(crate::snapshot_wire::observation(&value), output);
+            }
+            Action::SnapshotCapture { reference } => {
+                let value = database.snapshot_capture(principal, &reference.native()?, deadline)?;
+                return control_response(crate::snapshot_wire::observation(&value), output);
+            }
+            Action::SnapshotRelease { reference } => {
+                let value = database.snapshot_release(principal, &reference.native()?, deadline)?;
+                return control_response(crate::snapshot_wire::observation(&value), output);
+            }
+            Action::SnapshotList {} => {
+                let head = database.snapshot_list(principal, deadline)?;
+                return control_response(crate::snapshot_wire::listing(&head), output);
+            }
+            Action::SnapshotLimits {
+                expected_revision,
+                nonce,
+                limits,
+            } => {
+                let head = database.set_snapshot_limits(
+                    principal,
+                    expected_revision.0,
+                    nonce.0,
+                    limits.native()?,
+                    deadline,
+                )?;
+                return control_response(crate::snapshot_wire::listing(&head), output);
+            }
+            Action::CloseFull {
+                expected_revision,
+                nonce,
+            } => database.close_full(principal, expected_revision.0, nonce.0, deadline)?,
+            Action::Policy {
+                expected_revision,
+                nonce,
+                permissions,
+            } => database.set_policy(
+                principal,
+                expected_revision.0,
+                nonce.0,
+                permissions
+                    .iter()
+                    .map(wire::WirePermission::native)
+                    .collect(),
+                deadline,
+            )?,
+            Action::Quota {
+                expected_revision,
+                nonce,
+                max_bytes,
+            } => {
+                entry.session = None;
+                database.set_quota(
+                    principal,
+                    expected_revision.0,
+                    nonce.0,
+                    DatabaseQuota {
+                        max_bytes: max_bytes.map(|value| value.0),
+                    },
+                    deadline,
+                )?
+            }
+            Action::Lifecycle {
+                expected_revision,
+                nonce,
+                lifecycle,
+            } => {
+                entry.session = None;
+                database.set_lifecycle(
+                    principal,
+                    expected_revision.0,
+                    nonce.0,
                     lifecycle,
-                } => {
-                    entry.session = None;
-                    database.set_lifecycle(
-                        principal,
-                        expected_revision.0,
-                        nonce.0,
-                        lifecycle,
-                        deadline,
-                    )?
+                    deadline,
+                )?
+            }
+            Action::CompactBegin {
+                expected_head_serial,
+            } => {
+                entry.session = None;
+                database.compact_begin(principal, expected_head_serial.0, deadline)?
+            }
+            Action::CompactCopy { plan_serial } => {
+                let _slot = self
+                    .recovery
+                    .try_acquire()
+                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                database.compact_copy(principal, plan_serial.0, deadline)?
+            }
+            Action::CompactPromote { plan_serial } => {
+                // Promotion leaves ownership inactive. Never retain the
+                // retired image or silently activate/replay application SQL.
+                entry.session = None;
+                database.compact_promote(principal, plan_serial.0, deadline)?
+            }
+            Action::CompactAbort { plan_serial } => {
+                database.compact_abort(principal, plan_serial.0, deadline)?
+            }
+            Action::GcPrepare {
+                expected_head_serial,
+                generation,
+                after,
+            } => {
+                let collector = self.collector(deployment)?;
+                let _slot = self
+                    .recovery
+                    .try_acquire()
+                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                let report = database.gc_prepare(
+                    principal,
+                    expected_head_serial.0,
+                    generation.0,
+                    after.as_deref(),
+                    collector.listings.as_ref(),
+                    collector.garbage.as_ref(),
+                    deadline,
+                )?;
+                if let Some(output) = output {
+                    output.head_result();
                 }
-                Action::CompactBegin {
-                    expected_head_serial,
-                } => {
-                    entry.session = None;
-                    database.compact_begin(principal, expected_head_serial.0, deadline)?
+                return Ok(wire::sweep(&report));
+            }
+            Action::GcResume { batch_serial } => {
+                let collector = self.collector(deployment)?;
+                let _slot = self
+                    .recovery
+                    .try_acquire()
+                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                let report = database.gc_resume(
+                    principal,
+                    batch_serial.0,
+                    collector.garbage.as_ref(),
+                    deadline,
+                )?;
+                if let Some(output) = output {
+                    output.head_result();
                 }
-                Action::CompactCopy { plan_serial } => {
-                    let _slot = self
-                        .recovery
-                        .try_acquire()
-                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
-                    database.compact_copy(principal, plan_serial.0, deadline)?
-                }
-                Action::CompactPromote { plan_serial } => {
-                    // Promotion leaves ownership inactive. Never retain the
-                    // retired image or silently activate/replay application SQL.
-                    entry.session = None;
-                    database.compact_promote(principal, plan_serial.0, deadline)?
-                }
-                Action::CompactAbort { plan_serial } => {
-                    database.compact_abort(principal, plan_serial.0, deadline)?
-                }
-                Action::GcPrepare {
-                    expected_head_serial,
-                    generation,
-                    after,
-                } => {
-                    let collector = self.collector(deployment)?;
-                    let _slot = self
-                        .recovery
-                        .try_acquire()
-                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
-                    let report = database.gc_prepare(
-                        principal,
-                        expected_head_serial.0,
-                        generation.0,
-                        after.as_deref(),
-                        collector.listings.as_ref(),
-                        collector.garbage.as_ref(),
-                        deadline,
-                    )?;
-                    if let Some(output) = output {
-                        output.head_result();
-                    }
-                    return Ok(wire::sweep(&report));
-                }
-                Action::GcResume { batch_serial } => {
-                    let collector = self.collector(deployment)?;
-                    let _slot = self
-                        .recovery
-                        .try_acquire()
-                        .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
-                    let report = database.gc_resume(
-                        principal,
-                        batch_serial.0,
-                        collector.garbage.as_ref(),
-                        deadline,
-                    )?;
-                    if let Some(output) = output {
-                        output.head_result();
-                    }
-                    return Ok(wire::sweep(&report));
-                }
-            };
+                return Ok(wire::sweep(&report));
+            }
+        };
         if let Some(output) = output {
             output.head_result();
         }
@@ -468,6 +536,18 @@ impl Engine {
         }
         Ok(collector)
     }
+}
+
+fn control_response(
+    value: Value,
+    output: Option<&mut crate::output::OutputContext>,
+) -> Result<Value, Failure> {
+    if let Some(output) = output {
+        // An accepted metadata change or descriptor must not become a definite
+        // pre-publication LIMIT when only response serialization fails.
+        output.head_result();
+    }
+    Ok(value)
 }
 
 fn committed(

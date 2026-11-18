@@ -115,7 +115,7 @@ impl Catalogue {
             nonce: input.nonce,
         };
         let control = self.immutable(&self.control_key(&candidate), &candidate, deadline)?;
-        for _ in 0..4 {
+        for _ in 0..if source.recipe.is_some() { 1 } else { 4 } {
             let view = self.view(&source, deadline)?;
             match self.abort_plan(&source, &control, &view, deadline)? {
                 AbortStep::Done(phase) => {
@@ -136,6 +136,7 @@ impl Catalogue {
                     head.lifecycle = Lifecycle::Deleted;
                     head.creation = Some(source.origin());
                     head.deletion = Some(control.mark());
+                    Self::initial_restore_origin(&source, &mut head);
                     database.create_head(&head, deadline).map_err(core_error)?;
                 }
                 AbortStep::Fence(base) => {
@@ -226,7 +227,16 @@ impl Catalogue {
                 require(view.proof.is_none())?;
                 let head = &own.ok_or(CatalogueError::Corrupt)?.head;
                 match head.lifecycle {
-                    Lifecycle::Provisioning => Self::provisioning(source, head)?,
+                    Lifecycle::Provisioning => {
+                        Self::provisioning(source, head)?;
+                        require(!matches!(
+                            head.restore_origin
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(|origin| &origin.phase),
+                            Some(format::RestoreCopyPhase::Copying {})
+                        ))?;
+                    }
                     Lifecycle::Ready | Lifecycle::Maintenance => {
                         Database::permission(head, source.creation.creator, true, false, false)
                             .map_err(core_error)?;
@@ -441,6 +451,7 @@ impl Catalogue {
         let base = Self::admin(source, view, control.principal)?;
         let binding = view.binding.as_ref().ok_or(CatalogueError::Corrupt)?;
         if base.head.lifecycle != Lifecycle::Deleted {
+            Database::no_pending_owner(&base.head).map_err(|_| CatalogueError::Conflict)?;
             if base.head.storage.plan.is_some() || base.head.storage.sweep.is_some() {
                 return Err(CatalogueError::Conflict);
             }

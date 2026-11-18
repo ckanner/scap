@@ -41,6 +41,19 @@ pub struct Credential {
 pub struct Authenticator(Vec<([u8; 32], Principal)>);
 
 impl Authenticator {
+    /// Keep direct service assembly within the same deployment restriction as
+    /// parsed GC configuration; no storage effect is needed to check this.
+    pub(crate) fn validate_gc_deployment(&self, deployment: u64) -> Result<(), Failure> {
+        if self
+            .0
+            .iter()
+            .any(|(_, principal)| principal.deployment != deployment)
+        {
+            return Err(Failure::new("CONFIG"));
+        }
+        Ok(())
+    }
+
     pub fn new(credentials: Vec<Credential>) -> Result<Self, Failure> {
         if credentials.is_empty() || credentials.len() > 4096 {
             return Err(Failure::new("CONFIG"));

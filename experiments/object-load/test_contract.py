@@ -1,6 +1,7 @@
 """Observer/input/oracle boundaries, never a simulated product throughput PASS."""
 import array
 import base64
+import copy
 import hashlib
 import http.client
 import http.server
@@ -97,6 +98,43 @@ class ContractTests(unittest.TestCase):
                     self.assertEqual({c['scope'] for c in selected[lane::cap]}, {'m' + str(lane)})
         self.assertEqual(sum(len(c.get('rows', [])) * c.get('blob_bytes', 0)
                              for c in calls if c['scope'] == 'cold'), 33554432)
+        self.assertEqual(spec.WORKER_INSTANCES, (5001, 5002))
+
+    def test_worker_auditor_binds_exact_readback_and_pre_listener_lifetime(self):
+        requests, responses, events, ready = {}, {}, [], []
+        for instance, worker in enumerate(spec.WORKER_INSTANCES, 1):
+            clock, serial = (instance - 1) * 100, (instance - 1) * 2 + 1
+            path = f'/scap-test/scap-worker/v1/instances/{worker}'
+            marker = b'SCAP-WORKER-INSTANCE-v1\0' + struct.pack('>Q', worker)
+            for offset, method in enumerate(('PUT', 'GET')):
+                requests[serial + offset] = {'path': path, 'method': method,
+                    'phase': f'startup-{instance}', 'monotonic_ns': clock + 20 + offset * 20,
+                    'request_bytes': len(marker) if method == 'PUT' else 0,
+                    'request_sha256': oracle.digest(marker if method == 'PUT' else b'')}
+                responses[serial + offset] = {'monotonic_ns': clock + 30 + offset * 20,
+                    'etag': f'"worker-{worker}"', 'response_bytes': len(marker),
+                    'response_sha256': oracle.digest(marker)}
+            for kind, timestamp in (('service_start_requested', 10), ('service_started', 61)):
+                events.append({'event': kind, 'instance': instance, 'worker_instance': str(worker),
+                               'cache': f'cache-{instance}', 'monotonic_ns': clock + timestamp})
+            ready.append({'instance': instance, 'status': 200, 'monotonic_ns': clock + 60})
+        events += [{'event': 'service_stopped', 'instance': 1, 'monotonic_ns': 90},
+                   {'event': 'compute_cache_removed', 'instance': 1, 'monotonic_ns': 100}]
+        result = oracle.worker_claim_audit(requests, responses, events, ready)
+        self.assertEqual(result['object_requests'], 4)
+        self.assertEqual([r['worker_instance'] for r in result['instances']], ['5001', '5002'])
+        changes = [
+            ('worker-claim-denominator', lambda q, r, e: q.pop(4)),
+            ('worker-startup-phase', lambda q, r, e: q[3].update(phase='read_multi')),
+            ('worker-startup-window', lambda q, r, e: r[4].update(monotonic_ns=170)),
+            ('worker-claim-readback', lambda q, r, e: r[4].update(etag='"other"')),
+            ('worker-startup-identity', lambda q, r, e: e[2].update(worker_instance='5001')),
+            ('worker-fresh-restart', lambda q, r, e: e[-1].update(monotonic_ns=120)),
+        ]
+        for rule, change in changes:
+            q, r, e = copy.deepcopy((requests, responses, events)); change(q, r, e)
+            with self.subTest(rule=rule), self.assertRaisesRegex(oracle.Rejected, rule):
+                oracle.worker_claim_audit(q, r, e, ready)
 
     def test_nearest_rank_includes_all_slow_samples(self):
         value = oracle.percentiles(list(range(1, 65)))
@@ -348,7 +386,19 @@ class ContractTests(unittest.TestCase):
             controls.mutate(target, 'wrong_binary')
             self.assertEqual((source / 'inputs.json').read_bytes(), original)
             self.assertNotEqual((target / 'inputs.json').read_bytes(), original)
-        self.assertEqual(len(controls.CASES), 14)
+        self.assertEqual(len(controls.CASES), 23)
+
+    def test_semantic_control_preserves_budget_and_original_hardlinked_body(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); source = root / 'source'; source.mkdir()
+            original = support.RawStore(source).save(b'original')
+            target = root / 'control'; shutil.copytree(source, target, copy_function=os.link)
+            before = (source / 'raw-budget').read_bytes()
+            changed = controls.store_body(target, b'changed')
+            self.assertEqual(oracle.raw(target, original), b'original')
+            self.assertEqual(oracle.raw(target, changed), b'changed')
+            self.assertEqual((source / 'raw-budget').read_bytes(), before)
+            self.assertEqual(int((target / 'raw-budget').read_text()), len(b'originalchanged'))
 
     def test_oracle_imports_no_runner_sdk_or_product(self):
         import ast

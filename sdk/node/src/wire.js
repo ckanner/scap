@@ -185,7 +185,7 @@ export function restore(serialized, databaseScope) {
 
 export function status(value, expectedScope) {
   record(value, ['scope', 'revision', 'sequence', 'owner_epoch', 'owner_instance', 'active',
-    'auth_epoch', 'lifecycle', 'request_epoch', 'max_bytes', 'transition', 'retention', 'head_serial', 'storage']);
+    'auth_epoch', 'lifecycle', 'request_epoch', 'max_bytes', 'transition', 'retention', 'head_serial', 'storage', 'owner_plan']);
   const result = { ...value, scope: scope(value.scope), transition: transition(value.transition) };
   sameScope(result.scope, expectedScope);
   for (const key of ['revision', 'owner_epoch', 'owner_instance', 'auth_epoch', 'request_epoch']) decimal(value[key]);
@@ -204,7 +204,71 @@ export function status(value, expectedScope) {
   decimal(value.head_serial);
   requireValue(BigInt(value.head_serial) >= BigInt(value.revision), 'Physical HEAD serial precedes logical revision');
   result.storage = storage(value.storage, value.head_serial, value.revision, value.active, value.lifecycle);
+  result.owner_plan = headOwner(value.owner_plan, result);
   return Object.freeze(result);
+}
+
+export function ownerReference(value) {
+  record(value, ['creator', 'operation', 'descriptor_hash']);
+  return Object.freeze({ creator: decimal(value.creator), operation: decimal(value.operation),
+    descriptor_hash: hash(value.descriptor_hash) });
+}
+
+export function sameOwnerReference(left, right) {
+  return left.creator === right.creator && left.operation === right.operation &&
+    left.descriptor_hash === right.descriptor_hash;
+}
+
+export function ownerPending(value) {
+  return value.phase.kind === 'claimed' || value.phase.kind === 'cancelling';
+}
+
+/** Historical marker fields stay fixed when later metadata or deletion changes HEAD. */
+export function ownerPlan(value) {
+  record(value, ['reference', 'admission', 'phase']);
+  const reference = ownerReference(value.reference), a = value.admission, p = value.phase;
+  record(a, ['kind', 'revision', 'head_serial']);
+  record(p, ['kind', 'revision', 'head_serial', 'nonce', 'owner_epoch', 'owner_instance']);
+  for (const key of ['revision', 'head_serial']) decimal(a[key]);
+  for (const key of ['revision', 'head_serial', 'nonce', 'owner_epoch', 'owner_instance']) decimal(p[key]);
+  requireValue(['claim', 'cancel'].includes(a.kind) &&
+    ['claimed', 'cancelling', 'active', 'aborted'].includes(p.kind), 'Unknown owner plan phase');
+  requireValue(BigInt(a.revision) >= 2n && BigInt(a.revision) <= BigInt(a.head_serial) &&
+    BigInt(p.revision) <= BigInt(p.head_serial), 'Owner plan counters are inconsistent');
+  requireValue(p.kind === 'aborted' || a.kind === (p.kind === 'cancelling' ? 'cancel' : 'claim'),
+    'Owner phase contradicts its admission');
+  if (ownerPending(value)) {
+    requireValue(p.revision === a.revision && p.head_serial === a.head_serial,
+      'Pending phase counters must equal admission');
+  } else {
+    requireValue(BigInt(p.revision) > BigInt(a.revision) && BigInt(p.head_serial) > BigInt(a.head_serial),
+      'Terminal phase must follow admission');
+  }
+  requireValue(BigInt(p.revision) - BigInt(a.revision) === BigInt(p.head_serial) - BigInt(a.head_serial),
+    'Owner phase counters advanced by different amounts');
+  return Object.freeze({ reference, admission: Object.freeze({ kind: a.kind, revision: a.revision, head_serial: a.head_serial }),
+    phase: Object.freeze({ kind: p.kind, revision: p.revision, head_serial: p.head_serial,
+      nonce: p.nonce, owner_epoch: p.owner_epoch, owner_instance: p.owner_instance }) });
+}
+
+function headOwner(value, head) {
+  if (value === null) return null;
+  const plan = ownerPlan(value), p = plan.phase;
+  requireValue(BigInt(p.revision) <= BigInt(head.revision) && BigInt(p.head_serial) <= BigInt(head.head_serial),
+    'Owner phase is newer than current authority');
+  requireValue(p.revision !== head.revision || head.transition.nonce === p.nonce,
+    'Current business transition contradicts the owner phase nonce');
+  requireValue(p.kind === 'active' || head.active === false, 'Non-active owner phase cannot own an active HEAD');
+  if (ownerPending(plan)) {
+    requireValue(head.lifecycle === 'ready' && head.storage.plan === null && head.storage.sweep === null &&
+      head.storage.terminal === null && head.owner_epoch === p.owner_epoch && head.owner_instance === p.owner_instance,
+    'Pending owner plan contradicts current authority');
+    requireValue(BigInt(head.revision) < U64 && BigInt(head.head_serial) < U64,
+      'Pending owner plan lost its terminal counter reserve');
+    requireValue(BigInt(head.revision) - BigInt(p.revision) === BigInt(head.head_serial) - BigInt(p.head_serial),
+      'Pending authority counters advanced by different amounts');
+  }
+  return plan;
 }
 
 /** A listing cursor is one content hash; never a key, prefix or backend URL. */

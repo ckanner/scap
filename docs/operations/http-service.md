@@ -71,6 +71,6 @@ abort_create 和 delete_name 都先保存完整控制意图，包括 control ope
 
 ## 当前持续运行边界
 
-当前已有不可变 ID、名称目录、全目录发现、静态 owner 路由和保存原意图的显式协调；后台故障探测与自动 owner controller 仍待实施。专属 actor 消除跨库固定 lane 的恢复阻塞，但共享存储、网络、CPU、HTTP 解析与磁盘容量仍须单独限流和负载验收。全部计算丢失后的完整发现须遍历名称及永久 HEAD 槽位，并按[部署恢复合同](../architecture/catalogue-discovery-plan.md)核对各状态；仅按调用者已知名称恢复不能代替完整发现。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。HEAD6 回收管理见[接口说明](../../crates/scap-service/docs/reclamation.md)，候选验收、自动协调及长期留存分别记录。
+当前已有不可变 ID、名称目录、全目录发现、静态 owner 路由和保存原意图的显式协调；有限自动 owner controller 已在 PR #57 实现候选，仍需独立真实服务/S3组合验收。专属 actor 消除跨库固定 lane 的恢复阻塞，但共享存储、网络、CPU、HTTP 解析与磁盘容量仍须单独限流和负载验收。全部计算丢失后的完整发现须遍历名称及永久 HEAD 槽位，并按[部署恢复合同](../architecture/catalogue-discovery-plan.md)核对各状态；仅按调用者已知名称恢复不能代替完整发现。请求窗口有界，管理员通过 closeFull 有序关闭满窗口；SDK 不暗中改变 request epoch。HEAD6 回收管理见[接口说明](../../crates/scap-service/docs/reclamation.md)，候选验收、自动协调及长期留存分别记录。
 
-对象物理 GC/pin/PITR 仍未交付，旧块与 orphan 会增长。10 GiB 配额限制当前逻辑数据库，不限制 bucket 总量。服务适合受控开发与验收；生产可用性、总成本与长时间运行仍须完成 N3/N4 的门禁。
+HEAD6/7 的完整代际复制、持久 GC checkpoint 与 Deleted 最后一代永久退休已合入。只有安全退休代且经过公平重复 sweep 的 payload 才能物理回收。HEAD9 S1 保留根与 COPY/GC 的组合仍为实现候选，新 Scope 恢复和任意时间 PITR 未交付；永久身份/证明对象和不可达 orphan 的成本仍须计入。10 GiB 配额限制当前逻辑数据库，不限制 bucket 总量。服务适合受控开发与验收；生产可用性、总成本与长时间运行仍须完成 N3/N4 的门禁。

@@ -2,6 +2,7 @@ name: Object-native quality and independent evidence
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -94,22 +95,27 @@ jobs:
       - name: Run protocol and negative-oracle unit tests
         run: python3 -m unittest discover -s experiments/object-authority-model -p 'test_*.py' -v
       - name: Explore bounded schedules and retain raw histories
-        run: python3 experiments/object-authority-model/explore.py --output target/evidence/object-authority-model
+        run: python3 experiments/object-authority-model/explore.py --output "$RUNNER_TEMP/scap-model-evidence/object-authority-model"
       - name: Explore named catalogue publication races and negative controls
-        run: python3 experiments/object-authority-model/named_catalogue_model.py --output "$GITHUB_WORKSPACE/target/evidence/named-catalogue-model"
+        run: python3 experiments/object-authority-model/named_catalogue_model.py --output "$RUNNER_TEMP/scap-model-evidence/named-catalogue-model"
       - name: Check the terminal retirement model and independent observer
         run: python3 -m unittest discover -s experiments/object-terminal-retirement-model -p 'test_*.py' -v
       - name: Explore terminal retirement schedules without claiming product acceptance
-        run: python3 experiments/object-terminal-retirement-model/explore.py --out "$GITHUB_WORKSPACE/target/evidence/terminal-retirement-model"
+        run: python3 experiments/object-terminal-retirement-model/explore.py --out "$RUNNER_TEMP/scap-model-evidence/terminal-retirement-model"
+      - name: Check accepted owner plans and the independent raw-history observer
+        run: python3 -B -m unittest discover -s experiments/object-owner-plan-model -p 'test_*.py' -v
+      - name: Explore accepted owner schedules with original in-flight requests
+        run: python3 -B experiments/object-owner-plan-model/explore.py --output "$RUNNER_TEMP/scap-model-evidence/owner-plan-model"
       - name: Retain model evidence without claiming real S3 execution
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: object-authority-model
           path: |
-            target/evidence/object-authority-model
-            target/evidence/named-catalogue-model
-            target/evidence/terminal-retirement-model
+            ${{ runner.temp }}/scap-model-evidence/object-authority-model
+            ${{ runner.temp }}/scap-model-evidence/named-catalogue-model
+            ${{ runner.temp }}/scap-model-evidence/terminal-retirement-model
+            ${{ runner.temp }}/scap-model-evidence/owner-plan-model
           if-no-files-found: warn
 
   resource-limits:
@@ -330,6 +336,7 @@ jobs:
         run: |
           python3 experiments/bounded-transport/run.py \
             --binary "$GITHUB_WORKSPACE/target/object-service-build/release/scapd" \
+            --weed "$GITHUB_WORKSPACE/target/object-network-tools/weed" \
             --evidence "$RUNNER_TEMP/scap-bounded-transport"
           python3 experiments/bounded-transport/oracle.py \
             "$RUNNER_TEMP/scap-bounded-transport/observations.json" \
@@ -521,9 +528,11 @@ jobs:
             target/evidence/object-service/*.json
             target/evidence/object-service/*.jsonl
             target/evidence/object-service/*.log
+            target/evidence/object-service/*.tar
             target/evidence/catalogue-service/*.json
             target/evidence/catalogue-service/*.jsonl
             target/evidence/catalogue-service/*.log
+            target/evidence/catalogue-service/*.tar
             target/evidence/isolation-service/*
             target/evidence/isolation-controls/**
             target/evidence/listing-build/**

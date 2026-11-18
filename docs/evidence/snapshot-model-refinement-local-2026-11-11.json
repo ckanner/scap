@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "scope": "finite design model only",
+  "candidate": "0684257818ce9dd0514968bb5d8b889dce717ef6",
+  "model_source": {
+    "declared_inputs_status": "",
+    "files": {
+      "AGENTS.md": "ee32d956a69b8e3700474fe4ce2c5c8467e2e758fd84bc18c608a6b971afbbf6",
+      "docs/architecture/retained-snapshot-restore.md": "7d98d9594e5b505811c9d7af8563f149fe378c668203e7e079d7050e4ad8f044",
+      "experiments/object-snapshot-restore-model/PLAN.md": "842caaecd9f8c9546b8f9ae05542d13ed0b694756c4e6b72bcdc181b64ab12fb",
+      "experiments/object-snapshot-restore-model/README.md": "a66f8336b142a1d052a9722bd3d48e84f8d9a800207aca79da921629ac084d40",
+      "experiments/object-snapshot-restore-model/cases.py": "5f24e2791cc81912340f1dd4796d1681528b0ebb0a1e032d8b5f05b7d0b8ba4f",
+      "experiments/object-snapshot-restore-model/codec_budget.py": "ffe2a7de345c21107666d99259160a293092710877ab7e1bb0d0d604130a9c90",
+      "experiments/object-snapshot-restore-model/counterexamples.py": "9fa973c51eafbed03a544bc99e4d7b4a8f97965a3f261bdf04829259b3114646",
+      "experiments/object-snapshot-restore-model/explore.py": "911ecde189db2227f896bdf7760d814d52c1ce0f5afcfb7b2b8285374f4173cd",
+      "experiments/object-snapshot-restore-model/model.py": "815be7038d04a7c26ed991e0fc87fecf3593c92a61c6630cc712319f669a47a7",
+      "experiments/object-snapshot-restore-model/oracle.py": "e1ee5e5e9bbd132083e95cea1f6ccf4b4461e5a936cb0e078b1eeb7f8f8cf706",
+      "experiments/object-snapshot-restore-model/test_explore.py": "25ad15417793c26ff3ee17565e2082decd90ffd7897ade4243b83973b39ed32c",
+      "experiments/object-snapshot-restore-model/test_model.py": "e644887683f5558fe5d7853790606458d6104bae640c606754d7c1fa8aa343ca",
+      "experiments/object-snapshot-restore-model/test_oracle.py": "9fe2ba4b89c219feb9e71d640edfd1df6935de4d913adcd4f7fac24942808c1e"
+    },
+    "git_head": "0684257818ce9dd0514968bb5d8b889dce717ef6",
+    "sha256": "9c5b426da49ae2dcf1fb0bd66a1120fef05acb265dfc86698344c69fca2e6782"
+  },
+  "commands": [
+    "python3 -B -m unittest discover -s experiments/object-snapshot-restore-model -p test_*.py -v",
+    "python3 -B experiments/object-snapshot-restore-model/explore.py --out <new-evidence-directory>"
+  ],
+  "unit_tests": {
+    "status": "PASS",
+    "tests": 35,
+    "log_sha256": "0283f3e752526c3525535b583a5ff1efc897d89d6c7ce74bbaf94a3a784e95da"
+  },
+  "formal_model": {
+    "status": "PASS",
+    "diagnostic": false,
+    "product_base": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+    "positives": 804,
+    "negatives": 47,
+    "positive_controls": [
+      {
+        "bytes": 101034,
+        "name": "json-roundtrip",
+        "passed": true,
+        "path": "positive-controls/json-roundtrip.json",
+        "sha256": "faf9b89f7a07aa6e87dd17436adf5610b68ffba70810d1adff8844340321584e"
+      },
+      {
+        "bytes": 101052,
+        "name": "summary-ignored",
+        "passed": true,
+        "path": "positive-controls/summary-ignored.json",
+        "sha256": "03fd5eca65a38cbc2eed67daff6237e2946acf6b36bc6133517b668ad397c09a"
+      },
+      {
+        "bytes": 100988,
+        "name": "no-summary",
+        "passed": true,
+        "path": "positive-controls/no-summary.json",
+        "sha256": "6b4e58ccc8fd0486ef3833cd6c22c655ec0af505ab950d6ee6f7ad3bb0098869"
+      }
+    ],
+    "distinct_head_edges": 73,
+    "distinct_head_states": 77,
+    "totals": {
+      "budget_failures": 2,
+      "cold_reads": 761,
+      "completed_copies": 604,
+      "events": 224107,
+      "expired_reads": 7,
+      "head_effects": 4112,
+      "target_ready": 433,
+      "unknown": 554
+    },
+    "seconds": 11.412836876000256,
+    "limits": {
+      "bytes": 268435456,
+      "processes": 1,
+      "seconds": 120
+    },
+    "product_implementation": "NOT_RUN",
+    "native_http_s3": "NOT_RUN",
+    "aws": "NOT_RUN"
+  },
+  "manifest_sha256": "ff959ff34b76b52ad8be2ba4734c7c242186d461a7961479f31d51c6ce1f55c3",
+  "matrix": {
+    "historical_positive_families": 789,
+    "historical_negative_families": 38,
+    "additional_positive_families": 15,
+    "additional_targeted_negative_controls": 9,
+    "counts_do_not_replace_historical_contract": true
+  },
+  "prior_defect_reproduction": {
+    "purpose": "Post-fix reproduction using exact original commit; not the initially executed run artifact",
+    "original_commit": "7c1c159c2030898393aad62aa5578834e6428459",
+    "outer_result": "Corrupt",
+    "old_oracle": "ACCEPTED",
+    "audit": {
+      "events": 40,
+      "head_effects": 1,
+      "completed_copies": 0,
+      "target_ready": 0,
+      "cold_reads": 0,
+      "expired_reads": 0,
+      "budget_failures": 0,
+      "unknown": 0
+    },
+    "actual_descriptor_present": true,
+    "actual_retained_entries": 1,
+    "operator_faults": 0,
+    "sha256": {
+      "history.json": "60ae94ce38a4c9c0bcf5abefb726ea966687133c9f6e54f3fd6a2ce908c9918e",
+      "model.py": "9c9d84144becc0d3dafb469d65ee287fbbd0919f658406f9695bad8323374b8d",
+      "oracle.py": "b71037d1c7869b908b7e6502adaddf57c71ead322aa5ce8476d35e17645a32d5"
+    }
+  },
+  "prior_reproduction_manifest_sha256": "2808e4feb8714f8ed7b2fc7e16fbb8d5dc39faf403fe5ef57f7a9b43b8d6f8ea",
+  "preserved_failure": {
+    "attempt": "snapshot-prepare-red-reproduction-01",
+    "reason": "Reproduction metadata writer attempted to read __pycache__ as a file; original source and generated history were retained. Attempt02 fixed only the evidence inventory writer. This is not the original discovery run."
+  },
+  "limitations": [
+    "Only declared model source inputs are certified; this does not certify Rust S1/S2 or HTTP/Node APIs.",
+    "Finite histories and independent negative controls do not replace native SQLite, signed S3, process crash, cold recovery, or AWS acceptance.",
+    "Non-null restore_origin remains closed for S1."
+  ]
+}

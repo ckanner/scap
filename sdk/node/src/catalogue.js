@@ -50,6 +50,25 @@ export class CatalogueClient {
     return this.submit(this.prepareIntent({ operation: 'inspect_create_operation', create_operation: createOperation }), options);
   }
 
+  prepareRestore(input, options) {
+    wire.record(input, ['name', 'restore_operation', 'expected_name_revision', 'options', 'source_scope', 'snapshot']);
+    return this.submit(this.prepareIntent({ operation: 'prepare_restore', ...input }), options);
+  }
+
+  resumeRestore(reference, options) {
+    return this.submit(this.prepareIntent({ operation: 'resume_restore', reference }), options);
+  }
+
+  inspectRestore(restoreOperation, options) {
+    return this.submit(this.prepareIntent({ operation: 'inspect_restore', creator: this.#context.principal,
+      restore_operation: restoreOperation }), options);
+  }
+
+  abortRestore(input, options) {
+    wire.record(input, ['reference', 'control_operation', 'expected_name_revision', 'nonce']);
+    return this.submit(this.prepareIntent({ operation: 'abort_restore', ...input }), options);
+  }
+
   resolveName(name, options) {
     return this.submit(this.prepareIntent({ operation: 'resolve_name', name }), options);
   }

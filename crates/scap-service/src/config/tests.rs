@@ -5,6 +5,33 @@ use serde_json::json;
 fn parsed(value: serde_json::Value) -> Config {
     Config::parse(&serde_json::to_vec(&value).unwrap()).unwrap()
 }
+
+#[test]
+fn restore_requires_its_explicit_recovery_profile_and_control_catalogue() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    value["restore"] = crate::restore::tests::profile();
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("validate restore before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    value["catalogue"] = value["restore"]["admission"].clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(prepared.service.restore.unwrap().recovery_timeout_ms, 30000);
+    value["restore"]["max_staging_bytes_per_tenant"] = json!(0);
+    assert_eq!(
+        parsed(value)
+            .prepare_with(&|_| panic!("validate restore before credentials"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}
 fn environment(_: &str) -> Option<OsString> {
     Some(OsString::from("unit-secret"))
 }
@@ -95,7 +122,10 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     assert_eq!(prepared.s3.max_object_bytes, MAX_OBJECT_BYTES);
     assert_eq!(prepared.s3.access_key, "unit-secret");
     assert!(prepared.s3.session_token.is_none());
-    assert_eq!(prepared.service.worker_instance, 100);
+    assert_eq!(
+        prepared.service.worker_instance,
+        WorkerInstance::Explicit(100)
+    );
     assert!(prepared.service.catalogue.is_none());
     assert_eq!(prepared.service.admission.limits().control_workers, 1);
     let mut value = value;
@@ -107,6 +137,112 @@ fn configuration_resolves_only_named_credentials_and_keeps_production_defaults()
     let _credentials = crate::tests::test_credentials();
     let result = parsed(sample_config(directory.path())).prepare().unwrap();
     assert_eq!(result.s3.secret_key, "secret");
+}
+
+#[test]
+fn worker_selection_keeps_explicit_json_and_requires_exact_auto_spelling() {
+    let directory = tempfile::tempdir().unwrap();
+    for (text, expected) in [
+        ("1", WorkerInstance::Explicit(1)),
+        ("18446744073709551615", WorkerInstance::Explicit(u64::MAX)),
+        ("auto", WorkerInstance::Auto),
+    ] {
+        let mut value = sample_config(directory.path());
+        value["worker_instance"] = json!(text);
+        assert_eq!(
+            parsed(value)
+                .prepare_with(&environment)
+                .unwrap()
+                .service
+                .worker_instance,
+            expected
+        );
+    }
+    for invalid in [
+        json!(1),
+        json!(null),
+        json!(true),
+        json!({}),
+        json!("AUTO"),
+        json!(" auto"),
+        json!("01"),
+        json!("+1"),
+        json!("-1"),
+        json!("18446744073709551616"),
+    ] {
+        let mut value = sample_config(directory.path());
+        value["worker_instance"] = invalid;
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+}
+
+#[test]
+fn automatic_discovery_defers_only_codec_construction_until_identity_is_known() {
+    fn premature(
+        _: [u8; 32],
+        _: [u8; 32],
+        _: u64,
+    ) -> Result<crate::discovery_cursor::CursorCodec, Failure> {
+        panic!("automatic identity has not been allocated during configuration")
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    value["worker_instance"] = json!("auto");
+    value["discovery"] = json!({"cursor_key_env":"CURSOR_KEY"});
+    let prepared = parsed(value.clone())
+        .prepare_using(
+            &|name| {
+                if name == "CURSOR_KEY" {
+                    Some("ab".repeat(32).into())
+                } else {
+                    environment(name)
+                }
+            },
+            premature,
+        )
+        .unwrap();
+    let setup = prepared.service.discovery.unwrap();
+    assert!(setup.accepts(WorkerInstance::Auto));
+    assert!(!setup.accepts(WorkerInstance::Explicit(41)));
+    let codec = setup.bind(41).unwrap();
+    let token = codec
+        .seal(
+            &crate::tests::principal(),
+            crate::discovery_cursor::View::Names,
+            b"checkpoint",
+        )
+        .unwrap();
+    assert_eq!(
+        codec
+            .open(
+                &crate::tests::principal(),
+                crate::discovery_cursor::View::Names,
+                &token
+            )
+            .unwrap(),
+        b"checkpoint"
+    );
+    assert!(
+        parsed(value).prepare_with(&environment).is_err(),
+        "the key is validated before allocation"
+    );
+
+    let codec = crate::discovery::tests::codec();
+    let setup = PreparedDiscovery::Ready(codec.clone());
+    assert!(setup.accepts(WorkerInstance::Explicit(100)));
+    assert!(!setup.accepts(WorkerInstance::Auto));
+    assert!(std::sync::Arc::ptr_eq(&codec, &setup.bind(100).unwrap()));
+    assert_eq!(
+        PreparedDiscovery::Automatic {
+            master: [1; 32],
+            namespace: [2; 32]
+        }
+        .bind(0)
+        .err()
+        .unwrap()
+        .code,
+        "CONFIG"
+    );
 }
 
 #[test]
@@ -411,6 +547,78 @@ fn execution_graph_budget_is_explicit_and_does_not_reinterpret_wire_or_database_
         input["execution"] = value;
         assert!(Config::parse(input.to_string().as_bytes()).is_err());
     }
+}
+
+#[test]
+fn owner_recovery_budget_is_local_bounded_and_checked_before_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = sample_config(directory.path());
+    let baseline = parsed(base.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .options;
+    assert_eq!(baseline.owner_recovery_gets, 1_048_576);
+    assert_eq!(
+        baseline.owner_recovery_bytes,
+        64 * scap_object::options::GIB
+    );
+    for (gets, bytes) in [
+        (0, 0),
+        (1, 512),
+        (1024, 1024 * 1024),
+        (baseline.owner_recovery_gets, baseline.owner_recovery_bytes),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = json!({"payload_gets":gets,"payload_bytes":bytes});
+        let options = parsed(value)
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .options;
+        assert_eq!(options.owner_recovery_gets, gets);
+        assert_eq!(options.owner_recovery_bytes, bytes);
+        assert_eq!(options.quota, baseline.quota);
+        assert_eq!(options.retention, baseline.retention);
+        assert_eq!(options.sql, baseline.sql);
+        assert_eq!(options.result_memory_bytes, baseline.result_memory_bytes);
+        assert_eq!(options.recovery_timeout, baseline.recovery_timeout);
+    }
+    for budget in [
+        json!({"payload_gets":baseline.owner_recovery_gets+1,"payload_bytes":512}),
+        json!({"payload_gets":1,"payload_bytes":baseline.owner_recovery_bytes+1}),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = budget;
+        assert_eq!(
+            parsed(value)
+                .prepare_with(&|_| panic!("owner budget before secrets"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    for budget in [
+        json!({}),
+        json!({"payload_gets":1}),
+        json!({"payload_bytes":512}),
+        json!({"payload_gets":-1,"payload_bytes":512}),
+        json!({"payload_gets":"1","payload_bytes":512}),
+        json!({"payload_gets":1,"payload_bytes":null}),
+        json!({"payload_gets":1,"payload_bytes":512,"rss_bytes":512}),
+    ] {
+        let mut value = base.clone();
+        value["owner_recovery"] = budget;
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    let mut value = base;
+    value["owner_recovery"] = json!({"payload_gets":1,"payload_bytes":512});
+    let repeated = value.to_string().replace(
+        "\"payload_gets\":1",
+        "\"payload_gets\":1,\"payload_gets\":1",
+    );
+    assert!(Config::parse(repeated.as_bytes()).is_err());
 }
 
 fn garbage_configuration(parent: &std::path::Path) -> serde_json::Value {

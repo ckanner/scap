@@ -67,6 +67,106 @@ def corruption():
     return path, requests, responses, original, changed
 
 
+def signed_exchange_fixture(workers=None):
+    workers = workers or {'a': '7101', 'b': '7202'}
+    endpoints = {role: 'http://127.0.0.1:' + str(10001 + i) for i, role in enumerate(workers)}
+    startups = [{'role': role, 'worker': worker, 'start': 1, 'ready': 200} for role, worker in workers.items()]
+    history = []
+    def exchange(worker, method, path, payload, body, status, when):
+        serial = len(history) // 4 + 1
+        signing = {'algorithm': 'AWS4-HMAC-SHA256', 'access_key_sha256': 'a' * 64,
+            'credential_scope': '20261118/us-east-1/s3/aws4_request', 'date': '20261118T000000Z',
+            'signature_sha256': 'b' * 64, 'host': endpoints[worker].split('://', 1)[1],
+            'signed_headers': ['host', 'x-amz-content-sha256', 'x-amz-date'], 'payload_sha256': oracle.sha(payload)}
+        common = {'request_serial': serial, 'worker': worker, 'phase': 'setup', 'method': method, 'path': path,
+            'request_bytes': len(payload), 'request_sha256': oracle.sha(payload),
+            'request_body': base64.b64encode(payload).decode(), 'signing': signing,
+            'if_match': None, 'if_none_match': '*' if method == 'PUT' else None}
+        response = {'status': status, 'response_bytes': len(body), 'response_sha256': oracle.sha(body),
+                    'response_body': base64.b64encode(body).decode(), 'etag': '"worker-' + worker + '"' if status == 200 else None}
+        if path.endswith('/head'):
+            common['head_request_bytes'], response['head_response_bytes'] = list(payload), list(body)
+        for offset, event in enumerate(('object_request', 'object_forwarded', 'object_response', 'object_response_delivered')):
+            row = {**copy.deepcopy(common), 'event': event, 'monotonic_ns': when + offset,
+                   'schema': 1, 'sequence': len(history) + 1}
+            if offset >= 2:
+                row.update(response)
+            if event == 'object_response':
+                row.update(response_origin='backend', suppressed=False)
+            history.append(row)
+    for i, (role, worker) in enumerate(workers.items()):
+        value = b'SCAP-WORKER-INSTANCE-v1\0' + int(worker).to_bytes(8, 'big')
+        path = '/scap-test/scap-worker/v1/instances/' + worker
+        exchange(role, 'PUT', path, value, b'', 200, 20 + i * 20)
+        exchange(role, 'GET', path, b'', value, 200, 30 + i * 20)
+    exchange(next(iter(workers)), 'GET', '/scap-test/scap-object/v1/1/7/1001/head', b'', b'', 404, 220)
+    return {'history': history, 'startups': startups, 'endpoints': endpoints, 'access_key_sha256': 'a' * 64,
+            'phases': {'setup'}, 'blackhole_phases': ()}
+
+
+class StartupPhysicalInventoryTests(unittest.TestCase):
+    def test_only_verified_claims_are_separate_from_the_full_physical_inventory(self):
+        net = oracle.original_s3_exchanges(**signed_exchange_fixture())
+        self.assertEqual(set(net['physical_requests']), {1, 2, 3, 4, 5})
+        self.assertEqual(set(net['startup_requests']), {1, 2, 3, 4})
+        self.assertEqual(set(net['requests']), {5})
+        self.assertEqual(set(net['startup_requests']) | set(net['requests']), set(net['physical_requests']))
+        self.assertFalse(set(net['startup_requests']) & set(net['requests']))
+
+    def test_startup_raw_bytes_cannot_disagree_with_the_exact_digest(self):
+        for event, field in (('object_request', 'request_body'), ('object_response', 'response_body'),
+                             ('object_response_delivered', 'response_body')):
+            data = signed_exchange_fixture()
+            serial = 1 if field == 'request_body' else 2
+            row = next(row for row in data['history'] if row['request_serial'] == serial and row['event'] == event)
+            row[field] = base64.b64encode(b'contradictory original capture').decode()
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                oracle.original_s3_exchanges(**data)
+
+    def test_startup_signature_is_not_hidden_by_business_filtering(self):
+        for field, value, message in (
+            ('access_key_sha256', 'c' * 64, 'S3 request signing principal changed'),
+            ('host', 'unrelated.example:1234', 'S3 signed another endpoint'),
+            ('payload_sha256', 'd' * 64, 'S3 signature omitted original request bytes'),
+            ('credential_scope', '20261117/us-east-1/s3/aws4_request', 'S3 signing date/scope changed'),
+        ):
+            data = signed_exchange_fixture()
+            for row in data['history']:
+                if row['request_serial'] == 1:
+                    row['signing'][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                oracle.original_s3_exchanges(**data)
+
+    def test_forwarded_startup_cannot_rebind_its_original_signature(self):
+        data = signed_exchange_fixture()
+        row = next(row for row in data['history'] if row['request_serial'] == 1 and row['event'] == 'object_forwarded')
+        row['signing']['signature_sha256'] = 'c' * 64
+        with self.assertRaisesRegex(ValueError, 'original S3 request changed across relay stages'):
+            oracle.original_s3_exchanges(**data)
+
+    def test_missing_claim_is_not_replaced_with_a_fixed_count_allowance(self):
+        data = signed_exchange_fixture()
+        data['history'] = [row for row in data['history'] if row['request_serial'] != 2]
+        for row in data['history']:
+            if row['request_serial'] > 2:
+                row['request_serial'] -= 1
+        with self.assertRaisesRegex(ValueError, 'worker-identity-request-denominator'):
+            oracle.original_s3_exchanges(**data)
+
+    def test_unknown_instance_and_changed_etag_are_not_startup(self):
+        for changed in ('path', 'etag'):
+            data = signed_exchange_fixture()
+            for row in data['history']:
+                if row['request_serial'] == 2:
+                    if changed == 'path':
+                        row['path'] = '/scap-test/scap-worker/v1/instances/9999'
+                    elif row['event'] in ('object_response', 'object_response_delivered'):
+                        row['etag'] = '"another-get"'
+            rule = 'worker-identity-exact-key' if changed == 'path' else 'worker-identity-same-etag'
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, rule):
+                oracle.original_s3_exchanges(**data)
+
+
 class OriginalTraceTests(unittest.TestCase):
     def test_routed_query_status_preserves_writer_identity_while_owner_uses_manager(self):
         for command in ('route_query', 'late_query', 'corrupt_query', 'recovery_warm', 'recovery_hot', 'cold_query'):
@@ -214,6 +314,30 @@ class DeliberateCorruptionTests(unittest.TestCase):
 
 
 class OwnedProcessTests(unittest.TestCase):
+    def test_private_runtime_may_live_beside_ci_evidence(self):
+        for parent in ('/tmp', '/home/runner/work/_temp', '/workspace/evidence'):
+            oracle.private_runtime_identity({'path': parent + '/scap-owner-private-original_123', 'device': 27, 'inode': 88})
+
+    def test_private_runtime_cannot_alias_or_change_owned_directory_shape(self):
+        valid = {'path': '/workspace/scap-owner-private-original', 'device': 27, 'inode': 88}
+        changed = [dict(valid, path=value) for value in ('scap-owner-private-original',
+            '/workspace/../scap-owner-private-original', '/workspace/./scap-owner-private-original',
+            '/workspace//scap-owner-private-original', '/workspace/unowned', '/workspace/scap-owner-private-')]
+        changed += [dict(valid, device=True), dict(valid, inode=0), dict(valid, extra=1)]
+        for value in changed:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'private runtime identity changed'):
+                oracle.private_runtime_identity(value)
+
+    def test_all_original_worker_caches_belong_to_the_recorded_private_directory(self):
+        private = {'path': '/workspace/scap-owner-private-original', 'device': 27, 'inode': 88}
+        caches = {worker: private['path'] + '/cache-' + worker for worker in oracle.WORKERS}
+        oracle.private_cache_directories(private, caches)
+        for cache in ('/elsewhere/cache-b', private['path'] + '/cache-c', private['path'] + '/../cache-b'):
+            with self.subTest(cache=cache), self.assertRaisesRegex(ValueError, 'daemon cache escaped original private runtime'):
+                oracle.private_cache_directories(private, {**caches, 'b': cache})
+        with self.assertRaisesRegex(ValueError, 'private cache worker denominator changed'):
+            oracle.private_cache_directories(private, {})
+
     def test_node_shutdown_requires_same_owned_child_and_original_graceful_order(self):
         ident = {'pid': 123, 'spawn_monotonic_ns': 2, 'pid_source': 'owned_Popen_child'}
         start = {'identity': ident, 'monotonic_ns': 3}
@@ -254,6 +378,47 @@ class MutationMechanismTests(unittest.TestCase):
         source.write_bytes(b'original'); os.link(source, destination)
         controls.save(destination, b'changed')
         self.assertEqual(source.read_bytes(), b'original'); self.assertEqual(destination.read_bytes(), b'changed')
+
+    def test_aliased_child_control_preserves_valid_startup_witnesses(self):
+        from audit_wire import service_startups
+        events = []
+        for worker, pid, requested in (('a', 101, 10), ('b', 102, 50)):
+            ident = {'pid': pid, 'spawn_monotonic_ns': requested + 10, 'pid_source': 'owned_Popen_child'}
+            for event, offset in (('service_started', 20), ('service_ready', 30),
+                                  ('service_stop_requested', 100), ('service_stopped', 110)):
+                row = {'event': event, 'worker': worker, 'identity': copy.deepcopy(ident),
+                       'monotonic_ns': requested + offset}
+                if event == 'service_started': row['spawn_requested_ns'] = requested
+                events.append(row)
+        original = b''.join(controls.encoded(row) for row in events)
+        source = self.directory / 'original-events.jsonl'; source.write_bytes(original)
+        os.link(source, self.directory / 'events.jsonl')
+        self.assertEqual([row['start'] for row in service_startups(events, workers=oracle.WORKERS)], [10, 50])
+        controls.aliased_process(self.directory)
+        changed = oracle.rows(self.directory, 'events.jsonl')
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual([row['start'] for row in service_startups(changed, workers=oracle.WORKERS)], [10, 10])
+        borrowed = events[0]['identity']
+        for before, after in zip(events, changed):
+            expected = copy.deepcopy(before)
+            if before['worker'] == 'b':
+                expected['identity'] = borrowed
+                if before['event'] == 'service_started': expected['spawn_requested_ns'] = 10
+            self.assertEqual(after, expected)
+        self.assertEqual(changed[0]['identity'], changed[4]['identity'])
+        self.assertLess(changed[4]['monotonic_ns'], changed[3]['monotonic_ns'])
+
+    def test_private_cleanup_control_keeps_identity_mirrors_but_breaks_cache_ownership(self):
+        private = {'path': '/workspace/scap-owner-private-original', 'device': 27, 'inode': 88}
+        events = [{'event': event, **private} for event in ('private_created', 'private_remove_started', 'private_removed')]
+        (self.directory / 'events.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in events))
+        controls.private_cleanup_unrelated_to_cache(self.directory)
+        changed = oracle.rows(self.directory, 'events.jsonl')
+        values = [{key: row[key] for key in private} for row in changed]
+        self.assertEqual(values, [values[0]] * 3)
+        oracle.private_runtime_identity(values[0])
+        with self.assertRaisesRegex(ValueError, 'daemon cache escaped original private runtime'):
+            oracle.private_cache_directories(values[0], {worker: private['path'] + '/cache-' + worker for worker in oracle.WORKERS})
 
     def test_etag_rebound_passes_head_schema_but_lacks_original_exact_get(self):
         from test_object_wire import Trace, body
@@ -313,7 +478,7 @@ class MutationMechanismTests(unittest.TestCase):
 
     def test_mutation_suite_has_exact_named_semantic_rejection_boundaries(self):
         cases = controls.cases()
-        self.assertEqual(len(cases), 24)
+        self.assertEqual(len(cases), 25)
         self.assertTrue(all(callable(change) and isinstance(reason, str) and reason for change, reason in cases.values()))
         self.assertEqual(len(set(cases)), len(cases))
 

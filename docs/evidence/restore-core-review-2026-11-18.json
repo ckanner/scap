@@ -1,0 +1,350 @@
+{
+  "base": {
+    "local_commit": "82317ae24c95baf33b8e603b3ab8a8f5674234de",
+    "remote_equivalent": "12f35c0",
+    "tree": "aa3402b8f2b0792c0f1def797c5aad8fc9c8988c"
+  },
+  "boundaries": {
+    "aws_standard_iam_qualification": "NOT_RUN",
+    "coverage_policy_changes": false,
+    "integration_profiles_in_unit": false,
+    "long_duration_capacity_or_production_slo": "NOT_RUN",
+    "native_sqlite": "real native open/integrity/close and local directory fsync; no simulated successful writer",
+    "new_source_http_s3_process_suite": "NOT_RUN in this report; separate frozen combined release runtime evidence required",
+    "object_authority": "deterministic in-memory Objects fault fixture with exact conditional operations and quoted ETags"
+  },
+  "changed_production_coverage": [
+    {
+      "branches": {
+        "count": 14,
+        "covered": 14
+      },
+      "file": "crates/scap-object/src/catalogue/create.rs",
+      "functions": {
+        "count": 4,
+        "covered": 4
+      },
+      "lines": {
+        "count": 126,
+        "covered": 126
+      },
+      "regions": {
+        "count": 244,
+        "covered": 244
+      }
+    },
+    {
+      "branches": {
+        "count": 28,
+        "covered": 28
+      },
+      "file": "crates/scap-object/src/catalogue/inspect.rs",
+      "functions": {
+        "count": 15,
+        "covered": 15
+      },
+      "lines": {
+        "count": 268,
+        "covered": 268
+      },
+      "regions": {
+        "count": 428,
+        "covered": 428
+      }
+    },
+    {
+      "branches": {
+        "count": 62,
+        "covered": 62
+      },
+      "file": "crates/scap-object/src/catalogue/records.rs",
+      "functions": {
+        "count": 24,
+        "covered": 24
+      },
+      "lines": {
+        "count": 243,
+        "covered": 243
+      },
+      "regions": {
+        "count": 371,
+        "covered": 371
+      }
+    },
+    {
+      "branches": {
+        "count": 52,
+        "covered": 52
+      },
+      "file": "crates/scap-object/src/catalogue/restore.rs",
+      "functions": {
+        "count": 21,
+        "covered": 21
+      },
+      "lines": {
+        "count": 403,
+        "covered": 403
+      },
+      "regions": {
+        "count": 612,
+        "covered": 612
+      }
+    },
+    {
+      "branches": {
+        "count": 18,
+        "covered": 18
+      },
+      "file": "crates/scap-object/src/catalogue/restore_copy.rs",
+      "functions": {
+        "count": 25,
+        "covered": 25
+      },
+      "lines": {
+        "count": 268,
+        "covered": 268
+      },
+      "regions": {
+        "count": 424,
+        "covered": 424
+      }
+    },
+    {
+      "branches": {
+        "count": 30,
+        "covered": 30
+      },
+      "file": "crates/scap-object/src/catalogue/restore_records.rs",
+      "functions": {
+        "count": 10,
+        "covered": 10
+      },
+      "lines": {
+        "count": 104,
+        "covered": 104
+      },
+      "regions": {
+        "count": 143,
+        "covered": 143
+      }
+    },
+    {
+      "branches": {
+        "count": 12,
+        "covered": 12
+      },
+      "file": "crates/scap-object/src/catalogue/restore_types.rs",
+      "functions": {
+        "count": 6,
+        "covered": 6
+      },
+      "lines": {
+        "count": 54,
+        "covered": 54
+      },
+      "regions": {
+        "count": 70,
+        "covered": 70
+      }
+    }
+  ],
+  "changed_rust_sha256": {
+    "crates/scap-object/src/catalogue/create.rs": "12a70dc1b681a15a34595df1b785748b164766236995dce807d6e16823a2c7b4",
+    "crates/scap-object/src/catalogue/inspect.rs": "a28ce2caf43e84fd091070dba9f3c6881e0a1664d72df764080a088c9ea6a91a",
+    "crates/scap-object/src/catalogue/records.rs": "fc674bae38feb4ea17c0939002a5e56f0e1addd6eac1a99dfe66a5644894849f",
+    "crates/scap-object/src/catalogue/recovery_tests.rs": "25cb47a9d47713df447bcb433a1bb8e1c39c34b034e22e14c3600c478eab040d",
+    "crates/scap-object/src/catalogue/restore.rs": "ff0bda08f13e608365663a75d6e7a7c935d8abd2284e0399e4208a1a68635adf",
+    "crates/scap-object/src/catalogue/restore_copy.rs": "a040314234bb8737a10c9d32aa26b7c4892e037f493790cb1a23541fdd47aeea",
+    "crates/scap-object/src/catalogue/restore_copy_tests.rs": "a40f97c5db21021bccd26d7e1971f62b7435d7ecc816cbaefa18b1f4e4692062",
+    "crates/scap-object/src/catalogue/restore_fault_tests.rs": "1215b74e702b9bee0e728ff63897791b9cc2ef63cbea09921e6d2e0300876504",
+    "crates/scap-object/src/catalogue/restore_interleaving_tests.rs": "e8f7e3db5f22723c1757061598c2a6708982dc09e0fedc93e80fcc77a37ccb42",
+    "crates/scap-object/src/catalogue/restore_record_tests.rs": "1ff9fb9127b6b53f1879fc410fc36054862a3462d196b192e771abf73909a4dd",
+    "crates/scap-object/src/catalogue/restore_records.rs": "9a079815b619e3beb504bf9554f48cb43e4d752572d402677632ffc37fa919ef",
+    "crates/scap-object/src/catalogue/restore_transcode_tests.rs": "e485359f086bbd3ab28e8f2436880f225e6fbfcc3f6badfbc825cd56e4d99939",
+    "crates/scap-object/src/catalogue/restore_types.rs": "5acbe892a7f3e16d3c0359f9bcfab1cca82a479efa85ee0bfada1eac8c85c205"
+  },
+  "coverage_checker_sha256": "5c592382c90356ebeb1e448ba5ebb67ec802690a70da93ea05e6e59a4952b0d6",
+  "coverage_policy_sha256": "e4e251acece1960121f404f74d348721da59af8f19f396959132944db81e40d4",
+  "date": "2026-11-17",
+  "execution_utc_date": "2026-11-18",
+  "final_test_candidate": {
+    "commit": "34cac99bd33080326afd14d4253a39d671a83bba",
+    "delta": "one assertion family for abort(empty recipe); production identical to f8020a6",
+    "tree": "d36247579a8407549e11b11d032c1e298d3d42bd"
+  },
+  "production_candidate": {
+    "commit": "f8020a61e4261c608901cbd17e137933d54caef0",
+    "tree": "b94576e4d8f1fe425e86a8d195ffcb05d6e83499"
+  },
+  "raw_artifacts": [
+    {
+      "artifact": "review-restore-f8020a6/source-manifest.json",
+      "bytes": 96111,
+      "sha256": "4e4380b609138e554ed00d80a1fc09e6991d0e66773db1832a42d2f587a9d41d"
+    },
+    {
+      "artifact": "review-restore-f8020a6/stable-unit.log",
+      "bytes": 93849,
+      "sha256": "7c5e7022aac6c3ec2229c5977de540e12ccebd3b9e024a8f9b71277087e3935f"
+    },
+    {
+      "artifact": "review-restore-f8020a6/nightly-unit.log",
+      "bytes": 99300,
+      "sha256": "00aa3764bf09c7d5a063a105c5f94b9f1a02112912df6694aa3ebc59d7fa99ee"
+    },
+    {
+      "artifact": "review-restore-f8020a6/clippy.log",
+      "bytes": 5517,
+      "sha256": "53cd12a09441dbd807a1a08eb5cf1b4c48bb1701c47b414b37bc8f84fe2f31c0"
+    },
+    {
+      "artifact": "review-restore-f8020a6/unit-coverage.json",
+      "bytes": 55600466,
+      "sha256": "b8cf3b8196f6f422953a6c96e4d91bdc98c9f829f574967e249ad765d58a6137"
+    },
+    {
+      "artifact": "review-restore-f8020a6/original-coverage-gate.log",
+      "bytes": 8580,
+      "sha256": "fd458e29250d065ebedbc7e84994e67f9b829cd46a56ae04557a26ddac95f1b1"
+    },
+    {
+      "artifact": "review-restore-34cac99/source-manifest.json",
+      "bytes": 96111,
+      "sha256": "e94e1e19215cc7b96bb8f8fecacf81e90f6b6a17bedac5432aeb0ba1f0bd25b0"
+    },
+    {
+      "artifact": "review-restore-34cac99/stable-targeted-unit.log",
+      "bytes": 621,
+      "sha256": "07857e1bc16a4f70a33b8e16a60f55764cd90efa98a3a5843b485abefecbed84"
+    },
+    {
+      "artifact": "review-restore-34cac99/nightly-core-unit.log",
+      "bytes": 53456,
+      "sha256": "d9d4f09401e993e1d2d139a8fbac34ff88fd905950a6304e802f2cb9d3987575"
+    },
+    {
+      "artifact": "review-restore-34cac99/clippy.log",
+      "bytes": 918,
+      "sha256": "d77d6fbe4769414de5cff31248ab718c570c8d07243752f8c2f1dc12eb858400"
+    },
+    {
+      "artifact": "review-restore-34cac99/unit-coverage.json",
+      "bytes": 38877465,
+      "sha256": "ca83919365963e807649680d349f6cfdb85a7ca7c278c894563ee3606d4528e1"
+    },
+    {
+      "artifact": "review-restore-34cac99/touched-coverage.json",
+      "bytes": 2644,
+      "sha256": "16d909e2e48cb84847a11027b93fe4f516c3a49340e36444a2531cc1379061a7"
+    },
+    {
+      "artifact": "review-restore-first-units.log",
+      "bytes": 10154,
+      "sha256": "0e1d5098e2d8c8d582f4aa12e7ba8a51ef120cc64461af9f4c9d89c9312fcb29"
+    },
+    {
+      "artifact": "review-combined-source-1cbe6b3.json",
+      "bytes": 213499,
+      "sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497"
+    },
+    {
+      "artifact": "review-combined-stable-1cbe6b3.log",
+      "bytes": 92837,
+      "sha256": "27e08be0079bea8bb77d43dfbdd97a98c702028836c85d4a65828afe0c51e036"
+    },
+    {
+      "artifact": "review-combined-nightly-1cbe6b3.log",
+      "bytes": 93383,
+      "sha256": "64dc3b0290db97c99725678bd879857becf72d6aad113e0cf3a9790deeb13b1a"
+    },
+    {
+      "artifact": "review-combined-coverage-gate-1cbe6b3.log",
+      "bytes": 7933,
+      "sha256": "d8ac2e9003a2f4a92c7f9742e096afafd723a6b81924e5ed9007389775de8af9"
+    },
+    {
+      "artifact": "review-combined-unit-1cbe6b3.json",
+      "bytes": 58916294,
+      "sha256": "f406b272843b8933cb3f218fc868e2f674ce54caa13ec62af29271ac46138b98"
+    }
+  ],
+  "retained_failures": {
+    "f8020a6_workspace_gate": {
+      "failures": [
+        "FAIL: uncovered regions: crates/scap-object/src/catalogue/restore.rs: 611/612",
+        "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+        "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/restore_wire.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+      ],
+      "resolution": "abort test covered at 34cac99; eight zero-denominator files were handled independently and verified only in combined source",
+      "status": "FAIL"
+    },
+    "uncommitted_first_compile": "Local refactor syntax and prior shape assertion; log retained; not bound to frozen f8020a6"
+  },
+  "root_combined_verification": {
+    "collection": "independent root full-workspace run; inspected exact raw summaries and gate",
+    "commit": "1cbe6b39fdfff72610956a18bb6fe1d523bab8eb",
+    "nightly": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 887
+    },
+    "production_files": 76,
+    "stable": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 887
+    },
+    "tree": "de2317e25fb840fb1338090088c1b1b434bf0277",
+    "unchanged_strict_gate": "PASS"
+  },
+  "runs": {
+    "34cac99_nightly_core": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 486
+    },
+    "34cac99_stable_targeted": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 1
+    },
+    "34cac99_strict_core_clippy": "PASS",
+    "f8020a6_nightly_workspace": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 884
+    },
+    "f8020a6_stable_workspace": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 884
+    },
+    "f8020a6_strict_workspace_clippy": "PASS"
+  },
+  "schema": 1,
+  "scope": "S2 core review and unit verification; runtime is separate",
+  "test_executables": [
+    {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/review-restore-stable-target/debug/deps/scap_object-c001527b5f5d5585",
+      "role": "stable-targeted-unit",
+      "sha256": "fed986469e5005c252e524019c0e48783e0087b9a5dec419647306102a214287"
+    },
+    {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/review-restore-coverage-target/llvm-cov-target/debug/deps/scap_object-06771b148d984a7b",
+      "role": "nightly-core-unit",
+      "sha256": "362b1e37c99eb886d8d3a96d73cf3aa7fe3573e66b2313901fd1ce8801f8dbaa"
+    }
+  ],
+  "timezone": "America/New_York",
+  "tools": {
+    "cargo_llvm_cov": "cargo-llvm-cov 0.6.21",
+    "nightly_rustc": "rustc 1.92.0-nightly (4645a7988 2025-09-17)\nbinary: rustc\ncommit-hash: 4645a7988177c286f61609cc667ecae4c571a2e8\ncommit-date: 2025-09-17\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0-nightly\nLLVM version: 21.1.1",
+    "stable_rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+  }
+}

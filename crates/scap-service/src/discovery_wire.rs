@@ -121,6 +121,8 @@ fn state(value: core::MetadataState) -> &'static str {
         DescriptorOnly => "descriptor_only",
         Reserved => "reserved",
         Provisioning => "provisioning",
+        RestoreCopying => "restore_copying",
+        RestoreCopied => "restore_copied",
         Bound => "bound",
         Ready => "ready",
         Maintenance => "maintenance",

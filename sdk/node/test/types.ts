@@ -1,13 +1,43 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
+  type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
+  type SavedSnapshotInput, type PreparedSnapshot, type SnapshotObservation, type SnapshotListing,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
-  type CreationProgress, type AbortProgress, type DeletionProgress, type Named,
+  type CreationProgress, type AbortProgress, type DeletionProgress, type Named, type PreparedRestore, type RestoreProgress,
   type CatalogueIntent, type CatalogueResult } from '../src/client.js';
 
 const scope = { deployment: '1', tenant: '2', database: '3', incarnation: '1', generation: '1' };
 const creation: Creation = { creator: '7', operation: '11', name: 'notes', scope, expected_name_revision: null };
 
 async function contract() {
+  const policy = createControllerPolicy({ scope, authorityId: 'production-example', principal: '7',
+    metadataEndpoints: ['https://example.invalid/v1'],
+    workers: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1', rank: 0 }],
+    modes: { takeover: true, activate: true, cancel: true } });
+  const controller = new OwnerController({ policy, token: 'synthetic-typecheck-only-credential', fetch });
+  const controllerReport = await controller.tick({ timeoutMs: 1000 });
+  const noNativeClaim: 'NOT_CERTIFIED' = controllerReport.nativeSession;
+  // @ts-expect-error Controllers do not execute or replay business SQL.
+  controller.execute({ sql: 'SELECT 1' });
+  // @ts-expect-error A controller cannot change its fixed policy after construction.
+  policy.workers[0].rank = 3;
+  await controller.close(); void noNativeClaim;
+  const transport = new ControllerHttp({ maxRequests: 8 });
+  const fleet = new OwnerControllerFleet({ entries: [{ policy, token: 'synthetic-typecheck-only-credential' }], transport });
+  const activeTicks: number = fleet.poll().active;
+  const activeRequests: number = transport.snapshot().active;
+  const fleetReports = fleet.takeReports();
+  const notCertified: 'NOT_CERTIFIED' | undefined = fleetReports[0]?.nativeSession;
+  // @ts-expect-error A fleet never accepts SQL or a dynamic untrusted routing callback.
+  new OwnerControllerFleet({ entries: [], route: () => 'https://example.invalid/v1' });
+  // @ts-expect-error Resource ownership requires a joinable close, not fetch alone.
+  new OwnerControllerFleet({ entries: [], transport: { fetch } });
+  await fleet.close(); void activeTicks; void activeRequests; void notCertified;
+  const entries = readControllerEntries('/example/controller.json', { SCAP_OWNER_CONTROLLER_TOKEN: undefined });
+  const configured = new OwnerControllerFleet({ entries });
+  await runControllerFleet(configured, { signal: AbortSignal.abort(), outputFd: 1 });
+  // @ts-expect-error A process loop always requires an explicit shutdown signal.
+  runControllerFleet(configured, {});
   const client = new CatalogueClient({ endpoint: 'https://example.invalid/v1/catalogue',
     token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
   const create = client.prepareIntent({ operation: 'prepare_create', name: 'notes', create_operation: '11',
@@ -49,6 +79,41 @@ async function contract() {
   client.deleteName({ creation, control_operation: '13', expected_name_revision: '2', nonce: '13' });
   const db = new Client({ endpoint: 'https://example.invalid/v1', token: 'synthetic-typecheck-only-credential', scope, principal: '7' });
   const guarded: DatabaseStatus = await db.guardedStatus('10', { timeoutMs: 1000 });
+  const snapshotInput: SavedSnapshotInput = db.prepareSnapshotInput({ creator: '7', operation: '61',
+    expected_revision: guarded.revision, expected_head_serial: guarded.head_serial, label: 'before migration' });
+  const snapshotSaved: SavedSnapshotInput = db.restoreSnapshotInput(db.saveSnapshotInput(snapshotInput));
+  const snapshotPrepared: PreparedSnapshot = await db.snapshotPrepare(snapshotSaved);
+  const restoreIntent = client.prepareIntent({ operation: 'prepare_restore', name: 'restored-notes',
+    restore_operation: '72', expected_name_revision: null, options: { quota: { mode: 'default' } },
+    source_scope: scope, snapshot: snapshotPrepared.reference });
+  const restoredDatabase: PreparedRestore = await client.submit(restoreIntent);
+  const copyProgress: RestoreProgress = await client.resumeRestore(restoredDatabase.reference);
+  const restoreInspection: RestoreProgress = await client.inspectRestore('72');
+  const abortRestore: AbortProgress = await client.abortRestore({ reference: restoredDatabase.reference,
+    control_operation: '73', expected_name_revision: '1', nonce: '73' });
+  // @ts-expect-error Restore references are descriptor-bound and cannot be replaced with raw Creation.
+  client.resumeRestore(creation);
+  // @ts-expect-error Source provenance remains deeply readonly after preparation.
+  restoreIntent.action.snapshot.capture_serial = '99';
+  // @ts-expect-error Restore never accepts a caller-supplied completion proof.
+  client.resumeRestore({ ...restoredDatabase.reference, completion: {} });
+  void copyProgress; void restoreInspection; void abortRestore;
+  const snapshotObserved: SnapshotObservation<PreparedSnapshot> = await db.snapshotInspect(snapshotSaved);
+  const snapshotHistory: SnapshotObservation = await db.snapshotObserve({ creator: '7', operation: '61' });
+  const snapshotListing: SnapshotListing = await db.snapshotList();
+  await db.snapshotCapture(snapshotPrepared);
+  await db.snapshotRelease(snapshotObserved.prepared);
+  await db.setSnapshotLimits({ expectedRevision: guarded.revision, nonce: '62',
+    limits: { max_points: 64, max_logical_bytes: '34359738368' } });
+  // @ts-expect-error Identity-only history cannot authorize a snapshot mutation.
+  db.snapshotCapture(snapshotHistory.prepared);
+  // @ts-expect-error Snapshot preparation requires the saved complete input.
+  db.snapshotPrepare(snapshotPrepared.input);
+  // @ts-expect-error Historical page counts and immutable point identities are readonly.
+  snapshotListing.snapshots[0].point.page_count = 1;
+  // @ts-expect-error Original revisions cannot round through JavaScript Number.
+  db.prepareSnapshotInput({ creator: '7', operation: '63', expected_revision: 1,
+    expected_head_serial: '1', label: 'invalid' });
   const directStorage: DatabaseStatus = await db.storageStatus();
   const retiredDirect: DatabaseStatus = await db.retireStorage({ expectedHeadSerial: directStorage.head_serial });
   const terminalSerial: string | undefined = retiredDirect.storage.terminal?.serial;
@@ -75,6 +140,38 @@ async function contract() {
     routes: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1' }],
     token: 'synthetic-typecheck-only-credential', scope, principal: '7' };
   const routed = new RoutedClient(routing), owner = new OwnerClient(routing);
+  const durable = new OwnerPlanClient(routing);
+  const savedPlan: SavedOwnerInput = durable.prepareInput({ creator: '7', operation: '91', expected_revision: '10',
+    expected_head_serial: '15', mode: 'takeover', target_worker: '10',
+    nonces: { claim: '92', cancel: '93', activate: '94', abort: '95' } });
+  const originalPlan: SavedOwnerInput = durable.restoreInput(durable.saveInput(savedPlan));
+  const ownerPrepared: OwnerPreparation = await durable.prepare(originalPlan);
+  const verifiedPlan: OwnerObservation<PreparedOwner> = await durable.inspect(originalPlan);
+  const unverifiedHistory: OwnerObservation = await durable.observe({ creator: '7', operation: '91' });
+  const marker: OwnerPlan | null = verifiedPlan.status.owner_plan;
+  if (ownerPrepared.state === 'prepared') {
+    await durable.claim(ownerPrepared.prepared);
+    await durable.resume(ownerPrepared.prepared, { timeoutMs: 1000 });
+    await durable.abort(ownerPrepared.prepared);
+  }
+  await db.ownerPrepare(savedPlan.input);
+  await db.ownerInspect(savedPlan.input);
+  await db.ownerObserve({ creator: '7', operation: '91' });
+  await db.ownerClaim(verifiedPlan.prepared);
+  await db.ownerResume(verifiedPlan.prepared);
+  await db.ownerAbort(verifiedPlan.prepared);
+  // @ts-expect-error Identity-only history does not mint the SDK mutation brand.
+  durable.claim(unverifiedHistory.prepared);
+  // @ts-expect-error A reference alone cannot replace the saved complete input.
+  durable.inspect(verifiedPlan.prepared.reference);
+  // @ts-expect-error Caller-supplied worker redirects cannot replace the fixed target.
+  durable.resume(verifiedPlan.prepared, { expectedWorkerInstance: '11' });
+  // @ts-expect-error Saved original inputs are deeply readonly.
+  savedPlan.input.nonces.claim = '99';
+  // @ts-expect-error Owner markers are immutable history.
+  marker!.phase.owner_instance = '11';
+  // @ts-expect-error Decimal identities cannot be rounded through Number.
+  durable.observe({ creator: '7', operation: 91 });
   const probed: DatabaseStatus = await owner.probe('10');
   // @ts-expect-error Worker identities are canonical decimal strings, never JavaScript numbers.
   db.guardedStatus(10);

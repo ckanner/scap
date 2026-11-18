@@ -2,7 +2,7 @@
 
 这个无第三方运行时依赖的 ESM 客户端连接新的 `scap-service`。`Client` 使用 `POST /v1`，`CatalogueClient` 使用 `POST /v1/catalogue`。它复用 [node-codec](../node-codec/README.md) 的精确 SQL 指纹及结果编解码，保留 u64 身份、i64 整数、负零、Unicode 和 BLOB；没有引入旧 Raft 协议。包目前标记 `private`，从仓库使用，尚未发布到 npm。
 
-原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求；独立 `OwnerClient` 仅按显式保存的意图协调 takeover 与 activation。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
+原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求。`OwnerPlanClient` 逐次执行持久 owner 计划，支持 prepare 响应丢失后的原输入查证；旧 `OwnerClient` 保留 HEAD8 之前的显式 takeover 与 activation 流程。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
 
 ## 使用
 
@@ -82,9 +82,41 @@ ID 必须在一个数据库的同一请求世代中唯一，所有主体共享�
 | `setPolicy({ expectedRevision, nonce, permissions }, options?)` | 有界且主体不重复的 `{principal,read,write,admin}` 列表，保留管理员 |
 | `setLifecycle({ expectedRevision, nonce, lifecycle }, options?)` | `ready`、`maintenance` 或 `deleted` |
 
-`options` 只含 `{ timeoutMs?, signal? }`。`open`、`activate`、`compactCopy`、`gcPrepare` 和 `gcResume` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。管理成功响应会核对 scope、`expectedRevision + 1` 与原 nonce，不接受另一个转换的 status 作为成功。
+`options` 只含 `{ timeoutMs?, signal? }`。`open`、`activate`、`compactCopy`、`gcPrepare`、`gcResume` 和 `ownerResume` 使用恢复预算，其他方法使用普通预算；所有等待、响应读取、解析和结果物化沿用同一个客户端 deadline。Admission header 自动区分 data、control 和 recovery，不能借控制预留提交 SQL。旧单阶段管理响应会核对 scope、`expectedRevision + 1` 与原 nonce；持久 owner 计划按下述固定 descriptor、准入与历史 phase 校验。
 
 `Committed` 的形状为 `{ state: 'committed', receipt, rawResult, result }`。`rawResult` 为独立 Node Buffer，`result.statements` 保存 `{columns,rows,affectedRows,lastInsertRowid}`；整数、受影响行计数与 lastInsertRowid 为 bigint。重复列名仍占独立数组位置，不覆盖为对象属性。
+
+## 显式保留快照（HEAD9 S1 候选）
+
+快照捕获当前已提交的数据根，不复制请求历史，不提供任意墙上时间的PITR。字段、权限和生命周期见[接口合同](../../crates/scap-service/docs/snapshots.md)。新Scope恢复仍属于后续S2。
+
+```javascript
+const current = await db.status();
+const intention = db.prepareSnapshotInput({
+  creator: '7', operation: '201',
+  expected_revision: current.revision,
+  expected_head_serial: current.head_serial,
+  label: 'before migration',
+});
+const serialized = db.saveSnapshotInput(intention);
+// 应用先将 serialized 写入自己的持久日志并同步，然后才调用 prepare。
+const prepared = await db.snapshotPrepare(intention);
+const observed = await db.snapshotCapture(prepared);
+console.log(observed.state);
+
+// 重启或 UNKNOWN 后，以原输入查证，不按 label 选点或换原基线。
+const original = db.restoreSnapshotInput(serialized);
+const inspected = await db.snapshotInspect(original);
+console.log(inspected.state, inspected.accepted);
+const points = await db.snapshotList();
+await db.snapshotRelease(inspected.prepared);
+```
+
+`prepareSnapshotInput/saveSnapshotInput/restoreSnapshotInput`只在本地运行，不替应用持久化。每次snapshot RPC至多一个HTTP请求。`snapshotObserve({creator,operation})`允许只读身份查证；其返回记录不能直接交给SDK capture/release，须有完整保存输入并经prepare/inspect核对。这是防误用的本地品牌标记，服务端仍以当次ADMIN/READ授权。
+
+`snapshotPrepare`返回PreparedSnapshot；capture/release/inspect返回SnapshotObservation。retained是当前保留，released_observed是当前已释放且存在历史accepted proof，fenced不确定过去是否曾接受。任何状态都不改写先前UNKNOWN。变更的UNKNOWN保留原输入或ref；inspect/list纯读取失败不冒充可能写入，也不自动重试。
+
+`setSnapshotLimits({expectedRevision,nonce,limits:{max_points,max_logical_bytes}})`使用原revision和nonce。默认64点/32GiB gross逻辑字节，限额必须容纳已有点；共享物理块不抵扣逻辑额度。只有max_points、返回的page_count是Number，其余计数仍为规范十进制字符串。永久descriptor/proof不受live数量限额约束，释放点不会回收这些身份记录。
 
 ## 显式物理代压缩与 GC
 
@@ -240,11 +272,119 @@ bootstrap 不属于管理目标映射的 digest：原 bootstrap 不可用时，�
 包括同步编码和结果物化；底层 Fetch 前再次检查绝对期限，因此编码耗尽预算后不会继续派发。
 已经派发后的异常仍保留原 UNKNOWN 或已核对的 committed 回执。
 
-## 显式 owner 协调与保存意图
+## 持久 owner 计划与原输入恢复
+
+`OwnerPlanClient` 使用 HEAD8 的持久 descriptor、HEAD marker 和不可变终态 proof。
+每次 prepare、inspect、observe、claim、resume 或 abort 都最多一个 POST，没有自动阶段循环。
+所有操作都要求数据库的当前 ADMIN；这里不把创建计划的 `creator` 当成当前调用者，也不以
+历史成功替代当前 ACL。命名库可以使用已核实的原完整 Scope；不得在恢复途中按名字重新解析
+并把旧计划发送给一个新库。
+
+新 `DatabaseStatus.owner_plan` 是必填字段：未接受过持久计划的库返回 `null`；首次 claim
+或 Cancelling 发布后一直保留非空 marker。旧服务缺少这个字段会被拒绝，需配套部署新 SDK
+与服务。marker 包含 `reference`、`admission` 和 `phase`；descriptor 的原 HEAD ETag/hash
+由服务持久保留，客户端不会获得换一个 ETag 重试的接口。
+
+```javascript
+import { OwnerPlanClient } from './sdk/node/src/client.js';
+
+const ownerV2 = new OwnerPlanClient({
+  bootstrapEndpoint: 'https://metadata.example/v1',
+  routes: [
+    { workerInstance: '1001', endpoint: 'https://worker-a.example/v1' },
+    { workerInstance: '1002', endpoint: 'https://worker-b.example/v1' },
+  ],
+  token: process.env.SCAP_ADMIN_TOKEN,
+  principal: '7', scope: db.scope,
+});
+const before = await db.status();
+const original = ownerV2.prepareInput({
+  creator: '7', operation: '201',
+  expected_revision: before.revision,
+  expected_head_serial: before.head_serial,
+  mode: 'takeover', target_worker: '1002',
+  nonces: { claim: '202', cancel: '203', activate: '204', abort: '205' },
+});
+const saved = ownerV2.saveInput(original);
+// 应用必须先把 saved 持久写入并同步自己的管理日志，再发第一次请求。
+const preparation = await ownerV2.prepare(original);
+if (preparation.state === 'prepared') {
+  // 以下是显式授权的两次操作，库内部不会自动调用下一步。
+  const claimed = await ownerV2.claim(preparation.prepared);
+  console.log(claimed.state, claimed.status.owner_instance);
+  const resumed = await ownerV2.resume(preparation.prepared, { timeoutMs: 120000 });
+  console.log(resumed.state, resumed.status.active);
+}
+
+// UNKNOWN 或客户端重启后的另一条显式恢复路径：
+const restored = ownerV2.restoreInput(saved);
+const inspected = await ownerV2.inspect(restored);
+console.log(inspected.state, inspected.accepted, inspected.status);
+// 应用根据已核对的当前状态和授权决定是否再调用一次 resume 或 abort。
+// inspect 本身不 claim、不恢复 SQLite、不执行 SQL，也不分配新 operation。
+```
+
+`prepareInput` 是纯同步操作，复制并冻结 Scope、完整原输入和四个非零互异 nonce。
+`saveInput` 返回最多 16 KiB 的版本化 JSON；应用负责持久化和日志完整性。输入中不保存 URL、
+bearer token 或 server 计算的 descriptor hash。允许另一位当前 ADMIN 在新的可信 bootstrap
+恢复同一日志。显式 takeover 可以保持相同 worker 数值并推进 owner epoch；activate 模式
+只允许原 base 的未激活 owner，目标不能改变。
+
+| 方法 | 单次行为及返回 |
+| --- | --- |
+| `prepareInput(input)` / `saveInput(input)` / `restoreInput(text)` | 纯本地保存或恢复完整原 `PrepareOwnerInput`，不联系服务 |
+| `prepare(savedInput, options?)` | bootstrap 上一次 `owner_prepare`；返回 `prepared` 或独立 `pending` 状态 |
+| `inspect(savedInput, options?)` | 按原 creator/operation 一次 `owner_inspect`，再逐字段核对实际 descriptor 的完整 input 与 Scope |
+| `observe({creator,operation}, options?)` | 只读历史；返回普通 `OwnerRecord`，不授予后续 SDK mutation brand |
+| `claim(prepared, options?)` | 在固定 target 的本地受信 route 上一次 `owner_claim`，必填 worker 实例校验 |
+| `resume(prepared, options?)` | 同一 target、同一原 plan reference，一次 `owner_resume`；使用 recovery 准入及恢复总预算 |
+| `abort(prepared, options?)` | bootstrap 上一次 `owner_abort`；不要求旧 target 仍可路由，不把取消请求当作已完成取消 |
+
+准备结果为 `{state:'prepared', prepared:{scope,input,reference}}` 或
+`{state:'pending', reference}`。Pending 指向当前阻塞新准备的 accepted plan，可以属于另一位
+creator 和另一个 operation；不表示本次输入已准备成功，也不能直接传给 claim。
+prepare 响应全部丢失时，应用依然有发送前保存的原输入：
+`inspect(restored)` 只用 creator/operation 查询，核对服务返回的真实 descriptor，而不要求客户端
+事先知道 hash。同一身份对应另一份输入会被拒绝；不会根据今天的新 revision 重建旧计划。
+
+其它响应均为 `OwnerObservation {state,status,prepared,accepted}`。六种 state 分别是
+`prepared`、`claimed`、`cancelling`、`active`、`aborted` 和 `fenced`。`accepted` 是历史 marker，
+可以早于今天的 status：历史 Active 不代表当前 active、当前目标进程拥有 native Session，
+也不把原 UNKNOWN 改写成当时已经收到 ACK。Fenced 且 accepted 为 null 只说明不能再按旧 base
+取得新准入、过去结果仍未知；绝不是 NotApplied。当前 marker 被新计划覆盖后，旧终态 proof
+的 R/S 必须严格早于新 marker 的 admission；SDK 还检查原 input、reference、phase nonce、
+counter reserve、phase 顺序和 storage/lifecycle 互斥，拒绝矛盾投影。
+同一 HEAD 的业务 revision 仍等于 phase.revision 时，transition.nonce 必须等于
+phase.nonce；只增加技术 head_serial 不解除这个约束。较晚的业务 revision 可以有新的
+transition nonce，不能据此改写原历史 phase。
+
+只有 `prepare` 的 Prepared 结果，或者 `inspect(savedInput)` 完整核对后的结果，能传给
+claim/resume/abort。纯 history、反序列化的任意 reference 和 Pending 都不能绕过该检查。
+这个不透明 brand 是 SDK 防误用机制；真正的授权仍由服务的当前 ADMIN、原 descriptor、原
+HEAD ETag、目标 worker 与条件发布共同决定。SDK 不把它当成凭据或防篡改签名。
+
+`Client` 也提供同样的一次 POST 低层方法：`ownerPrepare(input)`、`ownerInspect(input)`、
+`ownerObserve(identity)`、`ownerClaim(prepared)`、`ownerResume(prepared)`、`ownerAbort(prepared)`。
+前两者接受完整原输入；claim/resume 自动从已经核对的 Prepared 中派生必填的
+`expected_worker_instance`。低层 Client 使用固定 endpoint，不替调用者挑 route。
+
+UNKNOWN 保存原 `scope`、`operation` 及适用的 `ownerInput` / `ownerIdentity` / `ownerPlan`、
+`expectedWorkerInstance`，不保留 token 或任意服务端错误文本。普通超时默认为 30 秒，resume
+默认为 30 分钟；路由、发送、读取和解码共用原 deadline。超时不撤销已 invoked 的 CAS、
+恢复或 SQL；旧请求结果仍按原业务 request 身份 lookup/cancel，绝不由 owner 协调重放。
+
+服务端的 descriptor/proof 留存、Cancelling 两阶段关闭、旧 owner 永久拒绝、原 ETag 绑定和
+资源上限见[持久 owner 计划设计](../../docs/architecture/accepted-owner-plan.md)。SDK 单元和
+loopback Fetch 通过不等于原生/S3 故障验收通过；最终候选的实际验收单独记录。
+
+## 旧 owner 协调与保存意图
 
 `OwnerClient` 与业务客户端独立配置，凭据必须被数据库当前 ACL 明确授予 **READ+ADMIN**：
 status 使用 READ，takeover/activate 每次重新检查 ADMIN。SDK 不隐式增加权限，也不检测 owner
 是否死亡。接管健康 owner 是一个明确的管理员操作，不能放在普通 execute 的失败重试分支。
+这一接口只用于尚未接受持久 owner 计划的库。一旦 `owner_plan` 非空，SDK 不再生成新的旧式
+intent，旧意图 inspect 返回 blocked；服务端也永久拒绝旧 owner 发布。既有 restoreIntent
+仍然只能查证，不能通过 reconcile 恢复派发资格。
 
 ```javascript
 import { OwnerClient, OwnerReconcileError } from './sdk/node/src/client.js';
@@ -311,12 +451,14 @@ fresh HEAD 并检查 READ，所以返回的 `owner_instance` 可以属于另一�
 `inspect.state` 的 `takeover_accepted`、`activation_accepted` 要求原转换所有字段精确匹配。
 `target_active/target_inactive` 只证明此时看到的目标 owner 状态，不能证明已经被后继 HEAD 覆盖的
 原 nonce；`base_observed` 也不证明旧请求永远不会迟到。`superseded`、`blocked` 和 `unresolved`
-分别保留取代、生命周期和无法确认的情况。当前 HEAD 没有完整管理转换历史。
+分别保留取代、生命周期和无法确认的情况。旧 HEAD6/7 没有完整管理转换历史；HEAD8 的
+持久计划历史使用前一节的独立接口。
 
 发生 UNKNOWN 或重启后，若显式 `inspect/observe` 确认目标仍是当前未激活 owner，可准备一个新的
 `prepareActivation` 意图，保存后明确执行。这只继续恢复，不增加 owner epoch。总 deadline 默认
 采用恢复预算，status、claim、恢复和 activation 不逐步续期。没有自动 failover、后台重试、
-自动故障检测或配置滚动选主。后续优先设计 HEAD 绑定的可恢复 owner plan，见
+自动故障检测或配置滚动选主。这段旧式恢复只适用于 owner_plan 为 null 的库；持久 owner
+计划通过独立 OwnerPlanClient 恢复。有限 Scope 自动 controller 另有实现草稿，见
 [controller 与 owner-plan 边界](../../docs/architecture/owner-controller-plan.md)和
 [owner 协调设计](../../docs/architecture/owner-reconciliation.md)。
 
@@ -371,7 +513,7 @@ try {
 | `resolveName(name, options?)` | 严格只读，按当前 READ 权限返回 `{creation, binding_revision, head}` |
 | `deleteName({creation, control_operation, expected_name_revision, expected_head_revision, nonce}, options?)` | 使用当前 ADMIN 和两个原预期 revision 正常删除，返回 `DeletionProgress`；调用者可不同于 creator |
 
-六个便利方法各自在内部构造意图后发出一次 POST。需要发送前持久化时，用显式的 `prepareIntent` → `saveIntent` → `submit`。所有目录操作使用 `x-scap-admission: catalogue` 和普通调用 deadline，`callOptions` 仍只有 `timeoutMs`、`signal`；SDK 不循环推进阶段、不自动刷新预期 revision、不重新准备另一 Scope、不重投 SQL。
+这些便利方法各自在内部构造意图后发出一次 POST。需要发送前持久化时，用显式的 `prepareIntent` → `saveIntent` → `submit`。普通目录操作使用 `x-scap-admission: catalogue` 和普通调用 deadline；下节的 `resumeRestore` 使用独立 recovery 类及恢复 deadline。`callOptions` 仍只有 `timeoutMs`、`signal`；SDK 不循环推进阶段、不自动刷新预期 revision、不重新准备另一 Scope、不重投 SQL。
 
 创建 options 固定为 `{quota: {mode: 'default'}}`、`{quota: {mode: 'unlimited'}}` 或 `{quota: {mode: 'limited', max_bytes: '4096'}}`。limited 值必须为有效页对齐十进制字节数；其他 mode 不接受 `max_bytes`。名称按原 UTF-8 字节保留，长度 1–128 字节，不接受控制字符或非法 surrogate，不做 Unicode 归一化。operation、nonce 等 u64 始终使用规范十进制字符串。应用负责在相应的部署／租户／主体命名空间分配和持久化操作 ID。
 
@@ -386,6 +528,48 @@ try {
 所有 progress 保留 nullable `binding_revision`、`head_revision`；名称重用后属于后继 Creation 的 revision 不能当成原操作的新条件。创建进度还包含 `initial_quota` 和 `retention`；控制进度包含原 `operation` 和 `nonce`。目录的 `provisioning` phase 不会成为可供普通 SQL 操作的 DatabaseStatus。
 
 目录 mutation 的 `UnknownError.reference.intent` 保留完整原意图。查创建用 `inspectCreateOperation`；它不证明某个 abort/delete control ID 已成功。原 abort/delete 的查证及收敛应在应用明确决定后，用保存的原完整 intent 再调用 `submit`；这可能继续尚未完成的阶段，不能当作只读查询。`NOT_FOUND`、`IDENTITY_CONFLICT`、`CONFLICT`、`DENIED`、`CORRUPT`、`LIMIT`、`UNKNOWN` 分开返回。未知或 malformed phase 拒绝，不能转成 ready/aborted/deleted。
+
+## 从保留快照恢复新库（S2 候选）
+
+`CatalogueClient` 增加 `prepareRestore(input)`、`resumeRestore(reference)`、
+`inspectRestore(restoreOperation)` 和 `abortRestore(input)`。恢复与普通创建共用操作编号
+空间；每次新业务 restore 必须分配一个没有使用过的编号，UNKNOWN 后保留原编号。
+
+```javascript
+const intent = names.prepareIntent({
+  operation: 'prepare_restore',
+  name: 'notes-before-migration',
+  restore_operation: '1001',
+  expected_name_revision: null,
+  options: { quota: { mode: 'default' } },
+  source_scope: sourceScope,
+  snapshot: retainedSnapshot.reference,
+});
+await persist(names.saveIntent(intent));
+const prepared = await names.submit(intent);
+await persist(JSON.stringify(prepared.reference));
+
+// 每次只请求下一步；应用先保存响应并检查 phase，再决定是否继续。
+const progress = await names.resumeRestore(prepared.reference);
+const observed = await names.inspectRestore('1001');
+```
+
+`PreparedRestore` 保存 `{reference, input, initial_quota, retention, point}`；reference 是
+`{creation, descriptor_hash}`，不能用普通 Creation、ETag 或源 data root 替代。progress
+为 `{prepared, phase, binding_revision, head_revision}`，正常阶段依次是 not_reserved、
+reserved、copying、copied、bound、ready。并发冲突、取消和删除各有明确终态。
+
+prepare/inspect/abort 是普通 catalogue 调用；resume 使用 recovery header 和长期限。
+只有 copying 可能创建完整 native 验证镜像。SDK 严格核对原 creator、Scope、snapshot、
+名称条件、配额选择和 descriptor 哈希；丢失或不能验证 mutation 响应时返回保留完整
+原意图的 UnknownError，不隐藏重试、不自动跳过复制或换源。
+
+`abortRestore({reference, control_operation, expected_name_revision, nonce})` 竞争原 Reserved
+名称。已经 Bound 时返回 cannot_abort_bound，需使用正常具名删除。源 snapshot 释放、
+权限撤销和取消屏障由服务端重新验证；客户端保存的 metadata 不授予恢复权限。
+
+完整配置、资源与错误语义见[服务 S2 合同](../../crates/scap-service/docs/restore.md)。
+这不是任意时间 PITR、metadata-only clone 或按需读页。
 
 ## 原始结果和回执校验
 
@@ -412,6 +596,48 @@ try {
 
 `resultLimits` 收紧 [node-codec 的持久格式解析能力](../node-codec/README.md)，`allocation` 独立设置 `{maxRows,maxValues,maxColumns}`，默认分别为 1,000,000、1,000,000、100,000。如果摘要完整通过后只因客户端物化预算不足而失败，事务仍是 committed，可保留 `rawResult` 后显式调用导出的 `decodeResult(raw, limits, allocation)` 选择更合适的预算；不能重发业务作为读取结果的方法。
 
+## 自动 owner controller 实现草稿
+
+`createControllerPolicy`、`OwnerController`、`OwnerControllerFleet` 与 CLI 为独立开发检查点，不能继承 HEAD8 的
+SQLite/HTTP/S3 验收结论。固定策略用四个 u64 nonce 无损承诺全部 SHA-256，operation
+使用原 `head_serial`；每个 tick 最多 8 POST、一个持久管理阶段，不接受 SQL。
+首次重启发现 Claimed 先完成只读观察，下一轮才从起点取得恢复总期限。一次 UNKNOWN
+记录原输入/引用；后续成功观察不把旧调用改写为收到过 ACK。完整策略、rank、并发和
+网络资源范围见[控制器设计](../../docs/architecture/owner-controller-v2.md)。
+
+默认 `ControllerHttp` 最多保留 8 个尚未完成归属清理的网络 attempt；取消后的 request、
+socket 和系统 DNS callback 完成前仍占用原 slot。Fleet 最多 128 Scope、256 worker，
+canonical policy 合计 64 KiB；全局 8 个 tick、每 tenant 4 个、1 个恢复 tick。独立模型和
+真实产品网络合同继续实施，尚不满足合入门禁。注入普通 Fetch 的单 Scope API 不自行证明
+进程 FD、后台 DNS、RSS 或整个 fleet 的资源上限。
+
+部署时使用[示例配置](examples/controller.json)，填入真实完整 Scope、专用 READ+ADMIN
+principal、受信 metadata 入口和从未复用的 worker incarnation。rank 固定且严格递增；
+自动 takeover 只向较高 rank 推进。凭据通过示例中的 `SCAP_OWNER_CONTROLLER_TOKEN`
+环境变量提供，不写入 JSON。配置和 worker 表在整个进程生命周期内不变。
+
+```bash
+# 从可信 Secret/环境提供 SCAP_OWNER_CONTROLLER_TOKEN 后运行。
+node sdk/node/bin/owner-controller.mjs /absolute/path/controller.json
+```
+
+SIGINT/SIGTERM 停止新 tick 并等待本地 owned 资源结束。系统 DNS 无法强制取消，所以
+不承诺固定关闭时间。标准输出为有上限的最新报告 JSONL，不是完整持久审计日志；同步
+输出不会建立日志队列，写失败或部分写会停止控制器，内核输出阻塞也会阻塞进程。部署时
+应接入受控日志消费者。库使用方可以自己轮询和消费报告：
+
+```javascript
+import { OwnerControllerFleet, readControllerEntries, runControllerFleet } from './sdk/node/src/client.js';
+
+const stopped = new AbortController();
+process.once('SIGTERM', () => stopped.abort());
+const fleet = new OwnerControllerFleet({ entries: readControllerEntries('/absolute/path/controller.json') });
+await runControllerFleet(fleet, { signal: stopped.signal });
+```
+
+健康 owner 不自动迁回较低 rank；未知 owner、foreign policy 或注册表耗尽时报告阻断。
+每次启动新的服务进程都需要新的 worker 身份，不能把示例中的数值当作可重复使用的槽位。
+
 ## 验证入口
 
 ```bash
@@ -421,6 +647,9 @@ npm --prefix sdk/node test
 # 独立的真实 loopback Fetch：重定向不转发凭据、流式超时、解压预算。
 # 它不向单元 profile 补覆盖，也不冒充 SQLite／S3 测试。
 npm --prefix sdk/node run test:http
+
+# 独立的 controller owned HTTP：DNS/socket 归属、严格 TLS、慢流和协议边界。
+npm --prefix sdk/node run test:controller-http
 ```
 
 `npm test` 同时执行 Node 内置 100% 行／函数／分支阈值与 raw V8 gate。后者自动发现每个生产 JS 模块，检查完整 function/range map，拒绝缺失模块、重复 profile、空分母、非法或零命中 counter；负对照同门禁运行。`.d.ts` 是无可执行代码的类型声明，明确分类，不掩盖 JS 源。传入已有 `coverage-*.json` 的目录会被拒绝，防止混入集成运行或旧样本。

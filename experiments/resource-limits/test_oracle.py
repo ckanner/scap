@@ -10,6 +10,34 @@ from spec import SCOPES, UNKNOWN_SQL
 
 
 class ObservationValidation(unittest.TestCase):
+    @staticmethod
+    def startup_events():
+        listening = b'{"event":"listening","fields":{"address":"127.0.0.1:1"}}'
+        return [{'event': 'worker_started', 'spawn_requested_ns': 10, 'monotonic_ns': 45,
+                 'identity': {'pid': 123, 'spawn_monotonic_ns': 40, 'pid_source': 'owned_Popen_child'}},
+                {'event': 'worker_event', 'monotonic_ns': 50,
+                 'raw': base64.b64encode(listening).decode(), 'sha256': hashlib.sha256(listening).hexdigest()}]
+
+    def test_startup_uses_pre_popen_request_even_when_child_precedes_parent_observation(self):
+        self.assertEqual(oracle.worker_startup(self.startup_events()),
+                         {'worker': oracle.PLAN['worker_instance'], 'role': None, 'start': 10, 'ready': 50})
+
+    def test_startup_cannot_fall_back_to_post_popen_observation_or_borrow_readiness(self):
+        for change in ('missing-request', 'reversed-request', 'unowned', 'missing-ready', 'duplicate-ready'):
+            rows = self.startup_events()
+            if change == 'missing-request':
+                del rows[0]['spawn_requested_ns']
+            elif change == 'reversed-request':
+                rows[0]['spawn_requested_ns'] = 41
+            elif change == 'unowned':
+                rows[0]['identity']['pid_source'] = '/proc/guess'
+            elif change == 'missing-ready':
+                rows.pop()
+            else:
+                rows.append(copy.deepcopy(rows[1]))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                oracle.worker_startup(rows)
+
     def test_numbered_accepts_strict_positive_sequence(self):
         oracle.numbered([{'schema': 1, 'sequence': i, 'monotonic_ns': i * 10} for i in (1, 2, 3)])
 

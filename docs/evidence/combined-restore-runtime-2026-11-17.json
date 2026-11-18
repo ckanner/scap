@@ -1,0 +1,337 @@
+{
+  "boundaries_not_run": [
+    "AWS Standard/IAM qualification",
+    "cross-region recovery and cloud fault domains",
+    "production capacity and SLO",
+    "dynamic fleet routing or automatic database ownership reassignment"
+  ],
+  "build": {
+    "binary_sha256": "a941b366cf5c9ccba5e27cb64c26f172fce5fd16dc9f2085c9f088e52982ced5",
+    "build_jobs": 2,
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "-p",
+      "scap-service",
+      "--bin",
+      "scapd",
+      "--message-format=json-render-diagnostics"
+    ],
+    "instrumentation": "none; LLVM_PROFILE_FILE, RUSTFLAGS and CARGO_ENCODED_RUSTFLAGS absent",
+    "native_archive_sha256": [
+      "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    ],
+    "native_cxxflags": "-g0",
+    "node": "v22.16.0",
+    "profile": "release",
+    "receipt_sha256": "b3faf4fb88e4a15539c8ba2e9cb49ba8272a98d7843411b2f27d76605ccf076f",
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+    "status": "passed"
+  },
+  "date": "2026-11-17",
+  "date_timezone": "America/New_York",
+  "finished_client_time": "2026-11-17T20:28:19.368879-05:00",
+  "finished_utc": "2026-11-18T01:28:19.368879+00:00",
+  "one_attempt_each": true,
+  "raw_artifacts": [
+    {
+      "artifact": "review-runtime-source-1cbe6b3.json",
+      "bytes": 213499,
+      "sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497"
+    },
+    {
+      "artifact": "review-runtime-build-1cbe6b3/build.json",
+      "bytes": 36908,
+      "sha256": "b3faf4fb88e4a15539c8ba2e9cb49ba8272a98d7843411b2f27d76605ccf076f"
+    },
+    {
+      "artifact": "review-runtime-build-1cbe6b3/cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "dc01f7847f2634920506f357785cd6cdca89a0d9b284b2e6328ad7bb1e8a49c6"
+    },
+    {
+      "artifact": "review-runtime-build-1cbe6b3/cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "72341940c34a325fe3eed886571b8f0c9d1894b0181d42918001e65391824a20"
+    },
+    {
+      "artifact": "review-runtime-summary-1cbe6b3.json",
+      "bytes": 4884,
+      "sha256": "831a34f4a77ba96ed68d8d45521562702ce3a0caef3958c13ae500e6f3474a1e"
+    },
+    {
+      "artifact": "run-reviewed-runtime-1cbe6b3.py",
+      "bytes": 4250,
+      "sha256": "46fa312eddafb4b70e51084eeb9c6e0d9aea87a90069d703867b3b835258dd15"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/run.json",
+      "bytes": 3032,
+      "sha256": "086887bacfb7bb4e92c523d16fee78c636736db0301ec86d7595287c69a98702"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/independent-audit.json",
+      "bytes": 1362,
+      "sha256": "83e4e0489ddb8b33012047abe5987421672214e51580617a4ca509bc56180e1c"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/negative-controls.json",
+      "bytes": 21836,
+      "sha256": "4cb6ffa6b0b711785d58074f4ec38dd6ca2004455205f017d666597de3053a2d"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/input-manifest.json",
+      "bytes": 8384,
+      "sha256": "be6f48c1fec81c6acfbfe813d5f8b5eabafe95d2786f08bb10bc69df14f7fe34"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/audit.jsonl",
+      "bytes": 3864800,
+      "sha256": "a3a6d374657828c6fa42368edef074b65a227bd6ce947b7ffe0c27d44f187d4d"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/runtime-build-binding.json",
+      "bytes": 1472,
+      "sha256": "41ffcdf718847d3a5a9b9003b1c007b4d98369170f4427eaa8495d7662d510f9"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "e13d210f0db1e8adbfbc3a17639c6f9ebde041936acb4b813fb58e2b7c5f2fa0"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "1c892741b331be2509dfc0a22656c56634464d60595ed88c8923f7152b2ddd98"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "dc01f7847f2634920506f357785cd6cdca89a0d9b284b2e6328ad7bb1e8a49c6"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "72341940c34a325fe3eed886571b8f0c9d1894b0181d42918001e65391824a20"
+    },
+    {
+      "artifact": "review-runtime-s2-1cbe6b3/whole-source-manifest.json",
+      "bytes": 213499,
+      "sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/result.json",
+      "bytes": 21448,
+      "sha256": "558ecbe9d6dd740e7f1f9517d242eab34c87115d45c3b0c81206f637ad7e2ed7"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/runtime-build-binding.json",
+      "bytes": 1297,
+      "sha256": "0ae8c13e7cfbe7da1a422bed0751c52b72a66bea57acf1f82062974d3e24b5d5"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "e13d210f0db1e8adbfbc3a17639c6f9ebde041936acb4b813fb58e2b7c5f2fa0"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "1c892741b331be2509dfc0a22656c56634464d60595ed88c8923f7152b2ddd98"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "dc01f7847f2634920506f357785cd6cdca89a0d9b284b2e6328ad7bb1e8a49c6"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "72341940c34a325fe3eed886571b8f0c9d1894b0181d42918001e65391824a20"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-1cbe6b3/whole-source-manifest.json",
+      "bytes": 213499,
+      "sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/result.json",
+      "bytes": 24501,
+      "sha256": "ad80a3481874b54afe687a711c3f484a58829ed0e9d478d36b5721af07c780d4"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/runtime-build-binding.json",
+      "bytes": 1286,
+      "sha256": "8ecfa91141ff828b6bad28b80c189b3e15aed766d8e736e7edc3bbfc90184d37"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "e13d210f0db1e8adbfbc3a17639c6f9ebde041936acb4b813fb58e2b7c5f2fa0"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "1c892741b331be2509dfc0a22656c56634464d60595ed88c8923f7152b2ddd98"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "dc01f7847f2634920506f357785cd6cdca89a0d9b284b2e6328ad7bb1e8a49c6"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "72341940c34a325fe3eed886571b8f0c9d1894b0181d42918001e65391824a20"
+    },
+    {
+      "artifact": "review-runtime-auto-id-1cbe6b3/whole-source-manifest.json",
+      "bytes": 213499,
+      "sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497"
+    }
+  ],
+  "schema": 1,
+  "separate_evidence": [
+    "Rust/Node unit coverage",
+    "bounded TCP transport",
+    "metadata/output pool capacity checks",
+    "profiling diagnostics"
+  ],
+  "source": {
+    "commit": "1cbe6b39fdfff72610956a18bb6fe1d523bab8eb",
+    "frozen_worktree": "scap-review-runtime-1cbe6b3",
+    "manifest_sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497",
+    "source_sha256": "104f8cd80feb910c5ff8f91a0b1b2c0ba132efb55cf4da27dfdbe41c6feac670",
+    "tracked_files": 802,
+    "tree": "de2317e25fb840fb1338090088c1b1b434bf0277"
+  },
+  "source_and_build_receipt_verified_before_and_after_each_suite": true,
+  "started_client_time": "2026-11-17T20:27:04.856713-05:00",
+  "started_utc": "2026-11-18T01:27:04.856713+00:00",
+  "status": "PASS",
+  "suites": [
+    {
+      "administrative_calls": 30,
+      "build_receipt_sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04",
+      "case_count": 7,
+      "cases": [
+        "native_source_snapshot_keeps_exact_random_and_blob_values",
+        "empty_create_and_restore_share_the_first_winner_slot",
+        "cancel_while_payload_get_is_held_permanently_fences_late_copy",
+        "fresh_source_revocation_wins_over_a_completed_payload_prefix",
+        "lost_http_response_and_sigkill_resume_original_operation_without_recopy",
+        "completed_restore_missing_target_head_fails_closed_without_recreation",
+        "source_payload_deleted_then_all_cache_lost_target_still_recovers"
+      ],
+      "evidence": "review-runtime-s2-1cbe6b3",
+      "gates": {
+        "auditor_unit": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "backend_cleanup": {
+          "status": "PASS"
+        },
+        "independent_audit": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "input_freeze": {
+          "status": "PASS"
+        },
+        "negative_controls": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "probe": {
+          "exit_status": 0,
+          "status": "PASS"
+        }
+      },
+      "name": "S2 restore",
+      "negative_controls": 126,
+      "observed_source_payloads_physically_deleted_and_get_404": 14,
+      "records": 2960,
+      "s3_calls": 911,
+      "sdk_calls": 59,
+      "semantic_controls": 122,
+      "service_processes": 3,
+      "source_manifest_sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    },
+    {
+      "build_receipt_sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04",
+      "case_count": 10,
+      "cases": [
+        "first-start",
+        "duplicate-live",
+        "duplicate-clean-exit",
+        "new-id",
+        "duplicate-crash",
+        "competing-processes",
+        "lost-create-ack",
+        "unknown-id-remains-consumed",
+        "corrupt-readback",
+        "unreachable-backend"
+      ],
+      "evidence": "review-runtime-explicit-id-1cbe6b3",
+      "name": "explicit-id",
+      "source_manifest_sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    },
+    {
+      "build_receipt_sha256": "c16de204ffddf3b4017cfbce4bcb3db6245465195d410ea61a30d463d95dbd04",
+      "case_count": 18,
+      "cases": [
+        "missing-counter",
+        "explicit-initialization",
+        "initialization-cannot-reset",
+        "automatic-first-start",
+        "assigned-id-reaches-native-sqlite",
+        "same-config-clean-restart",
+        "same-config-crash-restart",
+        "concurrent-auto-startups",
+        "explicit-claim-wins-auto-reservation",
+        "lost-counter-cas-ack",
+        "restart-skips-lost-counter-ack",
+        "lost-marker-create-ack",
+        "restart-skips-lost-marker-ack",
+        "claimed-is-not-ready",
+        "restart-after-listener-failure",
+        "last-u64-in-independent-bucket",
+        "allocator-exhausted-without-wrap",
+        "corrupt-counter"
+      ],
+      "evidence": "review-runtime-auto-id-1cbe6b3",
+      "name": "auto-id",
+      "source_manifest_sha256": "6dcb4e9bbc8cbf73bf95ca2e75dd3772dbbb8157af04e3766a632f7ce917a497",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    }
+  ],
+  "tools": {
+    "node": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d",
+    "server": "a941b366cf5c9ccba5e27cb64c26f172fce5fd16dc9f2085c9f088e52982ced5",
+    "weed": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  }
+}

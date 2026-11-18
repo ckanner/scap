@@ -82,6 +82,8 @@ export interface DatabaseStatus {
   readonly revision: Decimal;
   readonly head_serial: Decimal;
   readonly storage: StorageStatus;
+  /** Historical durable owner marker; null only before the first accepted plan. */
+  readonly owner_plan: OwnerPlan | null;
   readonly sequence: Decimal;
   readonly owner_epoch: Decimal;
   readonly owner_instance: Decimal;
@@ -159,6 +161,130 @@ export interface OperationReference {
   readonly batchSerial?: Decimal;
   readonly storageGeneration?: Decimal;
   readonly after?: string | null;
+  readonly ownerInput?: PrepareOwnerInput;
+  readonly ownerIdentity?: OwnerIdentity;
+  readonly ownerPlan?: OwnerPlanRef;
+  readonly snapshotInput?: PrepareSnapshotInput;
+  readonly snapshotIdentity?: SnapshotIdentity;
+  readonly snapshotReference?: SnapshotRef;
+  readonly snapshotLimits?: SnapshotLimits;
+}
+
+export interface SnapshotIdentity { readonly creator: Decimal; readonly operation: Decimal }
+export interface SnapshotRef extends SnapshotIdentity {
+  readonly capture_serial: Decimal;
+  readonly descriptor_hash: string;
+}
+export interface PrepareSnapshotInput extends SnapshotIdentity {
+  readonly expected_revision: Decimal;
+  readonly expected_head_serial: Decimal;
+  /** Nonempty, at most 128 UTF-8 bytes, without control characters. */
+  readonly label: string;
+}
+export interface SnapshotPoint {
+  readonly data_root: string;
+  readonly page_count: number;
+  readonly sequence: Decimal;
+  readonly source_revision: Decimal;
+}
+export interface SnapshotEntry {
+  readonly reference: SnapshotRef;
+  readonly label: string;
+  readonly point: SnapshotPoint;
+}
+export interface SnapshotLimits {
+  /** Zero disables new retained points. The persisted format allows at most 64. */
+  readonly max_points: number;
+  /** Gross logical bytes, counted once per point even when roots share objects. */
+  readonly max_logical_bytes: Decimal;
+}
+declare const savedSnapshotInput: unique symbol;
+export interface SavedSnapshotInput {
+  readonly [savedSnapshotInput]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly input: PrepareSnapshotInput;
+}
+export interface SnapshotRecord {
+  readonly scope: Scope;
+  readonly input: PrepareSnapshotInput;
+  readonly reference: SnapshotRef;
+  readonly point: SnapshotPoint;
+}
+declare const preparedSnapshot: unique symbol;
+/** SDK misuse guard; current server ADMIN/READ checks remain authoritative. */
+export interface PreparedSnapshot extends SnapshotRecord { readonly [preparedSnapshot]: true }
+export interface SnapshotObservation<P extends SnapshotRecord = SnapshotRecord> {
+  /** Current observation. ReleasedObserved does not manufacture a past ACK. */
+  readonly state: 'prepared' | 'retained' | 'released_observed' | 'fenced';
+  readonly status: DatabaseStatus;
+  readonly prepared: P;
+  readonly accepted: SnapshotEntry | null;
+}
+export interface SnapshotListing {
+  readonly status: DatabaseStatus;
+  readonly snapshots: readonly SnapshotEntry[];
+  /** Null before this database first adopts the retained-snapshot format. */
+  readonly limits: SnapshotLimits | null;
+}
+
+export interface OwnerIdentity { readonly creator: Decimal; readonly operation: Decimal }
+export interface OwnerPlanRef extends OwnerIdentity { readonly descriptor_hash: string }
+export interface OwnerNonces {
+  readonly claim: Decimal;
+  readonly cancel: Decimal;
+  readonly activate: Decimal;
+  readonly abort: Decimal;
+}
+export interface PrepareOwnerInput extends OwnerIdentity {
+  readonly expected_revision: Decimal;
+  readonly expected_head_serial: Decimal;
+  readonly mode: 'takeover' | 'activate';
+  readonly target_worker: Decimal;
+  readonly nonces: OwnerNonces;
+}
+export interface OwnerPlan {
+  readonly reference: OwnerPlanRef;
+  readonly admission: {
+    readonly kind: 'claim' | 'cancel';
+    readonly revision: Decimal;
+    readonly head_serial: Decimal;
+  };
+  readonly phase: {
+    readonly kind: 'claimed' | 'cancelling' | 'active' | 'aborted';
+    readonly revision: Decimal;
+    readonly head_serial: Decimal;
+    readonly nonce: Decimal;
+    readonly owner_epoch: Decimal;
+    readonly owner_instance: Decimal;
+  };
+}
+declare const savedOwnerInput: unique symbol;
+export interface SavedOwnerInput {
+  readonly [savedOwnerInput]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly input: PrepareOwnerInput;
+}
+/** Public immutable history; identity-only observation cannot authorize SDK mutation. */
+export interface OwnerRecord {
+  readonly scope: Scope;
+  readonly input: PrepareOwnerInput;
+  readonly reference: OwnerPlanRef;
+}
+declare const preparedOwner: unique symbol;
+/** SDK misuse guard, not a credential. The server verifies current ADMIN on every call. */
+export interface PreparedOwner extends OwnerRecord { readonly [preparedOwner]: true }
+export type OwnerPreparation =
+  { readonly state: 'prepared'; readonly prepared: PreparedOwner } |
+  { readonly state: 'pending'; readonly reference: OwnerPlanRef };
+export interface OwnerObservation<P extends OwnerRecord = OwnerRecord> {
+  /** Historical phase; Active does not assert today's active owner or a native Session. */
+  readonly state: 'prepared' | 'claimed' | 'cancelling' | 'active' | 'aborted' | 'fenced';
+  readonly status: DatabaseStatus;
+  readonly prepared: P;
+  /** Fenced with null accepted means past outcome unknown, never proven NotApplied. */
+  readonly accepted: OwnerPlan | null;
 }
 
 export interface OwnerRoute { readonly workerInstance: Decimal; readonly endpoint: string }
@@ -227,6 +353,27 @@ export class OwnerClient {
   reconcile(intent: OwnerIntent, options?: CallOptions): Promise<ActiveOwner>;
   inspect(intent: OwnerIntent, options?: CallOptions): Promise<OwnerInspection>;
 }
+export class OwnerPlanClient {
+  /** Current ADMIN only. No network method sends SQL or automatically retries a phase. */
+  constructor(options: RoutedClientOptions);
+  readonly scope: Scope;
+  readonly principal: Decimal;
+  /** Pure, deep immutable snapshot. Durably save it before the first prepare POST. */
+  prepareInput(input: PrepareOwnerInput): SavedOwnerInput;
+  saveInput(input: SavedOwnerInput): string;
+  restoreInput(serialized: string): SavedOwnerInput;
+  prepare(input: SavedOwnerInput, options?: CallOptions): Promise<OwnerPreparation>;
+  /** Identity-only wire read followed by full original input and Scope comparison. */
+  inspect(input: SavedOwnerInput, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** Pure history read; its OwnerRecord cannot be supplied to claim/resume/abort. */
+  observe(identity: OwnerIdentity, options?: CallOptions): Promise<OwnerObservation>;
+  /** Uses only the immutable target's locally configured route and mandatory worker guard. */
+  claim(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** Uses recoveryTimeoutMs under one original deadline; no automatic second POST. */
+  resume(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  /** May be sent by a current ADMIN through the metadata bootstrap, without a live target. */
+  abort(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+}
 export class RouteError extends ClientError {
   readonly outcome: 'not_sent';
   constructor(error: unknown);
@@ -271,11 +418,39 @@ export interface RetireNamedStorageInput {
   readonly creation: Creation;
   readonly expected_head_serial: Decimal;
 }
+export interface PrepareRestoreInput extends Omit<PrepareCreateInput, 'create_operation'> {
+  readonly restore_operation: Decimal;
+  readonly source_scope: Scope;
+  readonly snapshot: SnapshotRef;
+}
+export interface RestoreRef {
+  readonly creation: Creation;
+  readonly descriptor_hash: string;
+}
+export interface AbortRestoreInput extends Omit<AbortCreateInput, 'creation'> {
+  readonly reference: RestoreRef;
+}
+export interface PreparedRestore extends Omit<PreparedCreate, 'creation'> {
+  readonly reference: RestoreRef;
+  readonly input: PrepareRestoreInput;
+  readonly point: SnapshotPoint;
+}
+export interface RestoreProgress {
+  readonly prepared: PreparedRestore;
+  readonly phase: 'not_reserved' | 'reserved' | 'copying' | 'copied' | 'bound' | 'ready' |
+    'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict';
+  readonly binding_revision: Decimal | null;
+  readonly head_revision: Decimal | null;
+}
 export type CatalogueAction =
   ({ readonly operation: 'prepare_create' } & PrepareCreateInput) |
   { readonly operation: 'resume_create'; readonly creation: Creation } |
   ({ readonly operation: 'abort_create' } & AbortCreateInput) |
   { readonly operation: 'inspect_create_operation'; readonly create_operation: Decimal } |
+  ({ readonly operation: 'prepare_restore' } & PrepareRestoreInput) |
+  { readonly operation: 'resume_restore'; readonly reference: RestoreRef } |
+  { readonly operation: 'inspect_restore'; readonly creator: Decimal; readonly restore_operation: Decimal } |
+  ({ readonly operation: 'abort_restore' } & AbortRestoreInput) |
   { readonly operation: 'resolve_name'; readonly name: string } |
   ({ readonly operation: 'delete_name' } & DeleteNameInput) |
   { readonly operation: 'named_storage_status'; readonly creation: Creation } |
@@ -338,9 +513,11 @@ export interface Named {
   readonly head: DatabaseStatus;
 }
 export type CatalogueResult<A extends CatalogueAction = CatalogueAction> =
+  A extends { readonly operation: 'prepare_restore' } ? PreparedRestore :
+  A extends { readonly operation: 'resume_restore' | 'inspect_restore' } ? RestoreProgress :
   A extends { readonly operation: 'prepare_create' } ? PreparedCreate :
   A extends { readonly operation: 'resume_create' | 'inspect_create_operation' } ? CreationProgress :
-  A extends { readonly operation: 'abort_create' } ? AbortProgress :
+  A extends { readonly operation: 'abort_create' | 'abort_restore' } ? AbortProgress :
   A extends { readonly operation: 'delete_name' } ? DeletionProgress :
   A extends { readonly operation: 'named_storage_status' | 'retire_named_storage' } ? DatabaseStatus : Named;
 export interface CatalogueClientOptions extends Omit<ClientOptions, 'scope' | 'resultLimits' | 'allocation'> {
@@ -363,6 +540,11 @@ export class CatalogueClient {
   resumeCreate(creation: Creation, options?: CallOptions): Promise<CreationProgress>;
   abortCreate(input: AbortCreateInput, options?: CallOptions): Promise<AbortProgress>;
   inspectCreateOperation(createOperation: Decimal, options?: CallOptions): Promise<CreationProgress>;
+  prepareRestore(input: PrepareRestoreInput, options?: CallOptions): Promise<PreparedRestore>;
+  /** One transition; copying uses the independently bounded recovery class. */
+  resumeRestore(reference: RestoreRef, options?: CallOptions): Promise<RestoreProgress>;
+  inspectRestore(restoreOperation: Decimal, options?: CallOptions): Promise<RestoreProgress>;
+  abortRestore(input: AbortRestoreInput, options?: CallOptions): Promise<AbortProgress>;
   resolveName(name: string, options?: CallOptions): Promise<Named>;
   deleteName(input: DeleteNameInput, options?: CallOptions): Promise<DeletionProgress>;
   /** Deleted metadata only; verifies the original named deletion or abort intent. */
@@ -387,7 +569,7 @@ export interface NamePage {
 export interface InventoryRecord {
   readonly key: string;
   readonly kind: 'name' | 'create' | 'control' | 'abort_proof' | 'head' | 'orphan_prefix';
-  readonly state: 'descriptor_only' | 'reserved' | 'provisioning' | 'bound' | 'ready' | 'maintenance' |
+  readonly state: 'descriptor_only' | 'reserved' | 'provisioning' | 'restore_copying' | 'restore_copied' | 'bound' | 'ready' | 'maintenance' |
     'aborting' | 'aborted' | 'deleting' | 'deleted' | 'name_conflict' | 'identity_conflict' | 'control_admitted' | 'orphan';
   readonly creation: Creation | null;
   readonly scope: Scope | null;
@@ -468,6 +650,25 @@ export class Client {
   cancel(request: TrackedRequest, options?: CallOptions): Promise<Resolution>;
   activate(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   takeover(input: OwnerAdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
+  ownerPrepare(input: PrepareOwnerInput, options?: CallOptions): Promise<OwnerPreparation>;
+  ownerInspect(input: PrepareOwnerInput, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerObserve(identity: OwnerIdentity, options?: CallOptions): Promise<OwnerObservation>;
+  ownerClaim(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerResume(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  ownerAbort(prepared: PreparedOwner, options?: CallOptions): Promise<OwnerObservation<PreparedOwner>>;
+  prepareSnapshotInput(input: PrepareSnapshotInput): SavedSnapshotInput;
+  /** Persist this string before the first prepare RPC. It contains no bearer token. */
+  saveSnapshotInput(input: SavedSnapshotInput): string;
+  restoreSnapshotInput(serialized: string): SavedSnapshotInput;
+  snapshotPrepare(saved: SavedSnapshotInput, options?: CallOptions): Promise<PreparedSnapshot>;
+  snapshotInspect(saved: SavedSnapshotInput, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  /** Identity-only observations cannot authorize SDK capture or release. */
+  snapshotObserve(identity: SnapshotIdentity, options?: CallOptions): Promise<SnapshotObservation>;
+  snapshotCapture(prepared: PreparedSnapshot, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  snapshotRelease(prepared: PreparedSnapshot, options?: CallOptions): Promise<SnapshotObservation<PreparedSnapshot>>;
+  snapshotList(options?: CallOptions): Promise<SnapshotListing>;
+  setSnapshotLimits(input: { readonly expectedRevision: Decimal; readonly nonce: Decimal;
+    readonly limits: SnapshotLimits }, options?: CallOptions): Promise<SnapshotListing>;
   closeFull(input: AdministrativeInput, options?: CallOptions): Promise<DatabaseStatus>;
   setQuota(input: AdministrativeInput & { readonly maxBytes: Decimal | null }, options?: CallOptions): Promise<DatabaseStatus>;
   setPolicy(input: AdministrativeInput & { readonly permissions: readonly Permission[] }, options?: CallOptions): Promise<DatabaseStatus>;
@@ -490,3 +691,121 @@ export class Client {
 
 export function validateResult(bytes: Uint8Array, overrides?: ResultLimits): void;
 export function decodeResult(bytes: Uint8Array, overrides?: ResultLimits, allocation?: AllocationLimits): TransactionResult;
+
+export interface ControllerWorker {
+  readonly workerInstance: Decimal;
+  readonly endpoint: string;
+  readonly rank: number;
+}
+export interface ControllerPolicyOptions {
+  readonly scope: Scope;
+  readonly authorityId: string;
+  /** Dedicated READ+ADMIN creator; its owner operation domain is reserved for this controller. */
+  readonly principal: Decimal;
+  readonly metadataEndpoints: readonly string[];
+  readonly workers: readonly ControllerWorker[];
+  readonly modes: { readonly takeover: boolean; readonly activate: boolean; readonly cancel: boolean };
+  readonly allowInsecureHttp?: boolean;
+  readonly recoveryTimeoutMs?: number;
+}
+declare const controllerPolicy: unique symbol;
+export interface ControllerPolicy {
+  readonly [controllerPolicy]: true;
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly authorityId: string;
+  readonly principal: Decimal;
+  readonly metadataEndpoints: readonly string[];
+  readonly workers: readonly ControllerWorker[];
+  readonly modes: ControllerPolicyOptions['modes'];
+  readonly allowInsecureHttp: boolean;
+  readonly canonical: string;
+  readonly digest: string;
+  readonly nonces: OwnerNonces;
+  readonly limits: Readonly<Record<'scopes' | 'workers' | 'metadataEndpoints' | 'policyBytes' | 'ticks' |
+    'tenantTicks' | 'recoveries' | 'httpCalls' | 'mutations' | 'requestBytes' | 'responseBytes' | 'headerBytes' |
+    'timeoutMs' | 'recoveryTimeoutMs' | 'probeTimeoutMs' | 'tickIntervalMs' | 'failureCount' | 'failureIntervalMs' |
+    'failureSpanMs', number> & { backoffMs: readonly number[] }>;
+}
+export function createControllerPolicy(options: ControllerPolicyOptions): ControllerPolicy;
+export interface ControllerReport {
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly policyDigest: string;
+  readonly state: 'healthy' | 'waiting' | 'prepared' | 'claimed' | 'cancelling' | 'aborted' | 'active_observed' |
+    'fenced' | 'blocked' | 'unknown';
+  readonly reason: string;
+  readonly currentAuthority: DatabaseStatus | null;
+  readonly acceptedPhase: OwnerPlan['phase']['kind'] | null;
+  readonly httpCalls: number;
+  readonly mutations: number;
+  readonly recoveryBudget: boolean;
+  readonly pastUnknown: boolean;
+  /** Latest uncertain original call only; pastUnknown is not reset by later observations. */
+  readonly lastUncertainCall: { readonly operation: string; readonly request?: string; readonly reference?: string } | null;
+  readonly nativeSession: 'NOT_CERTIFIED';
+  /** Process-local monotonic milliseconds, not a lease or durable timestamp. */
+  readonly nextTickAt: number;
+}
+export class OwnerController {
+  /** Injected fetch must honor the owned-resource contract; the default fleet transport supplies it. */
+  constructor(options: { readonly policy: ControllerPolicy; readonly token: string; readonly fetch: typeof globalThis.fetch });
+  readonly policy: ControllerPolicy;
+  readonly needsRecovery: boolean;
+  readonly nextTickAt: number;
+  readonly lastReport: ControllerReport | null;
+  tick(options?: CallOptions): Promise<ControllerReport>;
+  close(): Promise<void>;
+}
+
+export interface OwnedControllerTransport {
+  readonly fetch: typeof globalThis.fetch;
+  /** Join every original request, socket and DNS callback owned by this transport. */
+  close(): Promise<void>;
+}
+export interface ControllerHttpSnapshot {
+  readonly closed: boolean;
+  readonly active: number;
+  readonly peak: number;
+  readonly started: number;
+  readonly completed: number;
+}
+export class ControllerHttp implements OwnedControllerTransport {
+  constructor(options?: { readonly maxRequests?: number });
+  readonly fetch: typeof globalThis.fetch;
+  snapshot(): ControllerHttpSnapshot;
+  /** Aborts attempts and joins resources; a system DNS callback has no fixed shutdown bound. */
+  close(): Promise<void>;
+}
+export interface ControllerFleetSnapshot {
+  readonly closed: boolean;
+  readonly scopes: number;
+  readonly active: number;
+  readonly recoveries: number;
+  readonly pendingReports: number;
+}
+export interface ControllerFailureReport {
+  readonly version: 1;
+  readonly scope: Scope;
+  readonly policyDigest: string;
+  readonly state: 'blocked';
+  readonly reason: 'CONTROLLER_FAILURE';
+  readonly nativeSession: 'NOT_CERTIFIED';
+}
+export class OwnerControllerFleet {
+  constructor(options: {
+    readonly entries: readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+    readonly transport?: OwnedControllerTransport;
+  });
+  snapshot(): ControllerFleetSnapshot;
+  /** Admit eligible ticks into free slots; never queue another round for a busy Scope. */
+  poll(): ControllerFleetSnapshot & { readonly started: number };
+  /** Latest completed report per Scope only, not a durable or complete event log. */
+  takeReports(): readonly (ControllerReport | ControllerFailureReport)[];
+  close(): Promise<void>;
+}
+export function readControllerEntries(path: string, environment?: Readonly<Record<string, string | undefined>>):
+  readonly { readonly policy: ControllerPolicy; readonly token: string }[];
+/** Runs bounded polling and joins the fleet on shutdown; synchronous output has no logging queue. */
+export function runControllerFleet(fleet: OwnerControllerFleet,
+  options: { readonly signal: AbortSignal; readonly outputFd?: number }): Promise<void>;

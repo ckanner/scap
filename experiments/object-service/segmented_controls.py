@@ -90,6 +90,32 @@ def changed_body_file(directory):
     raw = bytearray(path.read_bytes()); raw[-1] ^= 1; save(path, raw)
 
 
+def missing_worker_readback(directory):
+    def change(values):
+        path = "/scap-test/scap-worker/v1/instances/" + str(oracle.PLAN["worker_instances"][1])
+        number = select(values, event="object_request", method="GET", path=path)["request_serial"]
+        values[:] = [row for row in values if row.get("request_serial") != number]
+        renumber(values)
+    ledger(directory / "history.jsonl", change)
+
+
+def unconditional_worker_claim(directory):
+    def change(values):
+        path = "/scap-test/scap-worker/v1/instances/" + str(oracle.PLAN["worker_instances"][0])
+        number = select(values, event="object_request", method="PUT", path=path)["request_serial"]
+        for row in values:
+            if row.get("request_serial") == number:
+                row["if_none_match"] = None
+    ledger(directory / "history.jsonl", change)
+
+
+def reused_worker_instance(directory):
+    def change(values):
+        for event in ("service_started", "service_ready"):
+            select(values, event=event, ordinal=2)["owner_instance"] = oracle.PLAN["worker_instances"][0]
+    ledger(directory / "process-ledger.jsonl", change)
+
+
 def cases():
     return {
         "widened_original_deadline": lambda p: document(p/"segmented-plan.json", lambda v: v["deadlines"].update(seed_phase_ms=3_600_000)),
@@ -107,6 +133,9 @@ def cases():
         "missing_kernel_wait4": lambda p: ledger(p/"process-ledger.jsonl", lambda v: select(v, event="service_stopped", ordinal=2)["kernel_usage"].update(available=False)),
         "different_actual_daemon": lambda p: ledger(p/"process-ledger.jsonl", lambda v: select(v, event="service_started", ordinal=6)["binary"].update(sha256="0"*64)),
         "different_actual_config": lambda p: ledger(p/"process-ledger.jsonl", lambda v: select(v, event="service_started", ordinal=3).update(configuration_sha256="0"*64)),
+        "missing_worker_claim_readback": missing_worker_readback,
+        "unconditional_worker_identity": unconditional_worker_claim,
+        "reused_worker_identity": reused_worker_instance,
         "changed_actual_client_output": lambda p: save(p/"cold.stdout.log", b"forged output\n"),
         "original_release_profile_changed": cargo_profile,
         "original_native_archive_changed": lambda p: document(p/"build-receipt.json", lambda v: v["native_archives"].update({next(iter(v["native_archives"])): "0"*64})),

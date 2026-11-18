@@ -297,6 +297,8 @@ class LogicalReservationControls(unittest.TestCase):
             original_end = audit.page_requests(evidence.objects, final)[0]
             for index, event in enumerate(("request", "backend", "delivery", "terminal")):
                 original_end[event]["monotonic_ns"] = 10_050_000_000 + index * 100
+                if event == "request":
+                    original_end[event]["request_received_monotonic_ns"] = original_end[event]["monotonic_ns"]
             tenant = "scap-object/v1/1/7/"
             head_prefix = middle["value"]["value"]["records"][-1]["key"][:-4]
             evidence.now = 10_010_000_000
@@ -548,8 +550,10 @@ class FixedMetadataProfileControls(unittest.TestCase):
         original = encoded(profiles[key]); before = audit.sha(original)
         def raw(body): return {"bytes": len(body), "sha256": audit.sha(body), "base64": audit.base64.b64encode(body).decode()}
         data = {"discovery-s3.jsonl": [
-            {"event": "request", "request_serial": 1, "method": "PUT", "key": key, "request": raw(original)},
-            {"event": "request", "request_serial": 2, "method": "GET", "key": key, "request": raw(b"")},
+            {"event": "request", "request_serial": 1, "method": "PUT", "key": key, "request": raw(original),
+             "monotonic_ns": 10, "request_received_monotonic_ns": 10},
+            {"event": "request", "request_serial": 2, "method": "GET", "key": key, "request": raw(b""),
+             "monotonic_ns": 20, "request_received_monotonic_ns": 20},
             {"event": "backend_response", "request_serial": 2, "body": raw(original), "etag": '"opaque"'},
             {"event": "delivery_started", "request_serial": 2, "body": raw(original), "etag": '"opaque"'}],
             "http-client-ledger.jsonl": [], "saved_projection": {"descriptor_hash": before}}

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "profile": "head8-owner-plan-actual03-audit-diagnosis",
+  "status": "DIAGNOSTIC_CORRECTIONS_NOT_FORMAL_ACCEPTANCE",
+  "runtime_commit": "e3bdf7b6a3e5ee2bf9114e8e571f0b8a64e53492",
+  "fixture_commit": "50bebd8fb2d48682e926a89735fc8d6951fa5745",
+  "raw_observation": {
+    "status": "OBSERVED_NOT_AUDITED",
+    "error": null,
+    "elapsed_seconds": 122.52146477199994,
+    "cleanup_errors": [],
+    "private_removed": true
+  },
+  "formal_oracle_error": "original-named-delete-control-input",
+  "original_evidence_sha256": {
+    "inputs.json": "0208a6d0196f92266a4ee390d61621256ffe079120a0d74f01361748850af313",
+    "events.jsonl": "92d4ed971ec895c37116e11a94660ad7c205d7052cbdd21aa48637d0f6c21dee",
+    "summary.json": "0a4327149824f9bfbcb1b8266132a09699aa8cd9e4c0ec574488a689f1d4c0c4"
+  },
+  "formal_oracle_stderr_sha256": "77732286a289105392eec2a251d8b26dfd4d4f4dd0db4b740ca84ef72461bbf5",
+  "catalogue_diagnosis": "The generic database candidate matcher compares a physical database key slot. Catalogue Control paths deliberately map to no database slot, so it rejected both valid named-delete calls despite exact Creation, operation, principal, revisions and nonce. The correction binds the full Creation, control identity, current HTTP principal, daemon and original forward/invoke/backend/product-response ordering; generic database matching is unchanged.",
+  "accepted_counterexample": {
+    "name": "query-not-forwarded-during-held-resume",
+    "expected_guard": "same-actor-budget-failure-then-original-row",
+    "original_verdict": "WRONGLY_ACCEPTED",
+    "report_sha256": "63bd77bed9e05dffad301c327101784c5874c849b2ae0f410c3924fed0e6403b",
+    "counterexample_sha256": "9a47e8d72e4ce3d422c0c9fe759c0f251e1ef43d2f93417657f6dbf35532d880",
+    "cause": "A forwarded query timestamp was moved after fault_forward_resumed but before s3_forward_started. The old guard only compared S3 forwarding, so it accepted a call not forwarded while the hold was still in effect.",
+    "correction": "Both same-actor queued query and second resume must have HTTP forward_finished strictly before fault_release_requested. Keep all original runner actions, input counts, timeouts and target guard names."
+  },
+  "independent_raw_index": {
+    "semantics": "Immutable original event membership/order/identity and duplicates are retained. Index only selects event kind; every guard still executes. Mutable counterexample ledgers remain ordinary lists.",
+    "profiling_function_calls": 36711560,
+    "profile_elapsed_seconds": 81.537,
+    "selection_cumulative_seconds": 63.551,
+    "selection_calls": 5356,
+    "baseline_exactly_equal_before_and_after_index": true,
+    "profile_sha256": "1e1fa0660040c3c806fe9bf4f2e3d76d984b48baec9b58c1e5d7bb13f3fecccf"
+  },
+  "corrected_unfrozen_diagnostics": {
+    "status": "PASSED_DIAGNOSTIC_NOT_FORMAL_ACCEPTANCE",
+    "negative_controls": 42,
+    "positive_controls": 1,
+    "all_named_guards_matched": true,
+    "original_unchanged": true,
+    "controls_json_sha256": "f7d515106d0a222b60fe27f2ed5acb56a8999dab278f7bf3a14d710516a2842d",
+    "unit_counts": {
+      "owner_plan": 74,
+      "owner_absence": 9
+    },
+    "unit_log_sha256": {
+      "owner-fixture-audit-final-units03.log": "30328983d62ae4c2c72f46d48648e69133d1ed8fb19c479a63e6c4840c143492",
+      "absence-fixture-audit-final-units03.log": "aedc3c93be82fd29c7e541c3c4465417cb6906c70da3ce61018a4bb9159d30c0"
+    }
+  },
+  "claim": "Actual03 is preserved as raw OBSERVED_NOT_AUDITED with original formal oracle failure. The corrected diagnostic verdict and controls do not replace that failure. Submit the corrected audit, then run a new complete actual/oracle/controls attempt from a clean committed tree with the original deadlines."
+}

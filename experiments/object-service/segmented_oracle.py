@@ -12,7 +12,8 @@ import re
 import signal
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, equal, fingerprint, head5_publication, parse, require, result
+from audit_wire import (b64, committed, equal, fingerprint, head5_publication, parse,
+                        require, result, service_startups, worker_claims)
 from service_oracle import build_receipt, exchanges, exited, identity, only, rows, stamp, value_of
 from segmented_spec import BACKEND_VERSION, CALLS, DEADLINES, LAST_ID, PHASES, PLAN, SCOPE
 from segmented_tree_audit import HEAD, PREFIX, SCOPE as NATIVE_SCOPE, Trees, digest, envelope, head, sha
@@ -195,7 +196,7 @@ def original_network(directory, history, observed, facts, configuration):
         call_intervals[phase] = ([entry[0] for entry in intervals], intervals)
     by_call, fixture, all_objects, state = defaultdict(list), {}, {}, {}
     common = ("request_serial", "phase", "method", "path", "request_bytes", "request_sha256", "if_match", "if_none_match", "signing")
-    parsed = {}
+    parsed, claims = {}, []
     for serial, events in wire.items():
         require(set(events) == {"object_request", "object_forwarded", "object_response", "object_response_delivered"}, "incomplete original S3 exchange")
         request, forwarded, response, delivered = [events[e] for e in ("object_request", "object_forwarded", "object_response", "object_response_delivered")]
@@ -206,7 +207,8 @@ def original_network(directory, history, observed, facts, configuration):
               {k: response[k] for k in ("status", "response_bytes", "response_sha256", "etag")}, "S3 delivery changed backend bytes")
         sent = body_file(directory, request["request_sha256"], request["request_bytes"])
         received = body_file(directory, response["response_sha256"], response["response_bytes"])
-        require(request["path"] == HEAD or request["path"].startswith(PREFIX) and len(request["path"]) == len(PREFIX) + 64, "S3 request escaped fixed database")
+        worker = request["path"].startswith("/scap-test/scap-worker/")
+        require(worker or request["path"] == HEAD or request["path"].startswith(PREFIX) and len(request["path"]) == len(PREFIX) + 64, "S3 request escaped fixed database")
         signature = request["signing"]
         require(signature["algorithm"] == "AWS4-HMAC-SHA256" and signature["access_key_sha256"] == backend["access_key_sha256"] and
                 re.fullmatch(r"[0-9]{8}/us-east-1/s3/aws4_request", signature["credential_scope"]) is not None and
@@ -214,6 +216,17 @@ def original_network(directory, history, observed, facts, configuration):
                 signature["credential_scope"].startswith(signature["date"][:8]) and digest(signature["signature_sha256"]), "original SigV4 identity/scope")
         require(signature["signed_headers"] == sorted(set(signature["signed_headers"])) and {"host", "x-amz-content-sha256", "x-amz-date"} <= set(signature["signed_headers"]) and
                 signature["host"] == urlparse(configuration["s3"]["endpoint"]).netloc and signature["payload_sha256"] == sha(sent), "signed host/payload binding")
+        if worker:
+            # Every marker exchange has already passed the complete raw body,
+            # signing and four-stage transport checks above. Only the exact
+            # owned startup pair may leave the database request denominator.
+            claims.append({"key": serial, "role": None, "method": request["method"], "path": request["path"],
+                           "start": stamp(request), "response": stamp(response), "end": stamp(delivered),
+                           "status": response["status"], "delivered": True,
+                           "if_none_match": request["if_none_match"], "if_match": request["if_match"],
+                           "etag": response["etag"], "request_bytes": len(sent), "request_sha256": sha(sent),
+                           "response_bytes": len(received), "response_sha256": sha(received)})
+            continue
         matches = []
         if request["phase"] in call_intervals:
             beginnings, intervals = call_intervals[request["phase"]]
@@ -238,6 +251,7 @@ def original_network(directory, history, observed, facts, configuration):
                 equal(output[name], response[name], "fixture wire response changed: " + name)
             fixture[control["label"]] = item
         parsed[serial] = item
+    claimed = worker_claims(service_startups(facts), claims)
     # All operations are sequential in this fixture. Version truth comes from
     # the backend response interval, not the later delivery logger timestamp.
     ordered = sorted(parsed.values(), key=lambda item: stamp(item["response"]))
@@ -270,7 +284,7 @@ def original_network(directory, history, observed, facts, configuration):
             require(not item["sent"] and request["if_match"] is None and request["if_none_match"] is None, "DELETE fixture conditions changed")
             del state[key]
     require(len(fixture) == len(fixture_inputs), "fixture invocation omitted its real S3 exchange")
-    return ordered, by_call, fixture, all_objects
+    return ordered, by_call, fixture, all_objects, len(claimed)
 
 
 def semantic_network(ordered, by_call, fixture, expected, originals, observed):
@@ -452,7 +466,8 @@ def processes(directory, facts, http, build, fixture, damage_target):
         raw = (directory / f"service-config-{ordinal}.json").read_bytes(); config = parse(raw)
         require(sha(raw) == start["configuration_sha256"] and start["endpoint"] == "http://" + config["listen"] and
                 start["cache_directory"] == config["cache_directory"], "actual daemon config binding changed")
-        require(config["worker_instance"] == str(PLAN["owner_instance"]) and config["version"] == 1 and
+        worker = PLAN["worker_instances"][ordinal - 1]
+        require(config["worker_instance"] == str(worker) and start["owner_instance"] == ready["owner_instance"] == worker and config["version"] == 1 and
                 config["s3"]["timeout_ms"] == DEADLINES["s3_request_ms"] and config["admission"]["timeout_ms"] == DEADLINES["ordinary_service_ms"] and
                 config["admission"]["recovery_timeout_ms"] == DEADLINES["recovery_service_ms"] and config["admission"]["actor_idle_timeout_ms"] == 60000,
                 "frozen service timeout/owner configuration changed")
@@ -460,8 +475,8 @@ def processes(directory, facts, http, build, fixture, damage_target):
                 "actual S3 fixture configuration changed")
         if configurations:
             first = configurations[1]
-            equal({k: v for k, v in config.items() if k not in ("listen", "cache_directory", "credentials")},
-                  {k: v for k, v in first.items() if k not in ("listen", "cache_directory", "credentials")}, "fresh service changed runtime settings")
+            equal({k: v for k, v in config.items() if k not in ("listen", "cache_directory", "credentials", "worker_instance")},
+                  {k: v for k, v in first.items() if k not in ("listen", "cache_directory", "credentials", "worker_instance")}, "fresh service changed runtime settings")
         require(len(config["credentials"]) == 3 and config["credentials"][0]["principal"] == "11" and config["credentials"][0]["provision"] is True,
                 "actual credential policy changed")
         for credential in config["credentials"]: digest(credential["sha256"])
@@ -554,12 +569,14 @@ def audit(directory, *, require_build=True):
     observed = labeled(directory, calls); expected, originals = sql(directory, observed)
     facts = rows(directory, "process-ledger.jsonl"); history = rows(directory, "history.jsonl")
     configuration = parse((directory / "service-config-1.json").read_bytes())
-    ordered, by_call, fixture, _ = original_network(directory, history, observed, facts, configuration)
+    ordered, by_call, fixture, _, claim_requests = original_network(directory, history, observed, facts, configuration)
     network = semantic_network(ordered, by_call, fixture, expected, originals, observed)
     build_report = build_receipt(directory, require_build)
     process_report = processes(directory, facts, http, build_report, fixture, network["damage_target"])
     output = {"schema": 1, "status": "passed", "http_calls": len(calls), "tracked_inputs": len(expected) + 2,
-              "original_sql_acks": len(originals), "cancelled_requests": LAST_ID - 2, "original_s3_requests": len(ordered),
+              "original_sql_acks": len(originals), "cancelled_requests": LAST_ID - 2,
+              "original_s3_requests": len(ordered) + claim_requests, "database_s3_requests": len(ordered),
+              "worker_identity_claims": claim_requests // 2,
               "build": build_report, "processes": process_report, "network": network,
               "aws_standard": "NOT_RUN", "production_tps": "NOT_MEASURED", "physical_gc": "DISABLED"}
     output["source_sha256"] = {name: sha((directory / name).read_bytes()) for name in FILES}

@@ -1,42 +1,63 @@
 # SCAP：S3 原生 SQLite
 
-按 [PR #16](https://github.com/ckanner/scap/pull/16) 重建的对象存储权威数据库。数据库页面、原请求结果、权限和写者身份由 S3 中的单库 HEAD 引用；本地 SQLite 文件仅用于执行和缓存，可全部丢弃后重建。
+SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结果、权限和写者身份由 S3 中的单库 HEAD 引用；本地 SQLite 文件用于执行和缓存，全部计算节点与缓存丢失后从对象存储重建。
 
-当前构建已经移除旧 Raft、RocksDB、cell 服务和旧 SDK，没有双后端、旧盘迁移或格式兼容路径。旧代码保留在 Git 历史。选择性复用纯 SQL 编解码和 SQLite 原生提交前 WAL gate，不复用旧 cell 回执或提交协议。
+本项目按 [PR #16](https://github.com/ckanner/scap/pull/16) 重建。旧 Raft、RocksDB、cell 服务和旧 SDK 只保留在 Git 历史；当前构建采用对象存储权威协议和 SQLite 提交前 WAL gate。
 
-**当前实现包括 S3 权威运行时、认证 HTTP/Node SDK、名称目录、有界多数据库 actor、全目录发现、部署恢复、分段请求索引，以及租户 intake、结果输出池、HTTP 绝对期限和显式 owner 协调。** [PR #54](https://github.com/ckanner/scap/pull/54) 的 HEAD6 生产候选 `66f452e` 另加入完整代际复制与持久 GC checkpoint，并修复 retained-result/cancelled 的请求 nonce 绑定缺口。新候选已完成 stable/nightly 各 **632 项单元、59 个生产文件四维逐文件精确覆盖**；原生故障、保留结果、生命周期、目录、新的 1 GiB 全量恢复，以及整栈 HTTP/资源/回收/负载和全部独立判定/负对照均通过，已合入 main。最新准确状态见[HEAD6 验收](docs/engineering/head6-runtime-validation.md)与[实施状态](docs/engineering/status-2026-11-10.md)。[PR #55](https://github.com/ckanner/scap/pull/55) 继续实现 Deleted 最后一代的显式永久退休，按新源码独立验收。自动 owner controller、PITR、完整资源预算、真实 AWS 和生产 SLO 尚未完成；历史 HEAD5 的结果单独保存在[上一批组合验收](docs/engineering/runtime-completion-validation.md)。
+## 当前实现与验证状态
 
-**最新增量：HEAD7 的冻结产品 `7b757` 已完成整批必需本地验收：stable/nightly 各 652 项单元、60 个生产文件四维精确覆盖，terminal retirement 的真实合同与 25 负/1 正对照，多代 GC 与 23 负/1 正对照，以及新的 native、HTTP、发现/部署恢复、资源、1 GiB 恢复和固定负载合同全部通过。** [PR #55](https://github.com/ckanner/scap/pull/55) 按已有授权进入合入；来源、原失败和分母见 [HEAD7 验收](docs/engineering/head7-runtime-validation.md)。[PR #56](https://github.com/ckanner/scap/pull/56) 的可恢复 owner plan 仍在独立验收，自动 controller 和快照恢复继续实施，不把 HEAD7 的成功当作后续产品已完成。
+最新核查：2026-11-17（纽约；实际运行 UTC 为 11 月 18 日）。HEAD6/7 已在主线，
+本批接续代码位于直接面向 main 的 [PR #65](https://github.com/ckanner/scap/pull/65)：
+owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接复用均已实现。
+本轮 self-review 修复恢复边界、严格覆盖与真实 CI 夹具，并将尚未通过独立性能
+验收的 Manifest GET 省略优化留在 #60；功能版保留普通精确读取路径。
+远端流水线和合入状态以 [PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。
 
-对 SQLite/EFS/NFS 风险、单库写入上限、多库扩展与 Turso 方案的具体判断见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)。S3 条件发布解决持久权威与旧写者 fencing；它不自动提高热点单库的串行事务吞吐。
+| 范围 | 当前实现与验证 |
+| --- | --- |
+| 生产冻结组合 `aab8a22` | stable/nightly 各 887 项单位通过；76 个生产文件的行、函数、region、branch 均精确 100%，无缺失 map 或零分母；fmt、严格 Clippy 通过 |
+| 恢复核心审查 | 保留原 READ 上下文与总期限，复制描述绑定源和容量，native 清理后再检查取消／期限；补真实 fsync/丢失 HEAD/非法子树/序列边界反例 |
+| S2 实际专项 | 正式 release 的 7 个场景、126 个独立审计负控通过；删除源 payload 后新 Scope 仍独立恢复 |
+| 永久 worker 身份 | 同一正式 release 的显式 ID 10 场景、自动分配 18 场景通过；启动 marker 的原始 PUT/GET、正文、ETag 与对应进程就绪严格绑定 |
+| HTTP / SDK | Node 161 项单位与严格覆盖通过，HTTP 7 项、controller HTTP/进程 12 项通过；TCP 8 场景通过 |
+| CI | owner/Missing/controller/固定矩阵/S1/S2/显式和自动身份实际合同、模型、SDK/codec 和固定 TypeScript 检查均接入每个 PR；保存原始证据与负控 |
+| 性能 | 原四库约 24% 回退仍未归因；新 2×2 诊断保留全部正负样本与观察器成本，不宣称吞吐验收或生产 SLO 通过 |
 
-历史 [HEAD5 组合候选](docs/architecture/head5-runtime-composition.md)的冻结运行时 `778a4d2` 已通过完整538+538单位、发现/metadata专项以及[六个实际native/S3网络子门禁](docs/evidence/head5-runtime-network-local-2026-11-09.json)。本轮目录为116场景、1,000次ACK零错配，保留结果为12场景/72入口；这些使用Rust worker与真实签名S3，不替代仍待完成的HTTP服务、容量/部署恢复、owner和资源门禁，也不接受后续编码器/输出池源码。该历史候选由 PR #54 承接；新运行结果与新发现以顶部记录为准。
+本轮详情、来源、CI 状态与未完成边界见
+[self-review 与 CI 收口](docs/engineering/sqlite-s3-self-review-2026-11-17.md)、
+[恢复核心审查](docs/engineering/restore-core-review-2026-11-18.md)和
+[历史性能因果诊断](docs/engineering/manifest-proof-causal-2026-11-18.md)。覆盖修复没有
+改变 `AGENTS.md` 或检查器门槛，没有用集成 profile 补单位；LLVM 对某些 Rust 语法的
+测量局限仍由[分支测量说明](docs/engineering/branch-coverage-measurement-gap.md)明确记录。
 
-[PR #35 的发现与恢复组合](docs/engineering/discovery-recovery-validation.md)包含 #34 的有界 LIST/单次 HTTP 传输，采用 HEAD format 4。冻结候选有 stable/nightly 各 416 项单元、47 个生产 Rust 文件四维逐文件精确覆盖、九个 HTTP/S3 组合阶段，以及无需预知名称或 Scope 的新部署恢复合同。完整恢复检查九个永久 HEAD 槽位和全部五个需要数据的数据库，独立 oracle 与 23 个拒绝负对照/一个正对照通过；目录原生和 1 GiB 全量恢复也通过，全部 16,384 行另从真实关闭镜像逐行二次哈希。原失败与输入等价复用另列；SQLite 所有已存在临时目录候选和 host-global override 的准入检查也已补齐。
+[前一组合验证](docs/engineering/sqlite-s3-followup-validation-2026-11-17.md)中的
+877 项单位、4 个未命中文件和 8 个 branch 零分母是旧候选的真实失败，保留原样。最终普通读取路径的新 release 及实际见
+[恢复与身份验收](docs/engineering/manifest-get-runtime-2026-11-17.md)。
+[11 月 13 日补验](docs/engineering/sqlite-s3-review-2026-11-13.md)的各次实际也保持
+各自源码与原件身份，不能合算为当前候选的认证。
 
-[PR #31/#32 的名称目录与执行隔离验收](docs/engineering/catalogue-actors-validation.md)已经完成并合入：名称目录与 actor 组合分别有 stable/nightly 各 300/307 单元、33 个生产 Rust 文件四维逐文件精确覆盖；116 场景/1000 ACK 的目录合同、真实 HTTP/SDK、全计算丢失恢复及冷库阻塞下热库/控制隔离通过。两组原完整 validator 的末项 oracle 失败与磁盘容量导致的服务启动失败保留；精确两文件修正、输入身份复用和独立重跑见[机器记录](docs/evidence/catalogue-actors-local-2026-11-08.json)。HEAD 采用 format 3，不可变 SCAPOBJ2 帧仍为 format 2，旧 HEAD 不自动迁移。
+自动实例身份分配与 S2 已实现；动态 fleet、任意时间 PITR、group commit、lazy VFS、
+同库 MVCC/并行 reader pool、硬 RSS/磁盘隔离、持续过载与长期成本、真实 AWS 及生产
+SLO 仍有独立交付出口。单库仍串行，冷恢复仍完整读取闭包；跨库并行与少一次对象
+GET 均不能自动推出热点库吞吐提升。
 
-[PR #30 的名称目录协议与有界模型](docs/engineering/named-catalogue-model.md)另有 885 条正向历史和 25 个拒绝负对照。模型、正式实现和真实网络证据互不代替；后续完整目录发现按[独立方案](docs/architecture/catalogue-discovery-plan.md)实施，其本地验收见上方 PR #35 记录。
+## SQLite 文件安全与吞吐边界
 
-[PR #29 的生命周期真实合同](docs/engineering/n1-lifecycle-validation.md)绑定冻结候选 `fe1909b`：十二场景、两轮恢复及独立原始账本复核通过；78 次成功响应／30 个原身份分别核对保留结果、Deleted 和 Retired，零错配。生产 Rust／SDK 与上一验收候选逐字节相同，历史单元证据与本批真实实验分开记录。
+SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SHM`。私有本地镜像和临时目录经过文件系统准入；对象存储中的原 ETag 条件发布负责跨节点排序与旧写者 fencing。SQLite WAL 的 wal-index 需要同机共享内存；SQLite 支持同机多进程，单库一个 writer 不等于整个服务只能单进程。EFS 支持 NFSv4 advisory byte-range locks，这不等于支持跨主机共享 SQLite WAL。官方依据和实现映射见[存储安全与吞吐分析](docs/architecture/sqlite-s3-safety-and-throughput.md)及[部署要求](docs/operations/sqlite-storage-safety.md)。
 
-[PR #28 的本地执行目录防护验收](docs/engineering/local-storage-validation.md)绑定冻结候选 `a11e61e`：stable／nightly 各 204 项 Rust 单元、24 个生产文件精确覆盖，以及真实 S3/原生故障、HTTP/SDK 和 1 GiB 全量恢复通过。首次格式与 release 构建失败均保留；独立原始审计的可确认范围和服务恢复响应账本的限制分别列明。
+| 问题 | 当前处理 | 保留的边界 |
+| --- | --- | --- |
+| 共享网络文件的锁／同步风险 | 本地私有执行镜像，跨节点只通过对象 API 协调 | 本地 I/O、overlay 底层和挂载稳定性仍由部署保证；真实 NFS/EFS/FUSE 挂载验收不能用类型分类测试替代 |
+| 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS；#61 永久登记，#62 可自动取得新 ID | 首次升级历史和目标 IAM 另验；自动编号不授予数据库 owner、不刷新静态路由 |
+| 热点单库吞吐 | 同库 actor 串行，短事务和一个事务内多 SQL 语句 | 没有同库并行 reader pool、MVCC 或独立事务 group commit；增加 pod 不会自动提高该库吞吐 |
+| 多库与冷恢复 | 不同库有界 actor，独立控制池与恢复准入，空闲 actor 回收 | CPU、网络、磁盘和 S3 仍共享；冷恢复仍读取完整数据及保留结果闭包，没有 lazy VFS |
+| 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；S1 候选保护 retained roots | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
 
-[PR #27 的 HTTP／Node 完整本地验收](docs/engineering/http-service-validation.md)绑定冻结候选 `aa01150`：stable／nightly 各 199 项 Rust 单元、23 个生产文件四维逐文件精确 100%，真实服务核对 10 个唯一请求和 8 次重复成功响应。全部计算缓存丢失恢复、原网络故障合同、保留结果及 1 GiB 全量恢复均有独立证据。该历史结果不认证后续源码；名称目录、自动路由、完整 N1/N2、AWS 与生产 SLO 仍未完成。
+S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不能包装成跨 AZ RPO=0。Turso 的开源 libSQL、Cloud 存储路径和新 Rust MVCC 引擎是不同层次；其基准不作为 SCAP 性能证据，详见[官方对照](docs/architecture/sqlite-s3-safety-and-throughput.md#6-turso-可以借鉴什么)。
 
-[PR #26 的 ALTER 与保留结果完整本地验收](docs/engineering/native-integrity-validation.md)覆盖 main `49408e0` 上冻结的合并候选：159 项 Rust 单元，14 个生产文件四维逐文件精确 100%；同一 release 通过原网络 15 类合同（含 schema）、保留结果 12 场景／60 入口，以及 1 GiB 全量丢失恢复。全部 ACK 原 receipt／结果和 16,384 个 BLOB 无差异。10 GiB 该轮未复跑，AWS Standard 仍为 NOT_RUN；精确身份及计数见[机器证据](docs/evidence/native-integrity-local-2026-11-06.json)。
-
-[PR #21 的历史故障验证记录](docs/evidence/s3-n1-fault-contracts-local-2026-11-06.json)绑定冻结提交 `75df1d20bcc8eb56ca758d8801eb3060a70a1687`：基础 10 类合同加 4 类扩展全部通过，扩展包含 30 个场景（其中 1 个为依赖序列 pilot）。实际验证了 14 个依赖上传切点、HEAD 成功后进程丢失及两种 native 失败、五类依赖的缺失／损坏、恢复期间 HEAD 变化；基础 4 条与扩展 61 条 execute ACK 的完整回执和原结果均一致。正式单元与四维覆盖再次通过；同一 release 二进制复跑 1 GiB 数据，39 条已确认请求及全部 16,384 个 BLOB 核对无差异。本批扩展实验、观察接口和 CI，不改变正式生产源码；完整 OT-01–OT-08 与 AWS 仍未完成。
-
-[PR #20 的本地容量基线](docs/evidence/production-capacity-local-2026-11-06.json)绑定运行时提交 `a302840d3232163ae16c85ff384abaae82cb9ff5`：130 项 Rust 单元、13 个生产文件四维精确 100%，74 项工具单元、89 项模型测试和 10 项真实本地 S3/进程合同通过。同一 release 二进制完成 1 GiB 独立随机数据验收及默认 **10 GiB 实际 SQLite 文件边界**验收；后者恢复后逐条核对 **363 条 ACK、162,564 个 BLOB**，原回执、原结果和全部数据哈希均无差异。达到配额后同尺寸更新成功，新页面分配被拒绝且 HEAD 不变。后续文档提交不改变实测源码；AWS Standard、完整 N1 和生产 SLO 仍未完成。
-
-[PR #19 的历史本地验证记录](docs/evidence/object-native-local-2026-11-06.json)：87 项 Rust 单元测试通过，11 个生产文件四维覆盖率精确 100%；release 构建的 10 项真实本地 S3/进程故障合同通过。4 条成功写入均由独立持久账本逐条核对原回执与原结果；AWS Standard 保持 `NOT_RUN`。
-
-## SQLite 文件系统边界
-
-S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SHM 作为共享网络文件读写。本地执行镜像仍必须满足 SQLite 的 I/O 语义；误把 `cache_directory` 配成 NFS/EFS/FUSE 不能因“缓存可丢弃”而视为安全。
-
-[PR #28](https://github.com/ckanner/scap/pull/28) 已完成本地目录类型防护、补充测试及必要本地回归，见[验收说明](docs/engineering/local-storage-validation.md)与[存储安全说明](docs/operations/sqlite-storage-safety.md)。最初环境不可用及后续失败仍保留在[审查记录](docs/engineering/status-2026-11-07.md)；当前结果只绑定本轮冻结候选。真实 NFS/EFS/FUSE 挂载、AWS 和生产门禁没有由本地分类测试代替。后续按[路线图](docs/engineering/roadmap.md)继续。
+本轮采纳与暂缓的具体实践见 [Turso 接续设计](docs/architecture/turso-adoption-next.md)。
+当前保持 FULL 与受检 TRUNCATE；group commit、按需 VFS 和新引擎 MVCC 仍各需独立
+提交／可见性／故障协议，不能通过把 SQLite 文件放到网络卷或关闭同步来代替。
 
 ## 实现入口
 
@@ -47,7 +68,7 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
 | [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
-| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、验证回执及结果、查证／取消；静态 owner 路由与显式协调，不自动重放 SQL |
+| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、结果查证／取消、静态路由；提供 OwnerPlanClient、有限 OwnerController 与快照接口，均不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -72,17 +93,25 @@ S3 权威架构不依赖跨节点 POSIX 文件锁，也不将 `.db`、WAL 或 SH
 
 [真实容量实验](experiments/object-capacity/README.md)分别装载 1 GiB 独立随机数据及默认 10 GiB 实际 SQLite 文件边界，检查增量 I/O、全部计算丢失后的恢复、全部 ACK 原结果和每个 BLOB。不能仅凭配置或稀疏文件宣称实测通过；具体完成范围以候选绑定的验证记录为准。官方产品对照、配置 API 和证明边界见 [ADR-0022](docs/adr/0022-production-capacity.md)与[对象运行时](docs/engineering/object-runtime.md)。
 
-关闭窗口只变更引用。**HEAD6 的显式管理员 compaction 与退休世代 GC 已完成本批整栈本地验收，默认仍未启用 GC 权限。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。HEAD6 保护 Deleted 最后一代；PR #55 的 HEAD7 已独立验证显式 seal 后的终态退休。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
+关闭窗口只变更引用。**HEAD6 的显式管理员 compaction、退休世代 GC 和 HEAD7 的永久终态退休均已合入主线，默认仍未启用 GC 权限。** 协议与严格边界见 [HEAD6 设计](docs/architecture/head6-compaction-gc.md)和[管理接口](crates/scap-service/docs/reclamation.md)。旧块、索引和 orphan 只有在安全迁移、退休及公平重复 sweep 后才能回收；当前文件配额不限制 bucket 总量。HEAD7 通过显式 seal 退休 Deleted 最后一代；HEAD9 S1 还要求 live retained roots 为空才允许终态退休。内部 Rust API 的 principal 是可信准入输入；HTTP 服务从 token 摘要映射得到可信主体，再由最新 HEAD 检查数据库权限。发现分页不等于数据恢复或自动 owner 协调；这些接口和合同分别记录。
 
-HTTP 服务用不可变五元组接入，`create` 后显式 `activate`。每次服务启动使用新的 `worker_instance`；全部计算丢失后以原 scope 查 HEAD，再 `takeover`／`activate`。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
+HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使用 legacy `takeover`／`activate`；接受 owner plan 升级为 HEAD8/9 后，旧入口永久拒绝，必须使用固定计划的 prepare/claim/resume/abort。每次服务启动的 `worker_instance` 不得复用；#61 在 S3 永久登记，#62 支持 `"auto"` 和显式管理员初始化，首次升级仍须处理旧实例和历史发号。全部计算丢失后仍以原 Scope 查 HEAD，再按对应格式完成恢复。Node SDK 在发送前用 `prepare`／`save` 固定 SQL、参数、世代和请求 ID；超时或断线后用原身份 `lookup`／`cancel`。配置和启动命令见[服务说明](crates/scap-service/README.md)，完整恢复流程见[运行手册](docs/operations/http-service.md)。
 
-可选 `RoutedClient` 使用受信静态路由，fresh status 后最多派发一次原业务请求；独立 READ+ADMIN
-`OwnerClient` 保存固定意图，再显式协调 takeover 与 activation。每个管理步骤携带预期目标 worker，
-错绑地址在 S3/cache/恢复效果前拒绝。恢复的意图只供查证，UNKNOWN 不自动重发管理动作或 SQL。
-这一切片没有故障检测、后台自动接管或动态选主；整体 N2 和生产门禁继续独立推进，详见
-[owner 协调设计](docs/architecture/owner-reconciliation.md)与 [SDK 合同](sdk/node/README.md)。
+`RoutedClient` 使用受信静态路由，fresh status 后最多派发一次原业务请求。legacy `OwnerClient`
+保存的意图只能按[旧 owner 合同](docs/architecture/owner-reconciliation.md)显式协调和查证；
+新 `OwnerPlanClient` 用持久描述与 HEAD phase 恢复已接受计划。
+`OwnerController` / `OwnerControllerFleet` 在固定策略、期限和调用预算内推进计划，TLS/证书配置错误
+不作为 owner 死亡证据。旧 CAS 不换 ETag，原 SQL 的 UNKNOWN 仍用 lookup/cancel；固定12场景
+已覆盖多controller竞争、取消、拒绝与迟到操作，动态fleet与生产故障域仍有独立出口；自动编号见 #62，不能由原矩阵推导。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
+[控制器方案](docs/architecture/owner-controller-plan.md)及 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。
+
+S2 通过 `prepare_restore` 固定源 SnapshotRef 与新目标身份，沿原意图显式 inspect/resume/abort。
+复制在新 Scope 下重封装全部对象，并通过一个私有 native 镜像校验；完成证明形成后才继续
+绑定与 Ready。新库不继承源 ACL、writer、sequence 或请求结果空间，完成后独立于源数据。
+配置、预算、权限屏障及 UNKNOWN 处理见[恢复合同](crates/scap-service/docs/restore.md)，
+实际进程专项见[恢复实验](experiments/object-restore-runtime/README.md)。
 
 ## 构建与验证
 
@@ -100,7 +129,31 @@ python3 scripts/check_repo.py
 
 四维精确单元覆盖率、真实对象故障合同和执行身份按 [验证规范](docs/engineering/validation.md)独立执行。独立 [N0 模型](experiments/object-authority-model/README.md)保留自己的可执行历史判定器，不能替代真实 S3/SQLite 验证。
 
+## 验证记录与历史证据
+
+每份记录只认证其固定提交、依赖和实际二进制。原始失败、修正与新候选结果分别保留；模型、单元、
+本地兼容 S3、真实 AWS 和部署故障域证据互不代替。下表集中保留早期进展入口，避免把历史完成时点当成当前状态。
+
+| 范围 | 记录 |
+| --- | --- |
+| HEAD7 终态退休 | [验收](docs/engineering/head7-runtime-validation.md) |
+| HEAD6 代际复制／GC | [验收](docs/engineering/head6-runtime-validation.md)、[当日实施状态](docs/engineering/status-2026-11-10.md) |
+| HEAD5 组合与后续修复 | [组合设计](docs/architecture/head5-runtime-composition.md)、[组合验收](docs/engineering/runtime-completion-validation.md)、[六项 native/S3 记录](docs/evidence/head5-runtime-network-local-2026-11-09.json) |
+| #35 发现与部署恢复 | [验收](docs/engineering/discovery-recovery-validation.md) |
+| #31/#32 名称目录与 actor | [验收](docs/engineering/catalogue-actors-validation.md)、[机器记录](docs/evidence/catalogue-actors-local-2026-11-08.json) |
+| #30 名称目录模型 | [模型与边界](docs/engineering/named-catalogue-model.md) |
+| #29 生命周期 | [真实合同](docs/engineering/n1-lifecycle-validation.md) |
+| #28 执行存储准入 | [验收](docs/engineering/local-storage-validation.md)、[当时环境与失败记录](docs/engineering/status-2026-11-07.md) |
+| #27 HTTP／Node | [验收](docs/engineering/http-service-validation.md) |
+| #26 ALTER／保留结果 | [验收](docs/engineering/native-integrity-validation.md)、[机器记录](docs/evidence/native-integrity-local-2026-11-06.json) |
+| #21 原生故障扩展 | [故障记录](docs/evidence/s3-n1-fault-contracts-local-2026-11-06.json) |
+| #20 容量基线 | [1 GiB／10 GiB 记录](docs/evidence/production-capacity-local-2026-11-06.json) |
+| #19 首个原生本地验收 | [记录](docs/evidence/object-native-local-2026-11-06.json) |
+| #58 保留快照 | [设计与模型精化](docs/architecture/retained-snapshot-restore.md)、[真实专项入口](experiments/object-snapshot-runtime/README.md)、[HTTP 合同](crates/scap-service/docs/snapshots.md) |
+
 ## 设计与后续阶段
+
+当前状态、目标、#59 合入条件和后续实施顺序见[接续交付计划](docs/engineering/sqlite-s3-delivery-plan.md)。
 
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。

@@ -353,12 +353,7 @@ impl RecoveryJob {
         if snapshot.head.scope != *scope {
             return Err(RecoveryStop::Corrupt);
         }
-        let state = match snapshot.head.lifecycle {
-            Lifecycle::Ready => MetadataState::Ready,
-            Lifecycle::Maintenance => MetadataState::Maintenance,
-            Lifecycle::Provisioning => MetadataState::Provisioning,
-            Lifecycle::Deleted => MetadataState::Deleted,
-        };
+        let state = super::discovery_records::restore_lifecycle(&snapshot.head);
         let record = DiscoveredRecord {
             key: format::head_key(scope),
             kind: RecordKind::Head,
@@ -410,7 +405,7 @@ impl RecoveryJob {
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         database
-            .verify_results(&objects, &snapshot.head, deadline)
+            .verify_recovery_closure(&objects, &snapshot, deadline)
             .map_err(recovery_error)?;
         self.meter.check(deadline)?;
         session.history_verified = true;

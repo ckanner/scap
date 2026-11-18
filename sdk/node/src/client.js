@@ -2,6 +2,8 @@
 import { decodeResult, FORMAT_LIMITS } from '../../node-codec/src/codec.js';
 import { Buffer } from 'node:buffer';
 import * as wire from './wire.js';
+import * as ownerPlan from './owner_plan_wire.js';
+import * as snapshot from './snapshot_wire.js';
 import { Transport } from './transport.js';
 
 export { ClientError, RemoteError, UnknownError, CommittedResultError, RouteError } from './errors.js';
@@ -9,6 +11,12 @@ export { CatalogueClient } from './catalogue.js';
 export { DiscoveryClient } from './discovery.js';
 export { RoutedClient } from './routed.js';
 export { OwnerClient } from './owner.js';
+export { OwnerPlanClient } from './owner_plan.js';
+export { OwnerController } from './controller.js';
+export { OwnerControllerFleet } from './controller_fleet.js';
+export { ControllerHttp } from './controller_http.js';
+export { readControllerEntries, runControllerFleet } from './controller_process.js';
+export { createControllerPolicy } from './controller_policy.js';
 export { OwnerReconcileError } from './errors.js';
 export { decodeResult, validateResult } from '../../node-codec/src/codec.js';
 
@@ -56,6 +64,7 @@ export class Client {
   }
 
   #call(action, decode, options) {
+    const snapshotAction = action.operation.startsWith('snapshot_');
     const reference = Object.freeze({ scope: this.#scope, operation: action.operation,
       ...(action.request === undefined ? {} : { request: action.request }),
       ...(action.nonce === undefined ? {} : { nonce: action.nonce }),
@@ -65,7 +74,12 @@ export class Client {
       ...(action.plan_serial === undefined ? {} : { planSerial: action.plan_serial }),
       ...(action.batch_serial === undefined ? {} : { batchSerial: action.batch_serial }),
       ...(action.generation === undefined ? {} : { storageGeneration: action.generation }),
-      ...(action.after === undefined ? {} : { after: action.after }) });
+      ...(action.after === undefined ? {} : { after: action.after }),
+      ...(action.input === undefined ? {} : snapshotAction ? { snapshotInput: action.input } : { ownerInput: action.input }),
+      ...(action.identity === undefined ? {} : snapshotAction ? { snapshotIdentity: action.identity } : { ownerIdentity: action.identity }),
+      ...(action.plan === undefined ? {} : { ownerPlan: action.plan }),
+      ...(action.reference === undefined ? {} : { snapshotReference: action.reference }),
+      ...(action.limits === undefined ? {} : { snapshotLimits: action.limits }) });
     return this.#transport.call({ version: 1, scope: this.#scope, ...action }, reference, decode, options);
   }
 
@@ -136,6 +150,84 @@ export class Client {
     const extra = Object.hasOwn(input, 'expectedWorkerInstance') ?
       { expected_worker_instance: wire.decimal(input.expectedWorkerInstance) } : {};
     return this.#admin(operation, input, extra, options);
+  }
+
+  ownerPrepare(input, options) {
+    const fixed = ownerPlan.input(input);
+    return this.#call({ operation: 'owner_prepare', input: fixed },
+      (value) => ownerPlan.preparation(value, this.#scope, fixed), options);
+  }
+
+  ownerInspect(input, options) {
+    const fixed = ownerPlan.input(input);
+    const identity = ownerPlan.identity({ creator: fixed.creator, operation: fixed.operation });
+    return this.#call({ operation: 'owner_inspect', identity },
+      (value) => ownerPlan.observation(value, this.#scope, identity, fixed), options);
+  }
+
+  ownerObserve(input, options) {
+    const identity = ownerPlan.identity(input);
+    return this.#call({ operation: 'owner_inspect', identity },
+      (value) => ownerPlan.observation(value, this.#scope, identity), options);
+  }
+
+  ownerClaim(prepared, options) { return this.#ownerPlan('owner_claim', prepared, options); }
+  ownerResume(prepared, options) { return this.#ownerPlan('owner_resume', prepared, options); }
+  ownerAbort(prepared, options) { return this.#ownerPlan('owner_abort', prepared, options); }
+
+  prepareSnapshotInput(input) { return snapshot.prepareInput(input, this.#scope); }
+  saveSnapshotInput(input) { return snapshot.saveInput(input, this.#scope); }
+  restoreSnapshotInput(serialized) { return snapshot.restoreInput(serialized, this.#scope); }
+
+  snapshotPrepare(saved, options) {
+    const fixed = snapshot.checkSaved(saved, this.#scope).input;
+    return this.#call({ operation: 'snapshot_prepare', input: fixed },
+      (value) => snapshot.preparation(value, this.#scope, fixed), options);
+  }
+
+  snapshotInspect(saved, options) {
+    const fixed = snapshot.checkSaved(saved, this.#scope).input;
+    const identity = snapshot.identity({ creator: fixed.creator, operation: fixed.operation });
+    return this.#call({ operation: 'snapshot_inspect', identity },
+      (value) => snapshot.observation(value, this.#scope, identity, fixed), options);
+  }
+
+  snapshotObserve(supplied, options) {
+    const identity = snapshot.identity(supplied);
+    return this.#call({ operation: 'snapshot_inspect', identity },
+      (value) => snapshot.observation(value, this.#scope, identity), options);
+  }
+
+  snapshotCapture(prepared, options) { return this.#snapshot('snapshot_capture', prepared, options); }
+  snapshotRelease(prepared, options) { return this.#snapshot('snapshot_release', prepared, options); }
+
+  #snapshot(operation, supplied, options) {
+    const fixed = snapshot.checkPrepared(supplied, this.#scope);
+    return this.#call({ operation, reference: fixed.reference },
+      (value) => snapshot.observation(value, this.#scope, fixed.reference, fixed.input, fixed.reference), options);
+  }
+
+  snapshotList(options) {
+    return this.#call({ operation: 'snapshot_list' }, (value) => snapshot.listing(value, this.#scope), options);
+  }
+
+  setSnapshotLimits(input, options) {
+    wire.record(input, ['expectedRevision', 'nonce', 'limits']);
+    const revision = wire.decimal(input.expectedRevision), nonce = wire.decimal(input.nonce);
+    const limits = snapshot.limits(input.limits);
+    return this.#call({ operation: 'snapshot_limits', expected_revision: revision, nonce, limits }, (value) => {
+      const result = snapshot.listing(value, this.#scope);
+      wire.requireValue(BigInt(result.status.revision) === BigInt(revision) + 1n && result.status.transition.nonce === nonce &&
+        JSON.stringify(result.limits) === JSON.stringify(limits), 'Snapshot limits do not match the requested transition');
+      return result;
+    }, options);
+  }
+
+  #ownerPlan(operation, supplied, options) {
+    const prepared = ownerPlan.checkPrepared(supplied, this.#scope);
+    const guard = operation === 'owner_abort' ? {} : { expected_worker_instance: prepared.input.target_worker };
+    return this.#call({ operation, plan: prepared.reference, ...guard },
+      (value) => ownerPlan.observation(value, this.#scope, prepared.reference, prepared.input), options);
   }
 
   closeFull(input, options) {

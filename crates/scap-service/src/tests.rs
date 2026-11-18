@@ -4,6 +4,7 @@ use super::*;
 fn failure_codes_preserve_authority_semantics() {
     use scap_object::format::{FormatError, Request, Scope, Transition};
     use scap_object_sqlite::Error as Native;
+    use scap_object_store::GcError;
     let receipt = Receipt {
         scope: Scope {
             deployment: 1,
@@ -71,6 +72,42 @@ fn failure_codes_preserve_authority_semantics() {
         (Error::Engine(Native::InvalidSql), "ENGINE"),
     ];
     for (error, code) in cases {
+        // This pattern becomes refutable when core adds a new variant: an
+        // addition must receive a deliberate error-code and fixture update.
+        let (Error::Format(_)
+        | Error::Store(
+            StoreError::Missing
+            | StoreError::Conflict
+            | StoreError::Unknown
+            | StoreError::Invalid
+            | StoreError::Budget
+            | StoreError::Limit
+            | StoreError::Corrupt,
+        )
+        | Error::Gc(
+            GcError::Invalid
+            | GcError::Limit
+            | GcError::Denied
+            | GcError::Unsupported
+            | GcError::Corrupt
+            | GcError::Unknown,
+        )
+        | Error::Sql(_)
+        | Error::Engine(_)
+        | Error::Denied
+        | Error::Lifecycle
+        | Error::Fenced
+        | Error::Conflict
+        | Error::RequestConflict
+        | Error::WindowFull
+        | Error::Closed
+        | Error::Retired
+        | Error::Unknown
+        | Error::Limit
+        | Error::Corrupt
+        | Error::StaleSnapshot
+        | Error::SnapshotExpired
+        | Error::CommittedButUnavailable(_)) = &error;
         assert_eq!(Failure::from(error).code, code);
     }
     let committed = Failure::from(Error::CommittedButUnavailable(Box::new(receipt.clone())));
@@ -382,6 +419,33 @@ pub(crate) fn call(action: wire::Action) -> wire::Call {
 
 pub(crate) fn until() -> Instant {
     Instant::now() + Duration::from_secs(30)
+}
+
+pub(crate) fn named_creation(name: &str, operation: u64) -> scap_object::catalogue::Creation {
+    use scap_object::catalogue::{Caller, Catalogue, CreateOptions, PrepareCreate};
+    Catalogue::new(
+        std::sync::Arc::new(Memory::default()),
+        1,
+        2,
+        100,
+        scap_object::Options::default(),
+    )
+    .unwrap()
+    .prepare(
+        Caller {
+            principal: 3,
+            provision: true,
+        },
+        &PrepareCreate {
+            name: name.into(),
+            operation,
+            expected_name_revision: None,
+            options: CreateOptions::default(),
+        },
+        until(),
+    )
+    .unwrap()
+    .creation
 }
 
 pub(crate) fn sample_config(parent: &std::path::Path) -> serde_json::Value {

@@ -1,25 +1,79 @@
 # 新对象架构实施路线
 
-按PR16从零推进，旧原型与PR17不构成兼容或实现前置条件。
+按 [PR #16](https://github.com/ckanner/scap/pull/16) 推进 SQLite on S3。对象存储是唯一持久权威，
+SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成兼容或实现前置。
 
-| 阶段 | 当前工作与退出条件 |
-| --- | --- |
-| N0 协议与格式 | 已有严格 SCAPOBJ2 格式、有界模型与独立历史判定；主线 #35 为 HEAD4。PR #54 的 HEAD6 生产候选已接通可中止普通操作、多世代复制与持久 GC checkpoint，按新源码单独验收 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读/取消/接管、默认 10 GiB 配额、增量页树与 Session 已实现。#54 的 HEAD6 修复 retained nonce 校验缺口，完成全部新单位、native 故障、原结果、生命周期和 1 GiB 全计算丢失恢复；目标 AWS Standard 与完整阶段退出仍单列 |
-| N2 多库接入 | 鉴权 HTTP/SDK、名称目录、有界 actor、独立控制/恢复、全目录发现、显式 owner 协调、intake/output/HTTP 期限已实现。#54 输出竞争、慢消费者、HTTP discovery、guarded status、owner 故障与固定多库负载全部本地门禁已通过；自动故障探测/controller、完整资源总账、开放到达/长期压力仍待完成 |
-| N3 可持续存储 | HEAD6 core/store/service/SDK 已实现完整复制、单调退休、专用有界 GC 与重启 checkpoint，新单位、真实暂停故障、独立判定与23反例全部完成。PR #55 已提交 Deleted 最后 active generation 的终态退休实现，继续独立验收；显式 retained roots/PITR、增量冷恢复和长期成本收敛仍未完成 |
-| N4 首发 | 真实目标 backend/IAM/故障域、MB/GiB、长尾/热点/唤醒风暴、长运行与性能/恢复/成本 SLO；另行获准后用非关键数据试运行 |
+## 当前阶段
 
-本轮不以原 Raft 的 538 测试或旧 SLO 认证新实现。门禁失败与新发现都保留，
-缺失环境记 NOT_RUN；不将本地兼容后端的容量实测包装为整个阶段完成。
+更新：2026-11-17（纽约；实际运行 UTC 为 11 月 18 日）。HEAD6/7 已在交付基线 `fab8ca0` 中。直接面向 main 的 [PR #65](https://github.com/ckanner/scap/pull/65) 汇集
+#56–#64，并完成本轮生产 self-review 修复、严格覆盖修复和控制面 CI 接入。
+当前源码、命令、实际与 CI 状态以
+[self-review 与 CI 收口](sqlite-s3-self-review-2026-11-17.md)为准。
 
-## 2026-11-10 当前实施顺序
+| 范围 | 当前状态 | 保留的出口 |
+| --- | --- | --- |
+| 组合单位与代码质量 | 冻结 `aab8a22`：stable/nightly 各 887 单位；76 个生产文件四维精确 100%；fmt、严格 Clippy、Node 161 单位及覆盖、HTTP 7/controller 12 通过 | 完整实际与远端 CI 单独判定；历史失败不改写 |
+| N0/N1 权威与提交 | 原 HEAD CAS、完整依赖回读、原结果、native publication、owner fencing、取消及 UNKNOWN 均保留 | AWS Standard 与部署故障域另验；有限本地合同不代表任意容量与云端合同 |
+| N2 多库与身份 | 按库 actor、独立控制/恢复预算、永久启动 marker、单调自动 ID、有限 owner/controller 已实现；新 release 显式 ID10、auto18 通过 | 动态 fleet、路由更新、在线策略、历史身份迁移、持续过载、公平性、硬资源隔离 |
+| N3 保留与恢复 | S1 retained roots 与完整 S2 新 Scope 恢复已实现；新 release S2 7 场景/126 负控通过，源 payload 删除后目标仍独立 | 任意时间 PITR、长期 GC/保留成本、冷恢复优化 |
+| 吞吐与首发 | 有界 S3 idle pool 8 和实际 CPU/对象/连接诊断已有代码与证据；历史 proof 2×2 诊断完成 | 原约 24% 四库下降仍未归因，性能验收未通过；目标负载、AWS、p95/p99 与生产 SLO 未认证 |
 
-当前提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
-最新 HEAD6 `66f452e` 的 632+632 单位、59 文件精确覆盖、新 native/1 GiB、HTTP/资源/GC与负载
-全部本地门禁见[独立新记录](head6-runtime-validation.md)；下述 d60 是已完成但后来发现语义缺口的历史基线。
-PR #54 已承接 HEAD5 运行时组合，冻结 `d60ea98` 完成 580+580 单位、57 个生产文件的
-逐文件四维精确覆盖和新的 native/HTTP/S3/1 GiB 合同。`6e107a1` 只修正 owner/discovery
+当前不能从局部绿色推导整体 merge-ready；所需门禁全部齐备后，以精确 PR head/main
+和最终 tree 判定合入，不修改分支保护，不把本地结果改称远端 CI 通过。
+
+## 接续实施顺序与验收
+
+详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
+
+1. 收口 #65 的新组合 CI、真实进程/S3、独立原始审计与负控，保留每次失败和修正。
+   严格单位门禁已通过；旧 877 单位/8 个零分母的失败属于前一冻结候选。
+2. 性能按完整当前候选与固定工作量判定。历史四样本诊断保留全部负值，能确认观察器
+   成本，不能恢复旧运行没有采集的因果证据。不得通过删回读、降同步或延后 ACK 换吞吐。
+3. 后续动态 fleet、持续过载、公平性、长期资源/GC、group commit、lazy VFS、同库
+   reader pool/MVCC 与任意时间 PITR 分别设计并执行故障合同。S2 与自动编号已实现，
+   不再写成尚未开发，也不扩大成这些未来能力已经交付。
+4. 固定目标 AWS/兼容后端、IAM/密钥、故障域和数字 SLO，执行真实条件写、全计算
+   丢失、长期成本与恢复。Express One Zone 的故障域不能由 Standard checkpoint 改写。
+
+本地活动 `.db/WAL/SHM` 始终私有，S3 仅通过对象 API 承担跨节点权威，详见
+[存储安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、
+[owner 计划](../architecture/accepted-owner-plan.md)、
+[控制器](../architecture/owner-controller-plan.md)与
+[S1/S2 设计](../architecture/retained-snapshot-restore.md)。Turso 的实践与采纳边界见
+[接续设计](../architecture/turso-adoption-next.md)，其基准不能作为 SCAP 的性能证据。
+
+历史报告保留原源码、工具、失败与已取得结果。旧原件缺失不由摘要或当前绿色补足，
+不同候选的测试数不相加；AWS 与生产 SLO 保持 NOT_RUN。
+
+## 历史：2026-11-11 至 12 日组合检查点
+
+PR #59 的早期组合 `fc10287` 汇集 #56 `1d709db`、#57 `df922b95` 与 #58 `4216523`。
+当时 `3b1d50c` 的 native／schema／原结果／生命周期／目录／发现与固定 1 GiB 冷恢复
+报告通过，见[当时的 native 记录](../evidence/sqlite-s3-integration-native-local-2026-11-12.json)。
+`6784258` 修正 S2 模型完成屏障的权限顺序，记录 38 项自测、804 正例／48 负控；
+产品 S2 未开放，见[模型记录](../evidence/sqlite-s3-integration-models-local-2026-11-12.json)。
+
+`e64eb56` 的[固定 controller 矩阵](../../experiments/object-controller-matrix/PLAN.md)
+当时完成 23 项自测、12 项实际历史、独立 oracle 与 31 负控。其 runtime 来源仍为
+`fc10287`，277 项 release 输入相同，57 项 Node/SDK/codec／观察器输入独立绑定；
+原 `73a7140` 的源码绑定审计缺口未被回填，见
+[当时的矩阵记录](../evidence/sqlite-s3-integration-controller-matrix-local-2026-11-12.json)。
+当时的本地负载为单库 C1/C4 5.149/2.822 次每秒、四库 C4 7.206 次每秒、每写约
+18–20 个对象请求，不能跨环境与本轮配对直接比较。
+
+这些历史记录保留原提交、计数和退出码；其中部分原始执行文件未恢复，本轮已按所需
+范围重新采集。下列各历史段中的“精确覆盖／四维覆盖”也仅指当时 checker 与编译器
+已发出的计数，不构成现行严格规则要求的完整分支证明；不能据此绕过本轮 branch 0/0
+阻断。旧失败不改写，新实际不回填旧候选。
+
+## 历史：2026-11-10 实施顺序
+
+以下保留当时的实施顺序；后续合入及本组合状态以上方为准。当日提交和结果见[实施状态](status-2026-11-10.md)及[组合验收](runtime-completion-validation.md)。
+当时 HEAD6 `66f452e` 的 632+632 单位、59 文件覆盖报告、新 native/1 GiB、HTTP/资源/GC与负载
+本地结果见[独立新记录](head6-runtime-validation.md)；覆盖仅对应当时已发出的计数。
+下述 d60 是已完成但后来发现语义缺口的历史基线。PR #54 已承接 HEAD5 运行时组合，
+冻结 `d60ea98` 完成 580+580 单位、57 个生产文件的当时四维计数报告和新的
+native/HTTP/S3/1 GiB 合同。`6e107a1` 只修正 owner/discovery
 反例构造，原实际历史和正向 verdict 不变。旧失败继续保留；不是把失败标记改为成功。
 
 独立审查发现的核心 retained nonce 语义验证缺口，已与 HEAD6 共享 verifier 一起修复，
@@ -40,7 +94,7 @@ GC transport 与 discovery 当时尚未完成组合；`4329f30` discovery actual
 
 ## 历史：2026-11-08 实施顺序
 
-主线已合入 #31/#32，原始失败及精确修正见[历史验收记录](catalogue-actors-validation.md)。本批 #35 的冻结 tree 与发布文件全部相同，416 项单元、47 个生产文件四维精确覆盖、新部署恢复和九个服务组合阶段见[当前验收记录](discovery-recovery-validation.md)。没有将 AWS、生产 SLO 或 N1–N4 整体标记通过。
+当时主线已合入 #31/#32，原始失败及精确修正见[历史验收记录](catalogue-actors-validation.md)。本批 #35 的冻结 tree 与发布文件全部相同，416 项单元、47 个生产文件当时已发出的四维计数报告、新部署恢复和九个服务组合阶段见[该次验收记录](discovery-recovery-validation.md)。这些覆盖数字不补足当前分支测量缺口；当时也没有将 AWS、生产 SLO 或 N1–N4 整体标记通过。
 
 1. [全目录发现方案](../architecture/catalogue-discovery-plan.md)：本批已实现有界原始 LIST/分页、正式全状态发现器、主体绑定 cursor 的 HTTP/SDK 和无需预知名字/Scope 的全计算丢失恢复合同；本地验收按冻结输入归属，普通在线分页不承诺跨 key 快照。
 2. 自动 owner 路由与恢复协调；扩展 actor 的热点、公平性、唤醒风暴和资源压力合同，保留同库串行与控制预留。
@@ -53,7 +107,7 @@ GC transport 与 discovery 当时尚未完成组合；`4329f30` discovery actual
 
 最新核对主线 `d63f41e` 已合入 #28／#29／#30，#31 为正式名称目录开发草稿；此前 #26／#27 已合入，#22／#23 已由 #26 替代。仍开放的 #17 属于已废弃的 Raft 架构，不是对象路线的实现前置。
 
-本地执行目录防护（PR #28）已完成冻结候选 `a11e61e` 的必要本地验收：204 项 Rust 单元、24 个生产文件精确覆盖、真实 S3/原生故障、HTTP/Node 与 1 GiB 恢复，见[完整记录](local-storage-validation.md)。最初环境失联、fmt 与 release 构建失败如实保留；真实挂载、AWS 及完整阶段退出另列。后续十二类生命周期合同已进入 [PR #29](https://github.com/ckanner/scap/pull/29)，修正版 `fe1909b` 的十二场景、完整响应／进程账本、两轮恢复和独立原始审计已通过，见[验收记录](n1-lifecycle-validation.md)。完整 N1 和 AWS 仍有独立门禁。
+本地执行目录防护（PR #28）当时记录冻结候选 `a11e61e` 的必要本地验收完成：204 项 Rust 单元、24 个生产文件的已发出计数覆盖报告、真实 S3/原生故障、HTTP/Node 与 1 GiB 恢复，见[完整记录](local-storage-validation.md)。该覆盖报告不替代现行严格分支证明。最初环境失联、fmt 与 release 构建失败如实保留；真实挂载、AWS 及完整阶段退出另列。后续十二类生命周期合同已进入 [PR #29](https://github.com/ckanner/scap/pull/29)，修正版 `fe1909b` 的十二场景、完整响应／进程账本、两轮恢复和独立原始审计已通过，见[验收记录](n1-lifecycle-validation.md)。完整 N1 和 AWS 仍有独立门禁。
 
 继续顺序：
 

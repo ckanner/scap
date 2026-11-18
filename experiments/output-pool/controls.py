@@ -44,8 +44,64 @@ def response(directory, identifier, change, ledger_name='sdk.jsonl'):
     ledger(directory / ledger_name, alter)
 
 
+STARTUP_CASES = {
+    'worker_missing_readback': 'worker-identity-request-denominator',
+    'worker_wrong_body': 'worker-identity-exact-body',
+    'worker_changed_etag': 'worker-identity-same-etag',
+    'worker_replacement_create': 'worker-identity-absent-only',
+    'worker_wrong_instance': 'worker-identity-exact-key',
+    'worker_after_ready': 'worker-identity-before-ready',
+}
+
+
+def startup_mutation(directory, name):
+    """Change a full original exchange coherently, not only its summary row."""
+    path = '/scap-test/scap-worker/v1/instances/5001'
+    ready = next(r for r in oracle.rows(directory / 'events.jsonl') if r['event'] == 'service_ready')
+    def alter(values):
+        claims = [r for r in values if r.get('path') == path]
+        put = next(r for r in claims if r['event'] == 'object_response' and r['method'] == 'PUT')
+        get = next(r for r in claims if r['event'] == 'object_request' and r['method'] == 'GET')
+        if name == 'worker_missing_readback':
+            values[:] = [r for r in values if r.get('request_serial') != get['request_serial']]
+            serials = {old: new for new, old in enumerate(sorted({r['request_serial'] for r in values
+                                                                 if 'request_serial' in r}), 1)}
+            for row in values:
+                if 'request_serial' in row:
+                    row['request_serial'] = serials[row['request_serial']]
+        elif name == 'worker_wrong_body':
+            wrong = hashlib.sha256(b'SCAP-WORKER-INSTANCE-v1\0' + (5002).to_bytes(8, 'big')).hexdigest()
+            for row in claims:
+                if row['method'] == 'PUT':
+                    row['request_sha256'] = wrong
+                elif row['event'] in ('object_response', 'object_response_delivered'):
+                    row['response_sha256'] = wrong
+        elif name == 'worker_changed_etag':
+            for row in claims:
+                if row['method'] == 'GET' and row['event'] in ('object_response', 'object_response_delivered'):
+                    row['etag'] = '"different-original-readback"'
+        elif name == 'worker_replacement_create':
+            for row in claims:
+                if row['method'] == 'PUT':
+                    row.update(if_none_match=None, if_match=put['etag'])
+        elif name == 'worker_wrong_instance':
+            for row in claims:
+                row['path'] = '/scap-test/scap-worker/v1/instances/5002'
+        elif name == 'worker_after_ready':
+            delta = oracle.time_of(ready) + 1 - oracle.time_of(get)
+            for row in claims:
+                if row['method'] == 'GET':
+                    row['monotonic_ns'] = oracle.time_of(row) + delta
+            values.sort(key=oracle.time_of)
+        else:
+            raise ValueError(name)
+    ledger(directory / 'history.jsonl', alter)
+
+
 def mutate(directory, name):
-    if name == 'wrong_limit':
+    if name in STARTUP_CASES:
+        startup_mutation(directory, name)
+    elif name == 'wrong_limit':
         response(directory, 'tenant-limit-1', lambda value: value['error'].update(code='UNKNOWN'))
     elif name == 'different_principal':
         config = json.loads((directory / 'service-config.json').read_bytes())
@@ -96,7 +152,7 @@ CASES = {'wrong_limit': 'pressure-limit', 'different_principal': 'tenant-princip
     'extra_execute': 'http-denominator', 'cbu_receipt_changed': 'lookup-receipt',
     'hold_already_read': 'slow-consumer', 'missing_publication': 'one-business-head-publication',
     'count_two': 'single-effect', 'recovered_blob_changed': 'large-result-bytes',
-    'commit_after_release': 'pressure-held-during-commit'}
+    'commit_after_release': 'pressure-held-during-commit', **STARTUP_CASES}
 
 
 def run(evidence):

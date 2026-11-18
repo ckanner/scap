@@ -334,7 +334,7 @@ def s3_audit(directory, events, calls, backend):
         need(moment(group['s3_handler_started']) <= moment(request) < moment(group['s3_handler_finished']), 's3-handler-order')
         payload = raw(directory, request['request'])
         payload_integrity(request, payload)
-        call = request_call(request, calls)
+        call = None if request['path'].startswith('/scap-test/scap-worker/') else request_call(request, calls)
         exchange = {'request': request, 'payload': payload, 'call': call, 'group': group,
                     'backend': group.get('s3_backend_response'), 'delivered': False}
         for stage in ('s3_backend_response', 's3_delivery_started'):
@@ -357,6 +357,9 @@ def s3_audit(directory, events, calls, backend):
         exchanges.append(exchange)
     exchanges.sort(key=lambda value: moment(value['request']))
     need(not selection(events, 's3_fixture_error'), 'fixture-network-error')
+    claims = wire.raw_worker_claims(events, exchanges, backend['normal_access_sha256'], check=need)
+    exchanges = [value for value in exchanges
+                 if (value['request']['role'], value['request']['serial']) not in claims]
     heads, mutations, objects = defaultdict(list), defaultdict(list), {}
     accepted = [x for x in exchanges if x['backend'] is not None and x['request']['method'] == 'PUT'
                 and x['backend']['status'] == 200]
@@ -849,7 +852,8 @@ def audit(directory):
          and summary['cleanup_errors'] == [] and summary['error'] is None, 'successful-observation-cleanup')
     return {'schema': 1, 'status': 'PASSED', 'profile': 'explicit-head6-reclamation-native-http-signed-s3-v1',
             'fixture_source_commit': inputs['commit'], 'runtime_source_commit': inputs['runtime_source_commit'],
-            'http_posts': len(calls), 's3_requests': len(exchanges),
+            'http_posts': len(calls), 's3_requests': len(exchanges) + 2 * processes['services'],
+            'database_s3_requests': len(exchanges), 'worker_identity_claims': processes['services'],
             'native_original_sql_acks': len(originals), 'main_original_sql_acks': 260,
             'main_retained_windows': 3, 'original_cancellations': 1, 'cold_original_lookups': 264,
             'copy_closures': copies, 'head_transitions': dict(transitions), 'gc': gc, 'faults': faults,

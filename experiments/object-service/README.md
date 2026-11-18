@@ -38,6 +38,45 @@ build receipt 绑定实际 stable release、所有 Rust/SDK/fixture 输入和工
 
 private fixture 目录另存随机测试凭据、日志和数据库；它从不进入 artifact 上传。通过后删除 private 目录；失败保留以便诊断，summary 明确记录路径和是否删除。进程已停止不等于目录已删除。
 
+### 启动请求与父进程观察时间
+
+worker claim 的下界是 producer 在调用 `Popen` **之前**采样并原样保存的
+`spawn_requested_ns`。`identity.spawn_monotonic_ns` 是 `Popen` 返回后父进程的
+观察时间，用于 owned child 身份和生命周期核对；子进程可以在父进程再次得到调度前
+完成条件创建及精确读回，因此该观察时间不能作为 claim 的下界。
+
+共享 `audit_wire.owned_startup_interval` 要求四个时刻都是正整数，并核对
+`spawn_requested_ns <= identity.spawn_monotonic_ns <= started.monotonic_ns < ready.monotonic_ns`。
+`service_startups` 还要求每个服务唯一的 start/ready 和同一 owned identity；
+raw/closed adapter 按唯一的 `service-*` ID、role 和 incarnation 绑定 readiness。
+原有 claim 的 PUT、交付、GET、精确 bytes/ETag 与 ready 顺序仍逐项检查；真正早于
+`spawn_requested_ns` 的请求仍拒绝。没有 pre-Popen 字段的旧证据不能用较晚观察值补齐，
+也不能通过给历史记录追加推测时间来重新认证。
+
+| 合同 | pre-Popen producer | 独立审计入口 |
+| --- | --- | --- |
+| 基础 HTTP、catalogue | `object-service/run.py::Service` | `service_startups` |
+| owner、isolation、guarded-status | 各自的 `Service` | `service_startups` |
+| discovery、segmented | 各自 `Service` 已保存的 `spawn_requested_ns` | `service_startups` |
+| resource-limits | `resource-limits/run.py::Running` | `worker_startup` → `owned_startup_interval` |
+| reclamation、owner-plan、owner-absence、snapshot、terminal-retirement、controller、controller-matrix | 共享 `object-reclamation-runtime/support.py::Child` | `raw_worker_claims` 或 `closed_worker_claims` |
+
+定向 unit 正控保留“claim 完成早于父观察、晚于启动请求”的合法记录，负控拒绝真正的
+pre-spawn claim、缺失或反转时钟、非 owned 身份和借用 readiness。共享 `Child` 另有
+真实 Python 子进程管道握手：父进程等子进程先报告时钟后才记录 identity，并最终以
+owned `wait4` 回收；它验证 observer 时序，**不计作实际 SQLite/S3 验收**。
+
+### 分段索引的冷恢复进程身份
+
+`segmented_contract.py` 按冻结计划启动六个独立进程，分别使用永久 worker ID
+8871–8876，每次关闭后删除该进程的全部缓存。最初写入的 HEAD owner 保持 8871；后续
+进程只执行有当前授权的 open、query、lookup 和 status，继续检查原始结果及完整冷恢复，
+不会为了重启而删除实例 marker 或重写数据库 owner。
+
+独立 oracle 先核对全部 S3 请求的原字节、签名和完整交付记录，再把每个进程严格对应的
+条件创建与精确读回绑定到其 owned spawn→ready 区间。原始 S3 请求总数包含这 12 个
+启动请求，并另报数据库请求数和 6 次身份 claim；不能按路径前缀跳过未验证请求。
+
 ## 名称目录服务合同
 
 新增 `catalogue_contract.py` 装配同一正式 daemon、正式 `CatalogueClient` 和本机 S3 后端；`catalogue_probe.mjs` 只保存原意图及调用 SDK，不实现目录状态转换。构建完成后另开 evidence 目录：

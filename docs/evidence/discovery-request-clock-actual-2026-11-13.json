@@ -1,0 +1,541 @@
+{
+  "aws_standard": "NOT_RUN",
+  "backend_wait_statuses": [
+    -9,
+    -9,
+    -9,
+    -9
+  ],
+  "build": {
+    "binary": {
+      "path": "validation/build-targets/discovery-clock-service-release/release/scapd",
+      "sha256": "c51b17d514f0fa7e735a20daff7fae7076316f4ced27de6b311eadba43c2bdcd"
+    },
+    "input_count": 278,
+    "native_archives": {
+      "validation/build-targets/discovery-clock-service-release/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    },
+    "receipt_sha256": "dde0e77488d79dc87264d6b59c5104f50cf548cd85caf0a40629bfa790bb8f2b",
+    "source_commit": "642383cbd27e72c940fb565064d5b127e3186f22",
+    "source_sha256": "90caedb492ae277e21f30a5ee1c19476e159b0416cbb695f2b23bc5051e0072a",
+    "source_tree": "d6edf778e2e42cd3c42502bf8af8c111a6848c15",
+    "status": "OFFICIAL_BUILD_AND_SOURCE_VERIFIED"
+  },
+  "cases": {
+    "bounded_natural_continuations": {
+      "fault_denied": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 4,
+        "unchanged_frontier_pages": 0
+      },
+      "fault_head_corrupt_head": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 1,
+        "pages": 4,
+        "unchanged_frontier_pages": 0
+      },
+      "fault_head_missing": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 4,
+        "unchanged_frontier_pages": 0
+      },
+      "fault_missing": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 4,
+        "unchanged_frontier_pages": 0
+      },
+      "fault_missing_truncation": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 4,
+        "unchanged_frontier_pages": 0
+      },
+      "fault_no_progress": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 3,
+        "pages": 5,
+        "unchanged_frontier_pages": 0
+      },
+      "fresh_before_restart": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 1,
+        "pages": 3,
+        "unchanged_frontier_pages": 0
+      },
+      "operator_no_read": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 3,
+        "unchanged_frontier_pages": 0
+      },
+      "original_cursor_positive": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 76,
+        "complete": true,
+        "natural_unknown_pages": 1,
+        "pages": 2,
+        "unchanged_frontier_pages": 0
+      },
+      "reader_revocation": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 2,
+        "pages": 3,
+        "unchanged_frontier_pages": 0
+      },
+      "released_admission": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 1,
+        "pages": 3,
+        "unchanged_frontier_pages": 0
+      },
+      "restart": {
+        "abandoned_final_operations": [],
+        "classified_candidates": 129,
+        "complete": true,
+        "natural_unknown_pages": 0,
+        "pages": 3,
+        "unchanged_frontier_pages": 0
+      }
+    },
+    "deadline_evidence": {
+      "exact_internal_origin": "frozen_production_received_HTTP_plus_5_seconds_minus_1_second",
+      "external_read_bound": "causally_enabling_requests_and_delivery_starts_before_first_S3_handler_entry_plus_4_seconds",
+      "internal_dispatch_timestamp_observed": false,
+      "internal_receive_timestamp_observed": false,
+      "late_request_exception": "one_disconnected_unclassified_final_GET_or_LIST_before_HTTP_reply",
+      "observed_HTTP_roundtrip_under_seconds": 5
+    },
+    "held_running_workers": 2,
+    "hot_and_control_successes_while_blocked": 3,
+    "invalid_cursor_bindings": 8,
+    "observed_response_faults": 6,
+    "resident_hot_query_head_only": true,
+    "seed_ready_names": 131,
+    "steady_latency_progress": {
+      "classified_preexisting_names": 129,
+      "completed": true,
+      "pages": 12,
+      "unknown_pages_with_continuation": 11
+    }
+  },
+  "cleanup_errors": [],
+  "client_phase_count": 26,
+  "client_wait_statuses": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "commands": [
+    {
+      "exit_code": 0,
+      "finished_utc": "2026-11-13T16:57:10.417323+00:00",
+      "name": "source-capture",
+      "seconds": 0.6371880779988714,
+      "started_utc": "2026-11-13T16:57:09.771299+00:00"
+    },
+    {
+      "exit_code": 0,
+      "finished_utc": "2026-11-13T16:57:11.133182+00:00",
+      "name": "official-service-build-verify",
+      "seconds": 0.7102054860006319,
+      "started_utc": "2026-11-13T16:57:10.420431+00:00"
+    },
+    {
+      "exit_code": 0,
+      "finished_utc": "2026-11-13T17:27:58.560577+00:00",
+      "name": "service-discovery-actual",
+      "seconds": 1847.4236435990024,
+      "started_utc": "2026-11-13T16:57:11.135012+00:00"
+    },
+    {
+      "exit_code": 0,
+      "finished_utc": "2026-11-13T17:27:59.051623+00:00",
+      "name": "source-verify-final",
+      "seconds": 0.4746382140001515,
+      "started_utc": "2026-11-13T17:27:58.573583+00:00"
+    }
+  ],
+  "completed_utc": "2026-11-13T17:29:06.550984+00:00",
+  "control_original_history_hashes_match": true,
+  "data_recovery_complete": false,
+  "derived_from": {
+    "bytes": 21719,
+    "path": "validation/discovery-clock-final-summary-642383c.json",
+    "sha256": "598ef783a0169f64afbf0e766a06ad6509b66df2f6d36a57b618553468548d3d"
+  },
+  "fixture_input_count": 278,
+  "fixture_inputs_unchanged": true,
+  "formal_build_verify_passed": true,
+  "formal_source_capture_and_final_verify_passed": true,
+  "http_invocations": 424,
+  "negative_control_count": 32,
+  "negative_controls": [
+    {
+      "name": "false_complete_empty_404",
+      "reason": "S3 failure was turned into successful empty discovery",
+      "rejected": true
+    },
+    {
+      "name": "tampered_cursor_false_success",
+      "reason": "permission/cursor negative falsely succeeded",
+      "rejected": true
+    },
+    {
+      "name": "completed_inventory_omitted_slot",
+      "reason": "cumulative classification count differs",
+      "rejected": true
+    },
+    {
+      "name": "release_before_hot_delivery",
+      "reason": "hot/control/capacity probe did not complete while both LIST workers remained blocked",
+      "rejected": true
+    },
+    {
+      "name": "missing_owned_wait4",
+      "reason": "missing kernel wait4 witness",
+      "rejected": true
+    },
+    {
+      "name": "missing_original_result_recovery",
+      "reason": "native original result denominator changed",
+      "rejected": true
+    },
+    {
+      "name": "replaced_original_cas_condition",
+      "reason": "accepted CAS has no original predecessor version",
+      "rejected": true
+    },
+    {
+      "name": "false_complete_cache_loss",
+      "reason": "cache loss is not real and owned",
+      "rejected": true
+    },
+    {
+      "name": "slow_deadline_discarded_checkpoint",
+      "reason": "expected successful full HTTP response",
+      "rejected": true
+    },
+    {
+      "name": "slow_cursor_reset",
+      "reason": "steady-latency continuation reset or replaced its original cursor",
+      "rejected": true
+    },
+    {
+      "name": "nonresident_hot_query",
+      "reason": "resident hot query performed extra object I/O",
+      "rejected": true
+    },
+    {
+      "name": "missing_request_receipt_clock",
+      "reason": "S3 request is missing its original receipt clock",
+      "rejected": true
+    },
+    {
+      "name": "invalid_request_receipt_clock",
+      "reason": "S3 request has an invalid receipt clock",
+      "rejected": true
+    },
+    {
+      "name": "request_receipt_after_authenticated_log",
+      "reason": "S3 receipt clock follows its authenticated request log",
+      "rejected": true
+    },
+    {
+      "name": "natural_partial_false_complete",
+      "reason": "reader did not receive a genuine partial first page",
+      "rejected": true
+    },
+    {
+      "name": "natural_frontier_skipped_unclassified_key",
+      "reason": "natural continuation advanced past an unclassified name after its original LIST admission",
+      "rejected": true
+    },
+    {
+      "name": "natural_opaque_token_without_progress",
+      "reason": "classified prefix omitted/repeated a visible name or disclosed a READ-denied name",
+      "rejected": true
+    },
+    {
+      "name": "natural_http_deadline_renewed",
+      "reason": "natural discovery page renewed its original five-second deadline",
+      "rejected": true
+    },
+    {
+      "name": "natural_read_cutoff_renewed",
+      "reason": "discovery issued non-final work beyond the external four-second read bound",
+      "rejected": true
+    },
+    {
+      "name": "natural_exact_get_budget_renewed",
+      "reason": "discovery renewed its original LIST/exact-GET budget",
+      "rejected": true
+    },
+    {
+      "name": "metadata_early_get_not_refunded",
+      "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+      "rejected": true
+    },
+    {
+      "name": "metadata_multiple_ambiguous_refunds",
+      "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+      "rejected": true
+    },
+    {
+      "name": "metadata_arbitrary_intermediate_count",
+      "reason": "reported metadata budget differs from exact completed GETs and the single original-deadline tail",
+      "rejected": true
+    },
+    {
+      "name": "late_final_already_classified_get",
+      "reason": "late final operation already contributed to classified progress",
+      "rejected": true
+    },
+    {
+      "name": "late_final_missing_disconnect",
+      "reason": "late final operation lacks explicit disconnected delivery",
+      "rejected": true
+    },
+    {
+      "name": "multiple_late_unconsumed_tails",
+      "reason": "discovery issued non-final work beyond the external four-second read bound",
+      "rejected": true
+    },
+    {
+      "name": "late_response_enabled_another_request",
+      "reason": "causally enabling response exceeded the external four-second read bound",
+      "rejected": true
+    },
+    {
+      "name": "new_work_after_original_http_return",
+      "reason": "S3 request has no authenticated invocation or bounded still-running worker",
+      "rejected": true
+    },
+    {
+      "name": "completed_list_fabricated_full_refund",
+      "reason": "reported LIST budget differs from exact completed pages and the single original-deadline tail",
+      "rejected": true
+    },
+    {
+      "name": "completed_scan_fabricated_unobserved_get",
+      "reason": "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation",
+      "rejected": true
+    },
+    {
+      "name": "completed_scan_fabricated_unobserved_list",
+      "reason": "reported HTTP budget differs from actual S3 and its one uniquely derived logical reservation",
+      "rejected": true
+    },
+    {
+      "name": "coherent_invalid_control_version",
+      "reason": "fixed metadata profile record differs from original authenticated input",
+      "rejected": true
+    }
+  ],
+  "network": {
+    "delivered_response_body_bytes": 12765438,
+    "exact_gets_with_observed_30ms_latency": 1085,
+    "list_requests": 144,
+    "original_backend_response_body_bytes": 12796366,
+    "request_observation_clock": "handler_entry_after_headers_before_authentication_locks_and_trace_io",
+    "signed_backend_requests": 25278,
+    "versions": {
+      "accepted_versions": 931,
+      "ambiguous_http_intervals": 0,
+      "blackholed_before_forward": 0,
+      "causal_constraints": 22285,
+      "conditional_put_responses": 931,
+      "exact_get_body_etag_pairs": 20530,
+      "http_interval_binding": "NOT_REQUESTED"
+    }
+  },
+  "old_failed_report_preserved": {
+    "bytes": 288,
+    "path": "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json",
+    "sha256": "b02af711a7a116cfa78d771a372444a9d6b292d76f14edf3c7e8ec0ebccc9de9"
+  },
+  "original_history_source_hashes": {
+    "discovery-auth.jsonl": "da22eb0653a86b3aadbf7dae52b3c6bc2f4cf7b71a9c1d4fa0f34468bb5800c4",
+    "discovery-calls.jsonl": "fa02770659f9f4aa4f8dd931f3d855903886e5b0a57c45e25792e7d78f09dee7",
+    "discovery-phases.jsonl": "66d7f2adba3dc5e6c61cd6ec514e5be6b281cf13604a96f071878a20f61aa283",
+    "discovery-s3.jsonl": "6a45f26f1d9ce8a878c55e71cce580360ca4edd7763202196982b25185ce32c9",
+    "discovery-source-after.json": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6",
+    "discovery-source-before.json": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6",
+    "discovery-sql-inputs.jsonl": "4b1e2e72fa63e139960d43d5dc1fc91ae6ed516089f788895a7b93fe367be0e4",
+    "discovery-sql-results.jsonl": "25ee6333bb2cd9dbb1274d5c6b1f7cecd67a8c44d4d77d8d6455395b201e1877",
+    "discovery-tools.json": "87e271c03a4bb48694f2e0b5b3dd8f5e19cc5c280997763fbad1c931665c36b3",
+    "http-client-ledger.jsonl": "dfaa8b0dfddf16f80f0078f993d8c76450985b4a5d6371807b0e54a295e729ef",
+    "process-ledger.jsonl": "7791e2985622c21b1c5e72f77ec84d89c9b33aa40fd85b9fa8ed1bc7a3155209"
+  },
+  "original_tool_submission_record": "discovery-request-clock-local-2026-11-13.json",
+  "overall_merge_ready": false,
+  "positive_original_copy": {
+    "http_invocations": 424,
+    "passed": true
+  },
+  "private_fixture_removed": true,
+  "processes": {
+    "all_owned_wait4": true,
+    "backend_children": 4,
+    "sdk_children": 26,
+    "service_children": 3
+  },
+  "production_slo_passed": false,
+  "quiet_window": "DONE_NO_RUNNING_OWNED_COMMAND",
+  "references": {
+    "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json": {
+      "bytes": 288,
+      "path": "validation/b15-service-remainder-revalidation-20261113/gates/service-discovery/actual/discovery-oracle.json",
+      "sha256": "b02af711a7a116cfa78d771a372444a9d6b292d76f14edf3c7e8ec0ebccc9de9"
+    },
+    "validation/discovery-clock-actual-642383c-20261113.driver.stderr": {
+      "bytes": 0,
+      "path": "validation/discovery-clock-actual-642383c-20261113.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/discovery-clock-actual-642383c-20261113.driver.stdout": {
+      "bytes": 804,
+      "path": "validation/discovery-clock-actual-642383c-20261113.driver.stdout",
+      "sha256": "5ebbece506d19b969f1aa2a32385744296a376e14837bc96721e23e3537deec5"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stderr": {
+      "bytes": 0,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stdout": {
+      "bytes": 108,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/001-source-capture/stdout",
+      "sha256": "bacb1ddad80f60f441d2ef847c475e03e99dbfc1c62ccde2ed84c464f166ac77"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stderr": {
+      "bytes": 0,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stdout": {
+      "bytes": 841,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/002-official-service-build-verify/stdout",
+      "sha256": "ab896a754373a6ebae96b3eeac733f3fbd7597af12d2fc945ca4b1dca23adda4"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stderr": {
+      "bytes": 2598,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stderr",
+      "sha256": "a554044400f92325477a0c2e94623f9e28acee699e868c5ec030ed69c1170b8a"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stdout": {
+      "bytes": 16195,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/003-service-discovery-actual/stdout",
+      "sha256": "cea96bd0cd3f8b5f4fbe83c524680d9bc87b88b742f1f284e59fb6546cbbcf2d"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stderr": {
+      "bytes": 0,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stdout": {
+      "bytes": 99,
+      "path": "validation/discovery-clock-actual-642383c-20261113/commands/004-source-verify-final/stdout",
+      "sha256": "063c9f491fa07646a09a07d79c371b2859bff7594af5ce52dc6a647b7d1e58b0"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-oracle.json": {
+      "bytes": 16195,
+      "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-oracle.json",
+      "sha256": "cea96bd0cd3f8b5f4fbe83c524680d9bc87b88b742f1f284e59fb6546cbbcf2d"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-after.json": {
+      "bytes": 31717,
+      "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-after.json",
+      "sha256": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-before.json": {
+      "bytes": 31717,
+      "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/discovery-source-before.json",
+      "sha256": "b5a36263831d9d764eb9f56de5102a1e7fa59d6c8b4722cfb999714c3c3810d6"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/process-ledger.jsonl": {
+      "bytes": 58796,
+      "path": "validation/discovery-clock-actual-642383c-20261113/gates/service-discovery/actual/process-ledger.jsonl",
+      "sha256": "7791e2985622c21b1c5e72f77ec84d89c9b33aa40fd85b9fa8ed1bc7a3155209"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/result.json": {
+      "bytes": 5932,
+      "path": "validation/discovery-clock-actual-642383c-20261113/result.json",
+      "sha256": "6b96533fe940ccc204628f25f968687356455e545fb02524d523cd002fb1405c"
+    },
+    "validation/discovery-clock-actual-642383c-20261113/source-before.json": {
+      "bytes": 194097,
+      "path": "validation/discovery-clock-actual-642383c-20261113/source-before.json",
+      "sha256": "1837a69968879af891f51e52d03d2cc825ad7931db1e35af3a136752506e10c5"
+    },
+    "validation/discovery-clock-command-plan-642383c.json": {
+      "bytes": 5353,
+      "path": "validation/discovery-clock-command-plan-642383c.json",
+      "sha256": "e5979895c5a91b1af86c87548104fa216b0393218da61c14efca0ce63b2fa178"
+    }
+  },
+  "reported_completed_utc_meaning": "Small-report review completion; actual command times are separately recorded in commands.",
+  "schema": 1,
+  "scope_note": "New frozen 642383c source/receipt/observation schema. Original b15 failure remains failed. No raw scan, repeated oracle, duplicate controls or archive performed in this final small-report check.",
+  "service_wait_statuses": [
+    -9,
+    -9,
+    -9
+  ],
+  "source_commit": "642383cbd27e72c940fb565064d5b127e3186f22",
+  "source_files": 730,
+  "source_sha256": "90caedb492ae277e21f30a5ee1c19476e159b0416cbb695f2b23bc5051e0072a",
+  "source_tree": "d6edf778e2e42cd3c42502bf8af8c111a6848c15",
+  "sql": {
+    "identical_lookup_cancel_results": 4,
+    "native_business_readbacks": 3,
+    "original_execute_ack": 1
+  },
+  "status": "PASSED_ORIGINAL_DISCOVERY_ENTRY_AND_32_CONTROLS",
+  "strict_per_file_branch_coverage_closed": false
+}

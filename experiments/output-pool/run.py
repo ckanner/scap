@@ -147,11 +147,14 @@ class Suite:
         self.build.save_receipt(path, config)
         self.log = self.private / 'service.private.log'
         with self.log.open('wb') as out:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen([str(self.args.server.resolve()), str(path)],
                 cwd=self.source, stdout=out, stderr=out,
                 env=dict(os.environ, SCAP_TEST_ACCESS=self.backend.access, SCAP_TEST_SECRET=self.backend.secret))
         self.identity = self.network.process_identity(self.process)
-        self.events.emit('service_started', identity=self.identity, binary=self.tools['scapd'], endpoint=self.endpoint)
+        self.events.emit('service_started', identity=self.identity, binary=self.tools['scapd'], endpoint=self.endpoint,
+                         worker_instance=config['worker_instance'], spawn_requested_ns=spawn_requested_ns,
+                         configuration_sha256=self.build.digest(path))
         bound = time.monotonic() + 20
         while time.monotonic() < bound:
             connection = http.client.HTTPConnection('127.0.0.1', self.port, timeout=.5)
@@ -159,7 +162,7 @@ class Suite:
                 connection.request('GET', '/healthz')
                 response = connection.getresponse()
                 if response.status == 200 and json.loads(response.read(4097)) == {'status': 'alive', 'protocol': 1}:
-                    self.events.emit('service_ready', identity=self.identity)
+                    self.events.emit('service_ready', identity=self.identity, worker_instance=config['worker_instance'])
                     break
             except (OSError, ValueError, http.client.HTTPException):
                 pass

@@ -45,6 +45,10 @@ python3 experiments/object-service/owner_controls.py \
 私有凭据和本地缓存创建在 evidence 的同级独立目录。建议运行时都放在 `/tmp`；
 只在独立审计完成后复制公开 evidence。不得上传私有目录。公开服务配置只含
 bearer 摘要和 S3 环境变量名称，Node 的明文凭据配置留在私有目录。
+目录也可以位于 CI 的 `RUNNER_TEMP` 等本地文件系统；oracle 检查规范化绝对路径、
+固定临时目录名称、正整数 device/inode，并绑定原创建与删除身份；cache 配置与原
+服务启动记录核对后，还必须精确等于该私有目录的 `cache-<worker>` 子目录。
+不会硬编码 `/tmp` 或用复制后的 evidence 位置替代原运行目录。
 
 ## 固定分母
 
@@ -117,15 +121,24 @@ HEAD、不清除服务内部状态、不延长 deadline。cache 目录消失仅�
 | `owner-summary.json`、`owner-oracle.json` | 编排完成状态与重新计算的独立结论；不能替代上述原始记录 |
 
 独立审计须重算所有 SQL 指纹、原 receipt/result、完整依赖闭包、HEAD 状态变化与
-同 ETag 竞争，绑定每个 S3 请求到唯一原 HTTP 调用的时间区间和 worker。签名证据
+同 ETag 竞争，绑定每个数据库业务 S3 请求到唯一原 HTTP 调用的时间区间和 worker。签名证据
 使用实际 executable 身份和 access-key 摘要；另保留直接向真实后端发送未签名 GET
 得到 403 的原响应，不能仅凭配置宣称后端启用了认证。
+
+永久 worker marker 的 PUT/GET 属于启动协议。shared verifier 先逐一证明精确身份、
+32 字节 wire hash、Absent 创建、同一 ETag、完整交付与启动/ready 区间；完整原始正文
+和签名复核仍覆盖这些物理交换。只有已认证的原 serial 集合才与数据库业务分离。
+proxy 总数、backend 生命周期与清理分母使用全部物理请求，不能拿过滤后的业务总数
+核对，也不能直接加一个常数补齐。报告单列 `physical_s3_requests`、`startup_s3_requests`，
+原 `s3_requests` 保持数据库业务含义。所有 HTTP、权限、原结果和故障判据保持原范围。
 
 所有 fault 都是一次性的。成功路径不允许 gate 过期、自动释放、未观察退出、
 重复原操作、跨 endpoint token 或遗漏调用。清理记录须包含原目录身份、全部 owned
 wait4 之后的删除顺序和立即观察到的不存在；runner 在最终通过前再次检查当前
 目录确实不存在。离线审计只解释冻结的历史证据，不依赖另一机器上同名路径的
 偶然存在与否。负对照从完整成功证据复制后篡改不同安全边界，必须被独立审计拒绝。
+原 24 个负对照保留；新增第 25 项把创建/删除路径一致改成另一个合法的私有目录，
+但保留原 daemon cache 配置，必须命中「cache 未属于被清理的原目录」这一关系检查。
 
 ## 结论边界
 

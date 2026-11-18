@@ -132,6 +132,62 @@ fn total_tenant_and_unknown_name_inspection_caps_cannot_be_bypassed() {
     }
 }
 
+#[test]
+fn expired_admission_does_not_reserve_a_tenant_name_or_intake_slot() {
+    use crate::intake::{Class, Intake};
+    let mut queue = Queue::default();
+    for name in [Some("new"), None] {
+        let (mut expired, receiver) = job(1, name);
+        expired.deadline = Instant::now();
+        assert_eq!(queue.push(expired, limits()).unwrap_err().code, "DEADLINE");
+        assert!(receiver.blocking_recv().is_err());
+        assert!(queue.tenants.is_empty());
+    }
+    let scheduler = Scheduler::new(limits(), factory()).unwrap();
+    let intake = Arc::new(Intake::new(Class::Catalogue, 4, 4096, None).unwrap());
+    assert_eq!(
+        scheduler
+            .submit_reserved(
+                principal(),
+                call(Some("new")),
+                Instant::now(),
+                intake.acquire(&principal()).unwrap(),
+            )
+            .unwrap_err()
+            .code,
+        "DEADLINE"
+    );
+    assert_eq!(intake.available_permits(), 4);
+    assert!(scheduler.lane.queue.lock().unwrap().tenants.is_empty());
+    assert_eq!(
+        scheduler
+            .submit(principal(), call(Some("new")), until())
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap()["name"],
+        "new"
+    );
+}
+
+#[test]
+fn catalogue_admission_mutex_wait_cannot_extend_the_original_deadline() {
+    let scheduler = Arc::new(Scheduler::new(limits(), factory()).unwrap());
+    let queue = scheduler.lane.queue.lock().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let request = scheduler.clone();
+    let (entered, started) = mpsc::sync_channel(1);
+    let thread = std::thread::spawn(move || {
+        entered.send(()).unwrap();
+        request.submit(principal(), call(Some("new")), deadline)
+    });
+    started.recv_timeout(Duration::from_secs(5)).unwrap();
+    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+    drop(queue);
+    assert_eq!(thread.join().unwrap().unwrap_err().code, "DEADLINE");
+    assert!(scheduler.lane.queue.lock().unwrap().tenants.is_empty());
+}
+
 struct Echo;
 impl Worker for Echo {
     fn execute(&mut self, _: &Principal, call: Call, _: Instant) -> Result<Value, Failure> {
@@ -223,7 +279,7 @@ fn closed_waiters_and_expired_queue_entries_never_execute_or_retry() {
         fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
             if self.count.fetch_add(1, Ordering::SeqCst) == 0 {
                 self.entered.send(()).unwrap();
-                self.wait.recv().unwrap();
+                self.wait.recv_timeout(Duration::from_secs(5)).unwrap();
             }
             Ok(json!(true))
         }
@@ -248,8 +304,9 @@ fn closed_waiters_and_expired_queue_entries_never_execute_or_retry() {
             .submit(principal(), call(Some("a")), until())
             .unwrap(),
     );
+    let deadline = Instant::now() + Duration::from_secs(1);
     let expired = scheduler
-        .submit(principal(), call(Some("a")), Instant::now())
+        .submit(principal(), call(Some("a")), deadline)
         .unwrap();
     let last = scheduler
         .submit(principal(), call(Some("a")), until())
@@ -261,6 +318,7 @@ fn closed_waiters_and_expired_queue_entries_never_execute_or_retry() {
             .code,
         "BACKPRESSURE"
     );
+    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
     release.send(()).unwrap();
     first.blocking_recv().unwrap().unwrap();
     assert_eq!(

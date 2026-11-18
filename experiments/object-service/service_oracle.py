@@ -12,7 +12,7 @@ import signal
 import sys
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges, object_versions, parse, require, result
+from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges, object_versions, parse, require, result, service_startups
 
 PHASES = ("initialize", "concurrent_create", "unknown_write", "resolve_unknown", "blackhole", "takeover", "recover")
 FILES = ("http-client-ledger.jsonl", "process-ledger.jsonl", "inputs.jsonl", "data-inputs.jsonl",
@@ -320,8 +320,9 @@ def results(directory, calls):
             "unknown_execute_attempts":1,"unknown_original_result_preserved":True,"rows_by_tenant":{"7":9,"8":1}}
 
 
-def network(history,calls):
-    requests,responses=object_exchanges(history,phases=PHASES,blackhole_phases=("blackhole",))
+def network(history,calls,facts=()):
+    startups=service_startups(facts)
+    requests,responses=object_exchanges(history,phases=PHASES,blackhole_phases=("blackhole",),startups=startups)
     bindings={}
     for serial,request in requests.items():
         matching=set()
@@ -355,7 +356,8 @@ def network(history,calls):
         require(len(witnesses)==1,"successful execute missing unique original durable HEAD")
     uncertain=[(request,response,head) for request,response,head in accepted if request["phase"]=="unknown_write"]
     require(len(uncertain)==1 and uncertain[0][1]["suppressed"] is True,"UNKNOWN lacks real accepted HEAD/response loss")
-    return {"s3_requests":len(requests),"accepted_head_publications":len(accepted),"head_format":6,"result_format":2,
+    return {"s3_requests":len(requests)+2*len(startups),"database_s3_requests":len(requests),
+            "worker_identity_claims":len(startups),"accepted_head_publications":len(accepted),"head_format":6,"result_format":2,
             "object_version_audit":versions}
 
 
@@ -386,7 +388,7 @@ def audit(directory, *, require_build=True, require_artifacts=True):
     output={"schema":1,"status":"partial" if build.get("verification_scope")=="archived_source_and_cargo_only" else "passed",
             "http_calls":len(calls),"build":build,"process_build_binding":process_build_binding(facts,build),
             "processes":processes(facts,http),
-            "results":results(directory,calls),"network":network(rows(directory,"history.jsonl"),calls)}
+            "results":results(directory,calls),"network":network(rows(directory,"history.jsonl"),calls,facts)}
     output["source_sha256"]={name:hashlib.sha256((directory/name).read_bytes()).hexdigest() for name in FILES}
     return output
 

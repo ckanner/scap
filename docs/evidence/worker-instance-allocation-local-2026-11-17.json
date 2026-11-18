@@ -1,0 +1,750 @@
+{
+  "boundaries": {
+    "all_prior_native_network_transport_contracts_for_this_candidate": "NOT_RUN",
+    "aws_s3_standard": "NOT_RUN",
+    "cross_bucket_or_disaster_restore": "NOT_RUN",
+    "database_owner_handoff_automation": "NOT_IMPLEMENTED_BY_THIS_CHANGE",
+    "deployment_requirements": [
+      "Initialize once with a proven upper bound on all historical identities; zero is only for a proven fresh authority.",
+      "Stop and prevent legacy unregistered writers from restarting before rollout.",
+      "Preserve permanent markers and counter across IAM, lifecycle, backup, restore and payload GC.",
+      "Runtime counter writes must be conditional CAS; never delete, reset, roll back or unconditionally replace the counter.",
+      "UNKNOWN and post-claim failures burn reservations; no adoption or recycling.",
+      "Static OwnerController and route registry must consume the new assigned identity; old expected_worker_instance correctly returns TARGET_MISMATCH.",
+      "Database ownership still requires the existing explicit current-HEAD/owner-plan protocol.",
+      "Direct trusted Rust embedding callers retain top-level lifecycle and authority-binding responsibilities."
+    ],
+    "dynamic_fleet_registration_and_route_refresh": "NOT_IMPLEMENTED; NOT_RUN",
+    "historical_identity_migration": "NOT_RUN",
+    "local_backend_does_not_qualify_aws": true,
+    "production_throughput_capacity_cost": "NOT_RUN",
+    "target_iam_enforcement": "NOT_RUN",
+    "whole_workspace_gate": "FAILED; original seven empty branch denominators remain"
+  },
+  "build": {
+    "backend_sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+    "command": "cargo build --locked -p scap-service --bin scapd",
+    "coverage_target": "Dedicated auto-identity-coverage-target; not shared with other worktrees",
+    "native_dependencies": "Bound by frozen source and Cargo.lock",
+    "profile": "dev / unoptimized + debuginfo",
+    "runtime_profiles_included_in_unit_coverage": false,
+    "scapd_sha256": "45150afcb6c6dca2676f835db1980739b04f0b97d250dfe281a48ef9bd4f97c3",
+    "stable_target": "Dedicated auto-identity-target; not shared with other worktrees"
+  },
+  "candidate": {
+    "base_local_commit": "408b3fc54ef9f361195e576922087f26317cc526",
+    "local_tested_commit": "cd18e3b948ac16404d8f8f86ab1a7238aa728c07",
+    "pull_request": "https://github.com/ckanner/scap/pull/62",
+    "remote_and_local_tree": "d9126eb38f2a06d57a1d59ac2d47d4b01d62422e",
+    "remote_code_commit": "b58e62567731e4b4e888f65088201d6a245956b8",
+    "report_scope": "These two reporting files are added after final verification and are not members of the frozen code tree.",
+    "source_fingerprint_sha256": "0d48dd888a14c2044c1022dba5903dd099ed2df50baaceae193d61e37b47e781",
+    "source_manifest_files": 746,
+    "source_manifest_sha256": "a8ac6f4e55023cdbbbc75d81ec31952a1f02d89cb186f6b1b0c446158fad7fc6",
+    "source_verified_unchanged_after_gates": true,
+    "tree_equality_verified_by_publisher": true
+  },
+  "candidate_files": {
+    "crates/scap-service/README.md": {
+      "bytes": 16952,
+      "git_blob": "f0d15be0121ae490132e6bab4a2574cf7c744a02",
+      "sha256": "da27f3a08c8277440afae37cd543350ca7f5b6dd324f288e14c4a912b532d11c"
+    },
+    "crates/scap-service/docs/accepted-owner-plan.md": {
+      "bytes": 8281,
+      "git_blob": "62c301a0d071f63a4e5d59998adc02f0a3ab828c",
+      "sha256": "59ba498237a2bc3d58a10e5c47bd06f2951bd0e0eeff92fe463de7c0d929808c"
+    },
+    "crates/scap-service/src/config.rs": {
+      "bytes": 16288,
+      "git_blob": "798cd3d46b1ec969b274760c3eb82ed57b50a483",
+      "sha256": "d477d79fc0c432f5767bc1fb3d6dc0174248ef96c038136deab2d9377e31e75c"
+    },
+    "crates/scap-service/src/config/tests.rs": {
+      "bytes": 26982,
+      "git_blob": "964e23b12352aeb91766180ab01524930eca0fd2",
+      "sha256": "58ebb481ff315585d86a9e7b973e5b7368fe09b516ba5720ce46387ea898e5c2"
+    },
+    "crates/scap-service/src/daemon.rs": {
+      "bytes": 14595,
+      "git_blob": "146959c3429d92057314e62d8b410ddcbdd8f5aa",
+      "sha256": "5b4552efd3c8f321e3c224b8aaf1aa37a460a14c97a2a056a5944edb495f1d67"
+    },
+    "crates/scap-service/src/daemon/tests.rs": {
+      "bytes": 42384,
+      "git_blob": "44a411e5688befbacdfa8f0bb6b8eb0a06f82d58",
+      "sha256": "424277462a02b753ef341244b2297c1054d8c7430a2a650a94fdf4307280c37f"
+    },
+    "crates/scap-service/src/daemon/tests/startup_s3.rs": {
+      "bytes": 5052,
+      "git_blob": "a97eb12804ae866eab1920e242dab9a8f2f4a465",
+      "sha256": "9cfc73e7a2aafd6975730b5819b64f22602f6eda488259c33455dd5488afb037"
+    },
+    "crates/scap-service/src/discovery/tests.rs": {
+      "bytes": 17296,
+      "git_blob": "1da691f8621b1ee5db8ef30015d45f47cf94d779",
+      "sha256": "0b56f86485d3f50674693c03b4ad148114ce56fbc3edf704fdc12e7599ceecf6"
+    },
+    "crates/scap-service/src/http/discovery/tests.rs": {
+      "bytes": 9046,
+      "git_blob": "de58505f24d33e5b8ca80423013608821f8106a6",
+      "sha256": "4960b92d1443a25a78530f7d8a314b781ad9c26890ee5333c6727cf4c62f7021"
+    },
+    "crates/scap-service/src/instance.rs": {
+      "bytes": 6095,
+      "git_blob": "b38b8215247aa62ad1312aa5aa29666bd28d5aa0",
+      "sha256": "3f543d34fe7b54dc620cef91efc0ff42018d296b7885ce34f622c278b1fe176f"
+    },
+    "crates/scap-service/src/instance/tests.rs": {
+      "bytes": 17684,
+      "git_blob": "4f6a659866b109f716be361754bcd3f91545eeb7",
+      "sha256": "3c4475d9900c4a1966b2197d6c1bf9bdb1b4b6ad8317def85c053016674b126f"
+    },
+    "docs/architecture/worker-instance-allocation.md": {
+      "bytes": 10213,
+      "git_blob": "394074d527562a8c97c102f07cd9a9f997d20ba8",
+      "sha256": "f1abe1a4002f3a89a1cfbd8ccd679249123f99593d9c97b718169cabd6546ede"
+    },
+    "docs/architecture/worker-instance-claim.md": {
+      "bytes": 8747,
+      "git_blob": "71420a8708ec1c52c1233b9b08097721d638b705",
+      "sha256": "fe237a6c8cd33b457511dd5e62dc2adca38baa7cc31a114aa8d305ffc1cd8de0"
+    },
+    "experiments/worker-instance/README.md": {
+      "bytes": 3396,
+      "git_blob": "b3f4c084a5e5971d91de7e12e426d1aed8348910",
+      "sha256": "583bd125eef3f67caf4dc24c449dbfd0c376c87858c6162052814831c04aa1b3"
+    },
+    "experiments/worker-instance/auto.py": {
+      "bytes": 18596,
+      "git_blob": "37b5545eaf3c21741488efe80a910e9017936211",
+      "sha256": "8463ecb4083d9bb2fafc78cc876a2daf010f66d3709f690277eec529462a4357"
+    }
+  },
+  "raw_evidence_sha256": {
+    "auto-identity-build-final3.log": "22e0df986057b9ba5be07526ac5fb348862a3dedef42108383cc3e088acbb889",
+    "auto-identity-build-preflight.log": "c55df6d9a285019177d0c123dc6abe001fac655a4989dc21bf34a70655eb72c2",
+    "auto-identity-clippy-final3.log": "2aeb228b9c5a5cfbb4bfadcedc733bb942dd76707056b83311acb329ba414d7a",
+    "auto-identity-coverage-final.log": "9e2e676f08007e2e39793f1a31bc97899533330564104a5ceb19366ad2d11ccb",
+    "auto-identity-coverage-final3.log": "131ac6239517bd30bf3188821f6e26321956d1a0e25f39d30d791a8bf0be6463",
+    "auto-identity-coverage-gate-final3.log": "baa45933a85c2b28cd93a25edbd19ef6ac036a6237dbcd50ffa40f5dcef4a64b",
+    "auto-identity-coverage-gate-first.log": "baa45933a85c2b28cd93a25edbd19ef6ac036a6237dbcd50ffa40f5dcef4a64b",
+    "auto-identity-explicit-runtime-final3.log": "43c67ea58b6ec85430790d46868602213653c73f6095bc7bb439874c9b397a67",
+    "auto-identity-explicit-runtime-final3/history.jsonl": "d251d3041867b1b93bae8c08483861e7e22ea2c40aa0937527cbf4b8182547ad",
+    "auto-identity-explicit-runtime-final3/result.json": "4a10612d48ab13ba0e908be03a101736127be24ef915f6f027008e46892728af",
+    "auto-identity-format-final3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "auto-identity-repo-final3.log": "2dc0a63340dc21c3b0a1a240e0b45fa4c7b2805b269b21c912d40c20c54507f3",
+    "auto-identity-runtime-final.log": "c9fb29375b77469bb4269859a2b0b3eba6ceade74a652d19f12fa73c4746bf8b",
+    "auto-identity-runtime-final/history.jsonl": "1db828e283eb7ce1e066132fcc5a37c53d0bccb4658ebc684a3980236feada54",
+    "auto-identity-runtime-final/result.json": "2b336f5ee63c6ceec27eaa04ce270e5b89095a38b70651f115ec0074add6e390",
+    "auto-identity-runtime-final3.log": "b230c0fbe70a6057bef047c412f02ef75098080cb0721fcd05e90f3c34f08160",
+    "auto-identity-runtime-final3/history.jsonl": "f9841e00cf33f319cfb8a6721f41e58d828ae9a0a17dd22ef1a80ac6db50df0a",
+    "auto-identity-runtime-final3/result.json": "b59f9518eae14c37a3670976ea986de43bbb7f665ed60ab5d71c60475674baac",
+    "auto-identity-runtime-preflight.log": "8bca76f49d203a4b1f3640b3f80b6be52c5797fcdc196e36af96e100f67035f0",
+    "auto-identity-runtime-preflight/history.jsonl": "a5ed85519228af8f4c807067e2c749903bd155765433ee054f33e2a34011d1df",
+    "auto-identity-runtime-preflight/result.json": "dbb95cbfa95e7cc3b67c38fbc79c85e5b2928a80394e34c82cc2e433b9cf2aad",
+    "auto-identity-runtime-preflight2.log": "d810e953b4160e8f3a0de9b6eddf60f400dbd4b22ac86e3509d8b7572405fe0b",
+    "auto-identity-runtime-preflight2/history.jsonl": "52f94e6e9ac8f3b446302db16d4c1e63291fda364b910232f143d73f534b7428",
+    "auto-identity-runtime-preflight2/result.json": "dbb95cbfa95e7cc3b67c38fbc79c85e5b2928a80394e34c82cc2e433b9cf2aad",
+    "auto-identity-runtime-preflight3.log": "155366abc3904817f7b7d8de5c6c0bce4b17f5ff5fd2b33991eaf1ddf6a31acb",
+    "auto-identity-runtime-preflight3/history.jsonl": "d1c75f7f92ab4cd76c668421fe2a558afb3968bf6b4f998f49d3fd66a8625579",
+    "auto-identity-runtime-preflight3/result.json": "dbb95cbfa95e7cc3b67c38fbc79c85e5b2928a80394e34c82cc2e433b9cf2aad",
+    "auto-identity-runtime-preflight4.log": "e653b360b03cd4b29b506f4629bbf2ba71de8dcfdb27617ab1bc4b227b2883db",
+    "auto-identity-runtime-preflight4/history.jsonl": "b3f1c76d8d672e180e853ea0f61a6a9f16c03eb9f74057c3e0d3a380cf7e0103",
+    "auto-identity-runtime-preflight4/result.json": "dbb95cbfa95e7cc3b67c38fbc79c85e5b2928a80394e34c82cc2e433b9cf2aad",
+    "auto-identity-seaweed-master-scaffold.txt": "f4a2dbb99783bb7785f64618c35a6a34cc76110ddc3fb68221428988d2394ef9",
+    "auto-identity-source-candidate.json": "48cac7a1da4dee500344655f7102bc734d2defa3d4554c559504ca49f374810c",
+    "auto-identity-source-final.json": "86a9904ccab9ce6e9914771cf657dd617c0291d289c045b9bf146805ff48def0",
+    "auto-identity-source-final2.json": "acf6a2c97d22169a289aafe940c93b2a7546e3d38d53afedcbe88bf9cb16aec1",
+    "auto-identity-source-final3.json": "a8ac6f4e55023cdbbbc75d81ec31952a1f02d89cb186f6b1b0c446158fad7fc6",
+    "auto-identity-source-verify-final3.log": "f536ae81c62690aee1b6171ec5734bb9c9965562bb308b2e09dc2703939dc44a",
+    "auto-identity-tools-final3.json": "194f3540bcf0ce772fe371afb0c5383b09b87fc1782b5e7bd011c3cfbf9131bd",
+    "auto-identity-unit-coverage-final.json": "7ca7dac109f95b96b5d15db7c4d16d0ad9b606534d6b65606da5dac64ca39c96",
+    "auto-identity-unit-coverage-final3.json": "ea1ccc4667b43e2538e2ffea69059d891e94c1f05862d55e29936f84f99e4284",
+    "auto-identity-unit-preflight.log": "dff6130325b76f34e7f0f89d7ea8d4197e21b4b5ecbd2177b8a7ee12e23e6e56",
+    "auto-identity-workspace-unit-final.log": "dd799507020d06e655fc29054e5ec095acef7f8c1eb1d4aa2eee55f8d0ecedc4",
+    "auto-identity-workspace-unit-final3.log": "ffd711592e788cd330195faf899a2d9158f47e4511d73b3145ca22cdd8bc53e2"
+  },
+  "retained_failures": {
+    "development_runtime_attempts": [
+      {
+        "attempt": "auto-identity-runtime-preflight",
+        "provenance": "Retained development failure, not a final frozen-candidate pass; harness evolved between attempts.",
+        "reason_and_resolution": "Native API fixture omitted x-scap-admission; status returned INVALID before its intended guard check. Fixed required per-operation headers.",
+        "status": "FAILED",
+        "verified_cases_before_failure": 4
+      },
+      {
+        "attempt": "auto-identity-runtime-preflight2",
+        "provenance": "Retained development failure, not a final frozen-candidate pass; harness evolved between attempts.",
+        "reason_and_resolution": "Oracle consulted disabled in-memory capture rather than persisted request ledger. Fixed the observation source; no product behavior changed.",
+        "status": "FAILED",
+        "verified_cases_before_failure": 0
+      },
+      {
+        "attempt": "auto-identity-runtime-preflight3",
+        "provenance": "Retained development failure, not a final frozen-candidate pass; harness evolved between attempts.",
+        "reason_and_resolution": "Failure oracle incorrectly required an old SIGKILL cache to be empty. Fixed to require unchanged before/after cache snapshot for failed startup.",
+        "status": "FAILED",
+        "verified_cases_before_failure": 9
+      },
+      {
+        "attempt": "auto-identity-runtime-preflight4",
+        "provenance": "Retained development failure, not a final frozen-candidate pass; harness evolved between attempts.",
+        "reason_and_resolution": "Two-slot inherited backend could not provision the second bucket; allocator correctly failed UNKNOWN. The fixture later provisions readiness and bounded additional capacity.",
+        "status": "FAILED",
+        "verified_cases_before_failure": 15
+      },
+      {
+        "attempt": "auto-identity-runtime-final",
+        "provenance": "Retained development failure, not a final frozen-candidate pass; harness evolved between attempts.",
+        "reason_and_resolution": "Twelve slots still could not provision the third bucket. Pinned master scaffold copy_1=7 requires capacity for three collections; final fixture has 24 slots, 64 MiB each, no preallocation.",
+        "status": "FAILED",
+        "verified_cases_before_failure": 17
+      }
+    ],
+    "first_nightly_unit": {
+      "passed": 808,
+      "scope": "Earlier d5ed9ce candidate, retained separately; final report uses cd18e3b fresh coverage.",
+      "status": "PASSED"
+    },
+    "initial_parallel_stable_unit": {
+      "cause": "Existing HTTP discovery test immediately reacquired admission after body decode while the plain worker could still own the reservation.",
+      "final_rerun": "Unchanged full workspace command passed all 808 units.",
+      "log": "auto-identity-workspace-unit-final.log",
+      "resolution": "Test-only helper joins actual completed workers; while body is retained admission must still reject, after body release it must succeed. The later DENIED worker is also joined before next requests. No sleep, product change, weaker assertion, or filtered rerun.",
+      "status": "FAILED"
+    }
+  },
+  "rust_source_sha256": {
+    "crates/scap-object-sqlite/src/alter_tests.rs": "e6457e14e6da2ba86e76244814b4e4abcec97b75691d9eb502b3a2c5482a6604",
+    "crates/scap-object-sqlite/src/capacity_tests.rs": "d653bc932c2313f7e2ca7d2fca9cd4b8b548ee2379f93b8f1d17d37f6d69338c",
+    "crates/scap-object-sqlite/src/config.rs": "0e271120f953cc9683470f5ccf3f59f2e839349b014b0a3790835dacd5ee12ee",
+    "crates/scap-object-sqlite/src/config_tests.rs": "7095ab4d504565c41adf1c1b9b49a44671eeec9885416a531b1c4555feeed668",
+    "crates/scap-object-sqlite/src/file.rs": "eb063d60e87106c17c8e8532a3a87c090a6172ef2462bba7aa5f5af973ff7932",
+    "crates/scap-object-sqlite/src/file_tests.rs": "f72b221e396dd17547e4e2414b4e29d952489990c413792ecdb297f618752d45",
+    "crates/scap-object-sqlite/src/gate.rs": "eb4130f7c0835215fab91f21eecee9ba67d7743a1386ab5922be715bc73cc67d",
+    "crates/scap-object-sqlite/src/image.rs": "0be66ec664a15338cbe89ab71a5ca3f20d070c70b9229e6ed6ab4782a318ff42",
+    "crates/scap-object-sqlite/src/image_tests.rs": "282f442d5434794490331c6122b8f718738a82d8d485e23ee862b3d8520da96b",
+    "crates/scap-object-sqlite/src/lib.rs": "ccf265866e1fdf8761ee331c5fe28a7a7c831a9b59aa1072377bea18449dbcbb",
+    "crates/scap-object-sqlite/src/query.rs": "b6680854aa1f120a6e5a199a5cea23269ed30f154f17a114c9851f0bf7669377",
+    "crates/scap-object-sqlite/src/query_tests.rs": "b63155ff74152fa0d034472e58e3d10899db449a3146f589c98741b20ad2b819",
+    "crates/scap-object-sqlite/src/result_memory_tests.rs": "b237a2394aa66dbca696100a987f7c7e609cb361b4b4878a57270ed073901577",
+    "crates/scap-object-sqlite/src/sql.rs": "9c164bd72134118239da03142c6d08b49aeab77b70053c234d9ea3f8ac282df3",
+    "crates/scap-object-sqlite/src/storage.rs": "7f852057de3797725f29f95b73cdbdf9bf81cc07aa3a26933312057eb1813782",
+    "crates/scap-object-sqlite/src/tests.rs": "615c0ea345a988513e8af78b00bc484baf5f4ff708109189b8bab3df0ad8905c",
+    "crates/scap-object-store/src/gc.rs": "c16af1daeb1896dd57db18d24050c156427005464bfce57f981943c356fcc1ac",
+    "crates/scap-object-store/src/gc_tests.rs": "be813a44afe60ccd8bb76514e4cf2015f185d94bfca71cd99de11ca71d922849",
+    "crates/scap-object-store/src/gc_xml.rs": "bc4ef60668dc40bde643a6ad477d443de3c871bd1240b78c86458f4466fa0228",
+    "crates/scap-object-store/src/gc_xml_tests.rs": "2645ad8eb9a7190d7bfe05a5a3dd4bf4051211f8965895529b37ca23812d5c8c",
+    "crates/scap-object-store/src/lib.rs": "84b63ccb39c14e2e8c457d1868036570efbcd9bbe23279f59cf2a438dd5f03fd",
+    "crates/scap-object-store/src/listing.rs": "7324a3802e5f62e23b36ececb1e4cca0bd681084dcdd4e258a399171fe7779dd",
+    "crates/scap-object-store/src/listing_guard.rs": "216d0acf7425faee9de01646576adde4e9d6dde6e10a1b8407af978d031114c8",
+    "crates/scap-object-store/src/listing_guard_tests.rs": "a54052bcf20f82523bb0b356a6ca35172eaf3170bfeabb69e444b33db1a2d2d9",
+    "crates/scap-object-store/src/listing_tests.rs": "6fb3f6be7ba9f882c417f4ffb859f49ad044a961a5adfe2aff0fd51ace91ba5d",
+    "crates/scap-object-store/src/listing_xml.rs": "ab547a73cb0dad46e269a0ecd1f86a7887d7d0a5ccf9cf71c071de04097eefcc",
+    "crates/scap-object-store/src/listing_xml_tests.rs": "2ddab27b8208fda0cef0b24f078cefa3998749e978bcb359c5142f1fab5b3857",
+    "crates/scap-object-store/src/tests.rs": "a9d38b1d8810301dd3a02e91c8b37b34df4f9c4e1e2b42c67883e29d9ad48310",
+    "crates/scap-object/src/catalogue/boundary_tests.rs": "5ae54d819af03acf5977105ec8c0a8cb7b7a4f08bc0fd94541b8d8106dc8ec2c",
+    "crates/scap-object/src/catalogue/control.rs": "252513f669e88fb1eec3ebd7c700ba83e68791a11e81f6d1b8baa30506dd723c",
+    "crates/scap-object/src/catalogue/control_boundary_tests.rs": "de83fb7a1651b4f102df350142071af130b01843b6e40808bc58667444035c68",
+    "crates/scap-object/src/catalogue/create.rs": "86614901b0f4cc9cecf77e2591bca4e99c68b3f7cd01541a2a1a1b1ceef615fa",
+    "crates/scap-object/src/catalogue/create_boundary_tests.rs": "e6c86caff58e34193af53c3199ba65602b3a922b9c48de7939418a3814412831",
+    "crates/scap-object/src/catalogue/discovery.rs": "93005f12a3234c3a1fc2a3656aaac3a86f4605bed4840dcc94492c31a85afe4d",
+    "crates/scap-object/src/catalogue/discovery_budget.rs": "ed2a8bd91615dd6ddade16e9a35078f3f389e20d77b5851a84ec0de59f2cfa4d",
+    "crates/scap-object/src/catalogue/discovery_names.rs": "d34043b9ebf8bfebee4b421255f84874ce70ca7386d1131440b885972a45d18e",
+    "crates/scap-object/src/catalogue/discovery_record_tests.rs": "ba79cabcab8df9a8910cb9f1a4d9825b8a247aee5c32db806425b575bf2f45ec",
+    "crates/scap-object/src/catalogue/discovery_records.rs": "02535cc7c81ca3f621ff2ad8aff0f733648a066b6cc45a8495268249c67520b4",
+    "crates/scap-object/src/catalogue/discovery_tests.rs": "7bf1e2de97512a1ad0cfac63f4d5b7782c8236da1b6bbe7ff9d9382b7d9aea02",
+    "crates/scap-object/src/catalogue/fault_tests.rs": "1823d2c69634ee678b7535f318b91d8bd1bcef3d842833d5bd28118905c540d9",
+    "crates/scap-object/src/catalogue/inspect.rs": "873c334c70f0bd1a2149634fa3a0e1ff7edb243cbc16da478eb0cc56f7c47252",
+    "crates/scap-object/src/catalogue/inspect_boundary_tests.rs": "0a3465a927f04808f7d867dfc682be71a45ad12805fa8edb29d1465e3ea7fe07",
+    "crates/scap-object/src/catalogue/mod.rs": "3579e9b3a48ca2ff3c5b5a0fbfc600c697be9156c04b75d70252d3d9eaaba108",
+    "crates/scap-object/src/catalogue/protocol_tests.rs": "e1c8368147b8767cacd22d3c04cfe40743c1d281e9618b991a66630c87703bd1",
+    "crates/scap-object/src/catalogue/records.rs": "c3dd6a4b900a71733c546399052d283db41a7173767e81b8418891e11ebe88fe",
+    "crates/scap-object/src/catalogue/records_tests.rs": "f293efb9a28541a7095784888a557710709d3e62e7e9560edefe311c4ad440d3",
+    "crates/scap-object/src/catalogue/recovery_budget.rs": "46f12f2296245188271a1fd4fa249017d51d069e2b085e8956c4424187ab97ad",
+    "crates/scap-object/src/catalogue/recovery_budget_tests.rs": "cdb2b3d9bfe5383aca7a23ecf9304fe2625f276d0422d23f53251445c3ff0a74",
+    "crates/scap-object/src/catalogue/recovery_job.rs": "95beb723eb33acde179c675367278c6f121da8b8ff77588c1491415a81122dc8",
+    "crates/scap-object/src/catalogue/recovery_job_tests.rs": "9af05c90d53920f0bac325ea573e0e1101735f3185cdae3a654948ff4f87ce41",
+    "crates/scap-object/src/catalogue/recovery_tests.rs": "bb263d6686473ac1e845949be4d365555136af7ce0d0a6f029448b339176ae4a",
+    "crates/scap-object/src/catalogue/terminal.rs": "6de5dfc8b672b6167fe1662d5970b12fe73fe2e0b7bfdea4361f8b470683c1db",
+    "crates/scap-object/src/catalogue/terminal_tests.rs": "c0355a681ef32c8452d95d06ee1d3d2a6e063974b41f2649b7fd53541261c777",
+    "crates/scap-object/src/catalogue/tests.rs": "7cb0878ca203046f8b6ebba5000d5707a85a1ab7c67e3b53d2d987112ee5011a",
+    "crates/scap-object/src/catalogue/types.rs": "f0f28940542f71f283fe0cbc010ca20b0d08553806888a966ee990286a502e3a",
+    "crates/scap-object/src/closure.rs": "14db82fc3663805b0143938505aa9f36be7e9ea15b338f45bb5179234d031fa3",
+    "crates/scap-object/src/closure_tests.rs": "4728684609f278ca37b4083e5dcd759bd11d284aeb723d867be288981d945d65",
+    "crates/scap-object/src/data_tree.rs": "1d6ff0dd1f29e33213e5cf4455950d7166abbba91abe377b3ac93ee2097897c9",
+    "crates/scap-object/src/data_tree_tests.rs": "c46a94c059930ea08a22cebce5cffff0cfb1cf270af0a07df7a8faeb555e9490",
+    "crates/scap-object/src/format.rs": "85f1a1f9b09fa35676e88c1e93b611e8c5be618651a98b17ed88e9c4c960d9c1",
+    "crates/scap-object/src/format_tests.rs": "28ad5b67191bfc2990581c7f0adb921eef5ba2f61d0072155642763bfee941fd",
+    "crates/scap-object/src/head_publication.rs": "6ce9eb7ffe3189a5eb3ff0a2b23364028e8bc1b11c3bd7b9f06d7b0fbc439364",
+    "crates/scap-object/src/head_publication_tests.rs": "0d591863fd8f78cddda92e0ebe28df157d69916fbbaf0ddf717d9ad199b0ac71",
+    "crates/scap-object/src/lib.rs": "717294c82ea185669fb7896597a9c273d37fb8673737c8d6b926d8a27e625438",
+    "crates/scap-object/src/object_context.rs": "3de4bcce2131f1e30fb39ab090413f46eb5e01544aec4a12ec05def82a64ace7",
+    "crates/scap-object/src/object_context_tests.rs": "d234b7fdfced5fb3b7a6a4482b8b44bb58bc10f86c995389a95fde49bf63ba34",
+    "crates/scap-object/src/object_frame.rs": "084e1c0b7949b4d345ddde6206f8580382bd5b9dc87911603fe07f1b3aeff9f5",
+    "crates/scap-object/src/object_frame_tests.rs": "bdbad97080e22dad6f8aa7bc77edb94c4eef113da5c4cfa1e03c0039d9744679",
+    "crates/scap-object/src/options.rs": "119d4a5a145179c689b8d5b147bab1e6c178771a7df21e5febddf3cc27293365",
+    "crates/scap-object/src/options_tests.rs": "3cb3ae59ff961c7ea9a258230c9bf3d1148cea976ea70492765f656c6ec586b7",
+    "crates/scap-object/src/owner.rs": "1fd560b02d22a0fc7a923782599ed565cac263cbd27a2ad1737b107574c0818e",
+    "crates/scap-object/src/owner_format.rs": "8d4f87e8b3b18ecc2d8d02aaeb39d6b4972703228df55b032e1090074991e448",
+    "crates/scap-object/src/owner_format_tests.rs": "d72612c42591a9ae30ec84df1e11bbc4cea1929a23518fe2bc929b6a7b6e2e74",
+    "crates/scap-object/src/owner_tests.rs": "7247fba7ae822e373cc1527bb065e744357f79f80d72f2c29cb410c229fabd3f",
+    "crates/scap-object/src/quarantine_tests.rs": "367d5ad152ae07d72ae19b8fc0e8145a9974795b3df551c5c03583656ccb4e5c",
+    "crates/scap-object/src/reclamation.rs": "052d6426a27d34a363548a86ec841f08501a565f98bf89cc4b128da8ec98c44b",
+    "crates/scap-object/src/reclamation_tests.rs": "bc69faff0733a47c6e8264c4f08a46e6daa8f54be666fcd6c6758878229bf55e",
+    "crates/scap-object/src/request_index.rs": "dd6b5530b5e9b95f4595b52f467fb1b65242ee01d4f530df640c51e2b1de6063",
+    "crates/scap-object/src/request_index_tests.rs": "fa1d05494154f7d202a468f6ade9f9ca4450c6aa9082c3b35cefd1a93236a3bf",
+    "crates/scap-object/src/result_validation_tests.rs": "5449972d130d5e5b5ede430b4a5d550d2d9cd31a54dbbf5cf8b1da393f85cac6",
+    "crates/scap-object/src/review_tests.rs": "75d7b82670fd4377538e2048b881dceca0ef46002c2abc4c44f83de8c7c6a2fd",
+    "crates/scap-object/src/session_tests.rs": "333110a6edca8f7a50095e9272a272bb4d7b87c0d8e772ba6308747309e6cb9b",
+    "crates/scap-object/src/snapshot.rs": "ab49465c89d767792a6d11f46bdad044e82b1e6b12cbc85d5eb33b74d37e6d06",
+    "crates/scap-object/src/snapshot_format.rs": "496ebb486f86078a14072fa5f6f2cbf69790525364b318c21190e044a3003bfe",
+    "crates/scap-object/src/snapshot_format_tests.rs": "0ace9efa9d3e0de302979abb738d4bac37ef82c4919c3f56bec49aecde7be7ce",
+    "crates/scap-object/src/snapshot_integration_tests.rs": "559c61d533aea89ee714a3fb0045f3474c82edaeb0589472ca0cf7719f9d090e",
+    "crates/scap-object/src/snapshot_records.rs": "79dee390d346bd62c54bffdee4f8edb36a38f27538509e0833e7c7fb10a71314",
+    "crates/scap-object/src/snapshot_records_tests.rs": "7028532c03b7d0c264b131d61a5faf763208afa1483fa18e2b654220c1421167",
+    "crates/scap-object/src/snapshot_tests.rs": "4a80b012becbb91969318284042a02e861dfc8c89e5d853fb18fb3fb3e8dc2a0",
+    "crates/scap-object/src/storage.rs": "2a56dc6217677c47dabff92dd421909c8333735f5f0df2dc4e144cbe3c8dddc3",
+    "crates/scap-object/src/tests.rs": "50f55dd1fa29f36d173122fa934fb6bab208f3fef6eb153cf372dbbc24da5835",
+    "crates/scap-service/src/auth.rs": "9da3158ca10dad7627a0b6892d09c859fe55e2550bce6bc691212af377fcb54d",
+    "crates/scap-service/src/auth/tests.rs": "d78fb649c2a487c35251151d9837c7bad44e4589de86f3236f6511d419283bed",
+    "crates/scap-service/src/catalogue.rs": "f03b8e39995cc84fdb3ba5494ed54fab4d7d65e604eef712c5480f03b36c2d99",
+    "crates/scap-service/src/catalogue/tests.rs": "458e185c8e58dc5aa9870fa8ad969acb37c057e24743f59ad11ae859c371fcaf",
+    "crates/scap-service/src/catalogue_scheduler.rs": "3cd4175d59b3b6927f30a4d28f50d7919835a9dbd620693351f12820ec03f74e",
+    "crates/scap-service/src/catalogue_scheduler/tests.rs": "3a58901dba0d5566a3c6133625be0804d94432303c036e3b1279a771926f0df2",
+    "crates/scap-service/src/catalogue_wire.rs": "5ae70d66f675ddb7dbae0d6b563c6c385fdb5cbd6b5479ea989a5574b25244a9",
+    "crates/scap-service/src/catalogue_wire/tests.rs": "0fd3783ceea42fa87b985e48c586b400aeb546cc12f1d2d7a16a63a64a03f91e",
+    "crates/scap-service/src/config.rs": "d477d79fc0c432f5767bc1fb3d6dc0174248ef96c038136deab2d9377e31e75c",
+    "crates/scap-service/src/config/tests.rs": "58ebb481ff315585d86a9e7b973e5b7368fe09b516ba5720ce46387ea898e5c2",
+    "crates/scap-service/src/daemon.rs": "5b4552efd3c8f321e3c224b8aaf1aa37a460a14c97a2a056a5944edb495f1d67",
+    "crates/scap-service/src/daemon/tests.rs": "424277462a02b753ef341244b2297c1054d8c7430a2a650a94fdf4307280c37f",
+    "crates/scap-service/src/daemon/tests/startup_s3.rs": "9cfc73e7a2aafd6975730b5819b64f22602f6eda488259c33455dd5488afb037",
+    "crates/scap-service/src/discovery.rs": "d061985a7191f828d7bf49a9953a3125ed2089541f57ea89e709fb37546c8091",
+    "crates/scap-service/src/discovery/tests.rs": "0b56f86485d3f50674693c03b4ad148114ce56fbc3edf704fdc12e7599ceecf6",
+    "crates/scap-service/src/discovery_cursor.rs": "184e17a45d1f13be5267c2c980f387271f8708ed8a5fe0ca64e0a81a287b2c01",
+    "crates/scap-service/src/discovery_cursor/tests.rs": "95a999b2696646ecd86487a54cd9eeebc2613a64ec471ce71df6f9ab0a196f9d",
+    "crates/scap-service/src/discovery_wire.rs": "815f667ed8c5a2825d33d60a4024c6e5c145b92b08125cd1fefc8db9aba794cb",
+    "crates/scap-service/src/discovery_wire/tests.rs": "1da13f503f88e59c4e19c5d0ef4510291aaec9893e613debdfb0ab6c23f5e85c",
+    "crates/scap-service/src/engine.rs": "4c7adb8b0861280af3d869ab4189bd07dda1c8dce46ddafe5e072c2934fd2254",
+    "crates/scap-service/src/engine/owner_tests.rs": "fbeac12549a7a352dafe55b53e2ec0b9de0744c848db6110adeb6d312b062672",
+    "crates/scap-service/src/engine/snapshot_tests.rs": "3c073f314753a599149ce2cdda96269954a220f24cc578b4a5e2e4d8174d6949",
+    "crates/scap-service/src/engine/tests.rs": "0af5761c718e9b07a150f5dc75361f0f409b0c9a1712e5f2996f049af8b62f7b",
+    "crates/scap-service/src/http.rs": "dd89d114397ad15af5fbfb004d435850056b0f289c4339eec9a4eb6f05506df1",
+    "crates/scap-service/src/http/catalogue_tests.rs": "903ed1374456fe7d972e693b15c080611b8e429dc159f63512e34c3dfb7f7cd4",
+    "crates/scap-service/src/http/discovery.rs": "5c1e2921ea205e53b57eefa94677281b4126e0fd4a53466a4813d23eda15e3fd",
+    "crates/scap-service/src/http/discovery/tests.rs": "4960b92d1443a25a78530f7d8a314b781ad9c26890ee5333c6727cf4c62f7021",
+    "crates/scap-service/src/http/intake_tests.rs": "697345fec732c85807e94230b435d2acc10bc9c32758b5e08cca8c75691f67c9",
+    "crates/scap-service/src/http/output_tests.rs": "65bd4653c8a9bbb48cdfeeb9242571eccc25727bb8650826195ee0cf13d6a76c",
+    "crates/scap-service/src/http/tests.rs": "dc2a55664f649014e775b5b24b08dc225e1af1481753dca36b584f5ce1e2569b",
+    "crates/scap-service/src/instance.rs": "3f543d34fe7b54dc620cef91efc0ff42018d296b7885ce34f622c278b1fe176f",
+    "crates/scap-service/src/instance/tests.rs": "3c4475d9900c4a1966b2197d6c1bf9bdb1b4b6ad8317def85c053016674b126f",
+    "crates/scap-service/src/intake.rs": "7ba5a48e61a07f12ac97ee89db950965fdaf1b6f0e742dd8f07fcbc5883d5739",
+    "crates/scap-service/src/intake/tests.rs": "bea155b9b322f3553d8d8512eb299c204b600497442f704cf7e8650724707819",
+    "crates/scap-service/src/lib.rs": "1d5d5ce0e9d3140259357935f17c836018eedfe2675c8290dc6c103033bdac8b",
+    "crates/scap-service/src/main.rs": "94c623bd17c3a4a872fda79dd1fa6c4e4f074896a6f5195c63671a0d5e0df5c8",
+    "crates/scap-service/src/output.rs": "fdbb3b8e2e858d15c97eff73b88cd195de0293a75bc61da120130f5635ee587f",
+    "crates/scap-service/src/output/tests.rs": "aa88951f5505ee72d686ea348714a18b8cd472d686f6ed9f8e1ba6d3415395fc",
+    "crates/scap-service/src/owner_wire.rs": "b816cb0872ecd40b9178c230685faba4a51a5bf0dbc75068c84bff464fdc8556",
+    "crates/scap-service/src/owner_wire/tests.rs": "6e6dbdcb076d5b2833748cd0542fabbc603af8ecae9bec3e15e1ea268c31e8b5",
+    "crates/scap-service/src/scheduler.rs": "7de13d9b1f1e73bf7b6d909a3795e2e8683804e3522bc8abfb89c2c4358c78ac",
+    "crates/scap-service/src/scheduler/tests.rs": "d170dbbc76975d42c6e5b940d9fa9cd3f2e36e1c9026ee71741ed5d920ec9597",
+    "crates/scap-service/src/snapshot_wire.rs": "a95febfbaf9118155da0b47a97b3e0164bd4112ca1fb1374e4c0c7defd36a763",
+    "crates/scap-service/src/snapshot_wire/tests.rs": "d3c3e86141d539eedfcbbd66567b134a5b0a1a41de959190baace995aee38ad5",
+    "crates/scap-service/src/tests.rs": "cacb550b58c130ac666e9c50cc786ab65bcb90113c5d4ad13ac0dd29a3cbbeec",
+    "crates/scap-service/src/transport.rs": "ea0fc43e0b77a1538829b188ed8974d9e52860659ce6afc88b69f608b1c3c77e",
+    "crates/scap-service/src/transport/tests.rs": "d90caaee9ab10321af4d6d9b7e238bcdd4715cb8fdb19e113499c2ebfd989145",
+    "crates/scap-service/src/wire.rs": "46803645fd240c6f7d840178d244bc5e2f42f7ab908936fa00902eb53fcce0bb",
+    "crates/scap-service/src/wire/tests.rs": "d1320b5f3c1e48a3b823594a9d7be0c9cbac6f584bea2accb229373a00b84193",
+    "crates/scap-sql/src/lib.rs": "f2a1f8ec2be3f0f88392c748e51faab46e155f0220294366985aa64b5e5c7f78",
+    "crates/scap-sql/src/result_memory.rs": "75e14884ce39552e54e683e33e8e72fe069a25a0b6dee80302d07bc295504afb",
+    "crates/scap-sql/src/result_memory_decode_tests.rs": "b871abdd57050284f93aa7a3170f83d725efcafd5fbdc237fa44bac9feb2ff4f",
+    "crates/scap-sql/src/result_memory_tests.rs": "980ee30f73d10988c8baf65ec8b6b39171eabba987289d0c9ce0c07ef51acef2",
+    "crates/scap-sql/src/result_validation.rs": "baca1196f702af5cb02f4462510ce86e7965ab84329d87f5d445179f49c9db70",
+    "crates/scap-sql/src/result_validation_tests.rs": "3c71651cf74bae1b0d1067441e7f715968ae51eadb8ba0de8e21ae9620407177",
+    "crates/scap-sql/src/tests.rs": "e813aecb312da55a8c0d6e9098f6f644e645143013c1afa0d4a05a06f9285ea4"
+  },
+  "schema": "scap-worker-instance-allocation-local-v1",
+  "scope": "Source-bound local automatic worker allocation and explicit-ID compatibility. Not AWS qualification, remote CI, fleet-controller validation, or merge approval.",
+  "task_date": "2026-11-17",
+  "tools": {
+    "backend": "version 30GB 4.51 153ab668c99731a6d29492bf6c61d0b4fa701101 linux amd64",
+    "coverage": "rustc 1.92.0-nightly (4645a7988 2025-09-17)",
+    "coverage_runner": "cargo-llvm-cov 0.6.21",
+    "python": "3.12.14",
+    "stable": "rustc 1.90.0 (1159e78c4 2025-09-14)"
+  },
+  "validation": {
+    "automatic_runtime": {
+      "backend": "Pinned real local SeaweedFS with signed S3 requests, actual scapd processes and native SQLite",
+      "backend_capacity": {
+        "max_volumes": 24,
+        "preallocate": false,
+        "volume_size_mib": 64
+      },
+      "capacity_basis": "Pinned weed scaffold -config=master declares copy_1=7. Three independent bucket collections use 24 bounded slots, no preallocation; extra-bucket readiness is fixture-only.",
+      "case_count": 18,
+      "cases": [
+        {
+          "counter_cas": 0,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "missing-counter"
+        },
+        {
+          "counter_cas": 0,
+          "counter_create": 1,
+          "counter_get": 1,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "explicit-initialization"
+        },
+        {
+          "counter_cas": 0,
+          "counter_create": 1,
+          "counter_get": 0,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "initialization-cannot-reset"
+        },
+        {
+          "assigned": "101",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "automatic-first-start"
+        },
+        {
+          "counter_cas": 0,
+          "counter_create": 0,
+          "counter_get": 0,
+          "integer_result": 42,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "assigned-id-reaches-native-sqlite"
+        },
+        {
+          "assigned": "102",
+          "configuration_sha256": "0ae636d60d28e72ebf3dfab4b0cdc2b2815c7823ad94c8a14f843ecdd9bfcad9",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "same-config-clean-restart"
+        },
+        {
+          "all_compute_cache_lost": true,
+          "assigned": "103",
+          "configuration_sha256": "0ae636d60d28e72ebf3dfab4b0cdc2b2815c7823ad94c8a14f843ecdd9bfcad9",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "same-config-crash-restart",
+          "prior_database_owner_unchanged": "101",
+          "stale_route_rejected": true
+        },
+        {
+          "assigned": [
+            "104",
+            "105"
+          ],
+          "counter_cas": 3,
+          "counter_create": 0,
+          "counter_get": 3,
+          "marker_get": 2,
+          "marker_put": 2,
+          "name": "concurrent-auto-startups"
+        },
+        {
+          "assigned": [
+            "106",
+            "107"
+          ],
+          "counter_cas": 2,
+          "counter_create": 0,
+          "counter_get": 2,
+          "marker_get": 2,
+          "marker_put": 3,
+          "name": "explicit-claim-wins-auto-reservation"
+        },
+        {
+          "burned": "108",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "lost-counter-cas-ack"
+        },
+        {
+          "assigned": "109",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "restart-skips-lost-counter-ack"
+        },
+        {
+          "burned": "110",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 0,
+          "marker_put": 1,
+          "name": "lost-marker-create-ack"
+        },
+        {
+          "assigned": "111",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "restart-skips-lost-marker-ack"
+        },
+        {
+          "burned": "112",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "claimed-is-not-ready",
+          "ready_record": false
+        },
+        {
+          "assigned": "113",
+          "configuration_sha256": "b49e0f24623e3b5febc3a80d0db629377f9efc0a09500a7c664a1ff074e8104f",
+          "counter_cas": 1,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "restart-after-listener-failure"
+        },
+        {
+          "assigned": "18446744073709551615",
+          "counter_cas": 1,
+          "counter_create": 1,
+          "counter_get": 2,
+          "marker_get": 1,
+          "marker_put": 1,
+          "name": "last-u64-in-independent-bucket"
+        },
+        {
+          "counter_cas": 0,
+          "counter_create": 0,
+          "counter_get": 1,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "allocator-exhausted-without-wrap"
+        },
+        {
+          "counter_cas": 0,
+          "counter_create": 1,
+          "counter_get": 2,
+          "marker_get": 0,
+          "marker_put": 0,
+          "name": "corrupt-counter"
+        }
+      ],
+      "command": "python3 experiments/worker-instance/auto.py --binary SCAPD --weed WEED --evidence NEW_DIRECTORY",
+      "end_utc": "2026-11-17T17:29:54.196586+00:00",
+      "oracles": [
+        "Exact assigned decimal ID and claimed/ready distinction",
+        "Identical configuration bytes/path/cache/port across restarts",
+        "Actual SIGKILL and total compute-cache loss",
+        "Exact native SELECT 42 result and worker guard",
+        "Counter GET/create/CAS and marker PUT/GET counts",
+        "Conditional write headers only; no unconditional product PUT",
+        "Failure exit 1, exact stable code, no listener and unchanged cache snapshot",
+        "Original database owner remains unchanged and stale route guard is rejected"
+      ],
+      "start_utc": "2026-11-17T17:29:52.460555+00:00",
+      "status": "PASSED"
+    },
+    "clippy": {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "status": "PASSED"
+    },
+    "coverage": {
+      "changed_production_files": {
+        "crates/scap-service/src/config.rs": {
+          "branches": {
+            "count": 66,
+            "covered": 66
+          },
+          "functions": {
+            "count": 24,
+            "covered": 24
+          },
+          "lines": {
+            "count": 241,
+            "covered": 241
+          },
+          "regions": {
+            "count": 318,
+            "covered": 318
+          }
+        },
+        "crates/scap-service/src/daemon.rs": {
+          "branches": {
+            "count": 44,
+            "covered": 44
+          },
+          "functions": {
+            "count": 34,
+            "covered": 34
+          },
+          "lines": {
+            "count": 322,
+            "covered": 322
+          },
+          "regions": {
+            "count": 482,
+            "covered": 482
+          }
+        },
+        "crates/scap-service/src/instance.rs": {
+          "branches": {
+            "count": 24,
+            "covered": 24
+          },
+          "functions": {
+            "count": 10,
+            "covered": 10
+          },
+          "lines": {
+            "count": 118,
+            "covered": 118
+          },
+          "regions": {
+            "count": 171,
+            "covered": 171
+          }
+        }
+      },
+      "failures": [
+        "FAIL: empty executable branches denominator: crates/scap-object/src/catalogue/types.rs",
+        "FAIL: empty executable branches denominator: crates/scap-object/src/object_frame.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/catalogue.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/lib.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/main.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/owner_wire.rs",
+        "FAIL: empty executable branches denominator: crates/scap-service/src/snapshot_wire.rs"
+      ],
+      "gate_exit": 1,
+      "policy_changes": "None; no threshold, denominator, exclusion, or test-source classification was changed for this allocator extension.",
+      "whole_workspace_gate": "FAILED"
+    },
+    "explicit_id_compatibility": {
+      "case_count": 10,
+      "cases": [
+        {
+          "get_count": 1,
+          "name": "first-start",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-live",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-clean-exit",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "new-id",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "duplicate-crash",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "competing-processes",
+          "put_count": 2
+        },
+        {
+          "get_count": 0,
+          "name": "lost-create-ack",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "unknown-id-remains-consumed",
+          "put_count": 1
+        },
+        {
+          "get_count": 1,
+          "name": "corrupt-readback",
+          "put_count": 1
+        },
+        {
+          "get_count": 0,
+          "name": "unreachable-backend",
+          "put_count": 0
+        }
+      ],
+      "command": "python3 experiments/worker-instance/run.py --binary SCAPD --weed WEED --evidence NEW_DIRECTORY",
+      "config_compatibility": "Existing canonical decimal JSON worker_instance strings remain valid; duplicate and ambiguous identities still reject.",
+      "status": "PASSED"
+    },
+    "format": {
+      "command": "cargo fmt --all -- --check",
+      "status": "PASSED"
+    },
+    "independent_source_review": {
+      "scope": "Parent reviewed initialize/allocate/create_verified: same-GET ETag, bounded new candidates, immutable marker readback, no adoption after UNKNOWN, no reset, unchanged deadline and checked overflow. Review is not runtime or IAM proof.",
+      "status": "REVIEWED"
+    },
+    "nightly_unit": {
+      "command": "cargo +nightly-2025-09-18 llvm-cov --workspace --lib --bins --all-features --locked --branch --no-cfg-coverage --no-cfg-coverage-nightly --json --output-path REPORT -- --test-threads=1",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 808,
+      "per_crate": {
+        "scap-object": 427,
+        "scap-object-sqlite": 81,
+        "scap-object-store": 44,
+        "scap-service": 219,
+        "scap-sql": 37
+      },
+      "status": "PASSED"
+    },
+    "repository_links": {
+      "local_links": 711,
+      "scope": "Frozen code candidate before adding this report",
+      "status": "PASSED",
+      "text_files": 694
+    },
+    "stable_unit": {
+      "command": "cargo test --locked --workspace --lib --bins --all-features",
+      "failed": 0,
+      "ignored": 0,
+      "passed": 808,
+      "per_crate": {
+        "scap-object": 427,
+        "scap-object-sqlite": 81,
+        "scap-object-store": 44,
+        "scap-service": 219,
+        "scap-sql": 37
+      },
+      "status": "PASSED"
+    }
+  }
+}

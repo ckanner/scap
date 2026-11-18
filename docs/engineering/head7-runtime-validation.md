@@ -2,12 +2,10 @@
 
 ## 状态与源码归属
 
-HEAD7 冻结产品的全部必需本地门禁已经完成：新单位与精确覆盖、终态退休、多代
-GC、原生兼容、HTTP/SDK、发现与部署恢复、资源、1 GiB 恢复和固定负载合同均通过。
-[PR #55](https://github.com/ckanner/scap/pull/55) 满足仓库已授权的本地合入条件。
-完整来源、命令退出、逐项分母和归档身份见
-[整批机器记录](../evidence/head7-runtime-local-2026-11-10.json)。
-HEAD8 在 [PR #56](https://github.com/ckanner/scap/pull/56) 单独验收，不能继承本页结论。
+HEAD7 的新单位、精确覆盖、终态退休合同、负载合同和原生兼容合同已经通过。
+其余 HTTP 组合及多代 GC 的最终离线负对照仍在执行，**本页尚不宣布整批完成或可上线**。
+[PR #55](https://github.com/ckanner/scap/pull/55) 保持草稿；HEAD8 的 accepted owner plan
+在 [PR #56](https://github.com/ckanner/scap/pull/56) 单独推进，不继承本页的产品验收结论。
 
 | 身份 | 冻结提交及用途 |
 | --- | --- |
@@ -125,26 +123,10 @@ actual02 的真实执行和独立判定通过后，首轮 `unstable_name_view_ac
 采样 RSS 与 wait4 maxrss 分别保留，采样中的 VmHWM 非单调现象尚无解释。有限采样
 不能证明进程 RSS、全局临时盘或租户资源的硬上限。
 
-## 多代 GC 与 HTTP 组合
-
-独立多代 GC 合同在同一 7b757 产品上完成，使用 20,296 次 S3 请求、457 次 HTTP POST，
-冷恢复逐项核对全部 264 个原始 ACK。主 Scope 包含 260 个提交与一个取消条目，跨三个
-保留窗口；闭包复制包含 270 个依赖。46 个持久 checkpoint、1,338 次成功删除、两次旧
-ETag 删除的真实 412，以及迟到原始 PUT 后重扫均被独立核对。原 PUT hold 为
-92.713 秒，低于冻结的 180 秒。23 个负对照、1 个正对照全部通过；8,469 个原始证据
-文件再次核对不变，19 个受控进程均有 wait4 归属记录。
-
-该 GC 合同继续保护 Deleted 的最后 active generation；前述独立 terminal 合同验证
-显式 seal 后的永久退休。两者承担不同的协议分母，不能相互替代。全部 HTTP 组合也已
-完成，包括输出池、响应和传输期限、真实 Fetch SDK、旧 owner 协调、metadata、目录、
-actor 隔离、分段请求索引、全目录发现、guarded-status、部署恢复及资源限制。
-
-单位证据和实际运行证据分别归档，包含原源码、原命令/退出记录、真实 release 与 native
-产物和所有独立判定/对照。实际证据第二份归档逐项复验 529,052 个逻辑文件身份。
-首份打包会话在完成前丢失，独立 gzip 检查确认截断；原因未确定。原截断文件与诊断保留，
-第二份归档使用磁盘支持的清单生成与核对，没有重跑或改写实际运行历史。
-
 ## 尚未由本批认证
+
+HTTP 组合的最终汇总和多代 GC 的完整负对照结果仍待完成后单列。本页不以一项
+终态合同替代多代 GC 的原始 264 请求保留窗口、复制、checkpoint 和延迟 DELETE 合同。
 
 真实 AWS Standard/Express、实际 EFS/NFS/FUSE 挂载、跨 AZ 故障域、开放环流量、
 长运行成本及数字 SLO 均未在本批运行。自动 owner controller、显式 snapshots/PITR、

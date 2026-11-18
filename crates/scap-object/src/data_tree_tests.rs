@@ -642,6 +642,35 @@ fn every_object_io_failure_and_stream_consumer_failure_propagates() {
 }
 
 #[test]
+fn truncating_to_empty_propagates_manifest_save_failure() {
+    let (store, root) = build(1);
+    let original = store.objects.borrow().clone();
+    let end = deadline();
+    store.fail_at.set(Some(2));
+    assert!(matches!(
+        super::update(
+            &store,
+            &root,
+            &PageBatch {
+                size_after: 0,
+                pages: vec![],
+            },
+            MAX_PAGES,
+            end,
+        ),
+        Err(Error::Store(StoreError::Unknown))
+    ));
+    assert!(matches!(
+        store.calls.borrow().as_slice(),
+        [Call::Load(hash), Call::Save] if hash == &root
+    ));
+    assert_eq!(store.deadlines.borrow().as_slice(), &[end, end]);
+    assert_eq!(*store.objects.borrow(), original);
+    store.reset();
+    verify_image(&store, &root, 1, None);
+}
+
+#[test]
 fn recursive_read_edit_and_root_shrink_propagate_object_io_failure() {
     let (original, root) = build(8193);
     for (batch, point) in [

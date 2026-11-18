@@ -8,6 +8,7 @@ use crate::format::{
 };
 use crate::{Database, Error, Snapshot};
 use scap_object_store::{Condition, Objects, StoreError};
+use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
@@ -30,10 +31,10 @@ struct AuthorityBasis {
     active: u64,
     allocated: u64,
     etag: String,
-    fingerprint: String,
+    fingerprint: [u8; 32],
 }
-fn head_fingerprint(head: &Head) -> String {
-    digest(&serde_json::to_vec(head).expect("HEAD values serialize"))
+fn head_fingerprint(head: &Head) -> [u8; 32] {
+    Sha256::digest(serde_json::to_vec(head).expect("HEAD values serialize")).into()
 }
 
 impl Knowledge {
@@ -380,3 +381,7 @@ impl DataObjects for ObjectContext {
         Ok(root)
     }
 }
+
+#[cfg(test)]
+#[path = "head_fingerprint_tests.rs"]
+mod fingerprint_tests;

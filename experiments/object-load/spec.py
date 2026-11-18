@@ -8,6 +8,8 @@ SCOPES = {
 MEASURED = {'write_seq': (32, 1), 'write_same': (64, 4), 'write_multi': (64, 4),
             'read_same': (64, 4), 'read_multi': (64, 4)}
 PHASES = ('seed', *MEASURED, 'hot-open', 'cold-open', 'cold-probes', 'cold-warm', 'verify')
+# Every successful startup permanently consumes its own explicit identity.
+WORKER_INSTANCES = (5001, 5002)
 DEADLINES = {'ordinary_ms': 60000, 'recovery_ms': 60000, 's3_ms': 15000,
              'client_ms': 65000, 'client_recovery_ms': 70000, 'gate_hold_ms': 12000,
              'probe_ms': 4000, 'phase_seconds': 180, 'run_seconds': 1200}
@@ -103,6 +105,7 @@ def statements(item, payloads):
 
 PLAN = {'schema': 1, 'name': 'object-load-local-v1', 'scopes': SCOPES, 'measured': MEASURED,
         'phases': PHASES, 'deadlines': DEADLINES, 'admission': ADMISSION, 'cache': CACHE,
+        'worker_instances': WORKER_INSTANCES,
         'transport': TRANSPORT, 'output': OUTPUT, 'bounds': BOUNDS, 'http_posts': 871,
         'original_executes': 185, 'measured_calls': 288, 'cold_user_bytes': 33554432,
         'aws_standard': 'NOT_RUN', 'production_slo_passed': False}
