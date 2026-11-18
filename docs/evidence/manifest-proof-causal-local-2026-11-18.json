@@ -1,0 +1,3204 @@
+{
+  "all_280_request_body_multisets_equal": true,
+  "aws_standard": "NOT_RUN",
+  "comparisons": {
+    "direct": {
+      "read_multi": {
+        "proof_tps_delta_percent": 0.17766471705129572
+      },
+      "write_multi": {
+        "proof_tps_delta_percent": -7.389400551459591
+      },
+      "write_same": {
+        "proof_tps_delta_percent": 17.32352456695221
+      },
+      "write_seq": {
+        "proof_tps_delta_percent": 34.18597635316938
+      }
+    },
+    "evidence": {
+      "read_multi": {
+        "proof_tps_delta_percent": -7.627704408327962
+      },
+      "write_multi": {
+        "proof_tps_delta_percent": -1.9786135337009458
+      },
+      "write_same": {
+        "proof_tps_delta_percent": -14.671174542424325
+      },
+      "write_seq": {
+        "proof_tps_delta_percent": 15.807177328117294
+      }
+    }
+  },
+  "date": "2026-11-18",
+  "diagnostic_only": true,
+  "engineering_decision": {
+    "current_pool_cap_eight": "Retain the already independently tested bounded idle-pool repair; this historical 2x2 keeps cap two in both implementations",
+    "current_proof_reuse": "Keep GET-elision in independent PR60 Draft; restore ordinary exact Manifest GET in a separately verified functional candidate",
+    "existing_gate_sources_at_42b50aa": {
+      "docs/engineering/service-hot-path-profile-2026-11-17.md": [
+        122,
+        139
+      ],
+      "docs/engineering/sqlite-s3-delivery-plan.md": [
+        8,
+        9,
+        127,
+        142
+      ],
+      "docs/engineering/sqlite-s3-review-2026-11-13.md": [
+        97
+      ],
+      "docs/engineering/verified-manifest-load-validation.md": [
+        44,
+        139,
+        140
+      ]
+    },
+    "four_database_no_regression_gate": "NO_SUCH_NUMERIC_THRESHOLD_DEFINED_IN_EXISTING_PLAN",
+    "functional_candidate_requires_separate_validation": true,
+    "historical_regression_closed": false,
+    "initial_proof_deterministic_allocations": "String fingerprint/root duplication already corrected by 9b5e9ae; do not remove the remaining full HEAD binding",
+    "merge_readiness_certified": false,
+    "new_correctness_defect_identified_in_review": false,
+    "new_group_commit_or_lazy_vfs_implementation": "NOT_ATTEMPTED; separate architecture and protocol validation required",
+    "new_production_change": false,
+    "pr60_independent_acceptance": "BLOCKED_BY_UNATTRIBUTED_REGRESSION; not closed by the four historical diagnostic samples",
+    "rollback_now": false,
+    "rollback_reason": "No production change in this research commit. The integration decision is to restore the exact Manifest GET path in a new functional candidate, keep PR60 Draft, and retain independently reviewed pool8. New source requires affected unit/coverage/runtime acceptance.",
+    "sync_checkpoint_ack_unknown_changed": false
+  },
+  "frozen_order_sha256": "f036e8e914690863eda5f573e561a8f18717d1eefceedf5346cd3b115f30a7ed",
+  "historical_24_percent_regression": "UNATTRIBUTED_NOT_CLEARED",
+  "historical_originals": {
+    "four_database_tps_regression_percent": [
+      -24.00009,
+      -24.52352
+    ],
+    "record": "docs/evidence/verified-manifest-load-local-2026-11-13.json",
+    "report": "docs/engineering/verified-manifest-load-validation.md",
+    "status": "PRESERVED_UNATTRIBUTED"
+  },
+  "limitations": [
+    "One sample per cell, four cells fixed before timing; no confidence interval, repetition selection or production SLO claim",
+    "Different 280-POST diagnostic workload from formal 871-POST evidence acceptance; 4KiB payloads are deterministic rather than fresh random",
+    "The original complete S3 evidence proxy is preserved, but the formal HTTP client ledger, sampler, cold recovery and cancel/fault cases are absent",
+    "Service allocator/clocks and Python observer wrappers are intrusive and identical between code variants",
+    "Stage durations overlap; observer lock/fsync walls are inclusive and not additive to elapsed",
+    "Requested allocation bytes are not live memory, native SQLite allocation, RSS or peak",
+    "Direct mode has no independent complete wire transcript; evidence mode binds S3 conditions, bodies, ETags and original result publication but not external HTTP ACK intervals",
+    "No AWS Standard run; historical old binaries lack matching stage profiles and the 24 percent result remains unassigned"
+  ],
+  "native_archive_sha256": "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5",
+  "production_slo_passed": false,
+  "quiet_window_record_sha256": "14d4e7108760ea56a64fa3c831d3de73fede94a3b8d138f6df67072534b98415",
+  "raw_retention": "Outside Git; original four samples and every observation retained",
+  "retained_evidence": {
+    "archive_bytes": 20562856,
+    "archive_name": "historical-profile-raw-2026-11-18.tar.gz",
+    "archive_sha256": "2c5591719784c92c00dcc9244f9d5bc2e51b2946a8e239606b0f98f6bf82a658",
+    "manifest_name": "historical-profile-raw-manifest.json",
+    "manifest_sha256": "e0640cca936ef05a1ed7c9f01baf1b03666e95df737bde93274449da8c74000c",
+    "raw_committed_to_git": false,
+    "retained_files": 1528,
+    "retained_source_and_binary": true
+  },
+  "samples": [
+    {
+      "binary_sha256": "3efa4b1b104239fd0fcb32d4b75ad27e2fa80e330cd94bcccf4d15a1ca7f7320",
+      "case": "01-baseline-direct",
+      "code": "baseline",
+      "mode": "direct",
+      "phases": {
+        "read_multi": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 23790295,
+          "http_connect_started_completed_reused": [
+            4,
+            4,
+            28
+          ],
+          "latency_ns": {
+            "100": 5335470,
+            "50": 2727871,
+            "95": 4503870,
+            "99": 5335470
+          },
+          "observer_process_cpu_ns": 109874,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 7115,
+          "service_process_cpu_ns": 11368217,
+          "service_requested_bytes": 1723692,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              33611400,
+              4996720,
+              5104,
+              1010372,
+              0
+            ],
+            "head_decode": [
+              32,
+              317114,
+              319214,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "head_fingerprint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_commit": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_publish": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_validate": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "queue_wait": [
+              32,
+              2109282,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "s3_get": [
+              32,
+              31921045,
+              3344287,
+              4272,
+              937988,
+              24576
+            ],
+            "s3_put": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "success_per_second": 1345.086305150903
+        },
+        "write_multi": {
+          "calls": 64,
+          "concurrency": 4,
+          "elapsed_ns": 568143426,
+          "http_connect_started_completed_reused": [
+            103,
+            103,
+            1088
+          ],
+          "latency_ns": {
+            "100": 49743376,
+            "50": 34667723,
+            "95": 43341314,
+            "99": 49743376
+          },
+          "observer_process_cpu_ns": 300618,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 189872,
+          "service_process_cpu_ns": 241005871,
+          "service_requested_bytes": 90796178,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              64,
+              84331218,
+              10287825,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              64,
+              2049992870,
+              172389622,
+              178566,
+              67333128,
+              0
+            ],
+            "head_decode": [
+              64,
+              1309767,
+              1212481,
+              320,
+              31232,
+              0
+            ],
+            "head_encode": [
+              64,
+              502169,
+              437867,
+              320,
+              129536,
+              0
+            ],
+            "head_fingerprint": [
+              64,
+              544320,
+              432314,
+              320,
+              126976,
+              0
+            ],
+            "native_commit": [
+              64,
+              1794468711,
+              131034972,
+              145627,
+              59716541,
+              0
+            ],
+            "native_publish": [
+              64,
+              144653546,
+              12228893,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              64,
+              8693957,
+              7848528,
+              704,
+              543296,
+              0
+            ],
+            "object_encode": [
+              320,
+              2955603,
+              2809772,
+              2856,
+              4261980,
+              0
+            ],
+            "object_validate": [
+              384,
+              7859980,
+              6398747,
+              7712,
+              1350656,
+              0
+            ],
+            "queue_wait": [
+              64,
+              5377371,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              64,
+              402781,
+              393937,
+              512,
+              279552,
+              0
+            ],
+            "result_encode": [
+              64,
+              71407,
+              71776,
+              64,
+              267712,
+              0
+            ],
+            "s3_get": [
+              768,
+              862013830,
+              77040594,
+              102222,
+              37121825,
+              6648492
+            ],
+            "s3_put": [
+              384,
+              917725625,
+              37532913,
+              50020,
+              14637435,
+              3568556
+            ]
+          },
+          "success_per_second": 112.64761162615301
+        },
+        "write_same": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 974008835,
+          "http_connect_started_completed_reused": [
+            0,
+            0,
+            593
+          ],
+          "latency_ns": {
+            "100": 296990792,
+            "50": 96228410,
+            "95": 290080061,
+            "99": 296990792
+          },
+          "observer_process_cpu_ns": 1388227,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 98960,
+          "service_process_cpu_ns": 129889052,
+          "service_requested_bytes": 56555728,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              32,
+              22023212,
+              4561278,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              970988526,
+              86031974,
+              94043,
+              44594406,
+              0
+            ],
+            "head_decode": [
+              32,
+              637671,
+              638075,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              32,
+              244504,
+              244025,
+              160,
+              64768,
+              0
+            ],
+            "head_fingerprint": [
+              32,
+              195655,
+              195850,
+              160,
+              63488,
+              0
+            ],
+            "native_commit": [
+              32,
+              880687562,
+              67068158,
+              76385,
+              40811781,
+              0
+            ],
+            "native_publish": [
+              32,
+              40195940,
+              5516792,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              32,
+              4403089,
+              4406149,
+              352,
+              271648,
+              0
+            ],
+            "object_encode": [
+              166,
+              1436388,
+              1434089,
+              1994,
+              3645701,
+              0
+            ],
+            "object_validate": [
+              197,
+              4306249,
+              4305365,
+              6994,
+              1284224,
+              0
+            ],
+            "queue_wait": [
+              32,
+              2661616149,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              32,
+              162042,
+              162048,
+              256,
+              139776,
+              0
+            ],
+            "result_encode": [
+              32,
+              40092,
+              40163,
+              32,
+              133856,
+              0
+            ],
+            "s3_get": [
+              395,
+              355299192,
+              35541685,
+              51748,
+              23771155,
+              5948394
+            ],
+            "s3_put": [
+              198,
+              530781529,
+              18713849,
+              25386,
+              8443296,
+              3063762
+            ]
+          },
+          "success_per_second": 32.85391143294917
+        },
+        "write_seq": {
+          "calls": 16,
+          "concurrency": 1,
+          "elapsed_ns": 491350267,
+          "http_connect_started_completed_reused": [
+            0,
+            0,
+            288
+          ],
+          "latency_ns": {
+            "100": 40373292,
+            "50": 30145666,
+            "95": 40373292,
+            "99": 40373292
+          },
+          "observer_process_cpu_ns": 268820,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 46473,
+          "service_process_cpu_ns": 71064197,
+          "service_requested_bytes": 19802421,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              16,
+              11420620,
+              2778130,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              16,
+              454014253,
+              48551956,
+              44009,
+              15866198,
+              0
+            ],
+            "head_decode": [
+              16,
+              333456,
+              333828,
+              80,
+              7808,
+              0
+            ],
+            "head_encode": [
+              16,
+              103952,
+              103685,
+              80,
+              32384,
+              0
+            ],
+            "head_fingerprint": [
+              16,
+              160722,
+              160971,
+              80,
+              31744,
+              0
+            ],
+            "native_commit": [
+              16,
+              390447284,
+              36650259,
+              35968,
+              14167268,
+              0
+            ],
+            "native_publish": [
+              16,
+              20308695,
+              3319889,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              16,
+              3466583,
+              3467771,
+              176,
+              135824,
+              0
+            ],
+            "object_encode": [
+              80,
+              1366144,
+              1356372,
+              714,
+              1065495,
+              0
+            ],
+            "object_validate": [
+              96,
+              1672568,
+              1671445,
+              1928,
+              337664,
+              0
+            ],
+            "queue_wait": [
+              16,
+              550060,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              16,
+              85538,
+              85477,
+              128,
+              69888,
+              0
+            ],
+            "result_encode": [
+              16,
+              22593,
+              22615,
+              16,
+              66928,
+              0
+            ],
+            "s3_get": [
+              192,
+              207596447,
+              22331496,
+              25122,
+              8473304,
+              1662123
+            ],
+            "s3_put": [
+              96,
+              203313377,
+              8938579,
+              12306,
+              3499427,
+              892139
+            ]
+          },
+          "success_per_second": 32.56332818884985
+        }
+      },
+      "profile_sha256": "a2829e1f28dc3be49d82fc05c348a378702f28f794a5967d30bf86ea3ce4a88a",
+      "run_record_sha256": "88eeec23bb8c457f1c58c904b63cd787c2dd64ba3c47a1c12e08f54606dc5023",
+      "source_commit": "2ca9fa6d089f31bc0782cd38d15c8cd02e3ad35b",
+      "source_manifest_sha256": "a9c7d2d1a0f60a54768c97c938646f66fc052a4652f882f09a271b00ec7b7113",
+      "wire": {
+        "status": "NOT_CAPTURED_DIRECT_DIAGNOSTIC"
+      }
+    },
+    {
+      "binary_sha256": "85a3f816e135b71c127fd60f9b602ffc2999162d60d0746d170e0c1215222466",
+      "case": "02-proof-evidence",
+      "code": "proof",
+      "mode": "evidence",
+      "phases": {
+        "read_multi": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 42190282,
+          "http_connect_started_completed_reused": [
+            32,
+            32,
+            0
+          ],
+          "latency_ns": {
+            "100": 7300162,
+            "50": 4954452,
+            "95": 7001957,
+            "99": 7300162
+          },
+          "observer_process_cpu_ns": 40985549,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_lock_wait": [
+              64,
+              10171960,
+              445499,
+              0
+            ],
+            "raw_save": [
+              64,
+              28171863,
+              8794404,
+              24576
+            ],
+            "trace_emit": [
+              128,
+              32491316,
+              9518923,
+              0
+            ],
+            "trace_lock_wait": [
+              128,
+              15132670,
+              716746,
+              0
+            ],
+            "upstream_body": [
+              32,
+              193060,
+              187970,
+              0
+            ],
+            "upstream_headers": [
+              32,
+              22587580,
+              2996801,
+              0
+            ],
+            "upstream_send": [
+              32,
+              9011997,
+              3410237,
+              0
+            ]
+          },
+          "service_allocation_calls": 7954,
+          "service_process_cpu_ns": 13541912,
+          "service_requested_bytes": 2821984,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              115063322,
+              7243147,
+              5757,
+              1750176,
+              0
+            ],
+            "head_decode": [
+              32,
+              465675,
+              444846,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "head_fingerprint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_commit": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_publish": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_validate": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "queue_wait": [
+              32,
+              1107156,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "s3_get": [
+              32,
+              113006909,
+              5338881,
+              4925,
+              1677888,
+              24576
+            ],
+            "s3_put": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "success_per_second": 758.4685022963345
+        },
+        "write_multi": {
+          "calls": 64,
+          "concurrency": 4,
+          "elapsed_ns": 1976294326,
+          "http_connect_started_completed_reused": [
+            1088,
+            1088,
+            0
+          ],
+          "latency_ns": {
+            "100": 143856232,
+            "50": 122075664,
+            "95": 136207119,
+            "99": 143856232
+          },
+          "observer_process_cpu_ns": 1742481997,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              768,
+              517190204,
+              49634943,
+              0
+            ],
+            "raw_lock_wait": [
+              2176,
+              1866593666,
+              27514343,
+              0
+            ],
+            "raw_save": [
+              2176,
+              3264780849,
+              488591374,
+              10201460
+            ],
+            "trace_emit": [
+              4352,
+              1863999543,
+              400924043,
+              0
+            ],
+            "trace_lock_wait": [
+              4352,
+              1022406595,
+              35282388,
+              0
+            ],
+            "upstream_body": [
+              1088,
+              22102541,
+              12680290,
+              0
+            ],
+            "upstream_headers": [
+              1088,
+              1394315226,
+              123736005,
+              0
+            ],
+            "upstream_send": [
+              1088,
+              378222633,
+              130656111,
+              0
+            ]
+          },
+          "service_allocation_calls": 209331,
+          "service_process_cpu_ns": 408740244,
+          "service_requested_bytes": 125162813,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              64,
+              63757469,
+              9884128,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              64,
+              7676139152,
+              287386407,
+              193496,
+              93618961,
+              0
+            ],
+            "head_decode": [
+              64,
+              1392990,
+              1343558,
+              320,
+              31232,
+              0
+            ],
+            "head_encode": [
+              64,
+              207783,
+              208893,
+              320,
+              129536,
+              0
+            ],
+            "head_fingerprint": [
+              128,
+              1547983,
+              1357160,
+              640,
+              253952,
+              0
+            ],
+            "native_commit": [
+              64,
+              6869832278,
+              234147490,
+              158300,
+              83409477,
+              0
+            ],
+            "native_publish": [
+              64,
+              106951597,
+              11678591,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              64,
+              8883733,
+              8507518,
+              704,
+              543296,
+              0
+            ],
+            "object_encode": [
+              320,
+              7809473,
+              7106965,
+              2856,
+              4261980,
+              0
+            ],
+            "object_validate": [
+              320,
+              7787800,
+              7282619,
+              7584,
+              1342464,
+              0
+            ],
+            "queue_wait": [
+              64,
+              8014605,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              64,
+              380480,
+              379937,
+              512,
+              279552,
+              0
+            ],
+            "result_encode": [
+              64,
+              103886,
+              103708,
+              64,
+              267712,
+              0
+            ],
+            "s3_get": [
+              704,
+              4124081761,
+              139719807,
+              108640,
+              53609273,
+              6632904
+            ],
+            "s3_put": [
+              384,
+              3329527661,
+              79686104,
+              58404,
+              24330412,
+              3568556
+            ]
+          },
+          "success_per_second": 32.38384038147565
+        },
+        "write_same": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 1681161684,
+          "http_connect_started_completed_reused": [
+            561,
+            561,
+            0
+          ],
+          "latency_ns": {
+            "100": 239930613,
+            "50": 202550430,
+            "95": 236056245,
+            "99": 239930613
+          },
+          "observer_process_cpu_ns": 607510982,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              396,
+              213766675,
+              24983754,
+              0
+            ],
+            "raw_lock_wait": [
+              1122,
+              748216,
+              837120,
+              0
+            ],
+            "raw_save": [
+              1122,
+              365748722,
+              176078044,
+              9004355
+            ],
+            "trace_emit": [
+              2244,
+              91944430,
+              92043483,
+              0
+            ],
+            "trace_lock_wait": [
+              2244,
+              1216216,
+              1206150,
+              0
+            ],
+            "upstream_body": [
+              561,
+              4279656,
+              4301322,
+              0
+            ],
+            "upstream_headers": [
+              561,
+              758595892,
+              50816057,
+              0
+            ],
+            "upstream_send": [
+              561,
+              42938032,
+              42935109,
+              0
+            ]
+          },
+          "service_allocation_calls": 110987,
+          "service_process_cpu_ns": 186810132,
+          "service_requested_bytes": 80557739,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              32,
+              20414441,
+              4203322,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              1677374306,
+              126595634,
+              103201,
+              60670471,
+              0
+            ],
+            "head_decode": [
+              32,
+              934714,
+              935996,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              32,
+              77745,
+              77949,
+              160,
+              64768,
+              0
+            ],
+            "head_fingerprint": [
+              64,
+              838749,
+              827921,
+              320,
+              126976,
+              0
+            ],
+            "native_commit": [
+              32,
+              1516340887,
+              102381023,
+              84027,
+              55164992,
+              0
+            ],
+            "native_publish": [
+              32,
+              41117456,
+              4946771,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              32,
+              4454149,
+              4457023,
+              352,
+              271648,
+              0
+            ],
+            "object_encode": [
+              166,
+              2564073,
+              2555433,
+              1994,
+              3645701,
+              0
+            ],
+            "object_validate": [
+              165,
+              4622976,
+              4612083,
+              6930,
+              1280128,
+              0
+            ],
+            "queue_wait": [
+              32,
+              4648667039,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              32,
+              187059,
+              186986,
+              256,
+              139776,
+              0
+            ],
+            "result_encode": [
+              32,
+              40648,
+              40679,
+              32,
+              133856,
+              0
+            ],
+            "s3_get": [
+              363,
+              680907017,
+              58842653,
+              56100,
+              34466982,
+              5940593
+            ],
+            "s3_put": [
+              198,
+              911364423,
+              35385473,
+              30128,
+              13770830,
+              3063762
+            ]
+          },
+          "success_per_second": 19.034457128395985
+        },
+        "write_seq": {
+          "calls": 16,
+          "concurrency": 1,
+          "elapsed_ns": 792904561,
+          "http_connect_started_completed_reused": [
+            272,
+            272,
+            0
+          ],
+          "latency_ns": {
+            "100": 80573818,
+            "50": 47832968,
+            "95": 80573818,
+            "99": 80573818
+          },
+          "observer_process_cpu_ns": 276683625,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              192,
+              102442992,
+              12399036,
+              0
+            ],
+            "raw_lock_wait": [
+              544,
+              446408,
+              460280,
+              0
+            ],
+            "raw_save": [
+              544,
+              171682848,
+              81319797,
+              2550365
+            ],
+            "trace_emit": [
+              1088,
+              39596285,
+              39615075,
+              0
+            ],
+            "trace_lock_wait": [
+              1088,
+              498446,
+              552789,
+              0
+            ],
+            "upstream_body": [
+              272,
+              2570830,
+              1937322,
+              0
+            ],
+            "upstream_headers": [
+              272,
+              331964935,
+              23156615,
+              0
+            ],
+            "upstream_send": [
+              272,
+              19004496,
+              19018131,
+              0
+            ]
+          },
+          "service_allocation_calls": 52176,
+          "service_process_cpu_ns": 93035464,
+          "service_requested_bytes": 30281246,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              16,
+              6159532,
+              1796701,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              16,
+              754668190,
+              63139977,
+              48395,
+              23388663,
+              0
+            ],
+            "head_decode": [
+              16,
+              347900,
+              348272,
+              80,
+              7808,
+              0
+            ],
+            "head_encode": [
+              16,
+              30955,
+              31255,
+              80,
+              32384,
+              0
+            ],
+            "head_fingerprint": [
+              32,
+              289752,
+              289862,
+              160,
+              63488,
+              0
+            ],
+            "native_commit": [
+              16,
+              686795551,
+              51537464,
+              39591,
+              20836132,
+              0
+            ],
+            "native_publish": [
+              16,
+              13875826,
+              1903945,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              16,
+              2464929,
+              2466227,
+              176,
+              135824,
+              0
+            ],
+            "object_encode": [
+              80,
+              824777,
+              824469,
+              714,
+              1065495,
+              0
+            ],
+            "object_validate": [
+              80,
+              1490760,
+              1490786,
+              1896,
+              335616,
+              0
+            ],
+            "queue_wait": [
+              16,
+              573649,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              16,
+              80581,
+              80710,
+              128,
+              69888,
+              0
+            ],
+            "result_encode": [
+              16,
+              24669,
+              24668,
+              16,
+              66928,
+              0
+            ],
+            "s3_get": [
+              176,
+              320522613,
+              32702824,
+              27174,
+              13386017,
+              1658226
+            ],
+            "s3_put": [
+              96,
+              404537615,
+              17339990,
+              14608,
+              6082827,
+              892139
+            ]
+          },
+          "success_per_second": 20.178973343047776
+        }
+      },
+      "profile_sha256": "24c1c3e6703070d1af878b8e4b05c82f95fb9123b27bacde724238db312e4d0b",
+      "run_record_sha256": "a6d01fd169161907a4f019bd16783e2df699db2607b6c43d0de8a392a0d2e0c9",
+      "source_commit": "b5824bc35198a167cd09332acb672c9d6965cbca",
+      "source_manifest_sha256": "e4b6461a139b67485c59972ce07092c479569d79a8a56fe070111b4cfca1ef60",
+      "wire": {
+        "authority": {
+          "accepted_versions": 738,
+          "ambiguous_http_intervals": 0,
+          "blackholed_before_forward": 0,
+          "causal_constraints": 1967,
+          "conditional_put_responses": 738,
+          "exact_get_body_etag_pairs": 1713,
+          "http_interval_binding": "NOT_REQUESTED"
+        },
+        "formal_http_ack_interval_binding": "NOT_CAPTURED_FOR_DIAGNOSTIC",
+        "original_result_put_readback_head_bindings": 112,
+        "phases": {
+          "read_multi": {
+            "body_bytes": {
+              "GET": 24576,
+              "PUT": 0
+            },
+            "methods": {
+              "GET": 32
+            }
+          },
+          "write_multi": {
+            "body_bytes": {
+              "GET": 6632904,
+              "PUT": 3568556
+            },
+            "methods": {
+              "GET": 704,
+              "PUT": 384
+            }
+          },
+          "write_same": {
+            "body_bytes": {
+              "GET": 5940593,
+              "PUT": 3063762
+            },
+            "methods": {
+              "GET": 363,
+              "PUT": 198
+            }
+          },
+          "write_seq": {
+            "body_bytes": {
+              "GET": 1658226,
+              "PUT": 892139
+            },
+            "methods": {
+              "GET": 176,
+              "PUT": 96
+            }
+          }
+        },
+        "s3_exchanges": 2451,
+        "status": "PASSED_DIAGNOSTIC_WIRE_CHECKS"
+      }
+    },
+    {
+      "binary_sha256": "85a3f816e135b71c127fd60f9b602ffc2999162d60d0746d170e0c1215222466",
+      "case": "03-proof-direct",
+      "code": "proof",
+      "mode": "direct",
+      "phases": {
+        "read_multi": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 23748103,
+          "http_connect_started_completed_reused": [
+            3,
+            3,
+            30
+          ],
+          "latency_ns": {
+            "100": 4633142,
+            "50": 2771275,
+            "95": 4411852,
+            "99": 4633142
+          },
+          "observer_process_cpu_ns": 90054,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 7129,
+          "service_process_cpu_ns": 8637365,
+          "service_requested_bytes": 1869547,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              28197239,
+              4250742,
+              5069,
+              972403,
+              0
+            ],
+            "head_decode": [
+              32,
+              286870,
+              287727,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "head_fingerprint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_commit": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_publish": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_validate": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "queue_wait": [
+              32,
+              773915,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "s3_get": [
+              32,
+              26797019,
+              2893450,
+              4237,
+              900307,
+              24576
+            ],
+            "s3_put": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "success_per_second": 1347.476048929045
+        },
+        "write_multi": {
+          "calls": 64,
+          "concurrency": 4,
+          "elapsed_ns": 613475595,
+          "http_connect_started_completed_reused": [
+            96,
+            96,
+            1033
+          ],
+          "latency_ns": {
+            "100": 54028968,
+            "50": 36517779,
+            "95": 49369925,
+            "99": 54028968
+          },
+          "observer_process_cpu_ns": 240617,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 181252,
+          "service_process_cpu_ns": 269189379,
+          "service_requested_bytes": 88147507,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              64,
+              76273571,
+              11285717,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              64,
+              2235648878,
+              190858862,
+              170180,
+              65407321,
+              0
+            ],
+            "head_decode": [
+              64,
+              1294110,
+              1174809,
+              320,
+              31232,
+              0
+            ],
+            "head_encode": [
+              64,
+              203671,
+              204036,
+              320,
+              129536,
+              0
+            ],
+            "head_fingerprint": [
+              128,
+              1576747,
+              1192806,
+              640,
+              253952,
+              0
+            ],
+            "native_commit": [
+              64,
+              1949737959,
+              143831714,
+              137108,
+              57644449,
+              0
+            ],
+            "native_publish": [
+              64,
+              144276180,
+              13847031,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              64,
+              10179452,
+              8878526,
+              704,
+              543296,
+              0
+            ],
+            "object_encode": [
+              320,
+              4729798,
+              4360527,
+              2856,
+              4261980,
+              0
+            ],
+            "object_validate": [
+              320,
+              7807008,
+              6533968,
+              7584,
+              1342464,
+              0
+            ],
+            "queue_wait": [
+              64,
+              6027614,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              64,
+              360122,
+              359754,
+              512,
+              279552,
+              0
+            ],
+            "result_encode": [
+              64,
+              85920,
+              86102,
+              64,
+              267712,
+              0
+            ],
+            "s3_get": [
+              704,
+              919676685,
+              81183812,
+              93976,
+              35376488,
+              6632904
+            ],
+            "s3_put": [
+              384,
+              1047978028,
+              44367287,
+              49752,
+              14351941,
+              3568556
+            ]
+          },
+          "success_per_second": 104.323628391444
+        },
+        "write_same": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 830190568,
+          "http_connect_started_completed_reused": [
+            0,
+            0,
+            561
+          ],
+          "latency_ns": {
+            "100": 121168498,
+            "50": 96000686,
+            "95": 118394643,
+            "99": 121168498
+          },
+          "observer_process_cpu_ns": 327078,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 94673,
+          "service_process_cpu_ns": 130885161,
+          "service_requested_bytes": 53549805,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              32,
+              16910676,
+              4563131,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              827205239,
+              89646046,
+              89925,
+              43104827,
+              0
+            ],
+            "head_decode": [
+              32,
+              671051,
+              671911,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              32,
+              72940,
+              73176,
+              160,
+              64768,
+              0
+            ],
+            "head_fingerprint": [
+              64,
+              493224,
+              493338,
+              320,
+              126976,
+              0
+            ],
+            "native_commit": [
+              32,
+              731801203,
+              71534923,
+              72262,
+              39297777,
+              0
+            ],
+            "native_publish": [
+              32,
+              30061377,
+              6650927,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              32,
+              3904444,
+              3905924,
+              352,
+              271648,
+              0
+            ],
+            "object_encode": [
+              166,
+              3837840,
+              3838004,
+              1994,
+              3645701,
+              0
+            ],
+            "object_validate": [
+              165,
+              3987072,
+              3996118,
+              6930,
+              1280128,
+              0
+            ],
+            "queue_wait": [
+              32,
+              2239021183,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              32,
+              149362,
+              149114,
+              256,
+              139776,
+              0
+            ],
+            "result_encode": [
+              32,
+              40766,
+              40835,
+              32,
+              133856,
+              0
+            ],
+            "s3_get": [
+              363,
+              335002474,
+              34088402,
+              47560,
+              22228320,
+              5940593
+            ],
+            "s3_put": [
+              198,
+              422900103,
+              22322156,
+              25392,
+              8444040,
+              3063762
+            ]
+          },
+          "success_per_second": 38.545366851240836
+        },
+        "write_seq": {
+          "calls": 16,
+          "concurrency": 1,
+          "elapsed_ns": 366171101,
+          "http_connect_started_completed_reused": [
+            0,
+            0,
+            272
+          ],
+          "latency_ns": {
+            "100": 30856394,
+            "50": 22001325,
+            "95": 30856394,
+            "99": 30856394
+          },
+          "observer_process_cpu_ns": 260999,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {},
+          "service_allocation_calls": 44407,
+          "service_process_cpu_ns": 50434501,
+          "service_requested_bytes": 19527179,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              16,
+              9447513,
+              2011750,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              16,
+              334462768,
+              31948007,
+              42001,
+              15586268,
+              0
+            ],
+            "head_decode": [
+              16,
+              256651,
+              256483,
+              80,
+              7808,
+              0
+            ],
+            "head_encode": [
+              16,
+              28038,
+              27972,
+              80,
+              32384,
+              0
+            ],
+            "head_fingerprint": [
+              32,
+              216471,
+              216722,
+              160,
+              63488,
+              0
+            ],
+            "native_commit": [
+              16,
+              292242299,
+              24102936,
+              33953,
+              13879411,
+              0
+            ],
+            "native_publish": [
+              16,
+              13387221,
+              2538723,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              16,
+              1823137,
+              1824332,
+              176,
+              135824,
+              0
+            ],
+            "object_encode": [
+              80,
+              1311699,
+              1312235,
+              714,
+              1065495,
+              0
+            ],
+            "object_validate": [
+              80,
+              1340231,
+              1340920,
+              1896,
+              335616,
+              0
+            ],
+            "queue_wait": [
+              16,
+              376317,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              16,
+              74000,
+              74011,
+              128,
+              69888,
+              0
+            ],
+            "result_encode": [
+              16,
+              18078,
+              18087,
+              16,
+              66928,
+              0
+            ],
+            "s3_get": [
+              176,
+              137105082,
+              11941851,
+              23063,
+              8155894,
+              1658226
+            ],
+            "s3_put": [
+              96,
+              165983190,
+              7022176,
+              12325,
+              3510651,
+              892139
+            ]
+          },
+          "success_per_second": 43.695419863295
+        }
+      },
+      "profile_sha256": "582f22b7420c0f55204e14732bee05f7f93a124ec30d8fb8d414eab61f27984b",
+      "run_record_sha256": "043cd7960bb375200600358793ac8506c03c351ce1cfa55fac11ebf0c9fe2b26",
+      "source_commit": "b5824bc35198a167cd09332acb672c9d6965cbca",
+      "source_manifest_sha256": "e4b6461a139b67485c59972ce07092c479569d79a8a56fe070111b4cfca1ef60",
+      "wire": {
+        "status": "NOT_CAPTURED_DIRECT_DIAGNOSTIC"
+      }
+    },
+    {
+      "binary_sha256": "3efa4b1b104239fd0fcb32d4b75ad27e2fa80e330cd94bcccf4d15a1ca7f7320",
+      "case": "04-baseline-evidence",
+      "code": "baseline",
+      "mode": "evidence",
+      "phases": {
+        "read_multi": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 38972132,
+          "http_connect_started_completed_reused": [
+            32,
+            32,
+            0
+          ],
+          "latency_ns": {
+            "100": 6441710,
+            "50": 4539422,
+            "95": 6433058,
+            "99": 6441710
+          },
+          "observer_process_cpu_ns": 41332368,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "raw_lock_wait": [
+              64,
+              14478941,
+              651180,
+              0
+            ],
+            "raw_save": [
+              64,
+              36569371,
+              9459647,
+              24576
+            ],
+            "trace_emit": [
+              128,
+              34190817,
+              9868138,
+              0
+            ],
+            "trace_lock_wait": [
+              128,
+              13211960,
+              780260,
+              0
+            ],
+            "upstream_body": [
+              32,
+              224748,
+              219359,
+              0
+            ],
+            "upstream_headers": [
+              32,
+              18539655,
+              3185258,
+              0
+            ],
+            "upstream_send": [
+              32,
+              13195436,
+              3620675,
+              0
+            ]
+          },
+          "service_allocation_calls": 7943,
+          "service_process_cpu_ns": 10873097,
+          "service_requested_bytes": 2802512,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              119949952,
+              5526298,
+              5757,
+              1750464,
+              0
+            ],
+            "head_decode": [
+              32,
+              302080,
+              281347,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "head_fingerprint": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_commit": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_publish": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "object_validate": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "queue_wait": [
+              32,
+              1359546,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_encode": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "s3_get": [
+              32,
+              118397164,
+              4038918,
+              4925,
+              1677888,
+              24576
+            ],
+            "s3_put": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "success_per_second": 821.0995487750067
+        },
+        "write_multi": {
+          "calls": 64,
+          "concurrency": 4,
+          "elapsed_ns": 1937191099,
+          "http_connect_started_completed_reused": [
+            1152,
+            1152,
+            0
+          ],
+          "latency_ns": {
+            "100": 148524000,
+            "50": 119770119,
+            "95": 132440813,
+            "99": 148524000
+          },
+          "observer_process_cpu_ns": 1899881825,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              768,
+              391482816,
+              46766486,
+              0
+            ],
+            "raw_lock_wait": [
+              2304,
+              1773371589,
+              29579758,
+              0
+            ],
+            "raw_save": [
+              2304,
+              3170773722,
+              552227752,
+              10217048
+            ],
+            "trace_emit": [
+              4608,
+              2007324582,
+              429217456,
+              0
+            ],
+            "trace_lock_wait": [
+              4608,
+              1089391228,
+              40366154,
+              0
+            ],
+            "upstream_body": [
+              1152,
+              22204483,
+              11718101,
+              0
+            ],
+            "upstream_headers": [
+              1152,
+              1265182859,
+              129211062,
+              0
+            ],
+            "upstream_send": [
+              1152,
+              411534131,
+              144166759,
+              0
+            ]
+          },
+          "service_allocation_calls": 219776,
+          "service_process_cpu_ns": 399544604,
+          "service_requested_bytes": 129410861,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              64,
+              49680715,
+              9623519,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              64,
+              7581362107,
+              282783656,
+              203227,
+              96952353,
+              0
+            ],
+            "head_decode": [
+              64,
+              1577325,
+              1185121,
+              320,
+              31232,
+              0
+            ],
+            "head_encode": [
+              64,
+              601023,
+              544421,
+              320,
+              129536,
+              0
+            ],
+            "head_fingerprint": [
+              64,
+              518540,
+              520655,
+              320,
+              126976,
+              0
+            ],
+            "native_commit": [
+              64,
+              6877619738,
+              231842030,
+              168021,
+              86741973,
+              0
+            ],
+            "native_publish": [
+              64,
+              80079939,
+              11130848,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              64,
+              8913183,
+              8094892,
+              704,
+              543296,
+              0
+            ],
+            "object_encode": [
+              320,
+              5001462,
+              4565294,
+              2856,
+              4261980,
+              0
+            ],
+            "object_validate": [
+              384,
+              8114573,
+              7414789,
+              7712,
+              1350656,
+              0
+            ],
+            "queue_wait": [
+              64,
+              2783319,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              64,
+              594986,
+              463359,
+              512,
+              279552,
+              0
+            ],
+            "result_encode": [
+              64,
+              80604,
+              80836,
+              64,
+              267712,
+              0
+            ],
+            "s3_get": [
+              768,
+              4326272633,
+              144117143,
+              118502,
+              57047785,
+              6648492
+            ],
+            "s3_put": [
+              384,
+              3079513392,
+              76861553,
+              58401,
+              24330316,
+              3568556
+            ]
+          },
+          "success_per_second": 33.0375253288318
+        },
+        "write_same": {
+          "calls": 32,
+          "concurrency": 4,
+          "elapsed_ns": 1434515519,
+          "http_connect_started_completed_reused": [
+            593,
+            593,
+            0
+          ],
+          "latency_ns": {
+            "100": 205097536,
+            "50": 173749513,
+            "95": 204663462,
+            "99": 205097536
+          },
+          "observer_process_cpu_ns": 566615087,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              396,
+              173912310,
+              20386764,
+              0
+            ],
+            "raw_lock_wait": [
+              1186,
+              754537,
+              855280,
+              0
+            ],
+            "raw_save": [
+              1186,
+              319474374,
+              164225991,
+              9012156
+            ],
+            "trace_emit": [
+              2372,
+              82067833,
+              81362748,
+              0
+            ],
+            "trace_lock_wait": [
+              2372,
+              1112496,
+              1206757,
+              0
+            ],
+            "upstream_body": [
+              593,
+              4493589,
+              4243889,
+              0
+            ],
+            "upstream_headers": [
+              593,
+              638084047,
+              47252926,
+              0
+            ],
+            "upstream_send": [
+              593,
+              43436239,
+              43371016,
+              0
+            ]
+          },
+          "service_allocation_calls": 116123,
+          "service_process_cpu_ns": 162808717,
+          "service_requested_bytes": 82846592,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              32,
+              18223990,
+              3668927,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              32,
+              1431649908,
+              110541303,
+              108064,
+              62317148,
+              0
+            ],
+            "head_decode": [
+              32,
+              632373,
+              584059,
+              160,
+              15616,
+              0
+            ],
+            "head_encode": [
+              32,
+              223684,
+              223164,
+              160,
+              64768,
+              0
+            ],
+            "head_fingerprint": [
+              32,
+              195290,
+              195421,
+              160,
+              63488,
+              0
+            ],
+            "native_commit": [
+              32,
+              1296823064,
+              89345255,
+              88890,
+              56811381,
+              0
+            ],
+            "native_publish": [
+              32,
+              21020610,
+              4088051,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              32,
+              4144005,
+              4145993,
+              352,
+              271648,
+              0
+            ],
+            "object_encode": [
+              166,
+              1530052,
+              1516571,
+              1994,
+              3645701,
+              0
+            ],
+            "object_validate": [
+              197,
+              4054720,
+              4053846,
+              6994,
+              1284224,
+              0
+            ],
+            "queue_wait": [
+              32,
+              3929309697,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              32,
+              169672,
+              169603,
+              256,
+              139776,
+              0
+            ],
+            "result_encode": [
+              32,
+              43637,
+              43703,
+              32,
+              133856,
+              0
+            ],
+            "s3_get": [
+              395,
+              636740122,
+              54320024,
+              61027,
+              36166171,
+              5948394
+            ],
+            "s3_put": [
+              198,
+              735462584,
+              28688530,
+              30128,
+              13770830,
+              3063762
+            ]
+          },
+          "success_per_second": 22.307182861505176
+        },
+        "write_seq": {
+          "calls": 16,
+          "concurrency": 1,
+          "elapsed_ns": 918240391,
+          "http_connect_started_completed_reused": [
+            288,
+            288,
+            0
+          ],
+          "latency_ns": {
+            "100": 199356466,
+            "50": 45671409,
+            "95": 199356466,
+            "99": 199356466
+          },
+          "observer_process_cpu_ns": 330997556,
+          "observer_stage_columns": [
+            "calls",
+            "inclusive_wall_ns",
+            "caller_thread_cpu_ns",
+            "input_bytes"
+          ],
+          "observer_stages": {
+            "fsync": [
+              192,
+              76454273,
+              10514179,
+              0
+            ],
+            "raw_lock_wait": [
+              576,
+              455613,
+              486832,
+              0
+            ],
+            "raw_save": [
+              576,
+              166129800,
+              99446996,
+              2554262
+            ],
+            "trace_emit": [
+              1152,
+              44348719,
+              44349135,
+              0
+            ],
+            "trace_lock_wait": [
+              1152,
+              657852,
+              677000,
+              0
+            ],
+            "upstream_body": [
+              288,
+              2658022,
+              2485043,
+              0
+            ],
+            "upstream_headers": [
+              288,
+              443660103,
+              30275579,
+              0
+            ],
+            "upstream_send": [
+              288,
+              22964684,
+              22930041,
+              0
+            ]
+          },
+          "service_allocation_calls": 54756,
+          "service_process_cpu_ns": 96473620,
+          "service_requested_bytes": 31451948,
+          "service_stage_columns": [
+            "calls",
+            "wall_ns",
+            "caller_thread_cpu_ns",
+            "caller_allocation_calls",
+            "caller_requested_bytes",
+            "body_bytes"
+          ],
+          "service_stages": {
+            "checkpoint": [
+              16,
+              8682243,
+              2416622,
+              0,
+              0,
+              0
+            ],
+            "engine": [
+              16,
+              878037798,
+              66844827,
+              50827,
+              24213363,
+              0
+            ],
+            "head_decode": [
+              16,
+              312970,
+              313157,
+              80,
+              7808,
+              0
+            ],
+            "head_encode": [
+              16,
+              133991,
+              142864,
+              80,
+              32384,
+              0
+            ],
+            "head_fingerprint": [
+              16,
+              121811,
+              122051,
+              80,
+              31744,
+              0
+            ],
+            "native_commit": [
+              16,
+              798725902,
+              52233504,
+              42023,
+              21660688,
+              0
+            ],
+            "native_publish": [
+              16,
+              10095608,
+              2248988,
+              0,
+              0,
+              0
+            ],
+            "native_sql": [
+              16,
+              2561391,
+              2563002,
+              176,
+              135824,
+              0
+            ],
+            "object_encode": [
+              80,
+              723639,
+              664767,
+              714,
+              1065495,
+              0
+            ],
+            "object_validate": [
+              96,
+              1882967,
+              1882401,
+              1928,
+              337664,
+              0
+            ],
+            "queue_wait": [
+              16,
+              483470,
+              0,
+              0,
+              0,
+              0
+            ],
+            "result_decode": [
+              16,
+              83445,
+              83442,
+              128,
+              69888,
+              0
+            ],
+            "result_encode": [
+              16,
+              23696,
+              23760,
+              16,
+              66928,
+              0
+            ],
+            "s3_get": [
+              192,
+              427639646,
+              33171509,
+              29638,
+              14236973,
+              1662123
+            ],
+            "s3_put": [
+              96,
+              420036696,
+              17642341,
+              14608,
+              6082827,
+              892139
+            ]
+          },
+          "success_per_second": 17.424631019090075
+        }
+      },
+      "profile_sha256": "baa7257ec39bb8e3b4b0f1a5cbeae2646970ab4b4ac6b36bdaefe72bce1db9e4",
+      "run_record_sha256": "bcd48165e52dd3682453ca1b702d528a26e2955116ea9e7284af763bc3ea78e1",
+      "source_commit": "2ca9fa6d089f31bc0782cd38d15c8cd02e3ad35b",
+      "source_manifest_sha256": "a9c7d2d1a0f60a54768c97c938646f66fc052a4652f882f09a271b00ec7b7113",
+      "wire": {
+        "authority": {
+          "accepted_versions": 738,
+          "ambiguous_http_intervals": 0,
+          "blackholed_before_forward": 0,
+          "causal_constraints": 2085,
+          "conditional_put_responses": 738,
+          "exact_get_body_etag_pairs": 1831,
+          "http_interval_binding": "NOT_REQUESTED"
+        },
+        "formal_http_ack_interval_binding": "NOT_CAPTURED_FOR_DIAGNOSTIC",
+        "original_result_put_readback_head_bindings": 112,
+        "phases": {
+          "read_multi": {
+            "body_bytes": {
+              "GET": 24576,
+              "PUT": 0
+            },
+            "methods": {
+              "GET": 32
+            }
+          },
+          "write_multi": {
+            "body_bytes": {
+              "GET": 6648492,
+              "PUT": 3568556
+            },
+            "methods": {
+              "GET": 768,
+              "PUT": 384
+            }
+          },
+          "write_same": {
+            "body_bytes": {
+              "GET": 5948394,
+              "PUT": 3063762
+            },
+            "methods": {
+              "GET": 395,
+              "PUT": 198
+            }
+          },
+          "write_seq": {
+            "body_bytes": {
+              "GET": 1662123,
+              "PUT": 892139
+            },
+            "methods": {
+              "GET": 192,
+              "PUT": 96
+            }
+          }
+        },
+        "s3_exchanges": 2569,
+        "status": "PASSED_DIAGNOSTIC_WIRE_CHECKS"
+      }
+    }
+  ],
+  "schema": 1,
+  "status": "FOUR_FIXED_SAMPLES_AUDITED",
+  "tools": {
+    "libsql_rev": "d8bc862d20bedc72945a1da27c8b7045414c0261",
+    "llvm": "20.1.8",
+    "node": "22.16.0",
+    "rust": "1.90.0",
+    "seaweedfs": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101"
+  }
+}

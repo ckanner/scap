@@ -735,27 +735,23 @@ def corruption_versions(path, requests, responses):
     return raw, changed, (first, second, third)
 
 
-def network(history, events, calls, by_command, configuration):
-    numbered(history)
-    allowed = {'phase_started', 'object_request', 'object_forwarded', 'object_response',
-               'object_response_delivered', 'transport_fault_observed'}
-    require(all(row['event'] in allowed for row in history), 'unplanned or failed real S3 trace event')
-    phases = set(NAMES) | {'seed', 'setup', 'bootstrap', 'cleanup'}
-    from audit_wire import service_startups
-    requests, responses = object_exchanges(history, phases=phases, blackhole_phases={'rejects'},
-                                          startups=service_startups(events, workers=WORKERS))
-    objects, accepted_objects, bindings, by_call = {}, {}, {}, defaultdict(list)
-    seed_corrupt = value_of(by_command['seed'][NAMES.index('corrupt') * 4 + 2])['receipt']
-    corrupt_path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/storage/1/objects/' + seed_corrupt['data_root']
-    original, changed, corruption = corruption_versions(corrupt_path, requests, responses)
-    fixture_requests = [serial for serial, request in requests.items() if request['worker'] == 'fixture']
-    equal(sorted(fixture_requests), sorted(corruption[1:]), 'operator made extra S3 requests outside the two explicit corrupt/repair PUTs')
-    for serial, request in requests.items():
+def original_s3_exchanges(history, *, phases, blackhole_phases, startups, endpoints, access_key_sha256):
+    """Keep all physical exchanges after verifying each exact startup claim.
+
+    The shared verifier removes only authenticated startup serials from its
+    returned business maps. Full captured bytes and signing witnesses below
+    still cover both partitions; no prefix or fixed request allowance is used.
+    """
+    requests, responses = object_exchanges(history, phases=phases, blackhole_phases=blackhole_phases,
+                                          startups=startups)
+    physical_requests = {row['request_serial']: row for row in history if row['event'] == 'object_request'}
+    physical_responses = {row['request_serial']: row for row in history if row['event'] == 'object_response'}
+    for serial, request in physical_requests.items():
         worker = request['worker']
-        require(worker in set(WORKERS) | {'fixture'}, 'S3 request has unowned worker identity')
+        require(worker in endpoints, 'S3 request has unowned worker identity')
         signing = request['signing']
         require(signing['algorithm'] == 'AWS4-HMAC-SHA256' and
-                signing['access_key_sha256'] == configuration['backend']['access_key_sha256'], 'S3 request signing principal changed')
+                signing['access_key_sha256'] == access_key_sha256, 'S3 request signing principal changed')
         require(re.fullmatch(r'[0-9]{8}/us-east-1/s3/aws4_request', signing['credential_scope']) and
                 re.fullmatch(r'[0-9]{8}T[0-9]{6}Z', signing['date']) and signing['credential_scope'].startswith(signing['date'][:8]),
                 'S3 signing date/scope changed')
@@ -764,7 +760,7 @@ def network(history, events, calls, by_command, configuration):
         equal(headers, sorted(set(headers)), 'noncanonical signed header list')
         require({'host', 'x-amz-content-sha256', 'x-amz-date'} <= set(headers) and
                 signing['payload_sha256'] == request['request_sha256'], 'S3 signature omitted original request bytes')
-        expected_endpoint = configuration['backend']['fixture_endpoint'] if worker == 'fixture' else configuration['s3_endpoints'][worker]
+        expected_endpoint = endpoints[worker]
         require(signing['host'] == urlparse(expected_endpoint).netloc, 'S3 signed another endpoint')
         raw = bounded_bytes(request, 'request_body', 'request_sha256')
         require(len(raw) == request['request_bytes'], 'S3 complete request length changed')
@@ -774,7 +770,31 @@ def network(history, events, calls, by_command, configuration):
             if 'response_body' in row:
                 raw_response = bounded_bytes(row, 'response_body', 'response_sha256')
                 require(len(raw_response) == row['response_bytes'], 'S3 complete response length changed')
-                equal(row['response_body'], responses[serial]['response_body'], 'delivered S3 bytes differ from original backend')
+                equal(row['response_body'], physical_responses[serial]['response_body'], 'delivered S3 bytes differ from original backend')
+    startup_requests = {serial: request for serial, request in physical_requests.items() if serial not in requests}
+    return {'requests': requests, 'responses': responses, 'physical_requests': physical_requests,
+            'physical_responses': physical_responses, 'startup_requests': startup_requests}
+
+
+def network(history, events, calls, by_command, configuration):
+    numbered(history)
+    allowed = {'phase_started', 'object_request', 'object_forwarded', 'object_response',
+               'object_response_delivered', 'transport_fault_observed'}
+    require(all(row['event'] in allowed for row in history), 'unplanned or failed real S3 trace event')
+    phases = set(NAMES) | {'seed', 'setup', 'bootstrap', 'cleanup'}
+    from audit_wire import service_startups
+    observed = original_s3_exchanges(history, phases=phases, blackhole_phases={'rejects'},
+        startups=service_startups(events, workers=WORKERS), access_key_sha256=configuration['backend']['access_key_sha256'],
+        endpoints={**configuration['s3_endpoints'], 'fixture': configuration['backend']['fixture_endpoint']})
+    requests, responses = observed['requests'], observed['responses']
+    objects, accepted_objects, bindings, by_call = {}, {}, {}, defaultdict(list)
+    seed_corrupt = value_of(by_command['seed'][NAMES.index('corrupt') * 4 + 2])['receipt']
+    corrupt_path = '/scap-test/scap-object/v1/1/7/' + SCOPES['corrupt']['database'] + '/inc/1/gen/1/storage/1/objects/' + seed_corrupt['data_root']
+    original, changed, corruption = corruption_versions(corrupt_path, requests, responses)
+    fixture_requests = [serial for serial, request in requests.items() if request['worker'] == 'fixture']
+    equal(sorted(fixture_requests), sorted(corruption[1:]), 'operator made extra S3 requests outside the two explicit corrupt/repair PUTs')
+    for serial, request in requests.items():
+        worker, raw = request['worker'], b64(request['request_body'])
         if worker != 'fixture':
             matching = {number for number, call in calls.items() if call['worker'] == worker and
                         request['path'].startswith('/scap-test/scap-object/v1/1/7/' + call['body']['scope']['database'] + '/') and
@@ -800,7 +820,7 @@ def network(history, events, calls, by_command, configuration):
     regular = {serial: request for serial, request in requests.items() if request['path'] != corrupt_path}
     version_report = object_versions(regular, {serial: response for serial, response in responses.items() if serial in regular},
                                      calls=calls, bindings={serial: bindings[serial] for serial in regular})
-    return {'requests': requests, 'responses': responses, 'objects': objects, 'accepted_objects': accepted_objects,
+    return {**observed, 'objects': objects, 'accepted_objects': accepted_objects,
             'bindings': bindings, 'by_call': by_call, 'versions': version_report, 'corrupt_path': corrupt_path,
             'corruption_serials': corruption, 'corrupt_original': original, 'corrupt_changed': changed}
 
@@ -1038,6 +1058,25 @@ def node_shutdown(start, requested, stop, marker):
             stamp(start) < stamp(requested) < stamp(marker) < stamp(stop), 'Node graceful shutdown order/force changed')
 
 
+def private_runtime_identity(value):
+    # The runner creates this directory beside evidence, including RUNNER_TEMP.
+    # Later copies are bound to the original create/remove device/inode pair.
+    require(type(value) is dict and set(value) == {'path', 'device', 'inode'}
+            and type(value['path']) is str, 'private runtime identity changed')
+    path = Path(value['path'])
+    require(path.is_absolute() and path.as_posix() == value['path'] and '..' not in path.parts
+            and re.fullmatch(r'scap-owner-private-[A-Za-z0-9_-]+', path.name) is not None
+            and all(type(value[key]) is int and value[key] > 0 for key in ('device', 'inode')),
+            'private runtime identity changed')
+
+
+def private_cache_directories(private, caches):
+    private_runtime_identity(private)
+    require(type(caches) is dict and set(caches) == set(WORKERS), 'private cache worker denominator changed')
+    require(all(type(cache) is str and cache == str(Path(private['path']) / ('cache-' + worker))
+                for worker, cache in caches.items()), 'daemon cache escaped original private runtime')
+
+
 def process_proof(directory, events, nodes, operations, saved, calls, net, configuration, build):
     groups = defaultdict(list)
     for row in events: groups[row['event']].append(row)
@@ -1098,7 +1137,7 @@ def process_proof(directory, events, nodes, operations, saved, calls, net, confi
         equal(identity(first), identity(last), 'backend wait4 belongs to another child')
         register(first, stopped); wait4(last, -signal.SIGKILL)
         require(first['spawn_monotonic_ns'] < stamp(backend) < stamp(stopped), 'backend lifetime order changed')
-    for request in net['requests'].values():
+    for request in net['physical_requests'].values():
         require(stamp(backend) < stamp(request) < stamp(stopped), 'S3 request outside owned backend lifetime')
     node_lives = {}
     equal(Counter(row['node'] for row in groups['node_stop_requested']), Counter((1, 2)), 'Node stop-request denominator changed')
@@ -1162,16 +1201,15 @@ def process_proof(directory, events, nodes, operations, saved, calls, net, confi
     cleanup = only(groups['cleanup_finished'], 'cleanup completion inventory')
     proxy = only(groups['proxy_stopped'], 'actual relay shutdown inventory')
     require(cleanup['errors'] == proxy['errors'] == [] and proxy['http_requests'] == 144 and
-            proxy['s3_requests'] == len(net['requests']), 'actual relay/process cleanup or denominator failed')
+            proxy['s3_requests'] == len(net['physical_requests']), 'actual relay/process cleanup or denominator failed')
     created = only(groups['private_created'], 'private runtime creation inventory')
     removing = only(groups['private_remove_started'], 'private runtime removal boundary')
     gone = only(groups['private_removed'], 'private runtime absence observation')
     for row in (removing, gone):
         equal({key: row[key] for key in ('path', 'device', 'inode')}, {key: created[key] for key in ('path', 'device', 'inode')},
               'removed private runtime differs from created directory identity')
-    require(Path(created['path']).is_absolute() and Path(created['path']).name.startswith('scap-owner-private-')
-            and str(Path(created['path'])).startswith('/tmp/') and type(created['device']) is int and type(created['inode']) is int,
-            'private runtime was not isolated in the observed /tmp run')
+    private_cache_directories({key: created[key] for key in ('path', 'device', 'inode')},
+                              {worker: service[0]['cache_directory'] for worker, service in services.items()})
     require(gone['observed_absence'] is True and stamp(created) < stamp(backend) < stamp(proxy) < stamp(stopped) < stamp(cleanup)
             < stamp(removing) < stamp(gone) and all(stamp(row) < stamp(removing) for row in groups['service_stopped'] + groups['node_stopped']
                                                   + groups['fixture_process_stopped']), 'private cleanup preceded owned process/relay exit')
@@ -1361,7 +1399,9 @@ def audit(directory, *, require_artifacts=True):
     return {'schema': 1, 'status': 'passed', 'profile': 'independent-explicit-owner-real-transport-v1',
             'commands': 70, 'original_http_posts': 144, 'original_sql_acks': heads['original_sql_acks'],
             'accepted_head_publications': heads['accepted_head_publications'], 'rejected_original_head_candidates': 2,
-            's3_requests': len(net['requests']), 'object_versions': net['versions'], 'faults': faults, 'processes': processes,
+            's3_requests': len(net['requests']), 'physical_s3_requests': len(net['physical_requests']),
+            'startup_s3_requests': len(net['startup_requests']),
+            'object_versions': net['versions'], 'faults': faults, 'processes': processes,
             'build': build, 'input_files': files, 'evidence_sha256': sha(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()),
             'automatic_failure_detector': 'NOT_IMPLEMENTED', 'automatic_controller': 'NOT_IMPLEMENTED',
             'automatic_registry_roll_forward': 'NOT_IMPLEMENTED', 'aws_standard': 'NOT_RUN', 'production_slo': 'NOT_RUN'}

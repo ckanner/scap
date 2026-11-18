@@ -2,6 +2,7 @@ name: Object-native quality and independent evidence
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:

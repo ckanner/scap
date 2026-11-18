@@ -53,9 +53,11 @@ class Service:
         command = [str(binary), str(path)]
         executable = {"path": str(binary), "sha256": build.digest(binary)}
         with self.log.open("wb") as stream:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen(command, cwd=ROOT, env=environment, stdout=stream, stderr=stream)
         self.identity = fixture.process_identity(self.process)
         facts.emit("service_started", owner_instance=PLAN["owner_instance"], identity=self.identity,
+                   spawn_requested_ns=spawn_requested_ns,
                    endpoint=self.endpoint, cache_directory=str(self.cache), command=command,
                    configuration_sha256=build.digest(path), binary=executable)
         try:
@@ -69,7 +71,8 @@ class Service:
                     response = connection.getresponse()
                     body = response.read(4096)
                     if response.status == 200 and json.loads(body) == {"status": "alive", "protocol": 1}:
-                        facts.emit("service_ready", identity=self.identity, response_status=200,
+                        facts.emit("service_ready", owner_instance=PLAN["owner_instance"],
+                                   identity=self.identity, response_status=200,
                                    response_body=base64.b64encode(body).decode(), response_sha256=sha(body))
                         return
                 except (OSError, ValueError, http.client.HTTPException):

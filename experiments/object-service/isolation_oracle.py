@@ -355,7 +355,8 @@ def processes(directory, facts, http, history, configuration, build):
     require(ident["spawn_monotonic_ns"] < stamp(start) < stamp(ready) < stamp(requested) < stamp(stopped), "service original lifetime order")
     exited(stopped, -signal.SIGKILL)
     require(stopped["stdout_sha256"] == sha((directory / "scapd.stdout.log").read_bytes()), "original service stdout changed")
-    require(start["owner_instance"] == PLAN["owner_instance"] and start["configuration_sha256"] == sha((directory / "isolation-service-config.json").read_bytes()), "actual daemon configuration changed")
+    require(start["owner_instance"] == ready["owner_instance"] == PLAN["owner_instance"] and
+            start["configuration_sha256"] == sha((directory / "isolation-service-config.json").read_bytes()), "actual daemon configuration changed")
     require(start["command"][0] == start["binary"]["path"] and len(start["command"]) == 2, "process command did not execute recorded binary")
     if build["status"] != "NOT_PROVIDED":
         equal(start["binary"], build["binary"], "actual daemon did not execute the original release artifact")

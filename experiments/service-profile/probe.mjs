@@ -2,10 +2,20 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
 const [configuration, output] = process.argv.slice(2);
 const config = JSON.parse(readFileSync(configuration, 'utf8'));
+// Optional out-of-band handshake for the historical 2x2 diagnostic. It runs
+// outside each timed phase and adds no product request or object operation.
+const observerInput = config.observer_pipe ? createInterface({input:process.stdin}) : null;
+const observer = async (phase, edge) => {
+  if (!observerInput) return null;
+  const reply = new Promise(resolve => observerInput.once('line', line => resolve(JSON.parse(line))));
+  process.stdout.write(JSON.stringify({diagnostic_observer:{phase,edge}})+'\n');
+  return reply;
+};
 const { Client } = await import(pathToFileURL(config.source_root + '/sdk/node/src/client.js'));
 const sha = value => createHash('sha256').update(value).digest('hex');
 const specs = [['seq','7','101'], ['same','7','102'], ['m0','7','201'], ['m1','7','202'], ['m2','8','301'], ['m3','8','302']];
@@ -43,6 +53,7 @@ try {
       const request=phase.startsWith('write')?clients[name].prepare([stmt('INSERT INTO loads(id,payload) VALUES(?,?) RETURNING id,payload,random() AS witness',[BigInt(id),payload(id)])],{epoch:'1',id:String(id+2)}):null;
       return {name,id,request};
     });
+    const observer_before=await observer(phase,'before');
     const before=await snapshot(),start=process.hrtime.bigint();
     await Promise.all(Array.from({length:concurrency},async(_,lane)=>{
       for(let index=lane;index<count;index+=concurrency) {
@@ -66,7 +77,8 @@ try {
       }
     }));
     const elapsed_ns=Number(process.hrtime.bigint()-start),after=await snapshot();
-    phases.push({phase,count,concurrency,elapsed_ns,before,after});
+    const observer_after=await observer(phase,'after');
+    phases.push({phase,count,concurrency,elapsed_ns,before,after,observer_before,observer_after});
     assert.equal(calls.filter(c=>c.phase===phase&&!c.ok).length,0);
   }
   for(const original of originals) {
@@ -81,5 +93,6 @@ try {
   }
   console.log(JSON.stringify({ok:true,phases:phases.length,measured_calls:calls.length,original_lookups:originals.length,final_databases:expected.size}));
 } finally {
+  observerInput?.close();
   writeFileSync(output,JSON.stringify({schema:1,diagnostic_only:true,phases,calls,observations,originals},null,2));
 }

@@ -23,6 +23,7 @@ DEADLINES = {"client_request_ms": 40000, "seed_phase_ms": 600000, "other_phase_m
              "ordinary_service_ms": 10000, "recovery_service_ms": 30000}
 PLAN = {"schema": 1, "profile": "segmented-request-index-real-http-s3-v1", "head_format": 6,
         "immutable_format": 2, "scope": SCOPE, "owner_instance": 8871, "last_id": LAST_ID,
+        "worker_instances": list(range(8871, 8877)),
         "phases": list(PHASES), "calls": {phase: [list(item) for item in CALLS[phase]] for phase in PHASES},
         "deadlines": DEADLINES, "http_invocations": sum(map(len, CALLS.values())),
         "retained_entries": LAST_ID, "tracked_inputs": LAST_ID + 2, "original_sql_acks": 2,

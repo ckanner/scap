@@ -2,9 +2,8 @@ name: Node codec exact unit coverage
 
 on:
   push:
-    paths: ['sdk/node-codec/**', '.github/workflows/node-codec.yml', 'crates/scap-sql/**', 'crates/scap-object/src/options.rs']
+    branches: [main]
   pull_request:
-    paths: ['sdk/node-codec/**', '.github/workflows/node-codec.yml', 'crates/scap-sql/**', 'crates/scap-object/src/options.rs']
 
 permissions:
   contents: read

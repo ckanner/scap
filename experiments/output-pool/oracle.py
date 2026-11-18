@@ -113,6 +113,40 @@ def identity(directory, inputs):
          'runtime-build-finished')
 
 
+def startup_objects(config, events, history, *, phases, binary, configuration_sha256):
+    """Audit the exact permanent claim separately from ordinary database I/O.
+
+    The pre-Popen clock bounds the claim. The later owned-child observation may
+    legitimately follow its first S3 request and is not a spawn lower bound.
+    """
+    groups = {kind: [row for row in events if row['event'] == kind] for kind in
+              ('service_started', 'service_ready', 'service_stop_requested', 'service_stopped')}
+    need(all(len(values) == 1 for values in groups.values()), 'worker-identity-lifecycle-denominator')
+    start, ready, stopping, stopped = (groups[kind][0] for kind in groups)
+    worker = config['worker_instance']
+    need(worker == '5001' and start['worker_instance'] == ready['worker_instance'] == worker,
+         'worker-identity-config')
+    child = start['identity']
+    need(type(child['pid']) is int and child['pid'] > 0 and child['pid_source'] == 'owned_Popen_child'
+         and type(child['spawn_monotonic_ns']) is int
+         and all(row['identity'] == child for row in (ready, stopping, stopped)), 'worker-identity-owned-ready')
+    need(start['binary'] == binary and start['configuration_sha256'] == configuration_sha256,
+         'worker-identity-source-binding')
+    spawn = start['spawn_requested_ns']
+    need(type(spawn) is int and 0 < spawn < child['spawn_monotonic_ns'] <= time_of(start)
+         < time_of(ready) < time_of(stopping) < time_of(stopped), 'worker-identity-startup-interval')
+    startups = [{'worker': worker, 'role': None, 'start': spawn, 'ready': time_of(ready)}]
+    try:
+        requests, responses = wire.object_exchanges(history, phases=phases, startups=startups)
+    except ValueError as error:
+        raise Rejected(str(error)) from error
+    need(all(time_of(ready) < time_of(row) < time_of(stopped) for row in requests.values())
+         and all(time_of(ready) < time_of(row) < time_of(stopped) for row in responses.values()),
+         'worker-identity-business-lifetime')
+    return {'instances': [worker], 'requests': 2, 'business_requests': len(requests),
+            'physical_requests': len(requests) + 2}
+
+
 def audit(directory):
     directory = Path(directory)
     inputs = wire.parse((directory / 'inputs.json').read_bytes())
@@ -263,11 +297,14 @@ def audit(directory):
          and proxy[0]['joined'] is True and proxy[0]['errors'] == [], 'owned-cleanup')
     need(len(backend[0]['processes']) == 4 and all(p['wait_status'] == -9
          and p['kernel_usage'].get('source') == 'kernel_wait4_owned_child' for p in backend[0]['processes']), 'backend-cleanup')
+    startup = startup_objects(config, events, s3, phases=(*phases, 'a1', 'a2', 'a3', 'b1'),
+        binary=inputs['tools']['scapd'], configuration_sha256=digest((directory / 'service-config.json').read_bytes()))
     return {'status': 'PASSED', 'profile': inputs['profile'], 'http_posts': len(requests),
         'complete_responses': len(responses), 'held_responses': 4, 'reset_without_body': 1,
         'tenant_limit': 1, 'global_limit': 1, 'protected_controls': 1, 'business_sql_executions': 1,
         'committed_result_bytes': len(recovered), 'committed_result_sha256': digest(recovered),
         'physical_s3_requests': len([r for r in s3 if r['event'] == 'object_request']),
+        'worker_startup': startup,
         'sdk_processes': len(stopped), 'aws_standard': 'NOT_RUN', 'production_slo_passed': False}
 
 

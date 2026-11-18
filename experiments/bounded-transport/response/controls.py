@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,10 @@ import shutil
 import tempfile
 
 from oracle import audit, common, rows, wire
+
+spec = importlib.util.spec_from_file_location('scap_response_startup_controls', common.HERE / 'controls.py')
+startup = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(startup)
 
 
 def replace(path, records):
@@ -19,6 +24,9 @@ def replace(path, records):
 
 
 def modify(directory, case):
+    if case in startup.STARTUP_CASES:
+        startup.startup_mutation(directory, case)
+        return
     path = directory / 'events.jsonl'
     events = rows(path)
     if case == 'missing-response':
@@ -70,6 +78,7 @@ def controls(evidence):
         'client-disconnect': 'no-client-disconnect', 'sql-replay': 'http-denominator',
         'forced-exit': 'owned-exit', 'unsigned-backend': 'signed-backend',
         'unconditional-head': 'head-cas', 'missing-result-readback': 'result-readback',
+        **startup.STARTUP_CASES,
     }
     observed = {}
     for case, rule in expected.items():

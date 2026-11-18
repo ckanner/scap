@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+from urllib.parse import urlparse
 
 import oracle
 
@@ -108,6 +109,9 @@ def foreign_daemon_head(data):
     for row in data['history']:
         if row.get('phase') == 'reader_denied' and 'request_serial' in row:
             row['worker'] = 'q'
+            # Keep the hypothetical foreign daemon's wire authority coherent;
+            # the intended counterexample is the original HTTP receiver binding.
+            row['signing']['host'] = urlparse(data['configuration']['s3_endpoints']['q']).netloc
 
 
 def stale_acl(data):

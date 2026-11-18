@@ -202,29 +202,6 @@ impl ObjectContext {
             && self.storage_generation == head.storage.active_generation
     }
 
-    /// Reusing an immutable-read proof cannot move publication to another
-    /// backend, handle lineage, physical namespace or operation deadline.
-    /// Database clones share these bindings; independently constructed handles
-    /// do not, even when they happen to name the same database and backend.
-    pub(super) fn publication_matches(
-        &self,
-        database: &Database,
-        base: &Snapshot,
-        deadline: Instant,
-    ) -> bool {
-        Arc::ptr_eq(&self.objects, &database.objects)
-            && Arc::ptr_eq(&self.knowledge, &database.knowledge)
-            && self.matches(&base.head)
-            && self.deadline.get() == Some(&deadline)
-            && self.basis.as_ref().is_some_and(|basis| {
-                basis.serial == base.head.head_serial
-                    && basis.active == base.head.storage.active_generation
-                    && basis.allocated == base.head.storage.allocated_through
-                    && basis.etag == base.etag
-                    && basis.fingerprint == head_fingerprint(&base.head)
-            })
-    }
-
     fn check(&self, deadline: Instant) -> Result<Instant, Error> {
         let deadline = deadline.min(*self.deadline.get_or_init(|| deadline));
         if self.failed.load(Ordering::Acquire) || Instant::now() >= deadline {

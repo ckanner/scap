@@ -1,6 +1,8 @@
 """Regress the real credential-order failure without weakening identity checks."""
 import copy
+import importlib.util
 import itertools
+from pathlib import Path
 import sys
 import unittest
 
@@ -9,9 +11,46 @@ import unittest
 # directory's run.py for the observer tests.
 _path = sys.path[:]
 try:
-    from oracle import PRINCIPALS, credential_audit
+    from oracle import PRINCIPALS, WORKERS, credential_audit, original_s3_exchanges, relay_counts
+    from test_owner_oracle import signed_exchange_fixture
 finally:
     sys.path[:] = _path
+
+
+class PhysicalListenerInventory(unittest.TestCase):
+    def test_foreign_daemon_control_preserves_complete_wire_checks(self):
+        fixture = signed_exchange_fixture(WORKERS)
+        fixture['phases'].add('reader_denied')
+        serial = max(row['request_serial'] for row in fixture['history'])
+        for row in fixture['history']:
+            if row['request_serial'] == serial:
+                row.update(worker='p', phase='reader_denied')
+                row['signing']['host'] = fixture['endpoints']['p'].split('://', 1)[1]
+        spec = importlib.util.spec_from_file_location('guarded_control_case_test', Path(__file__).with_name('controls.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.foreign_daemon_head({'history': fixture['history'], 'configuration': {'s3_endpoints': fixture['endpoints']}})
+        net = original_s3_exchanges(**fixture)
+        self.assertEqual(net['requests'][serial]['worker'], 'q')
+        self.assertEqual(net['requests'][serial]['signing']['host'], fixture['endpoints']['q'].split('://', 1)[1])
+        self.assertEqual(dict((case.__name__, rule) for case, rule in module.CASES)['foreign_daemon_head'],
+                         'S3 came from wrong daemon instance')
+
+    def test_every_authenticated_startup_stays_in_its_listener_denominator(self):
+        net = original_s3_exchanges(**signed_exchange_fixture(WORKERS))
+        self.assertEqual(relay_counts(net), {'sink': 0, 'http-s': 7, 'http-p': 22,
+                                           's3-s': 3, 's3-p': 2, 's3-q': 2})
+        self.assertEqual(len(net['physical_requests']), 7)
+        self.assertEqual(len(net['requests']), 1)
+        self.assertEqual(len(net['startup_requests']), 6)
+
+    def test_unproven_marker_never_reaches_a_listener_allowance(self):
+        data = signed_exchange_fixture(WORKERS)
+        for row in data['history']:
+            if row['request_serial'] == 1:
+                row['path'] = '/scap-test/scap-worker/v1/instances/9999'
+        with self.assertRaisesRegex(ValueError, 'worker-identity-exact-key'):
+            original_s3_exchanges(**data)
 
 
 class CredentialPartition(unittest.TestCase):

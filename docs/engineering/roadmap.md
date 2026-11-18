@@ -5,89 +5,45 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-17。主线、候选实现和验证工具各自保留身份，最新提交、验证与剩余工作见
-[本轮代码与验证](sqlite-s3-review-2026-11-17.md)。
+更新：2026-11-17（纽约；实际运行 UTC 为 11 月 18 日）。HEAD6/7 已在交付基线 `fab8ca0` 中。直接面向 main 的 [PR #65](https://github.com/ckanner/scap/pull/65) 汇集
+#56–#64，并完成本轮生产 self-review 修复、严格覆盖修复和控制面 CI 接入。
+当前源码、命令、实际与 CI 状态以
+[self-review 与 CI 收口](sqlite-s3-self-review-2026-11-17.md)为准。
 
-| 代码范围 | 当前状态 |
-| --- | --- |
-| main `fab8ca0`（#54/#55） | 已合入 HEAD6 代际复制／持久 sweep 与 HEAD7 Deleted 终态 seal |
-| [PR #59](https://github.com/ckanner/scap/pull/59)，新代码 `b4c5236` | owner/controller/S1 组合接续修复过期 admission；隔离 stable/nightly 各 787 单位通过，继续 Draft |
-| [PR #60](https://github.com/ckanner/scap/pull/60)，新代码 `9b5e9ae` | 已验证 Manifest 的完整私有证明减少临时分配；隔离 792 单位与严格 Clippy 通过；原吞吐回退未定位，继续 Draft |
-| [PR #61](https://github.com/ckanner/scap/pull/61)，新代码 `841da9c` | 防复用启动身份永久登记；隔离 stable/nightly 各 797 单位、真实进程 10 个启动故障及 8 个 TCP 场景通过；继续 Draft |
-
-**当前不能签发整体 merge-ready。** #59/#61 的新单位覆盖报告仍有原 7 个生产文件
-只报告 branch 0/0；其他文件的正分母不能替它们提供分支证明。检查器按现行规则
-拒绝报告，未修改 `AGENTS.md` 或覆盖门槛。已发出计数全部
-命中不等于逐文件四维覆盖已满足，详见[测量缺口](branch-coverage-measurement-gap.md)。
-
-| 阶段 | 当前实现与已取得的证据 | 尚需完成的退出条件 |
+| 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
-| N0 协议与格式 | SCAPOBJ2、HEAD6/7 复制／GC／seal、HEAD8 owner-plan 与 HEAD9 retained roots 已有代码；新 HEAD6 与终态全套实际／oracle／原负控通过 | 关闭逐文件分支测量缺口，按受影响源码重新核对组合门禁；模型与局部合同不替代整体出口 |
-| N1 单库真实提交 | Rust/S3/native commit gate、强读、原结果查证／取消、增量页树、Session、逻辑配额和本地全计算丢失恢复；本轮 b15 固定 1 GiB 与完整原结果／BLOB 独立审计通过 | 真实 AWS Standard、完整 OT 合同及部署故障域另验；1 GiB 不认证默认 10 GiB 或任意容量 |
-| N2 多库接入 | HTTP/SDK、目录／发现、按库 actor、控制／恢复／intake／output 期限；历史 owner/controller/isolation 合同分别绑定；本轮过期 admission 和 #61 永久身份登记另有证据 | 动态 fleet、在线策略、自动实例分配与历史迁移、持续过载、公平性与硬资源隔离 |
-| N3 可持续存储 | HEAD6 持久 sweep、HEAD7 终态 seal；HEAD9 S1 保留根和多根 COPY/GC 实际／10 负控／1 正控通过 | S2 新 Scope 恢复、任意时间 PITR、长期保留／GC 成本；冷恢复优化另验 |
-| N4 首发 | 已有绑定源码的本地故障与负载记录；Manifest 请求数减少取得两组对照证据，吞吐未取得一致收益 | 冻结目标后端／IAM／故障域与开环负载，实测吞吐、p95/p99、错误、恢复及成本，再判断非关键试运行条件 |
+| 组合单位与代码质量 | 冻结 `aab8a22`：stable/nightly 各 887 单位；76 个生产文件四维精确 100%；fmt、严格 Clippy、Node 161 单位及覆盖、HTTP 7/controller 12 通过 | 完整实际与远端 CI 单独判定；历史失败不改写 |
+| N0/N1 权威与提交 | 原 HEAD CAS、完整依赖回读、原结果、native publication、owner fencing、取消及 UNKNOWN 均保留 | AWS Standard 与部署故障域另验；有限本地合同不代表任意容量与云端合同 |
+| N2 多库与身份 | 按库 actor、独立控制/恢复预算、永久启动 marker、单调自动 ID、有限 owner/controller 已实现；新 release 显式 ID10、auto18 通过 | 动态 fleet、路由更新、在线策略、历史身份迁移、持续过载、公平性、硬资源隔离 |
+| N3 保留与恢复 | S1 retained roots 与完整 S2 新 Scope 恢复已实现；新 release S2 7 场景/126 负控通过，源 payload 删除后目标仍独立 | 任意时间 PITR、长期 GC/保留成本、冷恢复优化 |
+| 吞吐与首发 | 有界 S3 idle pool 8 和实际 CPU/对象/连接诊断已有代码与证据；历史 proof 2×2 诊断完成 | 原约 24% 四库下降仍未归因，性能验收未通过；目标负载、AWS、p95/p99 与生产 SLO 未认证 |
 
-2026-11-13 历史 b15 的 stable/nightly 各 783 项、fd508 的各 791 项 Rust 单位通过；b15 的 SDK
-157 项、codec 13 项、HTTP/TLS/CLI loopback 19 项及类型／工具／固定模型另有记录。
-这些结果不补足 Rust 未被计数的分支，也不是产品完成率，历史候选的单位数不能相加。
-
-### 历史组合合同与接续合入门禁
-
-下表的 b15／fd508／642 是 2026-11-13 冻结来源。新代码只按本轮 review 的明确范围
-认证，不能借旧结果认证新的合并组合。
-
-| 本轮回归 | 已完成的范围与仍需判定的部分 |
-| --- | --- |
-| Rust／SDK／类型及 release 来源 | 新构建与单位结果各自绑定源码；严格逐文件分支门禁仍失败，不能标为四维 100% |
-| b15 native／恢复 | 网络、schema、retained results、生命周期、116 目录案例、listing、bounded response、deployment discovery 已重新通过；固定 1 GiB 原实际、新全 BLOB／关闭镜像独立审计、5 负控及原正控完整通过 |
-| b15 owner／controller／S1 | owner-plan 新完整实际／42 负控／1 正控、Missing 13／1、单 controller 15／1、S1 10／1 与固定矩阵通过；owner-plan 首轮 seed 失败独立保留 |
-| 固定 controller 矩阵 | 12 场景、23 项夹具自测、31 负控；本轮原矩阵在负控前后独立复核。20 controller、108 受管子进程、586 HTTP（363 controller）、1,914 S3；24 ACK＋12 UNKNOWN、36 原 lookup、12 快照全部核对 |
-| b15 原 13 项服务合同 | 原首轮为 11 项通过、isolation 与 service discovery 失败；新增 isolation 完整实际／21 负控／1 正控通过后，b15 共 12 项取得完整通过记录。资源与 42 例 GC transport 已包含，不能重复计数 |
-| 新观测来源的 service discovery | 冻结 `642383c`、新正式 service 的完整 actual／oracle／32 负控及原正控通过；424 HTTP、25,278 S3；保留 b15 原失败，不合算成 b15 原 13 项全部通过 |
-| HEAD6 组合 | 第二次完整 actual、独立 oracle、全部 23 负控／1 正控通过；首轮原 180 秒 hold 超时失败保留 |
-| HEAD7 终态组合 | 本轮 actual、独立 oracle、25 负控／1 正控完整通过；固定 HEAD6/7 场景不替代 HEAD9 retained-root 的交错合同 |
-| PR #60 的优化 | 原正确性合同与两组配对 actual／oracle／14 负控／3 正控通过；请求数减少已证实，吞吐回退尚未排除 |
-
-已完成的 isolation、owner-plan 与 `642383c` service discovery、固定容量的完整状态由
-[本轮 review](sqlite-s3-review-2026-11-13.md#2-验证状态与证据归属)逐项维护；本页不把
-原父分组的 FAILED 改成整体 PASS，也不将新实际回填到其他源码。旧原件未恢复的记录仍保留
-历史身份；已经提交的摘要与 hash 不能代替缺失的 HTTP／S3／ACK、构建或 profile 原件。
-环境中断本身已不是当前阻断，当前也不再是“只余 HEAD6 两项”。
-
-必要门禁全部满足后，重新核对精确 PR head/main 与最终 tree，再按既有授权合入。
-当前三份产品 PR 均保持 Draft；不修改分支保护，不把本地结果改称远端 CI 通过。
+当前不能从局部绿色推导整体 merge-ready；所需门禁全部齐备后，以精确 PR head/main
+和最终 tree 判定合入，不修改分支保护，不把本地结果改称远端 CI 通过。
 
 ## 接续实施顺序与验收
 
-详细设计、合入边界和出口统一维护在[交付计划](sqlite-s3-delivery-plan.md)。
+详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. 先关闭严格分支测量缺口，按精确源码审查已完成的 #59 本批合同及其完整原件；
-   单位通过、HEAD6／终态通过均不能单独触发合入。#60 另须解释已观测的吞吐回退。
-2. 实现S2新Scope恢复：固定复制意图、有界跨Scope对象重封装、完整native校验、源权限
-   完成屏障、CompletionRecord、Name/HEAD取消与恢复、HTTP/SDK；不继承源owner、ACL
-   或请求空间。任意时间PITR需要独立日志保留与恢复合同。
-3. 对 #60 先隔离测量 actor／native／对象／响应等待，定位请求数减少而吞吐下降的原因；
-   按实际账本优化对象往返和副本，比较已有 SQL batch。补持续开环过载、唤醒风暴、
-   租户公平性、资源总账和长期GC。同库仍串行，冷恢复仍完整加载；group commit、
-   lazy VFS、同库读池或MVCC引擎需独立设计。
-4. 固定目标AWS/兼容后端、权限/密钥与部署故障域，执行真实条件写、恢复、长期成本及
-   预先冻结的数字SLO。Express One Zone不能只靠checkpoint到Standard承诺跨AZ RPO=0。
+1. 收口 #65 的新组合 CI、真实进程/S3、独立原始审计与负控，保留每次失败和修正。
+   严格单位门禁已通过；旧 877 单位/8 个零分母的失败属于前一冻结候选。
+2. 性能按完整当前候选与固定工作量判定。历史四样本诊断保留全部负值，能确认观察器
+   成本，不能恢复旧运行没有采集的因果证据。不得通过删回读、降同步或延后 ACK 换吞吐。
+3. 后续动态 fleet、持续过载、公平性、长期资源/GC、group commit、lazy VFS、同库
+   reader pool/MVCC 与任意时间 PITR 分别设计并执行故障合同。S2 与自动编号已实现，
+   不再写成尚未开发，也不扩大成这些未来能力已经交付。
+4. 固定目标 AWS/兼容后端、IAM/密钥、故障域和数字 SLO，执行真实条件写、全计算
+   丢失、长期成本与恢复。Express One Zone 的故障域不能由 Standard checkpoint 改写。
 
-本轮两组同环境配对使用相反执行顺序，均完成原实际、独立 oracle 和 14 负控／3 正控。
-两组各自三个 phase 合计精确减少 160 个 Manifest GET（32／64／64），其他对象类别
-请求计数相同；这证明指定负载下减少了请求数，不证明端到端性能收益。第一组 rate
-混合，四库下降 24.00%；反向组单库 C1 为 7.838→6.442、同库 C4 为 6.356→5.538、
-四库 C4 为 12.272→9.262 次／秒（下降 24.52%）。翻转顺序没有排除回退，下一步是
-定位等待与资源成本，不用反复运行小样本替代分析，也不由此给出生产 SLO。
+本地活动 `.db/WAL/SHM` 始终私有，S3 仅通过对象 API 承担跨节点权威，详见
+[存储安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、
+[owner 计划](../architecture/accepted-owner-plan.md)、
+[控制器](../architecture/owner-controller-plan.md)与
+[S1/S2 设计](../architecture/retained-snapshot-restore.md)。Turso 的实践与采纳边界见
+[接续设计](../architecture/turso-adoption-next.md)，其基准不能作为 SCAP 的性能证据。
 
-动态fleet、在线策略与自动实例分配另行验收；#61 永久登记可以拒绝已登记数值复用，
-当前部署仍须为每次启动提供新 `worker_instance`，首次升级还须处理旧进程及历史分配。
-
-完整设计与代码映射见[安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、
-[owner计划](../architecture/accepted-owner-plan.md)、[控制器](../architecture/owner-controller-plan.md)和
-[快照／恢复](../architecture/retained-snapshot-restore.md)。历史失败继续保留；AWS与生产SLO
-保持NOT_RUN，完整目标不以测试数或默认容量代替阶段退出。
+历史报告保留原源码、工具、失败与已取得结果。旧原件缺失不由摘要或当前绿色补足，
+不同候选的测试数不相加；AWS 与生产 SLO 保持 NOT_RUN。
 
 ## 历史：2026-11-11 至 12 日组合检查点
 

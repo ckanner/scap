@@ -241,9 +241,9 @@ fn publish_gate_consumes_the_admitted_context_request_etag_and_deadline() {
     assert_eq!(context.request, request);
     assert_eq!(context.deadline, until);
     objects.calls.lock().unwrap().clear();
-    // The original backend forbids a fresh HEAD read after admission. Keep
-    // that same Arc: replacing it would now correctly fail the publication
-    // binding before CAS, which has a separate negative regression.
+    // The original backend forbids a fresh HEAD read after admission. The
+    // final Manifest GET still uses this admitted context and original deadline;
+    // it must not refresh the HEAD or rebase the publication's original ETag.
     objects.forbid_head_reads.store(true, Ordering::Release);
     let state = Rc::new(RefCell::new(Publication {
         context: Some(context),

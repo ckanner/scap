@@ -1,0 +1,361 @@
+{
+  "boundaries_not_run": [
+    "AWS Standard/IAM qualification",
+    "cross-region recovery and cloud fault domains",
+    "production capacity and SLO",
+    "dynamic fleet routing or automatic database ownership reassignment"
+  ],
+  "build": {
+    "binary_sha256": "24797df0d6b9ab3aca9fa3157c4f3094b24724b7b415b5d0ee351586c57ba1ce",
+    "build_jobs": 2,
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "-p",
+      "scap-service",
+      "--bin",
+      "scapd",
+      "--message-format=json-render-diagnostics"
+    ],
+    "instrumentation": "none; LLVM_PROFILE_FILE, RUSTFLAGS and CARGO_ENCODED_RUSTFLAGS absent",
+    "native_archive_sha256": [
+      "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    ],
+    "native_cxxflags": "-g0",
+    "node": "v22.16.0",
+    "profile": "release",
+    "receipt_sha256": "849019b6fdbb7225434f17326cfaef8a5d49670a6a47cfee97824fc28e9e780e",
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+    "status": "passed"
+  },
+  "date": "2026-11-17",
+  "date_timezone": "America/New_York",
+  "finished_client_time": "2026-11-17T20:47:53.583094-05:00",
+  "finished_utc": "2026-11-18T01:47:53.583094+00:00",
+  "method_comparison_scope": "Functional witness only; separate runs and random payloads, no throughput/latency inference",
+  "one_attempt_each": true,
+  "production_change": {
+    "core_unit": "487 passed; 0 failed; 0 ignored",
+    "local_commit": "971401ea62cc2910d60ecaf8e7da3b6059d05893",
+    "retained": [
+      "original ETag/CAS/deadline and ACK ordering",
+      "immutable conditional create and exact readback",
+      "whole HEAD fingerprint and lineage diagnostics",
+      "store idle connection pool bound 8",
+      "S2 restore and worker identity protections"
+    ],
+    "review": "independent read-only review by coverage_gate; no blocker",
+    "scope": "SQL commit uses ordinary publish_in with exact final Manifest GET; GET-elision proof removed"
+  },
+  "raw_artifacts": [
+    {
+      "artifact": "review-runtime-source-aab8a22.json",
+      "bytes": 217028,
+      "sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66"
+    },
+    {
+      "artifact": "review-runtime-build-aab8a22/build.json",
+      "bytes": 36908,
+      "sha256": "849019b6fdbb7225434f17326cfaef8a5d49670a6a47cfee97824fc28e9e780e"
+    },
+    {
+      "artifact": "review-runtime-build-aab8a22/cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "ab32bf259e2f7e2f008b7a8439aaa4015fa23ab472c069854e2e2a34551c1b94"
+    },
+    {
+      "artifact": "review-runtime-build-aab8a22/cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "0662251517f5cac508033639706ede0a0b0ef09399362ce3cee97215aeb0f40b"
+    },
+    {
+      "artifact": "review-runtime-summary-aab8a22.json",
+      "bytes": 4884,
+      "sha256": "dc597bd346f16fe9b3ea981cea0b4541816bc846d2b446cf699d81572d346b2e"
+    },
+    {
+      "artifact": "run-reviewed-runtime-aab8a22.py",
+      "bytes": 4250,
+      "sha256": "c419d06f62bba056942555edb3b4747ce28e3f2348c91c350f3faedbdc9d196e"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/run.json",
+      "bytes": 3020,
+      "sha256": "383eceb8d718e049ce0e6bba410ecaa6e5e15fff1ffd109f05d171f2d170fed9"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/independent-audit.json",
+      "bytes": 1362,
+      "sha256": "88e5312a4b5a031a541dbd19853a6e610f47c78028bcf6cb20cc8ef382466d96"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/negative-controls.json",
+      "bytes": 21836,
+      "sha256": "601c910c649b2e40460c8d868373348fafb2630742fec3dd67bb10e6fd302e4a"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/input-manifest.json",
+      "bytes": 8384,
+      "sha256": "dea3cec69625b38558121d28c8def2ff1df20ba65c8fd8ec8d2e271fef894697"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/audit.jsonl",
+      "bytes": 3866382,
+      "sha256": "4c19c7e648b2fa88430651044bad11f93a7383dec2269689331ed6b8f22c77e1"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/runtime-build-binding.json",
+      "bytes": 1472,
+      "sha256": "c8f709a128b21bb0e9d14be4819c8a0bec7dfc0b3ce1cb19ee021c78793e661a"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "18a48be0b8075f74f2237c787dfa3ef2f330d01f4590a750e3dab9c93eab2e7f"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "740656f2a4b37d617774cd8962dd85c681f8bdddb0c3363cf5072ce8465cb9a2"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "ab32bf259e2f7e2f008b7a8439aaa4015fa23ab472c069854e2e2a34551c1b94"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "0662251517f5cac508033639706ede0a0b0ef09399362ce3cee97215aeb0f40b"
+    },
+    {
+      "artifact": "review-runtime-s2-aab8a22/whole-source-manifest.json",
+      "bytes": 217028,
+      "sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/result.json",
+      "bytes": 21448,
+      "sha256": "4b81e1cf5d9c3896845f16a224bababb6c637dc309ffc88d8a6f1ee8eabb1188"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/runtime-build-binding.json",
+      "bytes": 1297,
+      "sha256": "09caa2ee6f346031efd725a6503039261777d4453e71ec9a139773278c3fe092"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "18a48be0b8075f74f2237c787dfa3ef2f330d01f4590a750e3dab9c93eab2e7f"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "740656f2a4b37d617774cd8962dd85c681f8bdddb0c3363cf5072ce8465cb9a2"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "ab32bf259e2f7e2f008b7a8439aaa4015fa23ab472c069854e2e2a34551c1b94"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "0662251517f5cac508033639706ede0a0b0ef09399362ce3cee97215aeb0f40b"
+    },
+    {
+      "artifact": "review-runtime-explicit-id-aab8a22/whole-source-manifest.json",
+      "bytes": 217028,
+      "sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/result.json",
+      "bytes": 24501,
+      "sha256": "3a7a9ecc0e04c65bd31747066fde5abd8d7b6bc4dc65e3bbca5aa88e2a31e325"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/runtime-build-binding.json",
+      "bytes": 1286,
+      "sha256": "2d80b432a668a734a70d90087dad2410f5bd3abb7a8ed29deb847c0e0eac8329"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/build-receipt.json",
+      "bytes": 37338,
+      "sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/build-source-manifest.json",
+      "bytes": 35696,
+      "sha256": "18a48be0b8075f74f2237c787dfa3ef2f330d01f4590a750e3dab9c93eab2e7f"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/build-source.tar",
+      "bytes": 5222400,
+      "sha256": "740656f2a4b37d617774cd8962dd85c681f8bdddb0c3363cf5072ce8465cb9a2"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/build-cargo.stdout.jsonl",
+      "bytes": 218083,
+      "sha256": "ab32bf259e2f7e2f008b7a8439aaa4015fa23ab472c069854e2e2a34551c1b94"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/build-cargo.stderr.log",
+      "bytes": 6712,
+      "sha256": "0662251517f5cac508033639706ede0a0b0ef09399362ce3cee97215aeb0f40b"
+    },
+    {
+      "artifact": "review-runtime-auto-id-aab8a22/whole-source-manifest.json",
+      "bytes": 217028,
+      "sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66"
+    }
+  ],
+  "s3_method_counts": {
+    "1cbe6b3": {
+      "GET": 825,
+      "PUT": 86
+    },
+    "aab8a22": {
+      "GET": 827,
+      "PUT": 86
+    }
+  },
+  "schema": 1,
+  "separate_evidence": [
+    "whole-workspace unit coverage",
+    "bounded TCP transport and segmented/isolation contracts",
+    "metadata/output/response controls",
+    "profiling diagnostics"
+  ],
+  "source": {
+    "commit": "aab8a223f3cb4f4cf981990b4f5de80288b0dadc",
+    "frozen_worktree": "scap-review-runtime-aab8a22",
+    "manifest_sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66",
+    "source_sha256": "813f8af13ce6b8c2f34d01a8a721a6601ec475920f717d4c65c3f560c35862f6",
+    "tracked_files": 815,
+    "tree": "81f39821d3ed74735903f27675b96f885e75b4ad"
+  },
+  "source_and_build_receipt_verified_before_and_after_each_suite": true,
+  "started_client_time": "2026-11-17T20:46:29.707752-05:00",
+  "started_utc": "2026-11-18T01:46:29.707752+00:00",
+  "status": "PASS",
+  "suites": [
+    {
+      "administrative_calls": 30,
+      "build_receipt_sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75",
+      "case_count": 7,
+      "cases": [
+        "native_source_snapshot_keeps_exact_random_and_blob_values",
+        "empty_create_and_restore_share_the_first_winner_slot",
+        "cancel_while_payload_get_is_held_permanently_fences_late_copy",
+        "fresh_source_revocation_wins_over_a_completed_payload_prefix",
+        "lost_http_response_and_sigkill_resume_original_operation_without_recopy",
+        "completed_restore_missing_target_head_fails_closed_without_recreation",
+        "source_payload_deleted_then_all_cache_lost_target_still_recovers"
+      ],
+      "evidence": "review-runtime-s2-aab8a22",
+      "gates": {
+        "auditor_unit": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "backend_cleanup": {
+          "status": "PASS"
+        },
+        "independent_audit": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "input_freeze": {
+          "status": "PASS"
+        },
+        "negative_controls": {
+          "exit_status": 0,
+          "status": "PASS"
+        },
+        "probe": {
+          "exit_status": 0,
+          "status": "PASS"
+        }
+      },
+      "name": "S2 restore",
+      "negative_controls": 126,
+      "observed_source_payloads_physically_deleted_and_get_404": 14,
+      "records": 2966,
+      "s3_calls": 913,
+      "sdk_calls": 59,
+      "semantic_controls": 122,
+      "service_processes": 3,
+      "source_manifest_sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    },
+    {
+      "build_receipt_sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75",
+      "case_count": 10,
+      "cases": [
+        "first-start",
+        "duplicate-live",
+        "duplicate-clean-exit",
+        "new-id",
+        "duplicate-crash",
+        "competing-processes",
+        "lost-create-ack",
+        "unknown-id-remains-consumed",
+        "corrupt-readback",
+        "unreachable-backend"
+      ],
+      "evidence": "review-runtime-explicit-id-aab8a22",
+      "name": "explicit-id",
+      "source_manifest_sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    },
+    {
+      "build_receipt_sha256": "10716a8e7c2666601da1e5eb0ff38613a9efa9a0868bf0bcd1fc751f6c357a75",
+      "case_count": 18,
+      "cases": [
+        "missing-counter",
+        "explicit-initialization",
+        "initialization-cannot-reset",
+        "automatic-first-start",
+        "assigned-id-reaches-native-sqlite",
+        "same-config-clean-restart",
+        "same-config-crash-restart",
+        "concurrent-auto-startups",
+        "explicit-claim-wins-auto-reservation",
+        "lost-counter-cas-ack",
+        "restart-skips-lost-counter-ack",
+        "lost-marker-create-ack",
+        "restart-skips-lost-marker-ack",
+        "claimed-is-not-ready",
+        "restart-after-listener-failure",
+        "last-u64-in-independent-bucket",
+        "allocator-exhausted-without-wrap",
+        "corrupt-counter"
+      ],
+      "evidence": "review-runtime-auto-id-aab8a22",
+      "name": "auto-id",
+      "source_manifest_sha256": "ba8db49cad4b447836d50912abb55884fd070c8131a24a07a46762ef17d83a66",
+      "source_verified_before_and_after": true,
+      "status": "PASS"
+    }
+  ],
+  "tools": {
+    "node": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d",
+    "server": "24797df0d6b9ab3aca9fa3157c4f3094b24724b7b415b5d0ee351586c57ba1ce",
+    "weed": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+  }
+}

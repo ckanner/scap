@@ -16,7 +16,7 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / 'experiments/object-service'))
 from audit_wire import (b64, committed, equal, fingerprint, object_exchanges,
     object_versions, parse, require, result, sha256_text)
-from owner_oracle import object_frame, sdk_result, status_from_head
+from owner_oracle import object_frame, original_s3_exchanges, sdk_result, status_from_head
 specification = importlib.util.spec_from_file_location('guarded_build_audit',
     ROOT / 'experiments/object-network/audit_build.py')
 build_audit = importlib.util.module_from_spec(specification)
@@ -310,8 +310,10 @@ def network_audit(data, http):
     numbered(history)
     equal([r['phase'] for r in history if r['event'] == 'phase_started'], list(CASES), 'S3 phase order changed')
     from audit_wire import service_startups
-    requests, responses = object_exchanges(history, phases=set(CASES), blackhole_phases={'authority_unavailable'},
-                                          startups=service_startups(data['events'], workers=WORKERS))
+    observed = original_s3_exchanges(history, phases=set(CASES), blackhole_phases={'authority_unavailable'},
+        startups=service_startups(data['events'], workers=WORKERS), endpoints=data['configuration']['s3_endpoints'],
+        access_key_sha256=data['configuration']['access_key_sha256'])
+    requests, responses = observed['requests'], observed['responses']
     objects, accepted, bindings, by_command = {}, {}, {}, defaultdict(list)
     for number, request in requests.items():
         name = request['phase']
@@ -324,20 +326,6 @@ def network_audit(data, http):
         binding = only([n for n, c in http['calls'].items() if c is call], 'unique HTTP binding')
         bindings[number] = {binding}
         by_command[name].append(number)
-        signing = request['signing']
-        require(signing['algorithm'] == 'AWS4-HMAC-SHA256' and
-            signing['access_key_sha256'] == data['configuration']['access_key_sha256'], 'wrong product SigV4 credential')
-        require(re.fullmatch('[0-9]{8}/us-east-1/s3/aws4_request', signing['credential_scope']), 'SigV4 scope changed')
-        require(signing['signed_headers'] == sorted(set(signing['signed_headers'])) and
-            {'host', 'x-amz-date', 'x-amz-content-sha256'} <= set(signing['signed_headers']), 'SigV4 fields missing')
-        equal(signing['host'], urlparse(data['configuration']['s3_endpoints'][request['worker']]).netloc, 'SigV4 host changed')
-        equal(signing['payload_sha256'], request['request_sha256'], 'signed payload differs')
-        for row in [r for r in history if r.get('request_serial') == number]:
-            equal(row['worker'], request['worker'], 'object event changed daemon')
-            equal(row['signing'], signing, 'object event changed signing')
-            capture(row, 'request_body', 'request_sha256')
-            if 'response_body' in row:
-                capture(row, 'response_body', 'response_sha256')
         if request['worker'] in ('p', 'q'):
             require(request['method'] == 'GET' and request['path'] == HEAD, 'metadata probe performed payload/native I/O or mutation')
         response = responses.get(number)
@@ -358,7 +346,7 @@ def network_audit(data, http):
         Counter({'p': 9, 'q': 2}), 'metadata HEAD GET denominator')
     require(sum(r['worker'] == 'p' for r in responses.values()) == 8, 'forwarded P HEAD denominator')
     versions = object_versions(requests, responses, calls=http['calls'], bindings=bindings)
-    return {'requests': requests, 'responses': responses, 'objects': objects, 'accepted': accepted,
+    return {**observed, 'objects': objects, 'accepted': accepted,
         'by_command': by_command, 'versions': versions}
 
 
@@ -635,6 +623,14 @@ def fault_audit(data, http, net):
         for w in ('s', 'q')], 'replacement registry did not explicitly replace P')
 
 
+def relay_counts(net):
+    # These are all original requests certified by original_s3_exchanges,
+    # including permanent startup claims. Business HEAD counts stay separate.
+    return {'sink': 0, 'http-s': 7, 'http-p': 22,
+            **{'s3-' + worker: sum(row['worker'] == worker for row in net['physical_requests'].values())
+               for worker in WORKERS}}
+
+
 def process_audit(data, build, http, net):
     events, config = data['events'], data['configuration']
     owned = build_audit.OwnedChildren()
@@ -757,8 +753,7 @@ def process_audit(data, build, http, net):
         **{'s3-' + worker: config['s3_endpoints'][worker] for worker in WORKERS},
         **{'http-' + worker: config['endpoints'][worker].removesuffix('/v1') for worker in ('s', 'p')}}
     require(len(set(listener_urls.values())) == 6, 'distinct listener endpoints collapsed')
-    listener_counts = {'sink': 0, 'http-s': 7, 'http-p': 22,
-        **{'s3-' + worker: sum(r['worker'] == worker for r in net['requests'].values()) for worker in WORKERS}}
+    listener_counts = relay_counts(net)
     listener_lifetimes = {}
     for start, stop in pair(listeners, closed, 'name'):
         require(start['descriptor'] >= 0 and stop['descriptor'] == -1 and stop['thread_joined'] is True
@@ -782,7 +777,7 @@ def process_audit(data, build, http, net):
     # Response-delivery records are made after write(). They may be observed
     # after the caller/daemon has completed, but must precede handler join.
     proxy = only([r for r in events if r['event'] == 'proxy_stopped'], 'proxy stop missing')
-    require(proxy['errors'] == [] and proxy['http_requests'] == 29 and proxy['s3_requests'] == len(net['requests'])
+    require(proxy['errors'] == [] and proxy['http_requests'] == 29 and proxy['s3_requests'] == len(net['physical_requests'])
         and all(moment(stop) < moment(proxy) for stop in closed), 'proxy failed or omitted original exchange/join')
     cleanup = only([r for r in events if r['event'] == 'cleanup_finished'], 'cleanup result missing')
     require(cleanup['errors'] == [] and cleanup['private_preserved'] is True, 'unobserved cleanup/private disposal')
@@ -814,6 +809,7 @@ def audit_projection(data, build):
             for row in [*data['events'], *data['history']]), 'original whole-run/cleanup bound exceeded')
     return {'schema': 1, 'status': 'PASSED', 'commands': 30, 'posts': 29,
         'head_reads_p': 9, 'head_reads_q': 2, 's3_exchanges': len(net['requests']),
+        'physical_s3_exchanges': len(net['physical_requests']), 'startup_s3_exchanges': len(net['startup_requests']),
         'versions': net['versions'], 'durable': durable, 'processes': processes,
         'authority_only_status': True, 'automatic_failover': 'NOT_IMPLEMENTED',
         'aws_standard': 'NOT_RUN', 'production_slo': 'NOT_RUN'}

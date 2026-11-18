@@ -1,7 +1,6 @@
 //! Bounded, content-addressed physical page tree. Unchanged subtrees inherit the
 //! base HEAD's immutable-object guarantee; cold recovery validates every block.
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -13,53 +12,6 @@ use crate::Error;
 pub(crate) trait DataObjects {
     fn load(&self, hash: &str, deadline: Instant) -> Result<Payload, Error>;
     fn save(&self, payload: Payload, deadline: Instant) -> Result<String, Error>;
-}
-
-/// One operation's already verified manifest, never a persistent cache or an
-/// authorization grant. In production the borrowed store is the original
-/// ObjectContext, so its backend, Scope and physical generation cannot change
-/// while this proof exists. Only update can construct it, after loading an
-/// unchanged manifest or saving and exactly reading back its replacement.
-/// The input root remains borrowed and cannot be changed while the proof lives;
-/// an unchanged output borrows that same string without duplicating its hash.
-pub(crate) struct VerifiedManifest<'a, S: DataObjects> {
-    store: &'a S,
-    base_root: &'a str,
-    root: Cow<'a, str>,
-    page_count: u32,
-    deadline: Instant,
-}
-
-impl<S: DataObjects> VerifiedManifest<'_, S> {
-    pub(crate) fn root(&self) -> &str {
-        &self.root
-    }
-
-    /// Consume the proof only in its original operation. The caller separately
-    /// checks current context health, its database binding and the HEAD CAS.
-    pub(crate) fn validate(
-        self,
-        store: &S,
-        base_root: &str,
-        root: &str,
-        max_pages: u32,
-        deadline: Instant,
-    ) -> Result<(), Error> {
-        if !std::ptr::eq(self.store, store)
-            || self.base_root != base_root
-            || self.root != root
-            || self.deadline != deadline
-        {
-            return Err(Error::Corrupt);
-        }
-        if self.page_count > max_pages {
-            return Err(Error::Limit);
-        }
-        if Instant::now() >= self.deadline {
-            return Err(Error::Unknown);
-        }
-        Ok(())
-    }
 }
 
 pub(crate) fn empty(store: &impl DataObjects, deadline: Instant) -> Result<String, Error> {
@@ -356,13 +308,13 @@ impl<S: DataObjects> Edit<'_, S> {
     }
 }
 
-pub(crate) fn update<'a, S: DataObjects>(
-    store: &'a S,
-    base_root: &'a str,
+pub(crate) fn update(
+    store: &impl DataObjects,
+    base_root: &str,
     batch: &PageBatch,
     max_pages: u32,
     deadline: Instant,
-) -> Result<VerifiedManifest<'a, S>, Error> {
+) -> Result<String, Error> {
     if max_pages == 0 || max_pages > MAX_PAGES || batch.size_after > max_pages {
         return Err(Error::Limit);
     }
@@ -385,22 +337,10 @@ pub(crate) fn update<'a, S: DataObjects>(
         return Err(Error::Corrupt);
     }
     if batch.size_after == base.page_count && changes.is_empty() {
-        return Ok(VerifiedManifest {
-            store,
-            base_root,
-            root: Cow::Borrowed(base_root),
-            page_count: base.page_count,
-            deadline,
-        });
+        return Ok(base_root.to_owned());
     }
     if batch.size_after == 0 {
-        return Ok(VerifiedManifest {
-            store,
-            base_root,
-            root: Cow::Owned(empty(store, deadline)?),
-            page_count: 0,
-            deadline,
-        });
+        return empty(store, deadline);
     }
     let level = level_for(batch.size_after);
     let mut original = base.root.map(|hash| Original {
@@ -431,20 +371,13 @@ pub(crate) fn update<'a, S: DataObjects>(
         deadline,
     };
     let root = edit.node(original.as_ref(), level, 0)?;
-    let root = store.save(
+    store.save(
         Payload::Manifest(Manifest {
             page_count: batch.size_after,
             root: Some(root),
         }),
         deadline,
-    )?;
-    Ok(VerifiedManifest {
-        store,
-        base_root,
-        root: Cow::Owned(root),
-        page_count: batch.size_after,
-        deadline,
-    })
+    )
 }
 
 #[cfg(test)]

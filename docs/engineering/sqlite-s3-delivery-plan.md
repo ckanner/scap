@@ -1,26 +1,22 @@
 # SQLite on S3：当前状态、目标与接续交付
 
-更新：2026-11-17。main 仍为 `fab8ca0`；本轮在
-[PR #59](https://github.com/ckanner/scap/pull/59) 提交调度期限修复 `b4c5236`，在
-[PR #60](https://github.com/ckanner/scap/pull/60) 提交证明分配优化 `9b5e9ae`，并新增
-[PR #61](https://github.com/ckanner/scap/pull/61) 的启动身份永久登记 `841da9c`。
-三份候选的精确测试、真实进程结果和未完成边界见
-[本轮 review](sqlite-s3-review-2026-11-17.md)。严格分支测量缺口和 #60 原吞吐回退仍在；
-均保持 Draft，代码提交、局部合同通过与可以合入分别报告。
+更新：2026-11-17（纽约；运行 UTC 为 11 月 18 日）。交付基线 `fab8ca0` 已包含 HEAD6/7。
+[PR #65](https://github.com/ckanner/scap/pull/65) 已直接面向 main，汇集 #56–#64 的
+owner/controller/S1/S2、永久 worker 身份与有界连接复用。本轮完成 self-review 的
+生产修复和严格覆盖修复，并把原来没有进入 CI 的控制面实际合同接入固定工作流。
 
-随后新增 [#62 自动实例编号](https://github.com/ckanner/scap/pull/62)、
-[#63 完整 S2 产品候选](https://github.com/ckanner/scap/pull/63) 与
-[#64 S3 连接保留及实际热路径分析](https://github.com/ckanner/scap/pull/64)。
-这三项已从设计进入实现和实际验证，不能再归为“自动编号/S2 未实现”。
-它们各自的候选身份、结果和后续组合验收分开保存；main 与生产承诺没有因此自动更新。
+普通精确 Manifest 读取路径的冻结组合 `aab8a22` 的 stable/nightly 各 887 项 Rust 单位通过，76 个生产文件的
+行／函数／region／branch 均精确 100%，无缺失 map 或零分母；fmt、严格 Clippy、
+Node 161 项单位及其覆盖、HTTP 7 项和 controller HTTP/进程 12 项通过。新正式
+release 又完成 S2 7 场景／126 负控、显式 ID 10 场景、自动 ID 18 场景及 TCP 8 场景。
+这些是各自有来源绑定的结果，远端整体 CI 与合入状态以 [PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。
 
-[PR #65](https://github.com/ckanner/scap/pull/65) 已形成完整组合：stable/nightly各877单位、
-Node161、实际自动编号18/显式ID10/恢复7场景及126个恢复审计负控通过。4个核心文件
-未命中计数与8个branch零分母仍使严格门禁失败，保持Draft。最终源码、二进制、
-初版审计器19条漏检及其修正、新实际和NOT_RUN均在
-[组合验证](https://github.com/ckanner/scap/blob/feat/sqlite-s3-combined-20261117/docs/engineering/sqlite-s3-followup-validation-2026-11-17.md)中独立记录。
-2026-11-13 的补验见[历史 review](sqlite-s3-review-2026-11-13.md)，原组合身份与结果见
-[组合验收](sqlite-s3-integration-validation.md)，不回写成新源码的认证。
+本轮冻结源码、构建、修复及远端结论统一见
+[self-review 与 CI 收口](sqlite-s3-self-review-2026-11-17.md)。旧候选的 877 项单位、
+4 个核心文件未命中、8 个 branch 零分母和初版恢复审计漏检继续原样保留在
+[前一组合验证](sqlite-s3-followup-validation-2026-11-17.md)。历史约 24% 四库吞吐
+下降仍未归因，新诊断及保留的负面样本见
+[因果诊断](manifest-proof-causal-2026-11-18.md)；性能验收不能仅凭正确性绿色批准。
 
 ## 1. 要交付的产品
 
@@ -32,7 +28,7 @@ S3 中的 HEAD 和不可变对象保存唯一持久权威，计算实例和本�
 
 | 目标 | 必须保持的可观察结果 | 当前证据与缺口 |
 | --- | --- | --- |
-| 持久提交 | ACK 前数据、原结果、请求身份与屏障已共同发布；断线后不重新执行 SQL | native gate、原 HEAD CAS 和原结果合同已有代码及新本地证据；组合退出仍受严格分支门禁与各实际合同约束 |
+| 持久提交 | ACK 前数据、原结果、请求身份与屏障已共同发布；断线后不重新执行 SQL | native gate、原 HEAD CAS 和原结果合同已有代码及新本地证据；严格单位门禁已通过；组合退出仍受各实际合同与完整 CI 约束 |
 | 安全接管 | 旧实例迟到候选不能覆盖新 HEAD；controller 不把权限、忙或配置错误当成死亡 | 持久 owner 协议、有限 controller 已实现；owner-plan 新完整实际／42 负控／1 正控、Missing、单 controller 和固定 12 场景矩阵已通过；动态 fleet 尚未交付 |
 | 无状态计算 | 清空全部计算和缓存后，从真实对象闭包恢复原数据与原结果 | 本轮 native／schema／原结果／生命周期／目录／deployment discovery 通过；新 `642383c` service discovery 通过其完整发现合同；b15 固定 1 GiB 冷恢复及 39 原结果／16,384 BLOB 完整独立审计通过 |
 | 明确保留与恢复 | 显式快照永久身份、完整 retained roots、释放与 GC 不误删；恢复生成全新数据库身份 | S1 历史合同通过；#63 已实现 S2 核心、全部消费者、HTTP/SDK 与独立资源，按新候选验证；任意时间 PITR 仍未实现 |
@@ -65,9 +61,9 @@ S3 中的 HEAD 和不可变对象保存唯一持久权威，计算实例和本�
   字节完全相同；局部 45 单位和实际 TCP 负控通过。读写 TPS 方向不一致，保留 FULL
   和受检 TRUNCATE，历史约 24% 回退仍未解释。
 
-完整严格覆盖仍被原 7 个 branch 0/0 文件阻断；#59/#61 新报告没有放宽检查。
-各独立候选不是一份已组合并全面验收的新产品。S2 新增 wire 文件也有 branch 零分母，
-不能将原 7 文件的说明沿用为新组合的完整门禁结果；以各次精确报告为准。
+以上是各 PR 当时的局部结果。后续 #65 self-review 已关闭原 8 个 branch 零分母与
+恢复核心未命中计数，完整 887 项单位／76 文件四维门禁通过；旧报告的失败不改写。
+当前完整实际及 CI 的候选身份由本页开头的新记录维护。
 
 ### 2026-11-13 历史组合证据
 
@@ -130,12 +126,12 @@ TPS、p99 或生产成本收益。
 
 ### 合入与后续产品出口
 
-优先收口 PR #59 的必要组合验收，不扩大它的产品格式范围。PR #60 独立审查其优化与
-性能结果；后续能力也各有完整协议和退出条件。
+当前通过 PR #65 收口完整组合，早期 #59/#60 的局部报告保留为历史来源。
+正确性、性能与后续产品能力继续按各自协议和退出条件判定。
 
 | 工作 | 当前合入边界 | 交付判据 |
 | --- | --- | --- |
-| 单位、逐文件精确覆盖、Node／类型、二进制来源 | 阻断 #59/#60/#61；严格分支证明尚缺 | 每份实际与构建 receipt、源码清单相符；各生产文件的必要计数与原反例独立可审计，不放宽门槛 |
+| 单位、逐文件精确覆盖、Node／类型、二进制来源 | 完整 #65 单位与严格四维门禁已通过；实际／CI 来源继续核对 | 每份实际与构建 receipt、源码清单相符；各生产文件的必要计数与原反例独立可审计，不放宽门槛 |
 | native／schema／retained results／生命周期／目录／发现／1 GiB | 本批全部已取得最终结果；b15 与新 discovery 的来源分开记录，原失败保留 | 固定完整场景、原始 ACK／BLOB／对象账本和独立审计；新提交仍按受影响源码判定，不复用旧 receipt 冒称最终合并源码全测 |
 | HTTP／隔离／资源／输出／GC transport／HEAD6／终态 | HEAD6、终态、isolation 全套已完成；service discovery 的新 `642383c` 观测来源也已通过完整验收，原失败保留 | 原实际入口、独立 oracle、原负控与资源归属全部完成；不覆盖失败父分组，不拼接实际历史 |
 | owner-plan／Missing／controller／S1 | 五项均有完整实际及规定审计／负控通过；owner-plan 首轮失败保留 | 原控制与业务身份、HTTP／S3／进程和实际 Node/SDK 源匹配；不扩大为动态 fleet 与持久实例身份已交付 |
@@ -179,8 +175,8 @@ retained-result 入口、生命周期、116 个目录案例、deployment discove
 ### 第一阶段：收口 owner、controller、S1 组合
 
 本阶段的目标仍是完整交付有限 owner／controller／S1，不是扩大成动态集群控制器。
-环境恢复、HEAD6 全部 23 负控／1 正控和终态全部 25 负控／1 正控已经完成；现有任务
-转为关闭严格分支测量缺口，核对必要实际原件和各完整接续结果。测量修复须能发现未
+环境恢复、HEAD6 全部 23 负控／1 正控和终态全部 25 负控／1 正控已有历史完整记录；
+本轮严格分支门禁已经通过，当前核对新组合 CI、必要实际原件及各完整接续结果。测量修复须能发现未
 执行的 `match`、or-pattern、错误返回等路径；不把 0/0 改成成功，不删生产文件、不混入
 集成 profile，也不因其余文件计数为正而跳过。
 

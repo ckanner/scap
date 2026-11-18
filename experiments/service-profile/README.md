@@ -109,3 +109,13 @@ silently removed.
 The full interpretation and source identities are in
 `docs/engineering/service-hot-path-profile-2026-11-17.md` and
 `docs/evidence/service-hot-path-profile-local-2026-11-17.json`.
+
+The separately frozen historical implementation × observer comparison is
+specified in [CAUSAL_PLAN.md](CAUSAL_PLAN.md). It uses `causal.py`, the same Rust
+counters and an optional probe handshake outside each timed phase. The original
+formal object-load evidence contract remains a separate gate.
+
+The four original samples, remaining negative results and engineering decision
+are in [the historical causal report](../../docs/engineering/manifest-proof-causal-2026-11-18.md).
+`summarize.py WORK_DIRECTORY OUTPUT_JSON` reads those frozen samples and checks
+the evidence-mode object histories using their original independent wire reader.

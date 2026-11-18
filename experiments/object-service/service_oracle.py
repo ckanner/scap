@@ -12,7 +12,7 @@ import signal
 import sys
 from urllib.parse import urlparse
 
-from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges, object_versions, parse, require, result
+from audit_wire import b64, committed, decimal, equal, fingerprint, object_exchanges, object_versions, parse, require, result, service_startups
 
 PHASES = ("initialize", "concurrent_create", "unknown_write", "resolve_unknown", "blackhole", "takeover", "recover")
 FILES = ("http-client-ledger.jsonl", "process-ledger.jsonl", "inputs.jsonl", "data-inputs.jsonl",
@@ -321,10 +321,7 @@ def results(directory, calls):
 
 
 def network(history,calls,facts=()):
-    ready={row['owner_instance']:row for row in facts if row['event']=='service_ready'}
-    startups=[{'worker':str(row['owner_instance']),'role':None,
-               'start':row['identity']['spawn_monotonic_ns'],'ready':stamp(ready[row['owner_instance']])}
-              for row in facts if row['event']=='service_started']
+    startups=service_startups(facts)
     requests,responses=object_exchanges(history,phases=PHASES,blackhole_phases=("blackhole",),startups=startups)
     bindings={}
     for serial,request in requests.items():

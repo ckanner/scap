@@ -2,9 +2,8 @@ name: Node SDK exact unit coverage and HTTP contracts
 
 on:
   push:
-    paths: ['sdk/node/**', 'sdk/node-codec/**', 'crates/scap-service/src/wire.rs', 'crates/scap-object/src/format.rs', '.github/workflows/node-sdk.yml']
+    branches: [main]
   pull_request:
-    paths: ['sdk/node/**', 'sdk/node-codec/**', 'crates/scap-service/src/wire.rs', 'crates/scap-object/src/format.rs', '.github/workflows/node-sdk.yml']
 
 permissions:
   contents: read
@@ -31,6 +30,10 @@ jobs:
       - name: Exercise owned controller HTTP and process shutdown separately
         working-directory: sdk/node
         run: npm run test:controller-http
+      - name: Verify strict public TypeScript declarations with fixed tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/scap-types" --ignore-scripts --no-audit --no-fund --package-lock=false --save-exact typescript@5.9.3 @types/node@22.16.0 undici-types@6.21.0
+          node "$RUNNER_TEMP/scap-types/node_modules/typescript/bin/tsc" --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --types node --typeRoots "$RUNNER_TEMP/scap-types/node_modules/@types" sdk/node/test/types.ts
       - name: Retain SDK unit maps
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

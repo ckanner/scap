@@ -374,6 +374,7 @@ class Service:
         self.log = suite.evidence / ('service-' + worker + '.log')
         binary = suite.args.server.resolve(); self.binary = {'path': str(binary), 'sha256': build.digest(binary)}
         with self.log.open('wb') as output:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen([str(binary), str(self.path)], cwd=ROOT, stdout=output, stderr=output,
                 env=dict(os.environ, SCAP_TEST_ACCESS=suite.backend.access, SCAP_TEST_SECRET=suite.backend.secret))
         self.identity = None
@@ -381,6 +382,7 @@ class Service:
         try:
             self.identity = network.process_identity(self.process)
             suite.events.emit('service_started', worker=worker, identity=self.identity, binary=self.binary,
+                spawn_requested_ns=spawn_requested_ns,
                 configuration_sha256=build.digest(self.path), cache_directory=str(self.cache),
                 backend_endpoint=f'http://127.0.0.1:{port}', configuration_file='service-' + worker + '.json')
             assert build.digest(binary) == self.binary['sha256']

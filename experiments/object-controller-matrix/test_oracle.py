@@ -118,6 +118,67 @@ class OracleTests(unittest.TestCase):
     def reject(self, guard):
         return self.assertRaisesRegex(audit.Rejected, '^' + guard + '$')
 
+    def release_inputs(self):
+        eligible = (
+            'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
+            'crates/scap-service/Cargo.toml', 'crates/scap-service/build.rs',
+            'crates/scap-service/src/lib.rs', 'sdk/node/package.json',
+            'sdk/node/src/client.js', 'sdk/node/src/types.ts',
+            'sdk/node-codec/src/codec.mjs', 'experiments/object-service/build.py',
+            'experiments/object-network/Cargo.lock',
+        )
+        ignored = (
+            'README.md', 'docs/example.rs', 'Cargo.toml.backup',
+            'crates/scap-service/README.md', 'sdk/node/fixture.json',
+            'sdk/node-extra/src/unrelated.js', 'experiments/object-service-extra/run.py',
+        )
+        files = {name: {'sha256': audit.sha(name.encode())} for name in (*eligible, *ignored)}
+        return files, {name: files[name]['sha256'] for name in eligible}
+
+    def test_release_inputs_follow_complete_fixed_build_rules_without_a_file_count(self):
+        files, receipt = self.release_inputs()
+        self.assertEqual(audit.release_source_inputs(files), receipt)
+        audit.release_source_equivalence(files, receipt)
+        name = 'crates/scap-object/src/catalogue/new_restore_consumer.rs'
+        files[name] = {'sha256': audit.sha(b'new legitimate production source')}
+        with self.reject('release-source-equivalence'):
+            audit.release_source_equivalence(files, receipt)
+        receipt[name] = files[name]['sha256']
+        audit.release_source_equivalence(files, receipt)
+
+    def test_release_receipt_rejects_missing_extra_out_of_rule_and_wrong_hash_inputs(self):
+        for change in ('missing', 'extra', 'ignored', 'wrong_hash'):
+            files, receipt = self.release_inputs()
+            if change == 'missing':
+                del receipt['crates/scap-service/src/lib.rs']
+            elif change == 'extra':
+                receipt['crates/scap-service/src/not_captured.rs'] = 'a' * 64
+            elif change == 'ignored':
+                # Even a real captured file cannot be added unless the fixed
+                # builder includes it; subset matching would accept this.
+                receipt['docs/example.rs'] = files['docs/example.rs']['sha256']
+            else:
+                receipt['sdk/node/src/client.js'] = 'a' * 64
+            with self.subTest(change=change), self.reject('release-source-equivalence'):
+                audit.release_source_equivalence(files, receipt)
+
+    def test_release_requires_all_root_build_inputs_even_when_both_manifests_omit_one(self):
+        for root in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'):
+            files, receipt = self.release_inputs()
+            del receipt[root]
+            with self.subTest(root=root), self.reject('release-source-equivalence'):
+                audit.release_source_equivalence(files, receipt)
+            del files[root]
+            with self.subTest(root=root), self.reject('release-required-root-inputs'):
+                audit.release_source_equivalence(files, receipt)
+
+    def test_release_source_paths_cannot_alias_or_escape_the_captured_root(self):
+        for path in ('.', '/crates/foreign.rs', 'crates/../foreign.rs', './Cargo.toml', 'crates//alias.rs'):
+            files, receipt = self.release_inputs()
+            files[path] = {'sha256': 'a' * 64}
+            with self.subTest(path=path), self.reject('release-source-path'):
+                audit.release_source_equivalence(files, receipt)
+
     def test_rejected_412_candidate_is_checked_by_full_s3_audit(self):
         store, events = Bytes(), [{'event': 'backend_started', 'normal_access_sha256': 'test-normal-authority'}]
         path = '/scap-test/scap-object/v1/1/7/8701/head'

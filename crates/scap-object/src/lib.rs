@@ -364,6 +364,9 @@ impl Database {
         objects.healthy()?;
         let maximum = head.quota.max_pages().map_err(Error::Format)?;
         let publication = PreparedHead::new(self, base, head, deadline)?;
+        // SQL commits and dependency-changing management paths retain this independent
+        // exact Manifest GET before the original HEAD CAS. Earlier immutable
+        // create/readback does not replace this publication check.
         let manifest = data_tree::manifest(objects, &head.data_root, deadline)
             .map_err(|error| objects.observe(error))?;
         if manifest.page_count > maximum {
@@ -373,34 +376,6 @@ impl Database {
         // Unchanged references inherit the prior HEAD's immutable closure;
         // GC deletes only physical generations retired by the HEAD protocol.
         // Cold activation and the first session write verify retained history.
-        self.publish_healthy(publication)
-    }
-
-    /// Business publication reuses only this attempt's manifest verification.
-    /// Management paths retain publish_in and its independent exact GET.
-    fn publish_updated(
-        &self,
-        objects: &ObjectContext,
-        base: &Snapshot,
-        head: &Head,
-        manifest: data_tree::VerifiedManifest<'_, ObjectContext>,
-        deadline: Instant,
-    ) -> Result<(), Error> {
-        objects.healthy()?;
-        if !objects.publication_matches(self, base, deadline) {
-            return Err(Error::Corrupt);
-        }
-        let maximum = head.quota.max_pages().map_err(Error::Format)?;
-        let publication = PreparedHead::new(self, base, head, deadline)?;
-        manifest.validate(
-            objects,
-            &base.head.data_root,
-            &head.data_root,
-            maximum,
-            deadline,
-        )?;
-        // Recheck shared lineage health immediately before the original CAS.
-        // A verified manifest does not override a subsequently observed fault.
         self.publish_healthy(publication)
     }
 
@@ -864,14 +839,13 @@ impl Database {
         }
         let mut head = Self::next(&base.head, request.id)?;
         head.sequence = head.sequence.checked_add(1).ok_or(Error::Limit)?;
-        let manifest = data_tree::update(
+        head.data_root = data_tree::update(
             objects,
             &base.head.data_root,
             batch,
             base.head.quota.max_pages().map_err(Error::Format)?,
             deadline,
         )?;
-        head.data_root = manifest.root().to_owned();
         let stored = StoredResult {
             request: request.clone(),
             sequence: head.sequence,
@@ -892,7 +866,7 @@ impl Database {
             },
             deadline,
         )?;
-        self.publish_updated(objects, base, &head, manifest, deadline)?;
+        self.publish_in(objects, base, &head, deadline)?;
         Ok(Receipt {
             scope: self.scope.clone(),
             request: request.clone(),

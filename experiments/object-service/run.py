@@ -91,12 +91,14 @@ class Service:
         self.log = private / f"service-{owner}.private.log"
         executable = {"path": str(binary.resolve()), "sha256": build.digest(binary)}
         with self.log.open("wb") as stream:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen([str(binary), str(self.configuration)], env=environment,
                                             stdout=stream, stderr=stream)
         self.identity = process_identity(self.process)
         self.endpoint = f"http://127.0.0.1:{self.port}"
         self.facts.emit("service_started", owner_instance=self.owner, identity=self.identity,
-                        endpoint=self.endpoint, cache_directory=str(self.cache), binary=executable)
+                        endpoint=self.endpoint, cache_directory=str(self.cache), binary=executable,
+                        spawn_requested_ns=spawn_requested_ns)
         try:
             assert build.digest(binary) == executable["sha256"], "service binary changed across Popen"
             deadline = time.monotonic() + 20

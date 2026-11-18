@@ -250,7 +250,8 @@ def worker_claims(startups, observations, *, check=require):
     Observations have already passed their transport's full lifecycle audit.
     Complete body digests are compared with the one exact versioned wire value;
     no arbitrary worker-prefix request may be removed from database accounting.
-    Startup bounds use the owned Popen spawn clock, not the later log callback.
+    Startup bounds use the request clock captured before Popen. The owned
+    child observation and its log callback may both follow the child's claim.
     """
     check(len(observations) == 2 * len(startups), 'worker-identity-request-denominator')
     workers, accepted = set(), set()
@@ -299,12 +300,35 @@ def worker_claims(startups, observations, *, check=require):
     return accepted
 
 
+def owned_startup_interval(start, ready, *, check=require):
+    """Bind a pre-Popen lower bound to the owned observation and readiness.
+
+    ``spawn_monotonic_ns`` is sampled after Popen returns: it identifies the
+    parent's observation, not the child's earliest possible work. A scheduled
+    child may finish its claim before that sample, so only the independently
+    recorded pre-Popen request is a valid lower bound for the S3 exchange.
+    """
+    identity = start.get('identity')
+    check(isinstance(identity, dict) and identity.get('pid_source') == 'owned_Popen_child'
+          and type(identity.get('pid')) is int and identity['pid'] > 0,
+          'worker-identity-owned-spawn')
+    requested, observed = start.get('spawn_requested_ns'), identity.get('spawn_monotonic_ns')
+    started, listening = start.get('monotonic_ns'), ready.get('monotonic_ns')
+    check(all(type(value) is int and value > 0 for value in (requested, observed, started, listening)),
+          'worker-identity-spawn-clock')
+    check(requested <= observed <= started < listening, 'worker-identity-startup-order')
+    return {'start': requested, 'ready': listening}
+
+
 def service_startups(events, *, workers=None):
     """Bind known service roles to their owned spawn and readiness witnesses."""
     field = 'owner_instance' if workers is None else 'worker'
     starts = [row for row in events if row['event'] == 'service_started']
     ready = [row for row in events if row['event'] == 'service_ready']
-    require(len(starts) == len(ready), 'worker-identity-readiness-denominator')
+    require(len(starts) == len(ready)
+            and len({row[field] for row in starts}) == len(starts)
+            and len({row[field] for row in ready}) == len(ready),
+            'worker-identity-readiness-denominator')
     result = []
     for start in starts:
         matches = [row for row in ready if row[field] == start[field]]
@@ -312,8 +336,7 @@ def service_startups(events, *, workers=None):
                 'worker-identity-owned-ready')
         worker = str(start[field]) if workers is None else workers[start[field]]
         result.append({'worker': worker, 'role': None if workers is None else start[field],
-                       'start': start['identity']['spawn_monotonic_ns'],
-                       'ready': int(matches[0]['monotonic_ns'])})
+                       **owned_startup_interval(start, matches[0])})
     return result
 
 
@@ -334,8 +357,7 @@ def raw_worker_claims(events, exchanges, normal_access, *, check=require):
             expected += '-' + str(row['incarnation'])
         check(row['id'] == expected, 'worker-identity-owned-role')
     startups = [{'worker': row['worker'], 'role': row['role'],
-                 'start': starts[row['id']]['identity']['spawn_monotonic_ns'],
-                 'ready': int(row['monotonic_ns'])}
+                 **owned_startup_interval(starts[row['id']], row, check=check)}
                 for row in ready]
     observations = []
     for exchange in exchanges:

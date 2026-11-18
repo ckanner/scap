@@ -284,11 +284,13 @@ class Child:
         self.interactive = interactive
         self.log = Path(private) / (identifier + '.stderr')
         with self.log.open('wb') as errors:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen(command, cwd=cwd, env=environment,
                 stdin=subprocess.PIPE if interactive else subprocess.DEVNULL,
                 stdout=subprocess.PIPE if interactive else errors, stderr=errors)
         self.identity = network.process_identity(self.process)
         trace.emit('child_started', id=identifier, identity=self.identity,
+                   spawn_requested_ns=spawn_requested_ns,
                    command=command, executable_sha256=service_build.digest(Path(command[0])))
 
     def send(self, value):

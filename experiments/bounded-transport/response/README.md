@@ -32,8 +32,15 @@ python3 -m unittest discover -s experiments/bounded-transport/response -p 'test_
 
 raw TCP observer、事件记录和配置骨架复用 `experiments/output-pool` 的已验证 helper。
 归档包含这些共享 fixture 源码；独立 oracle 只复用 raw-file/identity/protocol 解析器，
-不导入 runner 或产品实现。fixture 自测的合成观察不是实际 TCP 证据；10 个负控从真实目录
+不导入 runner 或产品实现。fixture 自测的合成观察不是实际 TCP 证据；原 10 个负控从真实目录
 的副本修改原始观察后重新审计，原始目录在前后均须通过。
+
+启动阶段复用 output-pool 的独立永久身份审计：以配置中的 5001、冻结二进制、原 owned
+process、`Popen` 前时钟与 ready 证明唯一 marker 的条件 PUT 和完整 GET。32 字节 wire hash、
+两次原 ETag、backend/delivery 都必须一致；不会把 startup S3 混入 11 个业务 HTTP 的分母，
+也不跳过未知 prefix。六个新增完整记录负控逐项破坏回读、wire body、ETag、Absent 条件、
+实例号和 ready 区间，总计 16 项；共享负控源码也进入 fixture archive。实际验收仍使用
+原 2 秒响应期限、500 ms 关闭期限和全部既有时序容差。
 
 `--transport-profile baseline` 仅用于旧二进制反例，省略旧版不认识的新字段。旧服务会在
 等待后继续发送完整响应，runner/oracle 应拒绝并保留失败原始证据。不要将 baseline

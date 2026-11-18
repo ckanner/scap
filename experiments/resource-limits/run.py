@@ -92,11 +92,13 @@ class Running:
         self.stderr = evidence / 'worker.stderr.log'
         self.binary = {'path': str(binary), 'sha256': build.digest(binary)}
         with self.stderr.open('wb') as errors:
+            spawn_requested_ns = time.monotonic_ns()
             self.process = subprocess.Popen([str(binary), str(config)], stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=errors,
                 env=dict(os.environ, SCAP_TEST_ACCESS=backend.access, SCAP_TEST_SECRET=backend.secret))
         self.identity = network.process_identity(self.process)
         trace.emit('worker_started', identity=self.identity, binary=self.binary,
+                   spawn_requested_ns=spawn_requested_ns,
                    configuration_sha256=build.digest(config))
         assert build.digest(binary) == self.binary['sha256']
         self.reader = threading.Thread(target=self.read, daemon=True)

@@ -13,6 +13,14 @@
 [性能验收](../engineering/verified-manifest-load-validation.md)；各冻结源码与容量／
 discovery 等独立结果见[本轮 review](../engineering/sqlite-s3-review-2026-11-13.md)。
 
+## 2026-11-17 接续决定
+
+本页保留为独立 [PR #60](https://github.com/ckanner/scap/pull/60) 的设计草稿。新的
+[历史诊断](../engineering/manifest-proof-causal-2026-11-18.md)没有关闭原性能回退阻断；
+功能组合 #65 将恢复普通 `publish_in` 的 exact Manifest GET，并移除专用 proof 热路径。
+下文描述未获合入验收的候选设计，不代表功能版已经启用它。有界 S3 idle pool 8
+有独立合同，保留不受本拆分影响。
+
 ## 问题与范围
 
 `Database::commit` 调用 `data_tree::update` 时，已读取并验证原 Manifest；有页变化时，

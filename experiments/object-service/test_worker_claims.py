@@ -22,6 +22,88 @@ def witness(worker='5001', role=None):
     return startup, [put, get]
 
 
+def owned_startup_events(*, role=None):
+    # The child completes both exchanges at 32, while the parent is not
+    # scheduled to observe the Popen result until 40. These are distinct clocks.
+    identity = {'pid': 123, 'spawn_monotonic_ns': 40, 'pid_source': 'owned_Popen_child'}
+    owner = {'owner_instance': 5001} if role is None else {'worker': role}
+    return [{'event': 'service_started', **owner, 'identity': identity,
+             'spawn_requested_ns': 10, 'monotonic_ns': 45},
+            {'event': 'service_ready', **owner, 'identity': copy.deepcopy(identity),
+             'monotonic_ns': 50}]
+
+
+class OwnedStartupControls(unittest.TestCase):
+    def test_child_claim_may_precede_parent_observation_for_both_service_adapters(self):
+        for role in (None, 'A'):
+            events = owned_startup_events(role=role)
+            options = {} if role is None else {'workers': {'A': '5001'}}
+            startups = wire.service_startups(events, **options)
+            expected, rows = witness(role=role)
+            self.assertEqual(startups, [expected])
+            self.assertEqual(wire.worker_claims(startups, rows), {('5001', 1), ('5001', 2)})
+
+    def test_request_before_pre_popen_bound_is_still_rejected(self):
+        events = owned_startup_events()
+        events[0]['spawn_requested_ns'] = 21
+        _, rows = witness()
+        with self.assertRaisesRegex(ValueError, 'before-ready'):
+            wire.worker_claims(wire.service_startups(events), rows)
+
+    def test_owned_interval_requires_original_typed_clocks_and_order(self):
+        cases = (
+            (0, (), 'spawn_requested_ns', None, 'spawn-clock'),
+            (0, (), 'spawn_requested_ns', True, 'spawn-clock'),
+            (0, (), 'spawn_requested_ns', '10', 'spawn-clock'),
+            (0, (), 'spawn_requested_ns', 0, 'spawn-clock'),
+            (0, (), 'spawn_requested_ns', 41, 'startup-order'),
+            (0, ('identity',), 'spawn_monotonic_ns', 9, 'startup-order'),
+            (0, ('identity',), 'spawn_monotonic_ns', '40', 'spawn-clock'),
+            (0, ('identity',), 'spawn_monotonic_ns', True, 'spawn-clock'),
+            (0, ('identity',), 'pid', 0, 'owned-spawn'),
+            (0, ('identity',), 'pid', True, 'owned-spawn'),
+            (0, ('identity',), 'pid_source', '/proc/guess', 'owned-spawn'),
+            (0, (), 'monotonic_ns', 39, 'startup-order'),
+            (1, (), 'monotonic_ns', 45, 'startup-order'),
+            (1, (), 'monotonic_ns', '50', 'spawn-clock'),
+        )
+        for index, path, field, value, guard in cases:
+            rows = owned_startup_events()
+            target = rows[index]
+            for component in path:
+                target = target[component]
+            target[field] = value
+            with self.subTest(index=index, field=field, value=value), self.assertRaisesRegex(ValueError, guard):
+                wire.owned_startup_interval(rows[0], rows[1])
+        for field in ('identity', 'spawn_requested_ns', 'monotonic_ns'):
+            rows = owned_startup_events()
+            del rows[0][field]
+            with self.subTest(missing=field), self.assertRaisesRegex(ValueError, 'owned-spawn|spawn-clock'):
+                wire.owned_startup_interval(rows[0], rows[1])
+
+    def test_service_ready_must_belong_to_the_unique_owned_start(self):
+        cases = ('missing', 'duplicate-start', 'duplicate-ready', 'wrong-worker', 'wrong-child')
+        for change in cases:
+            rows = owned_startup_events()
+            if change == 'missing':
+                rows.pop()
+            elif change == 'duplicate-start':
+                rows.append(copy.deepcopy(rows[0]))
+            elif change == 'duplicate-ready':
+                rows.append(copy.deepcopy(rows[1]))
+            elif change == 'wrong-worker':
+                rows[1]['owner_instance'] = 5002
+            else:
+                rows[1]['identity']['pid'] += 1
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'readiness-denominator|owned-ready'):
+                wire.service_startups(rows)
+        rows = owned_startup_events()
+        # Equal inventory sizes must not permit one ready row to be reused.
+        rows += [copy.deepcopy(rows[0]), {**copy.deepcopy(rows[1]), 'owner_instance': 5002}]
+        with self.assertRaisesRegex(ValueError, 'readiness-denominator'):
+            wire.service_startups(rows)
+
+
 class WorkerClaimControls(unittest.TestCase):
     def test_distinct_workers_may_start_concurrently_before_the_ready_log(self):
         first, rows = witness()
@@ -104,7 +186,8 @@ class WorkerClaimControls(unittest.TestCase):
 def raw_witness():
     value = b'SCAP-WORKER-INSTANCE-v1\0' + (5001).to_bytes(8, 'big')
     events = [{'event': 'child_started', 'id': 'service-A',
-               'identity': {'spawn_monotonic_ns': 5}},
+               'spawn_requested_ns': 5, 'monotonic_ns': 7,
+               'identity': {'pid': 123, 'spawn_monotonic_ns': 6, 'pid_source': 'owned_Popen_child'}},
               {'event': 'service_ready', 'id': 'service-A', 'role': 'A',
                'worker': '5001', 'monotonic_ns': 60}]
     stages = ('s3_handler_started', 's3_request', 's3_forward_started',
@@ -135,6 +218,36 @@ class ClosedRawWorkerClaims(unittest.TestCase):
     def test_complete_raw_lifetimes_bind_owned_startup(self):
         self.assertEqual(wire.closed_worker_claims(raw_witness(), lambda value: value, 'normal'),
                          {('A', 1), ('A', 2)})
+
+    def test_child_claim_may_finish_before_parent_observes_the_owned_process(self):
+        rows = raw_witness()
+        rows[0]['identity']['spawn_monotonic_ns'] = 40
+        rows[0]['monotonic_ns'] = 45
+        self.assertEqual(wire.closed_worker_claims(rows, lambda value: value, 'normal'),
+                         {('A', 1), ('A', 2)})
+
+    def test_pre_spawn_claim_and_missing_original_request_clock_are_rejected(self):
+        rows = raw_witness()
+        rows[0]['spawn_requested_ns'] = 12  # The original PUT request is at 11.
+        rows[0]['identity']['spawn_monotonic_ns'] = 40
+        rows[0]['monotonic_ns'] = 45
+        with self.assertRaisesRegex(ValueError, 'before-ready'):
+            wire.closed_worker_claims(rows, lambda value: value, 'normal')
+        rows = raw_witness()
+        del rows[0]['spawn_requested_ns']
+        with self.assertRaisesRegex(ValueError, 'spawn-clock'):
+            wire.closed_worker_claims(rows, lambda value: value, 'normal')
+
+    def test_raw_adapter_preserves_the_callers_rejection_type(self):
+        class Rejected(Exception):
+            pass
+        def check(condition, rule):
+            if not condition:
+                raise Rejected(rule)
+        rows = raw_witness()
+        rows[0]['spawn_requested_ns'] = rows[0]['identity']['spawn_monotonic_ns'] + 1
+        with self.assertRaisesRegex(Rejected, 'startup-order'):
+            wire.raw_worker_claims(rows, [], 'normal', check=check)
 
     def test_missing_or_duplicate_stage_is_rejected(self):
         original = raw_witness()

@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 import hashlib
 import importlib.util
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import tarfile
 
@@ -139,6 +139,36 @@ def policy_digest(raw):
     return digest, dict(zip(('claim', 'cancel', 'activate', 'abort'), words))
 
 
+def release_source_inputs(files):
+    """Derive the complete service-build input set from the captured source.
+
+    These are the fixed rules of object-service/build.py, independently
+    expressed here. Do not import that builder or trust a historical file
+    count: a new eligible file must also occur in the original build receipt.
+    The caller has verified every captured file against source.tar first.
+    """
+    roots = {'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'}
+    need(roots <= files.keys(), 'release-required-root-inputs')
+    directories = ('crates/', 'sdk/node/', 'sdk/node-codec/',
+                   'experiments/object-service/', 'experiments/object-network/')
+    suffixes = {'.rs', '.py', '.js', '.mjs', '.ts'}
+    names = {'Cargo.toml', 'Cargo.lock', 'package.json'}
+    expected = {}
+    for name, record in files.items():
+        need(isinstance(name, str) and bool(name), 'release-source-path')
+        path = PurePosixPath(name)
+        need(bool(path.parts) and not path.is_absolute() and path.as_posix() == name
+             and '..' not in path.parts, 'release-source-path')
+        if name in roots or (name.startswith(directories)
+                             and (path.suffix in suffixes or path.name in names)):
+            expected[name] = record['sha256']
+    return expected
+
+
+def release_source_equivalence(files, observed):
+    need(observed == release_source_inputs(files), 'release-source-equivalence')
+
+
 def sources(directory, events):
     inputs = wire.parse((directory / 'inputs.json').read_bytes())
     source = wire.parse((directory / 'source.json').read_bytes())
@@ -172,8 +202,7 @@ def sources(directory, events):
     receipt = build_audit.receipt(directory / 'service-build', profile='service')
     need(receipt['binary'] == inputs['tools']['scapd'], 'actual-release-binary')
     original = wire.parse((directory / 'service-build/build-receipt.json').read_bytes())
-    need(len(original['inputs']) == 277 and all(expected.get(path, {}).get('sha256') == digest
-         for path, digest in original['inputs'].items()), 'release-source-equivalence')
+    release_source_equivalence(expected, original['inputs'])
     need(inputs['node_version'] == 'v22.16.0', 'fixed-node-version')
     for tool in inputs['tools'].values():
         path = Path(tool['path'])

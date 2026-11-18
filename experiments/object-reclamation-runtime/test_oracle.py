@@ -9,10 +9,13 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import select
+import sys
 import tempfile
 import threading
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import os
 import shutil
 
@@ -364,6 +367,44 @@ class ModelTests(unittest.TestCase):
 
 
 class ObserverTests(unittest.TestCase):
+    def test_owned_child_can_run_before_parent_records_its_popen_observation(self):
+        # A pipe handshake forces the child to run first; no scheduling sleep
+        # or service timeout change is used to reproduce the observation race.
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            trace = support.Trace(directory)
+            observed, handles = [], []
+            original_identity = support.network.process_identity
+            def parent_observes_after_child(process):
+                handles.append(process)
+                self.assertTrue(select.select([process.stdout], [], [], 5)[0], 'child did not announce its clock')
+                observed.append(int(process.stdout.readline()))
+                return original_identity(process)
+            child = None
+            try:
+                with patch.object(support.network, 'process_identity', parent_observes_after_child):
+                    child = support.Child([sys.executable, '-u', '-c',
+                        'import sys,time; print(time.monotonic_ns(),flush=True); sys.stdin.readline()'],
+                        directory, os.environ.copy(), trace, 'service-A', directory, interactive=True)
+                start = json.loads((directory / 'events.jsonl').read_text().splitlines()[0])
+                self.assertLess(start['spawn_requested_ns'], observed[0])
+                self.assertLess(observed[0], start['identity']['spawn_monotonic_ns'])
+                ready = trace.emit('service_ready', id='service-A', role='A', worker='5001')
+                self.assertEqual(model.wire.owned_startup_interval(start, ready),
+                    {'start': start['spawn_requested_ns'], 'ready': ready['monotonic_ns']})
+            finally:
+                if child is not None:
+                    child.close()
+                else:
+                    for process in handles:
+                        process.kill()
+                        support.network.wait_child(process, 5)
+                        process.stdin.close()
+                        process.stdout.close()
+            stopped = json.loads((directory / 'events.jsonl').read_text().splitlines()[-1])
+            self.assertEqual(stopped['status'], 0)
+            self.assertEqual(stopped['usage']['source'], 'kernel_wait4_owned_child')
+
     def test_atomic_shared_raw_creation_and_integrity(self):
         with tempfile.TemporaryDirectory() as name:
             directory = Path(name)

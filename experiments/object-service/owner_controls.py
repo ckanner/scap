@@ -264,6 +264,17 @@ def cleanup_early(directory):
     ledger(directory / 'events.jsonl', change, renumber=True)
 
 
+def private_cleanup_unrelated_to_cache(directory):
+    def change(values):
+        created = select(values, event='private_created')
+        path = Path(created['path'])
+        other = str(path.with_name(path.name + '-unrelated'))
+        for row in values:
+            if row['event'] in ('private_created', 'private_remove_started', 'private_removed'):
+                row['path'] = other
+    ledger(directory / 'events.jsonl', change)
+
+
 def expired_gate(directory):
     def change(values):
         values.append({'schema': 1, 'sequence': len(values) + 1, 'event': 'fault_expired', 'id': 'late_put',
@@ -297,6 +308,7 @@ def cases():
         'two_workers_alias_one_child': (aliased_process, 'one child impersonates overlapping'),
         'missing_original_wait4': (lambda path: ledger(path / 'events.jsonl', lambda values: select(values, event='service_stopped', worker='a')['kernel_usage'].update(available=False)), 'original kernel wait4'),
         'private_removed_before_owned_exit': (cleanup_early, 'private cleanup preceded'),
+        'private_cleanup_unrelated_to_cache': (private_cleanup_unrelated_to_cache, 'daemon cache escaped original private runtime'),
         'unobserved_fault_expiry_hidden': (expired_gate, 'unplanned/failed/expired/forced'),
         'actual_daemon_binary_substituted': (lambda path: ledger(path / 'events.jsonl', lambda values: select(values, event='service_started', worker='b')['binary'].update(sha256='0' * 64)), 'another actual release executable'),
     }
