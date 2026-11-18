@@ -105,8 +105,10 @@ Each case directory contains:
   those bytes, PLAN hash, clean source commit/manifest/archive, actual executable
   hashes, Node version and all fixed budgets, the absolute execution source root
   and complete first-party JavaScript input map;
-- `source.json`, `source.tar` and `service-build/`, including equality of all 277
-  release inputs to the current source rather than inheriting an earlier verdict;
+- `source.json`, `source.tar` and `service-build/`, including exact equality of the
+  complete release-input path/hash set independently derived from the frozen source
+  manifest, with all required Cargo/toolchain roots present; no fixed file count or
+  subset comparison can replace source equivalence;
 - `events.jsonl` and content-addressed `raw/` bytes from original process, HTTP
   and SigV4/S3 observers; HTTP keys are `(role, serial)` and S3 keys likewise;
 - public `controller-*.json` and daemon configurations, token hashes only;
