@@ -169,3 +169,42 @@ metadata 首次完整实际在旧 `/tmp` 路径断言处失败，原运行保留
 清单/lock、toolchain、覆盖分类与严格checker和 `aab8a22` 逐文件相同；最终 fixture
 完整实际仍由新的 CI 验证。这里没有把627个观察器单位加进887个Rust单位或native
 实际分母。源码清单、命令、每组退出码和原始日志hash见机器记录。
+
+## 7. 最后一个 owner 负控的精确修复
+
+远端 `d73c3719dbfc0f0e339fe9903bd7bf0ab0f2a86a` 的五组 PR 工作流已完整结束：
+20 个作业中 19 个成功，唯一失败为
+[质量工作流的 owner 负控步骤](https://github.com/ckanner/scap/actions/runs/44222673339/job/134528314038)。
+HEAD6、控制面全部9项、严格覆盖、SDK 和 codec 均成功。网络作业在 owner 步骤失败后，
+其后场景为 skipped，不能记作整轮通过。
+
+原 artifact `14392832192` 的 SHA-256 为
+`e134f771715a62d39a86d794d1dff6cd30493e3e6f162b877d68e3438c871d64`。
+owner 实际与独立 oracle 均通过：144次HTTP、627次业务S3及8次认证启动S3，合计635次
+物理交换；原源码未变，owned进程、缓存与私有目录清理通过。第20个
+`two_workers_alias_one_child` 负控只借用了A的进程identity，却保留B更晚的pre-Popen
+记录，因而在 `worker-identity-startup-order` 提前拒绝，未测到原定的进程重叠规则。
+
+修复冻结为 `c3d305ea72d0111c9870d1a9c7423b689b6b3c76`，仅修改负控构造和对应
+测试：借用A的identity时同时携带A原来记录的pre-Popen时间。生产代码、共享启动
+检查、独立oracle及预期拒绝规则均未修改。44项定向单位通过；新测试在旧构造上能
+重现提前拒绝，并确认变异不会修改硬链接原件。独立复查确认两个worker的同一进程
+身份与重叠生命周期仍然存在，必须继续被原owned-process检查拒绝。
+
+旧 `aab8a22` receipt 的305个输入路径虽然相同，11个夹具输入的hash已经不同，因此
+没有复用旧receipt。两组实际分别通过原正式build脚本重新构建，来源独立记录：
+
+| 场景与冻结来源 | 完整本地结果 |
+| --- | --- |
+| owner，`c3d305e` | actual、独立oracle、25负控及1正控一次通过；70命令、144HTTP、15SQL ACK、74次HEAD发布；635物理S3=627业务+8启动；12个owned子进程及私有目录清理通过 |
+| guarded-status，`37ba911` | actual、独立oracle、31负控及1完整副本正控一次通过；30命令、29POST；52物理S3=46业务+6启动；owned进程及listener清理通过 |
+
+owner新binary为 `651f921ec87dc392259012c52d70b5604ed8f04a074b5b171ce69a77ecea8c60`，
+receipt为 `b2a8524d5cf76499e2ac844355a084bfd2fd39be99736efa702a4b9f9dffd425`。
+两组均逐项核对全部305个构建输入、native archive、binary与817个源码文件的前后
+一致性；没有修改旧记录、放宽期限、离线绕过来源校验或失败后重跑同一候选取样。
+guarded按其原合同保留私有目录，不能将其进程清理写成目录删除。
+
+原失败、原件摘要和两次新实际的精确来源保存在[机器记录](../evidence/sqlite-s3-self-review-local-2026-11-17.json)。
+以上本地通过不改写 `d73c371` 的远端 failure；后继提交必须再次通过完整CI，最终
+结果仍以[PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。

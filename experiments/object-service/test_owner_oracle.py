@@ -379,6 +379,35 @@ class MutationMechanismTests(unittest.TestCase):
         controls.save(destination, b'changed')
         self.assertEqual(source.read_bytes(), b'original'); self.assertEqual(destination.read_bytes(), b'changed')
 
+    def test_aliased_child_control_preserves_valid_startup_witnesses(self):
+        from audit_wire import service_startups
+        events = []
+        for worker, pid, requested in (('a', 101, 10), ('b', 102, 50)):
+            ident = {'pid': pid, 'spawn_monotonic_ns': requested + 10, 'pid_source': 'owned_Popen_child'}
+            for event, offset in (('service_started', 20), ('service_ready', 30),
+                                  ('service_stop_requested', 100), ('service_stopped', 110)):
+                row = {'event': event, 'worker': worker, 'identity': copy.deepcopy(ident),
+                       'monotonic_ns': requested + offset}
+                if event == 'service_started': row['spawn_requested_ns'] = requested
+                events.append(row)
+        original = b''.join(controls.encoded(row) for row in events)
+        source = self.directory / 'original-events.jsonl'; source.write_bytes(original)
+        os.link(source, self.directory / 'events.jsonl')
+        self.assertEqual([row['start'] for row in service_startups(events, workers=oracle.WORKERS)], [10, 50])
+        controls.aliased_process(self.directory)
+        changed = oracle.rows(self.directory, 'events.jsonl')
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual([row['start'] for row in service_startups(changed, workers=oracle.WORKERS)], [10, 10])
+        borrowed = events[0]['identity']
+        for before, after in zip(events, changed):
+            expected = copy.deepcopy(before)
+            if before['worker'] == 'b':
+                expected['identity'] = borrowed
+                if before['event'] == 'service_started': expected['spawn_requested_ns'] = 10
+            self.assertEqual(after, expected)
+        self.assertEqual(changed[0]['identity'], changed[4]['identity'])
+        self.assertLess(changed[4]['monotonic_ns'], changed[3]['monotonic_ns'])
+
     def test_private_cleanup_control_keeps_identity_mirrors_but_breaks_cache_ownership(self):
         private = {'path': '/workspace/scap-owner-private-original', 'device': 27, 'inode': 88}
         events = [{'event': event, **private} for event in ('private_created', 'private_remove_started', 'private_removed')]

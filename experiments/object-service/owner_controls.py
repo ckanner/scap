@@ -252,9 +252,13 @@ def guard_cache_changed(directory):
 
 def aliased_process(directory):
     def change(values):
-        borrowed = select(values, event='service_started', worker='a')['identity']
+        original = select(values, event='service_started', worker='a')
+        borrowed = original['identity']
         for row in values:
             if row.get('worker') == 'b' and 'identity' in row: row['identity'] = copy.deepcopy(borrowed)
+        # Keep the borrowed child's independent pre-Popen witness consistent;
+        # the intended rejection is duplicate owned identity, not clock order.
+        select(values, event='service_started', worker='b')['spawn_requested_ns'] = original['spawn_requested_ns']
     ledger(directory / 'events.jsonl', change)
 
 

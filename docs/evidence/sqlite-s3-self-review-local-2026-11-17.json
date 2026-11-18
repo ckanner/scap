@@ -3569,6 +3569,35 @@
       "fix": "Audit complete physical exchanges and keep startup/business/physical denominators distinct",
       "artifact_id": 14388394009,
       "zip_sha256": "c13157fc7509ad9434d16a0b882191b2cd7d21c3615e9a46c6f5d32afe7a12bd"
+    },
+    {
+      "head": "d73c3719dbfc0f0e339fe9903bd7bf0ab0f2a86a",
+      "run_id": 44222673339,
+      "job_id": 134528314038,
+      "scope": "owner negative control construction",
+      "overall_pr_jobs": {
+        "success": 19,
+        "failure": 1
+      },
+      "quality_jobs": {
+        "success": 7,
+        "failure": 1
+      },
+      "actual": "passed",
+      "independent_oracle": "passed",
+      "original_http_posts": 144,
+      "physical_s3": 635,
+      "database_s3": 627,
+      "verified_startup_s3": 8,
+      "failed_control": "two_workers_alias_one_child",
+      "original_error": "negative control rejected at the wrong boundary: two_workers_alias_one_child: worker-identity-startup-order",
+      "expected_rejection": "one child impersonates overlapping independent processes",
+      "reason": "Aliased identity kept the later worker pre-Popen witness and was rejected before duplicate owned-process registration",
+      "fix": "Borrow the original pre-Popen witness with the same original identity; keep the verifier and expected rejection unchanged",
+      "local_fix_commit": "c3d305ea72d0111c9870d1a9c7423b689b6b3c76",
+      "artifact_id": 14392832192,
+      "zip_sha256": "e134f771715a62d39a86d794d1dff6cd30493e3e6f162b877d68e3438c871d64",
+      "later_network_steps": "skipped; not counted as passed"
     }
   ],
   "final_fixture_units": {
@@ -3845,5 +3874,206 @@
       "rule": "Complete tracked union: crates, SDKs, Cargo manifest/lock, toolchain, coverage policy and strict checker unchanged; fixture changes are separately qualified"
     },
     "source_manifest_sha256": "ac4f4e39d90eda170c393acf18b08d60a2388668e48db69d566ecfc3d2826f85"
+  },
+  "owner_alias_requalification": {
+    "scope": "Frozen local owner actual and adjacent guarded-status actual; subsequent remote head must run full CI",
+    "product_or_independent_oracle_changed": false,
+    "targeted_owner_units": {
+      "passed": 44,
+      "before_counterexample": {
+        "path": "/workspace/scratch/2d104d13038f/scap-work/final-network-ci-d73c371/alias-unit-before.stderr",
+        "sha256": "e753c29f45b32d91cc290af8bed7d74324c16fcdedad51c46f14df29b5118885",
+        "bytes": 1695
+      },
+      "after_log": {
+        "path": "/workspace/scratch/2d104d13038f/scap-work/final-network-ci-d73c371/alias-units-after.stderr",
+        "sha256": "05b2c193b926bf70eafcf393123e1eec08569464bb0cea8b5145382606bccc82",
+        "bytes": 7506
+      }
+    },
+    "old_receipt_not_reused": {
+      "input_paths": 305,
+      "changed_fixture_hashes": 11,
+      "reason": "Original build.verify rejects mismatched service/SDK/fixture inputs"
+    },
+    "owner": {
+      "source_commit": "c3d305ea72d0111c9870d1a9c7423b689b6b3c76",
+      "source_tree": "f0791ac4c9435d311dc9a9f5de736d6b390f3a15",
+      "actual_status": "passed",
+      "oracle_status": "passed",
+      "controls_status": "passed",
+      "http_posts": 144,
+      "commands": 70,
+      "sql_acks": 15,
+      "physical_s3": 635,
+      "business_s3": 627,
+      "startup_s3": 8,
+      "head_publications": 74,
+      "rejected_head_candidates": 2,
+      "processes": {
+        "audited_child_incarnations": 12,
+        "kernel_wait4": "verified",
+        "old_owner_and_cache_loss": "verified",
+        "private_cleanup_observation": "verified",
+        "sdk_processes": 2,
+        "service_processes": 4
+      },
+      "negative_count": 25,
+      "positive_count": 1,
+      "alias_control": {
+        "case": "two_workers_alias_one_child",
+        "outcome": "rejected",
+        "reason": "one child impersonates overlapping independent processes"
+      },
+      "cleanup_errors": [],
+      "private_deleted": true,
+      "source_unchanged": true,
+      "build_verify_after": "passed",
+      "binary_sha256": "651f921ec87dc392259012c52d70b5604ed8f04a074b5b171ce69a77ecea8c60",
+      "receipt_sha256": "b2a8524d5cf76499e2ac844355a084bfd2fd39be99736efa702a4b9f9dffd425",
+      "oracle_sha256": "55f6ea2e0cba7e6c89d55871f62e6627e9bbb0b61db8d9e33115ef40bbba65e4",
+      "controls_sha256": "1353a1144a6f673b4ae8f2f5096ad5e9b1390e20083a1631387369fd806bdcfe"
+    },
+    "owner_record": {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/final-network-ci-d73c371/owner-new-validation-summary.json",
+      "sha256": "29b304505e334d341b389b2b85cfc56ae912729705bd388a5c75fbca2e46166b",
+      "bytes": 1310
+    },
+    "owner_invocations": {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/final-network-ci-d73c371/owner-new-invocations.json",
+      "sha256": "bd11bf42ff1b0ea05baf04887b93fa274f09b7d0396df4ef633077f2a7cafb36",
+      "bytes": 2543
+    },
+    "guarded": {
+      "schema_version": 1,
+      "status": "PASS",
+      "started_utc": "2026-11-18T02:56:24.543131+00:00",
+      "source_commit": "37ba911c6b3b9011f95958b72a4f861572c400be",
+      "source_tree": "b153328fc7bad114047176d08ad9dc64b67b4936",
+      "source_manifest": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-source-37ba911.json",
+      "source_manifest_sha256": "8527251bbc0d64a38e29f37a8c49fe0af704b95a60f05c8f81cb72fedf3a19e7",
+      "build_record": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-build-37ba911/build.json",
+      "build_record_sha256": "68b644dd566747a58c7e05a7e76879fdbda804159b21b5a6f592beea1653c7a0",
+      "binary": {
+        "path": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-release-37ba911/release/scapd",
+        "sha256": "4c0116d0f653bfb7365d00dec77015668bb2334aa04215b10f8dc9e5e18d9352"
+      },
+      "backend": "SeaweedFS 4.51 local compatibility; not AWS",
+      "product_or_oracle_modified": false,
+      "automatic_retry": false,
+      "gates": [
+        {
+          "gate": "source-before",
+          "argv": [
+            "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+            "-B",
+            "scripts/source_manifest.py",
+            "verify",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-source-37ba911.json"
+          ],
+          "exit_code": 0,
+          "log": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-source-before-37ba911.log",
+          "log_sha256": "b687264979b8ca4438822dbe2b9a741cd30946b088a9dc6bf4c8a3681f4045c9",
+          "started_utc": "2026-11-18T02:56:24.608458+00:00",
+          "finished_utc": "2026-11-18T02:56:24.917038+00:00"
+        },
+        {
+          "gate": "actual",
+          "argv": [
+            "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+            "-B",
+            "experiments/guarded-status/run.py",
+            "--server",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-release-37ba911/release/scapd",
+            "--weed",
+            "/workspace/scratch/2d104d13038f/toolchain/bin/weed",
+            "--build-record",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-build-37ba911/build.json",
+            "--evidence",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-actual-37ba911"
+          ],
+          "exit_code": 0,
+          "log": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-actual-37ba911.log",
+          "log_sha256": "33484ab5600b6ab45b7e7698e71e5b6361a4bca1b440f457e3ef676ca9c6cff9",
+          "started_utc": "2026-11-18T02:56:24.957499+00:00",
+          "finished_utc": "2026-11-18T02:56:45.683100+00:00"
+        },
+        {
+          "gate": "oracle",
+          "argv": [
+            "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+            "-B",
+            "experiments/guarded-status/oracle.py",
+            "--evidence",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-actual-37ba911",
+            "--output",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-oracle-37ba911.json"
+          ],
+          "exit_code": 0,
+          "log": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-oracle-37ba911.log",
+          "log_sha256": "da5361b7ef18a5e8fbbcf86994058afe24bfd729665b7863493a27515266a77c",
+          "started_utc": "2026-11-18T02:56:45.683318+00:00",
+          "finished_utc": "2026-11-18T02:56:45.862464+00:00"
+        },
+        {
+          "gate": "controls",
+          "argv": [
+            "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+            "-B",
+            "experiments/guarded-status/controls.py",
+            "--evidence",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-actual-37ba911",
+            "--output",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-controls-37ba911"
+          ],
+          "exit_code": 0,
+          "log": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-controls-37ba911.log",
+          "log_sha256": "b23bb09975afd630806d941d021f78820fa1921707f51a14ba928982b95901b6",
+          "started_utc": "2026-11-18T02:56:45.862584+00:00",
+          "finished_utc": "2026-11-18T02:56:47.365887+00:00"
+        },
+        {
+          "gate": "source-after",
+          "argv": [
+            "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+            "-B",
+            "scripts/source_manifest.py",
+            "verify",
+            "/workspace/scratch/2d104d13038f/scap-work/review-guarded-source-37ba911.json"
+          ],
+          "exit_code": 0,
+          "log": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-source-after-37ba911.log",
+          "log_sha256": "b687264979b8ca4438822dbe2b9a741cd30946b088a9dc6bf4c8a3681f4045c9",
+          "started_utc": "2026-11-18T02:56:47.394309+00:00",
+          "finished_utc": "2026-11-18T02:56:47.632735+00:00"
+        }
+      ],
+      "build_verified_before": true,
+      "build_input_count": 305,
+      "native_archives": {
+        "/workspace/scratch/2d104d13038f/scap-work/review-guarded-release-37ba911/release/build/libsql-ffi-eedbdc752b2cd7be/out/liblibsql.a": "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+      },
+      "negative_controls": 31,
+      "positive_original_copies": 1,
+      "controls_sha256": "3064f1fdc9cf3c53df4a135a9ae1eb31673994428f983988c91dfd8cb8c607f3",
+      "oracle_sha256": "24e52fc8292c0c17b53d3707f72db30fff0d86353169d3475ce01b6bea756a58",
+      "build_verified_after": true,
+      "finished_utc": "2026-11-18T02:56:47.632806+00:00"
+    },
+    "guarded_record": {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/review-guarded-validation-37ba911.json",
+      "sha256": "c1db561427c4553772b76a9cbb42ba5ee9b3cd0fb333c5087a53ffdb371c71db",
+      "bytes": 5264
+    },
+    "aws_standard": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "final_remote_ci_at_this_document_checkpoint": "NOT_RUN",
+    "owner_handoff": {
+      "path": "/workspace/scratch/2d104d13038f/scap-work/final-network-ci-d73c371/owner-handoff.json",
+      "sha256": "3e4986451202f390d0e7d65d73848bb471d571431c218368d967b27d0fec4298",
+      "raw_manifest_sha256": "2936bcad1011436b86ab318cf22d2e82ca01c06a78885ffa64e91ed93249ff1f",
+      "raw_files": 3583,
+      "raw_logical_bytes": 773850832
+    }
   }
 }
