@@ -1,0 +1,477 @@
+{
+  "actual": {
+    "actual_failures": 0,
+    "ambiguous_interval_scope": "33 S3 requests have multiple compatible original HTTP intervals. The auditor checks legal interval/version constraints; it does not claim unique per-request HTTP attribution.",
+    "business_s3_requests": 181,
+    "cache_pages_per_worker_retained_after_operation": 8192,
+    "command": [
+      "python3",
+      "experiments/read-pool/run.py",
+      "--binary",
+      "SCAPD",
+      "--build-record",
+      "BUILD_JSON",
+      "--weed",
+      "WEED",
+      "--node",
+      "NODE",
+      "--evidence",
+      "NEW_DIRECTORY"
+    ],
+    "control_workers": 1,
+    "environment_observation": "The SeaweedFS version command emitted netlink permission warnings. Backend readiness, signed object operations and all fixed oracles subsequently passed; this was not counted as a product fault injection.",
+    "evidence_identifier": "next-read-pool-first",
+    "http_post_requests": 27,
+    "object_versions": {
+      "accepted_versions": 34,
+      "ambiguous_http_intervals": 33,
+      "blackholed_before_forward": 1,
+      "causal_constraints": 178,
+      "conditional_put_responses": 34,
+      "exact_get_body_etag_pairs": 146,
+      "http_interval_binding": "checked"
+    },
+    "observed_contracts": [
+      "Two same-database Query calls enter distinct original HEAD GET holds before either release.",
+      "Another tenant Query, the database writer and a control status each finish while both reads remain held.",
+      "A queued same-tenant Query waits for active capacity to be released.",
+      "Two other-tenant reader holds leave exactly one worker for warm and refresh; stale refresh performs exactly three HEAD GETs and observes row 3.",
+      "A single pre-forward HEAD blackhole yields UNKNOWN without another POST, another S3 request or object write in that phase.",
+      "An INSERT through Query returns ENGINE, publishes no objects and leaves row 99 absent.",
+      "Revoking the reader permission makes the next authenticated Query return DENIED.",
+      "Three original-identity lookups return byte-identical original random results and receipts.",
+      "Original HTTP and S3 ledgers match final relay high-water counters.",
+      "Private database files have distinct device/inode pairs and worker directories.",
+      "Service and SDK exit normally; all cache files are cleaned; four owned backend children are reaped with kernel wait4 witnesses."
+    ],
+    "oracle_status": "passed",
+    "original_identity_lookups": 3,
+    "original_results": 4,
+    "parallel_recoveries": 4,
+    "physical_s3_requests": 183,
+    "private_images": 5,
+    "read_pool_profile": {
+      "active_per_database": 2,
+      "active_per_tenant": 2,
+      "workers": 3
+    },
+    "resource_envelope_enabled": false,
+    "sdk_commands": 21,
+    "startup_s3_requests": 2,
+    "status": "passed",
+    "successful_queries": 9,
+    "writer_actor_slots": 2
+  },
+  "boundaries": {
+    "aws_s3_standard": "NOT_RUN",
+    "concurrent_gc_or_owner_handoff_in_this_actual": "NOT_RUN",
+    "group_commit": "NOT_IMPLEMENTED_BY_THIS_CHANGE",
+    "kernel_resource_envelope_in_this_actual": "NOT_ENABLED; NOT_QUALIFIED",
+    "lazy_vfs": "NOT_IMPLEMENTED_BY_THIS_CHANGE",
+    "new_mvcc_engine": "NOT_IMPLEMENTED_BY_THIS_CHANGE",
+    "production_tps_latency_capacity_cost": "NOT_RUN",
+    "remote_ci": "NOT_CLAIMED_BY_THIS_REPORT",
+    "retained_cache_budget": "workers * pages_per_actor bounds retained cache after an operation, not peak physical disk or memory.",
+    "rss_or_peak_disk_hard_limit": "NOT_QUALIFIED",
+    "shared_native_wal_readers": "NOT_IMPLEMENTED_BY_THIS_CHANGE",
+    "sql_replay": "Only a pre-SQL StaleSnapshot may rebuild once under the original deadline; no arbitrary query or write replay.",
+    "target_iam_enforcement": "NOT_RUN",
+    "whole_workspace_coverage": "NOT_CERTIFIED_BY_THIS_REPORT",
+    "writer_model": "One serial writer actor per HEAD; independent complete private images for the read pool."
+  },
+  "build": {
+    "archived_receipt_sha256": "bb8abe8cbef84fcd5b045b94cf3f56e7b5ec77dad500c0d6100d8ea95e8e9eea",
+    "backend": "SeaweedFS 4.51",
+    "cargo_process_exit_code": 0,
+    "command": [
+      "cargo",
+      "+1.90.0",
+      "build",
+      "--release",
+      "--locked",
+      "-p",
+      "scap-service",
+      "--bin",
+      "scapd",
+      "--message-format=json-render-diagnostics"
+    ],
+    "executable_native_bytes": "verified",
+    "independent_verification_scope": "full",
+    "local_source_manifest_matches_at_actual": true,
+    "native_archive_count": 1,
+    "native_archive_sha256": [
+      "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    ],
+    "node": "v22.16.0",
+    "original_cargo_build_finished": true,
+    "original_receipt_identifier": "next-combined-release-second-build/build.json",
+    "original_receipt_sha256": "16cfbae97cfee89163cea62ae82f0eefdadbb2694dfabaf86451960b48ff06b5",
+    "profile": "release",
+    "receipt_hash_difference": "The archived receipt adds archive witness bindings; it retains the original Cargo evidence, source inputs and release binary identity.",
+    "runtime_profiles_included_in_rust_unit_coverage": false,
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+    "source_bytes_verified": 5114837,
+    "source_commit": "a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "source_files_verified": 309,
+    "tools": {
+      "node": {
+        "path": "/workspace/scratch/2d104d13038f/toolchain/node/bin/node",
+        "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+      },
+      "scapd": {
+        "path": "/workspace/scratch/2d104d13038f/next-combined-release-first/release/scapd",
+        "sha256": "8d99dd7380aa1aa34270edf34748e16025fc06a6144b9b870ede398ee78ad47b"
+      },
+      "weed": {
+        "path": "/workspace/scratch/2d104d13038f/toolchain/bin/weed",
+        "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e"
+      }
+    },
+    "unavailable_artifacts": []
+  },
+  "candidate": {
+    "commit_url": "https://github.com/ckanner/scap/commit/a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "pull_request": "https://github.com/ckanner/scap/pull/66",
+    "report_attachment_scope": "This Markdown report and this JSON are added after validation and are not members of the 864-file frozen source inventory.",
+    "selected_source_sha256": {
+      "crates/scap-service/docs/read-pool.md": "b8da0aa7d8ba48714fe73638957551e2bcbcb9d2fc2d6ad70677f12aa6256d33",
+      "crates/scap-service/src/config.rs": "74d67768f50ac902c06b64e9a07f5b3daf35082e44d0ebdfd7cecd553e4eb934",
+      "crates/scap-service/src/daemon.rs": "d438a2b5c22fe1523d52f5c5ed083d4345d9889deeb3cf7f9bb84b9b3642fc89",
+      "crates/scap-service/src/engine.rs": "7a2fca21bd8bcc349e9bc34b92489f92f363878e1c4d1e9b54034e388d5d4c9a",
+      "crates/scap-service/src/engine/tests.rs": "210fa6f0a1d355da4dae375836eb91bba08f11e70faf240f8747fc4285164f95",
+      "crates/scap-service/src/scheduler.rs": "b75332d548dac964aca364993dc21c652e473a2d8e5e7f706accc5565368a7b6",
+      "crates/scap-service/src/scheduler/tests.rs": "fc1fcecda7ae3a916d5701f07c75265a675fd4c2977d0b6589d179029e13fccb",
+      "experiments/read-pool/README.md": "b28a50dab58236ce3f60521cfa3c62e02354150680dd2b2d5e993a2b4ee82d7b",
+      "experiments/read-pool/controls.py": "383d029e4c15c97affa8079257ec83ea8e9c75a86c122d9317dd488c07ad9e1e",
+      "experiments/read-pool/oracle.py": "6b9e2fb33f6c316363032a70c5e47f961290f8192de8f0b84da74091b8bf5dd7",
+      "experiments/read-pool/probe.mjs": "077340c9f647a98c943b2d5c7ee76933d9ededc24f28483081776f537d2d3e94",
+      "experiments/read-pool/run.py": "6291b10e170f9ab999f4dddc6a9e4f36fda62a10b64f0e06798035e4e649221e",
+      "experiments/read-pool/spec.py": "755733490cdb84be5ff7f03458af1bb139bfd8f41420de6e6e571f750d4fa94a",
+      "experiments/read-pool/test_oracle.py": "e4935f62d37131c886f004deee36329f5aa12c177d9cd4c6ca2c44b38f1fa115"
+    },
+    "source_after_manifest_sha256": "de7a72dd0e1e2c6d38d3b1b01e1fd2e884cd83c7da55e7fef04386f0696b4c68",
+    "source_archive_sha256": "48680472c5c4fc03be703f07c79c518e3c817db28da9a48209d64437f42ccac9",
+    "source_commit": "a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "source_manifest_sha256": "de7a72dd0e1e2c6d38d3b1b01e1fd2e884cd83c7da55e7fef04386f0696b4c68",
+    "tracked_source_files": 864,
+    "tracked_source_unchanged_during_actual": true
+  },
+  "counterexamples": {
+    "interval_projection": [
+      {
+        "name": "serial_reads",
+        "rejected_by": "same-database reads did not overlap before either gate released",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "unrelated_get_overlap",
+        "rejected_by": "query gate held another operation",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "one_get_as_two_readers",
+        "rejected_by": "one GET counted twice",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "blocked_other",
+        "rejected_by": "readers blocked another tenant, writer or controls",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "blocked_write",
+        "rejected_by": "readers blocked another tenant, writer or controls",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "blocked_control",
+        "rejected_by": "readers blocked another tenant, writer or controls",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "active_quota_bypassed",
+        "rejected_by": "queued same-tenant query escaped active quota",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "unbound_refresh_worker_warm",
+        "rejected_by": "warm/write/refresh escaped the single remaining reader interval",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "unbound_refresh_worker_write_again",
+        "rejected_by": "warm/write/refresh escaped the single remaining reader interval",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "unbound_refresh_worker_refresh",
+        "rejected_by": "warm/write/refresh escaped the single remaining reader interval",
+        "tier": "interval_projection"
+      },
+      {
+        "name": "cold_reader_substituted_for_stale_image",
+        "rejected_by": "stale reader did not perform exactly one pre-SQL refresh",
+        "tier": "interval_projection"
+      }
+    ],
+    "interval_projection_controls": 11,
+    "negative_controls": 19,
+    "original_positive_reverified_after_controls": true,
+    "positive_controls": 1,
+    "raw": [
+      {
+        "name": "changed_resource_profile",
+        "rejected_by": "frozen plan changed",
+        "tier": "raw"
+      },
+      {
+        "name": "missing_original_response",
+        "rejected_by": "missing/duplicate http_response {}",
+        "tier": "raw"
+      },
+      {
+        "name": "duplicate_sdk_post",
+        "rejected_by": "missing exact SDK request",
+        "tier": "raw"
+      },
+      {
+        "name": "changed_original_response_bytes",
+        "rejected_by": "original HTTP bytes changed",
+        "tier": "raw"
+      },
+      {
+        "name": "unbound_s3_principal",
+        "rejected_by": "S3 request signing principal changed",
+        "tier": "raw"
+      },
+      {
+        "name": "replaced_original_lookup",
+        "rejected_by": "lookup replayed non-deterministic SQL",
+        "tier": "raw"
+      },
+      {
+        "name": "aliased_private_native_file",
+        "rejected_by": "private reader images alias or exceed worker count",
+        "tier": "raw"
+      },
+      {
+        "name": "unobserved_clean_exit",
+        "rejected_by": "owned worker cleanup not observed",
+        "tier": "raw"
+      }
+    ],
+    "raw_evidence_controls": 8,
+    "scope": "All 19 are directed changes to the already-verified evidence. The 11 interval projections certify only causal predicates, not new S3 executions or complete altered raw histories. None is counted as an additional actual execution.",
+    "status": "passed"
+  },
+  "date": "2026-11-18",
+  "observed_event_intervals": {
+    "basis": "Differences between named parent monotonic event observations on the same host; not complete child lifetimes or per-SQL latency.",
+    "excludes": "Backend provisioning and portions of process-start observation overhead.",
+    "is_tps_latency_capacity_cost_or_slo_measurement": false,
+    "production_slo": "NOT_RUN",
+    "values": [
+      {
+        "duration_ns": 917144722,
+        "end_event": "probe_stopped",
+        "end_monotonic_ns": 75346780330568,
+        "start_event": "probe_started",
+        "start_monotonic_ns": 75345863185846
+      },
+      {
+        "duration_ns": 1071391852,
+        "end_event": "service_stopped",
+        "end_monotonic_ns": 75346792890265,
+        "start_event": "service_started",
+        "start_monotonic_ns": 75345721498413
+      }
+    ]
+  },
+  "raw_evidence": {
+    "directory_locator_hint": "/workspace/scratch/2d104d13038f/scap-work/next-read-pool-first",
+    "files": {
+      "build/build-cargo.stderr.log": {
+        "bytes": 114,
+        "sha256": "85f1201d018cba528d54e477c554c983aac12307108fb8e9e47e280762432ff7"
+      },
+      "build/build-cargo.stdout.jsonl": {
+        "bytes": 211788,
+        "sha256": "dd744fba7edbca361f4a9faffbc5f0d96efd4c84366b2276e2dbaeccc0d11457"
+      },
+      "build/build-receipt.json": {
+        "bytes": 37766,
+        "sha256": "bb8abe8cbef84fcd5b045b94cf3f56e7b5ec77dad500c0d6100d8ea95e8e9eea"
+      },
+      "build/build-source-manifest.json": {
+        "bytes": 36168,
+        "sha256": "5692e4fb929fd23805fed0831bf72f87bf1e4e4215a52c500179df0a094e521c"
+      },
+      "build/build-source.tar": {
+        "bytes": 5355520,
+        "sha256": "2e5880fe958e4df2b5b32cda686ce8414f0c2dbddce062fd3711dffa05c0fd65"
+      },
+      "events.jsonl": {
+        "bytes": 127404,
+        "sha256": "c375d4713c2c48156bc7dcf2b55e2a5ce4504f7a49832e4aacd873c6afda8c5c"
+      },
+      "history.jsonl": {
+        "bytes": 1952552,
+        "sha256": "3db047bf203b2fc95e8351edeaa04678b6e0bec1a297b3e58e5058dfefdd785f"
+      },
+      "http-client-ledger.jsonl": {
+        "bytes": 41388,
+        "sha256": "44785f081b4508ad810d6e98b1aac370d9f70c8a7daee65362084e4a21c9919f"
+      },
+      "http-client-transport.jsonl": {
+        "bytes": 62958,
+        "sha256": "ab8c28b0736dc2ac803ce2647eedfd7a8c884701d31b6fd73eb18f3edb445f72"
+      },
+      "inputs.json": {
+        "bytes": 982,
+        "sha256": "a57eaeb2c4ce4b263e6734e57789f5285b890357ff73b5cb1fd4623bf6312043"
+      },
+      "original-lookups.jsonl": {
+        "bytes": 2051,
+        "sha256": "a54bf236795cd02330d9e9d355e49379ed48c04d63848b2b52fe22fbf1424ea3"
+      },
+      "original-results.jsonl": {
+        "bytes": 4296,
+        "sha256": "1f09d2a2b74d2653d75655e1cea72beef0e3ece1ec9b4d4499e30269aacedbb2"
+      },
+      "plan.json": {
+        "bytes": 3402,
+        "sha256": "1479f50b166f4394d0f4d6ba678b0a37f30a5ade26e6a02a11e3cf08d56be383"
+      },
+      "probe.jsonl": {
+        "bytes": 4022,
+        "sha256": "e1ff779f959b45db4479c116dc9adbec5a2ec0f74bfbdac19f2ef1563dd4a30e"
+      },
+      "result.json": {
+        "bytes": 5199,
+        "sha256": "72627a3ea7b89894c7d622095c39e5e39151efc8b4644bc0134145231721de04"
+      },
+      "service-config.json": {
+        "bytes": 1349,
+        "sha256": "76ed006c06e54401d433bb9a7f875b74d2b2639bb54956d55d4803a2b5528eb6"
+      },
+      "source-after.json": {
+        "bytes": 102172,
+        "sha256": "de7a72dd0e1e2c6d38d3b1b01e1fd2e884cd83c7da55e7fef04386f0696b4c68"
+      },
+      "source.json": {
+        "bytes": 102172,
+        "sha256": "de7a72dd0e1e2c6d38d3b1b01e1fd2e884cd83c7da55e7fef04386f0696b4c68"
+      },
+      "source.tar": {
+        "bytes": 16977920,
+        "sha256": "48680472c5c4fc03be703f07c79c518e3c817db28da9a48209d64437f42ccac9"
+      }
+    },
+    "locator_policy": "Local retrieval hints are not permanent download URLs. Original logs, runtime configuration, credentials, database contents and source tar archives are not copied into this documentation commit.",
+    "original_controller_log": {
+      "bytes": 5426,
+      "identifier": "next-read-pool-first.log",
+      "sha256": "2797d8bb00e9cf769666d9e2bbb85f62e3bca1c3c329d40e3a2b946864c4b7e5"
+    }
+  },
+  "report_scope": "One frozen local native SQLite/HTTP/SDK/S3 read-pool execution and directed evidence counterexamples; not a combined-workspace, cloud, CI or production-performance qualification.",
+  "retained_development_records": {
+    "original_log_digests": {
+      "readpool-compile-first.log": {
+        "bytes": 6824,
+        "sha256": "e043c964e3a18bd43aa3444fa1460fbee741a53938b580a3dc9a7a316be9a4ef"
+      },
+      "readpool-compile-second.log": {
+        "bytes": 1285,
+        "sha256": "7a1631c2c885ce51591f2ecb8cf39afba01678040393b431279525f6bed9614d"
+      },
+      "readpool-coverage-gate-first.log": {
+        "bytes": 7999,
+        "sha256": "ce5f90a184f78201e0c66616a27869b821a84c4937b98824fe366ce366d761eb"
+      },
+      "readpool-coverage-second-check.log": {
+        "bytes": 7935,
+        "sha256": "c1c932007a0959774106c9ae1e329eee49a760c9661b5e2300f28bf1c2d63efa"
+      },
+      "readpool-queue-determinism-unit-second.log": {
+        "bytes": 590,
+        "sha256": "36d4dfe44fec458a8ac45c3f2db22751378f83466b1676b515f3287f54514163"
+      },
+      "readpool-queue-determinism-unit.log": {
+        "bytes": 127,
+        "sha256": "ab4e9031165ed134bf46ee7ffac0cce03378d9d3396a7d6f0f6ecab1c3b4043e"
+      },
+      "readpool-service-unit-first.log": {
+        "bytes": 25942,
+        "sha256": "8604e0aee19f9e1f43f7a5718fe988bb9bf90f0b8da432320776ad1258d360e8"
+      }
+    },
+    "records": [
+      {
+        "identifier": "readpool-compile-first.log",
+        "reason": "Build failed with ENOSPC; original environment failure retained before rebuilding."
+      },
+      {
+        "identifier": "readpool-compile-second.log",
+        "reason": "New test used Scope where WireScope was required; test construction was corrected."
+      },
+      {
+        "identifier": "readpool-service-unit-first.log",
+        "reason": "New daemon test expected a non-existent queried status field; the assertion was corrected to the actual query result."
+      },
+      {
+        "identifier": "readpool-coverage-gate-first.log",
+        "reason": "Engine stale-refresh false/error branches lacked coverage; explicit no-refresh and post-refresh GET failure cases were added."
+      },
+      {
+        "identifier": "readpool-queue-determinism-unit.log",
+        "reason": "llvm-cov rejected a misplaced test filter before executing tests; the corrected invocation is retained separately."
+      }
+    ],
+    "scope": "Earlier environment, test and coverage failures remain separate from this single passing actual run."
+  },
+  "schema": 1,
+  "status": "PASSED_WITH_EXPLICIT_LOCAL_SCOPE",
+  "unit_and_coverage_scope": {
+    "combined_candidate": {
+      "current_or_later_gate_status": "Consult the separately frozen combined validation report; this report records its actual-start boundary only.",
+      "rust_units_reported_passed_at_actual_start": 911,
+      "status": "NOT_CERTIFIED_BY_THIS_REPORT",
+      "strict_gate_reported_at_actual_start": "FAILED: one separate GC region remained under investigation.",
+      "strict_pass_for_combined_candidate_claimed": false
+    },
+    "deterministic_scheduler_test_fix": {
+      "cause": "The real Readers::pop instantiation only retained a second queued same-database job when initial thread scheduling happened to accumulate both offers.",
+      "commit": "8946ec6c009905fad3984003046dac90109eaa11",
+      "coverage_gate_weakened": false,
+      "fix": "Park both actual reader workers, enqueue two more same-database queries, then release in order while asserting queued counts 2 -> 1 -> 0.",
+      "original_combined_failure": {
+        "uncovered_branches": 1,
+        "uncovered_lines": 1,
+        "uncovered_regions": 3
+      },
+      "production_changed_by_fix": false,
+      "targeted_log_identifier": "readpool-queue-determinism-unit-second.log",
+      "targeted_log_sha256": "36d4dfe44fec458a8ac45c3f2db22751378f83466b1676b515f3287f54514163",
+      "targeted_nightly_unit": "PASSED"
+    },
+    "fixture_oracle_unit_tests": {
+      "passed": 12,
+      "scope": "Prior fixture-only unit checks; not Rust coverage and not substitutes for native/HTTP/S3 execution."
+    },
+    "historical_independent_branch": {
+      "collection": "fresh unit-only nightly-2025-09-18 llvm-cov, workspace --lib --bins --all-features --branch; no actual profiles",
+      "coverage_report_identifier": "readpool-unit-second.json",
+      "coverage_report_sha256": "b0402afc25ce03aefbc1db2567d826161431be98ed230764d714a2dee2422fe2",
+      "line_function_region_branch_percent": 100,
+      "production_files": 76,
+      "rust_units_failed": 0,
+      "rust_units_ignored": 0,
+      "rust_units_passed": 898,
+      "source_scope": "Independent read-pool worktree after fa57c0b, with engine test additions later committed in 44bbe23; not the combined a2cc536 resource/fleet candidate.",
+      "status": "HISTORICAL_BRANCH_ONLY",
+      "strict_gate_identifier": "readpool-coverage-second-check.log",
+      "strict_gate_sha256": "c1c932007a0959774106c9ae1e329eee49a760c9661b5e2300f28bf1c2d63efa"
+    }
+  }
+}

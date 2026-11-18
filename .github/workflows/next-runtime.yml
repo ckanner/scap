@@ -104,10 +104,22 @@ jobs:
           fi
           python3 -B "experiments/$SCAP_CONTRACT/controls.py" "${arguments[@]}" \
             > "$RUNNER_TEMP/scap-next-evidence/controls.json"
+      - name: Preserve all evidence with hard links before artifact upload
+        if: always()
+        run: |
+          if [ -d "$RUNNER_TEMP/scap-next-evidence" ]; then
+            tar -czf "$RUNNER_TEMP/scap-next-evidence.tar.gz" \
+              -C "$RUNNER_TEMP/scap-next-evidence" .
+            cd "$RUNNER_TEMP"
+            sha256sum scap-next-evidence.tar.gz > scap-next-evidence.tar.gz.sha256
+          fi
       - name: Retain original successes and failures without claiming production SLO
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: next-${{ matrix.contract }}-evidence
-          path: ${{ runner.temp }}/scap-next-evidence/**
+          path: |
+            ${{ runner.temp }}/scap-next-evidence.tar.gz
+            ${{ runner.temp }}/scap-next-evidence.tar.gz.sha256
+          compression-level: 0
           if-no-files-found: warn

@@ -1,0 +1,174 @@
+{
+  "artifact": {
+    "connector_max_artifact_bytes": 536870912,
+    "file_count_reported_by_upload_log": 250770,
+    "id": 14408010850,
+    "local_zip_hash_verified": false,
+    "name": "next-object-overload-evidence",
+    "original_bytes_downloaded": false,
+    "retrieval_blocker": "InvalidInputException: Artifact exceeds max size of 536870912 bytes: 1044566776 bytes.",
+    "url": "https://github.com/ckanner/scap/actions/runs/44258165625/artifacts/14408010850",
+    "zip_bytes": 1044566776,
+    "zip_sha256_reported_by_github": "b3865e8a275fb3f87faa2cb29098fccbb60ba14a464d0047ae3cc8c19f988895"
+  },
+  "candidate": {
+    "ci_checkout_sha": "b1fd8ff64b8f159f8dea7aed883f6831c725df61",
+    "head_sha": "a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "head_tree_sha": "a1cc6966e11918aee9a51b498e3ebf20b49528ca",
+    "later_head_qualified": false,
+    "pull_request": 66
+  },
+  "ci": {
+    "conclusion": "success",
+    "job_id": 134644763034,
+    "run_id": 44258165625,
+    "status": "completed",
+    "steps": [
+      {
+        "conclusion": "success",
+        "name": "Build and bind the complete current service and SDK",
+        "number": 7,
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "Observe the complete fixed actual contract",
+        "number": 8,
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "Independently audit original bytes and all negative controls",
+        "number": 9,
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "Retain original successes and failures without claiming production SLO",
+        "number": 10,
+        "status": "completed"
+      }
+    ],
+    "url": "https://github.com/ckanner/scap/actions/runs/44258165625/job/134644763034"
+  },
+  "contract": "open-loop-overload-v1",
+  "date": "2026-11-18",
+  "delivery_followup": {
+    "new_packaging_uploaded": false,
+    "new_packaging_verified": false,
+    "original_artifact_retained": true,
+    "original_workload_rerun_for_download": false,
+    "root_prepared": "preserve every evidence/control path with a hardlink-aware tar.gz and SHA-256; upload tar.gz plus checksum with compression-level 0",
+    "thresholds_changed": false
+  },
+  "frozen_plan_not_retrieved_measurements": {
+    "batch": {
+      "logical_rows": 64,
+      "statements_per_transaction": 8,
+      "transactions": 8
+    },
+    "controls": {
+      "expected_negative_count": 18,
+      "expected_positive_count": 1,
+      "required_rejections": {
+        "batch_as_independent_transactions": "fixed-plan",
+        "fabricated_success": "sdk-success",
+        "final_payload_changed": "complete-business-values",
+        "missing_offer": "offered-denominator",
+        "missing_resource_samples": "resource-samples",
+        "missing_slow_call": "http-denominator",
+        "original_receipt_changed": "committed-wire",
+        "private_directory_not_removed": "private-cleanup",
+        "progress_after_window": "tenant-window-progress",
+        "publication_exchange_missing": "s3-proxy-error",
+        "readback_after_publication": "closure-before-head",
+        "request_identity_changed": "original-http-input",
+        "shifted_schedule": "fixed-arrival-schedule",
+        "unreaped_service": "owned-service-exit",
+        "whole_tail_exchange_missing": "s3-denominator",
+        "worker_unconditional_create": "worker-claim-create-only",
+        "wrong_binary": "runtime-binary",
+        "wrong_owned_process": "resource-process-identity"
+      }
+    },
+    "databases": 4,
+    "open_loop": {
+      "arrivals": 1140,
+      "control_per_second": 2,
+      "duration_seconds": 30,
+      "hot_execute_per_second": 32,
+      "maximum_offer_lag_ms": 1000,
+      "progress_windows": 6,
+      "quiet_query_per_second": 4,
+      "window_seconds": 5
+    },
+    "original_executes": 1036,
+    "reader_pool": null,
+    "single": {
+      "logical_rows": 64,
+      "statements_per_transaction": 1,
+      "transactions": 64
+    },
+    "tenants": 2,
+    "total_http_posts": 4340
+  },
+  "measurement_unavailable_reason": "The retrieved job log contains runner summary but redirects independent oracle and controls JSON into the oversized artifact; throughput, latency, outcomes and resource measurements have not been independently retrieved.",
+  "measurements": null,
+  "observed_original_job_log": {
+    "baseline_event": {
+      "timestamp": "2026-11-18T07:26:00.2066810Z",
+      "value": {
+        "aws_standard": "NOT_RUN",
+        "cleanup_errors": [],
+        "private_path": "/home/runner/work/_temp/scap-next-evidence/scap-overload-private-56l_x3_m",
+        "private_removed": true,
+        "production_slo_passed": false,
+        "status": "OBSERVED_NOT_AUDITED"
+      }
+    },
+    "build_event": {
+      "timestamp": "2026-11-18T07:24:38.3048783Z",
+      "value": {
+        "binary": {
+          "path": "/home/runner/work/_temp/scap-next-release/release/scapd",
+          "sha256": "40afacb26c85aae968ce10c17b233f13f6254bdc7e7f56e62f14f5a07d566c80"
+        },
+        "status": "passed"
+      }
+    },
+    "bytes": 45903,
+    "controls_command_completed": true,
+    "controls_json_printed_in_log": false,
+    "independent_oracle_command_completed": true,
+    "oracle_json_printed_in_log": false,
+    "output_redirection": [
+      "oracle.json",
+      "controls.json"
+    ],
+    "sha256": "e23c648c159a0682ae2f96940decc174bcaace2d4ec41e97992fb42ec1e59a8b"
+  },
+  "qualification": "CI_GATE_PASSED_ORIGINAL_ARTIFACT_RETRIEVAL_BLOCKED",
+  "schema": 1,
+  "scope": {
+    "aws_standard": "NOT_RUN",
+    "ci_process_gate_passed": true,
+    "historical_get_elision_regression_attributed": false,
+    "independent_local_original_reaudit_completed": false,
+    "production_slo_passed": false,
+    "sampled_resource_peak_is_hard_bound": false,
+    "sql_batch_is_independent_transaction_group_commit": false
+  },
+  "source_review": {
+    "files": {
+      ".github/workflows/next-runtime.yml": "432e57b7615299593e3d4cf5fb31c1e637ef5c68a5c36401fdd6ab03f6b19e78",
+      "experiments/object-overload/PLAN.md": "11a9e96435b73ae59990050b75861aea0baab9ed2edf5faa5dadcd7419a19be0",
+      "experiments/object-overload/controls.py": "f5e21952aa8de7962b7b7e9fa581f6cab2fad36093b0b6a41685153e16c94cd8",
+      "experiments/object-overload/oracle.py": "2103a746af82ff815ab2f364ab73d4e73d4f9a3409bdad8f1055449b3df00b95",
+      "experiments/object-overload/run.py": "f3ca8690fca2cad2bea91389b117e1c64ec47ab3bbf76c41195a80ab3adcb7bb",
+      "experiments/object-overload/spec.py": "7f9bf0f9fa09c487bc0f1bc3c4daa05cfab2e0b6f4a2ebe6aab35a4581dff0cc"
+    },
+    "original_build_manifest_retrieved": false,
+    "original_fixture_archive_retrieved": false,
+    "reference": "a2cc536770d7fc2e1b155d439616e29d25ad724a"
+  }
+}

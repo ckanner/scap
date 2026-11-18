@@ -9,8 +9,10 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 最新核查：2026-11-18（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 已合入
 `02476c8`；owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接复用均已在主线。
 本批在该基线上实现可选的同库并行强读池、受信配置驱动的动态 fleet 更新、Linux 内核
-资源准入，并增加固定开环过载与 SQL batch 实际合同。完整组合正在按新源码验收，
-实际结果、来源与 CI 状态集中记录在[本批交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)。
+资源准入，并增加固定开环过载与 SQL batch 实际合同。最新组合 stable/nightly 各
+911 项单位通过，77 个 Rust 生产文件逐文件四维精确 100%；四项实际已按各自冻结
+来源通过。实际原件、首轮 CI 修复和范围见[本批交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)，
+最终提交的全部 CI 与合入身份以 [PR #66 checks](https://github.com/ckanner/scap/pull/66/checks)为准。
 Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision-decision-2026-11-18.md)
 退出本次交付；普通精确读取保留，历史约 24% 回退并未被宣称已解决。
 

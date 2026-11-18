@@ -124,9 +124,9 @@ HEAD fencing 保持安全，但在部署器完成协调更新前，不保证排�
 
 ## 6. 验证
 
-单元、精确 V8、真实 Node HTTP/进程和真实 native/S3 分别记录。182项SDK单位、22个
-生产模块精确V8及14项真实controller HTTP/CLI检查已有本地开发结果；它们不替代
-[固定动态S3合同](../../experiments/object-dynamic-fleet-runtime/PLAN.md)的完整实际、独立
-原始审计与反例。最终冻结源码和各门禁状态以本轮工程证据为准。真实AWS、分布式registry、
+单元、精确 V8、真实 Node HTTP/进程和真实 native/S3 分别记录。182项SDK unit、22个
+生产模块精确V8及14项真实controller HTTP/CLI检查通过；[固定动态S3合同](../../experiments/object-dynamic-fleet-runtime/PLAN.md)
+也已完成整轮实际、独立原始审计、13项负控和1项正控。冻结源码、分母、原失败与范围见
+[本轮工程证据](../engineering/dynamic-owner-fleet-validation-2026-11-18.md)。真实AWS、分布式registry、
 自动扩缩容与生产SLO不由此宣称完成。
 

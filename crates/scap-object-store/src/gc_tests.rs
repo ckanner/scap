@@ -422,21 +422,38 @@ fn preflight_timeout_does_not_create_a_batch_after_the_original_deadline() {
 #[test]
 fn wall_clock_guard_rejects_a_ready_future_finishing_after_the_original_deadline() {
     let store = GcS3::new(config("http://127.0.0.1:1"), 1).unwrap();
-    let original = deadline();
-    let mut completed = false;
-    assert_eq!(
-        store.execute(original, async {
-            // A synchronous completion can hold its poll past Tokio's timer.
-            // Keep the original real clock guard independently exercised; no
-            // paused timer or renewed deadline stands in for this check.
-            std::thread::sleep(original.saturating_duration_since(Instant::now()));
-            assert!(Instant::now() >= original);
+    for case in ["expired", "timely", "late"] {
+        let original = if case == "expired" {
+            Instant::now()
+        } else {
+            deadline()
+        };
+        let mut completed = false;
+        let result = store.execute(original, async {
+            if case == "late" {
+                // A synchronous completion can hold its poll past Tokio's timer.
+                // Keep the original real clock guard independently exercised;
+                // no paused timer or renewed deadline stands in for this check.
+                std::thread::sleep(original.saturating_duration_since(Instant::now()));
+                assert!(Instant::now() >= original);
+            }
             completed = true;
             Ok(())
-        }),
-        Err(GcError::Unknown)
-    );
-    assert!(completed);
+        });
+        assert_eq!(
+            result,
+            if case == "timely" {
+                Ok(())
+            } else {
+                Err(GcError::Unknown)
+            }
+        );
+        assert_eq!(
+            completed,
+            case != "expired",
+            "expired work must not be polled"
+        );
+    }
 }
 
 #[test]

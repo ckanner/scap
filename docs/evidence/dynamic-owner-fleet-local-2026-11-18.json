@@ -1,0 +1,452 @@
+{
+  "actual": {
+    "aws": "NOT_RUN",
+    "cleanup_errors": [],
+    "controls": "NOT_RUN",
+    "elapsed_seconds": 66.51720370500698,
+    "oracle": "NOT_RUN",
+    "production_slo": "NOT_RUN",
+    "status": "OBSERVED_NOT_AUDITED",
+    "whole_seconds": 180
+  },
+  "actual_original_inventory": {
+    "bytes": 25061251,
+    "canonicalization": "UTF-8 json.dumps(sorted artifact/bytes/sha256 rows, sort_keys=True, separators=(comma,colon)); paths relative to actual evidence",
+    "files": 170,
+    "manifest_sha256": "13e43a12e9e8bf59e954324db7bdaf7feac2aab8abe2be73cbde6a8508d3e051",
+    "originals_unchanged": true
+  },
+  "bounds": {
+    "active_recoveries": 1,
+    "active_ticks": 8,
+    "active_ticks_per_tenant": 4,
+    "combined_canonical_policy_bytes": 65536,
+    "configuration_bytes": 65536,
+    "previous_policies_per_scope": 16,
+    "scope_lifetime": 128,
+    "worker_incarnation_lifetime": 256
+  },
+  "date": "2026-11-18",
+  "directed_controls": {
+    "negative_controls": 13,
+    "original_files_unchanged": 170,
+    "positive_controls": 1,
+    "results": [
+      {
+        "guard": "complete-original-policy-history",
+        "name": "omit_original_policy_history",
+        "rejected": true
+      },
+      {
+        "guard": "monotonic-successful-reloads",
+        "name": "accept_revision_rollback",
+        "rejected": true
+      },
+      {
+        "guard": "monotonic-successful-reloads",
+        "name": "accept_retired_worker_revival",
+        "rejected": true
+      },
+      {
+        "guard": "unknown-survives-all-reloads",
+        "name": "forget_original_unknown_after_reload",
+        "rejected": true
+      },
+      {
+        "guard": "controller-never-sql",
+        "name": "controller_replays_business_sql",
+        "rejected": true
+      },
+      {
+        "guard": "recovered-original-result",
+        "name": "replace_cold_original_result",
+        "rejected": true
+      },
+      {
+        "guard": "head-original-exact-get",
+        "name": "refresh_original_head_condition",
+        "rejected": true
+      },
+      {
+        "guard": "owned-process-denominator",
+        "name": "omit_owned_replacement_exit",
+        "rejected": true
+      },
+      {
+        "guard": "original-target-guard",
+        "name": "replace_original_worker_guard",
+        "rejected": true
+      },
+      {
+        "guard": "retired-target-never-resumed",
+        "name": "resume_retired_original_target",
+        "rejected": true
+      },
+      {
+        "guard": "original-recipe-never-rebased",
+        "name": "rewrite_original_descriptor_reference",
+        "rejected": true
+      },
+      {
+        "guard": "prepare-exact-current-policy",
+        "name": "use_old_policy_nonce_for_new_plan",
+        "rejected": true
+      },
+      {
+        "guard": "release-source-equivalence",
+        "name": "omit_required_release_source",
+        "rejected": true
+      }
+    ],
+    "status": "PASSED"
+  },
+  "failures_and_followups_retained": [
+    {
+      "actual_elapsed_seconds": 59.47211146900372,
+      "actual_status": "OBSERVED_NOT_AUDITED",
+      "artifacts": [
+        {
+          "artifact": "fleet-next-oracle-feda50f.log",
+          "bytes": 1036,
+          "sha256": "17f02d071392a6e662c5f522cd0bd72503611f38b5c21e234f70a79f6096240c"
+        },
+        {
+          "artifact": "fleet-next-actual-feda50f/summary.json",
+          "bytes": 193,
+          "sha256": "8255b71d61772f560c15fcb8730b0caaccae1a4e35e4de926a99709e36f4baa4"
+        }
+      ],
+      "candidate": "feda50f",
+      "reason": "Initial independent auditor expected set_policy; SDK wire operation is policy. Original failure retained, auditor corrected and regression cases added. This superseded run is not the final pass."
+    },
+    {
+      "artifacts": [
+        {
+          "artifact": "fleet-next-coverage-quiesce1.log",
+          "bytes": 48782,
+          "sha256": "e9c1c9cedded2fa262bb85aab94f621a2eb13d185d88ab82753421f1e0f793d0"
+        }
+      ],
+      "candidate": "quiesce first development candidate",
+      "reason": "All 182 unit tests passed but V8 branch threshold failed. The transition cleanup was refactored to close failed admission before clearing updating; the next fresh exact map passed without changing the checker."
+    },
+    {
+      "artifacts": [
+        {
+          "artifact": "next-combined-unit-second.log",
+          "bytes": 66121,
+          "sha256": "fde6ea7634bea603553765bb631f849937824d162b8a27b38922c80a2cc6eb0b"
+        }
+      ],
+      "candidate": "combined unit second",
+      "reason": "GC test incorrectly demanded a DELETE after two preflight requests shared a 40ms deadline; a permitted pre-dispatch timeout left its TCP fixture waiting for a third request. b95ecb8 replaced only unit timeout effects with a paused Tokio clock, retaining exact original std::Instant and request/condition assertions, and added a separate real-clock completion guard."
+    },
+    {
+      "artifact": {
+        "artifact": "next-combined-unit-coverage-third.json",
+        "bytes": 59316195,
+        "sha256": "8b90ba15caa65ad66e1a2d0802817c04fa1f56b3495bf9849f50621fc5d70680"
+      },
+      "candidate": "combined unit third",
+      "reason": "911 tests passed; strict regions still failed at gc.rs 460/461 because the new ready-future monomorph only returned late. 4ab143c runs the same future type timely and late; targeted test and Clippy passed. Final combined Rust coverage is recorded separately, not inferred here."
+    }
+  ],
+  "frozen_runtime_source": {
+    "archive_sha256": "5f449b661e21681e4eba2be1984525b65654aebf34813ef511c0ceb5356c531a",
+    "commit": "a2cc536770d7fc2e1b155d439616e29d25ad724a",
+    "source_sha256": "9dd8cd4cfdb687026c511803cf40802908549b0853e1b25489e08d7638ef4eb3",
+    "tracked_files": 864,
+    "tree": "a1cc6966e11918aee9a51b498e3ebf20b49528ca"
+  },
+  "independent_observer_unit": {
+    "status": "PASSED",
+    "tests": 7
+  },
+  "independent_oracle": {
+    "aws_standard": "NOT_RUN",
+    "cold_original_lookups": 3,
+    "controller_http_calls": 52,
+    "controller_processes": 1,
+    "controller_reports": 12,
+    "http_requests": 71,
+    "independent_distributed_registry": "NOT_IMPLEMENTED",
+    "original_client_acks": 2,
+    "original_sql_requests": 3,
+    "owner_mutations": 9,
+    "preserved_business_unknowns": 1,
+    "preserved_controller_unknowns": 1,
+    "production_slo": "NOT_RUN",
+    "rejected_reloads": 2,
+    "reloads": 4,
+    "s3_requests": 269,
+    "services": 4,
+    "status": "PASS_DYNAMIC_TRUSTED_FLEET"
+  },
+  "node_http_and_process": {
+    "scope": "real ClientRequest/socket/CLI and SIGHUP; controlled DNS callback delay, TLS rejection, socket join, rollback rejection and signal shutdown",
+    "status": "PASSED",
+    "tests": 14,
+    "unit_profile_mixing": false
+  },
+  "not_claimed": [
+    "S3-backed distributed fleet registry, global membership epoch or automatic scaling",
+    "unbounded history compaction or resurrection of a retired worker identity",
+    "automatic refresh/replay of an existing business SQL request or replacement of its original worker guard",
+    "instantaneous retirement across controllers that have not received the trusted configuration",
+    "AWS Standard/IAM or cloud fault-domain qualification",
+    "a production throughput, memory or recovery-time SLO",
+    "real NFS filesystem acceptance",
+    "remote CI completion inferred from these local observations"
+  ],
+  "raw_artifacts": [
+    {
+      "artifact": "fleet-next-actual-combined1/source.json",
+      "bytes": 186644,
+      "sha256": "df172d10578c4f7ee1cc581414ee5763c2a48dcbecf807d17caa4ae48be63395"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/source.tar",
+      "bytes": 17868800,
+      "sha256": "5f449b661e21681e4eba2be1984525b65654aebf34813ef511c0ceb5356c531a"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/inputs.json",
+      "bytes": 1073,
+      "sha256": "aaba623dd95a18488a167d5375510e10f16dc6f2b1e56f4fbfd194a3a46e82b1"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/dynamic-inputs.json",
+      "bytes": 326,
+      "sha256": "e122f7a75db00edd15e7b9fcc67e3c402914b210900b4673db2cc50a04157625"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/events.jsonl",
+      "bytes": 1134691,
+      "sha256": "583bb416d325fe8f912d90602c8a0cd9f8fca9d9d4b67983d7d017e8c413bc35"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/business.jsonl",
+      "bytes": 4971,
+      "sha256": "3059bec70ae4e836f3c694342b8d5cb01abafe5600c6bdcad33e847553b71204"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/http-client-ledger.jsonl",
+      "bytes": 35753,
+      "sha256": "7ccd9f7294fd20aa028b49388be2b02f58c2b19f435e89b792843a27d40fcfa6"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/summary.json",
+      "bytes": 193,
+      "sha256": "61611daab6cfd4bfbf980d9b36e4ee6121483cf0149886a971de5b1ae7205d97"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1/service-build/build-receipt.json",
+      "bytes": 37766,
+      "sha256": "bb8abe8cbef84fcd5b045b94cf3f56e7b5ec77dad500c0d6100d8ea95e8e9eea"
+    },
+    {
+      "artifact": "next-combined-release-second-build/build.json",
+      "bytes": 37336,
+      "sha256": "16cfbae97cfee89163cea62ae82f0eefdadbb2694dfabaf86451960b48ff06b5"
+    },
+    {
+      "artifact": "fleet-next-actual-combined1.log",
+      "bytes": 1507,
+      "sha256": "b053d0b9f3a64a6764b11b4f4a70c95865f7fd428b6dbcbed164cdc890adedb1"
+    },
+    {
+      "artifact": "fleet-next-oracle-combined1.json",
+      "bytes": 502,
+      "sha256": "54258ad36e55eadad4e4dd6b27f17c34521fc3118817867f948ea1f8849547e8"
+    },
+    {
+      "artifact": "fleet-next-controls-combined1.json",
+      "bytes": 1433,
+      "sha256": "f86e6d72b147f040eded76dc443ac1cb5b57d2521912a14ce2f7155ec9a58ea3"
+    },
+    {
+      "artifact": "fleet-next-coverage-final1.log",
+      "bytes": 50000,
+      "sha256": "a41e1ea7f87e46e2ddf702f9f206443323a7439dc0e6ffda9f25410696308ff5"
+    },
+    {
+      "artifact": "fleet-next-loopback-final1.log",
+      "bytes": 3825,
+      "sha256": "259dbae18c715aeb07d4b0db1e43409bce150a0f0980a337665d7898288999eb"
+    },
+    {
+      "artifact": "fleet-next-gc-unit1.log",
+      "bytes": 8926,
+      "sha256": "34413b7a133d7d25e0276ae883be9ed9d74b54560784c564a831ccae122d0a6d"
+    },
+    {
+      "artifact": "fleet-next-gc-clippy1.log",
+      "bytes": 3754,
+      "sha256": "96fd093ffde5b8ba886584103ba019790899d90674540b77a6c03b1a0e2a4527"
+    },
+    {
+      "artifact": "fleet-next-gc-wall-clock2.log",
+      "bytes": 540,
+      "sha256": "3569eca1178cd43e20017ed92492fc0bc960e43cc35eae87ac6bd440085860e1"
+    },
+    {
+      "artifact": "fleet-next-gc-clippy2.log",
+      "bytes": 185,
+      "sha256": "e52e2d8632217926ce7515ba13de48d4863408201f21f331529d40b24d276e91"
+    }
+  ],
+  "release": {
+    "binary_sha256": "8d99dd7380aa1aa34270edf34748e16025fc06a6144b9b870ede398ee78ad47b",
+    "build_record_sha256": "16cfbae97cfee89163cea62ae82f0eefdadbb2694dfabaf86451960b48ff06b5",
+    "exit_code": 0,
+    "input_files": 309,
+    "native_archive_sha256": [
+      "ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5"
+    ],
+    "node": "v22.16.0",
+    "profile": "release",
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8\n",
+    "source_binding": "exact complete service build inputs, original Cargo completion, binary and native archive bytes; no instrumentation",
+    "source_commit": "a2cc536770d7fc2e1b155d439616e29d25ad724a"
+  },
+  "schema_version": 1,
+  "scope": "deployment-provided bounded online membership, irreversible retirement, endpoint reuse and original owner-plan reconciliation",
+  "sdk_unit": {
+    "branch_percent": 100,
+    "function_percent": 100,
+    "line_percent": 100,
+    "per_module_denominators": {
+      "catalogue.js": {
+        "functions": 25,
+        "ranges": 25
+      },
+      "catalogue_wire.js": {
+        "functions": 26,
+        "ranges": 118
+      },
+      "client.js": {
+        "functions": 77,
+        "ranges": 137
+      },
+      "controller.js": {
+        "functions": 32,
+        "ranges": 199
+      },
+      "controller_fleet.js": {
+        "functions": 22,
+        "ranges": 88
+      },
+      "controller_http.js": {
+        "functions": 33,
+        "ranges": 165
+      },
+      "controller_lineage.js": {
+        "functions": 9,
+        "ranges": 28
+      },
+      "controller_policy.js": {
+        "functions": 23,
+        "ranges": 62
+      },
+      "controller_process.js": {
+        "functions": 10,
+        "ranges": 60
+      },
+      "discovery.js": {
+        "functions": 12,
+        "ranges": 18
+      },
+      "discovery_wire.js": {
+        "functions": 12,
+        "ranges": 42
+      },
+      "errors.js": {
+        "functions": 8,
+        "ranges": 21
+      },
+      "operation_budget.js": {
+        "functions": 13,
+        "ranges": 28
+      },
+      "owner.js": {
+        "functions": 13,
+        "ranges": 38
+      },
+      "owner_intent.js": {
+        "functions": 12,
+        "ranges": 67
+      },
+      "owner_plan.js": {
+        "functions": 15,
+        "ranges": 48
+      },
+      "owner_plan_wire.js": {
+        "functions": 16,
+        "ranges": 55
+      },
+      "route_registry.js": {
+        "functions": 13,
+        "ranges": 28
+      },
+      "routed.js": {
+        "functions": 14,
+        "ranges": 31
+      },
+      "snapshot_wire.js": {
+        "functions": 20,
+        "ranges": 66
+      },
+      "transport.js": {
+        "functions": 14,
+        "ranges": 80
+      },
+      "wire.js": {
+        "functions": 53,
+        "ranges": 200
+      }
+    },
+    "production_commit": "949fa6351c98ce3327144ce35add7e9020a1b220",
+    "production_modules": 22,
+    "raw_profile_files": [
+      {
+        "artifact": "fleet-next-unit-coverage-final1/coverage-22-1794985061585-0.json",
+        "bytes": 875381,
+        "sha256": "ee075d211406abc995c5d1029490d2185b1068bc71838f821487c6754b505e76"
+      },
+      {
+        "artifact": "fleet-next-unit-coverage-final1/coverage-33-1794985061698-0.json",
+        "bytes": 135643,
+        "sha256": "a689b3b4cb3c992e8ddde8df8d71b1d259c09902b21662d0de9b15d1e15a729c"
+      },
+      {
+        "artifact": "fleet-next-unit-coverage-final1/coverage-5-1794985061706-0.json",
+        "bytes": 157660,
+        "sha256": "3580f3c419e2fc4ef0f54c519d5177f922ccbd7825efdfc50fcb1621b28d6d6e"
+      }
+    ],
+    "raw_v8_ranges": "every recorded range in every production module positive; unmodified exact unit-only checker",
+    "runtime_sdk_equivalence": {
+      "all_bytes_equal": true,
+      "files": 53,
+      "source_manifest_sha256": "ee9d93fa6937e5b2ce95dd8885d93daeaff6c0fbe2556ea8928d23a49bf281fd"
+    },
+    "status": "PASSED",
+    "tests": 182,
+    "type_declarations": "strict TypeScript check of sdk/node/test/types.ts PASSED"
+  },
+  "status": "PASS_BOUNDED_TRUSTED_DYNAMIC_FLEET",
+  "timezone": "UTC",
+  "tools": {
+    "node": {
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d",
+      "version": "v22.16.0"
+    },
+    "scapd": {
+      "sha256": "8d99dd7380aa1aa34270edf34748e16025fc06a6144b9b870ede398ee78ad47b"
+    },
+    "weed": {
+      "sha256": "eb9adf3a75b53c32f5ad9ba856e1fb652dae03dc6f6222673c3f88c0cbd25d0e",
+      "version": "4.51 153ab668c99731a6d29492bf6c61d0b4fa701101 linux amd64"
+    }
+  }
+}

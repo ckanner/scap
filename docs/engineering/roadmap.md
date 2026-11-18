@@ -11,14 +11,16 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
-| 组合单位与代码质量 | #65 历史组合通过严格门禁；本批按新增源码重新执行完整单位、四维覆盖、SDK/类型与实际合同 | 完整实际与远端 CI 单独判定；历史失败不改写 |
+| 组合单位与代码质量 | 新组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%；Node 182 单位、22 模块精确 V8、HTTP/CLI/类型通过 | 最终提交的完整远端 CI 单独判定；历史失败不改写 |
 | N0/N1 权威与提交 | 原 HEAD CAS、完整依赖回读、原结果、native publication、owner fencing、取消及 UNKNOWN 均保留 | AWS Standard 与部署故障域另验；有限本地合同不代表任意容量与云端合同 |
 | N2 多库与身份 | actor、永久启动 ID、owner/controller 已合入；本批实现同库读池、有限策略历史/在线退役、真实 cgroup/tmpfs 准入与开环分窗进展合同 | 全局 fleet 共识/自动扩缩容、无限历史、每租户硬隔离、冷启动风暴另验 |
 | N3 保留与恢复 | S1 retained roots 与完整 S2 新 Scope 恢复已实现；新 release S2 7 场景/126 负控通过，源 payload 删除后目标仍独立 | 任意时间 PITR、长期 GC/保留成本、冷恢复优化 |
 | 吞吐与首发 | 有界 S3 idle pool 8 保留；#60 GET 省略候选退出交付；本批固定单事务/SQL batch 与开环观察 | 原约 24% 下降没有被宣称已解决；group commit、lazy VFS、新 MVCC、AWS 与生产 SLO 未认证 |
 
-当前不能从局部绿色推导整体 merge-ready；所需门禁全部齐备后，以精确 PR head/main
-和最终 tree 判定合入，不修改分支保护，不把本地结果改称远端 CI 通过。
+四项实际分别有冻结候选与原件记录，内核合同来自真实 systemd/cgroup/tmpfs runner。
+首轮 CI 的 GC region 与独立实验 lockfile 问题已修复；过载大 ZIP 改用保留全部硬链接
+的归档交付。最终以 [PR #66](https://github.com/ckanner/scap/pull/66) 的精确 head/main、
+全部 CI 与最终 tree 判定合入，不修改分支保护，不把本地结果改称远端 CI 通过。
 
 ## 接续实施顺序与验收
 
