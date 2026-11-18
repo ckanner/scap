@@ -40,6 +40,7 @@ pub struct Engine {
     serial: u64,
     recovery: Arc<Semaphore>,
     collector: Option<Collector>,
+    refresh_queries: bool,
 }
 
 /// Keep storage admission and its ordering identical when testing a directory
@@ -84,11 +85,19 @@ impl Engine {
             serial: 0,
             recovery,
             collector: None,
+            refresh_queries: false,
         })
     }
 
     pub(crate) fn with_collector(mut self, collector: Option<Collector>) -> Self {
         self.collector = collector;
+        self
+    }
+
+    /// Reader workers may rebuild a stale private image once, strictly before
+    /// any user SQL runs. Native, transport and publication failures never retry.
+    pub(crate) fn with_query_refresh(mut self, enabled: bool) -> Self {
+        self.refresh_queries = enabled;
         self
     }
 
@@ -272,11 +281,23 @@ impl Engine {
             }
             Action::Query { statements } => {
                 let statements = wire::statements(&statements)?;
-                let value = self.session(principal, entry, path, deadline)?.query(
+                let result = self.session(principal, entry, path, deadline)?.query(
                     principal,
                     &statements,
                     deadline,
-                )?;
+                );
+                // Session::query emits StaleSnapshot only from align(), after
+                // fresh authorization and before SQL/native execution. A new
+                // image selects its own authorized snapshot within the same
+                // original deadline; a second race is returned without replay.
+                let value = match result {
+                    Err(scap_object::Error::StaleSnapshot) if self.refresh_queries => {
+                        entry.session = None;
+                        self.session(principal, entry, &path.with_extension("refresh"), deadline)?
+                            .query(principal, &statements, deadline)?
+                    }
+                    other => other?,
+                };
                 return match output {
                     Some(output) => queried_budgeted(value, output),
                     None => queried(value),

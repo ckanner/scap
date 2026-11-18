@@ -26,6 +26,7 @@ pub struct Config {
     /// Ordinary /v1 encoding backings only; not other routes or process RSS.
     #[serde(default)]
     pub output: crate::output::Profile,
+    pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub s3: ObjectConfig,
@@ -124,6 +125,9 @@ pub struct GarbageConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Admission {
+    /// Explicitly enables independent, bounded same-database query workers.
+    /// Absence preserves the original actor-only execution path.
+    pub read_pool: Option<crate::scheduler::ReadPool>,
     pub data_profile: Option<crate::intake::Profile>,
     pub control_profile: Option<crate::intake::Profile>,
     pub recovery_profile: Option<crate::intake::Profile>,
@@ -251,6 +255,7 @@ pub struct ServiceConfig {
     pub listen: SocketAddr,
     pub transport: crate::transport::Profile,
     pub output: crate::output::Profile,
+    pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
     pub admission: Admission,
@@ -318,6 +323,9 @@ impl Config {
         options.validate().map_err(|_| Failure::new("CONFIG"))?;
         let admission = &self.admission;
         admission.limits().validate()?;
+        if let Some(read_pool) = admission.read_pool {
+            read_pool.validate(admission.limits())?;
+        }
         // This listener has no TLS termination. It can only be exposed through
         // a separately configured authenticated TLS reverse proxy.
         if self.version != 1
@@ -383,6 +391,7 @@ impl Config {
         // I/O. Reject unsupported mounts before credentials or workers are used.
         scap_object_sqlite::validate_cache_directory(&self.cache_directory)
             .map_err(|_| Failure::new("CACHE_IO"))?;
+        crate::resource_envelope::admit(self.resource_envelope.as_ref(), &self.cache_directory)?;
         let access_key = secret(&self.s3.access_key_env, environment)?;
         let secret_key = secret(&self.s3.secret_key_env, environment)?;
         let session_token = self
@@ -457,6 +466,7 @@ impl Config {
                 listen: self.listen,
                 transport: self.transport,
                 output: self.output,
+                resource_envelope: self.resource_envelope,
                 worker_instance: self.worker_instance,
                 cache_directory: self.cache_directory,
                 admission: self.admission,

@@ -7,6 +7,7 @@ import { OperationBudget } from './operation_budget.js';
 import { ClientError, RemoteError, UnknownError } from './errors.js';
 import { record, requireValue, sameOwnerReference, ownerPending } from './wire.js';
 import { checkControllerPolicy, belongsToController } from './controller_policy.js';
+import { controllerLineage, controllerRoutes, retiredWorker } from './controller_lineage.js';
 
 const U64 = (1n << 64n) - 1n;
 const MUTATIONS = new Set(['owner_prepare', 'owner_claim', 'owner_resume', 'owner_abort']);
@@ -16,14 +17,15 @@ const SUSPECT = (error) => error instanceof ClientError && !(error instanceof Re
 const safeCode = (error) => error instanceof ClientError && /^[A-Z_]{1,40}$/.test(error.code) ? error.code : 'CLIENT';
 
 export class OwnerController {
-  #policy; #common; #fetch; #busy = false; #closed = false; #budget;
+  #policy; #lineage; #common; #fetch; #busy = false; #closed = false; #budget;
   #done = Promise.resolve(); #release;
   #base = null; #prepared = null; #windows = new Map(); #candidate = 0; #metadata = null;
   #recovery = false; #unknown = false; #lastUncertain = null; #next = 0; #backoff = 0; #last = null;
 
   constructor(options) {
-    record(options, ['policy', 'token', 'fetch']);
+    record(options, ['policy', 'token', 'fetch'], ['previousPolicies']);
     this.#policy = checkControllerPolicy(options.policy);
+    this.#lineage = controllerLineage(this.#policy, options.previousPolicies);
     requireValue(typeof options.fetch === 'function', 'Expected the owned controller HTTP transport');
     this.#fetch = options.fetch;
     const p = this.#policy;
@@ -39,6 +41,14 @@ export class OwnerController {
   get needsRecovery() { return this.#recovery; }
   get nextTickAt() { return this.#next; }
   get lastReport() { return this.#last; }
+
+  /** A joined predecessor may transfer uncertainty, never authority or a retry. */
+  inheritUncertainty(previous) {
+    requireValue(previous instanceof OwnerController && previous.#closed && !previous.#busy,
+      'Only a fully joined predecessor can transfer uncertainty');
+    this.#unknown = previous.#unknown;
+    this.#lastUncertain = previous.#lastUncertain;
+  }
 
   async close() { this.#closed = true; this.#budget?.close(); await this.#done; }
 
@@ -117,7 +127,7 @@ export class OwnerController {
   #direct(context, endpoint) { return new Client({ ...this.#common, endpoint, fetch: this.#network(context) }); }
   #owner(context) {
     return new OwnerPlanClient({ ...this.#common, bootstrapEndpoint: context.endpoint,
-      routes: this.#policy.workers.map(({ workerInstance, endpoint }) => ({ workerInstance, endpoint })),
+      routes: controllerRoutes(this.#policy),
       fetch: this.#network(context) });
   }
   #probeOptions(context) {
@@ -175,7 +185,7 @@ export class OwnerController {
 
   #sameObservation(context, observation) {
     this.#unchanged(context, observation.status);
-    if (!belongsToController(this.#policy, observation.prepared.input)) {
+    if (!this.#lineage.some((policy) => belongsToController(policy, observation.prepared.input))) {
       throw new ClientError('POLICY', 'The durable first winner belongs to a foreign owner policy');
     }
   }
@@ -217,7 +227,11 @@ export class OwnerController {
       context.phase = observation.accepted.phase.kind;
       if (ownerPending(observation.accepted)) return this.#accepted(context, observation);
     }
-    const health = await this.#probe(context, current, 'owner');
+    // Explicit irreversible retirement is a deployment decision, not a failed
+    // probe. Never send the old guard to a newly reused endpoint and then call
+    // TARGET_MISMATCH evidence of death.
+    const health = retiredWorker(policy, current.workerInstance) ?
+      { healthy: false, mature: true } : await this.#probe(context, current, 'owner');
     if (head.active && health.healthy) return ['healthy', 'CURRENT_OWNER_RESPONDED'];
     if (!health.healthy && !health.mature) return ['waiting', 'OWNER_SUSPICION_INCOMPLETE'];
     if (health.healthy && !policy.modes.activate) return ['blocked', 'AUTOMATIC_ACTIVATION_DISABLED'];
@@ -235,6 +249,9 @@ export class OwnerController {
       return this.#policy.modes.cancel ? this.#mutate(context, 'abort', inspected.prepared) : ['blocked', 'AUTOMATIC_CANCEL_DISABLED'];
     }
     const target = this.#worker(inspected.prepared.input.target_worker);
+    if (retiredWorker(this.#policy, target.workerInstance)) {
+      return this.#policy.modes.cancel ? this.#mutate(context, 'abort', inspected.prepared) : ['blocked', 'AUTOMATIC_CANCEL_DISABLED'];
+    }
     const health = await this.#probe(context, target, 'target');
     if (!health.healthy) {
       if (!health.mature) return ['waiting', 'TARGET_SUSPICION_INCOMPLETE'];
@@ -265,10 +282,11 @@ export class OwnerController {
       // owner cannot activate while a first-winner takeover occupies this S.
       // Explicitly cancel that fixed plan, then a later S may prepare activation.
       const cancelInactive = input.mode === 'takeover' && health.healthy;
-      const targetHealth = cancelInactive ? null : input.target_worker === current.workerInstance ?
+      const cancelRetired = retiredWorker(p, target.workerInstance);
+      const targetHealth = cancelInactive || cancelRetired ? null : input.target_worker === current.workerInstance ?
         health : await this.#probe(context, target, 'target');
-      const cancel = cancelInactive || !targetHealth.healthy;
-      if (cancel && !cancelInactive && (!health.mature || !targetHealth.mature)) return ['waiting', 'FIXED_TARGET_SUSPICION_INCOMPLETE'];
+      const cancel = cancelInactive || cancelRetired || !targetHealth.healthy;
+      if (cancel && !cancelInactive && !cancelRetired && (!health.mature || !targetHealth.mature)) return ['waiting', 'FIXED_TARGET_SUSPICION_INCOMPLETE'];
       if (cancel && !p.modes.cancel) return ['blocked', 'AUTOMATIC_CANCEL_DISABLED'];
       const saved = client.prepareInput(input);
       if (this.#prepared === null) {
@@ -281,7 +299,7 @@ export class OwnerController {
     }
     let target = current;
     if (!health.healthy) {
-      const higher = p.workers.filter((worker) => worker.rank > current.rank);
+      const higher = p.workers.filter((worker) => worker.rank > current.rank && !retiredWorker(p, worker.workerInstance));
       if (higher.length === 0) return ['blocked', 'REGISTRY_RANK_EXHAUSTED'];
       target = higher[this.#candidate % higher.length];
       this.#candidate = (this.#candidate + 1) % higher.length;

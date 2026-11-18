@@ -15,7 +15,7 @@ export { OwnerPlanClient } from './owner_plan.js';
 export { OwnerController } from './controller.js';
 export { OwnerControllerFleet } from './controller_fleet.js';
 export { ControllerHttp } from './controller_http.js';
-export { readControllerEntries, runControllerFleet } from './controller_process.js';
+export { readControllerEntries, readControllerConfiguration, runControllerFleet } from './controller_process.js';
 export { createControllerPolicy } from './controller_policy.js';
 export { OwnerReconcileError } from './errors.js';
 export { decodeResult, validateResult } from '../../node-codec/src/codec.js';

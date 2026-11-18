@@ -1,5 +1,5 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, readControllerConfiguration, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type SavedSnapshotInput, type PreparedSnapshot, type SnapshotObservation, type SnapshotListing,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
@@ -38,6 +38,23 @@ async function contract() {
   await runControllerFleet(configured, { signal: AbortSignal.abort(), outputFd: 1 });
   // @ts-expect-error A process loop always requires an explicit shutdown signal.
   runControllerFleet(configured, {});
+  const nextPolicy = createControllerPolicy({ scope, authorityId: 'production-example', principal: '7',
+    metadataEndpoints: ['https://example.invalid/v1'],
+    workers: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1', rank: 0 },
+      { workerInstance: '11', endpoint: 'https://example.invalid/v1', rank: 1 }],
+    retiredWorkers: ['10'], modes: { takeover: true, activate: true, cancel: true } });
+  const dynamic = new OwnerControllerFleet({ entries, revision: '1' });
+  const installed = await dynamic.replace({ revision: '2', entries: [{ policy: nextPolicy,
+    previousPolicies: [policy], token: 'synthetic-typecheck-only-credential' }] });
+  const revision: string | null = dynamic.revision;
+  const updating: boolean = dynamic.updating;
+  await runControllerFleet(dynamic, { signal: AbortSignal.abort(),
+    reload: () => readControllerConfiguration('/example/controller-v2.json') });
+  // @ts-expect-error A deployment revision must be a lossless decimal string.
+  dynamic.replace({ revision: 3, entries });
+  // @ts-expect-error Retirement is immutable configuration, never an editable server suggestion.
+  nextPolicy.retiredWorkers!.push('11');
+  void installed; void revision; void updating;
   const client = new CatalogueClient({ endpoint: 'https://example.invalid/v1/catalogue',
     token: 'synthetic-typecheck-only-credential', deployment: '1', tenant: '2', principal: '7' });
   const create = client.prepareIntent({ operation: 'prepare_create', name: 'notes', create_operation: '11',

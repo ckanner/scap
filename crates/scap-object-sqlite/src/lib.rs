@@ -23,7 +23,7 @@ use scap_sql::{SqlLimits, Statement, TransactionResult};
 
 pub use file::{ImageBuilder, PreparedImage};
 use gate::{Attempt, GateState, GateWal, Resolution};
-pub use storage::validate_cache_directory;
+pub use storage::{temporary_directories, validate_cache_directory};
 
 pub const PAGE_SIZE: usize = 4096;
 /// SQLite's physical page-number limit, separate from a deployment's quota.

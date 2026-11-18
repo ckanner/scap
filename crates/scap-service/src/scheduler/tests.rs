@@ -411,6 +411,371 @@ impl Drop for Echo {
 fn factory() -> Factory {
     Arc::new(|index| Ok(Box::new(Echo::new(index))))
 }
+
+fn read_profile() -> ReadPool {
+    ReadPool {
+        workers: 2,
+        active_per_tenant: 2,
+        active_per_database: 2,
+    }
+}
+
+#[test]
+fn read_pool_is_explicit_bounded_and_validated_before_worker_creation() {
+    let enabled = read_profile();
+    enabled.validate(limits()).unwrap();
+    let mut invalid = limits();
+    invalid.control_workers = 0;
+    assert_eq!(enabled.validate(invalid).unwrap_err().code, "CONFIG");
+    for change in [
+        |v: &mut ReadPool| v.workers = 0,
+        |v: &mut ReadPool| v.workers = 253,
+        |v: &mut ReadPool| v.active_per_tenant = 0,
+        |v: &mut ReadPool| v.active_per_tenant = 3,
+        |v: &mut ReadPool| v.active_per_database = 0,
+        |v: &mut ReadPool| v.active_per_database = 3,
+    ] {
+        let mut profile = enabled;
+        change(&mut profile);
+        assert_eq!(
+            error(Scheduler::with_read_pool(
+                limits(),
+                Some(profile),
+                factory()
+            )),
+            "CONFIG"
+        );
+    }
+    let scheduler = Scheduler::with_read_pool(limits(), None, factory()).unwrap();
+    assert_eq!(send(&scheduler, query(3)).unwrap()["worker"], 0);
+    assert!(scheduler.readers.is_empty());
+    let scheduler = Scheduler::with_read_pool(limits(), Some(enabled), factory()).unwrap();
+    assert!(
+        send(&scheduler, query(3)).unwrap()["worker"]
+            .as_u64()
+            .unwrap()
+            >= 3
+    );
+    assert!(lock(&scheduler.shared.state).actors.is_empty());
+}
+
+#[test]
+fn read_pool_partial_startup_and_thread_failures_clean_up_started_workers() {
+    fn fail_reader(name: &str, task: Task) -> std::io::Result<JoinHandle<()>> {
+        if name == "scap-query" {
+            fail_spawn(name, task)
+        } else {
+            spawn(name, task)
+        }
+    }
+    assert_eq!(
+        error(Scheduler::with_read_spawner(
+            limits(),
+            Some(read_profile()),
+            factory(),
+            fail_reader,
+        )),
+        "UNAVAILABLE"
+    );
+    for panic in [false, true] {
+        let factory: Factory = Arc::new(move |index| {
+            if index == 4 {
+                assert!(!panic, "controlled reader startup panic");
+                Err(Failure::new("STARTUP"))
+            } else {
+                Ok(Box::new(Echo::new(index)))
+            }
+        });
+        assert_eq!(
+            error(Scheduler::with_read_pool(
+                limits(),
+                Some(read_profile()),
+                factory
+            )),
+            if panic { "UNAVAILABLE" } else { "STARTUP" }
+        );
+    }
+}
+
+#[test]
+fn eligible_read_queue_rotates_tenants_and_databases_without_losing_blocked_jobs() {
+    let mut queue = Queue::default();
+    assert!(queue.pop_eligible(|_, _| true).is_none());
+    for (tenant, database, id) in [(1, 1, 1), (1, 1, 2), (1, 2, 3), (2, 1, 4)] {
+        queue.push(job(tenant, database, id, false).0);
+    }
+    assert!(queue.pop_eligible(|_, _| false).is_none());
+    assert_eq!(
+        label(queue.pop_eligible(|tenant, _| tenant.1 == 2).unwrap()),
+        (2, 1, 4)
+    );
+    let blocked = job(1, 1, 9, false).0.key;
+    assert_eq!(
+        label(queue.pop_eligible(|_, key| key != blocked).unwrap()),
+        (1, 2, 3)
+    );
+    assert_eq!(label(queue.pop_eligible(|_, _| true).unwrap()), (1, 1, 1));
+    assert_eq!(label(queue.pop_eligible(|_, _| true).unwrap()), (1, 1, 2));
+    assert!(queue.pop().is_none());
+}
+
+type ReadStarted = (u64, u64, usize);
+type ReadFixture = (
+    Factory,
+    mpsc::Receiver<ReadStarted>,
+    Vec<mpsc::SyncSender<()>>,
+);
+
+fn read_blocking_factory(workers: usize) -> ReadFixture {
+    struct BlockRead {
+        echo: Echo,
+        entered: mpsc::SyncSender<ReadStarted>,
+        wait: Arc<Mutex<mpsc::Receiver<()>>>,
+    }
+    impl Worker for BlockRead {
+        fn execute(
+            &mut self,
+            principal: &Principal,
+            call: Call,
+            deadline: Instant,
+        ) -> Result<Value, Failure> {
+            if matches!(call.action, Action::Query { .. }) {
+                self.entered
+                    .send((principal.tenant, call.scope.database.0, self.echo.index))
+                    .unwrap();
+                lock(&self.wait)
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap();
+            }
+            self.echo.execute(principal, call, deadline)
+        }
+    }
+    let (entered, started) = mpsc::sync_channel(16);
+    let mut releases = Vec::new();
+    let waits: Vec<_> = (0..workers)
+        .map(|_| {
+            let (release, wait) = mpsc::sync_channel(8);
+            releases.push(release);
+            Arc::new(Mutex::new(wait))
+        })
+        .collect();
+    let factory: Factory = Arc::new(move |index| {
+        if index < 3 {
+            Ok(Box::new(Echo::new(index)))
+        } else {
+            Ok(Box::new(BlockRead {
+                echo: Echo::new(index),
+                entered: entered.clone(),
+                wait: waits[index - 3].clone(),
+            }))
+        }
+    });
+    (factory, started, releases)
+}
+
+fn started(reads: &mpsc::Receiver<ReadStarted>) -> ReadStarted {
+    reads.recv_timeout(Duration::from_secs(5)).unwrap()
+}
+
+fn finish_reads(scheduler: &Scheduler) {
+    let state = lock(&scheduler.shared.state);
+    let changed = state.readers.changed.clone();
+    let (state, timeout) = changed
+        .wait_timeout_while(state, Duration::from_secs(5), |state| {
+            !state.readers.tenants.is_empty()
+        })
+        .unwrap();
+    assert!(!timeout.timed_out());
+    assert!(state.readers.databases.is_empty());
+}
+
+#[test]
+fn same_database_reads_overlap_while_writer_and_control_workers_remain_available() {
+    let (factory, entered, release) = read_blocking_factory(2);
+    let scheduler = Scheduler::with_read_pool(limits(), Some(read_profile()), factory).unwrap();
+    let first = scheduler.submit(principal(), query(10), until()).unwrap();
+    let second = scheduler.submit(principal(), query(10), until()).unwrap();
+    let one = started(&entered);
+    let two = started(&entered);
+    assert_ne!(one.2, two.2);
+    assert_eq!((one.1, two.1), (10, 10));
+    assert!(lock(&scheduler.shared.state).actors.is_empty());
+    assert_eq!(
+        send(&scheduler, data(10, Action::Create { nonce: Decimal(1) })).unwrap()["worker"],
+        0
+    );
+    assert_eq!(
+        send(
+            &scheduler,
+            data(
+                10,
+                Action::Status {
+                    expected_worker_instance: None
+                }
+            )
+        )
+        .unwrap()["worker"],
+        2
+    );
+    let queued = scheduler.submit(principal(), query(10), until()).unwrap();
+    let queued_again = scheduler.submit(principal(), query(10), until()).unwrap();
+    // Both native workers are parked before either queued request is offered.
+    // Starting the third call must retain the fourth in the real Readers::pop
+    // queue, independently of which worker wins an unblocked thread race.
+    assert_eq!(lock(&scheduler.shared.state).usage.all.total, 2);
+    release[one.2 - 3].send(()).unwrap();
+    let three = started(&entered);
+    assert_eq!(lock(&scheduler.shared.state).usage.all.total, 1);
+    release[two.2 - 3].send(()).unwrap();
+    let four = started(&entered);
+    assert_eq!((three.1, four.1), (10, 10));
+    assert_ne!(three.2, four.2);
+    assert_eq!(lock(&scheduler.shared.state).usage.all.total, 0);
+    release[three.2 - 3].send(()).unwrap();
+    release[four.2 - 3].send(()).unwrap();
+    for receiver in [first, second, queued, queued_again] {
+        receive(receiver).unwrap();
+    }
+    finish_reads(&scheduler);
+    assert_eq!(lock(&scheduler.shared.state).usage.all.total, 0);
+}
+
+#[test]
+fn active_read_caps_preserve_other_databases_and_other_tenants() {
+    for tenant_cap in [1, 2] {
+        let (factory, entered, release) = read_blocking_factory(2);
+        let profile = ReadPool {
+            active_per_tenant: tenant_cap,
+            active_per_database: 1,
+            ..read_profile()
+        };
+        let scheduler = Scheduler::with_read_pool(limits(), Some(profile), factory).unwrap();
+        let first = scheduler.submit(principal(), query(10), until()).unwrap();
+        let one = started(&entered);
+        let blocked = scheduler
+            .submit(
+                principal(),
+                query(if tenant_cap == 1 { 11 } else { 10 }),
+                until(),
+            )
+            .unwrap();
+        let mut other = principal();
+        if tenant_cap == 1 {
+            other.tenant += 1;
+        }
+        let mut other_call = query(20);
+        other_call.scope.tenant.0 = other.tenant;
+        let third = scheduler.submit(other, other_call, until()).unwrap();
+        let two = started(&entered);
+        assert_eq!(two.1, 20);
+        assert_eq!(lock(&scheduler.shared.state).usage.all.total, 1);
+        release[one.2 - 3].send(()).unwrap();
+        let three = started(&entered);
+        assert_eq!(three.1, if tenant_cap == 1 { 11 } else { 10 });
+        release[two.2 - 3].send(()).unwrap();
+        release[three.2 - 3].send(()).unwrap();
+        for receiver in [first, blocked, third] {
+            receive(receiver).unwrap();
+        }
+        finish_reads(&scheduler);
+    }
+}
+
+#[test]
+fn read_pool_shutdown_drains_queued_work_and_joins_the_running_query() {
+    let (factory, entered, release) = read_blocking_factory(1);
+    let profile = ReadPool {
+        workers: 1,
+        active_per_tenant: 1,
+        active_per_database: 1,
+    };
+    let scheduler = Scheduler::with_read_pool(limits(), Some(profile), factory).unwrap();
+    let first = scheduler.submit(principal(), query(10), until()).unwrap();
+    started(&entered);
+    let queued = scheduler.submit(principal(), query(10), until()).unwrap();
+    let shared = scheduler.shared.clone();
+    let (done, completed) = mpsc::sync_channel(1);
+    let thread = std::thread::spawn(move || {
+        drop(scheduler);
+        done.send(()).unwrap();
+    });
+    assert_eq!(receive(queued).unwrap_err().code, "UNAVAILABLE");
+    assert_eq!(lock(&shared.state).readers.tenants.len(), 1);
+    assert!(matches!(
+        completed.try_recv(),
+        Err(mpsc::TryRecvError::Empty)
+    ));
+    release[0].send(()).unwrap();
+    receive(first).unwrap();
+    completed.recv_timeout(Duration::from_secs(5)).unwrap();
+    thread.join().unwrap();
+    assert!(lock(&shared.state).readers.tenants.is_empty());
+}
+
+#[test]
+fn failed_reader_keeps_active_reservations_until_native_drop_and_never_reroutes() {
+    struct PanicRead {
+        entered: mpsc::SyncSender<()>,
+        panic_now: mpsc::Receiver<()>,
+        dropping: mpsc::SyncSender<()>,
+        cleanup: mpsc::Receiver<()>,
+    }
+    impl Worker for PanicRead {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            self.entered.send(()).unwrap();
+            self.panic_now.recv_timeout(Duration::from_secs(5)).unwrap();
+            panic!("controlled running query panic");
+        }
+    }
+    impl Drop for PanicRead {
+        fn drop(&mut self) {
+            self.dropping.send(()).unwrap();
+            self.cleanup.recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+    }
+    let (entered, started) = mpsc::sync_channel(1);
+    let (panic_now, panic_receiver) = mpsc::sync_channel(1);
+    let (dropping, drop_started) = mpsc::sync_channel(1);
+    let (cleanup, cleanup_receiver) = mpsc::sync_channel(1);
+    let source = Arc::new(Mutex::new(Some((panic_receiver, cleanup_receiver))));
+    let factory: Factory = Arc::new(move |index| {
+        if index < 3 {
+            return Ok(Box::new(Echo::new(index)));
+        }
+        let (panic_now, cleanup) = lock(&source).take().unwrap();
+        Ok(Box::new(PanicRead {
+            entered: entered.clone(),
+            panic_now,
+            dropping: dropping.clone(),
+            cleanup,
+        }))
+    });
+    let profile = ReadPool {
+        workers: 1,
+        active_per_tenant: 1,
+        active_per_database: 1,
+    };
+    let scheduler = Scheduler::with_read_pool(limits(), Some(profile), factory).unwrap();
+    let first = scheduler.submit(principal(), query(10), until()).unwrap();
+    started.recv_timeout(Duration::from_secs(5)).unwrap();
+    let pending = scheduler.submit(principal(), query(10), until()).unwrap();
+    panic_now.send(()).unwrap();
+    drop_started.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(lock(&scheduler.shared.state).readers.tenants.len(), 1);
+    assert_eq!(lock(&scheduler.shared.state).usage.all.total, 1);
+    cleanup.send(()).unwrap();
+    assert_eq!(receive(pending).unwrap_err().code, "UNAVAILABLE");
+    assert!(first.blocking_recv().is_err());
+    assert_eq!(
+        scheduler
+            .submit(principal(), query(10), until())
+            .unwrap_err()
+            .code,
+        "UNAVAILABLE"
+    );
+    finish_reads(&scheduler);
+    assert!(lock(&scheduler.shared.state).actors.is_empty());
+}
 fn fail_spawn(_: &str, _: Task) -> std::io::Result<JoinHandle<()>> {
     Err(std::io::Error::other("unit spawn fault"))
 }

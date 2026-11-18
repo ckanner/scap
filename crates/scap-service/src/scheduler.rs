@@ -5,6 +5,7 @@ use std::sync::{mpsc, Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::oneshot;
@@ -55,7 +56,8 @@ impl Worker for crate::engine::Engine {
 
 /// Invoked inside the owning thread. Neither a Worker nor its SQLite Session
 /// must be Send. Actor indices occupy [0, active_database_actors); controls
-/// have the remaining fixed indices. An actor index is reused only after exit.
+/// follow them, then optional query workers. An actor index is reused only
+/// after exit. Every worker owns its private native connections and files.
 pub type Factory = Arc<dyn Fn(usize) -> Result<Box<dyn Worker>, Failure> + Send + Sync>;
 
 #[derive(Clone, Copy)]
@@ -88,6 +90,33 @@ impl Limits {
             || self.queued_per_database > self.queued_per_tenant
             || self.reserved_controls == 0
             || self.reserved_controls >= self.queued_per_database
+        {
+            return Err(Failure::new("CONFIG"));
+        }
+        Ok(())
+    }
+}
+
+/// Enabling the separate read pool is explicit. Existing deployments keep
+/// their actor-only execution path when no profile is provided. Query workers
+/// use independent complete private images, never a shared native WAL.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReadPool {
+    pub workers: usize,
+    pub active_per_tenant: usize,
+    pub active_per_database: usize,
+}
+
+impl ReadPool {
+    pub fn validate(self, limits: Limits) -> Result<(), Failure> {
+        limits.validate()?;
+        if self.workers == 0
+            || self.workers > 255 - limits.active_database_actors - limits.control_workers
+            || self.active_per_tenant == 0
+            || self.active_per_tenant > self.workers
+            || self.active_per_database == 0
+            || self.active_per_database > self.active_per_tenant
         {
             return Err(Failure::new("CONFIG"));
         }
@@ -303,6 +332,30 @@ impl Queue {
         }
         job
     }
+
+    /// Round-robin both tenants and databases, skipping only currently full
+    /// active reservations. A blocked hot database cannot stop another tenant.
+    fn pop_eligible(&mut self, eligible: impl Fn(Tenant, &str) -> bool) -> Option<Job> {
+        for _ in 0..self.groups.len() {
+            let mut group = self.groups.pop_front().expect("counted tenant queue");
+            for _ in 0..group.databases.len() {
+                let (key, mut database) = group.databases.pop_front().expect("counted database");
+                if eligible(group.tenant, &key) {
+                    let job = database.pop();
+                    if !database.empty() {
+                        group.databases.push_back((key, database));
+                    }
+                    if !group.databases.is_empty() {
+                        self.groups.push_back(group);
+                    }
+                    return job;
+                }
+                group.databases.push_back((key, database));
+            }
+            self.groups.push_back(group);
+        }
+        None
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -328,10 +381,47 @@ struct Control {
     changed: Arc<Condvar>,
 }
 
+#[derive(Default)]
+struct Readers {
+    queue: Queue,
+    tenants: BTreeMap<Tenant, usize>,
+    databases: BTreeMap<String, usize>,
+    live: usize,
+    closed: bool,
+    changed: Arc<Condvar>,
+}
+
+impl Readers {
+    fn pop(&mut self, limits: ReadPool) -> Option<Job> {
+        let job = self.queue.pop_eligible(|tenant, key| {
+            self.tenants.get(&tenant).copied().unwrap_or(0) < limits.active_per_tenant
+                && self.databases.get(key).copied().unwrap_or(0) < limits.active_per_database
+        })?;
+        *self.tenants.entry(job.tenant()).or_default() += 1;
+        *self.databases.entry(job.key.clone()).or_default() += 1;
+        Some(job)
+    }
+
+    fn release(&mut self, tenant: Tenant, key: &str) {
+        let count = self.tenants.get_mut(&tenant).expect("active read tenant");
+        *count -= 1;
+        if *count == 0 {
+            self.tenants.remove(&tenant);
+        }
+        let count = self.databases.get_mut(key).expect("active read database");
+        *count -= 1;
+        if *count == 0 {
+            self.databases.remove(key);
+        }
+        self.changed.notify_all();
+    }
+}
+
 struct State {
     closed: bool,
     actors: BTreeMap<String, Actor>,
     controls: Vec<Control>,
+    readers: Readers,
     usage: Usage,
 }
 
@@ -385,6 +475,33 @@ impl Shared {
         }
     }
 
+    fn next_read(&self, limits: ReadPool, changed: &Condvar) -> Option<Job> {
+        let mut state = lock(&self.state);
+        loop {
+            if state.readers.closed {
+                return None;
+            }
+            if let Some(job) = state.readers.pop(limits) {
+                state.usage.remove(&job);
+                return Some(job);
+            }
+            state = changed.wait(state).unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    fn close_reader(&self) {
+        let mut state = lock(&self.state);
+        state.readers.live -= 1;
+        if state.readers.live == 0 {
+            state.readers.closed = true;
+            while let Some(job) = state.readers.queue.pop() {
+                state.usage.remove(&job);
+                job.fail(Failure::new("UNAVAILABLE"));
+            }
+        }
+        state.readers.changed.notify_all();
+    }
+
     fn close_actor(&self, key: &str) {
         let mut state = lock(&self.state);
         state.actors.get_mut(key).expect("actor reservation").phase = Phase::Draining;
@@ -425,6 +542,9 @@ impl Shared {
             jobs.extend(std::iter::from_fn(|| control.queue.pop()));
             control.changed.notify_all();
         }
+        state.readers.closed = true;
+        jobs.extend(std::iter::from_fn(|| state.readers.queue.pop()));
+        state.readers.changed.notify_all();
         for job in jobs {
             state.usage.remove(&job);
             job.fail(Failure::new("UNAVAILABLE"));
@@ -476,6 +596,7 @@ enum Exit {
     Actor(Arc<Shared>, String),
     Control(Arc<Shared>, usize),
     Reaper(Arc<Shared>),
+    Reader(Arc<Shared>),
 }
 
 impl Drop for Exit {
@@ -484,8 +605,33 @@ impl Drop for Exit {
             Self::Actor(shared, key) => shared.close_actor(key),
             Self::Control(shared, index) => shared.close_control(*index),
             Self::Reaper(shared) => shared.close(),
+            Self::Reader(shared) => shared.close_reader(),
         }
     }
+}
+
+/// Held across execution, encoded output transfer and job cleanup. Expiration,
+/// a dropped HTTP receiver, or panic does not release a running native call.
+struct ReadActivity {
+    shared: Arc<Shared>,
+    tenant: Tenant,
+    key: String,
+}
+
+impl Drop for ReadActivity {
+    fn drop(&mut self) {
+        lock(&self.shared.state)
+            .readers
+            .release(self.tenant, &self.key);
+    }
+}
+
+// On unwind Rust drops fields in declaration order: finish native worker/cache
+// destruction before releasing its in-flight read reservation. On success the
+// activity is cleared only after execute() has dropped the job and its holds.
+struct ReadWorker {
+    worker: Box<dyn Worker>,
+    activity: Option<ReadActivity>,
 }
 
 fn execute(worker: &mut dyn Worker, mut job: Job) {
@@ -543,6 +689,8 @@ fn send_before(
 pub struct Scheduler {
     shared: Arc<Shared>,
     controls: Vec<JoinHandle<()>>,
+    readers: Vec<JoinHandle<()>>,
+    read_pool: Option<ReadPool>,
     reaper: Option<JoinHandle<()>>,
     limits: Limits,
     factory: Factory,
@@ -563,8 +711,28 @@ impl Scheduler {
         Self::with_spawner(limits, factory, spawn)
     }
 
+    pub fn with_read_pool(
+        limits: Limits,
+        read_pool: Option<ReadPool>,
+        factory: Factory,
+    ) -> Result<Self, Failure> {
+        Self::with_read_spawner(limits, read_pool, factory, spawn)
+    }
+
     fn with_spawner(limits: Limits, factory: Factory, spawn: Spawn) -> Result<Self, Failure> {
+        Self::with_read_spawner(limits, None, factory, spawn)
+    }
+
+    fn with_read_spawner(
+        limits: Limits,
+        read_pool: Option<ReadPool>,
+        factory: Factory,
+        spawn: Spawn,
+    ) -> Result<Self, Failure> {
         limits.validate()?;
+        if let Some(read_pool) = read_pool {
+            read_pool.validate(limits)?;
+        }
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 closed: false,
@@ -572,6 +740,10 @@ impl Scheduler {
                 controls: (0..limits.control_workers)
                     .map(|_| Control::default())
                     .collect(),
+                readers: Readers {
+                    live: read_pool.map_or(0, |profile| profile.workers),
+                    ..Readers::default()
+                },
                 usage: Usage::default(),
             }),
             reaping: Condvar::new(),
@@ -579,6 +751,8 @@ impl Scheduler {
         let mut scheduler = Self {
             shared,
             controls: Vec::new(),
+            readers: Vec::new(),
+            read_pool,
             reaper: None,
             limits,
             factory,
@@ -612,6 +786,49 @@ impl Scheduler {
                 .map_err(|_| Failure::new("UNAVAILABLE"))?,
             );
             ready.recv().map_err(|_| Failure::new("UNAVAILABLE"))??;
+        }
+        if let Some(profile) = read_pool {
+            for index in 0..profile.workers {
+                let shared = scheduler.shared.clone();
+                let changed = lock(&shared.state).readers.changed.clone();
+                let factory = scheduler.factory.clone();
+                let (started, ready) = mpsc::sync_channel(1);
+                scheduler.readers.push(
+                    spawn(
+                        "scap-query",
+                        Box::new(move || {
+                            let _exit = Exit::Reader(shared.clone());
+                            let worker = match factory(
+                                limits.active_database_actors + limits.control_workers + index,
+                            ) {
+                                Ok(worker) => {
+                                    let _ = started.send(Ok(()));
+                                    worker
+                                }
+                                Err(error) => {
+                                    let _ = started.send(Err(error));
+                                    return;
+                                }
+                            };
+                            let mut owned = ReadWorker {
+                                worker,
+                                activity: None,
+                            };
+                            while let Some(job) = shared.next_read(profile, &changed) {
+                                owned.activity = Some(ReadActivity {
+                                    shared: shared.clone(),
+                                    tenant: job.tenant(),
+                                    key: job.key.clone(),
+                                });
+                                execute(owned.worker.as_mut(), job);
+                                owned.activity = None;
+                            }
+                        }),
+                    )
+                    .map_err(|_| Failure::new("UNAVAILABLE"))?,
+                );
+                ready.recv().map_err(|_| Failure::new("UNAVAILABLE"))??;
+            }
         }
         let shared = scheduler.shared.clone();
         scheduler.reaper = Some(
@@ -734,6 +951,16 @@ impl Scheduler {
             return Err(Failure::new("DEADLINE"));
         }
         state.usage.check(&job, self.limits)?;
+        if self.read_pool.is_some() && matches!(job.call.action, crate::wire::Action::Query { .. })
+        {
+            if state.readers.closed {
+                return Err(Failure::new("UNAVAILABLE"));
+            }
+            state.usage.add(&job);
+            state.readers.queue.push(job);
+            state.readers.changed.notify_one();
+            return Ok(());
+        }
         if job.control() {
             let hash = Sha256::digest(key.as_bytes());
             let hash = u64::from_le_bytes(hash[..8].try_into().expect("eight bytes")) as usize;
@@ -801,7 +1028,11 @@ impl Drop for Scheduler {
             .values_mut()
             .filter_map(|actor| actor.thread.take())
             .collect();
-        for thread in actors.into_iter().chain(self.controls.drain(..)) {
+        for thread in actors
+            .into_iter()
+            .chain(self.controls.drain(..))
+            .chain(self.readers.drain(..))
+        {
             let _ = thread.join();
         }
         if let Some(reaper) = self.reaper.take() {

@@ -6,12 +6,22 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 ## 当前实现与验证状态
 
-最新核查：2026-11-17（纽约；实际运行 UTC 为 11 月 18 日）。HEAD6/7 已在主线，
-本批接续代码位于直接面向 main 的 [PR #65](https://github.com/ckanner/scap/pull/65)：
-owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接复用均已实现。
-本轮 self-review 修复恢复边界、严格覆盖与真实 CI 夹具，并将尚未通过独立性能
-验收的 Manifest GET 省略优化留在 #60；功能版保留普通精确读取路径。
-远端流水线和合入状态以 [PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。
+最新核查：2026-11-18（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 已合入
+`02476c8`；owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接复用均已在主线。
+本批在该基线上实现可选的同库并行强读池、受信配置驱动的动态 fleet 更新、Linux 内核
+资源准入，并增加固定开环过载与 SQL batch 实际合同。完整组合正在按新源码验收，
+实际结果、来源与 CI 状态集中记录在[本批交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)。
+Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision-decision-2026-11-18.md)
+退出本次交付；普通精确读取保留，历史约 24% 回退并未被宣称已解决。
+
+| 本批能力 | 实现范围与边界 |
+| --- | --- |
+| [同库强读池](crates/scap-service/docs/read-pool.md) | 固定 reader worker、私有完整镜像、租户／库活跃额度；每次读校验新 HEAD，SQL 前最多一次过期镜像重建；writer 仍按库串行 |
+| [动态 owner fleet](docs/architecture/dynamic-owner-fleet.md) | 版本化受信快照、完整有限策略历史、不可逆退役、旧计划收敛；SIGHUP 等待旧 tick/socket/DNS 归还后切换；没有分布式配置共识或自动扩缩容 |
+| [内核资源准入](docs/architecture/kernel-resource-envelope.md) | 可选检查实际 cgroup v2、普通 CPU 调度与有限 tmpfs；启动前拒绝不满足部署条件；不是每租户 RSS 隔离或任意磁盘配额认证 |
+| [持续开环负载](experiments/object-overload/PLAN.md) | 预先冻结 30 秒、1,140 次到达与分窗进展；相同 64 条逻辑写比较 64 次单事务和 8 次 SQL batch；不是服务器 group commit 或生产 SLO |
+
+以下是前一 #65 冻结组合的历史证据，不冒称新候选已重新通过：
 
 | 范围 | 当前实现与验证 |
 | --- | --- |
@@ -36,10 +46,10 @@ owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接
 [11 月 13 日补验](docs/engineering/sqlite-s3-review-2026-11-13.md)的各次实际也保持
 各自源码与原件身份，不能合算为当前候选的认证。
 
-自动实例身份分配与 S2 已实现；动态 fleet、任意时间 PITR、group commit、lazy VFS、
-同库 MVCC/并行 reader pool、硬 RSS/磁盘隔离、持续过载与长期成本、真实 AWS 及生产
-SLO 仍有独立交付出口。单库仍串行，冷恢复仍完整读取闭包；跨库并行与少一次对象
-GET 均不能自动推出热点库吞吐提升。
+自动实例身份分配与 S2 已实现；本批读池、有限动态 fleet、资源准入与开环合同按上方
+范围验收。任意时间 PITR、独立事务 group commit、lazy VFS、新 MVCC 引擎、跨进程
+fleet 共识、长期 GC／成本和真实 AWS／生产 SLO 仍有独立出口。单库 writer 仍串行，
+冷恢复仍完整读取闭包，热点写吞吐不会因增加 reader 或 pod 自动提高。
 
 ## SQLite 文件安全与吞吐边界
 
@@ -49,7 +59,7 @@ SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SH
 | --- | --- | --- |
 | 共享网络文件的锁／同步风险 | 本地私有执行镜像，跨节点只通过对象 API 协调 | 本地 I/O、overlay 底层和挂载稳定性仍由部署保证；真实 NFS/EFS/FUSE 挂载验收不能用类型分类测试替代 |
 | 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS；#61 永久登记，#62 可自动取得新 ID | 首次升级历史和目标 IAM 另验；自动编号不授予数据库 owner、不刷新静态路由 |
-| 热点单库吞吐 | 同库 actor 串行，短事务和一个事务内多 SQL 语句 | 没有同库并行 reader pool、MVCC 或独立事务 group commit；增加 pod 不会自动提高该库吞吐 |
+| 热点单库吞吐 | 单库 writer actor 串行，可选私有镜像强读池；短事务和一个事务内多 SQL 语句 | 读池增加读执行并发，未实现新 MVCC 引擎或独立事务 group commit；增加 pod 不会自动提高该库写吞吐 |
 | 多库与冷恢复 | 不同库有界 actor，独立控制池与恢复准入，空闲 actor 回收 | CPU、网络、磁盘和 S3 仍共享；冷恢复仍读取完整数据及保留结果闭包，没有 lazy VFS |
 | 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；S1 候选保护 retained roots | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
 
@@ -68,7 +78,7 @@ S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不�
 | [scap-object-sqlite](crates/scap-object-sqlite/src/lib.rs) | 固定 libSQL SQLite 内核、私有连接、提交前物理页拦截、结果缓冲和只读快照 |
 | [scap-sql](crates/scap-sql/src/lib.rs) | 有界 SQL 参数、精确指纹和完整类型化结果编码 |
 | [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
-| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、结果查证／取消、静态路由；提供 OwnerPlanClient、有限 OwnerController 与快照接口，均不自动重放 SQL |
+| [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、结果查证／取消、显式业务路由；OwnerPlanClient、有限动态 OwnerControllerFleet 与快照接口均不自动重放 SQL |
 
 成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
@@ -102,7 +112,8 @@ HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使�
 新 `OwnerPlanClient` 用持久描述与 HEAD phase 恢复已接受计划。
 `OwnerController` / `OwnerControllerFleet` 在固定策略、期限和调用预算内推进计划，TLS/证书配置错误
 不作为 owner 死亡证据。旧 CAS 不换 ETag，原 SQL 的 UNKNOWN 仍用 lookup/cancel；固定12场景
-已覆盖多controller竞争、取消、拒绝与迟到操作，动态fleet与生产故障域仍有独立出口；自动编号见 #62，不能由原矩阵推导。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
+已覆盖多controller竞争、取消、拒绝与迟到操作；本批动态配置、旧历史和退役另按
+[动态 fleet 合同](docs/architecture/dynamic-owner-fleet.md)验收。自动编号见 #62，不能由原矩阵推导。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
 [控制器方案](docs/architecture/owner-controller-plan.md)及 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。
@@ -153,7 +164,7 @@ python3 scripts/check_repo.py
 
 ## 设计与后续阶段
 
-当前状态、目标、#59 合入条件和后续实施顺序见[接续交付计划](docs/engineering/sqlite-s3-delivery-plan.md)。
+当前状态、目标与后续实施顺序见[接续交付计划](docs/engineering/sqlite-s3-delivery-plan.md)。
 
 - [已接受的完整方案](docs/architecture/object-storage-native-proposal.md)、[ADR-0020](docs/adr/0020-object-storage-native-authority.md)。
 - [首个原生实现与格式选择](docs/adr/0021-object-native-runtime.md)、[可配置容量与 v2 恢复布局](docs/adr/0022-production-capacity.md)。

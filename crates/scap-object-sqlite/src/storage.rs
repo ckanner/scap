@@ -38,7 +38,13 @@ pub fn validate_cache_directory(path: &Path) -> io::Result<()> {
 /// mounts must remain unchanged from before that initialization for the entire
 /// process lifetime. Configuration separately rejects any global override.
 pub(crate) fn validate_temporary_directories() -> io::Result<()> {
-    validate_temporary_with(&NativeProbe, &temporary_candidates(&NativeEnvironment))
+    validate_temporary_with(&NativeProbe, &temporary_directories())
+}
+
+/// The pinned Unix VFS's complete candidate list, including fallbacks. Used by
+/// deployment admission to account for every possible temporary filesystem.
+pub fn temporary_directories() -> Vec<PathBuf> {
+    temporary_candidates(&NativeEnvironment)
 }
 
 pub(crate) trait TemporaryEnvironment {

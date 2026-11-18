@@ -7,6 +7,41 @@ fn parsed(value: serde_json::Value) -> Config {
 }
 
 #[test]
+fn kernel_resource_contract_is_optional_strict_and_precedes_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .resource_envelope
+        .is_none());
+    let profile = json!({"version":1,"memory_bytes":1073741824,"swap_bytes":0,
+        "cpu_millis_per_second":2000,"tasks":256,"temporary_bytes":134217728,"temporary_inodes":8192});
+    value["resource_envelope"] = profile.clone();
+    value["resource_envelope"]["version"] = json!(2);
+    assert_eq!(
+        parsed(value.clone())
+            .prepare_with(&|_| panic!("kernel contract precedes secrets"))
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+    for field in profile.as_object().unwrap().keys() {
+        value["resource_envelope"] = profile.clone();
+        value["resource_envelope"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+    value["resource_envelope"] = profile;
+    value["resource_envelope"]["unknown"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
 fn restore_requires_its_explicit_recovery_profile_and_control_catalogue() {
     let directory = tempfile::tempdir().unwrap();
     let mut value = sample_config(directory.path());
@@ -34,6 +69,50 @@ fn restore_requires_its_explicit_recovery_profile_and_control_catalogue() {
 }
 fn environment(_: &str) -> Option<OsString> {
     Some(OsString::from("unit-secret"))
+}
+
+#[test]
+fn independent_read_pool_requires_an_explicit_complete_bounded_profile() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .admission
+        .read_pool
+        .is_none());
+    let profile = json!({"workers":2,"active_per_tenant":2,"active_per_database":1});
+    value["admission"]["read_pool"] = profile.clone();
+    let prepared = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(
+        prepared.service.admission.read_pool.unwrap(),
+        crate::scheduler::ReadPool {
+            workers: 2,
+            active_per_tenant: 2,
+            active_per_database: 1
+        }
+    );
+    for field in ["workers", "active_per_tenant", "active_per_database"] {
+        let mut missing = value.clone();
+        missing["admission"]["read_pool"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(Config::parse(missing.to_string().as_bytes()).is_err());
+        let mut zero = value.clone();
+        zero["admission"]["read_pool"][field] = json!(0);
+        assert_eq!(
+            parsed(zero)
+                .prepare_with(&|_| panic!("read limits before credentials"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    value["admission"]["read_pool"]["share_wal"] = json!(true);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
 }
 
 #[test]

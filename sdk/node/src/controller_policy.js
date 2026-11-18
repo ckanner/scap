@@ -41,7 +41,7 @@ export function controllerScopeKey(value) { return JSON.stringify(scope(value));
 /** Canonical collection order is independent of caller object/array order. */
 export function createControllerPolicy(value) {
   record(value, ['scope', 'authorityId', 'principal', 'metadataEndpoints', 'workers', 'modes'],
-    ['allowInsecureHttp', 'recoveryTimeoutMs']);
+    ['allowInsecureHttp', 'recoveryTimeoutMs', 'retiredWorkers']);
   const insecure = value.allowInsecureHttp === undefined ? false : value.allowInsecureHttp;
   requireValue(typeof insecure === 'boolean', 'Expected explicit HTTP permission');
   const recoveryTimeoutMs = value.recoveryTimeoutMs === undefined ? CONTROLLER_LIMITS.recoveryTimeoutMs : value.recoveryTimeoutMs;
@@ -62,9 +62,19 @@ export function createControllerPolicy(value) {
     return Object.freeze({ workerInstance: decimal(worker.workerInstance), endpoint: endpoint(worker.endpoint, insecure),
       rank: worker.rank });
   }).sort((a, b) => a.rank - b.rank);
-  for (const key of ['workerInstance', 'endpoint', 'rank']) {
+  const retiredWorkers = value.retiredWorkers === undefined ? [] : value.retiredWorkers;
+  requireValue(Array.isArray(retiredWorkers) && retiredWorkers.length <= workers.length,
+    'Expected a bounded explicit worker retirement list');
+  const retired = Object.freeze(retiredWorkers.map((id) => decimal(id)).sort((a, b) => BigInt(a) < BigInt(b) ? -1 : 1));
+  requireValue(new Set(retired).size === retired.length &&
+    retired.every((id) => workers.some((worker) => worker.workerInstance === id)),
+    'Retire only distinct registered worker identities');
+  for (const key of ['workerInstance', 'rank']) {
     requireValue(new Set(workers.map((worker) => worker[key])).size === workers.length, 'Duplicate worker, endpoint or rank');
   }
+  const live = workers.filter((worker) => !retired.includes(worker.workerInstance));
+  requireValue(new Set(live.map((worker) => worker.endpoint)).size === live.length,
+    'An endpoint cannot represent two live worker incarnations');
   record(value.modes, ['takeover', 'activate', 'cancel']);
   const modes = Object.freeze(Object.fromEntries(['takeover', 'activate', 'cancel'].map((key) => {
     requireValue(typeof value.modes[key] === 'boolean', 'Expected an explicit automatic owner mode');
@@ -73,7 +83,10 @@ export function createControllerPolicy(value) {
   const policy = { version: 1, scope: scope(value.scope), authorityId: value.authorityId,
     principal: decimal(value.principal), metadataEndpoints: Object.freeze(metadataEndpoints),
     workers: Object.freeze(workers), modes, allowInsecureHttp: insecure,
-    limits: Object.freeze({ ...CONTROLLER_LIMITS, recoveryTimeoutMs }) };
+    limits: Object.freeze({ ...CONTROLLER_LIMITS, recoveryTimeoutMs }),
+    // Preserve the original v1 commitment byte-for-byte for policies without
+    // retirement. Every retirement decision is included in the new digest.
+    ...(retired.length === 0 ? {} : { retiredWorkers: retired }) };
   const canonical = JSON.stringify(policy);
   requireValue(Buffer.byteLength(canonical) <= CONTROLLER_LIMITS.policyBytes, 'Controller policy exceeds 64 KiB');
   const digest = createHash('sha256').update('SCAPOWNERPOLICY1\0').update(canonical).digest('hex');
