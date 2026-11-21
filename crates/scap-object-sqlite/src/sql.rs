@@ -300,13 +300,22 @@ pub(crate) fn commit(
     connection: &rusqlite::Connection,
     interrupt: &ReadInterrupt,
 ) -> Result<(), Error> {
+    commit_native(connection, interrupt)?;
+    crate::query::check(interrupt)
+}
+
+/// Return the native COMMIT fact separately from a later deadline check. Group
+/// staging must never discard a member whose native transaction already ended.
+pub(crate) fn commit_native(
+    connection: &rusqlite::Connection,
+    interrupt: &ReadInterrupt,
+) -> Result<(), Error> {
     crate::query::check(interrupt)?;
     let progress = AssertUnwindSafe(interrupt.clone());
     connection.progress_handler(1, Some(move || crate::query::check(&progress).is_err()));
     let result = connection.execute_batch("COMMIT").map_err(Error::Sqlite);
     connection.progress_handler(0, None::<fn() -> bool>);
-    result?;
-    crate::query::check(interrupt)
+    result
 }
 
 pub(crate) fn collect_results(
@@ -504,6 +513,34 @@ pub(crate) fn rollback(connection: &rusqlite::Connection) {
     // Always stop after a failure; rollback is resource cleanup, never evidence
     // that a proposal with an unknown outcome did not publish an authoritative HEAD.
     let _ = connection.execute_batch("ROLLBACK");
+}
+
+pub(crate) trait RollbackOps {
+    fn autocommit(&self) -> bool;
+    fn rollback(&self) -> rusqlite::Result<()>;
+}
+
+impl RollbackOps for rusqlite::Connection {
+    fn autocommit(&self) -> bool {
+        self.is_autocommit()
+    }
+
+    fn rollback(&self) -> rusqlite::Result<()> {
+        self.execute_batch("ROLLBACK")
+    }
+}
+
+/// A recoverable group-member failure may retain a prefix only after proving
+/// that no transaction remains active. Native cleanup failure poisons the group.
+pub(crate) fn rollback_checked(connection: &impl RollbackOps) -> Result<(), Error> {
+    if connection.autocommit() {
+        return Ok(());
+    }
+    connection.rollback().map_err(Error::Sqlite)?;
+    if !connection.autocommit() {
+        return Err(Error::Stopped);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

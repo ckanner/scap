@@ -15,6 +15,8 @@ use crate::auth::Principal;
 use crate::wire::{self, Action, Call};
 use crate::Failure;
 
+mod group;
+
 struct Cached {
     database: Database,
     session: Option<Session>,

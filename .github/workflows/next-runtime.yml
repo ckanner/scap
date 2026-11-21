@@ -1,4 +1,4 @@
-name: Concurrent reads, fleet reload and kernel resource contracts
+name: Group commit, concurrent reads, fleet and kernel resource contracts
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        contract: [read-pool, object-dynamic-fleet-runtime, object-overload, kernel-envelope]
+        contract: [group-commit, read-pool, object-dynamic-fleet-runtime, object-overload, kernel-envelope]
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
@@ -54,6 +54,9 @@ jobs:
           if [ "$SCAP_CONTRACT" = object-overload ]; then
             node --test experiments/object-overload/test_schedule.mjs
           fi
+          if [ "$SCAP_CONTRACT" = group-commit ]; then
+            python3 -B experiments/group-commit/model.py
+          fi
       - name: Build and bind the complete current service and SDK
         run: |
           mkdir "$RUNNER_TEMP/scap-next-evidence"
@@ -63,6 +66,13 @@ jobs:
       - name: Observe the complete fixed actual contract
         run: |
           case "$SCAP_CONTRACT" in
+            group-commit)
+              python3 -B experiments/group-commit/run.py \
+                --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \
+                --build-record "$RUNNER_TEMP/scap-next-evidence/build/build.json" \
+                --weed "$RUNNER_TEMP/scap-next-tools/weed" --node "$(command -v node)" \
+                --evidence "$RUNNER_TEMP/scap-next-evidence/run"
+              ;;
             read-pool)
               python3 -B experiments/read-pool/run.py \
                 --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \

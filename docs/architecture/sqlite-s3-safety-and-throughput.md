@@ -1,14 +1,14 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-更新：2026-11-20（America/New_York）。当前基线是已合入
-[PR #66](https://github.com/ckanner/scap/pull/66) 的
-[`b9d736b`](https://github.com/ckanner/scap/commit/b9d736b)，包含此前
-[PR #65](https://github.com/ckanner/scap/pull/65) 的身份分配与 S2 恢复。
-本文按主线解释当前设计；各次验证仍绑定原冻结源码，不因文档更新而重新认证。
+更新：2026-11-20（America/New_York）。当前实现基于已合入 #65/#66/#67 的
+[`68246fd6`](https://github.com/ckanner/scap/commit/68246fd639d0331d5c90a31d8b3134e96532b3b5)。
+本轮新增可选[独立事务 group commit](independent-group-commit.md)，其验收单独记录；
+各次旧验证仍绑定原冻结源码，不因文档更新而重新认证。
 
 **SCAP 已避开跨主机共享活动 SQLite 文件的风险，并实现对象权威提交、接管恢复、
 独立并行强读、快照恢复和有界调度。它仍使用单库串行 writer，冷恢复仍读取完整
-闭包；独立事务 group commit、按需读页、任意时间 PITR 和生产资格尚未完成。**
+闭包；本轮组提交摊薄多个独立事务的权威发布，按需读页、任意时间 PITR 和生产资格
+仍有独立出口。**
 
 总目标与顺序见[交付计划](../engineering/sqlite-s3-delivery-plan.md)，合入证据见
 [并发与资源交付记录](../engineering/sqlite-s3-scale-validation-2026-11-18.md)。本文补充
@@ -26,7 +26,7 @@
 | 旧容器未退出，新容器接管 | HEAD 原 ETag CAS、owner epoch、持久 owner plan 与取消屏障 | 探测只触发决策，真正写权仍由 HEAD 排序 |
 | Pod 重启复用实例身份 | 永久 claim，支持 `worker_instance="auto"` 持久分配 | 须初始化历史 high-water；身份不授予 owner，也不自动刷新业务路由 |
 | 同库读被写队列阻塞 | 可选 `admission.read_pool`，各 reader 使用独立完整镜像并重新授权 | 增加读执行并发，不增加 writer；额外镜像占用资源 |
-| 热点单库写入拥堵 | 单库 writer actor 串行，短事务、索引和显式 SQL batch | 无独立事务 group commit 或同库 MVCC；加 Pod 不会自动提高该库写吞吐 |
+| 热点单库写入拥堵 | 串行 writer、显式 SQL batch、本轮可选独立事务 group commit | SQL 仍串行；组提交的目标后端收益另测，没有新 MVCC 引擎 |
 | 冷库拖住其他库 | 不同库 actor、独立控制池与恢复准入，空闲 actor 回收 | CPU、磁盘、网络及 S3 仍共享，不等于每租户物理隔离 |
 | 全计算丢失 | 完整恢复数据及原结果，验证后激活；controller 推进原计划 | 无 lazy VFS；RTO 随闭包大小、对象往返、检查和排队变化 |
 | 备份与误操作恢复 | S1 retained snapshots；S2 恢复成独立新 Scope | 不是任意时间 PITR，也不是只复制 root 的瞬时分支 |
@@ -161,7 +161,7 @@ cgroup v2、普通 CPU 调度和有限 tmpfs；它提供组级约束，不认证
 | 显式 SQL batch | 已实现 | 一次请求多条 SQL，仍是一个事务／请求身份 |
 | 同库强读池 | 已实现，可选 | 多份私有快照并行执行读，writer 仍一个 |
 | 多库 actor 并行 | 已实现 | 提高不同库聚合能力，仍受共享资源限制 |
-| 同库独立事务 group commit | 未实现 | 各事务保留身份／结果，共享一轮持久化与发布开销 |
+| 同库独立事务 group commit | 本轮已实现，默认关闭 | 各真实事务保留身份／结果／逻辑版本，共享一次原 HEAD 发布；验收见[记录](../engineering/group-commit-validation-2026-11-20.md) |
 | 跨库 WAL 打包 | 未实现 | 不同库共享上传成本，各库发布条件仍独立 |
 | 同库 MVCC | 未实现 | 改变引擎、冲突与隔离协议，允许多个事务并行推进 |
 
@@ -279,7 +279,7 @@ checkpoint 后的数据不会因此取得同步多 AZ 保护；不能宣称跨 A
 | 工作包 | 当前起点 | 下一完成条件 |
 | --- | --- | --- |
 | 对象权威与恢复 | 提交／取消、owner plan、永久身份、动态 fleet 已实现 | AWS/IAM、真实故障域和完整原请求恢复审计 |
-| 热点写吞吐 | 单 writer、SQL batch、有界准入 | 固定瓶颈与负载后实现同库 group commit，保留逐事务结果、权限和 UNKNOWN |
+| 热点写吞吐 | 单 writer、SQL batch、有界准入和本轮可选组提交 | 目标后端固定负载下配对测量独立事务 TPS、排队、p95/p99、对象请求和成本 |
 | 跨库请求成本 | 多库并行，独立对象与 HEAD | pack 引用、逐库发布、部分失败和跨库 GC；无隐式分布式事务 |
 | 冷启动与缓存 | 完整恢复和独立读池 | lazy VFS 的页身份、缺页失败、generation／GC 保护及有界缓存 |
 | 历史恢复 | S1 和 S2 独立目标 | 连续历史、时间索引、保留／GC 协议，才可提供任意时间 PITR |

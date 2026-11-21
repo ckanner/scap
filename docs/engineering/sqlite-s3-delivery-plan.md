@@ -1,29 +1,31 @@
 # SQLite on S3：当前状态、目标与接续交付
 
-更新：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
-[PR #66](https://github.com/ckanner/scap/pull/66) 已合入，主线基准为 `b9d736ba`。
-owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库并行强读池、受信动态
-fleet、Linux 内核资源准入，以及固定开环过载与 SQL batch 合同均已交付。
-主线 6 个工作流、24 个 job 全部 success 已重新核对，见[当前复核](sqlite-s3-review-2026-11-20.md)。
-原实现、失败和各冻结来源的证据仍见[并发与资源交付记录](sqlite-s3-scale-validation-2026-11-18.md)。
+更新：2026-11-20（纽约）。#65/#66/#67 已合入，基准主线为 `68246fd6`。
+owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库强读池、受信动态 fleet、
+内核资源准入和固定开环合同均保留各自[历史交付来源](sqlite-s3-scale-validation-2026-11-18.md)。
 
 ## 本轮接续范围
 
-本轮审查再次核对私有镜像、文件系统准入、同 HEAD 的 owner fencing、native 提交挂点、
-读池与资源归还；并去掉 native 参数绑定前的一次 Text/BLOB 中间分配。SQL 数据类型、
-原请求身份、持久发布和 ACK 顺序保持原合同。当前代码验证只属于[本轮记录](sqlite-s3-review-2026-11-20.md)。
+[PR #68](https://github.com/ckanner/scap/pull/68) 的
+[独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
+private native 逐事务 staging、每成员逻辑版本/原结果及一次原 HEAD CAS、默认关闭的
+有界 writer 队列组批。SQL 失败保留安全前缀，未开始后缀保序留队；取消/owner/权限等
+仍在同 HEAD 排序；已执行成员不重试。完整单元/精确覆盖、独立协议模型与实际
+HTTP/S3/进程恢复按[本轮验证记录](group-commit-validation-2026-11-20.md)归属：本地
+stable/nightly 各 969 项单位、82 个生产文件四维精确 100%、28 份冷恢复原结果和
+40 项实际证据负控通过；最终远端状态单独核对 [checks](https://github.com/ckanner/scap/pull/68/checks)。
 
-接续工作按瓶颈和独立验收范围安排：
+接续目标继续分开交付：
 
-1. 固定工作负载分别测单库写、同库读写、多租户并发和冷启动；逐次报告成功事务、排队、
-   尾延迟、对象请求及字节。当前短样本和 SQL batch 行数不能冒充生产 TPS。
-2. 独立事务 group commit 与跨库 WAL 聚合分别设计；前者改变单库提交挂点和结果发布，
-   后者改变共享对象寻址与 GC，均不能由现有 SQL batch 推导。具体合同见
+1. 在目标后端对同一固定开环负载配对测单请求与组提交，报告独立成功事务、排队、
+   p50/p95/p99、对象请求/字节和控制延迟。正确性与减少 HEAD CAS 不等于生产收益。
+2. 跨库 WAL/对象打包仍需共享寻址、逐库发布和共享对象 GC；lazy VFS 仍需已授权
+   固定根、native pager、校验按需读页和有界在途 I/O。具体边界见
    [Turso 接续设计](../architecture/turso-adoption-next.md)。
-3. lazy VFS 固定单次已授权根、校验按需读页、约束缓存与在途 I/O；PITR 另需连续历史、
-   时间索引和 GC 保护。S2 的显式保留点恢复已经完成。
-4. 目标后端实际验证、长期 GC/保留成本、跨故障域恢复和预先约定的生产 SLO 仍为
-   NOT_RUN。跨 controller 共识、自动扩缩容与每租户内核隔离是独立能力，不由 #66 推导。
+3. 任意时间 PITR 还需连续历史、时间索引与 GC 保护；现有 S2 是显式保留点的完整
+   新 Scope 恢复。新引擎 MVCC 需 SQL、隔离、冲突、挂点和恢复独立兼容验收。
+4. 目标 AWS、长期 GC/保留成本、跨故障域恢复、预先冻结的生产 SLO 保持 NOT_RUN。
+   跨 controller 共识、自动扩缩容、每租户硬隔离和冷启动风暴仍有独立出口。
 
 下文标明日期的组合数量和旧阶段描述保留各自历史身份；当前状态以上述主线为准。
 
@@ -35,7 +37,7 @@ Node 161 项单位及其覆盖、HTTP 7 项和 controller HTTP/进程 12 项通�
 release 又完成 S2 7 场景／126 负控、显式 ID 10 场景、自动 ID 18 场景及 TCP 8 场景。
 这些是各自有来源绑定的结果，远端整体 CI 与合入状态以 [PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。
 
-本轮冻结源码、构建、修复及远端结论统一见
+#65 的历史冻结源码、构建、修复及远端结论统一见
 [self-review 与 CI 收口](sqlite-s3-self-review-2026-11-17.md)。旧候选的 877 项单位、
 4 个核心文件未命中、8 个 branch 零分母和初版恢复审计漏检继续原样保留在
 [前一组合验证](sqlite-s3-followup-validation-2026-11-17.md)。历史约 24% 四库吞吐
@@ -79,7 +81,7 @@ S3 中的 HEAD 和不可变对象保存唯一持久权威，计算实例和本�
 - 四个独立实际入口均已完成各自冻结来源的运行与 CI 审计；读池 19 负控、动态
   fleet 13 负控、内核 24 负控均有原件核验，过载首轮 CI 的完整 18 负控门禁通过，
   大 ZIP 的取回范围与后续保留硬链接的包装修复分别记录。
-- 最新组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%，
+- #66 该次组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%，
   Node 182 单位及 22 模块精确 V8、HTTP/CLI/类型通过。所有原失败与最终提交 CI
   归属见[当前记录](sqlite-s3-scale-validation-2026-11-18.md)，不把旧候选认证转给新 head。
 
@@ -244,8 +246,10 @@ fleet 或未验证的实例身份分配：
 
 显式模式仍要求部署提供不复用的 `worker_instance`；#62 的 auto 模式可以从永久
 counter 取得新身份，但初始化历史、counter/marker 保留与 IAM 仍是部署前提。
-数值 guard 不能代替进程身份认证。动态 fleet、在线策略更新与自动扩缩容需要独立
-协议、迁移规则和竞争／撤权／停机实际，不由当前固定 controller 矩阵推导。
+数值 guard 不能代替进程身份认证。#66 已交付基于受信快照、完整有限策略历史和
+SIGHUP 的动态 fleet／在线策略更新，来源见[独立设计](../architecture/dynamic-owner-fleet.md)
+及其实际合同。跨 controller 共识、无限策略历史与自动扩缩容仍需独立协议、迁移
+规则及故障验收，不能由固定 controller 矩阵或有限 fleet 合同推导。
 
 ### 第二阶段：S2，从一个保留点恢复到全新 Scope（#65 已交付）
 
@@ -309,9 +313,12 @@ PR #60 两组配对中减少 Manifest GET 但 rate 下降的历史因果仍待�
 丢失，验证 metadata 与存储增长的收敛，不以一次 sweep 或逻辑配额代替。
 
 已合入的同库读池以私有完整镜像和每次新 HEAD 授权实现，见[独立合同](../../crates/scap-service/docs/read-pool.md)。
-group commit、跨库 WAL 聚合、lazy VFS 与新 MVCC 引擎仍各自改变提交／可见性／恢复关系，必须独立
-立项；现有跨库并发、reader pool 和 SQL batch 不能宣称已经实现这些能力。Turso 的公开实现与
-Cloud 路径只作设计参考，不能借用其基准作为 SCAP 实测。采纳、暂缓理由与后续协议
+同库独立事务 group commit 已由 [PR #68](https://github.com/ckanner/scap/pull/68) 实现，
+默认关闭；native 独立事务、一次原 HEAD 发布与服务组批的完整来源见
+[专项验收](group-commit-validation-2026-11-20.md)。目标后端的吞吐与尾延迟配对仍须另外执行。
+跨库 WAL 聚合、lazy VFS 与新 MVCC 引擎仍需各自协议及实现，现有跨库并发、reader pool、
+SQL batch 和同库组提交不能替代这些能力。Turso 的公开实现与 Cloud 路径只作设计参考，
+不能借用其基准作为 SCAP 实测。采纳、暂缓理由与后续协议
 要求见 [Turso 接续设计](../architecture/turso-adoption-next.md)。
 
 ### 第四阶段：目标后端与试运行出口

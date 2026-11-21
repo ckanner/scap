@@ -12,6 +12,9 @@ use tokio::sync::oneshot;
 
 use crate::{auth::Principal, wire::Call, Failure};
 
+mod group;
+use group::{ActorWorker, Work};
+
 pub trait Worker {
     fn execute(
         &mut self,
@@ -30,6 +33,16 @@ pub trait Worker {
         _output: &mut crate::output::OutputContext,
     ) -> Result<Value, Failure> {
         Err(Failure::new("UNAVAILABLE"))
+    }
+
+    /// Declining guarantees that no member SQL has started. Legacy workers
+    /// retain their original single-request behavior and budgeted boundary.
+    fn execute_group(
+        &mut self,
+        _members: &mut [crate::group::Member<'_>],
+        _limits: scap_object::GroupLimits,
+    ) -> crate::group::Outcome {
+        crate::group::Outcome::Declined
     }
 }
 
@@ -51,6 +64,14 @@ impl Worker for crate::engine::Engine {
         output: &mut crate::output::OutputContext,
     ) -> Result<Value, Failure> {
         self.execute_budgeted(principal, call, deadline, output)
+    }
+
+    fn execute_group(
+        &mut self,
+        members: &mut [crate::group::Member<'_>],
+        limits: scap_object::GroupLimits,
+    ) -> crate::group::Outcome {
+        self.execute_group(members, limits)
     }
 }
 
@@ -435,7 +456,13 @@ struct Shared {
 }
 
 impl Shared {
-    fn next_actor(&self, key: &str, changed: &Condvar, idle: Duration) -> Option<Job> {
+    fn next_actor(
+        self: &Arc<Self>,
+        key: &str,
+        changed: &Condvar,
+        idle: Duration,
+        profile: Option<crate::group::Profile>,
+    ) -> Option<Work> {
         let idle_until = Instant::now() + idle;
         let mut state = lock(&self.state);
         loop {
@@ -444,8 +471,11 @@ impl Shared {
             }
             let actor = state.actors.get_mut(key).expect("live actor reservation");
             if let Some(job) = actor.jobs.pop() {
-                state.usage.remove(&job);
-                return Some(job);
+                let work = Work::collect(self.clone(), &mut actor.jobs, job, profile);
+                if let Work::Single(job) = &work {
+                    state.usage.remove(job);
+                }
+                return Some(work);
             }
             if Instant::now() >= idle_until {
                 // Retain this slot until the worker and its !Send connection
@@ -634,26 +664,41 @@ struct ReadWorker {
     activity: Option<ReadActivity>,
 }
 
-fn execute(worker: &mut dyn Worker, mut job: Job) {
+fn perform(worker: &mut dyn Worker, job: &mut Job) -> Option<Result<Value, Failure>> {
     if job.reply.is_closed() {
-        return;
+        return None;
     }
+    if Instant::now() >= job.deadline {
+        return Some(Err(Failure::new("DEADLINE")));
+    }
+    // Keep the original Job's leases alive in its owner while the worker
+    // borrows them, including unwind. Only the action's payload is moved.
+    let call = Call {
+        version: job.call.version,
+        scope: job.call.scope.clone(),
+        action: std::mem::replace(
+            &mut job.call.action,
+            crate::wire::Action::Query {
+                statements: Vec::new(),
+            },
+        ),
+    };
+    Some(match job.output.as_mut() {
+        Some(output) => worker.execute_budgeted(&job.principal, call, job.deadline, output),
+        None => worker.execute(&job.principal, call, job.deadline),
+    })
+}
+
+fn deliver(mut job: Job, result: Option<Result<Value, Failure>>) {
+    let Some(result) = result else {
+        return;
+    };
     match job.reply {
         Reply::Value(reply) => {
-            let result = if Instant::now() >= job.deadline {
-                Err(Failure::new("DEADLINE"))
-            } else {
-                worker.execute(&job.principal, job.call, job.deadline)
-            };
             let _ = reply.send(result);
         }
         Reply::Encoded(sender) => {
-            let mut output = job.output.take().expect("encoded job output context");
-            let result = if Instant::now() >= job.deadline {
-                Err(Failure::new("DEADLINE"))
-            } else {
-                worker.execute_budgeted(&job.principal, job.call, job.deadline, &mut output)
-            };
+            let output = job.output.take().expect("encoded job output context");
             finish_encoded(
                 sender,
                 crate::output::OwnedValue::new(result, output),
@@ -661,6 +706,11 @@ fn execute(worker: &mut dyn Worker, mut job: Job) {
             );
         }
     }
+}
+
+fn execute(worker: &mut dyn Worker, mut job: Job) {
+    let result = perform(worker, &mut job);
+    deliver(job, result);
 }
 
 fn finish_encoded(
@@ -691,6 +741,7 @@ pub struct Scheduler {
     controls: Vec<JoinHandle<()>>,
     readers: Vec<JoinHandle<()>>,
     read_pool: Option<ReadPool>,
+    group_commit: Option<crate::group::Profile>,
     reaper: Option<JoinHandle<()>>,
     limits: Limits,
     factory: Factory,
@@ -719,6 +770,15 @@ impl Scheduler {
         Self::with_read_spawner(limits, read_pool, factory, spawn)
     }
 
+    pub fn with_execution(
+        limits: Limits,
+        read_pool: Option<ReadPool>,
+        group_commit: Option<crate::group::Profile>,
+        factory: Factory,
+    ) -> Result<Self, Failure> {
+        Self::with_execution_spawner(limits, read_pool, group_commit, factory, spawn)
+    }
+
     fn with_spawner(limits: Limits, factory: Factory, spawn: Spawn) -> Result<Self, Failure> {
         Self::with_read_spawner(limits, None, factory, spawn)
     }
@@ -729,9 +789,22 @@ impl Scheduler {
         factory: Factory,
         spawn: Spawn,
     ) -> Result<Self, Failure> {
+        Self::with_execution_spawner(limits, read_pool, None, factory, spawn)
+    }
+
+    fn with_execution_spawner(
+        limits: Limits,
+        read_pool: Option<ReadPool>,
+        group_commit: Option<crate::group::Profile>,
+        factory: Factory,
+        spawn: Spawn,
+    ) -> Result<Self, Failure> {
         limits.validate()?;
         if let Some(read_pool) = read_pool {
             read_pool.validate(limits)?;
+        }
+        if let Some(group_commit) = group_commit {
+            group_commit.validate(limits)?;
         }
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
@@ -753,6 +826,7 @@ impl Scheduler {
             controls: Vec::new(),
             readers: Vec::new(),
             read_pool,
+            group_commit,
             reaper: None,
             limits,
             factory,
@@ -849,19 +923,37 @@ impl Scheduler {
         let factory = self.factory.clone();
         let worker_key = key.clone();
         let idle = self.limits.actor_idle_timeout;
+        let profile = self.group_commit;
         let task = Box::new(move || {
             let _exit = Exit::Actor(shared.clone(), worker_key.clone());
-            let mut worker = match factory(slot) {
+            let worker = match factory(slot) {
                 Ok(worker) => worker,
                 Err(_) => return,
+            };
+            // The field order keeps counted work and its leases reserved if
+            // a failed worker has native/TLS cleanup to finish during unwind.
+            let mut owned = ActorWorker {
+                worker,
+                active: None,
             };
             lock(&shared.state)
                 .actors
                 .get_mut(&worker_key)
                 .expect("starting actor")
                 .phase = Phase::Running;
-            while let Some(job) = shared.next_actor(&worker_key, &changed, idle) {
-                execute(worker.as_mut(), job);
+            while let Some(work) = shared.next_actor(&worker_key, &changed, idle, profile) {
+                match work {
+                    Work::Single(job) => execute(owned.worker.as_mut(), job),
+                    Work::Group(batch) => {
+                        owned.active = Some(batch);
+                        owned
+                            .active
+                            .as_mut()
+                            .expect("active group")
+                            .run(owned.worker.as_mut());
+                        owned.active = None;
+                    }
+                }
             }
         });
         match (self.spawn)("scap-database", task) {

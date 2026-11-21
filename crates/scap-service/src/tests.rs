@@ -113,6 +113,10 @@ fn failure_codes_preserve_authority_semantics() {
     let committed = Failure::from(Error::CommittedButUnavailable(Box::new(receipt.clone())));
     assert_eq!(committed.code, "COMMITTED_BUT_UNAVAILABLE");
     assert_eq!(*committed.receipt.unwrap(), receipt);
+    let accepted = Error::CommittedButUnavailable(Box::new(receipt.clone()));
+    let borrowed = Failure::from_ref(&accepted);
+    assert_eq!(borrowed.code, "COMMITTED_BUT_UNAVAILABLE");
+    assert_eq!(*borrowed.receipt.unwrap(), receipt);
 }
 
 use scap_object_store::{Condition, Objects, Stored};

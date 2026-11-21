@@ -294,6 +294,69 @@ test('lookup distinguishes committed, cancelled, unknown, closed and retired wit
   }
 });
 
+test('independent group receipts retain each logical revision after a later shared HEAD is observed', async () => {
+  const calls = [], originals = new Map();
+  const c = client(async (_url, init) => {
+    const body = JSON.parse(init.body); calls.push(body);
+    if (body.operation === 'status') return success({ ...statusValue(), revision: '303', head_serial: '403',
+      sequence: '103', transition: { revision: '303', nonce: '1003' } });
+    return success(originals.get(body.request.id));
+  });
+  const requests = [1001, 1002, 1003].map((id, index) => {
+    const input = c.prepare([{ sql: 'INSERT INTO item VALUES(?1) RETURNING rowid', parameters: [BigInt(id)] }],
+      { epoch: '3', id: String(id) });
+    const raw = result([BigInt(id)]), value = commit(input, raw);
+    value.receipt.sequence = String(101 + index);
+    value.receipt.transition.revision = String(301 + index);
+    value.receipt.data_root = String(index + 1).repeat(64);
+    value.receipt.result_hash = createHash('sha256').update(objectBytes(value.receipt, raw)).digest('hex');
+    originals.set(String(id), value);
+    return input;
+  });
+  const completed = await Promise.all(requests.map((input) => c.execute(input)));
+  assert.deepEqual(completed.map((value) => value.receipt.transition.revision), ['301', '302', '303']);
+  assert.deepEqual(completed.map((value) => value.receipt.sequence), ['101', '102', '103']);
+  assert.equal((await c.status()).head_serial, '403');
+  const restored = c.restore(c.save(requests[0]));
+  const retained = await c.lookup(restored);
+  assert.deepEqual(retained, completed[0]);
+  assert.deepEqual(calls.map((body) => body.operation), ['execute', 'execute', 'execute', 'status', 'lookup']);
+  assert.deepEqual(calls.at(-1).request, requests[0].request);
+});
+
+test('one lost group member response neither replays its SQL nor changes another member outcome', async () => {
+  const calls = [], originals = new Map();
+  const c = client(async (_url, init) => {
+    const body = JSON.parse(init.body); calls.push(body);
+    if (body.operation === 'execute' && body.request.id === '2') throw new TypeError('synthetic lost reply');
+    if (body.operation === 'execute' && body.request.id === '3') {
+      return failure('COMMITTED_BUT_UNAVAILABLE', 503, { receipt: originals.get('3').receipt });
+    }
+    return success(originals.get(body.request.id));
+  });
+  const requests = [1, 2, 3].map((id) => {
+    const input = c.prepare([{ sql: 'SELECT random()', parameters: [] }], { epoch: '3', id: String(id) });
+    const raw = result([BigInt(id * 137)]), value = commit(input, raw);
+    value.receipt.sequence = String(id); value.receipt.transition.revision = String(10 + id);
+    value.receipt.result_hash = createHash('sha256').update(objectBytes(value.receipt, raw)).digest('hex');
+    originals.set(String(id), value); return input;
+  });
+  const saved = requests.map((input) => c.save(input));
+  const outcomes = await Promise.allSettled(requests.map((input) => c.execute(input)));
+  assert.equal(outcomes[0].status, 'fulfilled');
+  assert.ok(outcomes[1].reason instanceof UnknownError);
+  assert.deepEqual(outcomes[1].reason.reference.request, requests[1].request);
+  assert.ok(outcomes[2].reason instanceof CommittedResultError);
+  assert.deepEqual(outcomes[2].reason.receipt, originals.get('3').receipt);
+  assert.equal(calls.length, 3);
+  for (const [index, serialized] of saved.entries()) {
+    const found = await c.lookup(c.restore(serialized));
+    assert.deepEqual(found.receipt, originals.get(String(index + 1)).receipt);
+    assert.deepEqual(found.rawResult, Buffer.from(originals.get(String(index + 1)).result, 'base64'));
+  }
+  assert.deepEqual(calls.map((body) => body.operation), ['execute', 'execute', 'execute', 'lookup', 'lookup', 'lookup']);
+});
+
 test('strict HTTP envelopes reject status/body contradictions and sanitize remote messages', () => {
   const t=tracked(new Client(OPTIONS)),reference={scope:SCOPE,request:t.request};
   assert.deepEqual(wire.envelope({ok:true,value:{x:1}},200,reference),{x:1});

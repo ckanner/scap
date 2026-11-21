@@ -63,6 +63,7 @@ struct State {
     preserve_replaced_etag: bool,
     replace: Option<(usize, String, Vec<u8>)>,
     get_keys: Vec<String>,
+    put_keys: Vec<String>,
     remove_directory_on_get: Option<(String, std::path::PathBuf)>,
 }
 
@@ -128,6 +129,16 @@ impl Memory {
             .lock()
             .unwrap()
             .get_keys
+            .iter()
+            .filter(|value| *value == key)
+            .count()
+    }
+
+    pub(super) fn puts_for(&self, key: &str) -> usize {
+        self.inner
+            .lock()
+            .unwrap()
+            .put_keys
             .iter()
             .filter(|value| *value == key)
             .count()
@@ -209,6 +220,7 @@ impl Objects for Memory {
         }
         let mut state = self.inner.lock().unwrap();
         state.operations += 1;
+        state.put_keys.push(key.to_owned());
         if state.fail_at == Some(state.operations) {
             return Err(StoreError::Unknown);
         }

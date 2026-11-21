@@ -60,6 +60,44 @@ fn prepared(parent: &std::path::Path) -> Prepared {
 }
 
 #[test]
+fn group_profile_is_revalidated_before_worker_identity_and_accepts_explicit_enablement() {
+    let directory = tempfile::tempdir().unwrap();
+    let objects = Arc::new(Memory::default());
+    let profile = crate::group::Profile {
+        version: 1,
+        max_members: 2,
+        max_input_bytes: 65536,
+        max_changed_pages: 2048,
+        max_result_bytes: 1048576,
+    };
+    let mut configuration = prepared(directory.path()).service;
+    configuration.admission.group_commit = Some(crate::group::Profile {
+        version: 2,
+        ..profile
+    });
+    assert_eq!(
+        assemble(configuration, objects.clone()).err().unwrap().code,
+        "CONFIG"
+    );
+    assert!(objects.calls.lock().unwrap().is_empty());
+    let mut configuration = prepared(directory.path()).service;
+    configuration.admission.group_commit = Some(profile);
+    let (_, state) = assemble(configuration, objects).unwrap();
+    let created = state
+        .scheduler
+        .submit(
+            principal(),
+            call(Action::Create { nonce: Decimal(1) }),
+            until(),
+        )
+        .unwrap()
+        .blocking_recv()
+        .unwrap()
+        .unwrap();
+    assert_eq!(created["revision"], "1");
+}
+
+#[test]
 fn read_pool_is_validated_before_identity_claim_and_wired_to_native_readers() {
     let directory = tempfile::tempdir().unwrap();
     let objects = Arc::new(Memory::default());

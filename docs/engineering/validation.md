@@ -2,7 +2,18 @@
 
 证据分四类：纯协议模型；第一方新生产代码的单元覆盖；真实SQLite/S3/进程故障合同；目标AWS及生产规模验收。四类互不代替。
 
-## PR #59 的 owner／controller／S1 组合（2026-11-12）
+## PR #68 的独立事务组提交（2026-11-20）
+
+本地冻结单位候选 `9b332b9` 与最终真实合同候选 `a82e6de8` 的完整身份、原失败和
+来源差异见[专项记录](group-commit-validation-2026-11-20.md)及
+[机器摘要](../evidence/group-commit-local-2026-11-20.json)。stable/nightly 各 969 项单位、
+82 个生产文件逐文件四维精确 100%，正式 HTTP/S3/进程恢复与 40 项独立审计负控通过。
+最终远端结论见 [PR checks](https://github.com/ckanner/scap/pull/68/checks)。本合同证明
+同库独立事务的合组发布和原结果恢复，不认证目标 AWS、吞吐配对或生产 SLO。
+
+以下按日期保留历史候选的状态，不将当时的开发中或通过结论转给当前源码。
+
+## 历史 PR #59 的 owner／controller／S1 组合（2026-11-12）
 
 [组合验收](sqlite-s3-integration-validation.md)保留正式runtime `fc10287` 的新单位、
 67文件精确覆盖和原release归属，并逐项列出独立冻结的实际夹具。新的native／1 GiB

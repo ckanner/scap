@@ -11,6 +11,7 @@ pub mod discovery;
 pub mod discovery_cursor;
 pub mod discovery_wire;
 pub mod engine;
+pub mod group;
 pub mod http;
 mod instance;
 pub mod intake;
@@ -52,6 +53,20 @@ impl From<Error> for Failure {
                 receipt: Some(receipt),
             };
         }
+        Self::from_ref(&error)
+    }
+}
+
+impl Failure {
+    /// A group can share one publication failure across several consumed
+    /// members. Borrow the error without erasing an already accepted receipt.
+    pub fn from_ref(error: &Error) -> Self {
+        if let Error::CommittedButUnavailable(receipt) = error {
+            return Self {
+                code: "COMMITTED_BUT_UNAVAILABLE",
+                receipt: Some(receipt.clone()),
+            };
+        }
         if let Error::Store(error) = error {
             return Self::new(store_code(error));
         }
@@ -62,7 +77,7 @@ impl From<Error> for Failure {
             return Self::new(engine_code(error));
         }
         if let Error::Sql(error) = error {
-            let code = if error == scap_sql::SqlError::ResourceExhausted {
+            let code = if *error == scap_sql::SqlError::ResourceExhausted {
                 "LIMIT"
             } else {
                 "INVALID"
@@ -103,40 +118,40 @@ impl From<Error> for Failure {
     }
 }
 
-fn store_code(error: StoreError) -> &'static str {
-    if error == StoreError::Conflict {
+fn store_code(error: &StoreError) -> &'static str {
+    if *error == StoreError::Conflict {
         "CONFLICT"
-    } else if error == StoreError::Unknown {
+    } else if *error == StoreError::Unknown {
         "UNKNOWN"
-    } else if error == StoreError::Missing {
+    } else if *error == StoreError::Missing {
         "MISSING"
-    } else if error == StoreError::Budget || error == StoreError::Limit {
+    } else if *error == StoreError::Budget || *error == StoreError::Limit {
         "LIMIT"
-    } else if error == StoreError::Corrupt {
+    } else if *error == StoreError::Corrupt {
         "CORRUPT"
     } else {
         "INVALID"
     }
 }
 
-fn gc_code(error: scap_object_store::GcError) -> &'static str {
+fn gc_code(error: &scap_object_store::GcError) -> &'static str {
     use scap_object_store::GcError;
-    if error == GcError::Invalid {
+    if *error == GcError::Invalid {
         "INVALID"
-    } else if error == GcError::Limit {
+    } else if *error == GcError::Limit {
         "LIMIT"
-    } else if error == GcError::Denied {
+    } else if *error == GcError::Denied {
         "DENIED"
-    } else if error == GcError::Unsupported {
+    } else if *error == GcError::Unsupported {
         "GC_UNSUPPORTED"
-    } else if error == GcError::Corrupt {
+    } else if *error == GcError::Corrupt {
         "CORRUPT"
     } else {
         "UNKNOWN"
     }
 }
 
-fn engine_code(error: scap_object_sqlite::Error) -> &'static str {
+fn engine_code(error: &scap_object_sqlite::Error) -> &'static str {
     use scap_object_sqlite::Error;
     if matches!(error, Error::ResultLimit) || matches!(error, Error::ResourceExhausted) {
         "LIMIT"
