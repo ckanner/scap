@@ -6,17 +6,21 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 ## 当前实现与验证状态
 
-最新核查：2026-11-18（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 已合入
-`02476c8`；owner 计划、有限 controller、S1/S2、永久实例身份和有界 S3 连接复用均已在主线。
-本批在该基线上实现可选的同库并行强读池、受信配置驱动的动态 fleet 更新、Linux 内核
-资源准入，并增加固定开环过载与 SQL batch 实际合同。最新组合 stable/nightly 各
-911 项单位通过，77 个 Rust 生产文件逐文件四维精确 100%；四项实际已按各自冻结
-来源通过。实际原件、首轮 CI 修复和范围见[本批交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)，
-最终提交的全部 CI 与合入身份以 [PR #66 checks](https://github.com/ckanner/scap/pull/66/checks)为准。
+最新核查：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 和
+[PR #66](https://github.com/ckanner/scap/pull/66) 均已合并，主线基准为
+[`b9d736ba`](https://github.com/ckanner/scap/commit/b9d736ba563b615004d35204e970ca5895ad618c)。
+owner/controller、S1/S2、永久实例身份、有界 S3 连接复用、同库并行强读池、受信动态
+fleet 和 Linux 内核资源准入均已在主线。该合并提交的 6 个工作流、24 个 job 全部成功，
+不是仍待合入的候选；本次逐项重新读取了远端结果，见[当前复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
+
+#66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
+精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
+原件、失败及来源仍见[原交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)。
+本轮参数绑定优化及文档修正有自己的验证记录，不能继承 #66 的测试计数或覆盖结论。
 Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision-decision-2026-11-18.md)
 退出本次交付；普通精确读取保留，历史约 24% 回退并未被宣称已解决。
 
-| 本批能力 | 实现范围与边界 |
+| 已合入能力 | 实现范围与边界 |
 | --- | --- |
 | [同库强读池](crates/scap-service/docs/read-pool.md) | 固定 reader worker、私有完整镜像、租户／库活跃额度；每次读校验新 HEAD，SQL 前最多一次过期镜像重建；writer 仍按库串行 |
 | [动态 owner fleet](docs/architecture/dynamic-owner-fleet.md) | 版本化受信快照、完整有限策略历史、不可逆退役、旧计划收敛；SIGHUP 等待旧 tick/socket/DNS 归还后切换；没有分布式配置共识或自动扩缩容 |
@@ -35,7 +39,7 @@ Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision
 | CI | owner/Missing/controller/固定矩阵/S1/S2/显式和自动身份实际合同、模型、SDK/codec 和固定 TypeScript 检查均接入每个 PR；保存原始证据与负控 |
 | 性能 | 原四库约 24% 回退仍未归因；新 2×2 诊断保留全部正负样本与观察器成本，不宣称吞吐验收或生产 SLO 通过 |
 
-本轮详情、来源、CI 状态与未完成边界见
+#65 历史组合的详情、来源、CI 状态与当时边界见
 [self-review 与 CI 收口](docs/engineering/sqlite-s3-self-review-2026-11-17.md)、
 [恢复核心审查](docs/engineering/restore-core-review-2026-11-18.md)和
 [历史性能因果诊断](docs/engineering/manifest-proof-causal-2026-11-18.md)。覆盖修复没有
@@ -48,8 +52,8 @@ Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision
 [11 月 13 日补验](docs/engineering/sqlite-s3-review-2026-11-13.md)的各次实际也保持
 各自源码与原件身份，不能合算为当前候选的认证。
 
-自动实例身份分配与 S2 已实现；本批读池、有限动态 fleet、资源准入与开环合同按上方
-范围验收。任意时间 PITR、独立事务 group commit、lazy VFS、新 MVCC 引擎、跨进程
+自动实例身份分配、S2、读池、有限动态 fleet、资源准入与开环合同已经按上方范围合入。
+任意时间 PITR、独立事务 group commit、跨库 WAL 聚合、lazy VFS、新 MVCC 引擎、跨进程
 fleet 共识、长期 GC／成本和真实 AWS／生产 SLO 仍有独立出口。单库 writer 仍串行，
 冷恢复仍完整读取闭包，热点写吞吐不会因增加 reader 或 pod 自动提高。
 
@@ -63,7 +67,7 @@ SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SH
 | 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS；#61 永久登记，#62 可自动取得新 ID | 首次升级历史和目标 IAM 另验；自动编号不授予数据库 owner、不刷新静态路由 |
 | 热点单库吞吐 | 单库 writer actor 串行，可选私有镜像强读池；短事务和一个事务内多 SQL 语句 | 读池增加读执行并发，未实现新 MVCC 引擎或独立事务 group commit；增加 pod 不会自动提高该库写吞吐 |
 | 多库与冷恢复 | 不同库有界 actor，独立控制池与恢复准入，空闲 actor 回收 | CPU、网络、磁盘和 S3 仍共享；冷恢复仍读取完整数据及保留结果闭包，没有 lazy VFS |
-| 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；S1 候选保护 retained roots | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
+| 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；已合入的 S1 保护 retained roots，S2 恢复到独立新库 | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
 
 S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不能包装成跨 AZ RPO=0。Turso 的开源 libSQL、Cloud 存储路径和新 Rust MVCC 引擎是不同层次；其基准不作为 SCAP 性能证据，详见[官方对照](docs/architecture/sqlite-s3-safety-and-throughput.md#6-turso-可以借鉴什么)。
 
@@ -114,8 +118,8 @@ HTTP 服务用不可变五元组接入，`create` 后显式激活。HEAD6/7 使�
 新 `OwnerPlanClient` 用持久描述与 HEAD phase 恢复已接受计划。
 `OwnerController` / `OwnerControllerFleet` 在固定策略、期限和调用预算内推进计划，TLS/证书配置错误
 不作为 owner 死亡证据。旧 CAS 不换 ETag，原 SQL 的 UNKNOWN 仍用 lookup/cancel；固定12场景
-已覆盖多controller竞争、取消、拒绝与迟到操作；本批动态配置、旧历史和退役另按
-[动态 fleet 合同](docs/architecture/dynamic-owner-fleet.md)验收。自动编号见 #62，不能由原矩阵推导。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
+已覆盖多controller竞争、取消、拒绝与迟到操作；动态配置、旧历史和退役已随 #66 按
+[动态 fleet 合同](docs/architecture/dynamic-owner-fleet.md)验收合入。自动编号见 #62，不能由原矩阵推导。协议与范围见[owner 计划](docs/architecture/accepted-owner-plan.md)、
 [控制器方案](docs/architecture/owner-controller-plan.md)及 [SDK 合同](sdk/node/README.md)。
 
 命名入口独立启用 `POST /v1/catalogue`。保存固定创建意图后显式推进到 Ready，再按相同 Scope 激活；目录 Ready 不等于 writer 已激活。取消只竞争未绑定的 Reserved，正常删除先保留永久 Deleted HEAD 再释放名称。名称重用产生新 Scope，已有 SQL 意图不会自动改目标。

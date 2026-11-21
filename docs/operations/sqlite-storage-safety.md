@@ -24,7 +24,7 @@ AWS EFS 支持 NFSv4 advisory 字节范围锁，但这种支持不是 SQLite 跨
 
 代码对应：[服务目录](../../crates/scap-service/src/engine.rs)、[私有镜像](../../crates/scap-object-sqlite/src/file.rs)、[提交 gate](../../crates/scap-object-sqlite/src/gate.rs)、[HEAD 发布与接管](../../crates/scap-object/src/lib.rs)、[条件对象访问](../../crates/scap-object-store/src/lib.rs)。
 
-AWS S3 提供强一致对象访问、单 key 原子更新及条件写，但没有跨 key 原子事务。SCAP 必须自行保证依赖先于 HEAD 发布、身份 fencing、UNKNOWN 查证以及未来 GC 的保护关系。[S6][S7] 本地兼容端点的结果不能代替 AWS Standard 合同验收。
+AWS S3 提供强一致对象访问、单 key 原子更新及条件写，但没有跨 key 原子事务。SCAP 必须自行保证依赖先于 HEAD 发布、身份 fencing、UNKNOWN 查证以及 GC 的保护关系。[S6][S7] 本地兼容端点的结果不能代替 AWS Standard 合同验收。
 
 ## 固定内核与单库并发边界
 
@@ -72,7 +72,13 @@ SQLite 官方在 2026 年公开 WAL-reset 缺陷：同一文件上的多个连�
 
 目录准入不是每次 VFS 文件打开时的沙箱拦截，不能阻止有权改变进程、全局配置或挂载命名空间的代码绕过部署前提。并发内存／磁盘预算、实际网络挂载故障与压力验证仍须分别验收；真实 procfs 拒绝不能冒充 EFS/NFS 实验。
 
-对象数据前缀禁止外部覆盖、删除可达对象及任意 bucket TTL。GC/pin/PITR 尚未完整实现，不能用“缓存可丢弃”替代它们的正确性合同。主文件逻辑配额也不限制对象存储总量。
+对象数据前缀禁止外部覆盖、删除可达对象及任意 bucket TTL。当前主线已经实现 HEAD6
+代际复制、永久退休与有界 sweep，HEAD7 Deleted 最后一代退休，以及 S1 保留根和
+S2 新 Scope 恢复；默认仍不授予 GC 删除权限。普通读取采用可中止读取与退休检查，
+并非每次读都建立永久 pin。GC 必须保护所有可达 retained roots，迟到孤儿需公平重复
+sweep；任意时间 PITR 和长期存储成本收敛仍需独立实现／验收。不能用“缓存可丢弃”
+替代这些协议，主文件逻辑配额也不限制对象存储总量。最新状态见
+[本轮复核](../engineering/sqlite-s3-review-2026-11-20.md)。
 
 ## 验证合同与实际范围
 

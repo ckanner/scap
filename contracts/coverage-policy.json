@@ -14,6 +14,7 @@
     "crates/scap-object-sqlite/src/config_tests.rs",
     "crates/scap-object-sqlite/src/file_tests.rs",
     "crates/scap-object-sqlite/src/image_tests.rs",
+    "crates/scap-object-sqlite/src/parameter_tests.rs",
     "crates/scap-object-sqlite/src/query_tests.rs",
     "crates/scap-object-sqlite/src/result_memory_tests.rs",
     "crates/scap-object-sqlite/src/tests.rs",

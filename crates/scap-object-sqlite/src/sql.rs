@@ -2,7 +2,7 @@ use std::panic::AssertUnwindSafe;
 use std::path::Path;
 
 use libsql_sys::rusqlite::hooks::{AuthAction, AuthContext, Authorization};
-use libsql_sys::rusqlite::types::{Value as NativeValue, ValueRef};
+use libsql_sys::rusqlite::types::{ToSqlOutput, ValueRef};
 use libsql_sys::rusqlite::{self, Batch, OpenFlags};
 use libsql_sys::wal::{Sqlite3WalManager, WalManager};
 use scap_sql::{ResultMemoryBudget, Statement, StatementResult, TransactionResult, Value};
@@ -438,14 +438,18 @@ fn resource_exhausted(_: scap_sql::SqlError) -> Error {
     Error::ResourceExhausted
 }
 
-pub(crate) fn native_value(value: &Value) -> NativeValue {
-    match value {
-        Value::Null => NativeValue::Null,
-        Value::Integer(value) => NativeValue::Integer(*value),
-        Value::Real(value) => NativeValue::Real(*value),
-        Value::Text(value) => NativeValue::Text(value.clone()),
-        Value::Blob(value) => NativeValue::Blob(value.clone()),
-    }
+pub(crate) fn native_value(value: &Value) -> ToSqlOutput<'_> {
+    // The pinned rusqlite binder copies nonempty text/blob with SQLITE_TRANSIENT.
+    // Borrow the already-owned request until that call instead of allocating an
+    // intermediate Rust payload which would immediately be copied a second time.
+    // Empty text/blob retain the binder's distinct empty-value semantics.
+    ToSqlOutput::Borrowed(match value {
+        Value::Null => ValueRef::Null,
+        Value::Integer(value) => ValueRef::Integer(*value),
+        Value::Real(value) => ValueRef::Real(*value),
+        Value::Text(value) => ValueRef::Text(value.as_bytes()),
+        Value::Blob(value) => ValueRef::Blob(value),
+    })
 }
 
 pub(crate) fn spend(remaining: &mut usize, amount: usize) -> Result<(), Error> {

@@ -10,6 +10,8 @@ use scap_sql::{ResultMemoryBudget, SqlError, Value};
 mod capacity_tests;
 #[path = "image_tests.rs"]
 mod image_tests;
+#[path = "parameter_tests.rs"]
+mod parameter_tests;
 #[path = "query_tests.rs"]
 mod query_tests;
 #[path = "result_memory_tests.rs"]
