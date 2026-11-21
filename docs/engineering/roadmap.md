@@ -5,33 +5,35 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-18（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 已合入
-`02476c8`。本批从该主线接续同库并行强读池、有限动态 fleet、内核资源准入和固定开环
-负载合同；当前源码、实际与 CI 状态以[本批交付记录](sqlite-s3-scale-validation-2026-11-18.md)为准。
+更新：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 和
+[PR #66](https://github.com/ckanner/scap/pull/66) 均已合入，主线基准 `b9d736ba` 的
+6 个工作流、24 个 job 全部成功。并行强读、有限动态 fleet、内核资源准入和固定开环
+合同已在主线。[本轮复核](sqlite-s3-review-2026-11-20.md)记录重新查询的远端状态及
+参数绑定优化；[原交付记录](sqlite-s3-scale-validation-2026-11-18.md)保留 #66 的原始来源。
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
-| 组合单位与代码质量 | 新组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%；Node 182 单位、22 模块精确 V8、HTTP/CLI/类型通过 | 最终提交的完整远端 CI 单独判定；历史失败不改写 |
+| 组合单位与代码质量 | #66 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%；Node 182 单位、22 模块精确 V8、HTTP/CLI/类型通过；合并提交24/24 jobs成功 | 新变更使用自己的验证；历史失败不改写 |
 | N0/N1 权威与提交 | 原 HEAD CAS、完整依赖回读、原结果、native publication、owner fencing、取消及 UNKNOWN 均保留 | AWS Standard 与部署故障域另验；有限本地合同不代表任意容量与云端合同 |
-| N2 多库与身份 | actor、永久启动 ID、owner/controller 已合入；本批实现同库读池、有限策略历史/在线退役、真实 cgroup/tmpfs 准入与开环分窗进展合同 | 全局 fleet 共识/自动扩缩容、无限历史、每租户硬隔离、冷启动风暴另验 |
+| N2 多库与身份 | actor、永久启动 ID、owner/controller、同库读池、有限策略历史/在线退役、真实 cgroup/tmpfs 准入与开环分窗进展合同均已合入 | 全局 fleet 共识/自动扩缩容、无限历史、每租户硬隔离、冷启动风暴另验 |
 | N3 保留与恢复 | S1 retained roots 与完整 S2 新 Scope 恢复已实现；新 release S2 7 场景/126 负控通过，源 payload 删除后目标仍独立 | 任意时间 PITR、长期 GC/保留成本、冷恢复优化 |
-| 吞吐与首发 | 有界 S3 idle pool 8 保留；#60 GET 省略候选退出交付；本批固定单事务/SQL batch 与开环观察 | 原约 24% 下降没有被宣称已解决；group commit、lazy VFS、新 MVCC、AWS 与生产 SLO 未认证 |
+| 吞吐与首发 | 有界 S3 idle pool 8 保留；#60 GET 省略候选关闭归档；固定单事务/SQL batch 与开环观察已合入 | 原约 24% 下降没有被宣称已解决；group commit、跨库 WAL 聚合、lazy VFS、新 MVCC、AWS 与生产 SLO 未认证 |
 
 四项实际分别有冻结候选与原件记录，内核合同来自真实 systemd/cgroup/tmpfs runner。
 首轮 CI 的 GC region 与独立实验 lockfile 问题已修复；过载大 ZIP 改用保留全部硬链接
-的归档交付。最终以 [PR #66](https://github.com/ckanner/scap/pull/66) 的精确 head/main、
-全部 CI 与最终 tree 判定合入，不修改分支保护，不把本地结果改称远端 CI 通过。
+的归档交付。#66 的 PR 验收 tree 与合并主线 tree 均为 `8c1a7b2f`；本轮远端复核再次确认
+主线全部 CI 成功。新代码不沿用这些历史计数作为自己的通过结果。
 
 ## 接续实施顺序与验收
 
 详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. #65 已合入；收口本批读池、动态 fleet、资源准入与开环合同的组合 CI、真实
-   进程/S3/内核、独立审计与负控，保留每次失败和修正。
+1. #65/#66 已合入；本轮核对共享文件安全、并发、资源和恢复边界，优化 native
+   参数绑定的多余分配，并同步设计文档。新代码按本轮精确覆盖及受影响实际合同验收。
 2. 性能按完整当前候选与固定工作量判定。历史四样本诊断保留全部负值，能确认观察器
    成本，不能恢复旧运行没有采集的因果证据。不得通过删回读、降同步或延后 ACK 换吞吐。
-3. 本批有限动态 fleet、读池、内核准入和开环合同只按已实现的范围交付。长期资源/GC、
-   冷启动风暴、group commit、lazy VFS、新 MVCC、全局 fleet 共识及任意时间 PITR
+3. 有限动态 fleet、读池、内核准入和开环合同按已实现范围交付。长期资源/GC、
+   冷启动风暴、group commit、跨库 WAL 聚合、lazy VFS、新 MVCC、全局 fleet 共识及任意时间 PITR
    仍各需独立协议和故障合同。S2 与自动编号已经完成，不再写成尚未开发。
 4. 固定目标 AWS/兼容后端、IAM/密钥、故障域和数字 SLO，执行真实条件写、全计算
    丢失、长期成本与恢复。Express One Zone 的故障域不能由 Standard checkpoint 改写。
