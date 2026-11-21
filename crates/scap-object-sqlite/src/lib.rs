@@ -2,12 +2,15 @@
 //!
 //! This crate has no durable authority of its own. Its trusted caller supplies a
 //! verified physical image and resolves the request identity before execution.
-//! Final dirty pages and the exact buffered result reach `CommitGate` before
-//! SQLite publishes them. Only authoritative acceptance permits publication.
+//! Single-transaction dirty pages and the exact result reach `CommitGate`
+//! before native publication. Groups commit independent transactions only to
+//! inaccessible private staging, then require one durable group gate before
+//! adopting that image or returning any successful member result.
 
 mod config;
 mod file;
 mod gate;
+mod group;
 mod image;
 mod query;
 mod sql;
@@ -23,6 +26,7 @@ use scap_sql::{SqlLimits, Statement, TransactionResult};
 
 pub use file::{ImageBuilder, PreparedImage};
 use gate::{Attempt, GateState, GateWal, Resolution};
+pub use group::{GroupCommitGate, GroupLimits, GroupMember, GroupRun, StagedTransaction};
 pub use storage::{temporary_directories, validate_cache_directory};
 
 pub const PAGE_SIZE: usize = 4096;

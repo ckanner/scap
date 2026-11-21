@@ -118,6 +118,10 @@ fn assemble_using(
     if let Some(read_pool) = read_pool {
         read_pool.validate(limits)?;
     }
+    let group_commit = prepared.admission.group_commit;
+    if let Some(group_commit) = group_commit {
+        group_commit.validate(limits)?;
+    }
     let admission = &prepared.admission;
     if !prepared.listen.ip().is_loopback()
         || prepared.worker_instance == WorkerInstance::Explicit(0)
@@ -278,7 +282,12 @@ fn assemble_using(
             .with_query_refresh(index >= limits.active_database_actors + limits.control_workers),
         ))
     });
-    let scheduler = Arc::new(Scheduler::with_read_pool(limits, read_pool, factory)?);
+    let scheduler = Arc::new(Scheduler::with_execution(
+        limits,
+        read_pool,
+        group_commit,
+        factory,
+    )?);
     let admission = prepared.admission;
     Ok(Assembly {
         address: prepared.listen,

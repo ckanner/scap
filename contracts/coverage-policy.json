@@ -13,6 +13,7 @@
     "crates/scap-object-sqlite/src/capacity_tests.rs",
     "crates/scap-object-sqlite/src/config_tests.rs",
     "crates/scap-object-sqlite/src/file_tests.rs",
+    "crates/scap-object-sqlite/src/group_tests.rs",
     "crates/scap-object-sqlite/src/image_tests.rs",
     "crates/scap-object-sqlite/src/parameter_tests.rs",
     "crates/scap-object-sqlite/src/query_tests.rs",
@@ -50,6 +51,7 @@
     "crates/scap-object/src/closure_tests.rs",
     "crates/scap-object/src/data_tree_tests.rs",
     "crates/scap-object/src/format_tests.rs",
+    "crates/scap-object/src/group_tests.rs",
     "crates/scap-object/src/head_fingerprint_tests.rs",
     "crates/scap-object/src/head_publication_tests.rs",
     "crates/scap-object/src/manifest_publication_tests.rs",
@@ -79,6 +81,7 @@
     "crates/scap-service/src/discovery/tests.rs",
     "crates/scap-service/src/discovery_cursor/tests.rs",
     "crates/scap-service/src/discovery_wire/tests.rs",
+    "crates/scap-service/src/engine/group_tests.rs",
     "crates/scap-service/src/engine/owner_tests.rs",
     "crates/scap-service/src/engine/snapshot_tests.rs",
     "crates/scap-service/src/engine/tests.rs",
@@ -95,6 +98,7 @@
     "crates/scap-service/src/resource_envelope/tests.rs",
     "crates/scap-service/src/restore/tests.rs",
     "crates/scap-service/src/restore_wire/tests.rs",
+    "crates/scap-service/src/scheduler/group_tests.rs",
     "crates/scap-service/src/scheduler/tests.rs",
     "crates/scap-service/src/snapshot_wire/tests.rs",
     "crates/scap-service/src/tests.rs",
@@ -122,7 +126,8 @@
     "experiments/object-load",
     "experiments/head-fingerprint",
     "experiments/service-profile",
-    "experiments/worker-instance"
+    "experiments/worker-instance",
+    "experiments/group-commit"
   ],
   "research_harness_rule": "Test assets only; no production runtime dependency or reuse without entering the production denominator.",
   "tooling_sources": [

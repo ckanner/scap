@@ -6,12 +6,16 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 
 ## 当前实现与验证状态
 
-最新核查：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 和
-[PR #66](https://github.com/ckanner/scap/pull/66) 均已合并，主线基准为
-[`b9d736ba`](https://github.com/ckanner/scap/commit/b9d736ba563b615004d35204e970ca5895ad618c)。
-owner/controller、S1/S2、永久实例身份、有界 S3 连接复用、同库并行强读池、受信动态
-fleet 和 Linux 内核资源准入均已在主线。该合并提交的 6 个工作流、24 个 job 全部成功，
-不是仍待合入的候选；本次逐项重新读取了远端结果，见[当前复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
+最新实施：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
+[PR #66](https://github.com/ckanner/scap/pull/66) 和 [PR #67](https://github.com/ckanner/scap/pull/67)
+均已合并，基准主线为 [`68246fd6`](https://github.com/ckanner/scap/commit/68246fd639d0331d5c90a31d8b3134e96532b3b5)。
+#67 的参数绑定优化与复核已完成独立验收；该 PR 最终候选的 6 个工作流、24 个 job
+全部成功，来源见[上轮复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
+
+本轮实现[同库独立事务 group commit](docs/architecture/independent-group-commit.md)：
+真实逐请求事务、原结果与连续逻辑版本，共用一次原 HEAD 条件发布；服务从已有队列
+有界组批，默认关闭。源码与完整验收进展见[本轮记录](docs/engineering/group-commit-validation-2026-11-20.md)，
+不继承旧候选的测试数量、覆盖或性能结论。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
@@ -53,7 +57,7 @@ Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision
 各自源码与原件身份，不能合算为当前候选的认证。
 
 自动实例身份分配、S2、读池、有限动态 fleet、资源准入与开环合同已经按上方范围合入。
-任意时间 PITR、独立事务 group commit、跨库 WAL 聚合、lazy VFS、新 MVCC 引擎、跨进程
+任意时间 PITR、跨库 WAL 聚合、lazy VFS、新 MVCC 引擎、跨进程
 fleet 共识、长期 GC／成本和真实 AWS／生产 SLO 仍有独立出口。单库 writer 仍串行，
 冷恢复仍完整读取闭包，热点写吞吐不会因增加 reader 或 pod 自动提高。
 
@@ -65,15 +69,15 @@ SCAP 不把 S3 挂载成 SQLite 文件，也不跨主机共享活动 `.db/WAL/SH
 | --- | --- | --- |
 | 共享网络文件的锁／同步风险 | 本地私有执行镜像，跨节点只通过对象 API 协调 | 本地 I/O、overlay 底层和挂载稳定性仍由部署保证；真实 NFS/EFS/FUSE 挂载验收不能用类型分类测试替代 |
 | 旧实例迟到写入 | 同一 HEAD 上的 owner epoch 和原 ETag CAS；#61 永久登记，#62 可自动取得新 ID | 首次升级历史和目标 IAM 另验；自动编号不授予数据库 owner、不刷新静态路由 |
-| 热点单库吞吐 | 单库 writer actor 串行，可选私有镜像强读池；短事务和一个事务内多 SQL 语句 | 读池增加读执行并发，未实现新 MVCC 引擎或独立事务 group commit；增加 pod 不会自动提高该库写吞吐 |
+| 热点单库吞吐 | 单库 writer actor 串行，可选强读池和独立事务 group commit；仍支持显式 SQL batch | group commit 摊薄可合组请求的发布，SQL 仍串行；新 MVCC、固定负载的吞吐/尾延迟收益另验 |
 | 多库与冷恢复 | 不同库有界 actor，独立控制池与恢复准入，空闲 actor 回收 | CPU、网络、磁盘和 S3 仍共享；冷恢复仍读取完整数据及保留结果闭包，没有 lazy VFS |
 | 长期存储 | HEAD6 代际复制／退休／持久 sweep，HEAD7 永久终态 seal；已合入的 S1 保护 retained roots，S2 恢复到独立新库 | GC 默认没有删除权限；需要重复 sweep，逻辑数据库配额不限制 bucket 总量 |
 
 S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不能包装成跨 AZ RPO=0。Turso 的开源 libSQL、Cloud 存储路径和新 Rust MVCC 引擎是不同层次；其基准不作为 SCAP 性能证据，详见[官方对照](docs/architecture/sqlite-s3-safety-and-throughput.md#6-turso-可以借鉴什么)。
 
 本轮采纳与暂缓的具体实践见 [Turso 接续设计](docs/architecture/turso-adoption-next.md)。
-当前保持 FULL 与受检 TRUNCATE；group commit、按需 VFS 和新引擎 MVCC 仍各需独立
-提交／可见性／故障协议，不能通过把 SQLite 文件放到网络卷或关闭同步来代替。
+当前保持 FULL 与受检 TRUNCATE；新增 group commit 采用独立的私有暂存与权威发布
+协议。按需 VFS 和新引擎 MVCC 仍需各自实现和故障验收。
 
 ## 实现入口
 
@@ -86,7 +90,7 @@ S3 Standard 是目标验证后端；S3 Express One Zone 的单 AZ 故障域不�
 | [scap-service / scapd](crates/scap-service/README.md) | 认证 HTTP、严格请求解析、独立控制与目录线程、租户／数据库排队与显式恢复 |
 | [Node SDK](sdk/node/README.md) | 固定原 SQL／目录／owner 意图、无损 typed SQL、结果查证／取消、显式业务路由；OwnerPlanClient、有限动态 OwnerControllerFleet 与快照接口均不自动重放 SQL |
 
-成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication → 返回成功。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
+成功写必须依次完成：暂存 SQL 与原结果 → 上传并回读校验不可变依赖 → 用原 ETag 条件发布 HEAD → 本地 native publication/受检收养 → 返回成功。普通路径在 native COMMIT 前等待；组路径先在不可见私有镜像完成各成员真实 COMMIT，远端接受后才收养并确认。HEAD 响应丢失时保留 UNKNOWN；查证和取消始终使用原请求身份，不重新执行随机 SQL。
 
 每个新强读先读取新的 HEAD，并校验当前 READ 权限和固定数据根。S3 不可用时新强读和写入都失败关闭，没有热缓存成功降级。接管以 HEAD CAS 推进 owner epoch，恢复数据与保留结果后重新核对 HEAD，再激活。
 

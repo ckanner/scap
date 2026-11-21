@@ -141,6 +141,10 @@ pub fn durable_sql_limits() -> SqlLimits {
 }
 
 pub(crate) fn input_budget(statements: &[Statement], maximum: usize) -> Result<(), Error> {
+    input_size(statements, maximum).map(|_| ())
+}
+
+pub(crate) fn input_size(statements: &[Statement], maximum: usize) -> Result<usize, Error> {
     // Match the request fingerprint wire encoding, including empty values and
     // container fields. Counting payload bytes alone misses empty-value work.
     let mut remaining = maximum.checked_sub(12).ok_or(Error::Limit)?;
@@ -159,7 +163,7 @@ pub(crate) fn input_budget(statements: &[Statement], maximum: usize) -> Result<(
             remaining = remaining.checked_sub(size).ok_or(Error::Limit)?;
         }
     }
-    Ok(())
+    Ok(maximum - remaining)
 }
 
 #[cfg(test)]

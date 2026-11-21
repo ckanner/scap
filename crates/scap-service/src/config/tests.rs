@@ -72,6 +72,62 @@ fn environment(_: &str) -> Option<OsString> {
 }
 
 #[test]
+fn opportunistic_groups_are_optional_strict_and_fit_the_existing_data_queue() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .admission
+        .group_commit
+        .is_none());
+    let profile = json!({"version":1,"max_members":2,"max_input_bytes":65536,
+        "max_changed_pages":2048,"max_result_bytes":1048576});
+    value["admission"]["group_commit"] = profile.clone();
+    let enabled = parsed(value.clone()).prepare_with(&environment).unwrap();
+    assert_eq!(
+        enabled.service.admission.group_commit.unwrap().max_members,
+        2
+    );
+    for (field, bad) in [
+        ("version", 2u64),
+        ("max_members", 0),
+        ("max_members", 1),
+        ("max_members", 4),
+        ("max_members", 65),
+        ("max_input_bytes", 0),
+        ("max_input_bytes", 64 * 1024 * 1024 + 1),
+        ("max_changed_pages", 0),
+        ("max_changed_pages", u32::MAX as u64),
+        ("max_result_bytes", 0),
+        ("max_result_bytes", 64 * 1024 * 1024 + 1),
+    ] {
+        let mut invalid = value.clone();
+        invalid["admission"]["group_commit"][field] = json!(bad);
+        assert_eq!(
+            parsed(invalid)
+                .prepare_with(&|_| panic!("group admission precedes credentials"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG",
+            "{field}={bad}"
+        );
+    }
+    for field in profile.as_object().unwrap().keys() {
+        let mut missing = value.clone();
+        missing["admission"]["group_commit"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(Config::parse(missing.to_string().as_bytes()).is_err());
+    }
+    value["admission"]["group_commit"]["max_wait_ms"] = json!(1);
+    assert!(Config::parse(value.to_string().as_bytes()).is_err());
+}
+
+#[test]
 fn independent_read_pool_requires_an_explicit_complete_bounded_profile() {
     let directory = tempfile::tempdir().unwrap();
     let mut value = sample_config(directory.path());

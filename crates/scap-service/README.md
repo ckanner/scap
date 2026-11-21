@@ -177,7 +177,35 @@ HTTP 的 data、control、recovery 与 catalogue 各有独立 intake 池；鉴�
 
 每个 actor 最多保留一个完整 scope 的 Session，`pages_per_actor` 按操作完成后的实际页面数决定缓存保留；失败 session 不复用。此阈值不预留恢复期间所需磁盘，单库超过阈值时会在操作后丢弃 Session。`parallel_recoveries` 限制全实例同时下载完整数据库。SQLite cache 与 HTTP/队列限额不是进程 RSS 或文件系统总量硬隔离；typed JSON、编码结果及原生 SQLite 仍可能有额外内存开销。
 
-一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；本批不是这些资源的硬隔离，也不增加单库多写者、并发 reader pool 或 group commit。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、retained snapshot/PITR 和跨区域灾备仍有后续实现与验收门禁。手动 live/abandoned 代回收与 HEAD7 Deleted 终态 payload 回收的范围见[专门说明](docs/reclamation.md)；永久身份元数据仍保留，HEAD6 验收不能代替新增终态路径的独立门禁。
+一个库的冷恢复不再阻塞另一热库的执行线程，但所有线程仍共享 S3 客户端、CPU、磁盘和网络；actor 隔离本身不是这些资源的硬隔离，也不增加单库多写者。活跃库数受线程上限约束，详见[执行隔离设计](../../docs/architecture/execution-isolation-and-throughput.md)。同库并行强读由独立的可选 [read pool](docs/read-pool.md) 提供，组提交另行显式启用，见下节。缓存目录应置于编排管理的私有临时卷；SIGKILL 后遗留的旧实例目录由该卷的生命周期清理，新实例不会把它们当权威或直接复用。服务另有独立 discovery 与部署恢复入口；动态 owner 路由、自动接管、retained snapshot/PITR 和跨区域灾备仍有后续实现与验收门禁。手动 live/abandoned 代回收与 HEAD7 Deleted 终态 payload 回收的范围见[专门说明](docs/reclamation.md)；永久身份元数据仍保留，HEAD6 验收不能代替新增终态路径的独立门禁。
+
+### 可选同库独立事务组提交
+
+`admission.group_commit` 缺省关闭，原配置保留每请求单独提交的行为。需要时可在
+`admission` 内显式增加完整 profile，例如：
+
+```json
+"group_commit": {
+  "version": 1,
+  "max_members": 4,
+  "max_input_bytes": 65536,
+  "max_changed_pages": 2048,
+  "max_result_bytes": 1048576
+}
+```
+
+`max_members` 为 2–64，且不得超过 `queued_per_database - reserved_controls`；
+其余预算必须非零且不超过持久格式上限，core 还会按当前数据库 Options 收紧。
+只有同一完整 scope、同一完整可信主体、已经连续排队的 `execute` 才有机会成组，
+不会等待凑批，也不会越过 query、恢复、priority 或不同身份边界。
+
+每个成员执行自己的真实 SQLite 事务，保留原 request、结果和 receipt；完整成功前缀
+通过一次原 HEAD 条件发布获得权威。组批资格不满足时，只执行原队首的普通路径。
+实际已经开始的成员不会重放，尚未开始的后缀保留原顺序、deadline、intake、输出与
+队列额度。组内错误、UNKNOWN、可保留前缀的条件以及单库吞吐边界，见
+[独立事务组提交设计](../../docs/architecture/independent-group-commit.md)。
+该路径可以与 read pool 同时启用，不增加同库并行 writer，也不改变 HTTP 或 SDK 的
+逐请求接口。
 
 ## 验证
 

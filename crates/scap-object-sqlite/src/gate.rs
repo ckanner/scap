@@ -26,6 +26,14 @@ pub(crate) struct GateState<G> {
     pub limits: WriterLimits,
     pub attempt: Option<Attempt>,
     pub resolution: Option<Resolution>,
+    staging: Option<StageCapture>,
+}
+
+pub(crate) struct StageCapture {
+    pub base_pages: u32,
+    max_changed_pages: u32,
+    pub pending: Option<PageBatch>,
+    pub error: Option<Error>,
 }
 
 impl<G: CommitGate> GateState<G> {
@@ -35,12 +43,56 @@ impl<G: CommitGate> GateState<G> {
             limits,
             attempt: None,
             resolution: None,
+            staging: None,
         }
     }
 
     pub fn reset(&mut self) {
         self.attempt = None;
         self.resolution = None;
+        self.staging = None;
+    }
+
+    pub fn begin_staging(&mut self, base_pages: u32, max_changed_pages: u32) {
+        self.reset();
+        self.staging = Some(StageCapture {
+            base_pages,
+            max_changed_pages,
+            pending: None,
+            error: None,
+        });
+    }
+
+    pub fn take_staging(&mut self) -> StageCapture {
+        self.staging.take().expect("one capture per group member")
+    }
+
+    fn capture_limit(&self) -> u32 {
+        self.staging
+            .as_ref()
+            .map_or(self.limits.max_changed_pages, |stage| {
+                stage.max_changed_pages
+            })
+    }
+
+    pub(crate) fn capture_or_publish(&mut self, mut batch: PageBatch) -> bool {
+        let Some(stage) = self.staging.as_mut() else {
+            return self.decide_caught(batch);
+        };
+        // Native COMMIT may only contribute one final capture. This never
+        // calls the authority gate and never manufactures Accepted.
+        if stage.pending.is_some() || stage.error.is_some() {
+            stage.error = Some(Error::InvalidSql);
+            return false;
+        }
+        let mut limits = self.limits;
+        limits.max_changed_pages = stage.max_changed_pages;
+        if let Err(error) = image::normalize_growth(stage.base_pages, &mut batch, limits) {
+            stage.error = Some(error);
+            return false;
+        }
+        stage.pending = Some(batch);
+        true
     }
 
     /// Install UNKNOWN before calling the adapter. Panics may occur after an
@@ -153,9 +205,9 @@ impl<W: Wal, G: CommitGate> WrapWal<W> for GateWal<G> {
     ) -> wal::Result<usize> {
         ffi_guard(&mut || {
             validate_mode(page_size, is_commit)?;
-            let limit = self.state.borrow().limits.max_changed_pages;
+            let limit = self.state.borrow().capture_limit();
             let batch = collect(size_after, &mut page_headers.iter(), limit)?;
-            if !self.state.borrow_mut().decide_caught(batch) {
+            if !self.state.borrow_mut().capture_or_publish(batch) {
                 return Err(wal::Error::new(ffi::SQLITE_ABORT));
             }
             wrapped.insert_frames(page_size, page_headers, size_after, is_commit, sync_flags)

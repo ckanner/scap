@@ -1,29 +1,28 @@
 # SQLite on S3：当前状态、目标与接续交付
 
-更新：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
-[PR #66](https://github.com/ckanner/scap/pull/66) 已合入，主线基准为 `b9d736ba`。
-owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库并行强读池、受信动态
-fleet、Linux 内核资源准入，以及固定开环过载与 SQL batch 合同均已交付。
-主线 6 个工作流、24 个 job 全部 success 已重新核对，见[当前复核](sqlite-s3-review-2026-11-20.md)。
-原实现、失败和各冻结来源的证据仍见[并发与资源交付记录](sqlite-s3-scale-validation-2026-11-18.md)。
+更新：2026-11-20（纽约）。#65/#66/#67 已合入，基准主线为 `68246fd6`。
+owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库强读池、受信动态 fleet、
+内核资源准入和固定开环合同均保留各自[历史交付来源](sqlite-s3-scale-validation-2026-11-18.md)。
 
 ## 本轮接续范围
 
-本轮审查再次核对私有镜像、文件系统准入、同 HEAD 的 owner fencing、native 提交挂点、
-读池与资源归还；并去掉 native 参数绑定前的一次 Text/BLOB 中间分配。SQL 数据类型、
-原请求身份、持久发布和 ACK 顺序保持原合同。当前代码验证只属于[本轮记录](sqlite-s3-review-2026-11-20.md)。
+[独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
+private native 逐事务 staging、每成员逻辑版本/原结果及一次原 HEAD CAS、默认关闭的
+有界 writer 队列组批。SQL 失败保留安全前缀，未开始后缀保序留队；取消/owner/权限等
+仍在同 HEAD 排序；已执行成员不重试。完整单元/精确覆盖、独立协议模型与实际
+HTTP/S3/进程恢复按[本轮验证记录](group-commit-validation-2026-11-20.md)归属。
 
-接续工作按瓶颈和独立验收范围安排：
+接续目标继续分开交付：
 
-1. 固定工作负载分别测单库写、同库读写、多租户并发和冷启动；逐次报告成功事务、排队、
-   尾延迟、对象请求及字节。当前短样本和 SQL batch 行数不能冒充生产 TPS。
-2. 独立事务 group commit 与跨库 WAL 聚合分别设计；前者改变单库提交挂点和结果发布，
-   后者改变共享对象寻址与 GC，均不能由现有 SQL batch 推导。具体合同见
+1. 在目标后端对同一固定开环负载配对测单请求与组提交，报告独立成功事务、排队、
+   p50/p95/p99、对象请求/字节和控制延迟。正确性与减少 HEAD CAS 不等于生产收益。
+2. 跨库 WAL/对象打包仍需共享寻址、逐库发布和共享对象 GC；lazy VFS 仍需已授权
+   固定根、native pager、校验按需读页和有界在途 I/O。具体边界见
    [Turso 接续设计](../architecture/turso-adoption-next.md)。
-3. lazy VFS 固定单次已授权根、校验按需读页、约束缓存与在途 I/O；PITR 另需连续历史、
-   时间索引和 GC 保护。S2 的显式保留点恢复已经完成。
-4. 目标后端实际验证、长期 GC/保留成本、跨故障域恢复和预先约定的生产 SLO 仍为
-   NOT_RUN。跨 controller 共识、自动扩缩容与每租户内核隔离是独立能力，不由 #66 推导。
+3. 任意时间 PITR 还需连续历史、时间索引与 GC 保护；现有 S2 是显式保留点的完整
+   新 Scope 恢复。新引擎 MVCC 需 SQL、隔离、冲突、挂点和恢复独立兼容验收。
+4. 目标 AWS、长期 GC/保留成本、跨故障域恢复、预先冻结的生产 SLO 保持 NOT_RUN。
+   跨 controller 共识、自动扩缩容、每租户硬隔离和冷启动风暴仍有独立出口。
 
 下文标明日期的组合数量和旧阶段描述保留各自历史身份；当前状态以上述主线为准。
 

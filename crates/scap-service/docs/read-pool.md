@@ -56,8 +56,10 @@ SQLite 执行错误、GET 失败、结果限额、中断以及任何已经开始
 
 ## 能力边界与验收
 
-该能力提供同库并行强读，以及私有读快照和写 actor 的并行执行。它不增加同库并行
-writer，不实现 group commit、共享 WAL reader、lazy VFS 或新 MVCC 引擎。
+该能力提供同库并行强读，以及私有读快照和写 actor 的并行执行。读池本身不实现
+group commit；可以与独立可选的 `admission.group_commit` 写 actor 路径同时启用，
+详见[独立事务组提交设计](../../../docs/architecture/independent-group-commit.md)。
+两者都不增加同库并行 writer，也不实现共享 WAL reader、lazy VFS 或新 MVCC 引擎。
 
 单元验证覆盖真正重叠的同库读、写／control 独立进展、tenant／database 活跃上限、
 公平跳过、启动失败、panic 后资源析构、shutdown join、fresh HEAD、stale-cache

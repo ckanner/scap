@@ -5,11 +5,10 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65) 和
-[PR #66](https://github.com/ckanner/scap/pull/66) 均已合入，主线基准 `b9d736ba` 的
-6 个工作流、24 个 job 全部成功。并行强读、有限动态 fleet、内核资源准入和固定开环
-合同已在主线。[本轮复核](sqlite-s3-review-2026-11-20.md)记录重新查询的远端状态及
-参数绑定优化；[原交付记录](sqlite-s3-scale-validation-2026-11-18.md)保留 #66 的原始来源。
+更新：2026-11-20（纽约）。#65/#66/#67 已合入，当前实现基于主线 `68246fd6`。
+本轮新增默认关闭的[独立事务 group commit](../architecture/independent-group-commit.md)，
+真实逐事务 staging、每成员版本/原结果和一次原 HEAD CAS 已接通服务调度。
+验证来源见[本轮记录](group-commit-validation-2026-11-20.md)。下表 #66 的计数保留历史归属。
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
@@ -17,7 +16,7 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 | N0/N1 权威与提交 | 原 HEAD CAS、完整依赖回读、原结果、native publication、owner fencing、取消及 UNKNOWN 均保留 | AWS Standard 与部署故障域另验；有限本地合同不代表任意容量与云端合同 |
 | N2 多库与身份 | actor、永久启动 ID、owner/controller、同库读池、有限策略历史/在线退役、真实 cgroup/tmpfs 准入与开环分窗进展合同均已合入 | 全局 fleet 共识/自动扩缩容、无限历史、每租户硬隔离、冷启动风暴另验 |
 | N3 保留与恢复 | S1 retained roots 与完整 S2 新 Scope 恢复已实现；新 release S2 7 场景/126 负控通过，源 payload 删除后目标仍独立 | 任意时间 PITR、长期 GC/保留成本、冷恢复优化 |
-| 吞吐与首发 | 有界 S3 idle pool 8 保留；#60 GET 省略候选关闭归档；固定单事务/SQL batch 与开环观察已合入 | 原约 24% 下降没有被宣称已解决；group commit、跨库 WAL 聚合、lazy VFS、新 MVCC、AWS 与生产 SLO 未认证 |
+| 吞吐与首发 | 有界 S3 idle pool 8 保留；#60 GET 省略候选关闭归档；固定单事务/SQL batch 与开环观察已合入 | 原约 24% 下降没有被宣称已解决；group commit 本轮实现并单独验收，跨库 WAL、lazy VFS、新 MVCC、AWS/SLO 仍有出口 |
 
 四项实际分别有冻结候选与原件记录，内核合同来自真实 systemd/cgroup/tmpfs runner。
 首轮 CI 的 GC region 与独立实验 lockfile 问题已修复；过载大 ZIP 改用保留全部硬链接
@@ -28,15 +27,14 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. #65/#66 已合入；本轮核对共享文件安全、并发、资源和恢复边界，优化 native
-   参数绑定的多余分配，并同步设计文档。新代码按本轮精确覆盖及受影响实际合同验收。
-2. 性能按完整当前候选与固定工作量判定。历史四样本诊断保留全部负值，能确认观察器
-   成本，不能恢复旧运行没有采集的因果证据。不得通过删回读、降同步或延后 ACK 换吞吐。
-3. 有限动态 fleet、读池、内核准入和开环合同按已实现范围交付。长期资源/GC、
-   冷启动风暴、group commit、跨库 WAL 聚合、lazy VFS、新 MVCC、全局 fleet 共识及任意时间 PITR
-   仍各需独立协议和故障合同。S2 与自动编号已经完成，不再写成尚未开发。
-4. 固定目标 AWS/兼容后端、IAM/密钥、故障域和数字 SLO，执行真实条件写、全计算
-   丢失、长期成本与恢复。Express One Zone 的故障域不能由 Standard checkpoint 改写。
+1. #67 参数绑定与文档复核已合入；本轮完成同库独立事务组提交，并按新的完整代码候选
+   采集精确覆盖、native、实际 HTTP/S3、进程故障和原字节审计。默认仍为单请求路径。
+2. 配对测量组提交在目标后端的实际收益；所有原失败和负值保留。FULL、受检 TRUNCATE
+   与最终 Manifest exact GET 保持，不以延后持久确认或删回读交换吞吐。
+3. 根据单库/多库/冷启动瓶颈继续跨库对象打包、lazy VFS、PITR；新 MVCC 引擎、全局
+   fleet 共识、自动扩缩容、每租户硬隔离和长期 GC 均需各自协议与故障合同。
+4. 固定目标 AWS/兼容后端、IAM、故障域和数字 SLO，实际验证条件写、全计算丢失、
+   长期成本与恢复。Express One Zone 故障域不能由 Standard checkpoint 改写。
 
 本地活动 `.db/WAL/SHM` 始终私有，S3 仅通过对象 API 承担跨节点权威，详见
 [存储安全与吞吐](../architecture/sqlite-s3-safety-and-throughput.md)、

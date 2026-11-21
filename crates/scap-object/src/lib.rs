@@ -13,10 +13,14 @@ mod snapshot_records;
 
 mod closure;
 mod data_tree;
+mod group;
 mod head_publication;
 mod object_context;
 mod reclamation;
 mod request_index;
+pub use group::{
+    GroupCommitted, GroupCompletion, GroupExecution, GroupLimits, GroupRequest, MAX_GROUP_MEMBERS,
+};
 pub use reclamation::SweepReport;
 
 use std::cell::RefCell;
@@ -362,8 +366,18 @@ impl Database {
         deadline: Instant,
     ) -> Result<(), Error> {
         objects.healthy()?;
-        let maximum = head.quota.max_pages().map_err(Error::Format)?;
         let publication = PreparedHead::new(self, base, head, deadline)?;
+        self.publish_manifest(objects, head, publication, deadline)
+    }
+
+    fn publish_manifest(
+        &self,
+        objects: &ObjectContext,
+        head: &Head,
+        publication: PreparedHead,
+        deadline: Instant,
+    ) -> Result<(), Error> {
+        let maximum = head.quota.max_pages().map_err(Error::Format)?;
         // SQL commits and dependency-changing management paths retain this independent
         // exact Manifest GET before the original HEAD CAS. Earlier immutable
         // create/readback does not replace this publication check.

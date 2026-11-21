@@ -1,10 +1,9 @@
 # 活跃数据库执行隔离与吞吐边界
 
-当前基线为 [PR #66](https://github.com/ckanner/scap/pull/66) 合入后的
-`b9d736ba563b615004d35204e970ca5895ad618c`：每库一个 writer actor，可显式启用
-独立的同库强读池；不同数据库的 actor 可以并行。读池已实现，单库并行 writer、
-独立事务 group commit 和 lazy VFS 尚未实现。控制器的接管与动态配置不改变这个
-执行边界。
+当前实现基于 [PR #67](https://github.com/ckanner/scap/pull/67) 合入后的 `68246fd6`：
+每库一个 writer actor，可显式启用独立强读池；不同数据库的 actor 可以并行。
+本轮新增[独立事务 group commit](independent-group-commit.md)，默认关闭，组合已入队
+的连续请求并保留逐事务语义。单库 SQL 仍串行；没有 lazy VFS 或并行 writer。
 
 #66 的冻结组合 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维精确
 覆盖，以及最终 PR/主线各 24 个 CI job 已通过。读池、动态 fleet、内核资源准入和
@@ -29,7 +28,7 @@ SQL 和失败写请求不重放。详见[读池合同](../../crates/scap-service
 2. `Starting` 在启动线程前占用全局及租户 actor 槽位。并发首请求只追加到同一 actor。线程启动、工厂初始化、执行、原生连接关闭及 `join` 均不持 registry 锁。
 3. actor 只有在没有在途操作、没有排队请求且 idle deadline 到达时才进入 `Draining`。`is_finished()` 只证明线程主函数返回，线程局部析构仍可能运行，因此不能把它当作允许请求线程同步 join 的证明。固定 reaper 在锁内取走 Draining handle，锁外 `join`，真正返回后才移除预留；请求提交不等待这一过程。新请求不能在旧连接或线程仍存活时复用槽位；handle 已被回收者取走时也必须保留预留。
 4. 活跃 actor 数及每租户 actor 数有显式硬上限，`Starting` / `Running` / `Draining` 都计入，不能靠初始化或退出阶段绕过。容量满时新库返回 `BACKPRESSURE`，已有热 actor 仍能接收其预算内的工作。不存在一请求一线程或无界启动等待队列。
-5. 全局、租户及 HEAD 排队预算统一计算 actor、读池和 control 队列中的 data / recovery / control，出队或丢弃立即归还。真正的 control 请求享有预留空间；冷恢复不能消耗这部分预留。计数不包含当前已执行操作；在途操作另受 actor 数、control worker 数，以及读池全局 worker 数和 tenant/database 活跃额度约束。
+5. 全局、租户及 HEAD 排队预算统一计算 actor、读池和 control 队列中的 data / recovery / control。普通单请求出队或丢弃时归还；组提交的选中前缀在实际工作结束之前继续保留原计费，未开始后缀原序回队且不重新加额度。真正的 control 请求享有预留空间，冷恢复不能消耗它。在途操作仍受 actor 数、control worker 数，以及读池全局 worker 数和 tenant/database 活跃额度约束。
 6. 同库优先恢复/管理任务最多连续执行三个后让普通 SQL 获得一次机会；control pool 在租户及库之间轮转。这个调度是非抢占的；正在执行的单库 SQL 仍可占用自己的 actor 到原始 deadline。
 7. 关闭、启动失败、工厂失败及 panic 都关闭相应队列并返回稳定错误。已经失去响应的在途操作不自动重放。全局关闭先封闭 admission，再在锁外等待线程退出。
 8. 恢复并发继续由同一全局 semaphore 限制，包含读池镜像重建，获取失败返回 `RECOVERY_BUSY`。调度器本身不探测故障或自动接管，不刷新候选 ETag、修改请求身份或重放 SQL；独立 controller 只能通过既定 owner-plan 协议推进。
@@ -100,7 +99,8 @@ writer 仍串行，活跃库数受 actor 线程上限约束。未启用读池时
 需要完整重建，不能把固定 reader 数直接换算成吞吐倍数。写提交按 128 KiB chunk /
 256 路数据树做 COW，并非每次全库上传；然而新对象依赖逐个 PUT + exact GET、分段
 请求索引路径更新、HEAD CAS、native publication 和同步 checkpoint 都位于提交路径。
-目前没有独立事务 group commit、lazy VFS、新 MVCC 执行引擎或 S3 Express 专用适配器。
+本轮可选 group commit 摊薄多个独立事务的 HEAD 检查/发布及最终 checkpoint，逐成员
+真实 COMMIT 仍保留 FULL 同步；没有 lazy VFS、新 MVCC 引擎或 S3 Express 专用适配器。
 已有 SQL batch 是一个事务内的多条语句，不能用逻辑行数/秒冒充独立事务/秒，也不能
 借 Turso 其他架构/硬件基准宣称 SCAP TPS。
 

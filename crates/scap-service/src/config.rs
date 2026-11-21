@@ -128,6 +128,9 @@ pub struct Admission {
     /// Explicitly enables independent, bounded same-database query workers.
     /// Absence preserves the original actor-only execution path.
     pub read_pool: Option<crate::scheduler::ReadPool>,
+    /// Only already-queued, compatible independent Execute requests can share
+    /// a publication. Missing configuration keeps the single-request path.
+    pub group_commit: Option<crate::group::Profile>,
     pub data_profile: Option<crate::intake::Profile>,
     pub control_profile: Option<crate::intake::Profile>,
     pub recovery_profile: Option<crate::intake::Profile>,
@@ -325,6 +328,9 @@ impl Config {
         admission.limits().validate()?;
         if let Some(read_pool) = admission.read_pool {
             read_pool.validate(admission.limits())?;
+        }
+        if let Some(group_commit) = admission.group_commit {
+            group_commit.validate(admission.limits())?;
         }
         // This listener has no TLS termination. It can only be exposed through
         // a separately configured authenticated TLS reverse proxy.

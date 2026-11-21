@@ -137,10 +137,29 @@ impl PreparedHead {
         Self::bound(database, &base, &next, deadline)
     }
 
+    pub(super) fn group(
+        database: &Database,
+        candidate: crate::group::VerifiedGroupTransition,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        let (base, next, members) = candidate.into_parts();
+        Self::bound_step(database, &base, &next, members, deadline)
+    }
+
     fn bound(
         database: &Database,
         base: &Snapshot,
         next: &Head,
+        deadline: Instant,
+    ) -> Result<Self, Error> {
+        Self::bound_step(database, base, next, 1, deadline)
+    }
+
+    fn bound_step(
+        database: &Database,
+        base: &Snapshot,
+        next: &Head,
+        members: u64,
         deadline: Instant,
     ) -> Result<Self, Error> {
         base.head.validate().map_err(Error::Format)?;
@@ -150,7 +169,11 @@ impl PreparedHead {
         {
             return Err(Error::Format(FormatError::Invalid));
         }
-        let serial = base.head.head_serial.checked_add(1).ok_or(Error::Limit)?;
+        let serial = base
+            .head
+            .head_serial
+            .checked_add(members)
+            .ok_or(Error::Limit)?;
         if next.head_serial != serial {
             return Err(Error::Format(FormatError::Invalid));
         }

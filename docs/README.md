@@ -8,7 +8,8 @@
 | 名称目录正式候选 | [ADR-0024](adr/0024-named-catalogue-and-permanent-identities.md)、[协议](architecture/name-catalogue-plan.md)、[服务接口](../crates/scap-service/catalogue.md)、[真实切点矩阵](../experiments/object-network/catalogue-matrix.md) |
 | HTTP／Node 完整本地验收 | [冻结候选、独立审计与限制](engineering/http-service-validation.md)、[机器证据](evidence/http-service-local-2026-11-07.json) |
 | 逻辑协议模型 | [N0 验证](engineering/object-authority-n0.md) |
-| 当前状态与剩余工作 | [2026-11-17 代码审查和修复](engineering/sqlite-s3-review-2026-11-17.md)、[接续交付计划](engineering/sqlite-s3-delivery-plan.md)、[路线图](engineering/roadmap.md) |
+| 当前状态与剩余工作 | [独立事务组提交验证](engineering/group-commit-validation-2026-11-20.md)、[接续交付计划](engineering/sqlite-s3-delivery-plan.md)、[路线图](engineering/roadmap.md) |
+| 同库独立事务 group commit | [完整设计与配置](architecture/independent-group-commit.md)、[真实 HTTP/S3/进程合同](../experiments/group-commit/README.md) |
 | SQLite on S3 与 Turso | [文件安全和吞吐](architecture/sqlite-s3-safety-and-throughput.md)、[Turso 分层对照](architecture/sqlite-s3-turso-review.md) |
 | 本地执行目录防护验收 | [冻结候选、真实回归与审计范围](engineering/local-storage-validation.md)、[机器证据](evidence/local-storage-guard-2026-11-07.json) |
 | SQLite／NFS 边界 | [本地执行文件防护与验证范围](operations/sqlite-storage-safety.md) |

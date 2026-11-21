@@ -8,6 +8,8 @@ use scap_sql::{ResultMemoryBudget, SqlError, Value};
 
 #[path = "capacity_tests.rs"]
 mod capacity_tests;
+#[path = "group_tests.rs"]
+mod group_tests;
 #[path = "image_tests.rs"]
 mod image_tests;
 #[path = "parameter_tests.rs"]
