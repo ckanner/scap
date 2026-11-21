@@ -20,7 +20,7 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
 原件、失败及来源仍见[原交付记录](docs/engineering/sqlite-s3-scale-validation-2026-11-18.md)。
-本轮参数绑定优化及文档修正有自己的验证记录，不能继承 #66 的测试计数或覆盖结论。
+#67 当时的参数绑定优化及文档修正有自己的验证记录，不能继承 #66 的测试计数或覆盖结论。
 Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision-decision-2026-11-18.md)
 退出本次交付；普通精确读取保留，历史约 24% 回退并未被宣称已解决。
 

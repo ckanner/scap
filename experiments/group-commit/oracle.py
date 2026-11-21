@@ -105,6 +105,24 @@ def inventory(events, history, ledger, probe):
                 require(moment(ready) < moment(row) < moment(stop), "HTTP escaped owned worker lifetime")
 
 
+def lost_reply_fault(events, request, response, suppressed):
+    """The named drop must bind the original handler before it selects rules.
+
+    The relay selects at request entry and observes its successful service
+    response before recording fault entry and suppressing client delivery.
+    A late rule or a different handler is not evidence of that response loss.
+    """
+    armed = one(events, "fault_armed", id="lost_member_reply")
+    entered = one(events, "fault_entered", id="lost_member_reply")
+    require(moment(armed) < moment(request), "lost reply fault was not armed before original request")
+    require(type(entered.get("http_serial")) is int and entered["http_serial"] == request["http_serial"],
+            "lost reply fault bound another HTTP request")
+    require(moment(response) < moment(entered) < moment(suppressed),
+            "lost reply fault entry was not after response and before suppression")
+    require(suppressed.get("id") == "lost_member_reply", "lost reply suppression fault identity changed")
+    require(suppressed.get("reason") == "explicit_response_loss", "lost reply suppression reason changed")
+
+
 def http(events, ledger, probe):
     configuration = one(events, "configuration")
     groups = defaultdict(list)
@@ -145,6 +163,7 @@ def http(events, ledger, probe):
             terminal = one(ledger, "http_transport_error", call_id=sdk_request["call_id"])
             require(len(rows) == 4 and response["suppressed"] is True and response["status"] == 200
                     and moment(response) < moment(suppressed) < client_moment(terminal), "lost reply was not actual accepted-response loss")
+            lost_reply_fault(events, request, response, suppressed)
         else:
             delivered = one(rows, "http_delivered")
             require(len(rows) == 4 and not response["suppressed"] and moment(response) < moment(delivered),

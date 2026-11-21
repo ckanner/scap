@@ -22,7 +22,7 @@
 | Native | `crates/scap-object-sqlite/src/group.rs`、`gate.rs`、`sql.rs` | 真实逐成员 BEGIN/COMMIT，私有页增量捕获、受检回滚和最终 checkpoint |
 | 权威协议 | `crates/scap-object/src/group.rs`、`head_publication.rs` | fresh-only 资格、同一原 HEAD/ObjectContext、每成员结果和根、受限多步发布 |
 | 服务 | `crates/scap-service/src/group.rs`、`scheduler/group.rs`、`engine/group.rs` | 显式配置、有界队列组批、实际工作生命周期、逐请求输出 |
-| 客户端 | 现有 `Client.prepare/save/execute/lookup/cancel` | HTTP/SDK wire 不增加批次请求；每个原请求仍恰好一次业务派发 |
+| 客户端 | 现有 `Client.prepare/save/execute/lookup/cancel` | HTTP/SDK wire 不增加批次请求；保留原请求身份，不新增自动 SQL 重放 |
 
 ## 2. 配置和调度
 

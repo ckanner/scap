@@ -31,6 +31,11 @@ RAW_CASES = {
     "failed_member_changed_sql": "original SQL changed",
     "extra_sdk_post": "missing/duplicate exact SDK POST",
     "lost_reply_claimed_ack": "SDK outcome differs from fixed command",
+    "lost_reply_armed_after_request": "lost reply fault was not armed before original request",
+    "lost_reply_fault_wrong_http_serial": "lost reply fault bound another HTTP request",
+    "lost_reply_entered_before_response": "lost reply fault entry was not after response and before suppression",
+    "lost_reply_suppressed_wrong_fault": "lost reply suppression fault identity changed",
+    "lost_reply_suppressed_wrong_reason": "lost reply suppression reason changed",
     "saved_result_substituted": "SDK stored another original result",
     "cold_result_regenerated": "cold lookup replayed non-deterministic SQL",
     "crashed_cache_reused": "cold recovery reused crashed cache",
@@ -201,6 +206,22 @@ def renumber(history, events):
             row["request_serial"] = serials[row["request_serial"]]
 
 
+def retime_event(events, row, timestamp, direction):
+    """Keep a counterfactual's raw clock/sequence schema valid after moving it.
+
+    This changes copied facts only. It must reach the fault's semantic rule,
+    rather than count a generic event-order failure as the intended rejection.
+    """
+    used = {oracle.moment(item) for item in events if item is not row}
+    while timestamp in used:
+        timestamp += direction
+    oracle.require(timestamp > 0, "control cannot fit a positive original clock")
+    row["monotonic_ns"] = timestamp
+    events.sort(key=oracle.moment)
+    for sequence, item in enumerate(events, 1):
+        item["sequence"] = sequence
+
+
 def raw_mutation(original, projection, name):
     rows = deepcopy(original)
     _, events, history, ledger, probe, _, saved, lookups = rows
@@ -258,6 +279,21 @@ def raw_mutation(original, projection, name):
         ledger.append(deepcopy(row))
     elif name == "lost_reply_claimed_ack":
         target(probe, "probe.jsonl", "command_finished", command="response_loss_b")["outcome"] = "ok"
+    elif name == "lost_reply_armed_after_request":
+        armed = target(events, "events.jsonl", "fault_armed", id="lost_member_reply")
+        request = target(events, "events.jsonl", "http_request", command="response_loss_b")
+        retime_event(events, armed, oracle.moment(request) + 1, 1)
+    elif name == "lost_reply_fault_wrong_http_serial":
+        entered = target(events, "events.jsonl", "fault_entered", id="lost_member_reply")
+        entered["http_serial"] += 1
+    elif name == "lost_reply_entered_before_response":
+        entered = target(events, "events.jsonl", "fault_entered", id="lost_member_reply")
+        response = target(events, "events.jsonl", "http_response", command="response_loss_b")
+        retime_event(events, entered, oracle.moment(response) - 1, -1)
+    elif name == "lost_reply_suppressed_wrong_fault":
+        target(events, "events.jsonl", "http_response_suppressed", command="response_loss_b")["id"] = "synthetic_wrong_loss_fault"
+    elif name == "lost_reply_suppressed_wrong_reason":
+        target(events, "events.jsonl", "http_response_suppressed", command="response_loss_b")["reason"] = "synthetic_different_suppression"
     elif name in ("saved_result_substituted", "cold_result_regenerated"):
         items, file, fields = (saved, "original-results.jsonl", {"command": "success_a"}) if name == "saved_result_substituted" else (
             lookups, "original-lookups.jsonl", {"original": "success_a"})

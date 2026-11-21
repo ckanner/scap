@@ -165,6 +165,29 @@ def inventory_fixture():
     return events, history, ledger, probe
 
 
+def lost_reply_fixture():
+    common = {"command": "response_loss_b", "worker": "primary", "http_serial": 43}
+    events = [
+        {"event": "fault_armed", "id": "lost_member_reply", "monotonic_ns": 10},
+        {"event": "http_request", "monotonic_ns": 20, **common},
+        {"event": "http_forwarded", "monotonic_ns": 30, **common},
+        {"event": "http_response", "monotonic_ns": 50, "status": 200, "suppressed": True, **common},
+        {"event": "fault_entered", "id": "lost_member_reply", "monotonic_ns": 60, **common},
+        {"event": "http_response_suppressed", "id": "lost_member_reply", "reason": "explicit_response_loss",
+         "monotonic_ns": 70, **common},
+    ]
+    for sequence, row in enumerate(events, 1):
+        row.update(schema=1, sequence=sequence)
+    return events
+
+
+def check_lost_reply(events):
+    oracle.lost_reply_fault(events,
+        oracle.one(events, "http_request", command="response_loss_b"),
+        oracle.one(events, "http_response", command="response_loss_b"),
+        oracle.one(events, "http_response_suppressed", command="response_loss_b"))
+
+
 class GroupProtocolTests(unittest.TestCase):
     def test_one_to_four_members_have_independent_revisions_and_original_results(self):
         for width in range(1, 5):
@@ -368,6 +391,22 @@ class GroupIntervalTests(unittest.TestCase):
 
 
 class CounterfactualControlTests(unittest.TestCase):
+    def test_lost_reply_raw_controls_reject_the_named_rule_without_clock_schema_failure(self):
+        original = [{}, lost_reply_fixture(), [], [], [], [], [], []]
+        check_lost_reply(original[1])
+        names = ("lost_reply_armed_after_request", "lost_reply_fault_wrong_http_serial",
+                 "lost_reply_entered_before_response", "lost_reply_suppressed_wrong_fault",
+                 "lost_reply_suppressed_wrong_reason")
+        for name in names:
+            with self.subTest(name=name):
+                changed, references = controls.raw_mutation(original, {}, name)
+                oracle.numbered(changed[1])
+                outcome = controls.rejection(name, "synthetic-unit-row-mutation", controls.RAW_CASES[name],
+                    lambda: check_lost_reply(changed[1]), original, changed, references)
+                self.assertEqual(outcome["status"], "passed", outcome)
+                self.assertTrue(references)
+        check_lost_reply(original[1])
+
     def test_full_inventory_rejects_extra_unobserved_work_and_changed_fault_rules(self):
         original = [{}, *inventory_fixture(), [], [], []]
         oracle.inventory(*original[1:5])
@@ -430,6 +469,46 @@ class CounterfactualControlTests(unittest.TestCase):
                 self.assertEqual(outcome["additional_actual_executions"], 0)
         with self.assertRaisesRegex(ValueError, "counterfactual did not change the audited facts"):
             controls.rejection("identity", "synthetic-unit-projection", "rule", lambda: None, {}, {}, [])
+
+
+class LostReplyFaultTests(unittest.TestCase):
+    def test_fault_must_be_armed_strictly_before_original_handler_entry(self):
+        for timestamp in (20, 21, 100):
+            events = lost_reply_fixture()
+            oracle.one(events, "fault_armed", id="lost_member_reply")["monotonic_ns"] = timestamp
+            with self.subTest(timestamp=timestamp), self.assertRaisesRegex(
+                    ValueError, "lost reply fault was not armed before original request"):
+                check_lost_reply(events)
+
+    def test_fault_entry_names_the_exact_http_serial_and_fits_the_response_interval(self):
+        for serial in (44, None, "43", True):
+            events = lost_reply_fixture()
+            oracle.one(events, "fault_entered", id="lost_member_reply")["http_serial"] = serial
+            with self.subTest(serial=serial), self.assertRaisesRegex(
+                    ValueError, "lost reply fault bound another HTTP request"):
+                check_lost_reply(events)
+        for timestamp in (49, 50, 70, 71):
+            events = lost_reply_fixture()
+            oracle.one(events, "fault_entered", id="lost_member_reply")["monotonic_ns"] = timestamp
+            with self.subTest(timestamp=timestamp), self.assertRaisesRegex(
+                    ValueError, "lost reply fault entry was not after response and before suppression"):
+                check_lost_reply(events)
+
+    def test_suppression_is_the_named_loss_not_another_fault_or_client_deadline(self):
+        for field, replacement, reason in (
+            ("id", "different_fault", "lost reply suppression fault identity changed"),
+            ("id", None, "lost reply suppression fault identity changed"),
+            ("reason", "original_client_deadline", "lost reply suppression reason changed"),
+            ("reason", None, "lost reply suppression reason changed"),
+        ):
+            events = lost_reply_fixture()
+            suppression = oracle.one(events, "http_response_suppressed", command="response_loss_b")
+            if replacement is None:
+                suppression.pop(field)
+            else:
+                suppression[field] = replacement
+            with self.subTest(field=field, replacement=replacement), self.assertRaisesRegex(ValueError, reason):
+                check_lost_reply(events)
 
 
 if __name__ == "__main__":

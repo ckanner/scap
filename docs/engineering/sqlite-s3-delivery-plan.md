@@ -34,7 +34,7 @@ Node 161 项单位及其覆盖、HTTP 7 项和 controller HTTP/进程 12 项通�
 release 又完成 S2 7 场景／126 负控、显式 ID 10 场景、自动 ID 18 场景及 TCP 8 场景。
 这些是各自有来源绑定的结果，远端整体 CI 与合入状态以 [PR checks](https://github.com/ckanner/scap/pull/65/checks)为准。
 
-本轮冻结源码、构建、修复及远端结论统一见
+#65 的历史冻结源码、构建、修复及远端结论统一见
 [self-review 与 CI 收口](sqlite-s3-self-review-2026-11-17.md)。旧候选的 877 项单位、
 4 个核心文件未命中、8 个 branch 零分母和初版恢复审计漏检继续原样保留在
 [前一组合验证](sqlite-s3-followup-validation-2026-11-17.md)。历史约 24% 四库吞吐
@@ -78,7 +78,7 @@ S3 中的 HEAD 和不可变对象保存唯一持久权威，计算实例和本�
 - 四个独立实际入口均已完成各自冻结来源的运行与 CI 审计；读池 19 负控、动态
   fleet 13 负控、内核 24 负控均有原件核验，过载首轮 CI 的完整 18 负控门禁通过，
   大 ZIP 的取回范围与后续保留硬链接的包装修复分别记录。
-- 最新组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%，
+- #66 该次组合 stable/nightly 各 911 单位、77 个 Rust 生产文件逐文件四维精确 100%，
   Node 182 单位及 22 模块精确 V8、HTTP/CLI/类型通过。所有原失败与最终提交 CI
   归属见[当前记录](sqlite-s3-scale-validation-2026-11-18.md)，不把旧候选认证转给新 head。
 
@@ -243,8 +243,10 @@ fleet 或未验证的实例身份分配：
 
 显式模式仍要求部署提供不复用的 `worker_instance`；#62 的 auto 模式可以从永久
 counter 取得新身份，但初始化历史、counter/marker 保留与 IAM 仍是部署前提。
-数值 guard 不能代替进程身份认证。动态 fleet、在线策略更新与自动扩缩容需要独立
-协议、迁移规则和竞争／撤权／停机实际，不由当前固定 controller 矩阵推导。
+数值 guard 不能代替进程身份认证。#66 已交付基于受信快照、完整有限策略历史和
+SIGHUP 的动态 fleet／在线策略更新，来源见[独立设计](../architecture/dynamic-owner-fleet.md)
+及其实际合同。跨 controller 共识、无限策略历史与自动扩缩容仍需独立协议、迁移
+规则及故障验收，不能由固定 controller 矩阵或有限 fleet 合同推导。
 
 ### 第二阶段：S2，从一个保留点恢复到全新 Scope（#65 已交付）
 
@@ -308,9 +310,12 @@ PR #60 两组配对中减少 Manifest GET 但 rate 下降的历史因果仍待�
 丢失，验证 metadata 与存储增长的收敛，不以一次 sweep 或逻辑配额代替。
 
 已合入的同库读池以私有完整镜像和每次新 HEAD 授权实现，见[独立合同](../../crates/scap-service/docs/read-pool.md)。
-group commit、跨库 WAL 聚合、lazy VFS 与新 MVCC 引擎仍各自改变提交／可见性／恢复关系，必须独立
-立项；现有跨库并发、reader pool 和 SQL batch 不能宣称已经实现这些能力。Turso 的公开实现与
-Cloud 路径只作设计参考，不能借用其基准作为 SCAP 实测。采纳、暂缓理由与后续协议
+同库独立事务 group commit 已由 [PR #68](https://github.com/ckanner/scap/pull/68) 实现，
+默认关闭；native 独立事务、一次原 HEAD 发布与服务组批的完整来源见
+[专项验收](group-commit-validation-2026-11-20.md)。目标后端的吞吐与尾延迟配对仍须另外执行。
+跨库 WAL 聚合、lazy VFS 与新 MVCC 引擎仍需各自协议及实现，现有跨库并发、reader pool、
+SQL batch 和同库组提交不能替代这些能力。Turso 的公开实现与 Cloud 路径只作设计参考，
+不能借用其基准作为 SCAP 实测。采纳、暂缓理由与后续协议
 要求见 [Turso 接续设计](../architecture/turso-adoption-next.md)。
 
 ### 第四阶段：目标后端与试运行出口
