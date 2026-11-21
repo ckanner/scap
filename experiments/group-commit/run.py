@@ -231,6 +231,10 @@ def run(args):
             hub.arm(gate, channel="s3", worker="primary", method="GET", path=HEAD, kind="hold")
             probe.send(phase + "_blocker")
             hub.wait(gate)
+            if phase == "response_loss":
+                # HTTP rules are selected when the original request arrives,
+                # before it waits on the database actor. Arm before admission.
+                hub.arm("lost_member_reply", channel="http", worker="primary", command="response_loss_b", kind="drop")
             for command in GROUPS[phase]:
                 probe.send(command["id"])
                 wait_forwarded(evidence / "events.jsonl", command["id"])
@@ -241,8 +245,6 @@ def run(args):
             if phase == "cancel_race":
                 hub.arm("group_candidate", channel="s3", worker="primary", method="PUT", path=HEAD,
                         nonce="74", kind="hold")
-            if phase == "response_loss":
-                hub.arm("lost_member_reply", channel="http", worker="primary", command="response_loss_b", kind="drop")
             hub.release(gate)
             probe.wait(phase + "_blocker")
             if phase == "cancel_race":
