@@ -6,11 +6,14 @@ owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库强�
 
 ## 本轮接续范围
 
+[PR #68](https://github.com/ckanner/scap/pull/68) 的
 [独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
 private native 逐事务 staging、每成员逻辑版本/原结果及一次原 HEAD CAS、默认关闭的
 有界 writer 队列组批。SQL 失败保留安全前缀，未开始后缀保序留队；取消/owner/权限等
 仍在同 HEAD 排序；已执行成员不重试。完整单元/精确覆盖、独立协议模型与实际
-HTTP/S3/进程恢复按[本轮验证记录](group-commit-validation-2026-11-20.md)归属。
+HTTP/S3/进程恢复按[本轮验证记录](group-commit-validation-2026-11-20.md)归属：本地
+stable/nightly 各 969 项单位、82 个生产文件四维精确 100%、28 份冷恢复原结果和
+40 项实际证据负控通过；最终远端状态单独核对 [checks](https://github.com/ckanner/scap/pull/68/checks)。
 
 接续目标继续分开交付：
 

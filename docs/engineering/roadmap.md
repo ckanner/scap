@@ -6,9 +6,13 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 ## 当前阶段
 
 更新：2026-11-20（纽约）。#65/#66/#67 已合入，当前实现基于主线 `68246fd6`。
-本轮新增默认关闭的[独立事务 group commit](../architecture/independent-group-commit.md)，
+本轮 [PR #68](https://github.com/ckanner/scap/pull/68) 新增默认关闭的
+[独立事务 group commit](../architecture/independent-group-commit.md)，
 真实逐事务 staging、每成员版本/原结果和一次原 HEAD CAS 已接通服务调度。
-验证来源见[本轮记录](group-commit-validation-2026-11-20.md)。下表 #66 的计数保留历史归属。
+本地完整冻结验证已有 stable/nightly 各 969 项单位、82 个生产文件四维精确 100%，
+正式服务的七阶段合同、28 份冷恢复原结果及 40 项审计负控通过。
+验证来源见[本轮记录](group-commit-validation-2026-11-20.md)，远端状态见
+[#68 checks](https://github.com/ckanner/scap/pull/68/checks)。下表 #66 的计数保留历史归属。
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |

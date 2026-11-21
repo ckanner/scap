@@ -12,10 +12,14 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 #67 的参数绑定优化与复核已完成独立验收；该 PR 最终候选的 6 个工作流、24 个 job
 全部成功，来源见[上轮复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
 
-本轮实现[同库独立事务 group commit](docs/architecture/independent-group-commit.md)：
+本轮 [PR #68](https://github.com/ckanner/scap/pull/68) 实现
+[同库独立事务 group commit](docs/architecture/independent-group-commit.md)：
 真实逐请求事务、原结果与连续逻辑版本，共用一次原 HEAD 条件发布；服务从已有队列
-有界组批，默认关闭。源码与完整验收进展见[本轮记录](docs/engineering/group-commit-validation-2026-11-20.md)，
-不继承旧候选的测试数量、覆盖或性能结论。
+有界组批，默认关闭。新本地冻结验证包含 stable/nightly 各 969 项单位、82 个 Rust
+生产文件四维精确 100%，以及真实组提交／取消／丢响应／清空缓存恢复合同和 40 项
+独立审计负控。精确源码、原失败与范围见[本轮记录](docs/engineering/group-commit-validation-2026-11-20.md)，
+远端状态见 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。目标后端的吞吐
+配对仍未执行，不继承旧候选的性能结论。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
