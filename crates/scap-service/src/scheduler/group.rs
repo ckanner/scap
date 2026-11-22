@@ -79,7 +79,7 @@ fn input_remaining(call: &Call, maximum: usize) -> Option<usize> {
 
 /// Worker drops before a panicking group's remaining credits and leases.
 pub(super) struct ActorWorker {
-    pub(super) worker: Box<dyn Worker>,
+    pub(super) worker: SingleWorker,
     pub(super) active: Option<Batch>,
 }
 

@@ -1,4 +1,4 @@
-name: Group commit, concurrent reads, fleet and kernel resource contracts
+name: Group commit, paired load, concurrent reads, fleet and resource contracts
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        contract: [group-commit, read-pool, object-dynamic-fleet-runtime, object-overload, kernel-envelope]
+        contract: [group-commit, group-commit-load, read-pool, object-dynamic-fleet-runtime, object-overload, kernel-envelope]
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
@@ -66,6 +66,13 @@ jobs:
       - name: Observe the complete fixed actual contract
         run: |
           case "$SCAP_CONTRACT" in
+            group-commit-load)
+              python3 -B experiments/group-commit-load/run.py \
+                --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \
+                --build-record "$RUNNER_TEMP/scap-next-evidence/build/build.json" \
+                --weed "$RUNNER_TEMP/scap-next-tools/weed" --node "$(command -v node)" \
+                --evidence "$RUNNER_TEMP/scap-next-evidence/run"
+              ;;
             group-commit)
               python3 -B experiments/group-commit/run.py \
                 --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \

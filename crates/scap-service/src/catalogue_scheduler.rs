@@ -61,6 +61,36 @@ struct Job {
     _reservation: Option<Arc<crate::intake::Lease>>,
 }
 
+/// The catalogue and restore pools share this owner. A running lease must not
+/// unwind with the temporary call frame before native/staging cleanup finishes.
+/// Fields drop in order: the worker first, then its active request reservation.
+struct ReservedWorker {
+    worker: Box<dyn Worker>,
+    reservation: Option<Arc<crate::intake::Lease>>,
+}
+
+impl ReservedWorker {
+    fn execute(&mut self, mut job: Job) {
+        self.reservation = job._reservation.take();
+        perform(self.worker.as_mut(), job);
+        // perform has returned and dropped the original call and any unsent
+        // value. Only then may normal completion release the running lease.
+        self.reservation = None;
+    }
+}
+
+fn perform(worker: &mut dyn Worker, job: Job) {
+    if job.reply.is_closed() {
+        return;
+    }
+    let result = if Instant::now() >= job.deadline {
+        Err(Failure::new("DEADLINE"))
+    } else {
+        worker.execute(&job.principal, job.call, job.deadline)
+    };
+    let _ = job.reply.send(result);
+}
+
 struct NameQueue {
     name: Option<String>,
     jobs: VecDeque<Job>,
@@ -264,7 +294,7 @@ impl Scheduler {
             scheduler.threads.push(
                 spawn(Box::new(move || {
                     let _close = CloseOnExit(lane.clone());
-                    let mut worker = match factory(index) {
+                    let worker = match factory(index) {
                         Ok(worker) => {
                             let _ = started.send(Ok(()));
                             worker
@@ -274,16 +304,12 @@ impl Scheduler {
                             return;
                         }
                     };
+                    let mut owned = ReservedWorker {
+                        worker,
+                        reservation: None,
+                    };
                     while let Some(job) = lane.next() {
-                        if job.reply.is_closed() {
-                            continue;
-                        }
-                        let result = if Instant::now() >= job.deadline {
-                            Err(Failure::new("DEADLINE"))
-                        } else {
-                            worker.execute(&job.principal, job.call, job.deadline)
-                        };
-                        let _ = job.reply.send(result);
+                        owned.execute(job);
                     }
                 }))
                 .map_err(|_| Failure::new("UNAVAILABLE"))?,

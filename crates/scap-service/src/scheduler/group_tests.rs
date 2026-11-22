@@ -477,10 +477,14 @@ fn panic_releases_group_credits_and_leases_only_after_worker_native_cleanup() {
     let work = shared.clone();
     let child = std::thread::spawn(move || {
         let mut owned = ActorWorker {
-            worker: Box::new(SlowDrop { started, freed }),
+            worker: SingleWorker::new(Box::new(SlowDrop { started, freed })),
             active: Some(batch(take(&work, Some(profile())))),
         };
-        owned.active.as_mut().unwrap().run(owned.worker.as_mut());
+        owned
+            .active
+            .as_mut()
+            .unwrap()
+            .run(owned.worker.worker.as_mut());
     });
     wait.recv_timeout(Duration::from_secs(5)).unwrap();
     assert_eq!(lock(&shared.state).usage.all.total, 2);

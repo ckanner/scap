@@ -1,0 +1,1418 @@
+{
+  "schema": 1,
+  "date": "2026-11-22",
+  "timezone": "America/New_York",
+  "pr": 69,
+  "base_main": "3be8be7273f716cd79bf0427b0beb224dc4781fe",
+  "production_source_commit": "d8a4fc2a3fc29ecc568edb768612a7aa92f2b0d8",
+  "production_source_tree": "afbfd492d8381c09ad6f567d7d51c7e81af9d58d",
+  "scope": "Local unit-only Rust/Node checks and real HTTP/S3 group-commit correctness; source archive captures actual tracked bytes, including in-progress documentation.",
+  "rust_stable": {
+    "passed": 971,
+    "failed": 0,
+    "ignored": 0,
+    "suite_passed": [
+      503,
+      102,
+      46,
+      282,
+      1,
+      37
+    ],
+    "log_sha256": "b102d3713de3693cbd00264f440232184535d15a2b85385f5e552595532cb4da"
+  },
+  "rust_nightly": {
+    "passed": 971,
+    "failed": 0,
+    "ignored": 0,
+    "suite_passed": [
+      503,
+      102,
+      46,
+      282,
+      1,
+      37
+    ],
+    "log_sha256": "e34c2380914c581543868210540c169b550d3276609f84c3f909a6710d017c7b"
+  },
+  "coverage": {
+    "status": "passed",
+    "files": 82,
+    "metrics": {
+      "lines": {
+        "count": 17372,
+        "covered": 17372
+      },
+      "functions": {
+        "count": 1528,
+        "covered": 1528
+      },
+      "regions": {
+        "count": 26631,
+        "covered": 26631
+      },
+      "branches": {
+        "count": 3574,
+        "covered": 3574
+      }
+    },
+    "report_sha256": "17f4658ef03e5dfcba68d28df5b96d0b3c6bc8bc3ad45252550cbe8f3e208b44",
+    "unit_only": true,
+    "per_file_counters": [
+      "crates/scap-object-sqlite/src/config.rs: lines=129/129, functions=19/19, regions=205/205, branches=16/16",
+      "crates/scap-object-sqlite/src/file.rs: lines=131/131, functions=17/17, regions=163/163, branches=24/24",
+      "crates/scap-object-sqlite/src/gate.rs: lines=142/142, functions=18/18, regions=178/178, branches=28/28",
+      "crates/scap-object-sqlite/src/group.rs: lines=208/208, functions=16/16, regions=263/263, branches=36/36",
+      "crates/scap-object-sqlite/src/image.rs: lines=64/64, functions=3/3, regions=74/74, branches=38/38",
+      "crates/scap-object-sqlite/src/lib.rs: lines=130/130, functions=8/8, regions=181/181, branches=12/12",
+      "crates/scap-object-sqlite/src/query.rs: lines=46/46, functions=6/6, regions=75/75, branches=6/6",
+      "crates/scap-object-sqlite/src/sql.rs: lines=414/414, functions=25/25, regions=504/504, branches=76/76",
+      "crates/scap-object-sqlite/src/storage.rs: lines=73/73, functions=11/11, regions=104/104, branches=10/10",
+      "crates/scap-object-store/src/gc.rs: lines=321/321, functions=31/31, regions=461/461, branches=114/114",
+      "crates/scap-object-store/src/gc_xml.rs: lines=118/118, functions=9/9, regions=188/188, branches=44/44",
+      "crates/scap-object-store/src/lib.rs: lines=207/207, functions=19/19, regions=289/289, branches=68/68",
+      "crates/scap-object-store/src/listing.rs: lines=121/121, functions=12/12, regions=186/186, branches=46/46",
+      "crates/scap-object-store/src/listing_guard.rs: lines=79/79, functions=11/11, regions=143/143, branches=16/16",
+      "crates/scap-object-store/src/listing_xml.rs: lines=216/216, functions=14/14, regions=379/379, branches=66/66",
+      "crates/scap-object/src/catalogue/control.rs: lines=410/410, functions=15/15, regions=683/683, branches=80/80",
+      "crates/scap-object/src/catalogue/create.rs: lines=126/126, functions=4/4, regions=244/244, branches=14/14",
+      "crates/scap-object/src/catalogue/discovery.rs: lines=294/294, functions=19/19, regions=398/398, branches=76/76",
+      "crates/scap-object/src/catalogue/discovery_budget.rs: lines=97/97, functions=10/10, regions=127/127, branches=24/24",
+      "crates/scap-object/src/catalogue/discovery_names.rs: lines=143/143, functions=7/7, regions=167/167, branches=30/30",
+      "crates/scap-object/src/catalogue/discovery_records.rs: lines=295/295, functions=17/17, regions=574/574, branches=52/52",
+      "crates/scap-object/src/catalogue/inspect.rs: lines=268/268, functions=15/15, regions=428/428, branches=28/28",
+      "crates/scap-object/src/catalogue/mod.rs: lines=345/345, functions=35/35, regions=555/555, branches=56/56",
+      "crates/scap-object/src/catalogue/records.rs: lines=243/243, functions=24/24, regions=371/371, branches=62/62",
+      "crates/scap-object/src/catalogue/recovery_budget.rs: lines=162/162, functions=15/15, regions=207/207, branches=52/52",
+      "crates/scap-object/src/catalogue/recovery_job.rs: lines=288/288, functions=13/13, regions=395/395, branches=32/32",
+      "crates/scap-object/src/catalogue/restore.rs: lines=403/403, functions=21/21, regions=612/612, branches=52/52",
+      "crates/scap-object/src/catalogue/restore_budget.rs: lines=81/81, functions=5/5, regions=111/111, branches=14/14",
+      "crates/scap-object/src/catalogue/restore_copy.rs: lines=268/268, functions=25/25, regions=424/424, branches=18/18",
+      "crates/scap-object/src/catalogue/restore_records.rs: lines=104/104, functions=10/10, regions=143/143, branches=30/30",
+      "crates/scap-object/src/catalogue/restore_types.rs: lines=54/54, functions=6/6, regions=70/70, branches=12/12",
+      "crates/scap-object/src/catalogue/terminal.rs: lines=46/46, functions=4/4, regions=81/81, branches=2/2",
+      "crates/scap-object/src/catalogue/types.rs: lines=11/11, functions=1/1, regions=11/11, branches=4/4",
+      "crates/scap-object/src/closure.rs: lines=394/394, functions=21/21, regions=525/525, branches=64/64",
+      "crates/scap-object/src/data_tree.rs: lines=291/291, functions=23/23, regions=434/434, branches=60/60",
+      "crates/scap-object/src/format.rs: lines=371/371, functions=41/41, regions=679/679, branches=56/56",
+      "crates/scap-object/src/group.rs: lines=305/305, functions=21/21, regions=471/471, branches=72/72",
+      "crates/scap-object/src/head_publication.rs: lines=154/154, functions=13/13, regions=182/182, branches=50/50",
+      "crates/scap-object/src/lib.rs: lines=966/966, functions=85/85, regions=1559/1559, branches=136/136",
+      "crates/scap-object/src/object_context.rs: lines=287/287, functions=36/36, regions=407/407, branches=76/76",
+      "crates/scap-object/src/object_frame.rs: lines=84/84, functions=5/5, regions=97/97, branches=34/34",
+      "crates/scap-object/src/options.rs: lines=107/107, functions=7/7, regions=126/126, branches=42/42",
+      "crates/scap-object/src/owner.rs: lines=530/530, functions=41/41, regions=934/934, branches=108/108",
+      "crates/scap-object/src/owner_format.rs: lines=259/259, functions=30/30, regions=376/376, branches=108/108",
+      "crates/scap-object/src/reclamation.rs: lines=410/410, functions=29/29, regions=646/646, branches=100/100",
+      "crates/scap-object/src/request_index.rs: lines=221/221, functions=17/17, regions=298/298, branches=28/28",
+      "crates/scap-object/src/restore_format.rs: lines=54/54, functions=3/3, regions=67/67, branches=16/16",
+      "crates/scap-object/src/snapshot.rs: lines=460/460, functions=37/37, regions=775/775, branches=88/88",
+      "crates/scap-object/src/snapshot_format.rs: lines=131/131, functions=20/20, regions=231/231, branches=38/38",
+      "crates/scap-object/src/snapshot_records.rs: lines=156/156, functions=20/20, regions=213/213, branches=44/44",
+      "crates/scap-object/src/storage.rs: lines=121/121, functions=10/10, regions=196/196, branches=76/76",
+      "crates/scap-service/src/auth.rs: lines=79/79, functions=13/13, regions=111/111, branches=30/30",
+      "crates/scap-service/src/catalogue.rs: lines=109/109, functions=8/8, regions=182/182, branches=46/46",
+      "crates/scap-service/src/catalogue_scheduler.rs: lines=253/253, functions=36/36, regions=344/344, branches=36/36",
+      "crates/scap-service/src/catalogue_wire.rs: lines=276/276, functions=27/27, regions=487/487, branches=28/28",
+      "crates/scap-service/src/config.rs: lines=258/258, functions=25/25, regions=356/356, branches=74/74",
+      "crates/scap-service/src/daemon.rs: lines=387/387, functions=35/35, regions=593/593, branches=54/54",
+      "crates/scap-service/src/discovery.rs: lines=206/206, functions=17/17, regions=273/273, branches=32/32",
+      "crates/scap-service/src/discovery_cursor.rs: lines=165/165, functions=19/19, regions=258/258, branches=20/20",
+      "crates/scap-service/src/discovery_wire.rs: lines=97/97, functions=13/13, regions=162/162, branches=2/2",
+      "crates/scap-service/src/engine.rs: lines=469/469, functions=33/33, regions=782/782, branches=36/36",
+      "crates/scap-service/src/engine/group.rs: lines=134/134, functions=5/5, regions=234/234, branches=24/24",
+      "crates/scap-service/src/group.rs: lines=40/40, functions=4/4, regions=62/62, branches=4/4",
+      "crates/scap-service/src/http.rs: lines=279/279, functions=25/25, regions=458/458, branches=54/54",
+      "crates/scap-service/src/http/discovery.rs: lines=57/57, functions=4/4, regions=101/101, branches=4/4",
+      "crates/scap-service/src/instance.rs: lines=118/118, functions=10/10, regions=171/171, branches=24/24",
+      "crates/scap-service/src/intake.rs: lines=137/137, functions=15/15, regions=183/183, branches=36/36",
+      "crates/scap-service/src/lib.rs: lines=106/106, functions=6/6, regions=118/118, branches=70/70",
+      "crates/scap-service/src/main.rs: lines=10/10, functions=2/2, regions=15/15, branches=2/2",
+      "crates/scap-service/src/output.rs: lines=333/333, functions=45/45, regions=465/465, branches=54/54",
+      "crates/scap-service/src/owner_wire.rs: lines=91/91, functions=9/9, regions=148/148, branches=18/18",
+      "crates/scap-service/src/resource_envelope.rs: lines=216/216, functions=27/27, regions=410/410, branches=86/86",
+      "crates/scap-service/src/restore.rs: lines=191/191, functions=18/18, regions=232/232, branches=18/18",
+      "crates/scap-service/src/restore_wire.rs: lines=45/45, functions=5/5, regions=96/96, branches=14/14",
+      "crates/scap-service/src/scheduler.rs: lines=814/814, functions=76/76, regions=1222/1222, branches=158/158",
+      "crates/scap-service/src/scheduler/group.rs: lines=110/110, functions=7/7, regions=180/180, branches=42/42",
+      "crates/scap-service/src/snapshot_wire.rs: lines=92/92, functions=12/12, regions=151/151, branches=20/20",
+      "crates/scap-service/src/transport.rs: lines=193/193, functions=25/25, regions=279/279, branches=36/36",
+      "crates/scap-service/src/wire.rs: lines=375/375, functions=46/46, regions=629/629, branches=50/50",
+      "crates/scap-sql/src/lib.rs: lines=279/279, functions=26/26, regions=494/494, branches=52/52",
+      "crates/scap-sql/src/result_memory.rs: lines=73/73, functions=9/9, regions=133/133, branches=4/4",
+      "crates/scap-sql/src/result_validation.rs: lines=42/42, functions=2/2, regions=92/92, branches=12/12"
+    ]
+  },
+  "quality": {
+    "fmt": "passed",
+    "clippy": "passed",
+    "clippy_flags": "--workspace --all-targets --all-features --locked -- -D warnings",
+    "clippy_log_sha256": "97aa4f1184b2895aa993bebd290ae205dfcf98c158cd5c69ba4b5c00a75661db",
+    "repository_docs": {
+      "status": "passed",
+      "text_files": 851,
+      "local_links": 908
+    },
+    "actionlint": "passed (1.7.12)",
+    "diff_check": "passed"
+  },
+  "node": {
+    "version": "22.16.0",
+    "sdk_tests": 184,
+    "sdk_production_modules": 22,
+    "sdk_exact_v8_and_controls": "passed",
+    "sdk_log_sha256": "a038702954acc10919fbf0e21fd2d3618efcf94d9019602a9d537ecf1387db37",
+    "codec_tests": 13,
+    "codec_exact_coverage": "passed",
+    "codec_log_sha256": "9fed0bf94f5bc764dc6584cabeb4bd4b4c94bc4eac5c2ecbce9a42497c3d4bdf"
+  },
+  "regressions": {
+    "ordinary_lanes": [
+      "actor",
+      "control",
+      "reader"
+    ],
+    "catalogue_lanes": [
+      "catalogue",
+      "recovery"
+    ],
+    "connections": [
+      "connected",
+      "disconnected"
+    ],
+    "old_ordinary_exit": 101,
+    "old_catalogue_exit": 101,
+    "new_full_workspace": "passed",
+    "ordinary_red_log_sha256": "3cd35994151474649bc0163a4ff8a430620d31876ec498634e621025a304e8b6",
+    "catalogue_red_log_sha256": "9f6b96914f60fa95e7201a4887cf3400fb2e472711d2eb234f55d153a42ae8c8",
+    "catalogue_green_log_sha256": "b0ddb6fa36d0af95dfdca28c7f0449bf862ee37efb6a5c079d90858f4bc7869b"
+  },
+  "build": {
+    "status": "verified",
+    "rust": "1.90.0",
+    "binary_sha256": "7cdf221e6d4cc2432c03a76891463bce423dc8a7bfd1b8c75121e55e1aec89c5",
+    "input_files": 319,
+    "receipt_sha256": "c1dff5b4c965d92778f4840b4eef5b70c403bdf6921aa3ec9119bbb99a742618",
+    "cargo_exit": 0,
+    "native_archive": "verified"
+  },
+  "group_commit_actual": {
+    "status": "passed",
+    "source_commit": "d8a4fc2a3fc29ecc568edb768612a7aa92f2b0d8",
+    "source_files": 897,
+    "commands": 78,
+    "http_requests": 82,
+    "business_s3_requests": 699,
+    "committed_independent_requests": 28,
+    "cold_original_lookups": 28,
+    "accepted_heads": 20,
+    "rejected_group_cas": 1,
+    "group_sizes": {
+      "cancel_race": [],
+      "duplicate": [
+        3
+      ],
+      "first_failure": [
+        3
+      ],
+      "last_failure": [
+        3
+      ],
+      "middle_failure": [
+        1,
+        2
+      ],
+      "response_loss": [
+        4
+      ],
+      "success": [
+        4
+      ]
+    },
+    "observer_sqlite_version": "3.53.1",
+    "controls": {
+      "status": "passed",
+      "raw": 21,
+      "projection": 19,
+      "additional_actual_executions": 0
+    },
+    "original_sha256": {
+      "result.json": "4ec8b7501a7f5c484947097b957158404f4dd94314b22a7e8368a1bb6ab82153",
+      "source.json": "e070029e28d58f93d4a32f70ba08177d35875a3d117e7118454dcf6f01925e2f",
+      "source-after.json": "e070029e28d58f93d4a32f70ba08177d35875a3d117e7118454dcf6f01925e2f",
+      "source.tar": "ff34fc0e8a20d6038bd0b759f44fb79abadbfa861b8020c4fc31d40e0488c639",
+      "inputs.json": "8b5dfe53486a6dfcd7f51190ea38ad512f47be2d9bf0812e939f1318a1ad3b72",
+      "plan.json": "646fbb320d2d6a69f2b791d758a52c54520bd8040f5667018101cdf7efc3e5f4",
+      "events.jsonl": "1631cfbb779fa09e1508a3d59d4745097215640b03be4f8cf6d36a4bb60591a7",
+      "history.jsonl": "af8422ce8bc6be073fd1682231c98f42222a242960c4ac4cca82866928d42841",
+      "http-client-ledger.jsonl": "8909d2a9f60e0bd1c7cb582418f570698d99c1607110d1c7ebda3fc924f5be0a",
+      "http-client-transport.jsonl": "e41214dc48929b54a5f1f3f80ee53c3ab3962bce7d184975eaec8af8a48cfc1a",
+      "original-inputs.jsonl": "83d02493dc4821fa27b98c4b8c5a7251b0b89acfb0951eddd10b0c9a8d5235fd",
+      "original-results.jsonl": "7732012a3028613da8b24f88ebbd4b7b0c54ebc7c4361d3170f85e04a5a68162",
+      "original-lookups.jsonl": "4e4ba022f6e77414fd5c7b3f1d2f1d1abab79f44e1de631d2953f9535f1f28eb"
+    }
+  },
+  "paired_load": {
+    "status": "PASSED",
+    "fixture_commit": "b49f966994ccdb28769372908a31138f70426642",
+    "runtime_commit": "d8a4fc2a3fc29ecc568edb768612a7aa92f2b0d8",
+    "observer_unit_tests": 23,
+    "actual_run_status": "OBSERVED_NOT_AUDITED",
+    "original_measurement_transactions": 640,
+    "outside_window_schema_transactions": 4,
+    "acknowledged_measurement_transactions": 376,
+    "original_measurement_rejections": 264,
+    "observer_report": {
+      "aws_standard": "NOT_RUN",
+      "limits": [
+        "p99 is a nearest-rank sample quantile, not a stable production tail estimate",
+        "raw-byte capture/fsync, local proxy and resource sampling add observer overhead",
+        "request bytes count bodies, not HTTP headers, TLS or AWS bills",
+        "scheduled-to-terminal includes client scheduling, network and service queueing; no internal queue-only claim",
+        "groups may remain size one; a successful audit does not require grouping or speedup"
+      ],
+      "original_independent_transactions": 640,
+      "pairs": [
+        {
+          "off": "off-1",
+          "on": "on-1",
+          "phases": {
+            "contended": {
+              "actually_grouped_transactions": 56,
+              "comparison": "observed paired local samples; no improvement threshold",
+              "on_over_off_successful_rate_ratio": 1.0542595104133292
+            },
+            "low": {
+              "actually_grouped_transactions": 0,
+              "comparison": "observed paired local samples; no improvement threshold",
+              "on_over_off_successful_rate_ratio": 1.0000415276947803
+            }
+          }
+        },
+        {
+          "off": "off-2",
+          "on": "on-2",
+          "phases": {
+            "contended": {
+              "actually_grouped_transactions": 62,
+              "comparison": "observed paired local samples; no improvement threshold",
+              "on_over_off_successful_rate_ratio": 1.2117894414471384
+            },
+            "low": {
+              "actually_grouped_transactions": 0,
+              "comparison": "observed paired local samples; no improvement threshold",
+              "on_over_off_successful_rate_ratio": 1.0001447606248015
+            }
+          }
+        }
+      ],
+      "production_slo": "NOT_RUN",
+      "rounds": {
+        "off-1": {
+          "binary": {
+            "path": "/workspace/scratch/331337290412/scap/target/review-release/release/scapd",
+            "sha256": "7cdf221e6d4cc2432c03a76891463bce423dc8a7bfd1b8c75121e55e1aec89c5"
+          },
+          "committed_rows": 96,
+          "group_commit": false,
+          "measurements": {
+            "contended": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 52.824758,
+                "p50": 13.49532,
+                "p95": 52.824758,
+                "p99": 52.824758,
+                "samples": 4
+              },
+              "drained_seconds": 4.314778944,
+              "invoke_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 17.082346,
+                  "p50": 3.992804,
+                  "p95": 14.031559,
+                  "p99": 17.082346,
+                  "samples": 64
+                },
+                "success": {
+                  "maximum": 2596.829609,
+                  "p50": 1919.212248,
+                  "p95": 2560.17572,
+                  "p99": 2596.829609,
+                  "samples": 64
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 11.030345,
+                "p50": 0.633994,
+                "p95": 2.750063,
+                "p99": 6.9028,
+                "samples": 132
+              },
+              "offered_rate_per_second": 64,
+              "offered_transactions": 128,
+              "s3": {
+                "groups": {
+                  "1": 64
+                },
+                "head_put_accepted": 64,
+                "head_put_attempts": 64,
+                "independent_transactions_published": 64,
+                "request_body_bytes": 3073570,
+                "requests": 1156,
+                "response_body_bytes": 7098945
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 2597.657204,
+                "p50": 18.001948,
+                "p95": 2525.88106,
+                "p99": 2592.622566,
+                "samples": 128
+              },
+              "scheduled_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 18.001948,
+                  "p50": 5.2708,
+                  "p95": 15.233032,
+                  "p99": 18.001948,
+                  "samples": 64
+                },
+                "success": {
+                  "maximum": 2597.657204,
+                  "p50": 1920.333954,
+                  "p95": 2561.774556,
+                  "p99": 2597.657204,
+                  "samples": 64
+                }
+              },
+              "settled_cancelled": 64,
+              "settled_committed": 64,
+              "success_rate": 0.5,
+              "successful_transactions_per_second_until_drained": 14.832741336377486,
+              "terminal_counts": {
+                "rejected": 64,
+                "success": 64
+              }
+            },
+            "low": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 46.764516,
+                "p50": 13.144554,
+                "p95": 46.764516,
+                "p99": 46.764516,
+                "samples": 4
+              },
+              "drained_seconds": 8.001209787,
+              "invoke_to_terminal_ms": {
+                "success": {
+                  "maximum": 112.323636,
+                  "p50": 70.186019,
+                  "p95": 108.835875,
+                  "p99": 112.323636,
+                  "samples": 32
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 28.1294,
+                "p50": 0.720288,
+                "p95": 12.757042,
+                "p99": 28.1294,
+                "samples": 36
+              },
+              "offered_rate_per_second": 4,
+              "offered_transactions": 32,
+              "s3": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 142.809223,
+                "p50": 71.753211,
+                "p95": 114.218312,
+                "p99": 142.809223,
+                "samples": 32
+              },
+              "scheduled_to_terminal_ms": {
+                "success": {
+                  "maximum": 142.809223,
+                  "p50": 71.753211,
+                  "p95": 114.218312,
+                  "p99": 142.809223,
+                  "samples": 32
+                }
+              },
+              "settled_cancelled": 0,
+              "settled_committed": 32,
+              "success_rate": 1.0,
+              "successful_transactions_per_second_until_drained": 3.999395197960206,
+              "terminal_counts": {
+                "success": 32
+              }
+            }
+          },
+          "originals_verified": 160,
+          "s3_total": {
+            "all_request_body_bytes": 5326152,
+            "all_requests": 2962,
+            "all_response_body_bytes": 18781434,
+            "phases": {
+              "contended": {
+                "groups": {
+                  "1": 64
+                },
+                "head_put_accepted": 64,
+                "head_put_attempts": 64,
+                "independent_transactions_published": 64,
+                "request_body_bytes": 3073570,
+                "requests": 1156,
+                "response_body_bytes": 7098945
+              },
+              "low": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "seed": {
+                "groups": {
+                  "1": 1
+                },
+                "head_put_accepted": 3,
+                "head_put_attempts": 3,
+                "independent_transactions_published": 1,
+                "request_body_bytes": 12417,
+                "requests": 27,
+                "response_body_bytes": 13774
+              },
+              "startup": {
+                "groups": {},
+                "head_put_accepted": 0,
+                "head_put_attempts": 0,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 32,
+                "requests": 2,
+                "response_body_bytes": 32
+              },
+              "verify": {
+                "groups": {},
+                "head_put_accepted": 64,
+                "head_put_attempts": 64,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 1594880,
+                "requests": 1197,
+                "response_body_bytes": 10296402
+              }
+            },
+            "s3_final_rows_verified": 96,
+            "s3_integrity_check": "ok"
+          },
+          "sampled_peak_cache_allocated_bytes": 73728,
+          "sampled_peak_rss_bytes": 12615680,
+          "sampled_resource_peak_is_hard_bound": false
+        },
+        "off-2": {
+          "binary": {
+            "path": "/workspace/scratch/331337290412/scap/target/review-release/release/scapd",
+            "sha256": "7cdf221e6d4cc2432c03a76891463bce423dc8a7bfd1b8c75121e55e1aec89c5"
+          },
+          "committed_rows": 95,
+          "group_commit": false,
+          "measurements": {
+            "contended": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 43.377501,
+                "p50": 30.393382,
+                "p95": 43.377501,
+                "p99": 43.377501,
+                "samples": 4
+              },
+              "drained_seconds": 4.565966312,
+              "invoke_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 49.99509,
+                  "p50": 5.154681,
+                  "p95": 20.257187,
+                  "p99": 49.99509,
+                  "samples": 65
+                },
+                "success": {
+                  "maximum": 2935.783609,
+                  "p50": 2031.135107,
+                  "p95": 2863.274055,
+                  "p99": 2935.783609,
+                  "samples": 63
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 28.371513,
+                "p50": 0.722659,
+                "p95": 11.181494,
+                "p99": 19.857742,
+                "samples": 132
+              },
+              "offered_rate_per_second": 64,
+              "offered_transactions": 128,
+              "s3": {
+                "groups": {
+                  "1": 63
+                },
+                "head_put_accepted": 63,
+                "head_put_attempts": 63,
+                "independent_transactions_published": 63,
+                "request_body_bytes": 3009563,
+                "requests": 1138,
+                "response_body_bytes": 6947811
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 2937.380809,
+                "p50": 41.83093,
+                "p95": 2844.728331,
+                "p99": 2937.191842,
+                "samples": 128
+              },
+              "scheduled_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 62.695057,
+                  "p50": 6.44237,
+                  "p95": 26.862548,
+                  "p99": 62.695057,
+                  "samples": 65
+                },
+                "success": {
+                  "maximum": 2937.380809,
+                  "p50": 2031.923731,
+                  "p95": 2869.927356,
+                  "p99": 2937.380809,
+                  "samples": 63
+                }
+              },
+              "settled_cancelled": 65,
+              "settled_committed": 63,
+              "success_rate": 0.4921875,
+              "successful_transactions_per_second_until_drained": 13.797736491052762,
+              "terminal_counts": {
+                "rejected": 65,
+                "success": 63
+              }
+            },
+            "low": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 42.052329,
+                "p50": 15.780375,
+                "p95": 42.052329,
+                "p99": 42.052329,
+                "samples": 4
+              },
+              "drained_seconds": 8.003030423,
+              "invoke_to_terminal_ms": {
+                "success": {
+                  "maximum": 153.176973,
+                  "p50": 69.956504,
+                  "p95": 131.608804,
+                  "p99": 153.176973,
+                  "samples": 32
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 15.016009,
+                "p50": 0.610259,
+                "p95": 14.865983,
+                "p99": 15.016009,
+                "samples": 36
+              },
+              "offered_rate_per_second": 4,
+              "offered_transactions": 32,
+              "s3": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 154.699138,
+                "p50": 72.6525,
+                "p95": 150.323624,
+                "p99": 154.699138,
+                "samples": 32
+              },
+              "scheduled_to_terminal_ms": {
+                "success": {
+                  "maximum": 154.699138,
+                  "p50": 72.6525,
+                  "p95": 150.323624,
+                  "p99": 154.699138,
+                  "samples": 32
+                }
+              },
+              "settled_cancelled": 0,
+              "settled_committed": 32,
+              "success_rate": 1.0,
+              "successful_transactions_per_second_until_drained": 3.9984853622491348,
+              "terminal_counts": {
+                "success": 32
+              }
+            }
+          },
+          "originals_verified": 160,
+          "s3_total": {
+            "all_request_body_bytes": 5285406,
+            "all_requests": 2950,
+            "all_response_body_bytes": 18643009,
+            "phases": {
+              "contended": {
+                "groups": {
+                  "1": 63
+                },
+                "head_put_accepted": 63,
+                "head_put_attempts": 63,
+                "independent_transactions_published": 63,
+                "request_body_bytes": 3009563,
+                "requests": 1138,
+                "response_body_bytes": 6947811
+              },
+              "low": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "seed": {
+                "groups": {
+                  "1": 1
+                },
+                "head_put_accepted": 3,
+                "head_put_attempts": 3,
+                "independent_transactions_published": 1,
+                "request_body_bytes": 12417,
+                "requests": 27,
+                "response_body_bytes": 13774
+              },
+              "startup": {
+                "groups": {},
+                "head_put_accepted": 0,
+                "head_put_attempts": 0,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 32,
+                "requests": 2,
+                "response_body_bytes": 32
+              },
+              "verify": {
+                "groups": {},
+                "head_put_accepted": 65,
+                "head_put_attempts": 65,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 1618141,
+                "requests": 1203,
+                "response_body_bytes": 10309111
+              }
+            },
+            "s3_final_rows_verified": 95,
+            "s3_integrity_check": "ok"
+          },
+          "sampled_peak_cache_allocated_bytes": 77824,
+          "sampled_peak_rss_bytes": 12648448,
+          "sampled_resource_peak_is_hard_bound": false
+        },
+        "on-1": {
+          "binary": {
+            "path": "/workspace/scratch/331337290412/scap/target/review-release/release/scapd",
+            "sha256": "7cdf221e6d4cc2432c03a76891463bce423dc8a7bfd1b8c75121e55e1aec89c5"
+          },
+          "committed_rows": 90,
+          "group_commit": true,
+          "measurements": {
+            "contended": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 52.282848,
+                "p50": 21.018535,
+                "p95": 52.282848,
+                "p99": 52.282848,
+                "samples": 4
+              },
+              "drained_seconds": 3.70901887,
+              "invoke_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 14.791689,
+                  "p50": 4.857253,
+                  "p95": 11.495454,
+                  "p99": 14.791689,
+                  "samples": 70
+                },
+                "success": {
+                  "maximum": 2425.610583,
+                  "p50": 1998.355459,
+                  "p95": 2401.476546,
+                  "p99": 2425.610583,
+                  "samples": 58
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 32.654854,
+                "p50": 0.726596,
+                "p95": 9.362741,
+                "p99": 23.57175,
+                "samples": 132
+              },
+              "offered_rate_per_second": 64,
+              "offered_transactions": 128,
+              "s3": {
+                "groups": {
+                  "1": 2,
+                  "8": 7
+                },
+                "head_put_accepted": 9,
+                "head_put_attempts": 9,
+                "independent_transactions_published": 58,
+                "request_body_bytes": 2655703,
+                "requests": 901,
+                "response_body_bytes": 6104062
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 2426.762921,
+                "p50": 11.980747,
+                "p95": 2351.101735,
+                "p99": 2418.52058,
+                "samples": 128
+              },
+              "scheduled_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 15.561961,
+                  "p50": 5.903267,
+                  "p95": 12.740996,
+                  "p99": 15.561961,
+                  "samples": 70
+                },
+                "success": {
+                  "maximum": 2426.762921,
+                  "p50": 2000.429162,
+                  "p95": 2405.147876,
+                  "p99": 2426.762921,
+                  "samples": 58
+                }
+              },
+              "settled_cancelled": 70,
+              "settled_committed": 58,
+              "success_rate": 0.453125,
+              "successful_transactions_per_second_until_drained": 15.63755861937688,
+              "terminal_counts": {
+                "rejected": 70,
+                "success": 58
+              }
+            },
+            "low": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 49.588578,
+                "p50": 15.044345,
+                "p95": 49.588578,
+                "p99": 49.588578,
+                "samples": 4
+              },
+              "drained_seconds": 8.000877529,
+              "invoke_to_terminal_ms": {
+                "success": {
+                  "maximum": 159.439872,
+                  "p50": 68.408002,
+                  "p95": 103.471052,
+                  "p99": 159.439872,
+                  "samples": 32
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 14.666029,
+                "p50": 0.734788,
+                "p95": 11.395701,
+                "p99": 14.666029,
+                "samples": 36
+              },
+              "offered_rate_per_second": 4,
+              "offered_transactions": 32,
+              "s3": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 161.632083,
+                "p50": 69.998788,
+                "p95": 122.391637,
+                "p99": 161.632083,
+                "samples": 32
+              },
+              "scheduled_to_terminal_ms": {
+                "success": {
+                  "maximum": 161.632083,
+                  "p50": 69.998788,
+                  "p95": 122.391637,
+                  "p99": 161.632083,
+                  "samples": 32
+                }
+              },
+              "settled_cancelled": 0,
+              "settled_committed": 32,
+              "success_rate": 1.0,
+              "successful_transactions_per_second_until_drained": 3.9995612836232928,
+              "terminal_counts": {
+                "success": 32
+              }
+            }
+          },
+          "originals_verified": 160,
+          "s3_total": {
+            "all_request_body_bytes": 5043343,
+            "all_requests": 2760,
+            "all_response_body_bytes": 18219161,
+            "phases": {
+              "contended": {
+                "groups": {
+                  "1": 2,
+                  "8": 7
+                },
+                "head_put_accepted": 9,
+                "head_put_attempts": 9,
+                "independent_transactions_published": 58,
+                "request_body_bytes": 2655703,
+                "requests": 901,
+                "response_body_bytes": 6104062
+              },
+              "low": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "seed": {
+                "groups": {
+                  "1": 1
+                },
+                "head_put_accepted": 3,
+                "head_put_attempts": 3,
+                "independent_transactions_published": 1,
+                "request_body_bytes": 12417,
+                "requests": 27,
+                "response_body_bytes": 13774
+              },
+              "startup": {
+                "groups": {},
+                "head_put_accepted": 0,
+                "head_put_attempts": 0,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 32,
+                "requests": 2,
+                "response_body_bytes": 32
+              },
+              "verify": {
+                "groups": {},
+                "head_put_accepted": 70,
+                "head_put_attempts": 70,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 1729938,
+                "requests": 1250,
+                "response_body_bytes": 10729012
+              }
+            },
+            "s3_final_rows_verified": 90,
+            "s3_integrity_check": "ok"
+          },
+          "sampled_peak_cache_allocated_bytes": 114688,
+          "sampled_peak_rss_bytes": 12963840,
+          "sampled_resource_peak_is_hard_bound": false
+        },
+        "on-2": {
+          "binary": {
+            "path": "/workspace/scratch/331337290412/scap/target/review-release/release/scapd",
+            "sha256": "7cdf221e6d4cc2432c03a76891463bce423dc8a7bfd1b8c75121e55e1aec89c5"
+          },
+          "committed_rows": 95,
+          "group_commit": true,
+          "measurements": {
+            "contended": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 47.247944,
+                "p50": 21.09742,
+                "p95": 47.247944,
+                "p99": 47.247944,
+                "samples": 4
+              },
+              "drained_seconds": 3.767953537,
+              "invoke_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 15.846673,
+                  "p50": 4.525184,
+                  "p95": 10.788232,
+                  "p99": 15.846673,
+                  "samples": 65
+                },
+                "success": {
+                  "maximum": 2349.384438,
+                  "p50": 1929.648315,
+                  "p95": 2328.013861,
+                  "p99": 2349.384438,
+                  "samples": 63
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 43.875913,
+                "p50": 0.568105,
+                "p95": 13.619466,
+                "p99": 33.549539,
+                "samples": 132
+              },
+              "offered_rate_per_second": 64,
+              "offered_transactions": 128,
+              "s3": {
+                "groups": {
+                  "1": 1,
+                  "6": 1,
+                  "8": 7
+                },
+                "head_put_accepted": 9,
+                "head_put_attempts": 9,
+                "independent_transactions_published": 63,
+                "request_body_bytes": 2968093,
+                "requests": 976,
+                "response_body_bytes": 6839412
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 2368.569685,
+                "p50": 17.135593,
+                "p95": 2287.687123,
+                "p99": 2350.553038,
+                "samples": 128
+              },
+              "scheduled_to_terminal_ms": {
+                "rejected": {
+                  "maximum": 20.690333,
+                  "p50": 5.797222,
+                  "p95": 12.803087,
+                  "p99": 20.690333,
+                  "samples": 65
+                },
+                "success": {
+                  "maximum": 2368.569685,
+                  "p50": 1931.589808,
+                  "p95": 2329.368283,
+                  "p99": 2368.569685,
+                  "samples": 63
+                }
+              },
+              "settled_cancelled": 65,
+              "settled_committed": 63,
+              "success_rate": 0.4921875,
+              "successful_transactions_per_second_until_drained": 16.719951395727627,
+              "terminal_counts": {
+                "rejected": 65,
+                "success": 63
+              }
+            },
+            "low": {
+              "control_outcomes": {
+                "success": 4
+              },
+              "control_scheduled_to_terminal_ms": {
+                "maximum": 34.077205,
+                "p50": 16.364584,
+                "p95": 34.077205,
+                "p99": 34.077205,
+                "samples": 4
+              },
+              "drained_seconds": 8.001872067,
+              "invoke_to_terminal_ms": {
+                "success": {
+                  "maximum": 128.383095,
+                  "p50": 71.986546,
+                  "p95": 109.534527,
+                  "p99": 128.383095,
+                  "samples": 32
+                }
+              },
+              "offer_lag_ms": {
+                "maximum": 25.220432,
+                "p50": 0.695544,
+                "p95": 12.150254,
+                "p99": 25.220432,
+                "samples": 36
+              },
+              "offered_rate_per_second": 4,
+              "offered_transactions": 32,
+              "s3": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "scheduled_to_terminal_all_ms": {
+                "maximum": 161.361961,
+                "p50": 72.975383,
+                "p95": 129.1535,
+                "p99": 161.361961,
+                "samples": 32
+              },
+              "scheduled_to_terminal_ms": {
+                "success": {
+                  "maximum": 161.361961,
+                  "p50": 72.975383,
+                  "p95": 129.1535,
+                  "p99": 161.361961,
+                  "samples": 32
+                }
+              },
+              "settled_cancelled": 0,
+              "settled_committed": 32,
+              "success_rate": 1.0,
+              "successful_transactions_per_second_until_drained": 3.9990641854884332,
+              "terminal_counts": {
+                "success": 32
+              }
+            }
+          },
+          "originals_verified": 160,
+          "s3_total": {
+            "all_request_body_bytes": 5243804,
+            "all_requests": 2774,
+            "all_response_body_bytes": 18273766,
+            "phases": {
+              "contended": {
+                "groups": {
+                  "1": 1,
+                  "6": 1,
+                  "8": 7
+                },
+                "head_put_accepted": 9,
+                "head_put_attempts": 9,
+                "independent_transactions_published": 63,
+                "request_body_bytes": 2968093,
+                "requests": 976,
+                "response_body_bytes": 6839412
+              },
+              "low": {
+                "groups": {
+                  "1": 32
+                },
+                "head_put_accepted": 32,
+                "head_put_attempts": 32,
+                "independent_transactions_published": 32,
+                "request_body_bytes": 645253,
+                "requests": 580,
+                "response_body_bytes": 1372281
+              },
+              "seed": {
+                "groups": {
+                  "1": 1
+                },
+                "head_put_accepted": 3,
+                "head_put_attempts": 3,
+                "independent_transactions_published": 1,
+                "request_body_bytes": 12417,
+                "requests": 27,
+                "response_body_bytes": 13774
+              },
+              "startup": {
+                "groups": {},
+                "head_put_accepted": 0,
+                "head_put_attempts": 0,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 32,
+                "requests": 2,
+                "response_body_bytes": 32
+              },
+              "verify": {
+                "groups": {},
+                "head_put_accepted": 65,
+                "head_put_attempts": 65,
+                "independent_transactions_published": 0,
+                "request_body_bytes": 1618009,
+                "requests": 1189,
+                "response_body_bytes": 10048267
+              }
+            },
+            "s3_final_rows_verified": 95,
+            "s3_integrity_check": "ok"
+          },
+          "sampled_peak_cache_allocated_bytes": 114688,
+          "sampled_peak_rss_bytes": 12931072,
+          "sampled_resource_peak_is_hard_bound": false
+        }
+      },
+      "runtime_commit": "d8a4fc2a3fc29ecc568edb768612a7aa92f2b0d8",
+      "status": "PASSED"
+    },
+    "negative_controls": {
+      "controls": [
+        {
+          "expected": "http-denominator",
+          "name": "missing-terminal",
+          "observed": "http-denominator"
+        },
+        {
+          "expected": "http-denominator",
+          "name": "duplicate-post-observation",
+          "observed": "http-denominator"
+        },
+        {
+          "expected": "single-original-post",
+          "name": "two-business-posts",
+          "observed": "single-original-post"
+        },
+        {
+          "expected": "fixed-arrival",
+          "name": "changed-offer-clock",
+          "observed": "fixed-arrival"
+        },
+        {
+          "expected": "arrival-denominator",
+          "name": "missing-offer",
+          "observed": "arrival-denominator"
+        },
+        {
+          "expected": "offered-before-call",
+          "name": "incorrect-invoke-schedule",
+          "observed": "offered-before-call"
+        },
+        {
+          "expected": "generator-active-count",
+          "name": "fabricated-active-count",
+          "observed": "generator-active-count"
+        },
+        {
+          "expected": "original-phase",
+          "name": "original-phase-changed",
+          "observed": "original-phase"
+        },
+        {
+          "expected": "original-random-result",
+          "name": "ack-result-from-other-request",
+          "observed": "original-random-result"
+        },
+        {
+          "expected": "lookup-original-identity",
+          "name": "lookup-wrong-original",
+          "observed": "lookup-original-identity"
+        },
+        {
+          "expected": "sdk-http-outcome",
+          "name": "http-success-relabelled-failure",
+          "observed": "sdk-http-outcome"
+        },
+        {
+          "expected": "http-terminal-before-finish",
+          "name": "terminal-after-finish",
+          "observed": "http-terminal-before-finish"
+        },
+        {
+          "expected": "arrival-duration",
+          "name": "shortened-offer-window",
+          "observed": "arrival-duration"
+        },
+        {
+          "expected": "generator-impossible-rejection",
+          "name": "never-posted-but-committed",
+          "observed": "generator-impossible-rejection"
+        },
+        {
+          "expected": "original-request-before-head",
+          "name": "publication-before-original-post",
+          "observed": "original-request-before-head"
+        },
+        {
+          "expected": "paired-configuration",
+          "name": "unequal-capacity",
+          "observed": "paired-configuration"
+        },
+        {
+          "expected": "observed-config-bytes",
+          "name": "changed-launched-config",
+          "observed": "observed-config-bytes"
+        },
+        {
+          "expected": "observed-node-binary",
+          "name": "changed-node-binary",
+          "observed": "observed-node-binary"
+        },
+        {
+          "expected": "observed-backend-binary",
+          "name": "changed-backend-binary",
+          "observed": "observed-backend-binary"
+        },
+        {
+          "expected": "no-artificial-gates",
+          "name": "artificial-gate",
+          "observed": "no-artificial-gates"
+        },
+        {
+          "expected": "s3-exchange",
+          "name": "missing-s3-delivery",
+          "observed": "s3-exchange"
+        },
+        {
+          "expected": "s3-phase-interval",
+          "name": "relabelled-phase-cost",
+          "observed": "s3-phase-interval"
+        },
+        {
+          "expected": "original-head-cas",
+          "name": "rebound-head-condition",
+          "observed": "original-head-cas"
+        },
+        {
+          "expected": "immutable-create-only",
+          "name": "immutable-overwrite",
+          "observed": "immutable-create-only"
+        },
+        {
+          "expected": "round-run-order",
+          "name": "swapped-off-round-directories",
+          "observed": "round-run-order"
+        }
+      ],
+      "kind": "original ledger projections; additional actual executions: 0",
+      "negative_controls": 25,
+      "positive_controls": 1,
+      "status": "PASSED"
+    },
+    "original_sha256": {
+      "inputs.json": "29c7201afbfc37c808bef5fa5de1b4a349fd1aec70d261e95aa2adf6316ffe50",
+      "plan.json": "081e85c762f01f75e31d7ffa73220af5283b4325443f2fec5645cc458c7810a8",
+      "result.json": "960172dd0c85c811f4a7ee80ad7f136244167d9d2b770e8229d1e95f65ef8317",
+      "fixture-source.tar": "f4a83273b73c6276e61a1302108e5f700a83ea28f59a651d5942b67fe1fe0be6",
+      "fixture-after.json": "1305b4c910c4b5b0b8a0d0f1ecff981b723f26efe943554732d717473a0d9cfc"
+    },
+    "oracle_sha256": "e53dbabd59dd699114970573160b5e0f47d8c47ce5a0c255e10123a305fd9bf9",
+    "controls_sha256": "ca3b621541aa9570c8783e7bb2f4c4cf497619ec51d1e809738bc43d9448a726",
+    "original_round_ledgers_sha256": {
+      "off-1": {
+        "events.jsonl": "3d0ee2c46a675fd2bc99d4ce69d7e1de7751da78486b73104953c54ae2d7368f",
+        "sdk.jsonl": "9de779df7e2ce31d742f49ba62dfab7981a30be3cf4122f09e478beee4dee0a7",
+        "s3.jsonl": "c2d12b600ef0eba589e744250b4f7dd1c0a9308215286a4ddb5befac409be6bc",
+        "resources.jsonl": "54dc3f336957f77a98c77c6b139588ab83de419166033b815816e91aa123326e",
+        "workload.json": "8d8e96455fba7eca3a937de6267dd23eb601bafbf816b74c63f2d91a64949867",
+        "intents.jsonl": "bf77743c90ee9c43faa3c112ed6d9e62c3eb9e3897dc8803008deaf60a3af39e",
+        "service-config.json": "dcd8367c757e7ecbf4dc6319a476d21e3875e0ab26960b26b134f3c7ab7ed28b"
+      },
+      "on-1": {
+        "events.jsonl": "71ad4386f160bdc9f843c804dd6cbf1d040b21d450251db2a63999a83524f72e",
+        "sdk.jsonl": "0c3a2e4ae05f8a3c1b99f59fe4ddcc6629edadc6b39bc86c59c9efbe8f286646",
+        "s3.jsonl": "1089514b5cb14b68fa530ee2798627ab3f02916c1a0e53a52df0b4f3b2325a6f",
+        "resources.jsonl": "215fbe306af358a788964ec716a7954f4897dc0ea5ccc0590824e0f5f6326a19",
+        "workload.json": "8d8e96455fba7eca3a937de6267dd23eb601bafbf816b74c63f2d91a64949867",
+        "intents.jsonl": "f1c679f2713dede6bb5fbc3a9a1a337fe8dc355e2e1957c054c796883c477477",
+        "service-config.json": "beb53892544291903c44ed114bb86b376662d2544aed98f33321a1abef8e5856"
+      },
+      "on-2": {
+        "events.jsonl": "3c2f307660cb1a33cde0b53a947acece67e7412448ec4e033f07c1be3fa91f9e",
+        "sdk.jsonl": "04a3e9a855abf5da2a7947137a5ba865884135dd6a7bbb98d2e033a9936a33be",
+        "s3.jsonl": "31b5b6789da03ffc67d62ce42706e5563e8bbc1494a87f3e48ba8a260a7463ea",
+        "resources.jsonl": "e2323b0c662c919079dd303e041c6e99acc752f7baa09076b9a088ac8c4655f4",
+        "workload.json": "8d8e96455fba7eca3a937de6267dd23eb601bafbf816b74c63f2d91a64949867",
+        "intents.jsonl": "7bb5f548356d0ddbcb4670add8c1c730b032dd2ed26b9ad7c4fdb2f5e6d78201",
+        "service-config.json": "acfab03a5c2a2f117c7f86e7fdf4ca97e1a157d6d2016589f489557b1bd392e1"
+      },
+      "off-2": {
+        "events.jsonl": "f36d1cea6225edac53d81fa98dc4db958fcd651c02eea35d2e4b96bdf113934b",
+        "sdk.jsonl": "664a161f65244357aa74e99ccada406cdd2320d9c9091c2aea0b33cf3e2e743b",
+        "s3.jsonl": "4698d41c29758eb8ff0e6cfdd89013bd292a2bae9cdc0029e52d92c07b0c7ff6",
+        "resources.jsonl": "47b998b04ad4ca2ae5f82488a02bb9f026aeed3dcfe527928af0feb6bcbffd4c",
+        "workload.json": "8d8e96455fba7eca3a937de6267dd23eb601bafbf816b74c63f2d91a64949867",
+        "intents.jsonl": "ecfd111b59396f45d6b6526ae1c469c03ebca7fb0c6d804faa3a182a0fe41881",
+        "service-config.json": "28f086a44901f1608def88138588ebc537e74dc6719b957b10ac2530187253fc"
+      }
+    },
+    "preserved_failed_attempts": [
+      {
+        "attempt": "group-load-v1",
+        "fixture_commit": "01fbe6f8a14d79060556a3c071c2dc3d245d571f",
+        "status": "FAILED",
+        "error": "RuntimeError('SDK phase failed: verify')",
+        "failure_kind": "Fixture omitted mandatory parameters: [] in final read-only SDK query; no HTTP POST was dispatched. Not a product performance verdict.",
+        "original_final_call": {
+          "phase": "verify",
+          "monotonic_ns": "12222114815922",
+          "event": "call_finished",
+          "id": "final",
+          "ok": false,
+          "error": {
+            "name": "ClientError",
+            "code": "INVALID",
+            "outcome": null,
+            "cause_code": null
+          },
+          "state": null,
+          "sdk_terminal_ns": "12222114802652",
+          "posts": 0
+        },
+        "cleanup_errors": [],
+        "changed_for_v2": "Only the missing SDK query parameters array; workload, capacities, deadlines, binary and acceptance rules unchanged.",
+        "original_sha256": {
+          "result.json": "61b8bb48e5dce6443a129d049c0892e30adc9cde7fcd564d84300fd6bf099737",
+          "inputs.json": "87460b355c16f2715a4c4751a9638fae4e8bb7d4c670992af8f1e9e0e557519c",
+          "plan.json": "081e85c762f01f75e31d7ffa73220af5283b4325443f2fec5645cc458c7810a8",
+          "fixture-source.tar": "322470ddcbca115452b0547419fe1c1a978911320d54b0936652e1a0c31de252",
+          "off-1/events.jsonl": "ef4e59a1f5ed82b7f297e48912acb8b5e49e12440a219ea136c8ab1bd195edbc",
+          "off-1/sdk.jsonl": "f53b6c59af9cc7229cdbb5f2e17886fb82b0b220bd79b3d9ad8186c4e3b4bb16",
+          "off-1/s3.jsonl": "071fddc6be9214e198703e69a19a4127f795f73dd161dd0b268e95ec93465661"
+        }
+      }
+    ]
+  },
+  "aws": "NOT_RUN",
+  "network_mount_actual": "NOT_RUN",
+  "production_slo": "NOT_RUN",
+  "remote_ci": "Query exact final PR head; local evidence is not a CI result."
+}

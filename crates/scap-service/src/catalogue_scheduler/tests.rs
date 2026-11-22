@@ -264,6 +264,115 @@ fn invalid_limits_partial_startup_and_worker_loss_close_the_whole_bounded_pool()
 }
 
 #[test]
+fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disconnect() {
+    use crate::intake::{Class, Intake};
+
+    struct PanicWorker {
+        held: Option<Call>,
+        entered: mpsc::SyncSender<()>,
+        panic_now: mpsc::Receiver<()>,
+        dropping: mpsc::SyncSender<()>,
+        cleanup: mpsc::Receiver<()>,
+    }
+    impl Worker for PanicWorker {
+        fn execute(&mut self, _: &Principal, call: Call, _: Instant) -> Result<Value, Failure> {
+            self.held = Some(call);
+            self.entered.send(()).unwrap();
+            self.panic_now.recv_timeout(Duration::from_secs(5)).unwrap();
+            panic!("controlled catalogue/recovery worker failure");
+        }
+    }
+    impl Drop for PanicWorker {
+        fn drop(&mut self) {
+            let _ = self.dropping.send(());
+            let _ = self.cleanup.recv_timeout(Duration::from_secs(5));
+        }
+    }
+
+    for recovery in [false, true] {
+        for disconnected in [false, true] {
+            let (entered, started) = mpsc::sync_channel(1);
+            let (panic_now, panic_receiver) = mpsc::sync_channel(1);
+            let (dropping, drop_started) = mpsc::sync_channel(1);
+            let (cleanup, cleanup_receiver) = mpsc::sync_channel(1);
+            let source = Arc::new(Mutex::new(Some((panic_receiver, cleanup_receiver))));
+            let factory: Factory = Arc::new(move |_| {
+                let (panic_now, cleanup) = source.lock().unwrap().take().unwrap();
+                Ok(Box::new(PanicWorker {
+                    held: None,
+                    entered: entered.clone(),
+                    panic_now,
+                    dropping: dropping.clone(),
+                    cleanup,
+                }))
+            });
+            let scheduler = if recovery {
+                Scheduler::new_recovery(limits(), factory)
+            } else {
+                Scheduler::new(limits(), factory)
+            }
+            .unwrap();
+            let intake = Arc::new(
+                Intake::new(
+                    if recovery {
+                        Class::Recovery
+                    } else {
+                        Class::Catalogue
+                    },
+                    1,
+                    4096,
+                    None,
+                )
+                .unwrap(),
+            );
+            let call = if recovery {
+                let creation = crate::tests::named_creation("held-restore", 1);
+                Call {
+                    version: 1,
+                    action: Action::ResumeRestore {
+                        reference: crate::restore_wire::Reference {
+                            creation: serde_json::from_value(crate::catalogue_wire::creation(
+                                &creation,
+                            ))
+                            .unwrap(),
+                            descriptor_hash: "a".repeat(64),
+                        },
+                    },
+                }
+            } else {
+                call(Some("held-catalogue"))
+            };
+            let receiver = scheduler
+                .submit_reserved(
+                    principal(),
+                    call,
+                    until(),
+                    intake.acquire(&principal()).unwrap(),
+                )
+                .unwrap();
+            started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let mut receiver = Some(receiver);
+            if disconnected {
+                drop(receiver.take());
+            }
+            panic_now.send(()).unwrap();
+            drop_started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let permits_during_cleanup = intake.available_permits();
+            cleanup.send(()).unwrap();
+            drop(scheduler);
+            if let Some(receiver) = receiver {
+                assert!(receiver.blocking_recv().is_err());
+            }
+            assert_eq!(
+                permits_during_cleanup, 0,
+                "recovery={recovery}, disconnected={disconnected}: intake refunded before cleanup"
+            );
+            assert_eq!(intake.available_permits(), 1);
+        }
+    }
+}
+
+#[test]
 fn closed_waiters_and_expired_queue_entries_never_execute_or_retry() {
     let (entered, started) = mpsc::sync_channel(1);
     let (release, wait) = mpsc::sync_channel(1);

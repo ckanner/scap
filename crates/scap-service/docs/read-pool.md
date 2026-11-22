@@ -25,7 +25,8 @@ writer actor、control worker 和 query worker 的总槽数不超过 255。
 排队使用已有 global／tenant／database 预算和 control 保留额度；HTTP intake、原始
 绝对期限、输出预算及 recovery semaphore 都继续生效。活跃读额度独立于排队额度，
 在请求过期、客户端断线后仍由正在运行的工作持有，直到执行与请求资源释放。
-panic 展开先销毁 worker／native/cache，再释放活跃读额度；最后一个 reader 退出后
+panic 展开先销毁 worker／native/cache，再释放当前请求的 intake/output 与活跃读额度。
+当前 Job 由 worker owner 保留，HTTP 已断开也不提前归还实际工作的额度；最后一个 reader 退出后
 排队请求失败，新的 query 拒绝。关闭会排空队列并 join 所有在跑的 reader。
 
 每个 reader 的 `Engine` 操作后最多保留一个数据库镜像，页数受现有

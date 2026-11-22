@@ -1,8 +1,8 @@
 # SQLite on S3：文件安全、并发、吞吐与完成标准
 
-更新：2026-11-20（America/New_York）。当前实现基于已合入 #65/#66/#67 的
-[`68246fd6`](https://github.com/ckanner/scap/commit/68246fd639d0331d5c90a31d8b3134e96532b3b5)。
-本轮新增可选[独立事务 group commit](independent-group-commit.md)，其验收单独记录；
+更新：2026-11-22（America/New_York）。审查基线是 #65/#66/#67/#68 已合入的
+[`3be8be7`](https://github.com/ckanner/scap/commit/3be8be7273f716cd79bf0427b0beb224dc4781fe)。
+可选[独立事务 group commit](independent-group-commit.md)已经合入，其验收单独记录；
 各次旧验证仍绑定原冻结源码，不因文档更新而重新认证。
 
 **SCAP 已避开跨主机共享活动 SQLite 文件的风险，并实现对象权威提交、接管恢复、
@@ -82,7 +82,7 @@ payload；provenance 本身不永久 pin 源库。见[快照设计](retained-sna
 
 ## 3. S3 提交、fencing 与丢响应的精确边界
 
-### 3.1 一次写入的确认条件
+### 3.1 普通单请求的确认条件
 
 1. exact GET 同时取得 HEAD body/ETag，验证当前权限、owner、生命周期和原请求。
    已保留请求解析原结果；同 ID 不同内容不能作为新 SQL 执行。
@@ -93,6 +93,11 @@ payload；provenance 本身不永久 pin 源库。见[快照设计](retained-sna
 4. 用原 ETag 条件发布一个 HEAD；冲突后的旧物理差分不能换新 ETag 继续提交。
 5. 远端接受后才允许 native publication，完成受检 checkpoint 和结果物化，再返回成功。
    客户端完整收到成功响应才计入客户端 ACK 集合。
+
+组提交有不同的私有暂存顺序：每成员先在不可见镜像完成真实 BEGIN/COMMIT，保留独立
+约束、结果和成功前缀；全部依赖持久化并回读后，以一次原 HEAD CAS 发布，再完成
+受检 checkpoint/镜像收养和各成员 ACK。先发生的私有 COMMIT 不产生持久成功，也不
+对其他 reader 可见。完整错误与取消语义见[组提交协议](independent-group-commit.md)。
 
 代码入口：[Session](../../crates/scap-object/src/lib.rs)、
 [GateWal](../../crates/scap-object-sqlite/src/gate.rs)、
@@ -255,6 +260,16 @@ Cloud 跨库打包汇集独立数据库 WAL 上传，新引擎 group commit 属�
 main 的功能和成熟度会变化，采用时须冻结具体版本；实验性多进程协调不构成共享
 网络文件的生产安全证明。[S10][S11][S14]
 
+2026-09-29 的 Turso 引擎实现解析将 group commit 定义为共享 logical log 写入及
+fsync：成员取得 ticket，等待持久化位置覆盖自己的日志后才进入 committed。SCAP #68
+仍逐成员执行 FULL native COMMIT，只共用最终 S3 HEAD 发布，不能借用上游的 fsync
+摊薄或吞吐倍数。当前 Turso 并发写文档还要求显式启用 MVCC 和 BEGIN CONCURRENT；
+默认模式仍只有一个 writer，冲突需要应用处理。[S16][S17]
+
+上游 manual 的旧 MVCC 日志说明与较新的 logical-log 实现文章存在差异。未来替换
+引擎时应冻结具体 commit，核对日志、checkpoint、冲突与提交挂点源码；不能把随时
+变化的 main 文档当作本项目已经继承的能力。[S11][S16]
+
 AWS/Turso 的 6.4 ms PUT 平均值来自其特定 Express 同 AZ 实验，不是 SCAP 的
 端到端提交、Standard／其他兼容服务延迟或生产 SLO。[S10]
 
@@ -307,7 +322,7 @@ checkpoint 后的数据不会因此取得同步多 AZ 保护；不能宣称跨 A
 
 ## 10. 官方资料
 
-以下技术边界于 2026-11-20 复核，外部架构或性能说明不构成 SCAP 验收。
+以下技术边界于 2026-11-22 复核，外部架构或性能说明不构成 SCAP 验收。
 
 - [S1：SQLite WAL](https://www.sqlite.org/wal.html)：同机共享内存、多读与单 writer。
 - [S2：SQLite Over a Network](https://www.sqlite.org/useovernet.html)：网络文件 I/O 与部署选择。
@@ -324,3 +339,5 @@ checkpoint 后的数据不会因此取得同步多 AZ 保护；不能宣称跨 A
 - [S13：libSQL README](https://github.com/tursodatabase/libsql/blob/main/README.md)：libSQL 与 Rust 引擎的区别。
 - [S14：Turso 0.8](https://turso.tech/blog/turso-0.8.0)：2026-09-29，MVCC／group commit；基准不是 S3 端到端性能。
 - [S15：Turso platform roadmap](https://turso.tech/blog/upcoming-changes-to-the-turso-platform-and-roadmap)：2025-01-21，Cloud 服务端与开源组件边界。
+- [S16：Turso group commit](https://turso.tech/blog/turso-group-commit)：2026-09-29，logical log、ticket、共享 fsync 与尾延迟；不是 SCAP 的性能证据。
+- [S17：Turso concurrent writes](https://docs.turso.tech/tursodb/concurrent-writes)：默认单 writer、显式 MVCC/BEGIN CONCURRENT 和冲突处理。
