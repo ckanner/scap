@@ -21,12 +21,14 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 独立审计负控。精确源码、原失败与范围见[本轮记录](docs/engineering/group-commit-validation-2026-11-20.md)，
 本轮重新核对其最终 head `74b69d6` 的 6 个 PR 工作流均首次运行成功，见
 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。目标后端的吞吐
-配对仍未执行，不继承旧候选的性能结论。
+配对仍未执行；#69 新增的本地配对结果单独记录，不继承旧候选的性能结论。
 
 本轮 [PR #69](https://github.com/ckanner/scap/pull/69) 修复普通 actor、control、reader
 提前归还 intake/output，以及 catalogue/recovery 提前归还 intake 的 panic 清理顺序，
 并补充组提交关闭／开启的固定开环配对实验。新候选 stable/nightly 各 971 单位、
-82 文件四维精确覆盖与真实组提交／冷恢复复测均已通过。当前修复、验证和剩余目标
+82 文件四维精确覆盖与真实组提交／冷恢复复测均已通过；640 个测量事务的本地配对、
+独立审计和 25 项负控也已通过。竞争样本成功吞吐增加 5.43% / 21.18%，但第一对的
+成功数下降，轻载没有成组；默认仍关闭，不能宣称全面容量提升。当前修复、验证和剩余目标
 集中记录在 [11 月 22 日复核](docs/engineering/sqlite-s3-review-2026-11-22.md)；
 新变更不沿用 #68 的测试计数作为自己的验收。
 

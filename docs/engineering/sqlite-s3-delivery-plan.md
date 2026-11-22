@@ -12,6 +12,9 @@ worker，以及 catalogue/recovery 提前释放 intake 的问题，统一由 wor
 单位、82 文件四维精确覆盖及真实 HTTP/S3 组提交与冷恢复复测通过。组提交性能采用
 关闭／开启／开启／关闭、轻载和竞争两档固定开环，实际
 结果和原失败单独记录于 [11 月 22 日复核](sqlite-s3-review-2026-11-22.md)。
+新增四轮 640 个测量事务、独立审计与 25 个反例已通过。竞争样本成功吞吐增加
+5.43% / 21.18%，但第一对原 ACK 从 64 降至 58，低载无多成员组；仍默认关闭。
+本地有限测量不替代目标 AWS、成功率／尾延迟目标或长期账单。
 
 [PR #68](https://github.com/ckanner/scap/pull/68) 的
 [独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
