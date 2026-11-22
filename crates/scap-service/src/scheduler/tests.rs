@@ -323,14 +323,14 @@ fn queued_expiration_and_response_loss_release_only_their_owned_output() {
         BASE_BYTES,
     };
     let pool = small_pool(2 * BASE_BYTES, 2 * BASE_BYTES);
-    let mut worker = Echo::new(0);
+    let mut worker = SingleWorker::new(Box::new(Echo::new(0)));
     let (job, receiver) = encoded_job(&pool, until());
     drop(receiver);
     assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
-    execute(&mut worker, job);
+    worker.execute(job);
     assert_eq!(usage(&pool), (0, 0, 0));
     let (job, receiver) = encoded_job(&pool, Instant::now());
-    execute(&mut worker, job);
+    worker.execute(job);
     assert!(receiver.blocking_recv().is_err());
     assert_eq!(usage(&pool), (0, 0, 0));
     let (job, receiver) = encoded_job(&pool, until());
@@ -775,6 +775,141 @@ fn failed_reader_keeps_active_reservations_until_native_drop_and_never_reroutes(
     );
     finish_reads(&scheduler);
     assert!(lock(&scheduler.shared.state).actors.is_empty());
+}
+
+#[test]
+fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_lane() {
+    use crate::intake::{Class, Intake};
+    use crate::output::{
+        tests::{small_pool, usage},
+        BASE_BYTES,
+    };
+
+    struct PanicBudgeted {
+        held: Option<String>,
+        entered: mpsc::SyncSender<()>,
+        panic_now: mpsc::Receiver<()>,
+        dropping: mpsc::SyncSender<()>,
+        cleanup: mpsc::Receiver<()>,
+    }
+    impl Worker for PanicBudgeted {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            unreachable!("encoded work must stay budgeted")
+        }
+
+        fn execute_budgeted(
+            &mut self,
+            _: &Principal,
+            _: Call,
+            _: Instant,
+            output: &mut crate::output::OutputContext,
+        ) -> Result<Value, Failure> {
+            // Retain a genuinely charged output allocation in the worker, so
+            // early refund is observable while its backing is still alive.
+            self.held = Some(output.base64(b"abc").unwrap());
+            self.entered.send(()).unwrap();
+            self.panic_now.recv_timeout(Duration::from_secs(5)).unwrap();
+            panic!("controlled single-request worker failure");
+        }
+    }
+    impl Drop for PanicBudgeted {
+        fn drop(&mut self) {
+            let _ = self.dropping.send(());
+            let _ = self.cleanup.recv_timeout(Duration::from_secs(5));
+        }
+    }
+
+    for (lane, index) in [("actor", 0), ("control", 2), ("reader", 3)] {
+        for disconnected in [false, true] {
+            let (entered, started) = mpsc::sync_channel(1);
+            let (panic_now, panic_receiver) = mpsc::sync_channel(1);
+            let (dropping, drop_started) = mpsc::sync_channel(1);
+            let (cleanup, cleanup_receiver) = mpsc::sync_channel(1);
+            let source = Arc::new(Mutex::new(Some((panic_receiver, cleanup_receiver))));
+            let factory: Factory = Arc::new(move |slot| {
+                if slot != index {
+                    return Ok(Box::new(Echo::new(slot)));
+                }
+                let (panic_now, cleanup) = lock(&source).take().unwrap();
+                Ok(Box::new(PanicBudgeted {
+                    held: None,
+                    entered: entered.clone(),
+                    panic_now,
+                    dropping: dropping.clone(),
+                    cleanup,
+                }))
+            });
+            let scheduler = Scheduler::with_read_pool(
+                limits(),
+                Some(ReadPool {
+                    workers: 1,
+                    active_per_tenant: 1,
+                    active_per_database: 1,
+                }),
+                factory,
+            )
+            .unwrap();
+            let control = lane == "control";
+            let intake = Arc::new(
+                Intake::new(
+                    if control { Class::Control } else { Class::Data },
+                    1,
+                    4096,
+                    None,
+                )
+                .unwrap(),
+            );
+            let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
+            let call = match lane {
+                "actor" => data(10, Action::Create { nonce: Decimal(1) }),
+                "control" => data(
+                    10,
+                    Action::Status {
+                        expected_worker_instance: None,
+                    },
+                ),
+                _ => query(10),
+            };
+            let receiver = scheduler
+                .submit_encoded(
+                    principal(),
+                    call,
+                    until(),
+                    intake.acquire(&principal()).unwrap(),
+                    pool.acquire(&principal(), control).unwrap(),
+                )
+                .unwrap();
+            started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let mut receiver = Some(receiver);
+            if disconnected {
+                drop(receiver.take());
+            }
+            panic_now.send(()).unwrap();
+            drop_started.recv_timeout(Duration::from_secs(5)).unwrap();
+            // Observe during the blocked native/cache destructor, then unblock
+            // it before asserting so a red regression cannot strand a thread.
+            let permits_during_cleanup = intake.available_permits();
+            let output_during_cleanup = usage(&pool);
+            let read_credits_during_cleanup = lock(&scheduler.shared.state).readers.tenants.len();
+            cleanup.send(()).unwrap();
+            drop(scheduler);
+            if let Some(receiver) = receiver {
+                assert!(receiver.blocking_recv().is_err());
+            }
+            assert_eq!(
+                permits_during_cleanup, 0,
+                "{lane}, disconnected={disconnected}: intake refunded before worker cleanup"
+            );
+            assert_eq!(
+                output_during_cleanup.0 + output_during_cleanup.1,
+                BASE_BYTES + 4,
+                "{lane}, disconnected={disconnected}: output refunded before worker cleanup"
+            );
+            assert_eq!(read_credits_during_cleanup, usize::from(lane == "reader"));
+            assert_eq!(intake.available_permits(), 1);
+            assert_eq!(usage(&pool), (0, 0, 0));
+        }
+    }
 }
 fn fail_spawn(_: &str, _: Task) -> std::io::Result<JoinHandle<()>> {
     Err(std::io::Error::other("unit spawn fault"))

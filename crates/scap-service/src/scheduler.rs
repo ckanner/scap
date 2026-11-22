@@ -656,11 +656,41 @@ impl Drop for ReadActivity {
     }
 }
 
-// On unwind Rust drops fields in declaration order: finish native worker/cache
-// destruction before releasing its in-flight read reservation. On success the
-// activity is cleared only after execute() has dropped the job and its holds.
-struct ReadWorker {
+/// Keep the active job outside the execution stack. On unwind Rust drops fields
+/// in declaration order: native/cache teardown must finish before the request's
+/// intake and output reservations, even after its HTTP receiver disconnects.
+struct SingleWorker {
     worker: Box<dyn Worker>,
+    active: Option<Job>,
+}
+
+impl SingleWorker {
+    fn new(worker: Box<dyn Worker>) -> Self {
+        Self {
+            worker,
+            active: None,
+        }
+    }
+
+    fn execute(&mut self, job: Job) {
+        self.active = Some(job);
+        let result = perform(
+            self.worker.as_mut(),
+            self.active.as_mut().expect("active single request"),
+        );
+        // Only a returned execution outcome proves native work has ended.
+        // Serialization and transfer keep the original Job's own holds alive.
+        deliver(
+            self.active.take().expect("completed single request"),
+            result,
+        );
+    }
+}
+
+// The single-job owner drops native/cache and then the job's holds. Keep the
+// read reservation until both have finished; success clears it after execute.
+struct ReadWorker {
+    worker: SingleWorker,
     activity: Option<ReadActivity>,
 }
 
@@ -706,11 +736,6 @@ fn deliver(mut job: Job, result: Option<Result<Value, Failure>>) {
             );
         }
     }
-}
-
-fn execute(worker: &mut dyn Worker, mut job: Job) {
-    let result = perform(worker, &mut job);
-    deliver(job, result);
 }
 
 fn finish_encoded(
@@ -842,7 +867,7 @@ impl Scheduler {
                     "scap-control",
                     Box::new(move || {
                         let _exit = Exit::Control(shared.clone(), index);
-                        let mut worker = match factory(limits.active_database_actors + index) {
+                        let worker = match factory(limits.active_database_actors + index) {
                             Ok(worker) => {
                                 let _ = started.send(Ok(()));
                                 worker
@@ -852,8 +877,9 @@ impl Scheduler {
                                 return;
                             }
                         };
+                        let mut worker = SingleWorker::new(worker);
                         while let Some(job) = shared.next_control(index, &changed) {
-                            execute(worker.as_mut(), job);
+                            worker.execute(job);
                         }
                     }),
                 )
@@ -885,7 +911,7 @@ impl Scheduler {
                                 }
                             };
                             let mut owned = ReadWorker {
-                                worker,
+                                worker: SingleWorker::new(worker),
                                 activity: None,
                             };
                             while let Some(job) = shared.next_read(profile, &changed) {
@@ -894,7 +920,7 @@ impl Scheduler {
                                     tenant: job.tenant(),
                                     key: job.key.clone(),
                                 });
-                                execute(owned.worker.as_mut(), job);
+                                owned.worker.execute(job);
                                 owned.activity = None;
                             }
                         }),
@@ -933,7 +959,7 @@ impl Scheduler {
             // The field order keeps counted work and its leases reserved if
             // a failed worker has native/TLS cleanup to finish during unwind.
             let mut owned = ActorWorker {
-                worker,
+                worker: SingleWorker::new(worker),
                 active: None,
             };
             lock(&shared.state)
@@ -943,14 +969,14 @@ impl Scheduler {
                 .phase = Phase::Running;
             while let Some(work) = shared.next_actor(&worker_key, &changed, idle, profile) {
                 match work {
-                    Work::Single(job) => execute(owned.worker.as_mut(), job),
+                    Work::Single(job) => owned.worker.execute(job),
                     Work::Group(batch) => {
                         owned.active = Some(batch);
                         owned
                             .active
                             .as_mut()
                             .expect("active group")
-                            .run(owned.worker.as_mut());
+                            .run(owned.worker.worker.as_mut());
                         owned.active = None;
                     }
                 }
