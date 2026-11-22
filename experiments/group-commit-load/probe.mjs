@@ -27,8 +27,11 @@ async function capture(url, options) {
   try {
     const response = await globalThis.fetch(url, options);
     const raw = Buffer.from(await response.arrayBuffer());
+    const rejection = response.headers.get('x-scap-rejection');
     append('sdk.jsonl', { event: 'http_response', id: current.id, status: response.status,
-      response: save(raw), content_type: response.headers.get('content-type'), complete: true });
+      response: save(raw), content_type: response.headers.get('content-type'),
+      rejection_header: rejection,
+      rejection_header_bytes: rejection === null ? null : save(Buffer.from(rejection, 'utf8')), complete: true });
     return new Response(raw, { status: response.status, headers: response.headers });
   } catch (error) {
     append('sdk.jsonl', { event: 'http_error', id: current.id, error_name: error.name });
@@ -82,7 +85,7 @@ async function invoke(call, scheduled = now()) {
       }
     } catch (error) {
       failure = { name: error.name, code: error.code ?? null, outcome: error.outcome ?? null,
-        cause_code: error.cause?.code ?? null };
+        cause_code: error.cause?.code ?? null, resource_rejection: error.resourceRejection ?? null };
       if (error.receipt) failure.receipt = error.receipt;
       if (error.rawResult !== undefined) failure.raw_result = save(Buffer.from(error.rawResult));
     }

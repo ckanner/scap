@@ -7,6 +7,40 @@ fn parsed(value: serde_json::Value) -> Config {
 }
 
 #[test]
+fn anonymous_resource_diagnostics_are_explicit_boolean_opt_in() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(
+        !parsed(value.clone())
+            .prepare_with(&environment)
+            .unwrap()
+            .service
+            .resource_diagnostics
+    );
+    for enabled in [true, false] {
+        value["resource_diagnostics"] = json!(enabled);
+        assert_eq!(
+            parsed(value.clone())
+                .prepare_with(&environment)
+                .unwrap()
+                .service
+                .resource_diagnostics,
+            enabled
+        );
+    }
+    for invalid in [json!(1), json!("true"), serde_json::Value::Null, json!({})] {
+        value["resource_diagnostics"] = invalid;
+        assert_eq!(
+            Config::parse(value.to_string().as_bytes())
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+}
+
+#[test]
 fn kernel_resource_contract_is_optional_strict_and_precedes_credentials() {
     let directory = tempfile::tempdir().unwrap();
     let mut value = sample_config(directory.path());

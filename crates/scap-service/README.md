@@ -97,6 +97,12 @@ mkdir -p /absolute/private-cache
 
 示例中的占位值必须替换。没有临时 session token 时明确写 `null`。程序只读取配置中指定的环境变量，不搜索本机 AWS 配置或实例元数据。S3 单对象预算取当前持久格式上限；数据库默认 10 GiB，管理员可经 `quota` 修改或取消业务配额。可选 `execution.result_memory_bytes` 单独配置每次操作的 Rust typed 结果图预算，省略时为 128 MiB；它不改变 SQL 结果 wire 上限、持久结果格式或已有库配额。其实际 Engine 接线和失败语义见[资源边界](docs/intake-reservations.md)。
 
+可选顶层 `resource_diagnostics` 默认 `false`。设为 `true` 后，资源拒绝响应可带一个
+至多 256 ASCII 字节的 `x-scap-rejection`，记录原拒绝点的预算与占用；错误 JSON、
+请求结果和重试规则不变。开启会向已认证调用者暴露匿名共享池压力，部分检查早于
+数据库 HEAD 权限；要求隐藏该信息的部署保持关闭。原因、计量单位、队列额度语义、
+SDK 行为与验收见[完整诊断合同](../../docs/architecture/resource-rejection-diagnostics.md)。
+
 可选 `owner_recovery` 仅限制每次 `owner_resume` 的 payload GET 数和累计返回体预算；默认值
 如上，可降低或设零禁用该类恢复，不能提高到默认上限以上。它不改变持久 quota、保留
 结果、普通查询或目录 RecoveryJob 的预算。HEAD/owner 控制元数据另有每调用 8 次 I/O

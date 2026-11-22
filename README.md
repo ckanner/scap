@@ -7,9 +7,10 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 ## 当前实现与验证状态
 
 最新审查：2026-11-22（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
-[PR #66](https://github.com/ckanner/scap/pull/66)、[PR #67](https://github.com/ckanner/scap/pull/67)
-和 [PR #68](https://github.com/ckanner/scap/pull/68) 均已合并；本轮基准主线为
-[`3be8be7`](https://github.com/ckanner/scap/commit/3be8be7273f716cd79bf0427b0beb224dc4781fe)。
+[PR #66](https://github.com/ckanner/scap/pull/66)、[PR #67](https://github.com/ckanner/scap/pull/67)、
+[PR #68](https://github.com/ckanner/scap/pull/68) 和 [PR #69](https://github.com/ckanner/scap/pull/69)
+均已合并；本轮基准主线为
+[`d066354`](https://github.com/ckanner/scap/commit/d06635484f51d191d2f499e23860b0ffe4ce02e1)。
 #67 的参数绑定优化与复核已完成独立验收；该 PR 最终候选的 6 个工作流、24 个 job
 全部成功，来源见[上轮复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
 
@@ -23,7 +24,7 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。目标后端的吞吐
 配对仍未执行；#69 新增的本地配对结果单独记录，不继承旧候选的性能结论。
 
-本轮 [PR #69](https://github.com/ckanner/scap/pull/69) 修复普通 actor、control、reader
+已合入的 [PR #69](https://github.com/ckanner/scap/pull/69) 修复普通 actor、control、reader
 提前归还 intake/output，以及 catalogue/recovery 提前归还 intake 的 panic 清理顺序，
 并补充组提交关闭／开启的固定开环配对实验。新候选 stable/nightly 各 971 单位、
 82 文件四维精确覆盖与真实组提交／冷恢复复测均已通过；640 个测量事务的本地配对、
@@ -31,6 +32,13 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 成功数下降，轻载没有成组；默认仍关闭，不能宣称全面容量提升。当前修复、验证和剩余目标
 集中记录在 [11 月 22 日复核](docs/engineering/sqlite-s3-review-2026-11-22.md)；
 新变更不沿用 #68 的测试计数作为自己的验收。
+
+#69 最终 head `1c8bce1` 的 6 个 PR 工作流、26 个 job 全部成功后合入。本轮继续
+[资源拒绝诊断](docs/architecture/resource-rejection-diagnostics.md)：默认关闭的原拒绝点
+预算快照、SDK 无损可选 metadata，以及保持容量的短负载／较长分阶段负载。原夹具
+租户 intake 实际上限为 40，低于单库 64 个数据队列额度；需用真实拒绝原因判断瓶颈，
+不能仅根据 group commit 持有额度推断成功数变化。当前候选自己的结果见
+[接续验证](docs/engineering/admission-diagnostics-validation-2026-11-22.md)。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。

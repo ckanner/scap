@@ -236,7 +236,7 @@ impl Engine {
             let _slot = self
                 .recovery
                 .try_acquire()
-                .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                .map_err(Failure::native_recovery)?;
             entry.session = Some(
                 entry
                     .database
@@ -345,7 +345,7 @@ impl Engine {
                 let _slot = self
                     .recovery
                     .try_acquire()
-                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    .map_err(Failure::native_recovery)?;
                 entry.session = None;
                 let (head, session) = database.activate_session(
                     principal,
@@ -382,7 +382,7 @@ impl Engine {
                 let _slot = self
                     .recovery
                     .try_acquire()
-                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    .map_err(Failure::native_recovery)?;
                 entry.session = None;
                 let (value, session) =
                     database.owner_resume(principal, &plan.native()?, path, deadline)?;
@@ -489,7 +489,7 @@ impl Engine {
                 let _slot = self
                     .recovery
                     .try_acquire()
-                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    .map_err(Failure::native_recovery)?;
                 database.compact_copy(principal, plan_serial.0, deadline)?
             }
             Action::CompactPromote { plan_serial } => {
@@ -510,7 +510,7 @@ impl Engine {
                 let _slot = self
                     .recovery
                     .try_acquire()
-                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    .map_err(Failure::native_recovery)?;
                 let report = database.gc_prepare(
                     principal,
                     expected_head_serial.0,
@@ -530,7 +530,7 @@ impl Engine {
                 let _slot = self
                     .recovery
                     .try_acquire()
-                    .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+                    .map_err(Failure::native_recovery)?;
                 let report = database.gc_resume(
                     principal,
                     batch_serial.0,
@@ -583,6 +583,7 @@ fn committed(
             return Err(Failure {
                 code: "COMMITTED_BUT_UNAVAILABLE",
                 receipt: Some(Box::new(receipt)),
+                rejection: None,
             })
         }
     };

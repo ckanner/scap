@@ -99,7 +99,8 @@ fn restore_copy_uses_its_own_pool_and_rejects_misclassified_calls() {
             decoded(disabled.oneshot(restore_request()).await.unwrap()).await["error"]["code"],
             "UNAVAILABLE"
         );
-        let state = restore_enabled(Arc::new(|_| Ok(Box::new(Echo))));
+        let mut state = restore_enabled(Arc::new(|_| Ok(Box::new(Echo))));
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = true;
         let app = router(state.clone()).unwrap();
         let permit = state
             .restore
@@ -109,10 +110,12 @@ fn restore_copy_uses_its_own_pool_and_rejects_misclassified_calls() {
             .intake
             .acquire(&principal())
             .unwrap();
+        let response = app.clone().oneshot(restore_request()).await.unwrap();
         assert_eq!(
-            decoded(app.clone().oneshot(restore_request()).await.unwrap()).await["error"]["code"],
-            "BACKPRESSURE"
+            response.headers()[rejection::HEADER],
+            "v=1;reason=intake_recovery_requests_global;used=1;limit=1;requested=1"
         );
+        assert_eq!(decoded(response).await["error"]["code"], "BACKPRESSURE");
         assert_eq!(
             decoded(
                 app.clone()
@@ -209,20 +212,22 @@ fn catalogue_is_explicitly_enabled_authenticated_and_never_borrows_database_capa
             decoded(app.oneshot(directory("x")).await.unwrap()).await["error"]["code"],
             "UNAVAILABLE"
         );
-        let state = enabled();
+        let mut state = enabled();
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = true;
         let app = router(state.clone()).unwrap();
         let slots = state.catalogue.as_ref().unwrap().intake.clone();
         let permit = slots.acquire(&principal()).unwrap();
         let mut unauth = directory("x");
         unauth.headers_mut().remove("authorization");
+        let response = app.clone().oneshot(unauth).await.unwrap();
+        assert!(!response.headers().contains_key(rejection::HEADER));
+        assert_eq!(decoded(response).await["error"]["code"], "UNAUTHENTICATED");
+        let response = app.clone().oneshot(directory("x")).await.unwrap();
         assert_eq!(
-            decoded(app.clone().oneshot(unauth).await.unwrap()).await["error"]["code"],
-            "UNAUTHENTICATED"
+            response.headers()[rejection::HEADER],
+            "v=1;reason=intake_catalogue_requests_global;used=1;limit=1;requested=1"
         );
-        assert_eq!(
-            decoded(app.clone().oneshot(directory("x")).await.unwrap()).await["error"]["code"],
-            "BACKPRESSURE"
-        );
+        assert_eq!(decoded(response).await["error"]["code"], "BACKPRESSURE");
         for (operation, class) in [
             ("query", "data"),
             ("status", "control"),

@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { CodecError } from '../../node-codec/src/codec.js';
 import { ClientError, RemoteError, UnknownError, CommittedResultError } from './errors.js';
 import { record, requireValue, parseJson, envelope } from './wire.js';
+import { resourceRejection } from './resource_rejection.js';
 
 const MAX_WIRE_BYTES = 96 * 1024 * 1024;
 const RECOVERY = new Set(['open', 'activate', 'compact_copy', 'gc_prepare', 'gc_resume', 'owner_resume', 'resume_restore']);
@@ -125,7 +126,21 @@ export class Transport {
       }
       const bytes = Buffer.concat(chunks, size);
       requireValue(isUtf8(bytes), 'Response is not valid UTF-8');
-      const value = envelope(parseJson(bytes.toString('utf8')), response.status, reference);
+      let value;
+      try {
+        value = envelope(parseJson(bytes.toString('utf8')), response.status, reference);
+      } catch (error) {
+        // Only an already verified remote failure may carry advisory metadata.
+        // Receipt-bearing, UNKNOWN, malformed and successful results keep their
+        // existing semantics regardless of the optional response header.
+        if (error instanceof RemoteError) {
+          const diagnostic = resourceRejection(response.headers, error.code);
+          if (diagnostic !== undefined) {
+            Object.defineProperty(error, 'resourceRejection', { value: diagnostic, enumerable: true });
+          }
+        }
+        throw error;
+      }
       const decoded = decode(value);
       // Synchronous parsing/materialization also consumes the original budget.
       if (performance.now() >= deadline) {

@@ -103,22 +103,31 @@ fn separate_admission_bounds_global_and_tenant_work_until_the_last_owner_drops()
     let p = principal();
     let a = gate.acquire(&p).unwrap();
     let a2 = a.clone();
-    assert_eq!(gate.acquire(&p).err().unwrap().code, "BACKPRESSURE");
+    crate::tests::assert_budget(
+        &gate.acquire(&p).err().unwrap(),
+        Budget::DiscoveryTenant,
+        1,
+        1,
+        1,
+    );
     let b = gate
         .acquire(&Principal {
             tenant: 4,
             ..p.clone()
         })
         .unwrap();
-    assert_eq!(
-        gate.acquire(&Principal {
-            tenant: 5,
-            ..p.clone()
-        })
-        .err()
-        .unwrap()
-        .code,
-        "BACKPRESSURE"
+    crate::tests::assert_budget(
+        &gate
+            .acquire(&Principal {
+                tenant: 5,
+                ..p.clone()
+            })
+            .err()
+            .unwrap(),
+        Budget::DiscoveryGlobal,
+        2,
+        2,
+        1,
     );
     drop(a);
     assert!(gate.acquire(&p).is_err());
@@ -522,12 +531,14 @@ fn worker_submission_is_confined_single_use_bounded_and_reaped_or_joined() {
         }));
     }
     let lease = d.admission.acquire(&p).unwrap();
-    assert_eq!(
-        d.submit(p.clone(), call("list_names", Value::Null), lease, until())
+    crate::tests::assert_budget(
+        &d.submit(p.clone(), call("list_names", Value::Null), lease, until())
             .err()
-            .unwrap()
-            .code,
-        "BACKPRESSURE"
+            .unwrap(),
+        Budget::DiscoveryThreads,
+        2,
+        2,
+        1,
     );
     barrier.wait();
     drop(d);

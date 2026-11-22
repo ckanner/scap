@@ -86,8 +86,15 @@ function responseHeaders(response) {
   for (let index = 0; index < pairs.length; index += 2) {
     const name = pairs[index], value = pairs[index + 1];
     bytes += name.length + value.length + 4;
-    requireValue(!headers.has(name), 'Duplicate controller response header');
-    headers.set(name, value);
+    if (name.toLowerCase() === 'x-scap-rejection') {
+      // This optional diagnostic has no framing or outcome authority. Preserve
+      // duplicates as a combined value for the SDK to discard, while retaining
+      // the original total header budgets and all other duplicate checks.
+      headers.append(name, value);
+    } else {
+      requireValue(!headers.has(name), 'Duplicate controller response header');
+      headers.set(name, value);
+    }
   }
   if (bytes > HEADER_BYTES) throw failure('LIMIT');
   const length = headers.get('content-length');

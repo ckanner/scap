@@ -4,6 +4,13 @@
 
 原 `Client`、`CatalogueClient`、`DiscoveryClient` 的每次方法调用最多发出一个 HTTP 请求。可选 `RoutedClient` 先读取 fresh status，再派发至当前 owner，仍最多发送一个业务 SQL 请求。`OwnerPlanClient` 逐次执行持久 owner 计划，支持 prepare 响应丢失后的原输入查证；旧 `OwnerClient` 保留 HEAD8 之前的显式 takeover 与 activation 流程。SDK 不自动重跑 SQL、不换 request ID、不重新取得 epoch，也不跟随重定向。HTTP 超时或 Abort 只能结束客户端等待，服务端可能已经提交或仍在执行。
 
+服务明确开启 `resource_diagnostics` 时，已经验证的 `RemoteError` 可包含只读
+`resourceRejection`：`{version:1, reason, used, limit, requested}`；三个数值均为规范
+十进制字符串。只有来源的原因没有数值字段。缺失、未知、重复或损坏的可选 header
+不改变原错误；`outcome` 仍为 `unresolved`，不会获得 `not_sent` 保证或触发自动重试。
+UNKNOWN、提交回执与成功结果沿用既有合同。详细原因、共享负载信息可见性和精确
+预算语义见[诊断设计](../../docs/architecture/resource-rejection-diagnostics.md)。
+
 ## 使用
 
 固定验收环境为 Node **22.16.0**。`endpoint` 是完整 API 地址，包括 `/v1`；默认接受 HTTPS，以及用于本地连接的 `127.0.0.1`、`localhost`、`[::1]` HTTP。其他明文 HTTP 必须在配置中显式设置 `allowInsecureHttp: true`。URL 中不能带凭据、查询参数或 fragment。

@@ -10,7 +10,12 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::oneshot;
 
-use crate::{auth::Principal, wire::Call, Failure};
+use crate::{
+    auth::Principal,
+    rejection::{Budget, Source},
+    wire::Call,
+    Failure,
+};
 
 mod group;
 use group::{ActorWorker, Work};
@@ -205,8 +210,26 @@ struct Count {
 }
 
 impl Count {
-    fn full(&self, maximum: usize, reserve: usize, control: bool) -> bool {
-        self.total >= maximum || (!control && self.data >= maximum - reserve)
+    fn check(
+        &self,
+        maximum: usize,
+        reserve: usize,
+        control: bool,
+        total: Budget,
+        data: Budget,
+    ) -> Result<(), Failure> {
+        if self.total >= maximum {
+            return Err(Failure::budget(total, self.total as u64, maximum as u64, 1));
+        }
+        if !control && self.data >= maximum - reserve {
+            return Err(Failure::budget(
+                data,
+                self.data as u64,
+                (maximum - reserve) as u64,
+                1,
+            ));
+        }
+        Ok(())
     }
 
     fn add(&mut self, control: bool) {
@@ -235,19 +258,27 @@ impl Usage {
         let empty = Count::default();
         let tenant = self.tenants.get(&job.tenant()).unwrap_or(&empty);
         let database = self.databases.get(&job.key).unwrap_or(&empty);
-        if self
-            .all
-            .full(limits.queued_total, limits.reserved_controls, control)
-            || tenant.full(limits.queued_per_tenant, limits.reserved_controls, control)
-            || database.full(
-                limits.queued_per_database,
-                limits.reserved_controls,
-                control,
-            )
-        {
-            return Err(Failure::new("BACKPRESSURE"));
-        }
-        Ok(())
+        self.all.check(
+            limits.queued_total,
+            limits.reserved_controls,
+            control,
+            Budget::QueueGlobalTotal,
+            Budget::QueueGlobalData,
+        )?;
+        tenant.check(
+            limits.queued_per_tenant,
+            limits.reserved_controls,
+            control,
+            Budget::QueueTenantTotal,
+            Budget::QueueTenantData,
+        )?;
+        database.check(
+            limits.queued_per_database,
+            limits.reserved_controls,
+            control,
+            Budget::QueueDatabaseTotal,
+            Budget::QueueDatabaseData,
+        )
     }
 
     fn add(&mut self, job: &Job) {
@@ -1093,7 +1124,7 @@ impl Scheduler {
         }
         if let Some(actor) = state.actors.get(&key) {
             if actor.phase == Phase::Draining {
-                return Err(Failure::new("BACKPRESSURE"));
+                return Err(Failure::source(Source::ActorDraining));
             }
             state.usage.add(&job);
             let actor = state.actors.get_mut(&key).expect("existing actor");
@@ -1102,15 +1133,26 @@ impl Scheduler {
             return Ok(());
         }
         let tenant = job.tenant();
-        if state.actors.len() >= self.limits.active_database_actors
-            || state
-                .actors
-                .values()
-                .filter(|actor| actor.tenant == tenant)
-                .count()
-                >= self.limits.active_database_actors_per_tenant
-        {
-            return Err(Failure::new("BACKPRESSURE"));
+        if state.actors.len() >= self.limits.active_database_actors {
+            return Err(Failure::budget(
+                Budget::ActorsGlobal,
+                state.actors.len() as u64,
+                self.limits.active_database_actors as u64,
+                1,
+            ));
+        }
+        let tenant_actors = state
+            .actors
+            .values()
+            .filter(|actor| actor.tenant == tenant)
+            .count();
+        if tenant_actors >= self.limits.active_database_actors_per_tenant {
+            return Err(Failure::budget(
+                Budget::ActorsTenant,
+                tenant_actors as u64,
+                self.limits.active_database_actors_per_tenant as u64,
+                1,
+            ));
         }
         let slot = (0..self.limits.active_database_actors)
             .find(|slot| state.actors.values().all(|actor| actor.slot != *slot))

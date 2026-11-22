@@ -24,6 +24,7 @@ import './controller_process.test.js';
 import './controller_dynamic.test.js';
 import './reclamation.test.js';
 import './terminal.test.js';
+import './resource_rejection.test.js';
 
 const SCOPE = { deployment: '1', tenant: '2', database: '9007199254740993', incarnation: '4', generation: '5' };
 const TOKEN = 'synthetic-unit-only-bearer-credential';

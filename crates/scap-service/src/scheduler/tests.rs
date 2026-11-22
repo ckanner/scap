@@ -1034,6 +1034,37 @@ fn admit(usage: &mut Usage, job: &Job) -> Result<(), Failure> {
 }
 
 #[test]
+fn queue_diagnostics_capture_charged_credits_at_the_first_failing_partition() {
+    use crate::tests::assert_budget;
+    for (budget, scope, control, maximum) in [
+        (Budget::QueueDatabaseData, 0, false, 6),
+        (Budget::QueueDatabaseTotal, 0, true, 8),
+        (Budget::QueueTenantData, 1, false, 14),
+        (Budget::QueueTenantTotal, 1, true, 16),
+        (Budget::QueueGlobalData, 2, false, 30),
+        (Budget::QueueGlobalTotal, 2, true, 32),
+    ] {
+        let mut usage = Usage::default();
+        let mut charged = Vec::new();
+        for index in 0..maximum {
+            let tenant = if scope == 2 { index + 1 } else { 1 };
+            let database = if scope == 1 { index / 6 + 1 } else { 1 };
+            let admitted = job(tenant, database, index + 1, control).0;
+            admit(&mut usage, &admitted).unwrap();
+            charged.push(admitted);
+        }
+        let rejected = job(1, 1, maximum + 1, control).0;
+        let error = usage.check(&rejected, limits()).unwrap_err();
+        assert_budget(&error, budget, maximum, maximum, 1);
+        for admitted in charged {
+            usage.remove(&admitted);
+        }
+        assert_eq!(usage.all.total, 0);
+        assert_budget(&error, budget, maximum, maximum, 1);
+    }
+}
+
+#[test]
 fn queue_budgets_are_global_across_lanes_and_recovery_cannot_take_control_reservations() {
     let mut usage = Usage::default();
     let mut jobs = Vec::new();
@@ -1146,12 +1177,14 @@ fn cold_database_does_not_block_a_warm_database_and_capacity_does_not_block_cont
         Err(oneshot::error::TryRecvError::Empty)
     ));
     assert_eq!(send(&scheduler, query(20)).unwrap(), warm);
-    assert_eq!(
-        scheduler
+    crate::tests::assert_budget(
+        &scheduler
             .submit(principal(), query(30), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+            .unwrap_err(),
+        Budget::ActorsGlobal,
+        2,
+        2,
+        1,
     );
     assert_eq!(
         send(
@@ -1180,12 +1213,14 @@ fn per_tenant_actor_cap_preserves_slots_for_other_tenants() {
     value.active_database_actors_per_tenant = 1;
     let scheduler = Scheduler::new(value, factory()).unwrap();
     send(&scheduler, query(10)).unwrap();
-    assert_eq!(
-        scheduler
+    crate::tests::assert_budget(
+        &scheduler
             .submit(principal(), query(20), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+            .unwrap_err(),
+        Budget::ActorsTenant,
+        1,
+        1,
+        1,
     );
     let mut other = principal();
     other.tenant = 7;
@@ -1236,12 +1271,14 @@ fn concurrent_first_calls_share_one_starting_actor_without_holding_the_registry_
         .collect();
     assert_eq!(created.load(Ordering::SeqCst), 1);
     assert_eq!(lock(&scheduler.shared.state).usage.all.total, 8);
-    assert_eq!(
-        scheduler
+    crate::tests::assert_budget(
+        &scheduler
             .submit(principal(), query(10), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+            .unwrap_err(),
+        Budget::QueueDatabaseData,
+        8,
+        8,
+        1,
     );
     send(
         &scheduler,
@@ -1382,12 +1419,13 @@ fn idle_actor_exits_without_new_requests_and_draining_slots_wait_for_native_drop
     dropped.recv_timeout(Duration::from_secs(5)).unwrap();
     // No submit was needed to reach Drop. Neither same HEAD nor another HEAD
     // can reuse the still-live native owner; controls remain independent.
+    let draining = scheduler
+        .submit(principal(), query(10), until())
+        .unwrap_err();
+    assert_eq!(draining.code, "BACKPRESSURE");
     assert_eq!(
-        scheduler
-            .submit(principal(), query(10), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+        draining.rejection(),
+        Some(crate::rejection::Rejection::Source(Source::ActorDraining))
     );
     assert_eq!(
         scheduler
@@ -1480,19 +1518,22 @@ fn first_request_never_joins_thread_local_cleanup_and_old_slots_stay_reserved() 
     receive(first).unwrap();
     send(&scheduler, query(20)).unwrap();
     send(&scheduler, query(20)).unwrap();
+    let draining = scheduler
+        .submit(principal(), query(10), until())
+        .unwrap_err();
+    assert_eq!(draining.code, "BACKPRESSURE");
     assert_eq!(
-        scheduler
-            .submit(principal(), query(10), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+        draining.rejection(),
+        Some(crate::rejection::Rejection::Source(Source::ActorDraining))
     );
-    assert_eq!(
-        scheduler
+    crate::tests::assert_budget(
+        &scheduler
             .submit(principal(), query(30), until())
-            .unwrap_err()
-            .code,
-        "BACKPRESSURE"
+            .unwrap_err(),
+        Budget::ActorsGlobal,
+        2,
+        2,
+        1,
     );
     send(
         &scheduler,

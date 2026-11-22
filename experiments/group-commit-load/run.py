@@ -31,8 +31,9 @@ def fixture():
 
 
 class Round:
-    def __init__(self, args, name, enabled, until):
+    def __init__(self, args, name, enabled, until, contract=spec.SHORT):
         self.args, self.enabled, self.until = args, enabled, until
+        self.contract = contract
         self.directory = args.evidence / name
         self.directory.mkdir(mode=0o700)
         self.temporary = tempfile.TemporaryDirectory(prefix='scap-group-load-', dir=args.evidence.parent)
@@ -50,9 +51,9 @@ class Round:
     def setup(self):
         if shutil.disk_usage(self.private).free < spec.BOUNDS['startup_free_bytes']:
             raise ValueError('startup free-space bound')
-        calls = spec.calls()
+        calls = spec.calls(self.contract)
         support.save_json(self.directory / 'workload.json', {
-            'plan': spec.PLAN, 'calls': calls, 'final_sql': spec.ALL_ROWS,
+            'plan': self.contract.plan, 'calls': calls, 'final_sql': spec.ALL_ROWS,
             'payloads': {str(call['row']): self.raw.save(spec.payload(call['row']))
                          for call in calls if 'row' in call}})
         self.backend = network.Backend(self.args.weed, self.private / 'backend',
@@ -65,7 +66,7 @@ class Round:
         self.cache.mkdir(mode=0o700); temporary.mkdir(mode=0o700)
         token = secrets.token_hex(32)
         config = spec.configuration(f'127.0.0.1:{self.port}', self.cache, self.proxy.endpoint,
-                                    hashlib.sha256(token.encode()).hexdigest(), self.enabled)
+                                    hashlib.sha256(token.encode()).hexdigest(), self.enabled, self.contract)
         support.save_json(self.directory / 'service-config.json', config)
         config_path = self.private / 'service.json'
         support.save_json(config_path, config)
@@ -109,7 +110,7 @@ class Round:
         self.sampler.start()
 
     def observe(self):
-        for phase in ('seed', *spec.PHASES, 'verify'):
+        for phase in ('seed', *self.contract.phases, 'verify'):
             self.phase = phase
             self.proxy.set_phase(phase)
             self.events.emit('phase_started', phase=phase)
@@ -122,7 +123,7 @@ class Round:
             identity = network.process_identity(self.child)
             self.events.emit('node_started', phase=phase, identity=identity,
                              spawn_requested_ns=requested, binary_sha256=sha(self.args.node))
-            status, usage = network.wait_child(self.child, self.remaining(spec.DEADLINES['phase_seconds']))
+            status, usage = network.wait_child(self.child, self.remaining(self.contract.deadlines['phase_seconds']))
             self.events.emit('node_stopped', phase=phase, identity=identity, status=status, usage=usage)
             self.child = None
             if status != 0:
@@ -178,6 +179,7 @@ class Round:
 
 
 def run(args):
+    contract = spec.CONTRACTS[args.profile]
     if not __debug__ or os.environ.get('PYTHONOPTIMIZE'):
         raise ValueError('assertions required by source-bound observer helpers')
     if any(name in os.environ for name in ('LLVM_PROFILE_FILE', 'NODE_V8_COVERAGE')) or any(
@@ -187,8 +189,9 @@ def run(args):
         setattr(args, name, getattr(args, name).resolve())
     args.evidence.mkdir(parents=True, mode=0o700, exist_ok=False)
     before = fixture()
-    report = {'status': 'FAILED', 'aws_standard': 'NOT_RUN', 'production_slo': 'NOT_RUN', 'rounds': []}
-    until = time.monotonic() + spec.DEADLINES['run_seconds']
+    report = {'status': 'FAILED', 'profile': contract.name, 'aws_standard': 'NOT_RUN',
+              'production_slo': 'NOT_RUN', 'rounds': []}
+    until = time.monotonic() + contract.deadlines['run_seconds']
     try:
         if subprocess.check_output([str(args.node), '--version'], text=True).strip() != 'v22.16.0':
             raise ValueError('Node must be exactly 22.16.0')
@@ -204,11 +207,11 @@ def run(args):
                   'tools': {name: {'path': str(path), 'sha256': sha(path)} for name, path in (
                       ('scapd', args.binary), ('node', args.node), ('weed', args.weed))}}
         support.save_json(args.evidence / 'inputs.json', inputs)
-        support.save_json(args.evidence / 'plan.json', spec.PLAN)
+        support.save_json(args.evidence / 'plan.json', contract.plan)
         for name, enabled in spec.ROUNDS:
             observed = {'name': name, 'group_commit': enabled, 'status': 'FAILED'}
             report['rounds'].append(observed)
-            instance = Round(args, name, enabled, until)
+            instance = Round(args, name, enabled, until, contract)
             try:
                 instance.setup()
                 instance.observe()
@@ -235,4 +238,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('binary', 'build-record', 'weed', 'node', 'evidence'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--profile', choices=spec.CONTRACTS, default=spec.SHORT.name)
     run(parser.parse_args())

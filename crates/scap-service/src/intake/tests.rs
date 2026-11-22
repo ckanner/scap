@@ -1,6 +1,88 @@
 use super::*;
 use crate::tests::principal;
 
+#[test]
+fn every_class_snapshots_the_first_rejecting_scope_before_releasing_the_lock() {
+    use crate::tests::assert_budget;
+    use Budget::*;
+    for (class, budgets) in [
+        (
+            Class::Data,
+            [
+                IntakeDataRequestsGlobal,
+                IntakeDataRequestsTenant,
+                IntakeDataBodyGlobal,
+                IntakeDataBodyTenant,
+            ],
+        ),
+        (
+            Class::Control,
+            [
+                IntakeControlRequestsGlobal,
+                IntakeControlRequestsTenant,
+                IntakeControlBodyGlobal,
+                IntakeControlBodyTenant,
+            ],
+        ),
+        (
+            Class::Recovery,
+            [
+                IntakeRecoveryRequestsGlobal,
+                IntakeRecoveryRequestsTenant,
+                IntakeRecoveryBodyGlobal,
+                IntakeRecoveryBodyTenant,
+            ],
+        ),
+        (
+            Class::Catalogue,
+            [
+                IntakeCatalogueRequestsGlobal,
+                IntakeCatalogueRequestsTenant,
+                IntakeCatalogueBodyGlobal,
+                IntakeCatalogueBodyTenant,
+            ],
+        ),
+    ] {
+        for (
+            index,
+            total,
+            requests_per_tenant,
+            body_bytes,
+            body_bytes_per_tenant,
+            used,
+            limit,
+            requested,
+        ) in [
+            (0, 1, 1, 1024, 1024, 1, 1, 1),
+            (1, 3, 1, 3072, 3072, 1, 1, 1),
+            (2, 4, 4, 1024, 1024, 1024, 1024, 1024),
+            (3, 4, 4, 2048, 1024, 1024, 1024, 1024),
+        ] {
+            let pool = Arc::new(
+                Intake::new(
+                    class,
+                    total,
+                    1024,
+                    Some(Profile {
+                        version: 1,
+                        requests_per_tenant,
+                        body_bytes,
+                        body_bytes_per_tenant,
+                    }),
+                )
+                .unwrap(),
+            );
+            let first = pool.acquire(&principal()).unwrap();
+            let failure = pool.acquire(&principal()).err().unwrap();
+            assert_budget(&failure, budgets[index], used, limit, requested);
+            assert_eq!(pool.usage.lock().unwrap().tenants.len(), 1);
+            drop(first);
+            assert_eq!(pool.available_permits(), total);
+            assert_budget(&failure, budgets[index], used, limit, requested);
+        }
+    }
+}
+
 fn pool(total: usize, per_tenant: usize, bytes: usize, tenant_bytes: usize) -> Arc<Intake> {
     Arc::new(
         Intake::new(

@@ -17,6 +17,7 @@ mod instance;
 pub mod intake;
 pub mod output;
 pub mod owner_wire;
+pub mod rejection;
 pub mod resource_envelope;
 pub mod restore;
 pub mod restore_wire;
@@ -32,6 +33,7 @@ use scap_object_store::StoreError;
 pub struct Failure {
     pub code: &'static str,
     pub receipt: Option<Box<Receipt>>,
+    pub rejection: Option<rejection::Rejection>,
 }
 
 impl Failure {
@@ -39,7 +41,44 @@ impl Failure {
         Self {
             code,
             receipt: None,
+            rejection: None,
         }
+    }
+
+    pub fn rejected(rejection: rejection::Rejection) -> Self {
+        Self {
+            code: rejection.code(),
+            receipt: None,
+            rejection: Some(rejection),
+        }
+    }
+
+    pub(crate) fn budget(budget: rejection::Budget, used: u64, limit: u64, requested: u64) -> Self {
+        Self::rejected(rejection::Rejection::Counted {
+            budget,
+            used,
+            limit,
+            requested,
+        })
+    }
+
+    pub(crate) fn source(source: rejection::Source) -> Self {
+        Self::rejected(rejection::Rejection::Source(source))
+    }
+
+    /// Public trusted workers can construct a Failure directly. Never attach
+    /// a stale budget diagnostic to a different outcome or an accepted receipt.
+    pub(crate) fn rejection(&self) -> Option<rejection::Rejection> {
+        self.rejection
+            .filter(|value| self.receipt.is_none() && self.code == value.code() && value.is_valid())
+    }
+
+    fn native_recovery(error: tokio::sync::TryAcquireError) -> Self {
+        let source = match error {
+            tokio::sync::TryAcquireError::NoPermits => rejection::Source::NativeRecoveryBusy,
+            tokio::sync::TryAcquireError::Closed => rejection::Source::NativeRecoveryClosed,
+        };
+        Self::rejected(rejection::Rejection::Source(source))
     }
 }
 
@@ -51,6 +90,7 @@ impl From<Error> for Failure {
             return Self {
                 code: "COMMITTED_BUT_UNAVAILABLE",
                 receipt: Some(receipt),
+                rejection: None,
             };
         }
         Self::from_ref(&error)
@@ -65,6 +105,7 @@ impl Failure {
             return Self {
                 code: "COMMITTED_BUT_UNAVAILABLE",
                 receipt: Some(receipt.clone()),
+                rejection: None,
             };
         }
         if let Error::Store(error) = error {

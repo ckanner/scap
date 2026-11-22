@@ -8,7 +8,7 @@ use std::time::Instant;
 use serde_json::Value;
 use tokio::sync::oneshot;
 
-use crate::{auth::Principal, catalogue_wire::Call, Failure};
+use crate::{auth::Principal, catalogue_wire::Call, rejection::Budget, Failure};
 
 pub trait Worker {
     fn execute(
@@ -140,7 +140,7 @@ struct Queue {
 }
 
 impl Queue {
-    fn push(&mut self, job: Job, limits: Limits) -> Result<(), Failure> {
+    fn push(&mut self, job: Job, limits: Limits, recovery: bool) -> Result<(), Failure> {
         if self.closed {
             return Err(Failure::new("UNAVAILABLE"));
         }
@@ -149,18 +149,50 @@ impl Queue {
         if Instant::now() >= job.deadline {
             return Err(Failure::new("DEADLINE"));
         }
-        if self.tenants.iter().map(TenantQueue::len).sum::<usize>() >= limits.queued_total {
-            return Err(Failure::new("BACKPRESSURE"));
+        let [global, tenant_budget, name_budget] = if recovery {
+            [
+                Budget::RestoreQueueGlobal,
+                Budget::RestoreQueueTenant,
+                Budget::RestoreQueueName,
+            ]
+        } else {
+            [
+                Budget::CatalogueQueueGlobal,
+                Budget::CatalogueQueueTenant,
+                Budget::CatalogueQueueName,
+            ]
+        };
+        let queued = self.tenants.iter().map(TenantQueue::len).sum::<usize>();
+        if queued >= limits.queued_total {
+            return Err(Failure::budget(
+                global,
+                queued as u64,
+                limits.queued_total as u64,
+                1,
+            ));
         }
         let tenant = (job.principal.deployment, job.principal.tenant);
         let name = job.call.action.name();
         let position = match self.tenants.iter().position(|queue| queue.tenant == tenant) {
             Some(position) => {
                 let queue = &self.tenants[position];
-                if queue.len() >= limits.queued_per_tenant
-                    || queue.name_cost(name) >= limits.queued_per_name
-                {
-                    return Err(Failure::new("BACKPRESSURE"));
+                let queued = queue.len();
+                if queued >= limits.queued_per_tenant {
+                    return Err(Failure::budget(
+                        tenant_budget,
+                        queued as u64,
+                        limits.queued_per_tenant as u64,
+                        1,
+                    ));
+                }
+                let name_cost = queue.name_cost(name);
+                if name_cost >= limits.queued_per_name {
+                    return Err(Failure::budget(
+                        name_budget,
+                        name_cost as u64,
+                        limits.queued_per_name as u64,
+                        1,
+                    ));
                 }
                 position
             }
@@ -365,6 +397,7 @@ impl Scheduler {
                     _reservation: reservation,
                 },
                 self.limits,
+                self.admission == "recovery",
             )?;
         self.lane.changed.notify_one();
         Ok(receiver)

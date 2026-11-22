@@ -5,6 +5,17 @@ use crate::wire::{Action, Decimal};
 mod startup_s3;
 
 #[test]
+fn diagnostic_opt_in_reaches_the_shared_http_state() {
+    for enabled in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config = prepared(directory.path()).service;
+        config.resource_diagnostics = enabled;
+        let (_, state) = assemble(config, Arc::new(Memory::default())).unwrap();
+        assert_eq!(state.resource_diagnostics, enabled);
+    }
+}
+
+#[test]
 fn kernel_envelope_is_revalidated_before_permanent_worker_claim() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = prepared(directory.path()).service;

@@ -5,7 +5,7 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-22（纽约）。#65/#66/#67/#68 已合入，审查基线为主线 `3be8be7`。
+更新：2026-11-22（纽约）。#65/#66/#67/#68/#69 已合入，审查基线为主线 `d066354`。
 [PR #68](https://github.com/ckanner/scap/pull/68) 已合入默认关闭的
 [独立事务 group commit](../architecture/independent-group-commit.md)，
 真实逐事务 staging、每成员版本/原结果和一次原 HEAD CAS 已接通服务调度。
@@ -14,12 +14,17 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 验证来源见[本轮记录](group-commit-validation-2026-11-20.md)，远端状态见
 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。下表 #66 的计数保留历史归属。
 
-本轮 #69 处理 actor/control/reader/catalogue/recovery 在 worker panic 时的实际资源
+已合入的 #69 处理 actor/control/reader/catalogue/recovery 在 worker panic 时的实际资源
 归还顺序，新候选 stable/nightly 各 971 单位、82 文件四维精确覆盖与真实组提交合同
 复测通过，并补组提交开关的固定开环配对，
 新验证与范围见 [11 月 22 日复核](sqlite-s3-review-2026-11-22.md)。
 该本地四轮配对已完成：640 个测量原事务、独立审计与 25 项负控通过。竞争样本
 成功吞吐增加 5.43% / 21.18%，第一对成功数下降，低载无组；默认开关保持关闭。
+
+#69 最终 head 的 6 个工作流／26 个 job 全部成功后合入。接续候选增加
+[拒绝点预算诊断](../architecture/resource-rejection-diagnostics.md)和固定较长到达曲线，
+优先确定 intake／队列／输出等实际首个瓶颈。原配置的每租户 intake 是 40，单库数据
+队列是 64；诊断采集保持原配置，结果见[独立验证](admission-diagnostics-validation-2026-11-22.md)。
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
@@ -38,10 +43,10 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. #67 参数绑定与 #68 同库独立事务组提交已合入；#69 修复五条通道的 panic 资源归还，
-   并按新的完整代码候选采集精确覆盖、实际 HTTP/S3、进程故障和原字节审计。
-   默认仍为单请求路径。
-2. 配对测量组提交在目标后端的实际收益；所有原失败和负值保留。FULL、受检 TRUNCATE
+1. #67 参数绑定、#68 同库独立事务组提交和 #69 五条通道 panic 资源归还均已合入。
+   当前候选增加原拒绝点诊断，短／长固定负载分别绑定源码、配置、原 HTTP/S3 字节
+   与负控，查明成功率与预算压力。默认仍为单请求路径。
+2. 根据已观测瓶颈另设资源／调度优化对照，再测目标后端实际收益；所有原失败和负值保留。FULL、受检 TRUNCATE
    与最终 Manifest exact GET 保持，不以延后持久确认或删回读交换吞吐。
 3. 根据单库/多库/冷启动瓶颈继续跨库对象打包、lazy VFS、PITR；新 MVCC 引擎、全局
    fleet 共识、自动扩缩容、每租户硬隔离和长期 GC 均需各自协议与故障合同。
