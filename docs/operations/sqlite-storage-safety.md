@@ -18,9 +18,13 @@ AWS EFS 支持 NFSv4 advisory 字节范围锁，但这种支持不是 SQLite 跨
 
 1. 服务在配置的父目录下为 worker 创建独立临时目录，SQLite 执行器独占创建新的 session 目录和数据库文件。目录权限 `0700`，数据库权限 `0600`；存在的目录及旧 WAL 不复用。
 2. 从一次精确 GET 得到 HEAD body 与 ETag，校验当前 scope、权限、请求身份和 owner。对象依赖按哈希校验后物化为私有镜像。
-3. SQLite 的提交前 gate 捕获变化页面及完整原结果；先条件创建不可变依赖并回读校验，再使用原 ETag 条件更新 HEAD。
-4. HEAD 发布成功后才允许 native SQLite publication；两者完成后才能 ACK。接管、撤权、取消和提交在同一 HEAD 上排序，旧 owner 或旧候选不能换新 ETag 继续提交。
+3. 普通单请求在 native COMMIT 的 publication 边界等待提交 gate：捕获变化页及完整原结果，条件创建不可变依赖并回读校验，再使用原 ETag 条件更新 HEAD。远端接受后才继续 native publication。
+4. 可选[独立事务组提交](../architecture/independent-group-commit.md)先在不可访问的私有 staging 镜像逐成员完成真实 native COMMIT，各自检查约束、保存页差分和原结果；然后持久化全部依赖，经一次原 ETag CAS 发布成功前缀。HEAD 接受后完成受检 checkpoint 和镜像收养，才能逐成员 ACK。私有 COMMIT 本身不是持久成功；普通 gate 不会收到虚构的 Accepted。
 5. 本地执行失败即丢弃私有状态，从对象权威恢复。S3 不可用时失败关闭；不以本地 WAL 或缓存替代远端权威。
+
+两条路径都要求 ACK 晚于依赖、HEAD 和本地最终完成。接管、撤权、取消和提交在同一
+HEAD 上排序，旧 owner 或旧候选不能换新 ETag 继续提交。HEAD 已接受而本地失败时保留
+原请求自己的 `COMMITTED_BUT_UNAVAILABLE` receipt；响应丢失仍按原身份查证，不重放 SQL。
 
 代码对应：[服务目录](../../crates/scap-service/src/engine.rs)、[私有镜像](../../crates/scap-object-sqlite/src/file.rs)、[提交 gate](../../crates/scap-object-sqlite/src/gate.rs)、[HEAD 发布与接管](../../crates/scap-object/src/lib.rs)、[条件对象访问](../../crates/scap-object-store/src/lib.rs)。
 

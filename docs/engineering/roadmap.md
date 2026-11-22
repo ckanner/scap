@@ -5,14 +5,19 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 ## 当前阶段
 
-更新：2026-11-20（纽约）。#65/#66/#67 已合入，当前实现基于主线 `68246fd6`。
-本轮 [PR #68](https://github.com/ckanner/scap/pull/68) 新增默认关闭的
+更新：2026-11-22（纽约）。#65/#66/#67/#68 已合入，审查基线为主线 `3be8be7`。
+[PR #68](https://github.com/ckanner/scap/pull/68) 已合入默认关闭的
 [独立事务 group commit](../architecture/independent-group-commit.md)，
 真实逐事务 staging、每成员版本/原结果和一次原 HEAD CAS 已接通服务调度。
 本地完整冻结验证已有 stable/nightly 各 969 项单位、82 个生产文件四维精确 100%，
 正式服务的七阶段合同、28 份冷恢复原结果及 40 项审计负控通过。
 验证来源见[本轮记录](group-commit-validation-2026-11-20.md)，远端状态见
 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。下表 #66 的计数保留历史归属。
+
+本轮 #69 处理 actor/control/reader/catalogue/recovery 在 worker panic 时的实际资源
+归还顺序，新候选 stable/nightly 各 971 单位、82 文件四维精确覆盖与真实组提交合同
+复测通过，并补组提交开关的固定开环配对，
+新验证与范围见 [11 月 22 日复核](sqlite-s3-review-2026-11-22.md)。
 
 | 范围 | 当前状态 | 保留的出口 |
 | --- | --- | --- |
@@ -31,8 +36,9 @@ SQLite 只使用本地私有执行镜像；旧 Raft 原型和 PR #17 不构成�
 
 详细方案与边界见[交付计划](sqlite-s3-delivery-plan.md)。
 
-1. #67 参数绑定与文档复核已合入；本轮完成同库独立事务组提交，并按新的完整代码候选
-   采集精确覆盖、native、实际 HTTP/S3、进程故障和原字节审计。默认仍为单请求路径。
+1. #67 参数绑定与 #68 同库独立事务组提交已合入；#69 修复五条通道的 panic 资源归还，
+   并按新的完整代码候选采集精确覆盖、实际 HTTP/S3、进程故障和原字节审计。
+   默认仍为单请求路径。
 2. 配对测量组提交在目标后端的实际收益；所有原失败和负值保留。FULL、受检 TRUNCATE
    与最终 Manifest exact GET 保持，不以延后持久确认或删回读交换吞吐。
 3. 根据单库/多库/冷启动瓶颈继续跨库对象打包、lazy VFS、PITR；新 MVCC 引擎、全局

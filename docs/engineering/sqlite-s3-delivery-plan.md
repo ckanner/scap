@@ -1,10 +1,17 @@
 # SQLite on S3：当前状态、目标与接续交付
 
-更新：2026-11-20（纽约）。#65/#66/#67 已合入，基准主线为 `68246fd6`。
+更新：2026-11-22（纽约）。#65/#66/#67/#68 已合入，审查基准主线为 `3be8be7`。
 owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库强读池、受信动态 fleet、
 内核资源准入和固定开环合同均保留各自[历史交付来源](sqlite-s3-scale-validation-2026-11-18.md)。
 
 ## 本轮接续范围
+
+本轮发现普通 actor/control/reader 的 panic 展开先释放 intake/output、后析构 native
+worker，以及 catalogue/recovery 提前释放 intake 的问题，统一由 worker owner 持有
+当前额度直到真实清理完成；组路径保留已有相同保证。新候选 stable/nightly 各 971
+单位、82 文件四维精确覆盖及真实 HTTP/S3 组提交与冷恢复复测通过。组提交性能采用
+关闭／开启／开启／关闭、轻载和竞争两档固定开环，实际
+结果和原失败单独记录于 [11 月 22 日复核](sqlite-s3-review-2026-11-22.md)。
 
 [PR #68](https://github.com/ckanner/scap/pull/68) 的
 [独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
@@ -17,7 +24,7 @@ stable/nightly 各 969 项单位、82 个生产文件四维精确 100%、28 份�
 
 接续目标继续分开交付：
 
-1. 在目标后端对同一固定开环负载配对测单请求与组提交，报告独立成功事务、排队、
+1. 先用本地兼容后端完成可重复的单请求／组提交配对，再对目标后端独立认证；报告独立成功事务、排队、
    p50/p95/p99、对象请求/字节和控制延迟。正确性与减少 HEAD CAS 不等于生产收益。
 2. 跨库 WAL/对象打包仍需共享寻址、逐库发布和共享对象 GC；lazy VFS 仍需已授权
    固定根、native pager、校验按需读页和有界在途 I/O。具体边界见

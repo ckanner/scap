@@ -2,24 +2,33 @@
 
 SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结果、权限和写者身份由 S3 中的单库 HEAD 引用；本地 SQLite 文件用于执行和缓存，全部计算节点与缓存丢失后从对象存储重建。
 
-本项目按 [PR #16](https://github.com/ckanner/scap/pull/16) 重建。旧 Raft、RocksDB、cell 服务和旧 SDK 只保留在 Git 历史；当前构建采用对象存储权威协议和 SQLite 提交前 WAL gate。
+本项目按 [PR #16](https://github.com/ckanner/scap/pull/16) 重建。旧 Raft、RocksDB、cell 服务和旧 SDK 只保留在 Git 历史；当前构建采用私有 SQLite 执行器与对象存储权威发布协议。
 
 ## 当前实现与验证状态
 
-最新实施：2026-11-20（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
-[PR #66](https://github.com/ckanner/scap/pull/66) 和 [PR #67](https://github.com/ckanner/scap/pull/67)
-均已合并，基准主线为 [`68246fd6`](https://github.com/ckanner/scap/commit/68246fd639d0331d5c90a31d8b3134e96532b3b5)。
+最新审查：2026-11-22（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
+[PR #66](https://github.com/ckanner/scap/pull/66)、[PR #67](https://github.com/ckanner/scap/pull/67)
+和 [PR #68](https://github.com/ckanner/scap/pull/68) 均已合并；本轮基准主线为
+[`3be8be7`](https://github.com/ckanner/scap/commit/3be8be7273f716cd79bf0427b0beb224dc4781fe)。
 #67 的参数绑定优化与复核已完成独立验收；该 PR 最终候选的 6 个工作流、24 个 job
 全部成功，来源见[上轮复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
 
-本轮 [PR #68](https://github.com/ckanner/scap/pull/68) 实现
+[PR #68](https://github.com/ckanner/scap/pull/68) 已合入
 [同库独立事务 group commit](docs/architecture/independent-group-commit.md)：
 真实逐请求事务、原结果与连续逻辑版本，共用一次原 HEAD 条件发布；服务从已有队列
 有界组批，默认关闭。新本地冻结验证包含 stable/nightly 各 969 项单位、82 个 Rust
 生产文件四维精确 100%，以及真实组提交／取消／丢响应／清空缓存恢复合同和 40 项
 独立审计负控。精确源码、原失败与范围见[本轮记录](docs/engineering/group-commit-validation-2026-11-20.md)，
-远端状态见 [#68 checks](https://github.com/ckanner/scap/pull/68/checks)。目标后端的吞吐
+本轮重新核对其最终 head `74b69d6` 的 6 个 PR 工作流均首次运行成功，见
+[#68 checks](https://github.com/ckanner/scap/pull/68/checks)。目标后端的吞吐
 配对仍未执行，不继承旧候选的性能结论。
+
+本轮 [PR #69](https://github.com/ckanner/scap/pull/69) 修复普通 actor、control、reader
+提前归还 intake/output，以及 catalogue/recovery 提前归还 intake 的 panic 清理顺序，
+并补充组提交关闭／开启的固定开环配对实验。新候选 stable/nightly 各 971 单位、
+82 文件四维精确覆盖与真实组提交／冷恢复复测均已通过。当前修复、验证和剩余目标
+集中记录在 [11 月 22 日复核](docs/engineering/sqlite-s3-review-2026-11-22.md)；
+新变更不沿用 #68 的测试计数作为自己的验收。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
@@ -34,6 +43,9 @@ Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision
 | [动态 owner fleet](docs/architecture/dynamic-owner-fleet.md) | 版本化受信快照、完整有限策略历史、不可逆退役、旧计划收敛；SIGHUP 等待旧 tick/socket/DNS 归还后切换；没有分布式配置共识或自动扩缩容 |
 | [内核资源准入](docs/architecture/kernel-resource-envelope.md) | 可选检查实际 cgroup v2、普通 CPU 调度与有限 tmpfs；启动前拒绝不满足部署条件；不是每租户 RSS 隔离或任意磁盘配额认证 |
 | [持续开环负载](experiments/object-overload/PLAN.md) | 预先冻结 30 秒、1,140 次到达与分窗进展；相同 64 条逻辑写比较 64 次单事务和 8 次 SQL batch；不是服务器 group commit 或生产 SLO |
+
+新增的 [group commit 配对合同](experiments/group-commit-load/README.md)采用独立新后端、
+off/on/on/off 顺序、640 个预定原事务和原字节独立审计，作为 #69 的单独验收范围。
 
 以下是前一 #65 冻结组合的历史证据，不冒称新候选已重新通过：
 

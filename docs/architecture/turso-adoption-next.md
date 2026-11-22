@@ -1,6 +1,6 @@
 # Turso 实践的接续实现决策
 
-更新：2026-11-20（America/New_York）。当前实现基于已合入 #65／#66／#67 的 `68246fd6`。
+更新：2026-11-22（America/New_York）。审查基线为已合入 #65／#66／#67／#68 的 `3be8be7`。
 本页区分已交付能力与后续协议设计；后续条目没有对应实现和验收时不标为完成。
 背景见[安全与吞吐](sqlite-s3-safety-and-throughput.md)，固定上游源码对照见
 [Turso 实现比较](sqlite-s3-turso-review.md)，当前证据见
@@ -32,7 +32,7 @@ Turso Cloud、libSQL/Bottomless 和新 Rust Turso 引擎各有边界。开源 Bo
 | 机制 | 事务与发布单位 | 当前状态 |
 | --- | --- | --- |
 | 显式 SQL batch | 客户端一个请求／身份，多条 SQL，整体一个原子事务 | 已实现；适合业务本来就允许共同提交的工作 |
-| 同库独立事务 group commit | 多个原请求保留各自 SQL、结果与逻辑顺序，合用一次 HEAD 发布 | 本轮已实现可选有界路径；逐阶段验收见[本轮记录](../engineering/group-commit-validation-2026-11-20.md) |
+| 同库独立事务 group commit | 多个原请求保留各自 SQL、结果与逻辑顺序，合用一次 HEAD 发布 | #68 已合入可选有界路径；逐阶段验收见[原验证记录](../engineering/group-commit-validation-2026-11-20.md) |
 | 跨库 WAL／对象打包 | 多个数据库共享一次不可变对象上传，各库仍独立发布 HEAD | 未实现；需要对象 pack 格式、独立可达性和回收协议 |
 
 同库 group commit 优先降低单库小事务重复等待；跨库打包优先摊薄多租户对象请求
@@ -41,7 +41,7 @@ Turso Cloud、libSQL/Bottomless 和新 Rust Turso 引擎各有边界。开源 Bo
 
 ## 3. 同库独立事务 group commit：实现决策
 
-本轮将前一方案落实为 native staging、core 发布和 writer actor 调度，完整协议见
+#68 将前一方案落实为 native staging、core 发布和 writer actor 调度，完整协议见
 [独立事务组提交](independent-group-commit.md)。具体取舍已经明确：
 
 - 默认关闭；仅组合已经排队、完整 Scope/Principal 相同的连续 Execute，不增加凑批定时器。
@@ -118,6 +118,12 @@ Rust Turso 的 `BEGIN CONCURRENT`、行级 MVCC 和引擎 group commit 值得研
 核对业务 SQL/schema/类型与 native 提交接口，再做非确定性结果、冲突、恢复及全部
 故障切点验收。MVCC 仍有写冲突和热行瓶颈，不等于分布式多主或共享网络 WAL。
 
+[当前并发文档](https://docs.turso.tech/tursodb/concurrent-writes)要求显式启用 MVCC；
+默认模式仍单 writer。[0.8 group commit 实现解析](https://turso.tech/blog/turso-group-commit)
+共享 logical log 的 fsync，并以每成员 ticket 等待持久化。SCAP 当前仍逐成员 FULL
+COMMIT、最终一次 S3 HEAD CAS；这两层优化不能混算。新引擎日志实现与部分旧 manual
+描述不一致，采用前必须审核固定 revision，不能只替换 Cargo 依赖。
+
 仅当目标热点写负载证明单 writer 已是主要瓶颈、前述请求摊薄不足且兼容性满足时，
 再决定切换。按租户分库的并行收益与单库 MVCC 收益必须分别测量。
 
@@ -141,8 +147,9 @@ quiesce；它没有跨 controller 全局 epoch、持久全局成员共识、无�
 
 ## 7. 实施顺序与交付口径
 
-同库 group commit 已进入本轮完整实现与验收；接下来在目标后端配对测量对象请求、
-排队与 native 成本，按实际瓶颈继续 lazy VFS 或跨库打包。跨库打包在独立发布及共享回收协议
+#68 的同库 group commit 已合入，#69 增加本地固定开环配对测量；目标后端仍需独立
+测量对象请求、端到端排队与 native 成本，按实际瓶颈继续 lazy VFS 或跨库打包。
+跨库打包在独立发布及共享回收协议
 明确后实施；PITR 和全局 fleet 各自推进，不借用其他模块的成功替代自己的验收。
 
 每项交付包含固定源码、单元／覆盖、真实 native/HTTP/S3、进程故障、独立原字节

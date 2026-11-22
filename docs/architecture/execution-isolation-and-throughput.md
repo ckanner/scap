@@ -1,8 +1,8 @@
 # 活跃数据库执行隔离与吞吐边界
 
-当前实现基于 [PR #67](https://github.com/ckanner/scap/pull/67) 合入后的 `68246fd6`：
+本轮审查基于 [PR #68](https://github.com/ckanner/scap/pull/68) 合入后的 `3be8be7`：
 每库一个 writer actor，可显式启用独立强读池；不同数据库的 actor 可以并行。
-本轮新增[独立事务 group commit](independent-group-commit.md)，默认关闭，组合已入队
+已经合入[独立事务 group commit](independent-group-commit.md)，默认关闭，组合已入队
 的连续请求并保留逐事务语义。单库 SQL 仍串行；没有 lazy VFS 或并行 writer。
 
 #66 的冻结组合 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维精确
@@ -30,7 +30,7 @@ SQL 和失败写请求不重放。详见[读池合同](../../crates/scap-service
 4. 活跃 actor 数及每租户 actor 数有显式硬上限，`Starting` / `Running` / `Draining` 都计入，不能靠初始化或退出阶段绕过。容量满时新库返回 `BACKPRESSURE`，已有热 actor 仍能接收其预算内的工作。不存在一请求一线程或无界启动等待队列。
 5. 全局、租户及 HEAD 排队预算统一计算 actor、读池和 control 队列中的 data / recovery / control。普通单请求出队或丢弃时归还；组提交的选中前缀在实际工作结束之前继续保留原计费，未开始后缀原序回队且不重新加额度。真正的 control 请求享有预留空间，冷恢复不能消耗它。在途操作仍受 actor 数、control worker 数，以及读池全局 worker 数和 tenant/database 活跃额度约束。
 6. 同库优先恢复/管理任务最多连续执行三个后让普通 SQL 获得一次机会；control pool 在租户及库之间轮转。这个调度是非抢占的；正在执行的单库 SQL 仍可占用自己的 actor 到原始 deadline。
-7. 关闭、启动失败、工厂失败及 panic 都关闭相应队列并返回稳定错误。已经失去响应的在途操作不自动重放。全局关闭先封闭 admission，再在锁外等待线程退出。
+7. 关闭、启动失败、工厂失败及 panic 都关闭相应队列并返回稳定错误。当前请求由 worker owner 持有，执行期间只借用 Job；panic 时 worker/native/cache 全部析构后，才归还 intake/output，再释放 reader 活跃计数或组 Batch 额度。HTTP 断线不改变实际工作生命周期。已经失去响应的在途操作不自动重放。全局关闭先封闭 admission，再在锁外等待线程退出。
 8. 恢复并发继续由同一全局 semaphore 限制，包含读池镜像重建，获取失败返回 `RECOVERY_BUSY`。调度器本身不探测故障或自动接管，不刷新候选 ETag、修改请求身份或重放 SQL；独立 controller 只能通过既定 owner-plan 协议推进。
 9. actor/read/control 与 catalogue 提交均在各自调度锁内检查原 deadline，先拒绝过期请求，再改变预算或创建 actor。有效提交排队后才超时仍按原出队规则丢弃；本次 lookup/cancel 超时不能推断旧 SQL 结果。
 10. 读队列按租户和库轮转，跳过已达到活跃额度的库／租户。活跃读额度在客户端断线或期限经过后仍由执行任务持有；panic 时先销毁 worker/native/cache，再释放该活跃额度。关闭排空读队列并等待正在执行的 reader 真正退出。
