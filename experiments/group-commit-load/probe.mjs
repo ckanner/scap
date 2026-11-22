@@ -75,7 +75,7 @@ async function invoke(call, scheduled = now()) {
         case 'activate': value = await client.activate({ expectedRevision: '1', nonce: call.nonce }); break;
         case 'execute': value = await client.execute(original(call.id)); break;
         case 'status': value = await client.status(); break;
-        case 'query': value = await client.query([{ sql: workload.final_sql }]); break;
+        case 'query': value = await client.query([{ sql: workload.final_sql, parameters: [] }]); break;
         case 'lookup': value = await client.lookup(original(call.original)); break;
         case 'cancel': value = await client.cancel(original(call.original)); break;
         default: throw new Error('unplanned operation');
