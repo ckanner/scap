@@ -38,6 +38,12 @@ stat/status、wait4终态RSS与CPU都保留。采样可能遗漏间隔内 oversh
 这样避免随着已完成cell文件增长而反复扫描旧目录；实际scan span仍完整记录。
 运行始终保留2 GiB空闲；启动要求26 GiB和220000可用inode。全矩阵同时只有一个backend。
 
+动态目录扫描中，已枚举的子目录在打开前消失记入原始 `races`，已经观察到的占用仍计入
+该样本。扫描根须在开始、结束及处理子目录消失时保持相同dev/ino和目录类型；根缺失、
+替换、权限和其他I/O错误仍失败。扫描不是原子快照。观察器失败记录操作、路径、阶段、
+样本号和异常堆栈；每异常保留最后12帧，各字段按JSON转义后字节裁剪，总记录小于16 KiB，
+截断明确标记。记录仍受原event总预算约束，记录失败不能抹去原观察器错误。
+
 baseline在seed完全drain之后；end在load全部原响应drain之后、settlement之前。
 每边界最多8次原诊断GET；不reset，也不因观测改变原SDK结果。只有valid=true且所有lane/
 group active=0才能做完整差分。原acquire拒绝不算lease；成功acquire后发生的后续gate拒绝

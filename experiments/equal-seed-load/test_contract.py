@@ -1,5 +1,6 @@
 """Synthetic parser/contract controls. These are never actual service evidence."""
 import copy
+import errno
 import json
 import os
 from pathlib import Path
@@ -313,6 +314,168 @@ class GeometryAndEnvelopeTests(unittest.TestCase):
         calls['load-0']['reply'] = None
         with self.assertRaisesRegex(oracle.Rejected, 'cohort-acquire-unresolved'):
             oracle.expected_cohort(planned, calls)
+
+
+class ObserverRaceTests(unittest.TestCase):
+    def test_enumerated_child_directory_disappearance_is_a_counted_race(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / 'temporary-lock'
+            child.mkdir()
+            (root / 'retained').write_bytes(b'original')
+            original_scandir = os.scandir
+            def disappear(path):
+                if Path(path) == child:
+                    child.rmdir()
+                return original_scandir(path)
+            with mock.patch.object(observer.os, 'scandir', side_effect=disappear):
+                observed = observer.tree(root)
+            self.assertEqual(observed['races'], 1)
+            self.assertEqual(observed['files'], 1)
+            self.assertEqual(observed['file_bytes'], len(b'original'))
+            # The directory already observed remains charged to this sample.
+            self.assertEqual(observed['inodes'], 2)
+
+    def test_missing_root_is_never_an_empty_successful_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'owned'
+            with self.assertRaises(FileNotFoundError):
+                observer.tree(root)
+            root.mkdir()
+            child = root / 'temporary'
+            child.mkdir()
+            original_scandir = os.scandir
+            def remove_root(path):
+                if Path(path) == child:
+                    child.rmdir()
+                    root.rmdir()
+                return original_scandir(path)
+            with mock.patch.object(observer.os, 'scandir', side_effect=remove_root):
+                with self.assertRaises(FileNotFoundError) as caught:
+                    observer.tree(root)
+            self.assertEqual(caught.exception.filename, str(root))
+
+    def test_replaced_root_and_other_io_errors_still_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'owned'
+            root.mkdir()
+            child = root / 'temporary'
+            child.mkdir()
+            original_scandir = os.scandir
+            for failure in (PermissionError(errno.EACCES, 'denied', str(child)),
+                            OSError(errno.EIO, 'I/O failure', str(child))):
+                def fail_child(path):
+                    if Path(path) == child:
+                        raise failure
+                    return original_scandir(path)
+                with self.subTest(error=type(failure).__name__):
+                    with mock.patch.object(observer.os, 'scandir', side_effect=fail_child):
+                        with self.assertRaises(type(failure)) as caught:
+                            observer.tree(root)
+                    self.assertIs(caught.exception, failure)
+            def replace_root(path):
+                if Path(path) == child:
+                    root.rename(root.with_name('original-owned'))
+                    root.mkdir()
+                return original_scandir(path)
+            with mock.patch.object(observer.os, 'scandir', side_effect=replace_root):
+                with self.assertRaisesRegex(ValueError, 'root was replaced'):
+                    observer.tree(root)
+
+    def test_root_disappearance_after_opening_scan_still_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'owned'
+            root.mkdir()
+            original_scandir = os.scandir
+            def disappear(path):
+                entries = original_scandir(path)
+                root.rmdir()
+                return entries
+            with mock.patch.object(observer.os, 'scandir', side_effect=disappear):
+                with self.assertRaises(FileNotFoundError):
+                    observer.tree(root)
+
+    def test_missing_proc_directory_requires_same_owned_identity_and_zombie(self):
+        descriptor = os.open('/proc/self', os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            original_stat = observer.resources.read_at(descriptor, 'stat')
+            status = observer.resources.read_at(descriptor, 'status')
+            identity = observer.resources.stat_identity(original_stat)
+        finally:
+            os.close(descriptor)
+        offset = original_stat.rfind(')') + 2
+        zombie = original_stat[:offset] + 'Z' + original_stat[offset + 1:]
+        for final_stat in (original_stat, zombie):
+            with self.subTest(zombie=final_stat == zombie):
+                with mock.patch.object(observer.resources, 'read_at', side_effect=[original_stat, status, final_stat]):
+                    with mock.patch.object(observer.resources, 'names_at',
+                                           side_effect=FileNotFoundError(errno.ENOENT, 'missing', 'fd')):
+                        if final_stat == zombie:
+                            row = observer.process_sample(-1, identity)
+                            self.assertTrue(row['exit_raced'])
+                            self.assertNotIn('metrics', row)
+                        else:
+                            with self.assertRaises(FileNotFoundError):
+                                observer.process_sample(-1, identity)
+
+    def test_failure_provenance_has_path_context_and_actual_stack(self):
+        def owned_scan_failure():
+            raise FileNotFoundError(errno.ENOENT, 'missing original', '/owned/temporary')
+        try:
+            owned_scan_failure()
+        except FileNotFoundError as error:
+            result = observer.error_evidence(error, {'operation': 'filesystem_aggregate',
+                'root': '/owned', 'phase': 'seed_rows', 'sample': 545, 'unrecorded': 'private-value'})
+        self.assertEqual(result['error_type'], 'FileNotFoundError')
+        self.assertEqual((result['errno'], result['filename']), (errno.ENOENT, '/owned/temporary'))
+        self.assertEqual(result['context']['sample'], 545)
+        self.assertNotIn('unrecorded', result['context'])
+        self.assertIn('owned_scan_failure', result['traceback'])
+        self.assertIn('/owned/temporary', result['traceback'])
+        self.assertFalse(result['truncated'])
+
+    def test_failure_provenance_is_bounded_after_json_escaping(self):
+        large = ('\x00\n\t' + '\U0001f600') * 10000
+        def deep_failure(depth):
+            if depth:
+                return deep_failure(depth - 1)
+            raise FileNotFoundError(errno.ENOENT, large, large)
+        try:
+            deep_failure(20)
+        except FileNotFoundError as error:
+            result = observer.error_evidence(error, {
+                **dict.fromkeys(('operation', 'role', 'root', 'path', 'phase'), large),
+                'sample': (1 << 64) - 1, 'pid': (1 << 64) - 1, 'proc_pid': 1 << 1000})
+        self.assertLessEqual(len(observer.encoded(result)), 16384)
+        self.assertTrue(result['truncated'])
+        self.assertEqual(result['traceback_frame_limit_per_exception'], 12)
+        self.assertNotIn('proc_pid', result['context'])
+        self.assertEqual(result['errno'], errno.ENOENT)
+
+    def test_monitor_failure_stops_and_retains_bounded_provenance(self):
+        for recording_error in (None, PermissionError(errno.EACCES, 'cannot record event')):
+            with self.subTest(recording_error=recording_error is not None):
+                monitor = observer.Monitor.__new__(observer.Monitor)
+                monitor.stop = mock.Mock()
+                monitor.stop.is_set.return_value = False
+                monitor.errors, monitor.count = [], 544
+                monitor.sampling_context = {'operation': 'filesystem_aggregate', 'root': '/owned'}
+                monitor.phase = lambda: 'seed_rows'
+                monitor.sample = mock.Mock(side_effect=FileNotFoundError(errno.ENOENT, 'missing', '/owned'))
+                monitor.events = mock.Mock()
+                monitor.events.emit.side_effect = recording_error
+                monitor.run()
+                monitor.sample.assert_called_once()
+                self.assertEqual(len(monitor.errors), 1 if recording_error is None else 2)
+                failure = monitor.errors[0]
+                self.assertEqual(failure['context']['sample'], 545)
+                self.assertIn('traceback', failure)
+                self.assertLessEqual(len(observer.encoded(failure)), 16384)
+                monitor.events.emit.assert_called_once_with('monitor_failed', failure=failure)
+                if recording_error is not None:
+                    self.assertEqual(monitor.errors[1]['context']['operation'], 'monitor_failure_record')
+                with self.assertRaisesRegex(RuntimeError, 'monitor_errors'):
+                    monitor.check()
 
 
 if __name__ == '__main__':

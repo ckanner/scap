@@ -25,16 +25,48 @@
 ## 验证状态
 
 生产代码预检的 Rust stable 全workspace 1019项、fmt与Clippy `-D warnings` 已通过。
-这些是冻结前预检，尚未替代最终候选的fresh精确覆盖或真实合同。任何后续受影响
-代码变更仍须重新验证，最终来源与数量将单独记录。
+首轮远端 `72d6bcf4` 的 exact coverage 检出了 daemon/export 的未覆盖路径；已保留
+失败并补充故障端口测试，不排除生产代码。冻结候选
+`b7b1f71fe5435658dc818965959f90e5582e920c`（tree
+`e10ef46a6fe214073b2d439d77b7ce468731e893`）现已完成 fresh unit-only 全workspace
+1020项；85个生产文件逐文件四维精确100%。合计 lines18228/18228、functions1605/1605、
+regions27692/27692、branches3652/3652。远端该候选的 Rust exact job 也已成功。
+
+正式 release 的328个构建输入均记录摘要；scapd SHA-256 为
+`872305efeecd6b30458b162657346ffa7969026843b365a4718a48e83bda3164`，实际 native archive
+SHA-256 为 `ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5`。
+完整源码清单938文件，真实回归执行前后保持干净。下列结果明确归属此冻结候选，
+后续夹具修订必须重新取得受影响的实际证据。
 
 | 门槛 | 当前状态 |
 | --- | --- |
-| 最终候选源码/工具/release身份 | NOT_RUN |
-| fresh unit-only四维精确100% | NOT_RUN |
-| 生命周期真实TCP/native/S3三场景 | NOT_RUN |
-| equal-seed-v1八cell实际/独立oracle/负控 | NOT_RUN |
+| 冻结生产候选源码/工具/release身份 | PASSED：b7b1f71；Rust1.90.0、Node22.16.0、SeaweedFS4.51 |
+| fresh unit-only四维精确100% | PASSED：1020 tests，85个生产文件 |
+| Node SDK/V8、HTTP、controller与类型 | PASSED：192 unit、7 HTTP、14 controller；严格类型 |
+| 生命周期真实TCP/native/S3三场景 | PASSED：25 HTTP、3 BP、22完整cohort、8 snapshots、50 S3；20负控及正对照 |
+| 原组提交真实故障与恢复 | PASSED：28原提交、20接受HEAD、1拒绝组CAS、28份冷恢复lookup；40负控 |
+| equal-seed-v1八cell实际/独立oracle/负控 | FAILED：首个cell的seed阶段观察器异常；未形成有效测量，oracle/22负控NOT_RUN |
 | AWS Standard/跨AZ/生产SLO/长期工作集 | NOT_RUN |
+
+## 保留的实际失败
+
+`b7b1f71` 的首次本地 equal-seed attempt 在首轮 `rate-12-off-1` 的 seed_rows 阶段
+停止：资源观察器返回 `FileNotFoundError`，尚未进入load。最后完整sample为544，
+中止前148个完成调用全部成功；已启动的7个owned子进程均取得reap记录，服务正常退出。
+未完成的Node阶段按失败清理被终止，private与原始证据保留，不能计成seed或测量通过。
+
+远端同一候选也出现相同观察器失败，见
+[CI原始job](https://github.com/ckanner/scap/actions/runs/45103408597/job/137459153891)与
+[失败artifact](https://github.com/ckanner/scap/actions/runs/45103408597/artifacts/14786367784)；
+artifact zip SHA-256 为 `5af261e05771f1801044bac05f3c93621386390fbbe089208ec839bf5a4e6895`。
+
+代码检查可确定性复现：观察器先枚举子目录，原SQLite临时目录随后被清理，pending
+目录的scandir在异常处理范围外，导致正常文件生命周期被误当作监控失败。旧原件
+只记录异常repr而没有栈，因此不能声称已确定此次消失的具体pathname。夹具现已
+记录这类子目录消失竞态，同时继续拒绝根目录缺失/替换、其他I/O错误和活进程缺失，
+并补充有界来源栈。26个夹具自测通过，同一确定性竞态在b7原函数上失败、修订后通过。
+修订不改变生产代码、配额、工作量、期限或判定阈值；
+必须在新冻结来源和独立新目录重跑完整矩阵，原失败不覆盖。
 
 ## 后续判定
 
