@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 import tarfile
 
+import lifecycle_oracle
+
 from spec import BACKPRESSURE, CALLS, CHECK_SQL, LARGE_SQL, PLAN, PROFILE, SCOPES, SMALL_SQL, UNKNOWN_SQL
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'object-service'))
@@ -164,8 +166,61 @@ def values(calls):
     equal(calls['original_cancel']['value'], calls['cancelled_lookup']['value'], 'cancellation proof changed')
 
 
+def observation_windows(all_rows, calls, originals, events, complete_row, release_row):
+    """Bind every snapshot to its original command and external phase window.
+
+    Quota and registry are separate reads. Intermediate polls may legitimately
+    see the refund-to-aggregation gap; they must still belong to this exact
+    bounded observation sequence and retain their actual source timestamps.
+    """
+    commands = [(row, parse(raw(row, 'raw'))) for row in all_rows if row['event'] == 'operator_command']
+    offered = [(row, value) for row, value in commands if value['operation'] == 'observe']
+    observed = [(row, value) for row, value in zip(originals, events) if value['event'] == 'admission_observed']
+    require(all(set(value) == {'operation', 'id'} and isinstance(value['id'], str)
+                for _, value in offered), 'observation command fields')
+    require(all(set(value['fields']) == {'id', 'data_available', 'control_available', 'recovery_available', 'lifecycle'}
+                and isinstance(value['fields']['id'], str) for _, value in observed), 'observation event fields')
+    require(all(type(value['fields'][key]) is int and 0 <= value['fields'][key] <= 2
+                for _, value in observed for key in ('data_available', 'control_available', 'recovery_available')),
+            'observation quota counter')
+    by_command = {value['id']: row for row, value in offered}
+    by_observation = {value['fields']['id']: row for row, value in observed}
+    require(len(by_command) == len(offered) and len(by_observation) == len(observed), 'duplicate observation identity')
+    equal(sorted(by_command), sorted(by_observation), 'observe command/event identity mismatch')
+    shutdown = only([row for row, value in commands if value['operation'] == 'shutdown'], 'missing observation shutdown boundary')
+    first_byte = keyed(all_rows, 'http_body_sent')['body_held']['monotonic_ns']
+    full_body = event(all_rows, 'http_body_completed')['monotonic_ns']
+    windows = {
+        'body-held': (first_byte, full_body),
+        'body-released': (calls['body_held']['response']['monotonic_ns'], calls['body_after']['request']['monotonic_ns']),
+        'after-http-timeout': (calls['timeout_execute']['response']['monotonic_ns'], release_row['monotonic_ns']),
+        'worker-released': (max(calls['timeout_control']['response']['monotonic_ns'], complete_row['monotonic_ns']),
+                            calls['after_worker']['request']['monotonic_ns']),
+        'slow-response': (calls['response_held']['headers']['monotonic_ns'], calls['response_held']['response']['monotonic_ns']),
+        'response-released': (calls['response_held']['response']['monotonic_ns'], calls['response_after']['request']['monotonic_ns']),
+        'final': (calls['response_after']['response']['monotonic_ns'], shutdown['monotonic_ns']),
+    }
+    command_indices = {phase: [] for phase in lifecycle_oracle.PHASES}
+    observed_indices = {phase: [] for phase in lifecycle_oracle.PHASES}
+    for row, value in offered:
+        phase, index = lifecycle_oracle.phase_id(value['id'])
+        command_indices[phase].append(index)
+        observed_row = by_observation[value['id']]
+        lower, upper = windows[phase]
+        require(lower < row['monotonic_ns'] < observed_row['monotonic_ns'] < upper,
+                'observation command/event outside phase window: ' + phase)
+    for _, value in observed:
+        phase, index = lifecycle_oracle.phase_id(value['fields']['id'])
+        observed_indices[phase].append(index)
+    for phase in lifecycle_oracle.PHASES:
+        indices = command_indices[phase]
+        require(1 <= len(indices) <= 100 and indices == list(range(len(indices)))
+                and observed_indices[phase] == indices, 'observation phase index gap or order: ' + phase)
+
+
 def worker_events(all_rows, calls):
     originals = [row for row in all_rows if row['event'] == 'worker_event']
+    require(all(len(raw(row, 'raw')) <= PLAN['max_worker_event_bytes'] for row in originals), 'worker event byte bound')
     events = [parse(raw(row, 'raw')) for row in originals]
     equal([v['sequence'] for v in events], list(range(1, len(events) + 1)), 'worker output sequence gap')
     require(all(v['schema'] == 1 and type(v['elapsed_ns']) is int and v['elapsed_ns'] >= 0 for v in events), 'worker clock schema')
@@ -215,6 +270,8 @@ def worker_events(all_rows, calls):
     require(originals[complete['sequence'] - 1]['monotonic_ns'] < calls['after_worker']['request']['monotonic_ns'],
             'post-worker probe preceded actual completion')
     observations = [v for v in events if v['event'] == 'admission_observed']
+    observation_windows(all_rows, calls, originals, events, originals[complete['sequence'] - 1], release_row)
+    lifecycle = lifecycle_oracle.observations(events, calls, BACKPRESSURE)
     for phase in ('body-held', 'after-http-timeout', 'slow-response'):
         selected = [v for v in observations if v['fields']['id'].startswith(phase + '-')]
         require(1 <= len(selected) <= 100 and selected[-1]['fields']['data_available'] == 1, 'held intake was not directly observed')
@@ -234,7 +291,7 @@ def worker_events(all_rows, calls):
                     'intake restore observed before original worker completed')
     event(events, 'worker_process_finished')
     return {'observed_calls': len(starts), 'explicit_pause': 1, 'server_timeouts_with_live_worker': 1,
-            'late_worker_outcome': complete['fields']['outcome']}
+            'late_worker_outcome': complete['fields']['outcome'], 'lifecycle': lifecycle}
 
 
 def processes(all_rows, build):
@@ -346,8 +403,13 @@ def audit(directory):
     config_raw = (directory / 'configuration.json').read_bytes()
     require(sha(config_raw) == event(all_rows, 'worker_started')['configuration_sha256'], 'actual service configuration changed')
     config = parse(config_raw)
+    diagnostics = config['lifecycle_diagnostics']
+    require(set(diagnostics) == {'version', 'token_sha256'} and diagnostics['version'] == PLAN['lifecycle_version']
+            and isinstance(diagnostics['token_sha256'], str) and len(diagnostics['token_sha256']) == 64
+            and all(char in '0123456789abcdef' for char in diagnostics['token_sha256']), 'lifecycle configuration changed')
     credentials = config['credentials']
     require(len(credentials) == 3 and len({v['sha256'] for v in credentials}) == 3, 'credential identity denominator')
+    require(diagnostics['token_sha256'] not in {v['sha256'] for v in credentials}, 'diagnostic credential is not independent')
     for label, tenant, principal in (('a', '7', '11'), ('rival', '7', '13'), ('b', '8', '22')):
         credential = only([v for v in credentials if v['tenant'] == tenant and v['principal'] == principal],
                           'missing/duplicate configured principal')

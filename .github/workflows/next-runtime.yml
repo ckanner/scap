@@ -16,7 +16,7 @@ jobs:
   runtime:
     name: Actual ${{ matrix.contract }} ${{ matrix.profile }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.contract == 'equal-seed-load' && 150 || 60 }}
     strategy:
       fail-fast: false
       matrix:
@@ -26,6 +26,7 @@ jobs:
             profile: short-v1
           - contract: group-commit-load
             profile: admission-curve-v1
+          - contract: equal-seed-load
           - contract: read-pool
           - contract: object-dynamic-fleet-runtime
           - contract: object-overload
@@ -76,6 +77,13 @@ jobs:
       - name: Observe the complete fixed actual contract
         run: |
           case "$SCAP_CONTRACT" in
+            equal-seed-load)
+              python3 -B experiments/equal-seed-load/run.py \
+                --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \
+                --build-record "$RUNNER_TEMP/scap-next-evidence/build/build.json" \
+                --weed "$RUNNER_TEMP/scap-next-tools/weed" --node "$(command -v node)" \
+                --evidence "$RUNNER_TEMP/scap-next-evidence/run"
+              ;;
             group-commit-load)
               python3 -B experiments/group-commit-load/run.py \
                 --profile "$SCAP_PROFILE" \
@@ -123,15 +131,21 @@ jobs:
           esac
       - name: Independently audit original bytes and all negative controls
         run: |
-          python3 -B "experiments/$SCAP_CONTRACT/oracle.py" \
-            "$RUNNER_TEMP/scap-next-evidence/run" \
-            > "$RUNNER_TEMP/scap-next-evidence/oracle.json"
-          arguments=("$RUNNER_TEMP/scap-next-evidence/run")
-          if [ "$SCAP_CONTRACT" = object-overload ] || [ "$SCAP_CONTRACT" = kernel-envelope ]; then
-            arguments+=(--output "$RUNNER_TEMP/scap-next-evidence/controls")
+          if [ "$SCAP_CONTRACT" = equal-seed-load ]; then
+            python3 -B experiments/equal-seed-load/controls.py \
+              "$RUNNER_TEMP/scap-next-evidence/run" \
+              > "$RUNNER_TEMP/scap-next-evidence/audit-and-controls.json"
+          else
+            python3 -B "experiments/$SCAP_CONTRACT/oracle.py" \
+              "$RUNNER_TEMP/scap-next-evidence/run" \
+              > "$RUNNER_TEMP/scap-next-evidence/oracle.json"
+            arguments=("$RUNNER_TEMP/scap-next-evidence/run")
+            if [ "$SCAP_CONTRACT" = object-overload ] || [ "$SCAP_CONTRACT" = kernel-envelope ]; then
+              arguments+=(--output "$RUNNER_TEMP/scap-next-evidence/controls")
+            fi
+            python3 -B "experiments/$SCAP_CONTRACT/controls.py" "${arguments[@]}" \
+              > "$RUNNER_TEMP/scap-next-evidence/controls.json"
           fi
-          python3 -B "experiments/$SCAP_CONTRACT/controls.py" "${arguments[@]}" \
-            > "$RUNNER_TEMP/scap-next-evidence/controls.json"
       - name: Preserve all evidence with hard links before artifact upload
         if: always()
         run: |

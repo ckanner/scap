@@ -266,7 +266,9 @@ fn main() -> Result<(), String> {
                     json!({"id": id,
                     "data_available": observer.intake.available_permits(),
                     "control_available": observer.control_intake.available_permits(),
-                    "recovery_available": observer.recovery_intake.available_permits()}),
+                    "recovery_available": observer.recovery_intake.available_permits(),
+                    "lifecycle": observer.lifecycle_diagnostics.as_ref()
+                        .expect("frozen lifecycle profile").registry.snapshot()}),
                 ),
                 Command::Shutdown { id } => {
                     gate.state.lock().expect("pause lock").released = true;

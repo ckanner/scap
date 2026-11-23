@@ -22,6 +22,8 @@ use crate::{
 
 pub type Shutdown = std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
+type IntakeObserver = fn(Intake, &Option<Arc<Diagnostics>>, Lane) -> Result<Intake, Failure>;
+
 /// Resolved identity and service state. Claim success is not listener readiness
 /// or database ownership; callers still bind the listener and perform owner
 /// operations through the normal protocol.
@@ -77,12 +79,14 @@ pub fn assemble_identified(
         garbage,
         crate::catalogue_scheduler::Scheduler::new,
         PreparedDiscovery::bind,
+        observe_intake,
     )
 }
 
 /// Keep validation and durable claim ordering unchanged when testing a
-/// post-claim thread creation failure. Only the catalogue construction effect
-/// varies; public assembly always uses the real constructor.
+/// post-claim thread creation failure or pre-claim observer setup failure.
+/// Public assembly always supplies the real constructors; these ports let
+/// tests verify that each pool failure consumes no permanent identity.
 fn assemble_using(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
@@ -96,6 +100,7 @@ fn assemble_using(
         PreparedDiscovery,
         u64,
     ) -> Result<Arc<crate::discovery_cursor::CursorCodec>, Failure>,
+    observe_intake: IntakeObserver,
 ) -> Result<Assembly, Failure> {
     prepared.transport.checked()?;
     let lifecycle_diagnostics = match &prepared.lifecycle_diagnostics {

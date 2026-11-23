@@ -51,13 +51,13 @@ impl Diagnostics {
     }
 
     pub(crate) fn export(&self, authorization: Option<&str>) -> Result<Export, Failure> {
-        self.export_using(authorization, || encode(&self.registry.snapshot()))
+        self.export_using(authorization, |registry| encode(&registry.snapshot()))
     }
 
     fn export_using(
         &self,
         authorization: Option<&str>,
-        encode: impl FnOnce() -> Result<Vec<u8>, Failure>,
+        encode: fn(&Registry) -> Result<Vec<u8>, Failure>,
     ) -> Result<Export, Failure> {
         self.authenticate(authorization)?;
         let permit = self
@@ -65,7 +65,7 @@ impl Diagnostics {
             .clone()
             .try_acquire_owned()
             .map_err(|_| Failure::new("BACKPRESSURE"))?;
-        let bytes = encode()?;
+        let bytes = encode(&self.registry)?;
         Ok(Export { bytes, permit })
     }
 

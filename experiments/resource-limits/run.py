@@ -77,6 +77,7 @@ def configuration(port, cache, endpoint, tokens):
                     'principal': principal, 'provision': True}
                    for name, tenant, principal in (('a', '7', '11'), ('rival', '7', '13'), ('b', '8', '22'))]
     return {'version': 1, 'listen': f'127.0.0.1:{port}', 'worker_instance': PLAN['worker_instance'],
+            'lifecycle_diagnostics': {'version': 1, 'token_sha256': sha(secrets.token_hex(32).encode())},
             'cache_directory': str(cache), 'admission': admission,
             'cache': {'pages_per_actor': 65536, 'parallel_recoveries': 1},
             'execution': {'result_memory_bytes': 134217728}, 'credentials': credentials,
@@ -117,7 +118,7 @@ class Running:
     def read(self):
         try:
             for raw in self.process.stdout:
-                assert len(raw) <= 16384
+                assert len(raw) <= PLAN['max_worker_event_bytes']
                 row = json.loads(raw)
                 self.trace.emit('worker_event', raw=base64.b64encode(raw).decode(), sha256=sha(raw))
                 with self.condition:
@@ -154,7 +155,11 @@ class Running:
         bound = time.monotonic() + 2
         for index in range(100):
             row = self.command({'operation': 'observe', 'id': f'{phase}-{index}'}, 'admission_observed')
-            if row['fields']['data_available'] == available:
+            snapshot = row['fields']['lifecycle']
+            lanes = {value['lane']: value for value in snapshot['lanes']}
+            if (row['fields']['data_available'] == available and snapshot['valid'] is True
+                    and lanes['data']['active'] == str(2 - available)
+                    and all(lanes[name]['active'] == '0' for name in ('control', 'recovery', 'catalogue', 'restore'))):
                 return row
             if time.monotonic() >= bound:
                 break
@@ -359,6 +364,7 @@ def exercise(client, worker, original):
     assert client.finish('response_held')[0] == 200
     worker.observe_until('response-released', 2)
     client.call('response_after', 'a', query('a'))
+    worker.observe_until('final', 2)
     assert tuple(client.calls) == CALLS
 
 

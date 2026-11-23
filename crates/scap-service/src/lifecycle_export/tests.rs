@@ -51,7 +51,7 @@ fn export_owns_one_permit_and_failed_serialization_refunds_it() {
     drop(first);
     assert_eq!(
         diagnostics
-            .export_using(Some(&auth), || Err(Failure::new("UNAVAILABLE")))
+            .export_using(Some(&auth), |_| Err(Failure::new("UNAVAILABLE")))
             .err()
             .unwrap()
             .code,

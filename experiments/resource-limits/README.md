@@ -10,6 +10,15 @@ class permits two requests globally and one per tenant. A second principal of
 the first tenant is used for the same-tenant pressure probes, so principal
 rotation cannot obtain a second tenant slot.
 
+The `resource-intake-lifecycle-real-transport-v2` contract enables the production
+default-off lifecycle registry with a separate credential. Each existing
+operator observation includes its original fixed-schema snapshot; the final
+quiescent observation must account for all 22 admitted original HTTP calls.
+The independent observer checks histogram and counter conservation, monotonic
+cumulative samples, three live data leases during the held phases, and complete
+release after the actual work/bytes finish. These snapshots supplement the
+original HTTP/S3 and worker records; they do not rewrite the timed-out result.
+
 The three transport cases are:
 
 1. Send one byte of a known request body and keep the upload incomplete. Verify
@@ -88,9 +97,13 @@ wire parser, not the controller or product implementation. It audits the raw
 denominator, original request identity and fingerprint, response values,
 resource lifetimes, exact object version chains, source/native build artifacts
 and cleanup. `controls.py` first accepts the original observation, then verifies
-that fourteen altered copies are rejected, including separate result metadata
+that twenty altered copies are rejected, including separate result metadata
 and BLOB payload mutations. It never edits the original
-evidence. Each failed attempt needs its own preserved evidence directory.
+evidence. Observation commands and their original worker events must match
+one-to-one, with continuous phase indices and the original HTTP/worker time
+windows. Swapping both a held-phase command and its observation label is still
+rejected by those external boundaries. Each failed attempt needs its own
+preserved evidence directory.
 
 ## Scope of the result
 

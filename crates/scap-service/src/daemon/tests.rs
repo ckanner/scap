@@ -5,6 +5,61 @@ use crate::wire::{Action, Decimal};
 mod startup_s3;
 
 #[test]
+fn diagnostic_setup_failure_in_every_pool_precedes_the_permanent_claim() {
+    fn reject(
+        failing: Lane,
+        pool: Intake,
+        diagnostics: &Option<Arc<Diagnostics>>,
+        lane: Lane,
+    ) -> Result<Intake, Failure> {
+        if lane == failing {
+            Err(Failure::new("CONFIG"))
+        } else {
+            observe_intake(pool, diagnostics, lane)
+        }
+    }
+    let observers: [IntakeObserver; 5] = [
+        |pool, diagnostics, lane| reject(Lane::Data, pool, diagnostics, lane),
+        |pool, diagnostics, lane| reject(Lane::Control, pool, diagnostics, lane),
+        |pool, diagnostics, lane| reject(Lane::Recovery, pool, diagnostics, lane),
+        |pool, diagnostics, lane| reject(Lane::Catalogue, pool, diagnostics, lane),
+        |pool, diagnostics, lane| reject(Lane::Restore, pool, diagnostics, lane),
+    ];
+    for observer in observers {
+        let directory = tempfile::tempdir().unwrap();
+        let memory = Arc::new(Memory::default());
+        let mut config = prepared(directory.path()).service;
+        config.lifecycle_diagnostics = Some(crate::lifecycle_export::tests::profile());
+        let restore = || {
+            serde_json::from_value::<crate::restore::Profile>(crate::restore::tests::profile())
+                .unwrap()
+        };
+        config.catalogue = Some(restore().admission);
+        config.restore = Some(restore());
+        assert_eq!(
+            assemble_using(
+                config,
+                memory.clone(),
+                None,
+                None,
+                crate::catalogue_scheduler::Scheduler::new,
+                PreparedDiscovery::bind,
+                observer
+            )
+            .err()
+            .unwrap()
+            .code,
+            "CONFIG"
+        );
+        assert!(memory.calls.lock().unwrap().is_empty());
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .next()
+            .is_none());
+    }
+}
+
+#[test]
 fn lifecycle_profile_precedes_claim_and_all_five_intakes_share_the_registry() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = prepared(directory.path()).service;
@@ -1279,7 +1334,8 @@ fn discovery_identity_mismatch_precedes_allocation_and_late_failure_burns_reserv
             Some(memory.clone()),
             None,
             crate::catalogue_scheduler::Scheduler::new,
-            failed_discovery
+            failed_discovery,
+            observe_intake
         )
         .err()
         .unwrap()
@@ -1496,7 +1552,8 @@ fn catalogue_construction_failure_after_claim_does_not_release_the_identity() {
             None,
             None,
             failed_catalogue,
-            PreparedDiscovery::bind
+            PreparedDiscovery::bind,
+            observe_intake
         )
         .err()
         .unwrap()

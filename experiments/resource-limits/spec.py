@@ -17,7 +17,8 @@ CALLS = (
 )
 BACKPRESSURE = {'body_same_tenant', 'timeout_same_tenant', 'response_same_tenant'}
 PLAN = {
-    'schema': 1, 'profile': 'resource-intake-real-transport-v1', 'calls': list(CALLS),
+    'schema': 1, 'profile': 'resource-intake-lifecycle-real-transport-v2', 'calls': list(CALLS),
+    'lifecycle_version': 1, 'max_worker_event_bytes': 131072,
     'http_calls': len(CALLS), 'original_execute_attempts': 1, 'scopes': SCOPES,
     'intake_profile': PROFILE, 'data_intake': 2, 'control_intake': 2, 'recovery_intake': 2,
     'body_bytes': 65536, 'timeout_ms': 5000, 'recovery_timeout_ms': 30000,
