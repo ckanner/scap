@@ -6,6 +6,10 @@
 先提交设计 PR，再实现五 lane 观测和 32 秒、两档、一组 ABBA 的8cell对照。
 新八轮原件审计和22负控已通过，四个配对仅一个满足全部改善条件；精确来源、
 失败和限制见[生命周期验证台账](admission-lifecycle-validation-2026-11-22.md)。
+下一项小矩阵已按[独立组宽合同](../architecture/group-width-comparison.md)完成：
+max_members 8/4 是唯一处理变量，本地与CI各八cell的原始审计及30负控通过，
+性能仅2/4、0/4配对达标，不能统一采用cap4。见[独立验收](group-width-validation-2026-11-23.md)。
+下一候选先拆分invocation内部工作，再决定是否做有界独立对象I/O并发；不扩大intake。
 其执行额度、接受上限与未完成条件以新合同为准，不继承本文尚未冻结的大矩阵参数。
 本文的 96 秒、五档到达率、两个 ABBA block、
 256 条 seed 等数值都是待冻结的设计参数，不是当前夹具已经支持的新 profile。

@@ -11,6 +11,7 @@
 | 当前状态与剩余工作 | [独立事务组提交验证](engineering/group-commit-validation-2026-11-20.md)、[接续交付计划](engineering/sqlite-s3-delivery-plan.md)、[路线图](engineering/roadmap.md) |
 | 同库独立事务 group commit | [完整设计与配置](architecture/independent-group-commit.md)、[真实 HTTP/S3/进程合同](../experiments/group-commit/README.md) |
 | 接纳归因与相同 seed 对照 | [生命周期诊断实施合同](architecture/admission-lifecycle-diagnostics.md)、[后续容量与优化出口](engineering/admission-capacity-next.md) |
+| 组提交上限 8 与 4 | [相同 seed 比较设计与预登记门槛](architecture/group-width-comparison.md)、[本地与CI验收结果](engineering/group-width-validation-2026-11-23.md) |
 | SQLite on S3 与 Turso | [文件安全和吞吐](architecture/sqlite-s3-safety-and-throughput.md)、[Turso 分层对照](architecture/sqlite-s3-turso-review.md) |
 | 本地执行目录防护验收 | [冻结候选、真实回归与审计范围](engineering/local-storage-validation.md)、[机器证据](evidence/local-storage-guard-2026-11-07.json) |
 | SQLite／NFS 边界 | [本地执行文件防护与验证范围](operations/sqlite-storage-safety.md) |
