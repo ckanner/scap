@@ -1,12 +1,12 @@
 # SQLite on S3：当前状态、目标与接续交付
 
-更新：2026-11-22（纽约）。#65/#66/#67/#68 已合入，审查基准主线为 `3be8be7`。
+更新：2026-11-22（纽约）。#65/#66/#67/#68/#69 已合入，审查基准主线为 `d066354`。
 owner/controller/S1/S2、永久 worker 身份、有界连接复用、同库强读池、受信动态 fleet、
 内核资源准入和固定开环合同均保留各自[历史交付来源](sqlite-s3-scale-validation-2026-11-18.md)。
 
 ## 本轮接续范围
 
-本轮发现普通 actor/control/reader 的 panic 展开先释放 intake/output、后析构 native
+#69 发现普通 actor/control/reader 的 panic 展开先释放 intake/output、后析构 native
 worker，以及 catalogue/recovery 提前释放 intake 的问题，统一由 worker owner 持有
 当前额度直到真实清理完成；组路径保留已有相同保证。新候选 stable/nightly 各 971
 单位、82 文件四维精确覆盖及真实 HTTP/S3 组提交与冷恢复复测通过。组提交性能采用
@@ -15,6 +15,19 @@ worker，以及 catalogue/recovery 提前释放 intake 的问题，统一由 wor
 新增四轮 640 个测量事务、独立审计与 25 个反例已通过。竞争样本成功吞吐增加
 5.43% / 21.18%，但第一对原 ACK 从 64 降至 58，低载无多成员组；仍默认关闭。
 本地有限测量不替代目标 AWS、成功率／尾延迟目标或长期账单。
+
+#69 最终 head `1c8bce1` 的 6 工作流／26 个 job 全部成功，已合入 `d066354`。
+[PR #70](https://github.com/ckanner/scap/pull/70) 完成
+[资源拒绝诊断设计](../architecture/resource-rejection-diagnostics.md)：原检查锁内首个
+拒绝预算与占用、默认关闭的有界 header、SDK 无损只读 metadata。冻结源码 `c6a40f41`
+的 stable/nightly 各 983 单位、83 文件四维精确覆盖、SDK 192 单位、HTTP/进程 21 项，
+以及真实组提交和短 640／长 3,072 到达的独立审计、负控全部通过。
+全部 1,673 次拒绝首先命中租户 intake 40；不能从这一快照推出唯一服务瓶颈。
+长测试第二对高档 ACK/drain 增加 10.51%，原 ACK 却从 173 降为 165，起始工作集
+也已不同；12/s 档存在积压。完整正负结果和远端状态归属见
+[新候选记录](admission-diagnostics-validation-2026-11-22.md)。
+保持 group 默认关闭和当前配额，下一步按[容量与生命周期设计](admission-capacity-next.md)
+固定每档相同 seed 起点，诊断真实持有阶段，再做单机制优化，不提前释放资源或改变 ACK。
 
 [PR #68](https://github.com/ckanner/scap/pull/68) 的
 [独立事务 group commit](../architecture/independent-group-commit.md)已实现三层协同：
@@ -27,8 +40,10 @@ stable/nightly 各 969 项单位、82 个生产文件四维精确 100%、28 份�
 
 接续目标继续分开交付：
 
-1. 先用本地兼容后端完成可重复的单请求／组提交配对，再对目标后端独立认证；报告独立成功事务、排队、
-   p50/p95/p99、对象请求/字节和控制延迟。正确性与减少 HEAD CAS 不等于生产收益。
+1. 拒绝诊断与短／长固定曲线已经完成。下一阶段相同起点对照、生命周期观测及目标后端
+   认证尚未运行；原 ACK、到达窗口内完成量、拒绝、p50/p95/p99、对象请求/字节和控制
+   延迟共同验收。正确性、减少 HEAD CAS 或更短 drain 单独都不等于生产收益。
+
 2. 跨库 WAL/对象打包仍需共享寻址、逐库发布和共享对象 GC；lazy VFS 仍需已授权
    固定根、native pager、校验按需读页和有界在途 I/O。具体边界见
    [Turso 接续设计](../architecture/turso-adoption-next.md)。

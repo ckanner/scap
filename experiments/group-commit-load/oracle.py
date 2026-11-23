@@ -15,6 +15,7 @@ import tempfile
 
 import shared
 import spec
+import diagnostics
 
 wire = shared.module('group_load_independent_wire', shared.ROOT / 'experiments/object-service/audit_wire.py')
 HEAD = '/scap-test/scap-object/v1/1/7/1301/head'
@@ -146,7 +147,7 @@ def observed_outcome(call):
     return 'rejected' if error.get('name') == 'RemoteError' else 'transport_error'
 
 
-def validate_terminal(start, finish, terminal, reply, operation='execute'):
+def validate_terminal(start, finish, terminal, reply, operation='execute', contract=spec.SHORT):
     """Bind SDK accounting to the separately captured original HTTP terminal."""
     need(moment(start) < moment(finish), 'http-clock')
     need(moment(terminal) < moment(finish), 'http-terminal-before-finish')
@@ -157,7 +158,7 @@ def validate_terminal(start, finish, terminal, reply, operation='execute'):
         # The SDK may lose its fetch/reader Promise race before the observer
         # drains a full response. A non-committed synchronous decode can also
         # cross the same original deadline. Neither makes a write an ACK.
-        budget = spec.DEADLINES['client_recovery_ms' if operation == 'activate' else 'client_ms']
+        budget = contract.deadlines['client_recovery_ms' if operation == 'activate' else 'client_ms']
         need(not finish['ok'] and sdk_end - moment(start) >= budget * 1000000, 'sdk-transport-deadline')
         need(finish['state'] is None, 'sdk-http-outcome')
         if operation in ('status', 'query'):
@@ -181,7 +182,7 @@ def validate_terminal(start, finish, terminal, reply, operation='execute'):
             need(isinstance(error, dict) and error.get('name') == 'CommittedResultError' and
                  error.get('code') == 'DEADLINE' and error.get('outcome') == 'committed' and
                  reply['value'].get('state') == 'committed', 'sdk-http-outcome')
-            need(int(finish['sdk_terminal_ns']) - moment(start) >= spec.DEADLINES['client_ms'] * 1000000,
+            need(int(finish['sdk_terminal_ns']) - moment(start) >= contract.deadlines['client_ms'] * 1000000,
                  'sdk-committed-deadline')
             same(error.get('receipt'), reply['value']['receipt'], 'sdk-committed-receipt')
             need('raw_result' in error, 'sdk-committed-result')
@@ -211,18 +212,89 @@ def measured_elapsed(origin, arrival_finished, endings):
     return max(arrival_finished, *endings) - origin
 
 
-def active_bounds(row, calls):
+def active_bounds(row, calls, contract=spec.SHORT):
     # The outer scheduler removes a task in a later Promise microtask than the
     # inner call_finished record. A finished task may still occupy a slot, so
     # use proven bounds rather than an incorrect timestamp equality.
     started = sum(moment(call['start']) < moment(row) for call in calls)
     unfinished = sum(moment(call['start']) < moment(row) < moment(call['finish']) for call in calls)
     need(type(row['active']) is int and unfinished <= row['active'] <= started
-         and row['active'] < spec.PLAN['client_inflight_limit'], 'generator-active-count')
+         and row['active'] < contract.plan['client_inflight_limit'], 'generator-active-count')
 
 
-def client(directory, config, history, prepares):
-    planned = {item['id']: item for item in spec.calls()}
+def validate_rejection(directory, config, request, terminal, reply, finish, operation):
+    """Original captured header bytes and body precede the independent/SDK join."""
+    error = finish.get('error') or {}
+    captured = error.get('resource_rejection')
+    try:
+        diagnostics.bind(None, operation, request['admission'], config)
+    except diagnostics.Invalid as invalid:
+        raise Rejected(invalid.rule) from invalid
+    if reply is None:
+        need(captured is None, 'sdk-rejection')
+        return None
+    need('rejection_header' in terminal and 'rejection_header_bytes' in terminal, 'rejection-capture')
+    header, description = terminal['rejection_header'], terminal['rejection_header_bytes']
+    if header is None:
+        need(description is None, 'rejection-original-header')
+    else:
+        need(type(header) is str and description is not None, 'rejection-original-header')
+        same(raw(directory, description), header.encode('utf8'), 'rejection-original-header')
+    code = reply['error']['code'] if reply['ok'] is False else None
+    try:
+        value = diagnostics.parse(header, code)
+        diagnostics.bind(value, operation, request['admission'], config)
+    except diagnostics.Invalid as invalid:
+        raise Rejected(invalid.rule) from invalid
+    if value is not None:
+        need(terminal['status'] == {'BACKPRESSURE': 429, 'RECOVERY_BUSY': 429, 'LIMIT': 413}[code],
+             'rejection-http-status')
+    # An SDK deadline can win before the original HTTP result. Its public error
+    # remains UNKNOWN/DEADLINE even if the observer later captures a rejection.
+    expected = value if error.get('name') == 'RemoteError' else None
+    same(captured, expected, 'sdk-rejection')
+    if captured is not None:
+        need(type(captured) is dict and type(captured.get('version')) is int, 'sdk-rejection')
+    return value
+
+
+def generator_rule(contract):
+    impossible = all(settings['count'] + 4 < contract.plan['client_inflight_limit']
+                     for settings in contract.phases.values())
+    return 'generator-impossible-rejection' if impossible else 'generator-rejection'
+
+
+def windows(contract, phase, origin, selected, calls, offered):
+    """Separate fixed offer cohorts from completions in each wall-clock window."""
+    width = contract.window_ms * 1000000
+    duration = contract.phases[phase]['duration_ms'] * 1000000
+    need(duration % width == 0, 'fixed-window-size')
+    measured = {key: item for key, item in selected.items() if item['operation'] == 'execute'}
+    result = []
+    for offset in range(0, duration, width):
+        begin, end = origin + offset, origin + offset + width
+        cohort = {key: item for key, item in measured.items() if offset <= item['offset_ns'] < offset + width}
+        cohort_offers = [offered[key] for key in selected
+                         if offset <= selected[key]['offset_ns'] < offset + width]
+        finished = [calls[key] for key in measured if begin <= moment(calls[key]['finish']) < end]
+        cohort_outcomes = Counter(observed_outcome(calls[key]) for key in cohort)
+        result.append({'offset_ms': offset // 1000000, 'duration_ms': contract.window_ms,
+            'offered_transactions': len(cohort), 'actual_http_posts': len(cohort), 'generator_rejected': 0,
+            'cohort_terminal_counts': dict(cohort_outcomes),
+            'cohort_scheduled_to_terminal_ms': percentiles([
+                (moment(calls[key]['finish']) - origin - item['offset_ns']) / 1e6 for key, item in cohort.items()]),
+            'terminal_counts_within_window': dict(Counter(observed_outcome(call) for call in finished)),
+            'unfinished_dispatched_transactions_at_window_end': sum(
+                moment(calls[key]['start']) < end <= moment(calls[key]['finish']) for key in measured),
+            'maximum_observed_active_before_offer': max(row['active'] for row in cohort_offers),
+            'offer_lag_ms': percentiles([(moment(row) - int(row['scheduled_ns'])) / 1e6 for row in cohort_offers]),
+            'original_http_gate_observations': diagnostics.summary(calls[key]['rejection'] for key in cohort)})
+    same(sum(row['offered_transactions'] for row in result), len(measured), 'window-denominator')
+    return result
+
+
+def client(directory, config, history, prepares, contract=spec.SHORT):
+    planned = {item['id']: item for item in spec.calls(contract)}
     originals = {key: item for key, item in planned.items() if item['operation'] == 'execute'}
     events = defaultdict(dict)
     allowed = {'phase_started', 'phase_finished', 'call_offered', 'arrivals_finished',
@@ -239,11 +311,11 @@ def client(directory, config, history, prepares):
         same(saved['request'], intent(originals[row['id']]), 'intent-identity')
         same(saved['statements'], statements(originals[row['id']]), 'intent-statements')
     rejected = events['generator_rejected']
-    need(set(rejected) <= {key for key, item in planned.items() if item['phase'] in spec.PHASES}, 'generator-denominator')
-    # Even if every previous task remains active, the frozen phase offers at
-    # most 132 calls against 192 slots. A client-capacity rejection is impossible.
-    need(all(sum(item['phase'] == phase for item in planned.values()) < spec.PLAN['client_inflight_limit']
-             for phase in spec.PHASES) and not rejected, 'generator-impossible-rejection')
+    need(set(rejected) <= {key for key, item in planned.items() if item['phase'] in contract.phases}, 'generator-denominator')
+    # The short fixture has an absolute proof (at most 132 calls < 192 slots).
+    # The longer curve has no such proof: any observed generator rejection
+    # fails the planned service offered-load contract, preserving all evidence.
+    need(not rejected, generator_rule(contract))
     sent_ids = set(events['http_request'])
     need(set(events['call_started']) == set(events['call_finished']) == sent_ids, 'http-denominator')
     need(sent_ids.isdisjoint(rejected) and set(planned) - set(rejected) <= sent_ids, 'original-denominator')
@@ -261,11 +333,12 @@ def client(directory, config, history, prepares):
         same(body['scope'], spec.SCOPE, 'http-scope')
         need(body['version'] == 1 and type(finish['ok']) is bool, 'http-shape')
         reply = wire.parse(raw(directory, terminal['response'])) if terminal['event'] == 'http_response' else None
-        validate_terminal(start, finish, terminal, reply, body['operation'])
+        validate_terminal(start, finish, terminal, reply, body['operation'], contract)
+        rejection = validate_rejection(directory, config, request, terminal, reply, finish, body['operation'])
         if reply is not None and reply['ok'] and not finish['ok'] and finish['error'].get('outcome') == 'committed':
             same(raw(directory, finish['error']['raw_result']), wire.b64(reply['value']['result']), 'sdk-committed-result')
         calls[identifier] = {'body': body, 'reply': reply, 'start': start, 'finish': finish,
-                             'request': request, 'terminal': terminal}
+                             'request': request, 'terminal': terminal, 'rejection': rejection}
     for identifier, item in planned.items():
         if identifier in rejected:
             need(rejected[identifier]['posts'] == 0 and rejected[identifier]['reason'] == 'client_inflight_limit',
@@ -282,7 +355,7 @@ def client(directory, config, history, prepares):
         same(call['body'], expected, 'original-http-input')
         same(call['start']['phase'], item['phase'], 'original-phase')
     measured = {}
-    for phase, settings in spec.PHASES.items():
+    for phase, settings in contract.phases.items():
         selected = {key: item for key, item in planned.items() if item['phase'] == phase}
         start = one([row for row in history if row['event'] == 'phase_started' and row['phase'] == phase], 'phase-boundary')
         finish = one([row for row in history if row['event'] == 'phase_finished' and row['phase'] == phase], 'phase-boundary')
@@ -298,11 +371,11 @@ def client(directory, config, history, prepares):
             schedule = origin + item['offset_ns']
             row = offered[key]
             need(int(row['scheduled_ns']) == schedule and moment(row) >= schedule, 'fixed-arrival')
-            active_bounds(row, [call for identifier, call in calls.items() if identifier in selected])
+            active_bounds(row, [call for identifier, call in calls.items() if identifier in selected], contract)
             lags.append((moment(row) - schedule) / 1e6)
             if key in rejected:
                 end, outcome = moment(rejected[key]), 'generator_rejected'
-                need(row['active'] >= spec.PLAN['client_inflight_limit'], 'generator-capacity')
+                need(row['active'] >= contract.plan['client_inflight_limit'], 'generator-capacity')
             else:
                 call = calls[key]
                 need(int(call['start']['scheduled_ns']) == schedule and moment(call['start']) >= moment(row), 'offered-before-call')
@@ -316,7 +389,7 @@ def client(directory, config, history, prepares):
                     service_latencies[outcome].append((end - moment(calls[key]['start'])) / 1e6)
             else:
                 controls.append({'outcome': outcome, 'milliseconds': (end - schedule) / 1e6})
-        need(max(lags) <= spec.PLAN['max_offer_lag_ms'], 'offered-lag')
+        need(max(lags) <= contract.plan['max_offer_lag_ms'], 'offered-lag')
         need(sum(outcomes.values()) == settings['count'], 'measured-denominator')
         need(sum(len(value) for value in service_latencies.values()) == settings['count'] -
              sum(key in rejected for key, item in selected.items() if item['operation'] == 'execute'), 'sql-latency-denominator')
@@ -329,7 +402,14 @@ def client(directory, config, history, prepares):
             'scheduled_to_terminal_all_ms': percentiles([n for value in latencies.values() for n in value]),
             'invoke_to_terminal_ms': {key: percentiles(value) for key, value in service_latencies.items()},
             'offer_lag_ms': percentiles(lags), 'control_outcomes': dict(Counter(row['outcome'] for row in controls)),
-            'control_scheduled_to_terminal_ms': percentiles([row['milliseconds'] for row in controls])}
+            'control_scheduled_to_terminal_ms': percentiles([row['milliseconds'] for row in controls]),
+            'actual_http_posts': sum(item['operation'] == 'execute' and key in calls for key, item in selected.items()),
+            'generator_rejected': 0, 'maximum_observed_active_before_offer': max(row['active'] for row in offered.values()),
+            'original_http_gate_observations': diagnostics.summary(calls[key]['rejection'] for key, item in selected.items()
+                                                                  if item['operation'] == 'execute'),
+            'control_original_http_gate_observations': diagnostics.summary(calls[key]['rejection'] for key, item in selected.items()
+                                                                          if item['operation'] == 'status'),
+            'windows': windows(contract, phase, origin, selected, calls, offered)}
     return planned, calls, measured
 
 
@@ -397,9 +477,30 @@ def frame(data, key):
     return header['payload']['kind'], header['payload']['value'], data[20 + size:]
 
 
-def closure(objects, head):
+def data_image(manifest, load, contract=spec.SHORT):
+    pages = manifest['page_count']
+    need(type(pages) is int and 0 <= pages <= contract.image_pages, 'fixed-image-bound')
+    if not pages:
+        need(manifest['root'] is None, 'empty-image')
+        return b''
+    node, body = load(manifest['root'], 'node')
+    chunks = (pages + 31) // 32
+    need(not body and node['level'] == node['first_chunk'] == 0 and len(node['children']) == chunks,
+         'fixed-image-node')
+    image = []
+    for index, checksum in enumerate(node['children']):
+        chunk, data = load(checksum, 'chunk')
+        length = min(32, pages - index * 32) * 4096
+        need(chunk == {'first_page': index * 32 + 1, 'bytes': []} and len(data) == length,
+             'fixed-image-chunk')
+        image.append(data)
+    return b''.join(image)
+
+
+def closure(objects, head, contract=spec.SHORT):
     wire.head5_profile(head)
     same(head['scope'], {key: int(value) for key, value in spec.SCOPE.items()}, 'head-scope')
+    same(head['retention'], spec.RETENTION, 'fixed-retention-profile')
     need(len(head['windows']) == 1 and head['windows'][0]['epoch'] == head['request_epoch'] == 1, 'retained-epoch')
     dependencies, visiting = set(), set()
     def load(checksum, expected):
@@ -410,15 +511,8 @@ def closure(objects, head):
         dependencies.add(key)
         return value, data
     manifest, body = load(head['data_root'], 'manifest')
-    need(not body and 0 <= manifest['page_count'] <= 32, 'fixed-image-bound')
-    if manifest['page_count']:
-        node, body = load(manifest['root'], 'node')
-        need(not body and node['level'] == node['first_chunk'] == 0 and len(node['children']) == 1, 'fixed-image-node')
-        chunk, image = load(node['children'][0], 'chunk')
-        need(chunk == {'first_page': 1, 'bytes': []} and len(image) == manifest['page_count'] * 4096, 'fixed-image-chunk')
-    else:
-        need(manifest['root'] is None, 'empty-image')
-        image = b''
+    need(not body, 'fixed-image-bound')
+    image = data_image(manifest, load, contract)
     def index(checksum):
         need(checksum not in visiting and len(visiting) < 12, 'index-cycle')
         visiting.add(checksum)
@@ -432,7 +526,7 @@ def closure(objects, head):
         visiting.remove(checksum)
         return entries
     entries = index(head['windows'][0]['root'])
-    need(len(entries) == head['windows'][0]['count'] <= 161 and
+    need(len(entries) == head['windows'][0]['count'] <= contract.retained_entries and
          sum(entry['result_bytes'] for entry in entries) == head['windows'][0]['result_bytes'], 'retained-denominator')
     ids = [entry['request']['id'] for entry in entries]
     need(ids == sorted(set(ids)), 'retained-order')
@@ -449,7 +543,7 @@ def closure(objects, head):
         else:
             need(outcome['state'] == 'cancelled' and entry['result_bytes'] == 0, 'retained-cancellation')
     return {'dependencies': dependencies, 'entries': {entry['request']['id']: entry for entry in entries},
-            'stored': stored, 'image': image}
+            'stored': stored, 'image': image, 'page_count': manifest['page_count']}
 
 
 def publication(previous, current, before, after, enabled):
@@ -486,8 +580,8 @@ def publication(previous, current, before, after, enabled):
     return count
 
 
-def phase_intervals(events):
-    phases = ('seed', *spec.PHASES, 'verify')
+def phase_intervals(events, contract=spec.SHORT):
+    phases = ('seed', *contract.phases, 'verify')
     same([row['phase'] for row in events if row['event'] == 'phase_started'], list(phases), 'runner-phase-order')
     same([row['phase'] for row in events if row['event'] == 'phase_finished'], list(phases), 'runner-phase-order')
     ranges = {'startup': (moment(one([row for row in events if row['event'] == 'service_start_requested'], 'startup-boundary')),
@@ -502,7 +596,31 @@ def phase_intervals(events):
     return ranges
 
 
-def network(directory, history, events, committed, cancelled, calls, final_rows, enabled):
+def gate_observations(calls, publications):
+    """Join separate original observations without inventing a decision clock."""
+    result = []
+    for key, call in sorted(calls.items()):
+        if call['rejection'] is None:
+            continue
+        begin, end = moment(call['request']), moment(call['terminal'])
+        overlapping = [publication for publication in publications if publication['members'] > 1
+                       and publication['begin_ns'] <= end and begin <= publication['end_ns']]
+        result.append({'id': key, 'phase': call['start']['phase'],
+            'operation': call['body']['operation'], 'snapshot': call['rejection'],
+            'original_http_code': call['reply']['error']['code'],
+            'sdk_outcome': observed_outcome(call),
+            'sdk_terminal_ns': call['finish']['sdk_terminal_ns'],
+            'decision_interval_lower_ns': str(begin), 'decision_interval_upper_ns': str(end),
+            'original_http_request': call['request']['request'],
+            'original_http_response': call['terminal']['response'],
+            'original_observed_header': call['terminal']['rejection_header_bytes'],
+            'overlapping_multi_member_head_publications': [
+                {name: value for name, value in publication.items() if name not in ('begin_ns', 'end_ns')}
+                for publication in overlapping]})
+    return result
+
+
+def network(directory, history, events, committed, cancelled, calls, final_rows, enabled, contract=spec.SHORT):
     same([row['sequence'] for row in history], list(range(1, len(history) + 1)), 's3-trace-denominator')
     need(all(row['event'] in ('request', 'forwarded', 'response', 'delivered') for row in history), 'no-artificial-gates')
     groups = defaultdict(list)
@@ -513,7 +631,7 @@ def network(directory, history, events, committed, cancelled, calls, final_rows,
     objects, created, reads, heads, requests, responses = {}, {}, defaultdict(list), [], {}, {}
     metrics = defaultdict(lambda: {'requests': 0, 'request_body_bytes': 0, 'response_body_bytes': 0,
                                     'head_put_attempts': 0, 'head_put_accepted': 0, 'groups': Counter()})
-    intervals = phase_intervals(events)
+    intervals = phase_intervals(events, contract)
     for serial, items in groups.items():
         q, f, r, d = (one([row for row in items if row['event'] == event], 's3-exchange')
                       for event in ('request', 'forwarded', 'response', 'delivered'))
@@ -570,8 +688,13 @@ def network(directory, history, events, committed, cancelled, calls, final_rows,
                 need(r['etag'] in by_etag and data == by_etag[r['etag']], 'observed-head-version')
             else:
                 need(q['path'] in objects and data == objects[q['path']], 'observed-immutable-version')
+    states, publications = [], []
     for index, (q, r, head) in enumerate(chain):
-        after = closure(objects, head)
+        after = closure(objects, head, contract)
+        states.append({'published_ns': moment(r), 'head_serial': head['head_serial'],
+                       'head_request': q['request'], 'retained_identities': len(after['entries']),
+                       'committed_insert_identities': len(set(after['stored']) - {1}),
+                       'page_count': after['page_count']})
         for key in after['dependencies']:
             need(key in created and moment(created[key][1]) < moment(q) and
                  any(moment(created[key][1]) < end < moment(q) for _, end, _ in reads[(key, digest(objects[key]))]),
@@ -584,6 +707,10 @@ def network(directory, history, events, committed, cancelled, calls, final_rows,
             count = publication(previous, head, before, after, enabled)
             if count:
                 metrics[q['phase']]['groups'][str(count)] += 1
+                publications.append({'phase': q['phase'], 'head_serial': head['head_serial'],
+                    'begin_ns': moment(q), 'end_ns': moment(r), 'members': count,
+                    'request_ids': [str(identifier) for identifier in sorted(set(after['stored']) - set(before['stored']))],
+                    'original_head_request': q['request']})
                 for identifier in set(after['stored']) - set(before['stored']):
                     stored = after['stored'][identifier]
                     matches = [value for value in committed.values() if int(value['value']['receipt']['request']['id']) == identifier]
@@ -605,7 +732,7 @@ def network(directory, history, events, committed, cancelled, calls, final_rows,
                  (index + 1 == len(chain) or begin < moment(chain[index + 1][1])), 'head-read-version')
         before = after
     same(set(before['stored']), {int(value['value']['receipt']['request']['id']) for value in committed.values()}, 'durable-committed-denominator')
-    planned = {item['id']: item for item in spec.calls()}
+    planned = {item['id']: item for item in spec.calls(contract)}
     same(set(before['entries']) - set(before['stored']),
          {int(planned[key]['request_id']) for key in cancelled}, 'durable-cancelled-denominator')
     # Independently rebuild the final SQLite file from S3 object bytes.
@@ -621,28 +748,35 @@ def network(directory, history, events, committed, cancelled, calls, final_rows,
     for row in metrics.values():
         row['groups'] = dict(row['groups'])
         row['independent_transactions_published'] = sum(int(size) * count for size, count in row['groups'].items())
+    for phase in contract.phases:
+        for field, boundary in zip(('database_at_phase_start', 'database_at_phase_end'), intervals[phase]):
+            selected = [state for state in states if state['published_ns'] < boundary]
+            need(bool(selected), 'phase-database-state')
+            metrics[phase][field] = dict(selected[-1], published_ns=str(selected[-1]['published_ns']))
     return {'phases': dict(metrics), 'all_requests': len(groups),
             'all_request_body_bytes': sum(row['request_body_bytes'] for row in metrics.values()),
             'all_response_body_bytes': sum(row['response_body_bytes'] for row in metrics.values()),
-            's3_final_rows_verified': len(final_rows), 's3_integrity_check': 'ok'}
+            's3_final_rows_verified': len(final_rows), 's3_integrity_check': 'ok',
+            'original_http_gate_observations': gate_observations(calls, publications),
+            'gate_group_join_interpretation': 'HTTP interval overlap with an independently verified HEAD publication is temporal co-observation only; it neither identifies the admission decision time nor proves group-held credits caused a rejection. Unpublished groups are not visible in this join.'}
 
 
-def audit_round(directory, enabled, projections=None):
+def audit_round(directory, enabled, projections=None, contract=spec.SHORT):
     projections = projections or {}
     load = lambda name: projections.get(name, rows(directory / name))
     config = projections.get('service-config.json', wire.parse((directory / 'service-config.json').read_bytes()))
     expected = spec.configuration(config['listen'], config['cache_directory'], config['s3']['endpoint'],
-                                  config['credentials'][0]['sha256'], enabled)
+                                  config['credentials'][0]['sha256'], enabled, contract)
     same(config, expected, 'paired-configuration')
     workload = wire.parse((directory / 'workload.json').read_bytes())
-    same(workload['plan'], spec.PLAN, 'fixed-plan')
-    same(workload['calls'], spec.calls(), 'fixed-workload')
+    same(workload['plan'], contract.plan, 'fixed-plan')
+    same(workload['calls'], spec.calls(contract), 'fixed-workload')
     same(workload['final_sql'], spec.ALL_ROWS, 'fixed-final-query')
-    wanted = {str(item['row']) for item in spec.calls() if 'row' in item}
+    wanted = {str(item['row']) for item in spec.calls(contract) if 'row' in item}
     same(set(workload['payloads']), wanted, 'payload-denominator')
     for row, description in workload['payloads'].items():
         same(raw(directory, description), spec.payload(int(row)), 'fixed-payload')
-    planned, calls, measured = client(directory, config, load('sdk.jsonl'), load('intents.jsonl'))
+    planned, calls, measured = client(directory, config, load('sdk.jsonl'), load('intents.jsonl'), contract)
     committed, cancelled, final_rows = settlement(planned, calls)
     events = load('events.jsonl')
     started = one([row for row in events if row['event'] == 'service_started'], 'owned-service')
@@ -653,7 +787,7 @@ def audit_round(directory, enabled, projections=None):
     backend = one([row for row in events if row['event'] == 'backend_started'], 'owned-backend')
     need(backend['binary_sha256'] == inputs['tools']['weed']['sha256'], 'observed-backend-binary')
     need(started['identity'] == stopped['identity'] and stopped['status'] == 0 and stopped['cache_empty'], 'service-cleanup')
-    for phase in ('seed', *spec.PHASES, 'verify'):
+    for phase in ('seed', *contract.phases, 'verify'):
         begin = one([row for row in events if row['event'] == 'node_started' and row['phase'] == phase], 'owned-node')
         end = one([row for row in events if row['event'] == 'node_stopped' and row['phase'] == phase], 'owned-node')
         need(begin['identity'] == end['identity'] and end['status'] == 0, 'node-cleanup')
@@ -661,7 +795,7 @@ def audit_round(directory, enabled, projections=None):
     samples = load('resources.jsonl')
     need(samples and all(row['identity'] == started['identity'] and
          moment(started) < moment(row) < moment(stopped) for row in samples), 'resource-identity')
-    net = network(directory, load('s3.jsonl'), events, committed, cancelled, calls, final_rows, enabled)
+    net = network(directory, load('s3.jsonl'), events, committed, cancelled, calls, final_rows, enabled, contract)
     for phase, row in measured.items():
         row['s3'] = net['phases'].get(phase, {})
         row['settled_committed'] = sum(key in committed for key, item in planned.items()
@@ -670,6 +804,10 @@ def audit_round(directory, enabled, projections=None):
                                        if item['phase'] == phase and item['operation'] == 'execute')
         need(row['settled_committed'] + row['settled_cancelled'] == row['offered_transactions'], 'settled-denominator')
     return {'group_commit': enabled, 'measurements': measured, 's3_total': net,
+            'effective_rejection_limits': {reason: {'limit': str(limit),
+                'requested': str(requested) if requested is not None else 'actual allocation growth extent'}
+                for reason, (limit, requested) in diagnostics.effective_limits(config).items()},
+            'all_original_http_gate_observations': diagnostics.summary(call['rejection'] for call in calls.values()),
             'originals_verified': len(committed) + len(cancelled) - 1,
             'committed_rows': len(final_rows), 'binary': started['binary'],
             'sampled_peak_rss_bytes': max(row['metrics']['VmRSS'] for row in samples),
@@ -691,21 +829,30 @@ def validate_round_order(boundaries):
          and all(left[1] < right[0] for left, right in zip(boundaries, boundaries[1:])), 'round-run-order')
 
 
+def select_contract(plan):
+    need(type(plan) is dict and type(plan.get('profile')) is str and plan['profile'] in spec.CONTRACTS,
+         'fixed-profile')
+    contract = spec.CONTRACTS[plan['profile']]
+    same(plan, contract.plan, 'fixed-plan')
+    return contract
+
+
 def verify(directory):
     directory = Path(directory)
-    same(wire.parse((directory / 'plan.json').read_bytes()), spec.PLAN, 'fixed-plan')
+    contract = select_contract(wire.parse((directory / 'plan.json').read_bytes()))
     result = wire.parse((directory / 'result.json').read_bytes())
     need(result['status'] == 'OBSERVED_NOT_AUDITED' and result['aws_standard'] == result['production_slo'] == 'NOT_RUN', 'run-completion')
+    same(result['profile'], contract.name, 'run-profile')
     need([(row['name'], row['group_commit']) for row in result['rounds']] == list(spec.ROUNDS), 'round-order')
     need(all(row['status'] == 'OBSERVED_NOT_AUDITED' and not row['cleanup_errors'] for row in result['rounds']), 'round-completion')
     validate_round_order(round_boundaries(directory))
     inputs = provenance(directory)
-    rounds = {name: audit_round(directory / name, enabled) for name, enabled in spec.ROUNDS}
+    rounds = {name: audit_round(directory / name, enabled, contract=contract) for name, enabled in spec.ROUNDS}
     need(all(row['binary'] == inputs['tools']['scapd'] for row in rounds.values()), 'observed-service-binary')
     pairs = []
     for off, on in (('off-1', 'on-1'), ('off-2', 'on-2')):
         phases = {}
-        for phase in spec.PHASES:
+        for phase in contract.phases:
             baseline, grouped = rounds[off]['measurements'][phase], rounds[on]['measurements'][phase]
             off_rate = baseline['successful_transactions_per_second_until_drained']
             on_rate = grouped['successful_transactions_per_second_until_drained']
@@ -713,13 +860,20 @@ def verify(directory):
                 'actually_grouped_transactions': sum(int(size) * count for size, count in grouped['s3'].get('groups', {}).items() if int(size) > 1),
                 'comparison': 'observed paired local samples; no improvement threshold'}
         pairs.append({'off': off, 'on': on, 'phases': phases})
-    return {'status': 'PASSED', 'rounds': rounds, 'pairs': pairs,
+    return {'status': 'PASSED', 'profile': contract.name, 'rounds': rounds, 'pairs': pairs,
             'original_independent_transactions': sum(row['originals_verified'] for row in rounds.values()),
             'runtime_commit': inputs['build_source_commit'], 'aws_standard': 'NOT_RUN', 'production_slo': 'NOT_RUN',
             'limits': ['p99 is a nearest-rank sample quantile, not a stable production tail estimate',
                 'raw-byte capture/fsync, local proxy and resource sampling add observer overhead',
                 'request bytes count bodies, not HTTP headers, TLS or AWS bills',
                 'scheduled-to-terminal includes client scheduling, network and service queueing; no internal queue-only claim',
+                'each reason is the first locked rejecting counter, not an atomic cross-pool snapshot or throughput cause',
+                'queue observations are charged credits, including group holds, not physical queue length',
+                'Fetch captures the observed header value, not the original TCP header framing',
+                'original HTTP gate observations may arrive after an SDK UNKNOWN/DEADLINE; they do not relabel SDK outcomes',
+                'active_before_offer samples scheduler slots before dispatch, not a service concurrency or queue peak',
+                'phases share a growing database and retained index; these finite cumulative samples are not steady-state capacity',
+                'ABBA controls switch order, not database growth or observation overhead',
                 'groups may remain size one; a successful audit does not require grouping or speedup']}
 
 

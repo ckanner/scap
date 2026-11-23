@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
 
-use crate::{auth::Principal, Failure};
+use crate::{auth::Principal, rejection::Budget, Failure};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Class {
@@ -26,6 +26,36 @@ impl Class {
             Self::Control => "control",
             Self::Recovery => "recovery",
             Self::Catalogue => "catalogue",
+        }
+    }
+
+    fn budgets(self) -> [Budget; 4] {
+        use Budget::*;
+        match self {
+            Self::Data => [
+                IntakeDataRequestsGlobal,
+                IntakeDataRequestsTenant,
+                IntakeDataBodyGlobal,
+                IntakeDataBodyTenant,
+            ],
+            Self::Control => [
+                IntakeControlRequestsGlobal,
+                IntakeControlRequestsTenant,
+                IntakeControlBodyGlobal,
+                IntakeControlBodyTenant,
+            ],
+            Self::Recovery => [
+                IntakeRecoveryRequestsGlobal,
+                IntakeRecoveryRequestsTenant,
+                IntakeRecoveryBodyGlobal,
+                IntakeRecoveryBodyTenant,
+            ],
+            Self::Catalogue => [
+                IntakeCatalogueRequestsGlobal,
+                IntakeCatalogueRequestsTenant,
+                IntakeCatalogueBodyGlobal,
+                IntakeCatalogueBodyTenant,
+            ],
         }
     }
 }
@@ -129,19 +159,49 @@ impl Intake {
         let mut usage = self.usage.lock().map_err(|_| Failure::new("UNAVAILABLE"))?;
         let empty = Count::default();
         let current = usage.tenants.get(&tenant).unwrap_or(&empty);
-        if usage.all.requests >= self.total
-            || current.requests >= self.profile.requests_per_tenant
-            || usage
-                .all
-                .bytes
-                .checked_add(self.max_body_bytes)
-                .is_none_or(|bytes| bytes > self.profile.body_bytes)
-            || current
-                .bytes
-                .checked_add(self.max_body_bytes)
-                .is_none_or(|bytes| bytes > self.profile.body_bytes_per_tenant)
+        let [requests_global, requests_tenant, body_global, body_tenant] = self.class.budgets();
+        // Preserve the original short-circuit order and copy the deciding
+        // counters under this same lock; later releases cannot rewrite them.
+        if usage.all.requests >= self.total {
+            return Err(Failure::budget(
+                requests_global,
+                usage.all.requests as u64,
+                self.total as u64,
+                1,
+            ));
+        }
+        if current.requests >= self.profile.requests_per_tenant {
+            return Err(Failure::budget(
+                requests_tenant,
+                current.requests as u64,
+                self.profile.requests_per_tenant as u64,
+                1,
+            ));
+        }
+        if usage
+            .all
+            .bytes
+            .checked_add(self.max_body_bytes)
+            .is_none_or(|bytes| bytes > self.profile.body_bytes)
         {
-            return Err(Failure::new("BACKPRESSURE"));
+            return Err(Failure::budget(
+                body_global,
+                usage.all.bytes as u64,
+                self.profile.body_bytes as u64,
+                self.max_body_bytes as u64,
+            ));
+        }
+        if current
+            .bytes
+            .checked_add(self.max_body_bytes)
+            .is_none_or(|bytes| bytes > self.profile.body_bytes_per_tenant)
+        {
+            return Err(Failure::budget(
+                body_tenant,
+                current.bytes as u64,
+                self.profile.body_bytes_per_tenant as u64,
+                self.max_body_bytes as u64,
+            ));
         }
         usage.all.requests += 1;
         usage.all.bytes += self.max_body_bytes;

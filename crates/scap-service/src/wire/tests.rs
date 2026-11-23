@@ -401,7 +401,8 @@ fn public_resolutions_keep_original_receipts_and_status_hides_policy() {
     assert_eq!(
         failed(&Failure {
             code: "COMMITTED_BUT_UNAVAILABLE",
-            receipt: Some(Box::new(receipt_value))
+            receipt: Some(Box::new(receipt_value)),
+            rejection: None,
         })["error"]["receipt"]["sequence"],
         u64::MAX.to_string()
     );

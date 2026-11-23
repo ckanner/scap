@@ -614,9 +614,31 @@ export class ClientError extends Error {
   readonly code: string;
   constructor(code: string, message: string, cause?: unknown);
 }
+export type CountedResourceRejectionReason =
+  `intake_${'data' | 'control' | 'recovery' | 'catalogue'}_${'requests_global' | 'requests_tenant' | 'body_global' | 'body_tenant'}` |
+  `queue_${'global' | 'tenant' | 'database'}_${'total' | 'data'}` |
+  `actors_${'global' | 'tenant'}` |
+  `output_base_${'shared' | 'control'}_${'global' | 'tenant'}` |
+  `${'catalogue' | 'restore'}_queue_${'global' | 'tenant' | 'name'}` |
+  `discovery_${'global' | 'tenant' | 'threads'}` |
+  `output_growth_${'global' | 'tenant'}` |
+  `restore_staging_${'global' | 'tenant'}`;
+export type SourceResourceRejectionReason = 'actor_draining' | 'output_base_allocation' |
+  'output_growth_allocation' | 'native_recovery_busy' | 'native_recovery_closed';
+/** Advisory resource observation, never permission to retry or proof of non-commit. */
+export type ResourceRejection = Readonly<{
+  version: 1;
+  reason: CountedResourceRejectionReason;
+  /** Canonical u64 decimal strings; queue values are charged credits, not pending SQL. */
+  used: Decimal;
+  limit: Decimal;
+  requested: Decimal;
+}> | Readonly<{ version: 1; reason: SourceResourceRejectionReason }>;
 export class RemoteError extends ClientError {
   readonly outcome: 'unresolved';
   readonly reference: RequestReference;
+  /** Present only when the server opts in and its optional diagnostic is valid. */
+  readonly resourceRejection?: ResourceRejection;
   constructor(code: string, message: string, reference: RequestReference);
 }
 export class UnknownError extends ClientError {

@@ -296,6 +296,7 @@ fn assemble_using(
             auth: prepared.auth,
             scheduler,
             output,
+            resource_diagnostics: prepared.resource_diagnostics,
             catalogue,
             restore,
             discovery,

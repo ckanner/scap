@@ -1,5 +1,76 @@
 use super::*;
 
+pub(crate) fn assert_budget(
+    error: &Failure,
+    budget: rejection::Budget,
+    used: u64,
+    limit: u64,
+    requested: u64,
+) {
+    let expected = rejection::Rejection::Counted {
+        budget,
+        used,
+        limit,
+        requested,
+    };
+    assert_eq!(error.code, expected.code());
+    assert_eq!(error.rejection(), Some(expected));
+    assert!(error.receipt.is_none());
+}
+
+#[test]
+fn diagnostics_are_advisory_and_never_attach_to_another_outcome_or_receipt() {
+    use rejection::{Budget, Rejection, Source};
+    let evidence = Rejection::Counted {
+        budget: Budget::QueueDatabaseData,
+        used: 6,
+        limit: 6,
+        requested: 1,
+    };
+    let mut error = Failure::rejected(evidence);
+    assert_eq!(error.rejection(), Some(evidence));
+    assert_eq!(
+        crate::wire::failed(&error),
+        crate::wire::failed(&Failure::new("BACKPRESSURE"))
+    );
+    for code in [
+        "UNAUTHENTICATED",
+        "INVALID",
+        "UNKNOWN",
+        "COMMITTED_BUT_UNAVAILABLE",
+        "LIMIT",
+    ] {
+        error.code = code;
+        assert!(error.rejection().is_none());
+    }
+    error.code = "BACKPRESSURE";
+    error.receipt = Some(Box::new(crate::output::tests::receipt()));
+    assert!(error.rejection().is_none());
+    error.receipt = None;
+    error.rejection = Some(Rejection::Counted {
+        budget: Budget::QueueDatabaseData,
+        used: 0,
+        limit: 6,
+        requested: 1,
+    });
+    assert!(error.rejection().is_none());
+    assert!(Failure::new("BACKPRESSURE").rejection().is_none());
+    let permits = tokio::sync::Semaphore::new(0);
+    let error = Failure::native_recovery(permits.try_acquire().unwrap_err());
+    assert_eq!(error.code, "RECOVERY_BUSY");
+    assert_eq!(
+        error.rejection(),
+        Some(Rejection::Source(Source::NativeRecoveryBusy))
+    );
+    permits.close();
+    let error = Failure::native_recovery(permits.try_acquire().unwrap_err());
+    assert_eq!(error.code, "RECOVERY_BUSY");
+    assert_eq!(
+        error.rejection(),
+        Some(Rejection::Source(Source::NativeRecoveryClosed))
+    );
+}
+
 #[test]
 fn failure_codes_preserve_authority_semantics() {
     use scap_object::format::{FormatError, Request, Scope, Transition};

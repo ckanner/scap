@@ -176,6 +176,7 @@ fn group_committed(
     .map_err(|_| Failure {
         code: "COMMITTED_BUT_UNAVAILABLE",
         receipt: Some(Box::new(value.receipt.clone())),
+        rejection: None,
     })?;
     match output {
         Some(output) => committed_budgeted(value.receipt, result, output),

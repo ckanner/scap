@@ -42,11 +42,70 @@ fn job(tenant: u64, name: Option<&str>) -> (Job, oneshot::Receiver<Result<Value,
 }
 
 #[test]
+fn catalogue_and_restore_diagnostics_preserve_global_tenant_name_order_and_snapshot() {
+    use crate::tests::assert_budget;
+    for (recovery, budgets) in [
+        (
+            false,
+            [
+                Budget::CatalogueQueueGlobal,
+                Budget::CatalogueQueueTenant,
+                Budget::CatalogueQueueName,
+            ],
+        ),
+        (
+            true,
+            [
+                Budget::RestoreQueueGlobal,
+                Budget::RestoreQueueTenant,
+                Budget::RestoreQueueName,
+            ],
+        ),
+    ] {
+        let mut queue = Queue::default();
+        for _ in 0..3 {
+            queue.push(job(1, None).0, limits(), recovery).unwrap();
+        }
+        let name = queue
+            .push(job(1, Some("not-yet-known")).0, limits(), recovery)
+            .unwrap_err();
+        assert_budget(&name, budgets[2], 3, 3, 1);
+        while queue.pop().is_some() {}
+        for name in ["a", "b"] {
+            for _ in 0..3 {
+                queue
+                    .push(job(1, Some(name)).0, limits(), recovery)
+                    .unwrap();
+            }
+        }
+        let tenant = queue
+            .push(job(1, Some("a")).0, limits(), recovery)
+            .unwrap_err();
+        assert_budget(&tenant, budgets[1], 6, 6, 1);
+        for tenant in 2..=7 {
+            queue
+                .push(job(tenant, Some("a")).0, limits(), recovery)
+                .unwrap();
+        }
+        let global = queue
+            .push(job(1, Some("a")).0, limits(), recovery)
+            .unwrap_err();
+        assert_budget(&global, budgets[0], 12, 12, 1);
+        while queue.pop().is_some() {}
+        assert_budget(&name, budgets[2], 3, 3, 1);
+        assert_budget(&tenant, budgets[1], 6, 6, 1);
+        assert_budget(&global, budgets[0], 12, 12, 1);
+    }
+}
+
+#[test]
 fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
     let mut queue = Queue::default();
     assert!(queue.pop().is_none());
     for (tenant, name) in [(1, "A"), (1, "A"), (1, "a"), (2, "A"), (2, " A")] {
-        queue.push(job(tenant, Some(name)).0, limits()).unwrap();
+        queue
+            .push(job(tenant, Some(name)).0, limits(), false)
+            .unwrap();
     }
     let actual: Vec<_> = std::iter::from_fn(|| {
         queue.pop().map(|job| {
@@ -70,7 +129,10 @@ fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
     assert!(queue.tenants.is_empty());
     queue.closed = true;
     assert_eq!(
-        queue.push(job(1, Some("a")).0, limits()).unwrap_err().code,
+        queue
+            .push(job(1, Some("a")).0, limits(), false)
+            .unwrap_err()
+            .code,
         "UNAVAILABLE"
     );
 }
@@ -79,56 +141,70 @@ fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
 fn total_tenant_and_unknown_name_inspection_caps_cannot_be_bypassed() {
     let mut queue = Queue::default();
     for _ in 0..3 {
-        queue.push(job(1, Some("a")).0, limits()).unwrap();
-    }
-    assert_eq!(
-        queue.push(job(1, Some("a")).0, limits()).unwrap_err().code,
-        "BACKPRESSURE"
-    );
-    assert_eq!(
-        queue.push(job(1, None).0, limits()).unwrap_err().code,
-        "BACKPRESSURE"
-    );
-    for _ in 0..3 {
-        queue.push(job(1, Some("b")).0, limits()).unwrap();
+        queue.push(job(1, Some("a")).0, limits(), false).unwrap();
     }
     assert_eq!(
         queue
-            .push(job(1, Some("new")).0, limits())
+            .push(job(1, Some("a")).0, limits(), false)
+            .unwrap_err()
+            .code,
+        "BACKPRESSURE"
+    );
+    assert_eq!(
+        queue
+            .push(job(1, None).0, limits(), false)
+            .unwrap_err()
+            .code,
+        "BACKPRESSURE"
+    );
+    for _ in 0..3 {
+        queue.push(job(1, Some("b")).0, limits(), false).unwrap();
+    }
+    assert_eq!(
+        queue
+            .push(job(1, Some("new")).0, limits(), false)
             .unwrap_err()
             .code,
         "BACKPRESSURE"
     );
     for tenant in 2..=7 {
-        queue.push(job(tenant, Some("a")).0, limits()).unwrap();
+        queue
+            .push(job(tenant, Some("a")).0, limits(), false)
+            .unwrap();
     }
     assert_eq!(
-        queue.push(job(8, Some("a")).0, limits()).unwrap_err().code,
+        queue
+            .push(job(8, Some("a")).0, limits(), false)
+            .unwrap_err()
+            .code,
         "BACKPRESSURE"
     );
     assert_eq!(queue.tenants.len(), 7);
 
     let mut queue = Queue::default();
-    queue.push(job(1, None).0, limits()).unwrap();
-    queue.push(job(1, Some("a")).0, limits()).unwrap();
-    queue.push(job(1, Some("b")).0, limits()).unwrap();
-    queue.push(job(1, None).0, limits()).unwrap();
+    queue.push(job(1, None).0, limits(), false).unwrap();
+    queue.push(job(1, Some("a")).0, limits(), false).unwrap();
+    queue.push(job(1, Some("b")).0, limits(), false).unwrap();
+    queue.push(job(1, None).0, limits(), false).unwrap();
     for name in [Some("a"), Some("b"), None] {
         assert_eq!(
-            queue.push(job(1, name).0, limits()).unwrap_err().code,
+            queue
+                .push(job(1, name).0, limits(), false)
+                .unwrap_err()
+                .code,
             "BACKPRESSURE"
         );
     }
-    queue.push(job(1, Some("new")).0, limits()).unwrap();
+    queue.push(job(1, Some("new")).0, limits(), false).unwrap();
     assert_eq!(queue.pop().unwrap().call.action.name(), None);
-    queue.push(job(1, Some("a")).0, limits()).unwrap();
+    queue.push(job(1, Some("a")).0, limits(), false).unwrap();
 
     let mut queue = Queue::default();
     for _ in 0..3 {
-        queue.push(job(1, None).0, limits()).unwrap();
+        queue.push(job(1, None).0, limits(), false).unwrap();
     }
     for name in [None, Some("new")] {
-        assert!(queue.push(job(1, name).0, limits()).is_err());
+        assert!(queue.push(job(1, name).0, limits(), false).is_err());
     }
 }
 
@@ -139,7 +215,10 @@ fn expired_admission_does_not_reserve_a_tenant_name_or_intake_slot() {
     for name in [Some("new"), None] {
         let (mut expired, receiver) = job(1, name);
         expired.deadline = Instant::now();
-        assert_eq!(queue.push(expired, limits()).unwrap_err().code, "DEADLINE");
+        assert_eq!(
+            queue.push(expired, limits(), false).unwrap_err().code,
+            "DEADLINE"
+        );
         assert!(receiver.blocking_recv().is_err());
         assert!(queue.tenants.is_empty());
     }
@@ -458,7 +537,11 @@ fn closed_waiters_and_expired_queue_entries_never_execute_or_retry() {
 fn shutdown_and_mutex_poison_keep_pending_replies_bounded_and_wake_every_waiter() {
     let lane = Arc::new(Lane::default());
     let (job, reply) = job(1, Some("a"));
-    lane.queue.lock().unwrap().push(job, limits()).unwrap();
+    lane.queue
+        .lock()
+        .unwrap()
+        .push(job, limits(), false)
+        .unwrap();
     lane.close();
     assert_eq!(
         reply.blocking_recv().unwrap().unwrap_err().code,

@@ -17,6 +17,7 @@ use crate::{
     auth::Principal,
     discovery_cursor::CursorCodec,
     discovery_wire::{self as wire, Call, Operation},
+    rejection::Budget,
     Failure,
 };
 
@@ -46,8 +47,16 @@ impl Admission {
             .active
             .lock()
             .map_err(|_| Failure::new("UNAVAILABLE"))?;
-        if active.len() >= 2 || active.contains(&tenant) {
-            return Err(Failure::new("BACKPRESSURE"));
+        if active.len() >= 2 {
+            return Err(Failure::budget(
+                Budget::DiscoveryGlobal,
+                active.len() as u64,
+                2,
+                1,
+            ));
+        }
+        if active.contains(&tenant) {
+            return Err(Failure::budget(Budget::DiscoveryTenant, 1, 1, 1));
         }
         active.insert(tenant);
         Ok(Arc::new(Reservation {
@@ -145,7 +154,12 @@ impl Discovery {
         // A completed operation can have released its lease while its OS
         // thread is still exiting. Bound these handles too, without waiting.
         if workers.len() >= 2 {
-            return Err(Failure::new("BACKPRESSURE"));
+            return Err(Failure::budget(
+                Budget::DiscoveryThreads,
+                workers.len() as u64,
+                2,
+                1,
+            ));
         }
         let reader = self.reader.clone();
         let (sender, receiver) = tokio::sync::oneshot::channel();

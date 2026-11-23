@@ -136,25 +136,37 @@ fn both_scopes_are_atomic_and_data_cannot_spend_the_control_partition() {
     third.deployment += 1;
     let a = pool.acquire(&first, false).unwrap();
     let b = pool.acquire(&first, false).unwrap();
-    assert_eq!(
-        pool.acquire(&first, false).err().unwrap().code,
-        "BACKPRESSURE"
+    crate::tests::assert_budget(
+        &pool.acquire(&first, false).err().unwrap(),
+        Budget::OutputBaseSharedTenant,
+        (2 * BASE_BYTES) as u64,
+        (2 * BASE_BYTES) as u64,
+        BASE_BYTES as u64,
     );
     let c = pool.acquire(&second, false).unwrap();
-    assert_eq!(
-        pool.acquire(&third, false).err().unwrap().code,
-        "BACKPRESSURE"
+    crate::tests::assert_budget(
+        &pool.acquire(&third, false).err().unwrap(),
+        Budget::OutputBaseSharedGlobal,
+        (3 * BASE_BYTES) as u64,
+        (3 * BASE_BYTES) as u64,
+        BASE_BYTES as u64,
     );
     assert_eq!(usage(&pool), (3 * BASE_BYTES, 0, 2));
     let control_a = pool.acquire(&first, true).unwrap();
-    assert_eq!(
-        pool.acquire(&first, true).err().unwrap().code,
-        "BACKPRESSURE"
+    crate::tests::assert_budget(
+        &pool.acquire(&first, true).err().unwrap(),
+        Budget::OutputBaseControlTenant,
+        BASE_BYTES as u64,
+        BASE_BYTES as u64,
+        BASE_BYTES as u64,
     );
     let control_b = pool.acquire(&second, true).unwrap();
-    assert_eq!(
-        pool.acquire(&third, true).err().unwrap().code,
-        "BACKPRESSURE"
+    crate::tests::assert_budget(
+        &pool.acquire(&third, true).err().unwrap(),
+        Budget::OutputBaseControlGlobal,
+        (2 * BASE_BYTES) as u64,
+        (2 * BASE_BYTES) as u64,
+        BASE_BYTES as u64,
     );
     assert_eq!(usage(&pool), (3 * BASE_BYTES, 2 * BASE_BYTES, 2));
     assert_eq!(a.claim(&second, false).unwrap_err().code, "DENIED");
@@ -172,14 +184,26 @@ fn global_and_tenant_increment_failures_never_leave_partial_credit() {
     let mut second = principal();
     second.tenant += 1;
     let b = pool.acquire(&second, false).unwrap();
-    assert_eq!(a.allocate(BASE_BYTES + 1).err().unwrap().code, "LIMIT");
+    crate::tests::assert_budget(
+        &a.allocate(BASE_BYTES + 1).err().unwrap(),
+        Budget::OutputGrowthGlobal,
+        (2 * BASE_BYTES) as u64,
+        (3 * BASE_BYTES) as u64,
+        (BASE_BYTES + 1) as u64,
+    );
     let buffer = a.allocate(BASE_BYTES).unwrap();
     assert_eq!(b.allocate(1).err().unwrap().code, "LIMIT");
     assert_eq!(usage(&pool), (3 * BASE_BYTES, 0, 2));
     drop(buffer);
     let local = small_pool(4 * BASE_BYTES, BASE_BYTES);
     let owner = local.acquire(&principal(), false).unwrap();
-    assert_eq!(owner.allocate(1).err().unwrap().code, "LIMIT");
+    crate::tests::assert_budget(
+        &owner.allocate(1).err().unwrap(),
+        Budget::OutputGrowthTenant,
+        BASE_BYTES as u64,
+        BASE_BYTES as u64,
+        1,
+    );
     assert_eq!(usage(&local), (BASE_BYTES, 0, 1));
     drop((a, b, owner));
     assert_eq!(usage(&pool), (0, 0, 0));
@@ -202,6 +226,10 @@ fn small_and_dynamic_allocations_are_charged_before_calling_the_real_allocator()
         .unwrap();
     assert_eq!(attempts, 1);
     assert_eq!(error.code, "BACKPRESSURE");
+    assert_eq!(
+        error.rejection(),
+        Some(Rejection::Source(Source::OutputBaseAllocation))
+    );
     assert_eq!(usage(&pool), (0, 0, 0));
     let output = pool.acquire(&principal(), false).unwrap();
     let buffer = output
@@ -213,9 +241,11 @@ fn small_and_dynamic_allocations_are_charged_before_calling_the_real_allocator()
         .unwrap();
     assert_eq!(buffer.bytes.len(), 1024);
     assert_eq!(buffer.bytes.capacity(), 1024);
+    let error = output.allocate_with(2048, &mut refuse).err().unwrap();
+    assert_eq!(error.code, "LIMIT");
     assert_eq!(
-        output.allocate_with(2048, &mut refuse).err().unwrap().code,
-        "LIMIT"
+        error.rejection(),
+        Some(Rejection::Source(Source::OutputGrowthAllocation))
     );
     assert_eq!(usage(&pool), (BASE_BYTES + 1024, 0, 1));
     drop(output);
@@ -404,11 +434,16 @@ fn final_json_refusal_keeps_original_receipt_or_query_limit_and_never_replays() 
             assert_eq!(reply.status, StatusCode::SERVICE_UNAVAILABLE);
             assert_eq!(value["error"]["code"], "COMMITTED_BUT_UNAVAILABLE");
             assert_eq!(value["error"]["receipt"], wire::receipt(&original));
+            assert_eq!(reply.rejection, None);
         } else {
             assert_eq!(reply.status, StatusCode::PAYLOAD_TOO_LARGE);
             assert_eq!(
                 value,
                 json!({"ok":false,"error":{"code":"LIMIT","message":"LIMIT"}})
+            );
+            assert_eq!(
+                reply.rejection,
+                Some(Rejection::Source(Source::OutputGrowthAllocation))
             );
         }
         assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
@@ -425,6 +460,7 @@ fn original_unknown_stays_unknown_and_head_only_encoding_failure_closes_reply() 
         .finish_with(until(), &mut Instant::now, &mut refuse)
         .unwrap();
     assert_eq!(reply.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(reply.rejection, None);
     assert_eq!(
         &reply.bytes[..],
         br#"{"error":{"code":"UNKNOWN","message":"UNKNOWN"},"ok":false}"#
@@ -446,11 +482,79 @@ fn original_unknown_stays_unknown_and_head_only_encoding_failure_closes_reply() 
     let error = Failure {
         code: "COMMITTED_BUT_UNAVAILABLE",
         receipt: Some(Box::new(oversized)),
+        rejection: None,
     };
     assert!(OwnedValue::new(Err(error), output)
         .finish_with(until(), &mut Instant::now, &mut refuse)
         .is_none());
     assert_eq!(usage(&pool), (0, 0, 0));
+}
+
+#[test]
+fn final_metadata_matches_the_emitted_error_after_credit_refunds() {
+    let pool = small_pool(BASE_BYTES + 6000, BASE_BYTES + 6000);
+    let mut output = pool.acquire(&principal(), false).unwrap();
+    let result = output.base64(&[7; 4096]).unwrap();
+    let value = Value::Object(serde_json::Map::from_iter([(
+        "result".into(),
+        Value::String(result),
+    )]));
+    let reply = OwnedValue::new(Ok(value), output).finish(until()).unwrap();
+    assert_eq!(reply.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(
+        reply.rejection,
+        Some(Rejection::Counted {
+            budget: Budget::OutputGrowthGlobal,
+            used: 71000,
+            limit: 71536,
+            requested: 5497,
+        })
+    );
+    assert_eq!(usage(&pool), (BASE_BYTES, 0, 1));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&reply.bytes).unwrap(),
+        wire::failed(&Failure::new("LIMIT"))
+    );
+    drop(reply);
+    assert_eq!(usage(&pool), (0, 0, 0));
+
+    let evidence = Rejection::Counted {
+        budget: Budget::QueueDatabaseData,
+        used: 6,
+        limit: 6,
+        requested: 1,
+    };
+    for code in [
+        "BACKPRESSURE",
+        "UNKNOWN",
+        "COMMITTED_BUT_UNAVAILABLE",
+        "INVALID",
+    ] {
+        let output = pool.acquire(&principal(), false).unwrap();
+        let error = Failure {
+            code,
+            receipt: None,
+            rejection: Some(evidence),
+        };
+        let reply = OwnedValue::new(Err(error), output).finish(until()).unwrap();
+        assert_eq!(
+            reply.rejection,
+            if code == "BACKPRESSURE" {
+                Some(evidence)
+            } else {
+                None
+            }
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&reply.bytes).unwrap(),
+            wire::failed(&Failure::new(code))
+        );
+    }
+    let output = pool.acquire(&principal(), false).unwrap();
+    let reply = OwnedValue::new(Ok(json!(true)), output)
+        .finish(until())
+        .unwrap();
+    assert_eq!(reply.rejection, None);
 }
 
 #[test]

@@ -16,7 +16,11 @@ use scap_object::Receipt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{auth::Principal, wire, Failure};
+use crate::{
+    auth::Principal,
+    rejection::{Budget, Rejection, Source},
+    wire, Failure,
+};
 
 pub const BASE_BYTES: usize = 65_536;
 const SMALL_BYTES: usize = 2_048;
@@ -167,10 +171,32 @@ impl Pool {
         let mut usage = self.usage.lock().map_err(|_| Failure::new("UNAVAILABLE"))?;
         let empty = Count::default();
         let current = usage.tenants.get(&tenant).unwrap_or(&empty);
-        if BASE_BYTES > global - usage.all.bytes(control)
-            || BASE_BYTES > local - current.bytes(control)
-        {
-            return Err(Failure::new("BACKPRESSURE"));
+        let [global_budget, tenant_budget] = if control {
+            [
+                Budget::OutputBaseControlGlobal,
+                Budget::OutputBaseControlTenant,
+            ]
+        } else {
+            [
+                Budget::OutputBaseSharedGlobal,
+                Budget::OutputBaseSharedTenant,
+            ]
+        };
+        if BASE_BYTES > global - usage.all.bytes(control) {
+            return Err(Failure::budget(
+                global_budget,
+                usage.all.bytes(control) as u64,
+                global as u64,
+                BASE_BYTES as u64,
+            ));
+        }
+        if BASE_BYTES > local - current.bytes(control) {
+            return Err(Failure::budget(
+                tenant_budget,
+                current.bytes(control) as u64,
+                local as u64,
+                BASE_BYTES as u64,
+            ));
         }
         usage.all.add(control, BASE_BYTES);
         let current = usage.tenants.entry(tenant).or_default();
@@ -182,8 +208,8 @@ impl Pool {
             tenant,
             control,
         });
-        let small =
-            allocate_exact(SMALL_BYTES, allocate).map_err(|_| Failure::new("BACKPRESSURE"))?;
+        let small = allocate_exact(SMALL_BYTES, allocate)
+            .map_err(|_| Failure::source(Source::OutputBaseAllocation))?;
         Ok(OutputContext {
             small,
             value_charge: None,
@@ -198,8 +224,21 @@ impl Pool {
         let (global, local) = pool.limits(false);
         let mut usage = pool.usage.lock().map_err(|_| Failure::new("UNAVAILABLE"))?;
         let current = usage.tenants.get(&base.tenant).expect("live output lease");
-        if bytes > global - usage.all.shared || bytes > local - current.shared {
-            return Err(Failure::new("LIMIT"));
+        if bytes > global - usage.all.shared {
+            return Err(Failure::budget(
+                Budget::OutputGrowthGlobal,
+                usage.all.shared as u64,
+                global as u64,
+                bytes as u64,
+            ));
+        }
+        if bytes > local - current.shared {
+            return Err(Failure::budget(
+                Budget::OutputGrowthTenant,
+                current.shared as u64,
+                local as u64,
+                bytes as u64,
+            ));
         }
         usage.all.shared += bytes;
         usage
@@ -285,7 +324,7 @@ type Allocate<'a> =
 
 fn allocate_exact(length: usize, allocate: &mut Allocate<'_>) -> Result<Vec<u8>, Failure> {
     let mut bytes = Vec::new();
-    allocate(&mut bytes, length).map_err(|_| Failure::new("LIMIT"))?;
+    allocate(&mut bytes, length).map_err(|_| Failure::source(Source::OutputGrowthAllocation))?;
     bytes.resize(length, 0);
     Ok(bytes)
 }
@@ -368,6 +407,7 @@ impl OutputContext {
             receipt: Some(Box::new(
                 self.receipt.take().expect("trusted committed output"),
             )),
+            rejection: None,
         }
     }
 
@@ -404,7 +444,11 @@ impl OutputContext {
                 .expect("counted immutable JSON and exact reserved destination");
             buffer
         };
-        Ok(Encoded { status, buffer })
+        Ok(Encoded {
+            status,
+            buffer,
+            rejection: value.as_ref().err().and_then(Failure::rejection),
+        })
     }
 }
 
@@ -438,7 +482,7 @@ impl OwnedValue {
         }
         let encoded = match self.context.encode(&self.value, allocate) {
             Ok(encoded) => encoded,
-            Err(_) => {
+            Err(error) => {
                 if self.value.is_ok() {
                     if self.context.head_only {
                         return None;
@@ -446,7 +490,13 @@ impl OwnedValue {
                     let failure = if self.context.receipt.is_some() {
                         self.context.committed_unavailable()
                     } else {
-                        Failure::new("LIMIT")
+                        // Preserve the existing LIMIT fallback envelope while
+                        // retaining evidence from this failed encoding attempt.
+                        Failure {
+                            code: "LIMIT",
+                            receipt: None,
+                            rejection: error.rejection(),
+                        }
                     };
                     // Drop Base64/receipt projection before releasing credit.
                     self.value = Err(failure);
@@ -456,7 +506,11 @@ impl OwnedValue {
                 self.context.encode(&self.value, allocate).ok()?
             }
         };
-        let Encoded { status, buffer } = encoded;
+        let Encoded {
+            status,
+            buffer,
+            rejection,
+        } = encoded;
         let owner = FinalOwner {
             buffer,
             _base: self.context.base.clone(),
@@ -470,6 +524,7 @@ impl OwnedValue {
         Some(Reply {
             status,
             bytes: Bytes::from_owner(owner),
+            rejection,
         })
     }
 }
@@ -477,11 +532,13 @@ impl OwnedValue {
 struct Encoded {
     status: StatusCode,
     buffer: Buffer,
+    rejection: Option<Rejection>,
 }
 
 pub(crate) struct Reply {
     pub(crate) status: StatusCode,
     pub(crate) bytes: Bytes,
+    pub(crate) rejection: Option<Rejection>,
 }
 
 struct FinalOwner {

@@ -1,15 +1,30 @@
 /** Compile-only public API contract; it never supplies runtime coverage. */
-import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, readControllerConfiguration, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError,
+import { CatalogueClient, DiscoveryClient, Client, RoutedClient, OwnerClient, OwnerPlanClient, OwnerController, OwnerControllerFleet, ControllerHttp, readControllerEntries, readControllerConfiguration, runControllerFleet, createControllerPolicy, RouteError, OwnerReconcileError, UnknownError, RemoteError,
   type SavedOwnerInput, type PreparedOwner, type OwnerPreparation, type OwnerObservation, type OwnerPlan,
   type SavedSnapshotInput, type PreparedSnapshot, type SnapshotObservation, type SnapshotListing,
   type DatabaseStatus, type SweepReport, type OwnerIntent, type ActiveOwner, type OwnerInspection, type NamePage, type InventoryPage, type Creation, type PreparedCreate,
   type CreationProgress, type AbortProgress, type DeletionProgress, type Named, type PreparedRestore, type RestoreProgress,
-  type CatalogueIntent, type CatalogueResult } from '../src/client.js';
+  type CatalogueIntent, type CatalogueResult, type ResourceRejection } from '../src/client.js';
 
 const scope = { deployment: '1', tenant: '2', database: '3', incarnation: '1', generation: '1' };
 const creation: Creation = { creator: '7', operation: '11', name: 'notes', scope, expected_name_revision: null };
 
 async function contract() {
+  const remote = new RemoteError('BACKPRESSURE', 'synthetic', { scope });
+  const rejection: ResourceRejection | undefined = remote.resourceRejection;
+  if (rejection !== undefined && 'used' in rejection) {
+    const used: string = rejection.used;
+    // @ts-expect-error Capacity observations remain exact decimal strings.
+    const numeric: number = rejection.limit;
+    // @ts-expect-error Diagnostic snapshots are immutable.
+    rejection.requested = '1';
+    void used; void numeric;
+  }
+  // @ts-expect-error The server's optional observation cannot be replaced.
+  remote.resourceRejection = undefined;
+  const sourceOnly: ResourceRejection = { version: 1, reason: 'native_recovery_busy' };
+  // @ts-expect-error Native semaphore observations have no fabricated occupancy.
+  sourceOnly.used;
   const policy = createControllerPolicy({ scope, authorityId: 'production-example', principal: '7',
     metadataEndpoints: ['https://example.invalid/v1'],
     workers: [{ workerInstance: '10', endpoint: 'https://example.invalid/v1', rank: 0 }],

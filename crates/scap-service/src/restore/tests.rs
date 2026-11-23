@@ -97,15 +97,26 @@ fn staging_limits_are_shared_by_tenant_and_held_until_the_last_actual_job_releas
     let pool = Arc::new(Pool::new(SIDECAR_ALLOWANCE * 3, SIDECAR_ALLOWANCE * 2).unwrap());
     let one = pool.acquire(&principal(), 0).unwrap();
     let two = pool.acquire(&principal(), 0).unwrap();
-    assert_eq!(
-        pool.acquire(&principal(), 0).err().unwrap().code,
-        "RECOVERY_BUSY"
+    let tenant_rejection = pool.acquire(&principal(), 0).err().unwrap();
+    crate::tests::assert_budget(
+        &tenant_rejection,
+        RejectionBudget::RestoreStagingTenant,
+        SIDECAR_ALLOWANCE * 2,
+        SIDECAR_ALLOWANCE * 2,
+        SIDECAR_ALLOWANCE,
     );
     let mut other = principal();
     other.tenant = 5;
     let three = pool.acquire(&other, 0).unwrap();
     other.tenant = 6;
-    assert_eq!(pool.acquire(&other, 0).err().unwrap().code, "RECOVERY_BUSY");
+    let global_rejection = pool.acquire(&other, 0).err().unwrap();
+    crate::tests::assert_budget(
+        &global_rejection,
+        RejectionBudget::RestoreStagingGlobal,
+        SIDECAR_ALLOWANCE * 3,
+        SIDECAR_ALLOWANCE * 3,
+        SIDECAR_ALLOWANCE,
+    );
     assert_eq!(
         pool.acquire(&principal(), u64::MAX).err().unwrap().code,
         "LIMIT"
@@ -117,6 +128,23 @@ fn staging_limits_are_shared_by_tenant_and_held_until_the_last_actual_job_releas
     );
     drop((two, three));
     assert_eq!(pool.usage.lock().unwrap().total, 0);
+    crate::tests::assert_budget(
+        &global_rejection,
+        RejectionBudget::RestoreStagingGlobal,
+        SIDECAR_ALLOWANCE * 3,
+        SIDECAR_ALLOWANCE * 3,
+        SIDECAR_ALLOWANCE,
+    );
+    crate::tests::assert_budget(
+        &Arc::new(Pool::new(1, 1).unwrap())
+            .acquire(&principal(), 0)
+            .err()
+            .unwrap(),
+        RejectionBudget::RestoreStagingGlobal,
+        0,
+        1,
+        SIDECAR_ALLOWANCE,
+    );
     assert!(pool.usage.lock().unwrap().tenants.is_empty());
     let lease = pool.acquire(&principal(), 0).unwrap();
     let poisoned = pool.clone();

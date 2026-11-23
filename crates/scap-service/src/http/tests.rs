@@ -63,6 +63,7 @@ pub(super) fn state() -> Arc<HttpState> {
         .unwrap(),
     );
     Arc::new(HttpState {
+        resource_diagnostics: false,
         auth,
         scheduler,
         output: Arc::new(crate::output::Pool::new(crate::output::Profile::default()).unwrap()),
@@ -107,6 +108,60 @@ pub(super) fn request(operation: &str, database: u64) -> Request {
 }
 pub(super) async fn decoded(response: Response) -> Value {
     serde_json::from_slice(&to_bytes(response.into_body(), 100000).await.unwrap()).unwrap()
+}
+
+#[test]
+fn diagnostics_are_opt_in_after_authentication_and_do_not_change_error_envelopes() {
+    for enabled in [false, true] {
+        let mut state = state();
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = enabled;
+        let app = router(state.clone()).unwrap();
+        runtime().block_on(async {
+            let held = state.intake.acquire(&principal()).unwrap();
+            let mut unauthenticated = request("query", 3);
+            unauthenticated.headers_mut().remove("authorization");
+            let response = app.clone().oneshot(unauthenticated).await.unwrap();
+            assert!(!response.headers().contains_key(rejection::HEADER));
+            assert_eq!(decoded(response).await["error"]["code"], "UNAUTHENTICATED");
+            let mut invalid = request("query", 3);
+            invalid
+                .headers_mut()
+                .insert("x-scap-admission", HeaderValue::from_static("invalid"));
+            let response = app.clone().oneshot(invalid).await.unwrap();
+            assert!(!response.headers().contains_key(rejection::HEADER));
+            assert_eq!(decoded(response).await["error"]["code"], "INVALID");
+            let mut admitted_identity = request("query", 3);
+            *admitted_identity.body_mut() = Body::from("not parsed at this gate");
+            let response = app.clone().oneshot(admitted_identity).await.unwrap();
+            drop(held);
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+            assert_eq!(
+                response
+                    .headers()
+                    .get(rejection::HEADER)
+                    .map(|header| header.to_str().unwrap()),
+                if enabled {
+                    Some("v=1;reason=intake_data_requests_global;used=1;limit=1;requested=1")
+                } else {
+                    None
+                }
+            );
+            assert!(response.extensions().get::<Rejection>().is_none());
+            assert_eq!(
+                decoded(response).await,
+                wire::failed(&Failure::new("BACKPRESSURE"))
+            );
+            let response = app.clone().oneshot(request("query", 3)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert!(!response.headers().contains_key(rejection::HEADER));
+            drop(response);
+            let mut invalid = request("query", 3);
+            *invalid.body_mut() = Body::from("invalid JSON");
+            let response = app.clone().oneshot(invalid).await.unwrap();
+            assert!(!response.headers().contains_key(rejection::HEADER));
+            assert_eq!(decoded(response).await["error"]["code"], "INVALID");
+        });
+    }
 }
 
 #[test]

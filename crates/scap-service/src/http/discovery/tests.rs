@@ -39,21 +39,22 @@ fn enabled_discovery_is_authenticated_and_has_independent_bounded_response_lifet
             .await["error"]["code"],
             "UNAVAILABLE"
         );
-        let state = enabled();
+        let mut state = enabled();
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = true;
         let app = router(state.clone()).unwrap();
         let scan = state.discovery.as_ref().unwrap();
         let held = scan.admission.acquire(&principal()).unwrap();
         let mut unauth = request("list_names");
         unauth.headers_mut().remove("authorization");
+        let response = app.clone().oneshot(unauth).await.unwrap();
+        assert!(!response.headers().contains_key(rejection::HEADER));
+        assert_eq!(decoded(response).await["error"]["code"], "UNAUTHENTICATED");
+        let response = app.clone().oneshot(request("list_names")).await.unwrap();
         assert_eq!(
-            decoded(app.clone().oneshot(unauth).await.unwrap()).await["error"]["code"],
-            "UNAUTHENTICATED"
+            response.headers()[rejection::HEADER],
+            "v=1;reason=discovery_tenant;used=1;limit=1;requested=1"
         );
-        assert_eq!(
-            decoded(app.clone().oneshot(request("list_names")).await.unwrap()).await["error"]
-                ["code"],
-            "BACKPRESSURE"
-        );
+        assert_eq!(decoded(response).await["error"]["code"], "BACKPRESSURE");
         drop(held);
         let data = state.intake.acquire(&principal()).unwrap();
         let control = state.control_intake.acquire(&principal()).unwrap();

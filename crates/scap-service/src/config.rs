@@ -26,6 +26,9 @@ pub struct Config {
     /// Ordinary /v1 encoding backings only; not other routes or process RSS.
     #[serde(default)]
     pub output: crate::output::Profile,
+    /// Opt in to anonymous budget snapshots in authenticated error headers.
+    #[serde(default)]
+    pub resource_diagnostics: bool,
     pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
@@ -258,6 +261,7 @@ pub struct ServiceConfig {
     pub listen: SocketAddr,
     pub transport: crate::transport::Profile,
     pub output: crate::output::Profile,
+    pub resource_diagnostics: bool,
     pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
@@ -472,6 +476,7 @@ impl Config {
                 listen: self.listen,
                 transport: self.transport,
                 output: self.output,
+                resource_diagnostics: self.resource_diagnostics,
                 resource_envelope: self.resource_envelope,
                 worker_instance: self.worker_instance,
                 cache_directory: self.cache_directory,

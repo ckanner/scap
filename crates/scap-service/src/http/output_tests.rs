@@ -227,11 +227,23 @@ fn real_http_finalizer_preserves_unknown_commit_proof_and_head_effect_uncertaint
         ),
     ] {
         let pool = small_pool(shared, shared);
-        let (state, executions) = fixture(pool.clone(), mode);
+        let (mut state, executions) = fixture(pool.clone(), mode);
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = true;
         let app = router(state.clone()).unwrap();
         runtime().block_on(async {
             let response = app.clone().oneshot(request(operation, 3)).await.unwrap();
             assert_eq!(response.status(), status);
+            assert_eq!(
+                response
+                    .headers()
+                    .get(rejection::HEADER)
+                    .map(|value| value.to_str().unwrap()),
+                if code == "LIMIT" {
+                    Some("v=1;reason=output_growth_global;used=71000;limit=71536;requested=5497")
+                } else {
+                    None
+                }
+            );
             drop(app);
             drop(state);
             let value = decoded(response).await;
@@ -244,5 +256,36 @@ fn real_http_finalizer_preserves_unknown_commit_proof_and_head_effect_uncertaint
             assert_eq!(executions.load(Ordering::SeqCst), 1);
             assert_eq!(usage(&pool), (0, 0, 0));
         });
+    }
+}
+
+#[test]
+fn encoding_preserves_worker_rejection_and_applies_the_same_opt_in_as_ordinary_errors() {
+    for enabled in [false, true] {
+        let pool = small_pool(BASE_BYTES, BASE_BYTES);
+        let (mut state, _) = fixture(pool.clone(), Mode::Large);
+        Arc::get_mut(&mut state).unwrap().resource_diagnostics = enabled;
+        let app = router(state.clone()).unwrap();
+        runtime().block_on(async {
+            let response = app.oneshot(request("query", 3)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+            assert_eq!(
+                response
+                    .headers()
+                    .get(rejection::HEADER)
+                    .map(|value| value.to_str().unwrap()),
+                if enabled {
+                    Some("v=1;reason=output_growth_global;used=65536;limit=65536;requested=5464")
+                } else {
+                    None
+                }
+            );
+            assert_eq!(
+                decoded(response).await,
+                wire::failed(&Failure::new("LIMIT"))
+            );
+        });
+        drop(state);
+        assert_eq!(usage(&pool), (0, 0, 0));
     }
 }

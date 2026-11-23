@@ -16,6 +16,7 @@ use serde_json::json;
 use crate::{
     auth::{Authenticator, Principal},
     intake::{Class, Intake, Lease},
+    rejection::{self, Rejection},
     scheduler::Scheduler,
     wire, Failure,
 };
@@ -24,6 +25,7 @@ pub struct HttpState {
     pub auth: Authenticator,
     pub scheduler: Arc<Scheduler>,
     pub output: Arc<crate::output::Pool>,
+    pub resource_diagnostics: bool,
     pub catalogue: Option<CatalogueState>,
     pub restore: Option<RestoreState>,
     pub discovery: Option<Arc<crate::discovery::Discovery>>,
@@ -87,11 +89,15 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
         }
         pool.intake.validate(Class::Recovery, pool.max_body_bytes)?;
     }
+    let resource_diagnostics = state.resource_diagnostics;
     Ok(Router::new()
         .route("/healthz", get(health))
         .route("/v1", post(call))
         .route("/v1/catalogue", post(catalogue_call))
         .route("/v1/discovery", post(discovery::call))
+        .layer(axum::middleware::map_response(move |response| async move {
+            diagnostic_response(response, resource_diagnostics)
+        }))
         .with_state(state))
 }
 
@@ -116,7 +122,31 @@ pub(crate) fn failure_status(error: &Failure) -> StatusCode {
 }
 
 fn failure(error: Failure) -> Response {
-    (failure_status(&error), Json(wire::failed(&error))).into_response()
+    with_rejection(
+        (failure_status(&error), Json(wire::failed(&error))).into_response(),
+        error.rejection(),
+    )
+}
+
+fn with_rejection(mut response: Response, rejection: Option<Rejection>) -> Response {
+    if let Some(rejection) = rejection {
+        response.extensions_mut().insert(rejection);
+    }
+    response
+}
+
+/// The typed evidence travels through ordinary and pre-encoded responses alike.
+/// Do not format or allocate a diagnostic header unless the operator opted in.
+fn diagnostic_response(mut response: Response, enabled: bool) -> Response {
+    let rejection = response.extensions_mut().remove::<Rejection>();
+    if enabled {
+        if let Some(rejection) = rejection {
+            response
+                .headers_mut()
+                .insert(rejection::HEADER, rejection.header());
+        }
+    }
+    response
 }
 
 fn single<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -375,12 +405,15 @@ async fn admitted(
             Err(error) => return failure(error),
         };
     match tokio::time::timeout_at(deadline.into(), receiver).await {
-        Ok(Ok(reply)) => (
-            reply.status,
-            [(axum::http::header::CONTENT_TYPE, "application/json")],
-            reply.bytes,
-        )
-            .into_response(),
+        Ok(Ok(reply)) => with_rejection(
+            (
+                reply.status,
+                [(axum::http::header::CONTENT_TYPE, "application/json")],
+                reply.bytes,
+            )
+                .into_response(),
+            reply.rejection,
+        ),
         // A missing response never proves that publication rolled back.
         Ok(Err(_)) | Err(_) => failure(Failure::new("UNKNOWN")),
     }

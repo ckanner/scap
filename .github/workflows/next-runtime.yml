@@ -14,18 +14,28 @@ concurrency:
 
 jobs:
   runtime:
-    name: Actual ${{ matrix.contract }}
+    name: Actual ${{ matrix.contract }} ${{ matrix.profile }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        contract: [group-commit, group-commit-load, read-pool, object-dynamic-fleet-runtime, object-overload, kernel-envelope]
+        include:
+          - contract: group-commit
+          - contract: group-commit-load
+            profile: short-v1
+          - contract: group-commit-load
+            profile: admission-curve-v1
+          - contract: read-pool
+          - contract: object-dynamic-fleet-runtime
+          - contract: object-overload
+          - contract: kernel-envelope
     env:
       CARGO_BUILD_JOBS: 2
       CXXFLAGS: -g0
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
       SCAP_CONTRACT: ${{ matrix.contract }}
+      SCAP_PROFILE: ${{ matrix.profile }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -68,6 +78,7 @@ jobs:
           case "$SCAP_CONTRACT" in
             group-commit-load)
               python3 -B experiments/group-commit-load/run.py \
+                --profile "$SCAP_PROFILE" \
                 --binary "$RUNNER_TEMP/scap-next-release/release/scapd" \
                 --build-record "$RUNNER_TEMP/scap-next-evidence/build/build.json" \
                 --weed "$RUNNER_TEMP/scap-next-tools/weed" --node "$(command -v node)" \
@@ -134,7 +145,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: next-${{ matrix.contract }}-evidence
+          name: next-${{ matrix.contract }}${{ matrix.profile && format('-{0}', matrix.profile) || '' }}-evidence
           path: |
             ${{ runner.temp }}/scap-next-evidence.tar.gz
             ${{ runner.temp }}/scap-next-evidence.tar.gz.sha256

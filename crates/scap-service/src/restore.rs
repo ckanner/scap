@@ -19,6 +19,7 @@ use crate::{
     auth::Principal,
     catalogue_wire::{Call, NativeAction},
     intake::{Class, Intake},
+    rejection::Budget as RejectionBudget,
     Failure,
 };
 
@@ -135,10 +136,21 @@ impl Pool {
         let key = (principal.deployment, principal.tenant);
         let mut usage = self.usage.lock().map_err(|_| Failure::new("UNAVAILABLE"))?;
         let tenant = usage.tenants.get(&key).copied().unwrap_or(0);
-        if bytes > self.maximum.saturating_sub(usage.total)
-            || bytes > self.per_tenant.saturating_sub(tenant)
-        {
-            return Err(Failure::new("RECOVERY_BUSY"));
+        if bytes > self.maximum.saturating_sub(usage.total) {
+            return Err(Failure::budget(
+                RejectionBudget::RestoreStagingGlobal,
+                usage.total,
+                self.maximum,
+                bytes,
+            ));
+        }
+        if bytes > self.per_tenant.saturating_sub(tenant) {
+            return Err(Failure::budget(
+                RejectionBudget::RestoreStagingTenant,
+                tenant,
+                self.per_tenant,
+                bytes,
+            ));
         }
         usage.total += bytes;
         usage.tenants.insert(key, tenant + bytes);
@@ -260,7 +272,7 @@ impl Worker {
         let _recovery = self
             .recovery
             .try_acquire()
-            .map_err(|_| Failure::new("RECOVERY_BUSY"))?;
+            .map_err(Failure::native_recovery)?;
         let _staging = self
             .staging
             .acquire(principal, observed.prepared.image_bytes())?;

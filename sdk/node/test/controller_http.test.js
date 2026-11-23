@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { ControllerHttp } from '../src/controller_http.js';
 import { OwnerController } from '../src/controller.js';
 import { ClientError } from '../src/errors.js';
+import { parseResourceRejection } from '../src/resource_rejection.js';
 import { policy } from './controller_policy.test.js';
 import { head, OPTIONS } from './owner_fixture.js';
 
@@ -222,6 +223,30 @@ test('captured response bytes allow exactly 64KiB and fail before the next byte 
   oversized.emit('data', Buffer.alloc(65536)); oversized.emit('data', Buffer.from([1]));
   oversized.emit('data', Buffer.from([2])); oversized.emit('end');
   await assert.rejects(bad, code('LIMIT')); io.finish(1);
+});
+
+test('optional rejection duplicates discard only metadata and retain all header budgets', async (t) => {
+  const io = fixture(t), value = 'v=1;reason=actor_draining';
+  for (const copies of [1, 2, 3]) {
+    const index = io.calls.length, pending = io.transport.fetch(URL, input());
+    io.socket(index);
+    const incoming = io.receive(index, { rawHeaders: ['content-type', 'application/json',
+      ...Array.from({ length: copies }, (_, i) => [i === 0 ? 'X-Scap-Rejection' : 'x-scap-rejection', value]).flat()] });
+    incoming.emit('data', Buffer.from('{}')); incoming.emit('end');
+    const supplied = await pending;
+    assert.equal(await supplied.text(), '{}');
+    assert.equal(supplied.headers.get('x-scap-rejection'), Array(copies).fill(value).join(', '));
+    assert.deepEqual(parseResourceRejection(supplied.headers.get('x-scap-rejection'), 'BACKPRESSURE'),
+      copies === 1 ? { version: 1, reason: 'actor_draining' } : undefined);
+    io.finish(index);
+  }
+  for (const rawHeaders of [Array.from({ length: 65 }, () => ['x-scap-rejection', value]).flat(),
+    ['x-scap-rejection', 'a'.repeat(16384)]]) {
+    const index = io.calls.length, pending = io.transport.fetch(URL, input());
+    io.socket(index); const incoming = io.receive(index, { rawHeaders });
+    await assert.rejects(pending, code('LIMIT'));
+    assert.equal(incoming.destroyed, true); io.finish(index);
+  }
 });
 
 test('Node errors are sanitized and TLS or parser faults are not classified as worker death', async (t) => {
