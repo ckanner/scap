@@ -186,6 +186,14 @@ impl Job {
         self.call.action.admission() == "control"
     }
 
+    /// Called only after the original admission gates, before making this
+    /// exact job visible to a worker. This only updates its fixed trace.
+    fn enqueued(&self) {
+        if let Some(trace) = self._reservation.as_ref().and_then(|lease| lease.trace()) {
+            trace.enqueued();
+        }
+    }
+
     fn fail(mut self, error: Failure) {
         match self.reply {
             Reply::Value(sender) => {
@@ -197,6 +205,7 @@ impl Job {
                     sender,
                     crate::output::OwnedValue::new(Err(error), output),
                     self.deadline,
+                    self._reservation.as_deref(),
                 );
             }
         }
@@ -336,6 +345,12 @@ impl DatabaseQueue {
             self.normal.pop_front()
         }
     }
+
+    fn remove_usage(&self, usage: &mut Usage) {
+        for job in self.normal.iter().chain(&self.priority) {
+            usage.remove(job);
+        }
+    }
 }
 
 struct Group {
@@ -383,6 +398,14 @@ impl Queue {
             self.groups.push_back(group);
         }
         job
+    }
+
+    fn remove_usage(&self, usage: &mut Usage) {
+        for group in &self.groups {
+            for (_, queue) in &group.databases {
+                queue.remove_usage(usage);
+            }
+        }
     }
 
     /// Round-robin both tenants and databases, skipping only currently full
@@ -552,41 +575,43 @@ impl Shared {
 
     fn close_reader(&self) {
         let mut state = lock(&self.state);
+        let mut pending = Queue::default();
         state.readers.live -= 1;
         if state.readers.live == 0 {
             state.readers.closed = true;
-            while let Some(job) = state.readers.queue.pop() {
-                state.usage.remove(&job);
-                job.fail(Failure::new("UNAVAILABLE"));
-            }
+            pending = std::mem::take(&mut state.readers.queue);
+            pending.remove_usage(&mut state.usage);
         }
         state.readers.changed.notify_all();
+        drop(state);
+        while let Some(job) = pending.pop() {
+            job.fail(Failure::new("UNAVAILABLE"));
+        }
     }
 
     fn close_actor(&self, key: &str) {
         let mut state = lock(&self.state);
-        state.actors.get_mut(key).expect("actor reservation").phase = Phase::Draining;
-        while let Some(job) = state
-            .actors
-            .get_mut(key)
-            .expect("actor reservation")
-            .jobs
-            .pop()
-        {
-            state.usage.remove(&job);
+        let actor = state.actors.get_mut(key).expect("actor reservation");
+        actor.phase = Phase::Draining;
+        let mut pending = std::mem::take(&mut actor.jobs);
+        pending.remove_usage(&mut state.usage);
+        self.reaping.notify_all();
+        drop(state);
+        while let Some(job) = pending.pop() {
             job.fail(Failure::new("UNAVAILABLE"));
         }
-        self.reaping.notify_all();
     }
 
     fn close_control(&self, index: usize) {
         let mut state = lock(&self.state);
         state.controls[index].closed = true;
-        while let Some(job) = state.controls[index].queue.pop() {
-            state.usage.remove(&job);
+        let mut pending = std::mem::take(&mut state.controls[index].queue);
+        pending.remove_usage(&mut state.usage);
+        state.controls[index].changed.notify_all();
+        drop(state);
+        while let Some(job) = pending.pop() {
             job.fail(Failure::new("UNAVAILABLE"));
         }
-        state.controls[index].changed.notify_all();
     }
 
     fn close(&self) {
@@ -606,11 +631,16 @@ impl Shared {
         state.readers.closed = true;
         jobs.extend(std::iter::from_fn(|| state.readers.queue.pop()));
         state.readers.changed.notify_all();
-        for job in jobs {
-            state.usage.remove(&job);
-            job.fail(Failure::new("UNAVAILABLE"));
+        for job in &jobs {
+            state.usage.remove(job);
         }
         self.reaping.notify_all();
+        // Failing/encoding a job can release its last intake owner. Keep all
+        // such cleanup, including diagnostic aggregation, outside this lock.
+        drop(state);
+        for job in jobs {
+            job.fail(Failure::new("UNAVAILABLE"));
+        }
     }
 
     /// A dedicated, budgeted thread owns retirement. Request threads never
@@ -744,10 +774,18 @@ fn perform(worker: &mut dyn Worker, job: &mut Job) -> Option<Result<Value, Failu
             },
         ),
     };
-    Some(match job.output.as_mut() {
+    let trace = job._reservation.as_ref().and_then(|lease| lease.trace());
+    if let Some(trace) = trace {
+        trace.invocation_started();
+    }
+    let result = match job.output.as_mut() {
         Some(output) => worker.execute_budgeted(&job.principal, call, job.deadline, output),
         None => worker.execute(&job.principal, call, job.deadline),
-    })
+    };
+    if let Some(trace) = trace {
+        trace.invocation_returned();
+    }
+    Some(result)
 }
 
 fn deliver(mut job: Job, result: Option<Result<Value, Failure>>) {
@@ -764,6 +802,7 @@ fn deliver(mut job: Job, result: Option<Result<Value, Failure>>) {
                 sender,
                 crate::output::OwnedValue::new(result, output),
                 job.deadline,
+                job._reservation.as_deref(),
             );
         }
     }
@@ -773,8 +812,17 @@ fn finish_encoded(
     sender: oneshot::Sender<crate::output::Reply>,
     value: crate::output::OwnedValue,
     deadline: Instant,
+    reservation: Option<&crate::intake::Lease>,
 ) {
-    if let Some(reply) = value.finish(deadline) {
+    let trace = reservation.and_then(|lease| lease.trace());
+    if let Some(trace) = trace {
+        trace.encoding_started();
+    }
+    let reply = value.finish(deadline);
+    if let Some(trace) = trace {
+        trace.encoding_returned();
+    }
+    if let Some(reply) = reply {
         // The same deadline includes final serialization. The job's
         // independent hold survives even a successful send/wakeup.
         send_before(sender, reply, deadline, Instant::now());
@@ -1106,6 +1154,7 @@ impl Scheduler {
                 return Err(Failure::new("UNAVAILABLE"));
             }
             state.usage.add(&job);
+            job.enqueued();
             state.readers.queue.push(job);
             state.readers.changed.notify_one();
             return Ok(());
@@ -1118,6 +1167,7 @@ impl Scheduler {
                 return Err(Failure::new("UNAVAILABLE"));
             }
             state.usage.add(&job);
+            job.enqueued();
             state.controls[index].queue.push(job);
             state.controls[index].changed.notify_one();
             return Ok(());
@@ -1128,6 +1178,7 @@ impl Scheduler {
             }
             state.usage.add(&job);
             let actor = state.actors.get_mut(&key).expect("existing actor");
+            job.enqueued();
             actor.jobs.push(job);
             actor.changed.notify_one();
             return Ok(());
@@ -1160,6 +1211,7 @@ impl Scheduler {
         let changed = Arc::new(Condvar::new());
         let mut jobs = DatabaseQueue::default();
         state.usage.add(&job);
+        job.enqueued();
         jobs.push(job);
         state.actors.insert(
             key.clone(),

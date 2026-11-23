@@ -5,6 +5,63 @@ use crate::wire::{Action, Decimal};
 mod startup_s3;
 
 #[test]
+fn lifecycle_profile_precedes_claim_and_all_five_intakes_share_the_registry() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = prepared(directory.path()).service;
+    let mut profile = crate::lifecycle_export::tests::profile();
+    profile.version = 2;
+    config.lifecycle_diagnostics = Some(profile);
+    let objects = Arc::new(Memory::default());
+    assert_eq!(
+        assemble(config, objects.clone()).err().unwrap().code,
+        "CONFIG"
+    );
+    assert!(objects.calls.lock().unwrap().is_empty());
+
+    let mut config = prepared(directory.path()).service;
+    config.lifecycle_diagnostics = Some(crate::lifecycle_export::tests::profile());
+    let restore = || {
+        serde_json::from_value::<crate::restore::Profile>(crate::restore::tests::profile()).unwrap()
+    };
+    config.catalogue = Some(restore().admission);
+    config.restore = Some(restore());
+    let (_, state) = assemble(config, objects).unwrap();
+    let diagnostics = state.lifecycle_diagnostics.as_ref().unwrap();
+    let pools = [
+        &state.intake,
+        &state.control_intake,
+        &state.recovery_intake,
+        &state.catalogue.as_ref().unwrap().intake,
+        &state.restore.as_ref().unwrap().pool.intake,
+    ];
+    let leases: Vec<_> = pools
+        .into_iter()
+        .map(|pool| pool.acquire(&principal()).unwrap())
+        .collect();
+    let snapshot = serde_json::to_value(diagnostics.registry.snapshot()).unwrap();
+    assert_eq!(snapshot["valid"], true);
+    for lane in snapshot["lanes"].as_array().unwrap() {
+        assert_eq!(lane["acquired"], "1");
+        assert_eq!(lane["active"], "1");
+        assert_eq!(lane["released"], "0");
+    }
+    drop(leases);
+    let snapshot = serde_json::to_value(diagnostics.registry.snapshot()).unwrap();
+    for lane in snapshot["lanes"].as_array().unwrap() {
+        assert_eq!(lane["active"], "0");
+        assert_eq!(lane["released"], "1");
+    }
+    let pool = Intake::new(Class::Data, 1, 4096, None).unwrap();
+    assert_eq!(
+        observe_intake(pool, &state.lifecycle_diagnostics, Lane::Restore)
+            .err()
+            .unwrap()
+            .code,
+        "CONFIG"
+    );
+}
+
+#[test]
 fn diagnostic_opt_in_reaches_the_shared_http_state() {
     for enabled in [false, true] {
         let directory = tempfile::tempdir().unwrap();

@@ -1,6 +1,7 @@
 # 有界 intake 生命周期诊断与相同 seed 对照
 
-状态：**设计先提交，生产实现与新真实验证尚未运行（NOT_RUN）**。
+状态：**设计已先提交到 PR #71，生产实现已进入同一草稿；完整验收尚未完成**。
+当前候选、精确验证与限制见[验证台账](../engineering/admission-lifecycle-validation-2026-11-22.md)。
 本合同接续已合并的 PR #70；其依据与后续优化出口见
 [接纳容量设计](../engineering/admission-capacity-next.md)。先提交本设计的 Draft PR，
 再在同一 PR 实现、冻结源码并收集新证据。不得把已有 c6a40f41 的验证算作本实现通过。
@@ -101,6 +102,9 @@ JSON 最大尺寸须由实现单元测试给出实际大小与最坏序列化检
 `perform` 在 receiver/deadline 早退之后、实际调用 worker 之前才记录 invocation。
 Lease Drop 先完成原 quota 退款并释放原锁，再进行诊断收尾；结束时间对应退款边界。
 worker 先销毁、active job 后销毁的字段顺序保持不变。
+关闭或拒绝路径若原本在 queue 锁内销毁 Job，改为锁内移出有界待处理队列并完成原
+queue usage 记账，解锁后才发送失败及销毁 Job；intake/output 仍由原 owner 最后释放。
+这样诊断聚合不进入原业务资源临界区，且没有新增无界历史或清理队列。
 
 每次 group attempt 另有固定聚合：attempt 次数、selected/consumed 计数、declined、
 completed、incomplete 与时长桶，以及固定 1–64 成员大小分布。attempt guard 不持有
@@ -192,7 +196,7 @@ call/http 记录，加1280+12个 offer和固定阶段事件，账本最多22000�
 观察器/runner 必须明示采样延迟与两次采样间可能超过接受上限的事实。RSS/fd/task
 采样不能被描述为 hard cap；若环境提供可验证的 kernel envelope，另记其真实限制。
 默认以服务 RSS 2 GiB/2048 fd/256 tasks、Node 1 GiB/1024 fd/64 tasks、backend
-2 GiB/2048 fd/512 tasks、observer+runner 1 GiB/1024 fd/128 tasks 作本地接受上限；
+四个进程合计2 GiB/2048 fd/512 tasks、observer+runner 1 GiB/1024 fd/128 tasks 作本地接受上限；
 每100ms采样，超限停止并判失败。独立 oracle 检查账本完整、采样跨度与终态峰值，
 不能用没采到峰值证明从未越界。首轮启动前须验证当前环境能执行这些监测规则。
 

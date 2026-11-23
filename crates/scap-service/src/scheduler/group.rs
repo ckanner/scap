@@ -95,29 +95,60 @@ pub(super) struct Batch {
 
 impl Batch {
     pub(super) fn run(&mut self, worker: &mut dyn Worker) {
-        let outcome = {
-            let mut members: Vec<_> = self
-                .first
-                .iter_mut()
-                .chain(self.jobs.iter_mut())
-                .map(|job| Member {
+        let (outcome, attempt) = {
+            let first = self.first.as_mut().expect("nonempty selected group");
+            let mut trace = first._reservation.as_ref().and_then(|lease| lease.trace());
+            let mut members = Vec::with_capacity(self.jobs.len() + 1);
+            members.push(Member {
+                principal: &first.principal,
+                call: &first.call,
+                deadline: first.deadline,
+                output: first.output.as_mut(),
+            });
+            for job in &mut self.jobs {
+                // Embedded callers can mix unreserved jobs with HTTP work.
+                // Observe any traced member, without retaining another lease.
+                trace = trace.or_else(|| job._reservation.as_ref().and_then(|lease| lease.trace()));
+                members.push(Member {
                     principal: &job.principal,
                     call: &job.call,
                     deadline: job.deadline,
                     output: job.output.as_mut(),
-                })
-                .collect();
-            worker.execute_group(&mut members, self.limits)
+                });
+            }
+            // The independent guard owns only diagnostic state. On panic it
+            // cannot refund or retain any member's native/input/output lease.
+            let attempt = trace.map(|trace| trace.begin_group(members.len()));
+            (worker.execute_group(&mut members, self.limits), attempt)
         };
         let results = match outcome {
-            Outcome::Declined => vec![perform(
-                worker,
-                self.first.as_mut().expect("nonempty selected group"),
-            )],
+            Outcome::Declined => {
+                if let Some(attempt) = attempt {
+                    attempt.declined();
+                }
+                vec![perform(
+                    worker,
+                    self.first.as_mut().expect("nonempty selected group"),
+                )]
+            }
             Outcome::Completed(results) => {
                 // A broken trusted worker must fail closed, not put possibly
                 // executed work back in the queue or spin on an empty prefix.
                 assert!(!results.is_empty() && results.len() <= self.jobs.len() + 1);
+                if let Some(attempt) = attempt {
+                    let (start, end) = attempt.completed(results.len());
+                    // Only this trusted prefix participated in the returned
+                    // invocation. These are shared call boundaries, not
+                    // per-member SQL timings. The suffix keeps its old queue
+                    // timestamp and has no invented invocation boundary.
+                    for job in self.first.iter().chain(&self.jobs).take(results.len()) {
+                        if let Some(trace) =
+                            job._reservation.as_ref().and_then(|lease| lease.trace())
+                        {
+                            trace.consumed_invocation(start, end);
+                        }
+                    }
+                }
                 results.into_iter().map(Some).collect()
             }
         };

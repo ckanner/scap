@@ -41,6 +41,222 @@ fn job(tenant: u64, name: Option<&str>) -> (Job, oneshot::Receiver<Result<Value,
     )
 }
 
+fn diagnostic_intake(
+    registry: &Arc<crate::lifecycle::Registry>,
+    recovery: bool,
+) -> Arc<crate::intake::Intake> {
+    Arc::new(
+        crate::intake::Intake::new(
+            if recovery {
+                crate::intake::Class::Recovery
+            } else {
+                crate::intake::Class::Catalogue
+            },
+            4,
+            4096,
+            None,
+        )
+        .unwrap()
+        .with_lifecycle(
+            registry.clone(),
+            if recovery {
+                crate::lifecycle::Lane::Restore
+            } else {
+                crate::lifecycle::Lane::Catalogue
+            },
+        )
+        .unwrap(),
+    )
+}
+
+fn diagnostic_lease(intake: &Arc<crate::intake::Intake>) -> Arc<crate::intake::Lease> {
+    let lease = intake.acquire(&principal()).unwrap();
+    lease.shrink_body(0).unwrap();
+    lease
+}
+
+fn restore_call() -> Call {
+    Call {
+        version: 1,
+        action: Action::ResumeRestore {
+            reference: crate::restore_wire::Reference {
+                creation: serde_json::from_value(crate::catalogue_wire::creation(
+                    &crate::tests::named_creation("diagnostic-restore", 1),
+                ))
+                .unwrap(),
+                descriptor_hash: "a".repeat(64),
+            },
+        },
+    }
+}
+
+#[test]
+fn catalogue_and_restore_lifecycle_use_the_actual_worker_return_without_worker_encoding() {
+    for recovery in [false, true] {
+        let registry = Arc::new(crate::lifecycle::Registry::new());
+        let intake = diagnostic_intake(&registry, recovery);
+        let scheduler = if recovery {
+            Scheduler::new_recovery(limits(), factory())
+        } else {
+            Scheduler::new(limits(), factory())
+        }
+        .unwrap();
+        scheduler
+            .submit_reserved(
+                principal(),
+                if recovery {
+                    restore_call()
+                } else {
+                    call(Some("diagnostic"))
+                },
+                until(),
+                diagnostic_lease(&intake),
+            )
+            .unwrap()
+            .blocking_recv()
+            .unwrap()
+            .unwrap();
+        drop(scheduler);
+        let snapshot = registry.snapshot();
+        assert!(snapshot.valid);
+        let lane = snapshot.lanes[if recovery { 4 } else { 3 }];
+        assert_eq!((lane.acquired.0, lane.released.0, lane.active.0), (1, 1, 0));
+        for interval in [0, 1, 2, 3, 5, 7] {
+            assert_eq!(lane.intervals[interval].distribution.completed.0, 1);
+        }
+        assert_eq!(lane.intervals[4].distribution.not_reached.0, 1);
+        assert_eq!(lane.intervals[6].distribution.not_reached.0, 1);
+    }
+}
+
+#[test]
+fn catalogue_lifecycle_preserves_rejected_jobs_and_does_not_start_expired_or_closed_waiters() {
+    let registry = Arc::new(crate::lifecycle::Registry::new());
+    let intake = diagnostic_intake(&registry, false);
+    let mut queue = Queue::default();
+    let mut worker = ReservedWorker {
+        worker: Box::new(Echo),
+        reservation: None,
+    };
+    for kind in [
+        "disconnected",
+        "expired",
+        "admission_expired",
+        "admission_closed",
+    ] {
+        let (mut job, receiver) = job(2, Some("diagnostic"));
+        job._reservation = Some(diagnostic_lease(&intake));
+        if kind == "admission_expired" {
+            job.deadline = Instant::now();
+        }
+        if kind == "admission_closed" {
+            queue.closed = true;
+        }
+        let mut pending = Some(job);
+        let outcome = queue.push(&mut pending, limits(), false);
+        if kind.starts_with("admission_") {
+            assert_eq!(
+                outcome.unwrap_err().code,
+                if kind == "admission_closed" {
+                    "UNAVAILABLE"
+                } else {
+                    "DEADLINE"
+                }
+            );
+            assert!(
+                pending.is_some(),
+                "rejection must leave cleanup with the unlocked caller"
+            );
+            drop((pending, receiver));
+        } else {
+            outcome.unwrap();
+            assert!(pending.is_none());
+            let mut job = queue.pop().unwrap();
+            if kind == "disconnected" {
+                drop(receiver);
+                worker.execute(job);
+            } else {
+                job.deadline = Instant::now();
+                worker.execute(job);
+                assert_eq!(
+                    receiver.blocking_recv().unwrap().unwrap_err().code,
+                    "DEADLINE"
+                );
+            }
+        }
+    }
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    let lane = snapshot.lanes[3];
+    assert_eq!((lane.released.0, lane.active.0), (4, 0));
+    assert_eq!(lane.intervals[1].distribution.completed.0, 2);
+    assert_eq!(lane.intervals[1].distribution.censored.0, 2);
+    assert_eq!(lane.intervals[2].distribution.censored.0, 2);
+    assert_eq!(lane.intervals[2].distribution.not_reached.0, 2);
+    assert_eq!(lane.intervals[3].distribution.not_reached.0, 4);
+    assert_eq!(lane.intervals[4].distribution.not_reached.0, 4);
+}
+
+#[test]
+fn catalogue_shutdown_unlocks_the_queue_before_releasing_the_last_request_owner() {
+    let registry = Arc::new(crate::lifecycle::Registry::new());
+    let intake = diagnostic_intake(&registry, false);
+    let lane = Arc::new(Lane::default());
+    let (mut job, receiver) = job(2, Some("diagnostic"));
+    job._reservation = Some(diagnostic_lease(&intake));
+    lane.queue
+        .lock()
+        .unwrap()
+        .push(&mut Some(job), limits(), false)
+        .unwrap();
+    let guard = crate::lifecycle::tests::hold_aggregation(&registry);
+    let closing = lane.clone();
+    let thread = std::thread::spawn(move || closing.close());
+    let result = receiver.blocking_recv().unwrap();
+    let observed = lane
+        .queue
+        .try_lock()
+        .map(|queue| (queue.closed, queue.tenants.is_empty()))
+        .ok();
+    drop(guard);
+    thread.join().unwrap();
+    assert_eq!(result.unwrap_err().code, "UNAVAILABLE");
+    assert_eq!(observed, Some((true, true)));
+    assert_eq!(registry.snapshot().lanes[3].released.0, 1);
+    assert_eq!(intake.available_permits(), 4);
+}
+
+#[test]
+fn catalogue_rejected_admission_drops_the_request_after_unlocking_the_queue() {
+    let registry = Arc::new(crate::lifecycle::Registry::new());
+    let intake = diagnostic_intake(&registry, false);
+    let scheduler = Arc::new(Scheduler::new(limits(), factory()).unwrap());
+    scheduler.lane.close();
+    let lease = diagnostic_lease(&intake);
+    let guard = crate::lifecycle::tests::hold_aggregation(&registry);
+    let submitting = scheduler.clone();
+    let thread = std::thread::spawn(move || {
+        submitting.submit_reserved(principal(), call(Some("diagnostic")), until(), lease)
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while intake.available_permits() != 4 && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let refunded = intake.available_permits();
+    let unlocked = scheduler.lane.queue.try_lock().is_ok();
+    drop(guard);
+    assert_eq!(thread.join().unwrap().unwrap_err().code, "UNAVAILABLE");
+    assert_eq!(refunded, 4);
+    assert!(
+        unlocked,
+        "aggregation must not retain the original queue mutex"
+    );
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    assert_eq!(snapshot.lanes[3].intervals[1].distribution.censored.0, 1);
+    assert_eq!(snapshot.lanes[3].intervals[2].distribution.not_reached.0, 1);
+}
+
 #[test]
 fn catalogue_and_restore_diagnostics_preserve_global_tenant_name_order_and_snapshot() {
     use crate::tests::assert_budget;
@@ -64,31 +280,37 @@ fn catalogue_and_restore_diagnostics_preserve_global_tenant_name_order_and_snaps
     ] {
         let mut queue = Queue::default();
         for _ in 0..3 {
-            queue.push(job(1, None).0, limits(), recovery).unwrap();
+            queue
+                .push(&mut Some(job(1, None).0), limits(), recovery)
+                .unwrap();
         }
         let name = queue
-            .push(job(1, Some("not-yet-known")).0, limits(), recovery)
+            .push(
+                &mut Some(job(1, Some("not-yet-known")).0),
+                limits(),
+                recovery,
+            )
             .unwrap_err();
         assert_budget(&name, budgets[2], 3, 3, 1);
         while queue.pop().is_some() {}
         for name in ["a", "b"] {
             for _ in 0..3 {
                 queue
-                    .push(job(1, Some(name)).0, limits(), recovery)
+                    .push(&mut Some(job(1, Some(name)).0), limits(), recovery)
                     .unwrap();
             }
         }
         let tenant = queue
-            .push(job(1, Some("a")).0, limits(), recovery)
+            .push(&mut Some(job(1, Some("a")).0), limits(), recovery)
             .unwrap_err();
         assert_budget(&tenant, budgets[1], 6, 6, 1);
         for tenant in 2..=7 {
             queue
-                .push(job(tenant, Some("a")).0, limits(), recovery)
+                .push(&mut Some(job(tenant, Some("a")).0), limits(), recovery)
                 .unwrap();
         }
         let global = queue
-            .push(job(1, Some("a")).0, limits(), recovery)
+            .push(&mut Some(job(1, Some("a")).0), limits(), recovery)
             .unwrap_err();
         assert_budget(&global, budgets[0], 12, 12, 1);
         while queue.pop().is_some() {}
@@ -104,7 +326,7 @@ fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
     assert!(queue.pop().is_none());
     for (tenant, name) in [(1, "A"), (1, "A"), (1, "a"), (2, "A"), (2, " A")] {
         queue
-            .push(job(tenant, Some(name)).0, limits(), false)
+            .push(&mut Some(job(tenant, Some(name)).0), limits(), false)
             .unwrap();
     }
     let actual: Vec<_> = std::iter::from_fn(|| {
@@ -130,7 +352,7 @@ fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
     queue.closed = true;
     assert_eq!(
         queue
-            .push(job(1, Some("a")).0, limits(), false)
+            .push(&mut Some(job(1, Some("a")).0), limits(), false)
             .unwrap_err()
             .code,
         "UNAVAILABLE"
@@ -141,40 +363,44 @@ fn queue_rotates_exact_tenants_and_names_without_leaving_empty_groups() {
 fn total_tenant_and_unknown_name_inspection_caps_cannot_be_bypassed() {
     let mut queue = Queue::default();
     for _ in 0..3 {
-        queue.push(job(1, Some("a")).0, limits(), false).unwrap();
+        queue
+            .push(&mut Some(job(1, Some("a")).0), limits(), false)
+            .unwrap();
     }
     assert_eq!(
         queue
-            .push(job(1, Some("a")).0, limits(), false)
+            .push(&mut Some(job(1, Some("a")).0), limits(), false)
             .unwrap_err()
             .code,
         "BACKPRESSURE"
     );
     assert_eq!(
         queue
-            .push(job(1, None).0, limits(), false)
+            .push(&mut Some(job(1, None).0), limits(), false)
             .unwrap_err()
             .code,
         "BACKPRESSURE"
     );
     for _ in 0..3 {
-        queue.push(job(1, Some("b")).0, limits(), false).unwrap();
+        queue
+            .push(&mut Some(job(1, Some("b")).0), limits(), false)
+            .unwrap();
     }
     assert_eq!(
         queue
-            .push(job(1, Some("new")).0, limits(), false)
+            .push(&mut Some(job(1, Some("new")).0), limits(), false)
             .unwrap_err()
             .code,
         "BACKPRESSURE"
     );
     for tenant in 2..=7 {
         queue
-            .push(job(tenant, Some("a")).0, limits(), false)
+            .push(&mut Some(job(tenant, Some("a")).0), limits(), false)
             .unwrap();
     }
     assert_eq!(
         queue
-            .push(job(8, Some("a")).0, limits(), false)
+            .push(&mut Some(job(8, Some("a")).0), limits(), false)
             .unwrap_err()
             .code,
         "BACKPRESSURE"
@@ -182,29 +408,45 @@ fn total_tenant_and_unknown_name_inspection_caps_cannot_be_bypassed() {
     assert_eq!(queue.tenants.len(), 7);
 
     let mut queue = Queue::default();
-    queue.push(job(1, None).0, limits(), false).unwrap();
-    queue.push(job(1, Some("a")).0, limits(), false).unwrap();
-    queue.push(job(1, Some("b")).0, limits(), false).unwrap();
-    queue.push(job(1, None).0, limits(), false).unwrap();
+    queue
+        .push(&mut Some(job(1, None).0), limits(), false)
+        .unwrap();
+    queue
+        .push(&mut Some(job(1, Some("a")).0), limits(), false)
+        .unwrap();
+    queue
+        .push(&mut Some(job(1, Some("b")).0), limits(), false)
+        .unwrap();
+    queue
+        .push(&mut Some(job(1, None).0), limits(), false)
+        .unwrap();
     for name in [Some("a"), Some("b"), None] {
         assert_eq!(
             queue
-                .push(job(1, name).0, limits(), false)
+                .push(&mut Some(job(1, name).0), limits(), false)
                 .unwrap_err()
                 .code,
             "BACKPRESSURE"
         );
     }
-    queue.push(job(1, Some("new")).0, limits(), false).unwrap();
+    queue
+        .push(&mut Some(job(1, Some("new")).0), limits(), false)
+        .unwrap();
     assert_eq!(queue.pop().unwrap().call.action.name(), None);
-    queue.push(job(1, Some("a")).0, limits(), false).unwrap();
+    queue
+        .push(&mut Some(job(1, Some("a")).0), limits(), false)
+        .unwrap();
 
     let mut queue = Queue::default();
     for _ in 0..3 {
-        queue.push(job(1, None).0, limits(), false).unwrap();
+        queue
+            .push(&mut Some(job(1, None).0), limits(), false)
+            .unwrap();
     }
     for name in [None, Some("new")] {
-        assert!(queue.push(job(1, name).0, limits(), false).is_err());
+        assert!(queue
+            .push(&mut Some(job(1, name).0), limits(), false)
+            .is_err());
     }
 }
 
@@ -216,7 +458,10 @@ fn expired_admission_does_not_reserve_a_tenant_name_or_intake_slot() {
         let (mut expired, receiver) = job(1, name);
         expired.deadline = Instant::now();
         assert_eq!(
-            queue.push(expired, limits(), false).unwrap_err().code,
+            queue
+                .push(&mut Some(expired), limits(), false)
+                .unwrap_err()
+                .code,
             "DEADLINE"
         );
         assert!(receiver.blocking_recv().is_err());
@@ -370,6 +615,7 @@ fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disc
 
     for recovery in [false, true] {
         for disconnected in [false, true] {
+            let registry = Arc::new(crate::lifecycle::Registry::new());
             let (entered, started) = mpsc::sync_channel(1);
             let (panic_now, panic_receiver) = mpsc::sync_channel(1);
             let (dropping, drop_started) = mpsc::sync_channel(1);
@@ -402,6 +648,15 @@ fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disc
                     4096,
                     None,
                 )
+                .unwrap()
+                .with_lifecycle(
+                    registry.clone(),
+                    if recovery {
+                        crate::lifecycle::Lane::Restore
+                    } else {
+                        crate::lifecycle::Lane::Catalogue
+                    },
+                )
                 .unwrap(),
             );
             let call = if recovery {
@@ -422,12 +677,7 @@ fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disc
                 call(Some("held-catalogue"))
             };
             let receiver = scheduler
-                .submit_reserved(
-                    principal(),
-                    call,
-                    until(),
-                    intake.acquire(&principal()).unwrap(),
-                )
+                .submit_reserved(principal(), call, until(), diagnostic_lease(&intake))
                 .unwrap();
             started.recv_timeout(Duration::from_secs(5)).unwrap();
             let mut receiver = Some(receiver);
@@ -437,6 +687,7 @@ fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disc
             panic_now.send(()).unwrap();
             drop_started.recv_timeout(Duration::from_secs(5)).unwrap();
             let permits_during_cleanup = intake.available_permits();
+            let diagnostic_during_cleanup = registry.snapshot();
             cleanup.send(()).unwrap();
             drop(scheduler);
             if let Some(receiver) = receiver {
@@ -447,6 +698,17 @@ fn catalogue_and_restore_panics_hold_intake_until_worker_cleanup_even_after_disc
                 "recovery={recovery}, disconnected={disconnected}: intake refunded before cleanup"
             );
             assert_eq!(intake.available_permits(), 1);
+            let lane_index = if recovery { 4 } else { 3 };
+            assert_eq!(diagnostic_during_cleanup.lanes[lane_index].active.0, 1);
+            assert_eq!(diagnostic_during_cleanup.lanes[lane_index].released.0, 0);
+            let snapshot = registry.snapshot();
+            assert!(snapshot.valid);
+            let observed = snapshot.lanes[lane_index];
+            assert_eq!((observed.active.0, observed.released.0), (0, 1));
+            assert_eq!(observed.intervals[2].distribution.completed.0, 1);
+            assert_eq!(observed.intervals[3].distribution.censored.0, 1);
+            assert_eq!(observed.intervals[4].distribution.not_reached.0, 1);
+            assert_eq!(observed.intervals[5].distribution.not_reached.0, 1);
         }
     }
 }
@@ -540,7 +802,7 @@ fn shutdown_and_mutex_poison_keep_pending_replies_bounded_and_wake_every_waiter(
     lane.queue
         .lock()
         .unwrap()
-        .push(job, limits(), false)
+        .push(&mut Some(job), limits(), false)
         .unwrap();
     lane.close();
     assert_eq!(

@@ -72,21 +72,29 @@ struct ReservedWorker {
 impl ReservedWorker {
     fn execute(&mut self, mut job: Job) {
         self.reservation = job._reservation.take();
-        perform(self.worker.as_mut(), job);
+        perform(self.worker.as_mut(), job, self.reservation.as_deref());
         // perform has returned and dropped the original call and any unsent
         // value. Only then may normal completion release the running lease.
         self.reservation = None;
     }
 }
 
-fn perform(worker: &mut dyn Worker, job: Job) {
+fn perform(worker: &mut dyn Worker, job: Job, reservation: Option<&crate::intake::Lease>) {
     if job.reply.is_closed() {
         return;
     }
     let result = if Instant::now() >= job.deadline {
         Err(Failure::new("DEADLINE"))
     } else {
-        worker.execute(&job.principal, job.call, job.deadline)
+        let trace = reservation.and_then(|lease| lease.trace());
+        if let Some(trace) = trace {
+            trace.invocation_started();
+        }
+        let result = worker.execute(&job.principal, job.call, job.deadline);
+        if let Some(trace) = trace {
+            trace.invocation_returned();
+        }
+        result
     };
     let _ = job.reply.send(result);
 }
@@ -140,7 +148,15 @@ struct Queue {
 }
 
 impl Queue {
-    fn push(&mut self, job: Job, limits: Limits, recovery: bool) -> Result<(), Failure> {
+    fn push(
+        &mut self,
+        pending: &mut Option<Job>,
+        limits: Limits,
+        recovery: bool,
+    ) -> Result<(), Failure> {
+        // A rejected job remains with the caller until its queue guard has
+        // gone away. Its last lease can then aggregate outside the queue lock.
+        let job = pending.as_ref().expect("pending catalogue request");
         if self.closed {
             return Err(Failure::new("UNAVAILABLE"));
         }
@@ -219,7 +235,12 @@ impl Queue {
                 queue.names.len() - 1
             }
         };
-        queue.names[position].jobs.push_back(job);
+        if let Some(trace) = job._reservation.as_ref().and_then(|lease| lease.trace()) {
+            trace.enqueued();
+        }
+        queue.names[position]
+            .jobs
+            .push_back(pending.take().expect("admitted catalogue request"));
         Ok(())
     }
 
@@ -247,10 +268,15 @@ impl Lane {
     fn close(&self) {
         let mut queue = self.queue.lock().unwrap_or_else(|error| error.into_inner());
         queue.closed = true;
-        while let Some(job) = queue.pop() {
+        let mut pending = Queue {
+            tenants: std::mem::take(&mut queue.tenants),
+            closed: true,
+        };
+        self.changed.notify_all();
+        drop(queue);
+        while let Some(job) = pending.pop() {
             let _ = job.reply.send(Err(Failure::new("UNAVAILABLE")));
         }
-        self.changed.notify_all();
     }
 
     fn next(&self) -> Option<Job> {
@@ -384,21 +410,18 @@ impl Scheduler {
             return Err(Failure::new("INVALID"));
         }
         let (reply, receiver) = oneshot::channel();
+        let mut pending = Some(Job {
+            principal,
+            call,
+            deadline,
+            reply,
+            _reservation: reservation,
+        });
         self.lane
             .queue
             .lock()
             .unwrap_or_else(|error| error.into_inner())
-            .push(
-                Job {
-                    principal,
-                    call,
-                    deadline,
-                    reply,
-                    _reservation: reservation,
-                },
-                self.limits,
-                self.admission == "recovery",
-            )?;
+            .push(&mut pending, self.limits, self.admission == "recovery")?;
         self.lane.changed.notify_one();
         Ok(receiver)
     }

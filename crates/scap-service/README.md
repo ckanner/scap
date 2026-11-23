@@ -103,6 +103,14 @@ mkdir -p /absolute/private-cache
 数据库 HEAD 权限；要求隐藏该信息的部署保持关闭。原因、计量单位、队列额度语义、
 SDK 行为与验收见[完整诊断合同](../../docs/architecture/resource-rejection-diagnostics.md)。
 
+可选 `lifecycle_diagnostics: {"version":1,"token_sha256":"<64个小写十六进制字符>"}`
+默认关闭，启用后提供独立凭证保护的 `GET /diagnostics/lifecycle`。它导出五个固定
+intake lane 的匿名累计驻留分布，不包含请求或数据库标签，不涵盖 discovery。
+该凭证与普通数据库凭证分开配置；一次最多持有一个64 KiB导出响应，慢客户端和
+响应字节 clone/slice 仍占用该额度。HTTP ready、worker返回和最终资源退款分别记录，
+不能把相互重叠的时间相加解释为SQL执行耗时。配置、分布桶、缺失观测与实验解释见
+[生命周期诊断合同](../../docs/architecture/admission-lifecycle-diagnostics.md)。
+
 可选 `owner_recovery` 仅限制每次 `owner_resume` 的 payload GET 数和累计返回体预算；默认值
 如上，可降低或设零禁用该类恢复，不能提高到默认上限以上。它不改变持久 quota、保留
 结果、普通查询或目录 RecoveryJob 的预算。HEAD/owner 控制元数据另有每调用 8 次 I/O

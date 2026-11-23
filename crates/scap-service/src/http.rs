@@ -26,6 +26,7 @@ pub struct HttpState {
     pub scheduler: Arc<Scheduler>,
     pub output: Arc<crate::output::Pool>,
     pub resource_diagnostics: bool,
+    pub lifecycle_diagnostics: Option<Arc<crate::lifecycle_export::Diagnostics>>,
     pub catalogue: Option<CatalogueState>,
     pub restore: Option<RestoreState>,
     pub discovery: Option<Arc<crate::discovery::Discovery>>,
@@ -92,6 +93,7 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
     let resource_diagnostics = state.resource_diagnostics;
     Ok(Router::new()
         .route("/healthz", get(health))
+        .route("/diagnostics/lifecycle", get(lifecycle))
         .route("/v1", post(call))
         .route("/v1/catalogue", post(catalogue_call))
         .route("/v1/discovery", post(discovery::call))
@@ -104,6 +106,20 @@ pub fn router(state: Arc<HttpState>) -> Result<Router, Failure> {
 async fn health() -> Json<serde_json::Value> {
     // Liveness only: it makes no S3 or database availability claim.
     Json(json!({ "status": "alive", "protocol": 1 }))
+}
+
+async fn lifecycle(State(state): State<Arc<HttpState>>, request: Request) -> Response {
+    let diagnostics = match &state.lifecycle_diagnostics {
+        Some(diagnostics) => diagnostics,
+        None => return failure(Failure::new("NOT_FOUND")),
+    };
+    match diagnostics.export(single(request.headers(), "authorization")) {
+        Ok(export) => reserved(
+            ([("content-type", "application/json")], export.bytes).into_response(),
+            export.permit,
+        ),
+        Err(error) => failure(error),
+    }
 }
 
 pub(crate) fn failure_status(error: &Failure) -> StatusCode {
@@ -243,6 +259,7 @@ async fn call(State(state): State<Arc<HttpState>>, request: Request) -> Response
         request,
     )
     .await;
+    reservation.http_response_ready();
     reserved(response, reservation)
 }
 
@@ -290,6 +307,7 @@ async fn catalogue_call(State(state): State<Arc<HttpState>>, request: Request) -
         request,
     )
     .await;
+    reservation.http_response_ready();
     reserved(response, reservation)
 }
 
@@ -440,5 +458,8 @@ mod intake_tests;
 
 #[cfg(test)]
 mod output_tests;
+
+#[cfg(test)]
+mod lifecycle_tests;
 
 mod discovery;

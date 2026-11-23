@@ -29,6 +29,7 @@ pub struct Config {
     /// Opt in to anonymous budget snapshots in authenticated error headers.
     #[serde(default)]
     pub resource_diagnostics: bool,
+    pub lifecycle_diagnostics: Option<crate::lifecycle_export::Profile>,
     pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
@@ -262,6 +263,7 @@ pub struct ServiceConfig {
     pub transport: crate::transport::Profile,
     pub output: crate::output::Profile,
     pub resource_diagnostics: bool,
+    pub lifecycle_diagnostics: Option<crate::lifecycle_export::Profile>,
     pub resource_envelope: Option<crate::resource_envelope::Profile>,
     pub worker_instance: WorkerInstance,
     pub cache_directory: PathBuf,
@@ -319,6 +321,9 @@ impl Config {
     ) -> Result<Prepared, Failure> {
         self.transport.checked()?;
         self.output.checked()?;
+        if let Some(profile) = &self.lifecycle_diagnostics {
+            profile.checked()?;
+        }
         let mut options = scap_object::Options::default();
         if let Some(execution) = self.execution {
             options.result_memory_bytes = execution.result_memory_bytes;
@@ -477,6 +482,7 @@ impl Config {
                 transport: self.transport,
                 output: self.output,
                 resource_diagnostics: self.resource_diagnostics,
+                lifecycle_diagnostics: self.lifecycle_diagnostics,
                 resource_envelope: self.resource_envelope,
                 worker_instance: self.worker_instance,
                 cache_directory: self.cache_directory,

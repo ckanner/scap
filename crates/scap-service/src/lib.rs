@@ -15,6 +15,8 @@ pub mod group;
 pub mod http;
 mod instance;
 pub mod intake;
+pub mod lifecycle;
+pub mod lifecycle_export;
 pub mod output;
 pub mod owner_wire;
 pub mod rejection;
