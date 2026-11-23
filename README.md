@@ -33,12 +33,17 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 集中记录在 [11 月 22 日复核](docs/engineering/sqlite-s3-review-2026-11-22.md)；
 新变更不沿用 #68 的测试计数作为自己的验收。
 
-#69 最终 head `1c8bce1` 的 6 个 PR 工作流、26 个 job 全部成功后合入。本轮继续
-[资源拒绝诊断](docs/architecture/resource-rejection-diagnostics.md)：默认关闭的原拒绝点
-预算快照、SDK 无损可选 metadata，以及保持容量的短负载／较长分阶段负载。原夹具
-租户 intake 实际上限为 40，低于单库 64 个数据队列额度；需用真实拒绝原因判断瓶颈，
-不能仅根据 group commit 持有额度推断成功数变化。当前候选自己的结果见
-[接续验证](docs/engineering/admission-diagnostics-validation-2026-11-22.md)。
+#69 最终 head `1c8bce1` 的 6 个 PR 工作流、26 个 job 全部成功后合入。
+[PR #70](https://github.com/ckanner/scap/pull/70) 实现默认关闭的
+[资源拒绝诊断](docs/architecture/resource-rejection-diagnostics.md)、SDK 无损可选
+metadata 和保持原容量的短／较长固定曲线。其冻结源码 `c6a40f41` 独立完成
+stable/nightly 各 983 单位、83 个 Rust 文件四维精确覆盖，SDK 192 单位与独立
+HTTP/进程 21 项，以及真实组提交、640／3,072 到达的原字节审计和负控。
+全部 1,673 次拒绝首先命中租户 intake 40，但这不等于已确定唯一服务瓶颈。
+长测试第二对高档 ACK/drain 增加 10.51%，原 ACK 却从 173 降为 165；12/s 档亦有
+积压。保持 group 默认关闭和现有额度，下一步采用相同 seed 起点并测生命周期。
+本轮完整正负结果、CI 归属和范围见[接续验证](docs/engineering/admission-diagnostics-validation-2026-11-22.md)，
+后续合同见[容量与生命周期设计](docs/engineering/admission-capacity-next.md)。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。
@@ -54,8 +59,9 @@ Manifest GET 省略候选按[正式决策](docs/engineering/manifest-get-elision
 | [内核资源准入](docs/architecture/kernel-resource-envelope.md) | 可选检查实际 cgroup v2、普通 CPU 调度与有限 tmpfs；启动前拒绝不满足部署条件；不是每租户 RSS 隔离或任意磁盘配额认证 |
 | [持续开环负载](experiments/object-overload/PLAN.md) | 预先冻结 30 秒、1,140 次到达与分窗进展；相同 64 条逻辑写比较 64 次单事务和 8 次 SQL batch；不是服务器 group commit 或生产 SLO |
 
-新增的 [group commit 配对合同](experiments/group-commit-load/README.md)采用独立新后端、
-off/on/on/off 顺序、640 个预定原事务和原字节独立审计，作为 #69 的单独验收范围。
+[group commit 配对合同](experiments/group-commit-load/README.md)采用独立新后端、
+off/on/on/off 顺序和原字节独立审计。#69 的原短合同为 640 个测量事务；#70 在自己的
+新源码上重新完成短合同，并增加 3,072 到达的分窗曲线。不同轮次的结果不混为同次验收。
 
 以下是前一 #65 冻结组合的历史证据，不冒称新候选已重新通过：
 
