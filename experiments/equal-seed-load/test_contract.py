@@ -15,6 +15,18 @@ import oracle
 import spec
 
 
+class ProbeClock:
+    def __init__(self):
+        self.now = 1_000_000_000
+
+    def read(self):
+        self.now += 1000
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += round(seconds * 1_000_000_000)
+
+
 def synthetic_snapshot(data=0, control=0, recovery=0):
     def distribution(count, complete=True):
         return {'completed': str(count if complete else 0), 'censored': '0',
@@ -248,13 +260,21 @@ class GeometryAndEnvelopeTests(unittest.TestCase):
             os.close(descriptor)
         tail = stat.rfind(')') + 2
         zombie = stat[:tail] + 'Z' + stat[tail + 1:]
-        with mock.patch.object(observer.resources, 'read_at', side_effect=[stat, 'Pid: 1\n', zombie]):
+        incomplete_status = 'Pid: ' + str(identity['proc_pid']) + '\n'
+        clock = ProbeClock()
+        with mock.patch.object(observer.resources, 'read_at', side_effect=[stat, incomplete_status, zombie]), \
+             mock.patch.object(observer.time, 'monotonic_ns', side_effect=clock.read), \
+             mock.patch.object(observer.time, 'sleep', side_effect=clock.sleep):
             row = observer.process_sample(-1, identity)
         self.assertEqual(row['state'], 'Z')
         self.assertTrue(row['exit_raced'])
         self.assertNotIn('metrics', row)
-        with mock.patch.object(observer.resources, 'read_at', side_effect=[stat, 'Pid: 1\n', stat]):
-            with self.assertRaises(ValueError):
+        oracle.exit_probe(row)
+        clock = ProbeClock()
+        with mock.patch.object(observer.resources, 'read_at', side_effect=[stat, incomplete_status, *([stat] * 8)]), \
+             mock.patch.object(observer.time, 'monotonic_ns', side_effect=clock.read), \
+             mock.patch.object(observer.time, 'sleep', side_effect=clock.sleep):
+            with self.assertRaises(observer.ExitProbeFailure):
                 observer.process_sample(-1, identity)
 
     def test_independent_sqlite_geometry_rejects_extra_table_and_freelist(self):
@@ -407,15 +427,20 @@ class ObserverRaceTests(unittest.TestCase):
         zombie = original_stat[:offset] + 'Z' + original_stat[offset + 1:]
         for final_stat in (original_stat, zombie):
             with self.subTest(zombie=final_stat == zombie):
-                with mock.patch.object(observer.resources, 'read_at', side_effect=[original_stat, status, final_stat]):
+                clock = ProbeClock()
+                reads = [original_stat, status, *([final_stat] * (1 if final_stat == zombie else 8))]
+                with mock.patch.object(observer.resources, 'read_at', side_effect=reads), \
+                     mock.patch.object(observer.time, 'monotonic_ns', side_effect=clock.read), \
+                     mock.patch.object(observer.time, 'sleep', side_effect=clock.sleep):
                     with mock.patch.object(observer.resources, 'names_at',
                                            side_effect=FileNotFoundError(errno.ENOENT, 'missing', 'fd')):
                         if final_stat == zombie:
                             row = observer.process_sample(-1, identity)
                             self.assertTrue(row['exit_raced'])
                             self.assertNotIn('metrics', row)
+                            oracle.exit_probe(row)
                         else:
-                            with self.assertRaises(FileNotFoundError):
+                            with self.assertRaises(observer.ExitProbeFailure):
                                 observer.process_sample(-1, identity)
 
     def test_failure_provenance_has_path_context_and_actual_stack(self):
@@ -476,6 +501,160 @@ class ObserverRaceTests(unittest.TestCase):
                     self.assertEqual(monitor.errors[1]['context']['operation'], 'monitor_failure_record')
                 with self.assertRaisesRegex(RuntimeError, 'monitor_errors'):
                     monitor.check()
+
+
+class ExitProbeTests(unittest.TestCase):
+    def setUp(self):
+        descriptor = os.open('/proc/self', os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            self.stat = observer.resources.read_at(descriptor, 'stat')
+            self.status = observer.resources.read_at(descriptor, 'status')
+        finally:
+            os.close(descriptor)
+        self.identity = observer.resources.stat_identity(self.stat)
+        offset = self.stat.rfind(')') + 2
+        self.zombie = self.stat[:offset] + 'Z' + self.stat[offset + 1:]
+        self.missing = '\n'.join(line for line in self.status.splitlines()
+                                 if not line.startswith(('VmRSS:', 'VmHWM:'))) + '\n'
+
+    def collect(self, reads, status=None, clock=None):
+        clock = clock or ProbeClock()
+        with mock.patch.object(observer.resources, 'read_at',
+                               side_effect=[self.stat, self.missing if status is None else status, *reads]), \
+             mock.patch.object(observer.time, 'monotonic_ns', side_effect=clock.read), \
+             mock.patch.object(observer.time, 'sleep', side_effect=clock.sleep):
+            return observer.process_sample(-1, self.identity)
+
+    def reject(self, rule, value):
+        with self.assertRaises(oracle.Rejected) as caught:
+            oracle.exit_probe(value)
+        self.assertEqual(caught.exception.rule, rule)
+
+    def test_missing_or_zero_fields_need_a_bounded_positive_zombie(self):
+        zero = '\n'.join('VmRSS:\t0 kB' if line.startswith('VmRSS:') else line
+                         for line in self.status.splitlines()) + '\n'
+        for status in (self.missing, zero):
+            with self.subTest(missing=status == self.missing):
+                observed = self.collect([self.stat, self.stat, self.zombie], status=status)
+                oracle.exit_probe(observed)
+                self.assertEqual(len(observed['exit_probe']['reads']), 3)
+                self.assertEqual(observed['exit_probe']['failed_status_raw'], status)
+                self.assertLessEqual(observed['completed_ns'] - observed['started_ns'], 10_000_000)
+                self.assertNotIn('metrics', observed)
+
+    def test_eight_live_reads_fail_and_preserve_the_original_observations(self):
+        with self.assertRaisesRegex(observer.ExitProbeFailure, 'read limit') as caught:
+            self.collect([self.stat] * 8)
+        original = caught.exception.sample
+        self.assertEqual(original['initial_stat_raw'], self.stat)
+        self.assertEqual(original['exit_probe']['failed_status_raw'], self.missing)
+        self.assertEqual([row['stat_raw'] for row in original['exit_probe']['reads']], [self.stat] * 8)
+        self.assertNotIn('metrics', original)
+        self.assertNotIn('exit_raced', original)
+
+    def test_late_zombie_does_not_satisfy_the_ten_ms_window(self):
+        # Deadline expiry before the read, after it, or after identity parsing
+        # cannot turn a late Z observation into a timely successful sample.
+        for delayed_call in (3, 4, 5):
+            with self.subTest(delayed_call=delayed_call):
+                clock = ProbeClock()
+                original_read = clock.read
+                calls = 0
+                def late_read():
+                    nonlocal calls
+                    calls += 1
+                    if calls == delayed_call:
+                        clock.now += 10_000_000
+                    return original_read()
+                clock.read = late_read
+                with self.assertRaisesRegex(observer.ExitProbeFailure, 'deadline') as caught:
+                    self.collect([self.zombie], clock=clock)
+                reads = caught.exception.sample['exit_probe']['reads']
+                self.assertEqual(len(reads), 0 if delayed_call == 3 else 1)
+                if reads:
+                    self.assertEqual(reads[0]['stat_raw'], self.zombie)
+
+    def test_changed_identity_or_failed_confirmation_read_cannot_pass(self):
+        changed = str(self.identity['proc_pid'] + 1) + self.zombie[self.zombie.index(' ('):]
+        with self.assertRaisesRegex(observer.ExitProbeFailure, 'identity changed') as caught:
+            self.collect([changed])
+        self.assertEqual(caught.exception.sample['exit_probe']['reads'][0]['stat_raw'], changed)
+        failure = FileNotFoundError(errno.ENOENT, 'missing original', 'stat')
+        with self.assertRaisesRegex(observer.ExitProbeFailure, 'read failed') as caught:
+            self.collect([failure])
+        read = caught.exception.sample['exit_probe']['reads'][0]
+        self.assertIsNone(read['stat_raw'])
+        self.assertEqual(read['read_error']['errno'], errno.ENOENT)
+
+    def test_unrelated_io_and_malformed_status_are_not_exit_evidence(self):
+        with self.assertRaises(PermissionError):
+            self.collect([], status=PermissionError(errno.EACCES, 'denied', 'status'))
+        malformed = self.missing + 'VmRSS:\t12 GB\n'
+        with self.assertRaisesRegex(ValueError, 'units changed'):
+            self.collect([], status=malformed)
+        observed = self.collect([self.zombie], status=FileNotFoundError(errno.ENOENT, 'missing', 'status'))
+        oracle.exit_probe(observed)
+        self.assertIsNone(observed['exit_probe']['failed_status_raw'])
+
+    def test_independent_oracle_rejects_invalid_exit_proofs(self):
+        original = self.collect([self.stat, self.zombie])
+        mutations = []
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'] *= 5
+        mutations.append(('resource-exit-probe-denominator', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'] = []
+        mutations.append(('resource-exit-probe-denominator', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['deadline_ns'] += 1
+        mutations.append(('resource-exit-probe-clock', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'][1]['started_ns'] = changed['exit_probe']['reads'][0]['completed_ns']
+        mutations.append(('resource-exit-probe-clock', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'][-1]['stat_raw'] = self.stat
+        mutations.append(('resource-exit-probe-terminal', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'][0]['stat_raw'] = self.zombie
+        mutations.append(('resource-exit-probe-terminal', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['reads'][0]['stat_raw'] = str(self.identity['proc_pid'] + 1) + self.stat[self.stat.index(' ('):]
+        mutations.append(('resource-exit-probe-identity', changed))
+        changed = copy.deepcopy(original)
+        del changed['exit_probe']['failed_status_raw']
+        mutations.append(('resource-exit-probe-shape', changed))
+        changed = copy.deepcopy(original)
+        changed['exit_probe']['failed_status_raw'] = self.status
+        mutations.append(('resource-exit-probe-status', changed))
+        changed = copy.deepcopy(original)
+        changed['metrics'] = {'VmRSS': 0}
+        mutations.append(('resource-exit-race-proof', changed))
+        for rule, changed in mutations:
+            with self.subTest(rule=rule):
+                self.reject(rule, changed)
+
+    def test_failed_probe_is_retained_in_its_own_bounded_event(self):
+        try:
+            self.collect([self.stat] * 8)
+        except observer.ExitProbeFailure as error:
+            failure = error
+        monitor = observer.Monitor.__new__(observer.Monitor)
+        monitor.stop = mock.Mock()
+        monitor.stop.is_set.return_value = False
+        monitor.errors, monitor.count = [], 2066
+        monitor.sampling_context = {'operation': 'owned_process_sample', 'role': 'service'}
+        monitor.phase = lambda: 'verify'
+        monitor.sample = mock.Mock(side_effect=failure)
+        monitor.events = mock.Mock()
+        monitor.run()
+        rows = monitor.events.emit.call_args_list
+        self.assertEqual([row.args[0] for row in rows], ['owned_exit_probe_failed', 'monitor_failed'])
+        self.assertEqual(rows[0].kwargs['process'], failure.sample)
+        self.assertEqual(rows[0].kwargs['context']['sample'], 2067)
+        self.assertLess(len(observer.encoded(rows[0].kwargs)), 1024 * 1024)
+        self.assertLess(len(observer.encoded(monitor.errors[0])), 16384)
+        with self.assertRaisesRegex(RuntimeError, 'monitor_errors'):
+            monitor.check()
 
 
 if __name__ == '__main__':

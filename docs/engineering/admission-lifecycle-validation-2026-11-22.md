@@ -45,7 +45,7 @@ SHA-256 为 `ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5`�
 | Node SDK/V8、HTTP、controller与类型 | PASSED：192 unit、7 HTTP、14 controller；严格类型 |
 | 生命周期真实TCP/native/S3三场景 | PASSED：25 HTTP、3 BP、22完整cohort、8 snapshots、50 S3；20负控及正对照 |
 | 原组提交真实故障与恢复 | PASSED：28原提交、20接受HEAD、1拒绝组CAS、28份冷恢复lookup；40负控 |
-| equal-seed-v1八cell实际/独立oracle/负控 | FAILED：首个cell的seed阶段观察器异常；未形成有效测量，oracle/22负控NOT_RUN |
+| equal-seed-v1八cell实际/独立oracle/负控 | FAILED：两次观察器竞态失败均保留；完整矩阵oracle/22负控NOT_RUN |
 | AWS Standard/跨AZ/生产SLO/长期工作集 | NOT_RUN |
 
 ## 保留的实际失败
@@ -67,6 +67,28 @@ artifact zip SHA-256 为 `5af261e05771f1801044bac05f3c93621386390fbbe089208ec839
 并补充有界来源栈。26个夹具自测通过，同一确定性竞态在b7原函数上失败、修订后通过。
 修订不改变生产代码、配额、工作量、期限或判定阈值；
 必须在新冻结来源和独立新目录重跑完整矩阵，原失败不覆盖。
+
+第二次实际来源为 `8198ab606c7efedb708775156c2561b7ba6e6ac9`。前五个cell完整结束；
+第六个 `rate-32-on-1` 的load、完整诊断终点与原身份核验也已完成，但服务关闭期间
+观察器的第2067次采样返回 `required owned-process metric unavailable`，立即停止矩阵。
+完整错误栈指向原proc status解析，全部9个owned子进程随后取得reap记录；服务正常
+退出，错误记录至service wait4约2.995毫秒。失败原件没有该次status原文，因此不能
+确定具体缺项/零值，也不把稍后的wait4当作缺失瞬间的证明。
+
+上游Linux在[proc status实现](https://github.com/torvalds/linux/blob/master/fs/proc/array.c)
+中仅在task仍有mm时输出内存字段，[退出实现](https://github.com/torvalds/linux/blob/master/kernel/exit.c)
+则先清理mm、后发布zombie状态；这支持短暂退出过渡的机制解释，不替代本次未记录的
+原字节。新的观察器仅对相应缺项/零值或proc子路径ENOENT，使用同一个owned proc fd、
+相同PID/start_ticks，在每次process sample开始后的10毫秒内最多8次重读，间隔至少
+1毫秒；必须实际读到Z才记录退出样本，不填零、不用任意更晚的退出代替证明。
+初始stat、失败status、操作、全部探针原stat和起止时间均保留，独立oracle复核边界。
+仍活、身份变化、超时、额外读取、权限及格式错误继续失败，原预算和工作量不变。
+
+第二次矩阵失败后，在独立8198源码中按原90秒/cell预算开发预检了12-off-1、12-on-1、
+32-off-1；原版完整cell审计分别用21.342、13.479、50.764秒通过。三轮seed均为256行、
+257个身份、21页、87844个原结果字节，生命周期cohort与原HTTP分母一致。原完整矩阵
+来源检查仍因失败运行缺少fixture-after记录而失败，未构造该记录；上述预检不能算
+全矩阵验收或改善通过。修订后的统一候选仍须在新目录完整执行全部八轮。
 
 ## 后续判定
 

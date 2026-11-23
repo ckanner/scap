@@ -33,6 +33,14 @@ SDK、raw、S3 trace 和样本在写前检查额度；不截断后声称完整�
 **backend 四个进程合计**。100 ms目标间隔、实际扫描时间/间隔、FD/task原数组、原始
 stat/status、wait4终态RSS与CPU都保留。采样可能遗漏间隔内 overshoot，不宣称内核硬限。
 
+退出时若原status缺少必需指标或值为0，或拥有的proc子路径返回ENOENT，只在同一个
+原proc fd上进行最多8次stat确认，首读立即、后续间隔至少1 ms。接受的确认必须在该
+process sample开始后10 ms内观察到同pid/start_ticks的真实Z；调度或读取超时、8次后仍
+存活、身份改变、权限及其他I/O/格式错误均失败。不会用稍后wait4退出替代此刻的Z证明，
+也不将缺指标填0。原stat、失败status、操作、每次重读原文和时刻都保留；oracle独立
+解析status缺项/零值并核对数量、时序与终态。成功样本计入原采样总预算；失败探针写入
+`owned_exit_probe_failed`事件，受原event总预算约束，普通异常堆栈仍维持16 KiB内。
+
 每 cell 开始对已封存 evidence 前缀记录完整统计；100 ms只扫描当前cell与private目录，
 将封存前缀计入24 GiB/200000 inode总额度。cell边界与末尾重新扫描整个矩阵。
 这样避免随着已完成cell文件增长而反复扫描旧目录；实际scan span仍完整记录。

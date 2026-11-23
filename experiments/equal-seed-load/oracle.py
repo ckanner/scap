@@ -367,7 +367,7 @@ def geometry_and_cost(directory, s3, events, contract, committed):
                 'gc': 'disabled', 'excludes': 'worker identity and mutable HEAD versions'}}
 
 
-def process_fields(raw_status):
+def process_fields(raw_status, complete=True):
     selected = {}
     for line in raw_status.splitlines():
         if ':' not in line:
@@ -378,8 +378,71 @@ def process_fields(raw_status):
             need(key not in selected and parts and parts[0].isdecimal(), 'resource-status')
             need(parts[1:] == (['kB'] if key.startswith('Vm') else []), 'resource-status-units')
             selected[key] = int(parts[0]) * (1024 if key.startswith('Vm') else 1)
-    need(set(selected) == {'Pid', 'Threads', 'VmRSS', 'VmHWM'}, 'resource-status-fields')
+    need(not complete or set(selected) == {'Pid', 'Threads', 'VmRSS', 'VmHWM'}, 'resource-status-fields')
     return selected
+
+
+def exit_stat_state(raw_stat, identity):
+    need(type(raw_stat) is str and len(raw_stat.encode()) <= 16384, 'resource-exit-probe-raw')
+    try:
+        fields = raw_stat[raw_stat.rfind(')') + 2:].split()
+        pid = int(raw_stat[:raw_stat.index(' (')])
+        start_ticks = int(fields[19])
+        state = fields[0]
+    except (ValueError, IndexError):
+        raise Rejected('resource-exit-probe-raw')
+    need(pid == identity['proc_pid'] and start_ticks == identity['start_ticks'],
+         'resource-exit-probe-identity')
+    return state
+
+
+def exit_probe(process):
+    """Independent bounded evidence of the short mm-teardown to Z transition."""
+    need(process.get('exit_raced') is True and process.get('state') == 'Z'
+         and not ({'metrics', 'status_raw', 'fd_names', 'task_names'} & set(process)),
+         'resource-exit-race-proof')
+    identity = process['identity']
+    need(exit_stat_state(process.get('initial_stat_raw'), identity) != 'Z'
+         and type(process.get('observation_error')) is str, 'resource-exit-race-proof')
+    proof = process.get('exit_probe')
+    need(type(proof) is dict and set(proof) == {
+        'operation', 'failed_status_raw', 'failure_ns', 'deadline_ns', 'error_type', 'errno', 'reads'},
+        'resource-exit-probe-shape')
+    begin, end = process['started_ns'], process['completed_ns']
+    need(all(type(value) is int for value in (begin, end, proof['failure_ns'], proof['deadline_ns']))
+         and begin <= proof['failure_ns'] <= end <= proof['deadline_ns'] == begin + 10_000_000,
+         'resource-exit-probe-clock')
+    operation, status = proof['operation'], proof['failed_status_raw']
+    need(operation in ('status_read', 'status_fields', 'fd_names', 'task_names'),
+         'resource-exit-probe-operation')
+    if operation == 'status_read':
+        need(status is None, 'resource-exit-probe-status')
+    else:
+        need(type(status) is str and len(status.encode()) <= 16384, 'resource-exit-probe-status')
+        metrics = process_fields(status, complete=operation != 'status_fields')
+        need(metrics.get('Pid') == identity['proc_pid'], 'resource-exit-probe-status')
+        if operation == 'status_fields':
+            need(set(metrics) != {'Pid', 'Threads', 'VmRSS', 'VmHWM'} or min(metrics.values()) <= 0,
+                 'resource-exit-probe-status')
+        else:
+            need(min(metrics.values()) > 0, 'resource-exit-probe-status')
+    if operation == 'status_fields':
+        need(proof['error_type'] == 'ValueError' and proof['errno'] is None, 'resource-exit-probe-error')
+    else:
+        need(proof['error_type'] == 'FileNotFoundError' and proof['errno'] == 2, 'resource-exit-probe-error')
+    reads = proof['reads']
+    need(type(reads) is list and 1 <= len(reads) <= 8, 'resource-exit-probe-denominator')
+    previous = proof['failure_ns']
+    for index, read in enumerate(reads):
+        need(type(read) is dict and set(read) == {'started_ns', 'completed_ns', 'stat_raw'},
+             'resource-exit-probe-shape')
+        need(type(read['started_ns']) is int and type(read['completed_ns']) is int
+             and previous + (1_000_000 if index else 0) <= read['started_ns'] <= read['completed_ns'] <= end,
+             'resource-exit-probe-clock')
+        state = exit_stat_state(read['stat_raw'], identity)
+        need((state == 'Z') == (index == len(reads) - 1), 'resource-exit-probe-terminal')
+        previous = read['completed_ns']
+    need(previous <= end and reads[-1]['stat_raw'] == process['stat_raw'], 'resource-exit-probe-terminal')
 
 
 def process_presence(sample, starts, ends):
@@ -405,6 +468,8 @@ def owned_inventory(events):
 
 
 def resource_envelope(directory, events, samples, projections, inputs):
+    need(not any(row['event'] in ('monitor_failed', 'owned_exit_probe_failed') for row in events),
+         'resource-monitor-failure')
     need(samples and len(samples) <= spec.BOUNDS['samples'], 'resource-sample-denominator')
     starts, ends = owned_inventory(events)
     same(Counter(row['role'] for row in starts.values()), Counter({'backend': 4, 'node': 4, 'service': 1}),
@@ -486,13 +551,11 @@ def resource_envelope(directory, events, samples, projections, inputs):
                      'resource-owned-interval')
                 same(identity, starts[pid]['identity'], 'resource-sample-identity')
             need(process['state'] == fields[0], 'resource-state')
-            if process.get('exit_raced'):
-                earlier = process['initial_stat_raw']
-                tail = earlier[earlier.rfind(')') + 2:].split()
-                need(process['state'] == 'Z' and tail[0] != 'Z'
-                     and int(earlier[:earlier.index(' (')]) == identity['proc_pid']
-                     and int(tail[19]) == identity['start_ticks']
-                     and type(process['observation_error']) is str, 'resource-exit-race-proof')
+            exit_keys = {'exit_raced', 'initial_stat_raw', 'observation_error', 'exit_probe'} & set(process)
+            if exit_keys:
+                need(exit_keys == {'exit_raced', 'initial_stat_raw', 'observation_error', 'exit_probe'},
+                     'resource-exit-probe-shape')
+                exit_probe(process)
             if process['state'] == 'Z':
                 need('metrics' not in process, 'resource-zombie-not-zero')
                 continue

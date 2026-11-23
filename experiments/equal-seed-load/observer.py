@@ -17,6 +17,9 @@ import shared
 import spec
 
 resources = shared.resources
+EXIT_PROBE_READS = 8
+EXIT_PROBE_PAUSE_SECONDS = .001
+EXIT_PROBE_WINDOW_NS = 10_000_000
 
 
 def encoded(value):
@@ -150,6 +153,12 @@ def check_filesystem(evidence, private=None, sealed=None, current=None):
             'filesystem_free_inodes': stat.f_favail}
 
 
+class ExitProbeFailure(ValueError):
+    def __init__(self, reason, sample):
+        super().__init__(reason)
+        self.sample = sample
+
+
 def process_sample(proc, expected):
     started = time.monotonic_ns()
     stat = resources.read_at(proc, 'stat')
@@ -160,22 +169,60 @@ def process_sample(proc, expected):
     state = stat[stat.rfind(')') + 2:].split()[0]
     row = {'identity': expected, 'started_ns': started, 'stat_raw': stat, 'state': state}
     if state != 'Z':
+        status = None
+        operation = 'status_read'
         try:
             status = resources.read_at(proc, 'status')
-            row.update(status_raw=status, metrics=resources.fields(status),
-                       fd_names=resources.names_at(proc, 'fd'), task_names=resources.names_at(proc, 'task'))
+            operation = 'status_fields'
+            metrics = resources.fields(status)
+            operation = 'fd_names'
+            descriptors = resources.names_at(proc, 'fd')
+            operation = 'task_names'
+            tasks = resources.names_at(proc, 'task')
+            row.update(status_raw=status, metrics=metrics, fd_names=descriptors, task_names=tasks)
         except (OSError, ValueError) as error:
-            # The monitor lock prevents reap, not the kernel's own exit. Only a
-            # second read of the same original proc fd, same identity and Z
-            # state may explain missing live fields. All other failures close.
-            final_stat = resources.read_at(proc, 'stat')
-            if resources.stat_identity(final_stat) != {key: expected[key] for key in ('proc_pid', 'start_ticks')}:
-                raise ValueError('owned proc identity changed during exit') from error
-            final_state = final_stat[final_stat.rfind(')') + 2:].split()[0]
-            if final_state != 'Z':
+            # Linux may remove mm-derived status fields before publishing Z.
+            # This is only a possible explanation: require bounded, positive Z
+            # evidence from this original owned fd, never eventual wait4 alone.
+            missing_metrics = operation == 'status_fields' and type(error) is ValueError \
+                and str(error) == 'required owned-process metric unavailable'
+            missing_entry = operation in ('status_read', 'fd_names', 'task_names') \
+                and isinstance(error, FileNotFoundError)
+            if not (missing_metrics or missing_entry):
                 raise
-            row.update(stat_raw=final_stat, state='Z', exit_raced=True,
-                       initial_stat_raw=stat, observation_error=repr(error))
+            probe = {'operation': operation, 'failed_status_raw': status,
+                     'failure_ns': time.monotonic_ns(), 'deadline_ns': started + EXIT_PROBE_WINDOW_NS,
+                     'error_type': type(error).__name__, 'errno': getattr(error, 'errno', None), 'reads': []}
+            row.update(initial_stat_raw=stat, observation_error=repr(error), exit_probe=probe)
+            for attempt in range(EXIT_PROBE_READS):
+                if attempt:
+                    time.sleep(EXIT_PROBE_PAUSE_SECONDS)
+                begin = time.monotonic_ns()
+                if begin > probe['deadline_ns']:
+                    raise ExitProbeFailure('owned exit confirmation deadline', row) from error
+                try:
+                    final_stat = resources.read_at(proc, 'stat')
+                except (OSError, ValueError) as read_error:
+                    probe['reads'].append({'started_ns': begin, 'completed_ns': time.monotonic_ns(),
+                                           'stat_raw': None, 'read_error': error_evidence(read_error, {})})
+                    raise ExitProbeFailure('owned exit confirmation read failed', row) from read_error
+                end = time.monotonic_ns()
+                probe['reads'].append({'started_ns': begin, 'completed_ns': end, 'stat_raw': final_stat})
+                if end > probe['deadline_ns']:
+                    raise ExitProbeFailure('owned exit confirmation deadline', row) from error
+                try:
+                    final_identity = resources.stat_identity(final_stat)
+                except ValueError as identity_error:
+                    raise ExitProbeFailure('owned exit confirmation invalid stat', row) from identity_error
+                if final_identity != {key: expected[key] for key in ('proc_pid', 'start_ticks')}:
+                    raise ExitProbeFailure('owned proc identity changed during exit', row) from error
+                if final_stat[final_stat.rfind(')') + 2:].split()[0] == 'Z':
+                    completed = time.monotonic_ns()
+                    if completed > probe['deadline_ns']:
+                        raise ExitProbeFailure('owned exit confirmation deadline', row) from error
+                    row.update(stat_raw=final_stat, state='Z', exit_raced=True, completed_ns=completed)
+                    return row
+            raise ExitProbeFailure('owned exit confirmation read limit', row) from error
     row['completed_ns'] = time.monotonic_ns()
     return row
 
@@ -307,6 +354,11 @@ class Monitor:
         except BaseException as error:
             failure = error_evidence(error, {**self.sampling_context, 'phase': self.phase(), 'sample': self.count + 1})
             self.errors.append(failure)
+            if isinstance(error, ExitProbeFailure):
+                try:
+                    self.events.emit('owned_exit_probe_failed', context=failure['context'], process=error.sample)
+                except BaseException as record_error:
+                    self.errors.append(error_evidence(record_error, {'operation': 'exit_probe_failure_record'}))
             try:
                 self.events.emit('monitor_failed', failure=failure)
             except BaseException as record_error:
