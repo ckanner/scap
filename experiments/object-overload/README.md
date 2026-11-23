@@ -9,6 +9,14 @@
 64 行，并保存每条语句的随机原结果；报告明确区分事务/s 和逻辑操作/s。这使用
 已有 `prepare([...statements], identity)` / `execute`，不宣称服务器 group commit。
 
+到达时钟保留原始绝对时间，每次期限检查返回前固定让出一次事件循环 turn。
+该动作不读取 active、不等待空位或 SDK 完成，也不平移后续计划；它让已经过期的
+连续到达之间仍有处理就绪 I/O 的机会。一次 turn 不代表固定耗时，也不保证清空
+全部 I/O。真实 64 个调用未完成时仍立即记录 generator_rejected，原 1 秒 lag、
+30 秒窗口、1140 分母和全部失败判据不变。确定性回归同时保留旧微任务追赶反例和
+71 个到达、64 个真实阻塞调用仍拒绝 7 个的证明。历史失败与修订来源见
+[生命周期验证台账](../../docs/engineering/admission-lifecycle-validation-2026-11-22.md)。
+
 ## 执行
 
 需要正式 release `scapd` 及完整构建 receipt、Node 22.16.0、SeaweedFS 4.51。

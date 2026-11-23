@@ -28,6 +28,18 @@ def worker(row, alter):
     row['raw'], row['sha256'] = base64.b64encode(raw).decode(), hashlib.sha256(raw).hexdigest()
 
 
+def add_completed_sample(lane, *, acquired):
+    """Keep all local equations valid so the external cohort/hold check decides."""
+    if acquired:
+        lane['acquired'] = str(int(lane['acquired']) + 1)
+    lane['released'] = str(int(lane['released']) + 1)
+    lane['active'] = str(int(lane['acquired']) - int(lane['released']))
+    for interval in lane['intervals']:
+        interval['completed'] = str(int(interval['completed']) + 1)
+        interval['total_us'] = str(int(interval['total_us']) + 1)
+        interval['buckets'][0] = str(int(interval['buckets'][0]) + 1)
+
+
 def mutation(name, rows):
     selected = lambda event, label: next(r for r in rows if r['event'] == event and r.get('id') == label)
     if name == 'missing-response':
@@ -48,6 +60,43 @@ def mutation(name, rows):
                (v := oracle.parse(oracle.raw(r, 'raw')))['event'] == 'admission_observed'
                and v['fields']['id'].startswith('body-held-')][-1]
         worker(row, lambda v: v['fields'].update(data_available=2))
+    elif name in ('lifecycle-invalid', 'lifecycle-premature-release', 'lifecycle-lost-sample', 'lifecycle-wrong-cohort'):
+        phase = 'after-http-timeout-' if name == 'lifecycle-premature-release' else 'final-'
+        row = [r for r in rows if r['event'] == 'worker_event' and
+               (v := oracle.parse(oracle.raw(r, 'raw')))['event'] == 'admission_observed'
+               and v['fields']['id'].startswith(phase)][-1]
+        def change(value):
+            snapshot = value['fields']['lifecycle']
+            data = snapshot['lanes'][0]
+            if name == 'lifecycle-invalid':
+                snapshot['valid'] = False
+            elif name == 'lifecycle-premature-release':
+                add_completed_sample(data, acquired=False)
+            elif name == 'lifecycle-lost-sample':
+                data['intervals'][-1]['buckets'] = ['0'] * 19
+            else:
+                add_completed_sample(data, acquired=True)
+        worker(row, change)
+    elif name == 'lifecycle-swapped-held-phases':
+        def swapped(label):
+            for before, after in (('body-held-', 'slow-response-'), ('slow-response-', 'body-held-')):
+                if label.startswith(before):
+                    return after + label[len(before):]
+            return label
+        for row in rows:
+            if row['event'] == 'operator_command':
+                value = oracle.parse(oracle.raw(row, 'raw'))
+                if value['operation'] == 'observe':
+                    worker(row, lambda value: value.update(id=swapped(value['id'])))
+            elif row['event'] == 'worker_event':
+                value = oracle.parse(oracle.raw(row, 'raw'))
+                if value['event'] == 'admission_observed':
+                    worker(row, lambda value: value['fields'].update(id=swapped(value['fields']['id'])))
+    elif name == 'lifecycle-unmatched-observation':
+        row = next(r for r in rows if r['event'] == 'operator_command' and
+                   (value := oracle.parse(oracle.raw(r, 'raw')))['operation'] == 'observe'
+                   and value['id'].startswith('final-'))
+        worker(row, lambda value: value.update(id='unmatched-observation-0'))
     elif name == 'extended-original-deadline':
         row = next(r for r in rows if r['event'] == 'worker_event' and
                    oracle.parse(oracle.raw(r, 'raw'))['event'] == 'head_pause_returned')
@@ -87,7 +136,9 @@ def run(path):
     names = ('missing-response', 'duplicate-execute-attempt', 'wrong-backpressure', 'changed-original-id',
              'false-committed-unknown', 'missing-cancellation-proof', 'lost-body-reservation',
              'extended-original-deadline', 'worker-completed-before-release', 'missing-kernel-wait4',
-             'backend-identity-reused', 'unsigned-backend-readable', 'changed-large-result', 'changed-large-blob')
+             'backend-identity-reused', 'unsigned-backend-readable', 'changed-large-result', 'changed-large-blob',
+             'lifecycle-invalid', 'lifecycle-premature-release', 'lifecycle-lost-sample', 'lifecycle-wrong-cohort',
+             'lifecycle-swapped-held-phases', 'lifecycle-unmatched-observation')
     report = {'schema': 1, 'positive_controls': 1, 'negative_controls': []}
     original = oracle.rows(path / 'events.jsonl')
     with tempfile.TemporaryDirectory(prefix='scap-resource-controls-') as directory:

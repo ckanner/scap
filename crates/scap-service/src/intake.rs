@@ -6,10 +6,16 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use serde::Deserialize;
 
-use crate::{auth::Principal, rejection::Budget, Failure};
+use crate::{
+    auth::Principal,
+    lifecycle::{Lane, Registry, Trace},
+    rejection::Budget,
+    Failure,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Class {
@@ -118,6 +124,7 @@ pub struct Intake {
     max_body_bytes: usize,
     profile: Profile,
     usage: Mutex<Usage>,
+    lifecycle: Option<(Arc<Registry>, Lane)>,
 }
 
 /// The original authenticated identity and admission class travel with the
@@ -127,6 +134,7 @@ pub struct Lease {
     principal: Principal,
     bytes: AtomicUsize,
     submitted: AtomicBool,
+    trace: Option<Trace>,
 }
 
 impl Intake {
@@ -142,7 +150,25 @@ impl Intake {
             max_body_bytes,
             profile: Profile::resolve(total, max_body_bytes, profile)?,
             usage: Mutex::new(Usage::default()),
+            lifecycle: None,
         })
+    }
+
+    /// Attach the daemon's optional, fixed-cardinality observer before sharing
+    /// this pool. Restore uses the existing recovery admission class, but its
+    /// separate pool is observed under its own lane.
+    pub fn with_lifecycle(mut self, registry: Arc<Registry>, lane: Lane) -> Result<Self, Failure> {
+        if !matches!(
+            (self.class, lane),
+            (Class::Data, Lane::Data)
+                | (Class::Control, Lane::Control)
+                | (Class::Recovery, Lane::Recovery | Lane::Restore)
+                | (Class::Catalogue, Lane::Catalogue)
+        ) {
+            return Err(Failure::new("CONFIG"));
+        }
+        self.lifecycle = Some((registry, lane));
+        Ok(self)
     }
 
     pub(crate) fn validate(&self, class: Class, max_body_bytes: usize) -> Result<(), Failure> {
@@ -208,11 +234,20 @@ impl Intake {
         let current = usage.tenants.entry(tenant).or_default();
         current.requests += 1;
         current.bytes += self.max_body_bytes;
+        let trace = if let Some((registry, lane)) = &self.lifecycle {
+            let acquired = Instant::now();
+            drop(usage);
+            Some(registry.acquire(*lane, acquired))
+        } else {
+            drop(usage);
+            None
+        };
         Ok(Arc::new(Lease {
             pool: self.clone(),
             principal: principal.clone(),
             bytes: AtomicUsize::new(self.max_body_bytes),
             submitted: AtomicBool::new(false),
+            trace,
         }))
     }
 
@@ -248,7 +283,22 @@ impl Lease {
             .expect("live intake tenant")
             .bytes -= refund;
         self.bytes.store(actual, Ordering::Relaxed);
+        drop(usage);
+        if let Some(trace) = &self.trace {
+            trace.body_ready();
+        }
         Ok(())
+    }
+
+    pub(crate) fn trace(&self) -> Option<&Trace> {
+        self.trace.as_ref()
+    }
+
+    /// This boundary may precede worker return when the HTTP deadline wins.
+    pub(crate) fn http_response_ready(&self) {
+        if let Some(trace) = &self.trace {
+            trace.http_response_ready();
+        }
     }
 
     pub(crate) fn claim(&self, principal: &Principal, admission: &str) -> Result<(), Failure> {
@@ -278,6 +328,11 @@ impl Drop for Lease {
         current.bytes -= bytes;
         if current.requests == 0 {
             usage.tenants.remove(&tenant);
+        }
+        if let Some(trace) = &self.trace {
+            let released = Instant::now();
+            drop(usage);
+            trace.finish(released);
         }
     }
 }

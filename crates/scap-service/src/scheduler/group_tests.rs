@@ -59,6 +59,27 @@ fn job(number: u64) -> (Job, oneshot::Receiver<Result<Value, Failure>>) {
     )
 }
 
+fn diagnostic_intake(registry: &Arc<crate::lifecycle::Registry>) -> Arc<crate::intake::Intake> {
+    Arc::new(
+        crate::intake::Intake::new(crate::intake::Class::Data, 8, 4096, None)
+            .unwrap()
+            .with_lifecycle(registry.clone(), crate::lifecycle::Lane::Data)
+            .unwrap(),
+    )
+}
+
+fn traced_job(
+    number: u64,
+    intake: &Arc<crate::intake::Intake>,
+) -> (Job, oneshot::Receiver<Result<Value, Failure>>) {
+    let (mut job, receiver) = job(number);
+    let lease = intake.acquire(&job.principal).unwrap();
+    lease.shrink_body(0).unwrap();
+    job._reservation = Some(lease);
+    job.enqueued();
+    (job, receiver)
+}
+
 fn registered(jobs: impl IntoIterator<Item = Job>) -> Arc<Shared> {
     let mut usage = Usage::default();
     let mut queue = DatabaseQueue::default();
@@ -330,6 +351,111 @@ fn consumed_prefix_refunds_only_itself_and_suffix_precedes_new_arrivals_without_
     drop((batch, replies, arrival_reply));
 }
 
+#[test]
+fn lifecycle_only_attributes_the_trusted_prefix_and_keeps_the_suffix_original_queue_time() {
+    let registry = Arc::new(crate::lifecycle::Registry::new());
+    let intake = diagnostic_intake(&registry);
+    let (jobs, mut replies): (Vec<_>, Vec<_>) =
+        (1..=3).map(|number| traced_job(number, &intake)).unzip();
+    let shared = registered(jobs);
+    let mut selected = batch(take(&shared, Some(profile())));
+    selected.run(&mut Prefix {
+        consumed: 2,
+        fail_last: true,
+    });
+    assert_eq!(
+        replies.remove(0).blocking_recv().unwrap().unwrap(),
+        json!(1)
+    );
+    assert_eq!(
+        replies.remove(0).blocking_recv().unwrap().unwrap_err().code,
+        "ENGINE"
+    );
+    let prefix = registry.snapshot();
+    assert!(prefix.valid);
+    assert_eq!(
+        (prefix.lanes[0].released.0, prefix.lanes[0].active.0),
+        (2, 1)
+    );
+    assert_eq!(prefix.groups.attempts.0, 1);
+    assert_eq!(prefix.groups.selected.0, 3);
+    assert_eq!(prefix.groups.consumed.0, 2);
+    assert_eq!(prefix.groups.selected_sizes[2].0, 1);
+    assert_eq!(prefix.groups.consumed_sizes[1].0, 1);
+    assert_eq!(prefix.lanes[0].intervals[3].distribution.completed.0, 2);
+    assert_eq!(
+        prefix.lanes[0].intervals[3].distribution.total_us.0,
+        2 * prefix.groups.duration.total_us.0
+    );
+    assert_eq!(queued(&shared), vec![3]);
+    let Work::Single(suffix) = take(&shared, None) else {
+        panic!("the suffix must remain unstarted")
+    };
+    SingleWorker::new(Box::new(Legacy(Arc::new(AtomicUsize::new(0))))).execute(suffix);
+    assert_eq!(
+        replies.remove(0).blocking_recv().unwrap().unwrap(),
+        json!(3)
+    );
+    let final_state = registry.snapshot();
+    assert!(final_state.valid, "requeue must not mark a second enqueue");
+    assert_eq!(
+        (
+            final_state.lanes[0].released.0,
+            final_state.lanes[0].active.0
+        ),
+        (3, 0)
+    );
+    assert_eq!(
+        final_state.lanes[0].intervals[1].distribution.completed.0,
+        3
+    );
+    assert_eq!(
+        final_state.lanes[0].intervals[2].distribution.completed.0,
+        3
+    );
+    assert_eq!(
+        final_state.lanes[0].intervals[3].distribution.completed.0,
+        3
+    );
+    assert_eq!(final_state.groups.attempts.0, 1);
+}
+
+#[test]
+fn an_unreserved_member_does_not_create_a_fictitious_intake_trace() {
+    for first_traced in [false, true] {
+        let registry = Arc::new(crate::lifecycle::Registry::new());
+        let intake = diagnostic_intake(&registry);
+        let (first, first_reply) = if first_traced {
+            traced_job(1, &intake)
+        } else {
+            job(1)
+        };
+        let (second, second_reply) = if first_traced {
+            job(2)
+        } else {
+            traced_job(2, &intake)
+        };
+        let shared = registered([first, second]);
+        batch(take(&shared, Some(profile()))).run(&mut Prefix {
+            consumed: 2,
+            fail_last: false,
+        });
+        first_reply.blocking_recv().unwrap().unwrap();
+        second_reply.blocking_recv().unwrap().unwrap();
+        let snapshot = registry.snapshot();
+        assert!(snapshot.valid);
+        assert_eq!(
+            (snapshot.groups.selected.0, snapshot.groups.consumed.0),
+            (2, 2)
+        );
+        assert_eq!(
+            (snapshot.lanes[0].acquired.0, snapshot.lanes[0].released.0),
+            (1, 1)
+        );
+        assert_eq!(snapshot.lanes[0].intervals[3].distribution.completed.0, 1);
+    }
+}
+
 struct Legacy(Arc<AtomicUsize>);
 impl Worker for Legacy {
     fn execute(&mut self, _: &Principal, call: Call, _: Instant) -> Result<Value, Failure> {
@@ -340,32 +466,68 @@ impl Worker for Legacy {
 
 #[test]
 fn legacy_decline_runs_only_the_original_head_and_preserves_unstarted_jobs() {
-    let count = Arc::new(AtomicUsize::new(0));
-    for ended in 0..3 {
-        let (first, first_reply) = job(1);
-        let (second, second_reply) = job(2);
-        let shared = registered([first, second]);
-        let mut batch = batch(take(&shared, Some(profile())));
-        let mut first_reply = Some(first_reply);
-        if ended == 1 {
-            drop(first_reply.take());
-        }
-        if ended == 2 {
-            batch.first.as_mut().unwrap().deadline = Instant::now();
-        }
-        batch.run(&mut Legacy(count.clone()));
-        if let Some(reply) = first_reply {
-            let result = reply.blocking_recv().unwrap();
-            if ended == 0 {
-                assert_eq!(result.unwrap(), json!(1));
+    for diagnostics in [false, true] {
+        let count = Arc::new(AtomicUsize::new(0));
+        for ended in 0..3 {
+            let registry = Arc::new(crate::lifecycle::Registry::new());
+            let intake = diagnostic_intake(&registry);
+            let (first, first_reply) = if diagnostics {
+                traced_job(1, &intake)
             } else {
-                assert_eq!(result.unwrap_err().code, "DEADLINE");
+                job(1)
+            };
+            let (second, second_reply) = if diagnostics {
+                traced_job(2, &intake)
+            } else {
+                job(2)
+            };
+            let shared = registered([first, second]);
+            let mut batch = batch(take(&shared, Some(profile())));
+            let mut first_reply = Some(first_reply);
+            if ended == 1 {
+                drop(first_reply.take());
             }
+            if ended == 2 {
+                batch.first.as_mut().unwrap().deadline = Instant::now();
+            }
+            batch.run(&mut Legacy(count.clone()));
+            if let Some(reply) = first_reply {
+                let result = reply.blocking_recv().unwrap();
+                if ended == 0 {
+                    assert_eq!(result.unwrap(), json!(1));
+                } else {
+                    assert_eq!(result.unwrap_err().code, "DEADLINE");
+                }
+            }
+            assert_eq!(count.load(Ordering::SeqCst), 1);
+            assert_eq!(queued(&shared), vec![2]);
+            assert_eq!(lock(&shared.state).usage.all.total, 1);
+            let snapshot = registry.snapshot();
+            assert!(snapshot.valid);
+            if diagnostics {
+                assert_eq!(
+                    (snapshot.groups.attempts.0, snapshot.groups.declined.0),
+                    (1, 1)
+                );
+                assert_eq!(snapshot.groups.duration.completed.0, 1);
+                assert_eq!(snapshot.groups.consumed.0, 0);
+                assert_eq!(
+                    (snapshot.lanes[0].released.0, snapshot.lanes[0].active.0),
+                    (1, 1)
+                );
+                assert_eq!(
+                    snapshot.lanes[0].intervals[3].distribution.completed.0,
+                    u64::from(ended == 0)
+                );
+                assert_eq!(
+                    snapshot.lanes[0].intervals[3].distribution.not_reached.0,
+                    u64::from(ended != 0)
+                );
+            } else {
+                assert_eq!(snapshot.groups.attempts.0, 0);
+            }
+            drop((batch, second_reply));
         }
-        assert_eq!(count.load(Ordering::SeqCst), 1);
-        assert_eq!(queued(&shared), vec![2]);
-        assert_eq!(lock(&shared.state).usage.all.total, 1);
-        drop((batch, second_reply));
     }
 }
 
@@ -401,8 +563,10 @@ fn invalid_worker_prefix_fails_closed_instead_of_requeuing_possibly_executed_mem
         }
     }
     for length in [0, 3] {
-        let (first, first_reply) = job(1);
-        let (second, second_reply) = job(2);
+        let registry = Arc::new(crate::lifecycle::Registry::new());
+        let intake = diagnostic_intake(&registry);
+        let (first, first_reply) = traced_job(1, &intake);
+        let (second, second_reply) = traced_job(2, &intake);
         let shared = registered([first, second]);
         let mut selected = batch(take(&shared, Some(profile())));
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
@@ -414,6 +578,13 @@ fn invalid_worker_prefix_fails_closed_instead_of_requeuing_possibly_executed_mem
         assert!(first_reply.blocking_recv().is_err());
         assert!(second_reply.blocking_recv().is_err());
         assert!(queued(&shared).is_empty());
+        let snapshot = registry.snapshot();
+        assert!(snapshot.valid);
+        assert_eq!(snapshot.groups.incomplete.0, 1);
+        assert_eq!(snapshot.groups.duration.censored.0, 1);
+        assert_eq!(snapshot.groups.consumed.0, 0);
+        assert_eq!(snapshot.lanes[0].intervals[2].distribution.censored.0, 2);
+        assert_eq!(snapshot.lanes[0].intervals[3].distribution.not_reached.0, 2);
     }
 }
 
@@ -424,6 +595,7 @@ fn panic_releases_group_credits_and_leases_only_after_worker_native_cleanup() {
         tests::{small_pool, usage},
         BASE_BYTES,
     };
+    let registry = Arc::new(crate::lifecycle::Registry::new());
     let intake = Arc::new(
         Intake::new(
             Class::Data,
@@ -436,6 +608,8 @@ fn panic_releases_group_credits_and_leases_only_after_worker_native_cleanup() {
                 body_bytes_per_tenant: 8192,
             }),
         )
+        .unwrap()
+        .with_lifecycle(registry.clone(), crate::lifecycle::Lane::Data)
         .unwrap(),
     );
     let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
@@ -447,7 +621,10 @@ fn panic_releases_group_credits_and_leases_only_after_worker_native_cleanup() {
         let output = pool.acquire(&job.principal, false).unwrap();
         job._output_hold = Some(output.work_hold());
         job.output = Some(output);
-        job._reservation = Some(intake.acquire(&job.principal).unwrap());
+        let lease = intake.acquire(&job.principal).unwrap();
+        lease.shrink_body(0).unwrap();
+        job._reservation = Some(lease);
+        job.enqueued();
         let (sender, receiver) = oneshot::channel();
         job.reply = Reply::Encoded(sender);
         jobs.push(job);
@@ -490,11 +667,31 @@ fn panic_releases_group_credits_and_leases_only_after_worker_native_cleanup() {
     assert_eq!(lock(&shared.state).usage.all.total, 2);
     assert_eq!(intake.available_permits(), 0);
     assert_eq!(usage(&pool).0, 2 * BASE_BYTES);
+    let during_cleanup = registry.snapshot();
     release.send(()).unwrap();
     assert!(child.join().is_err());
     assert_eq!(lock(&shared.state).usage.all.total, 0);
     assert_eq!(intake.available_permits(), 2);
     assert_eq!(usage(&pool), (0, 0, 0));
+    assert!(during_cleanup.valid);
+    assert_eq!(
+        (
+            during_cleanup.lanes[0].active.0,
+            during_cleanup.lanes[0].released.0
+        ),
+        (2, 0)
+    );
+    assert_eq!(during_cleanup.groups.incomplete.0, 1);
+    assert_eq!(during_cleanup.groups.duration.censored.0, 1);
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    assert_eq!(
+        (snapshot.lanes[0].active.0, snapshot.lanes[0].released.0),
+        (0, 2)
+    );
+    assert_eq!(snapshot.lanes[0].intervals[2].distribution.censored.0, 2);
+    assert_eq!(snapshot.lanes[0].intervals[3].distribution.not_reached.0, 2);
+    assert_eq!(snapshot.groups.consumed.0, 0);
     for reply in replies {
         assert!(reply.blocking_recv().is_err());
     }

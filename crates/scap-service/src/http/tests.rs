@@ -64,6 +64,7 @@ pub(super) fn state() -> Arc<HttpState> {
     );
     Arc::new(HttpState {
         resource_diagnostics: false,
+        lifecycle_diagnostics: None,
         auth,
         scheduler,
         output: Arc::new(crate::output::Pool::new(crate::output::Profile::default()).unwrap()),

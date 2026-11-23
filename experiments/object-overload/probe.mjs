@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync,
   rmdirSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { setTimeout as delay } from 'node:timers/promises';
 import { runArrivals } from './schedule.mjs';
+import { until } from './arrival_clock.mjs';
 
 const [phase, configPath, directory] = process.argv.slice(2);
 const config = JSON.parse(readFileSync(configPath));
@@ -155,10 +155,6 @@ async function invoke(call, scheduled) {
       posts: context.getStore().posts });
     if (failure && phase !== 'overload') failures++;
   });
-}
-
-async function until(target) {
-  while (now() < target) await delay(Math.max(1, Number(target - now()) / 1e6));
 }
 
 const started = now();

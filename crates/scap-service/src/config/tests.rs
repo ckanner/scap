@@ -7,6 +7,49 @@ fn parsed(value: serde_json::Value) -> Config {
 }
 
 #[test]
+fn lifecycle_profile_is_optional_strict_and_validated_before_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut value = sample_config(directory.path());
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .lifecycle_diagnostics
+        .is_none());
+    let profile = json!({"version":1,"token_sha256":"d".repeat(64)});
+    value["lifecycle_diagnostics"] = profile.clone();
+    assert!(parsed(value.clone())
+        .prepare_with(&environment)
+        .unwrap()
+        .service
+        .lifecycle_diagnostics
+        .is_some());
+    for invalid in [
+        json!({"version":2,"token_sha256":"d".repeat(64)}),
+        json!({"version":1,"token_sha256":"D".repeat(64)}),
+    ] {
+        value["lifecycle_diagnostics"] = invalid;
+        assert_eq!(
+            parsed(value.clone())
+                .prepare_with(&|_| panic!("diagnostics validated before credentials"))
+                .err()
+                .unwrap()
+                .code,
+            "CONFIG"
+        );
+    }
+    for invalid in [
+        json!(true),
+        json!({"version":1}),
+        json!({"token_sha256":"d".repeat(64)}),
+        json!({"version":1,"token_sha256":"d".repeat(64),"unknown":1}),
+    ] {
+        value["lifecycle_diagnostics"] = invalid;
+        assert!(Config::parse(value.to_string().as_bytes()).is_err());
+    }
+}
+
+#[test]
 fn anonymous_resource_diagnostics_are_explicit_boolean_opt_in() {
     let directory = tempfile::tempdir().unwrap();
     let mut value = sample_config(directory.path());

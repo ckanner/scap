@@ -9,7 +9,7 @@ SCAP 面向大量独立租户／Agent 数据库：数据库页面、原请求结
 最新审查：2026-11-22（纽约）。[PR #65](https://github.com/ckanner/scap/pull/65)、
 [PR #66](https://github.com/ckanner/scap/pull/66)、[PR #67](https://github.com/ckanner/scap/pull/67)、
 [PR #68](https://github.com/ckanner/scap/pull/68) 和 [PR #69](https://github.com/ckanner/scap/pull/69)
-均已合并；本轮基准主线为
+均已合并；#69 阶段的基准主线为
 [`d066354`](https://github.com/ckanner/scap/commit/d06635484f51d191d2f499e23860b0ffe4ce02e1)。
 #67 的参数绑定优化与复核已完成独立验收；该 PR 最终候选的 6 个工作流、24 个 job
 全部成功，来源见[上轮复核](docs/engineering/sqlite-s3-review-2026-11-20.md)。
@@ -44,6 +44,18 @@ HTTP/进程 21 项，以及真实组提交、640／3,072 到达的原字节审�
 积压。保持 group 默认关闭和现有额度，下一步采用相同 seed 起点并测生命周期。
 本轮完整正负结果、CI 归属和范围见[接续验证](docs/engineering/admission-diagnostics-validation-2026-11-22.md)，
 后续合同见[容量与生命周期设计](docs/engineering/admission-capacity-next.md)。
+
+#70 已合并为主线 `20a72da`。[PR #71](https://github.com/ckanner/scap/pull/71) 先提交
+[生命周期设计](docs/architecture/admission-lifecycle-diagnostics.md)，再实现默认关闭的
+五 lane、八 interval 有界观测与独立凭证导出。生产冻结点 b7 完成1020项单位、85个
+Rust文件逐文件四维精确100%，以及真实生命周期和原组提交故障回归；后续夹具修复未改
+生产字节。bd8 的新八轮相同seed实际、原字节审计和22项负控已通过，5632个测量请求
+得到2383 ACK、3249 BP；四个固定配对仅一个满足全部改善条件，group继续默认关闭。
+原失败、各来源、队列/持有时间、完整成本与观察器扰动见
+[本轮验证台账](docs/engineering/admission-lifecycle-validation-2026-11-22.md)。
+#71 的到达时钟修复另在5e4候选完成原1140到达、完整原件审计与18负控；原64并发和
+全部门槛未改。完整本地结果与远端各次来源分别记账，保留旧失败；PR合并和远端检查
+的最终状态见 [#71](https://github.com/ckanner/scap/pull/71)。
 
 #66 的冻结验收包含 stable/nightly 各 911 项单位、77 个 Rust 生产文件逐文件四维
 精确 100%，以及读池、动态 fleet、内核资源、固定开环过载四项实际合同。

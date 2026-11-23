@@ -6,10 +6,118 @@ import struct
 import unittest
 
 import oracle
+import controls
 from spec import SCOPES, UNKNOWN_SQL
 
 
+def captured(event, value, at):
+    raw = controls.encoded(value) + b'\n'
+    return {'event': event, 'monotonic_ns': at, 'raw': base64.b64encode(raw).decode(),
+            'sha256': hashlib.sha256(raw).hexdigest()}
+
+
+def window_case():
+    calls = {
+        'body_held': {'response': {'monotonic_ns': 50}},
+        'body_after': {'request': {'monotonic_ns': 90}},
+        'timeout_execute': {'response': {'monotonic_ns': 110}},
+        'timeout_control': {'response': {'monotonic_ns': 145}},
+        'after_worker': {'request': {'monotonic_ns': 190}},
+        'response_held': {'headers': {'monotonic_ns': 210}, 'response': {'monotonic_ns': 250}},
+        'response_after': {'request': {'monotonic_ns': 290}, 'response': {'monotonic_ns': 310}},
+    }
+    rows = [{'event': 'http_body_sent', 'id': 'body_held', 'monotonic_ns': 10},
+            {'event': 'http_body_completed', 'id': 'body_held', 'monotonic_ns': 40}]
+    for phase, at in (('body-held', 20), ('body-released', 60), ('after-http-timeout', 120),
+                      ('worker-released', 170), ('slow-response', 220), ('response-released', 260), ('final', 320)):
+        label = phase + '-0'
+        rows.append(captured('operator_command', {'operation': 'observe', 'id': label}, at))
+        rows.append(captured('worker_event', {'event': 'admission_observed', 'fields': {
+            'id': label, 'data_available': 1 if phase in ('body-held', 'after-http-timeout', 'slow-response') else 2,
+            'control_available': 2, 'recovery_available': 2, 'lifecycle': {}}}, at + 1))
+    rows.append(captured('operator_command', {'operation': 'shutdown', 'id': 'shutdown'}, 350))
+    return sorted(rows, key=lambda row: row['monotonic_ns']), calls, {'monotonic_ns': 160}, {'monotonic_ns': 150}
+
+
+def check_windows(rows, calls, complete, release):
+    originals = [row for row in rows if row['event'] == 'worker_event']
+    events = [oracle.parse(oracle.raw(row, 'raw')) for row in originals]
+    return oracle.observation_windows(rows, calls, originals, events, complete, release)
+
+
 class ObservationValidation(unittest.TestCase):
+    def test_all_original_observation_commands_are_bound_to_external_phase_windows(self):
+        check_windows(*window_case())
+
+    def test_swapped_phase_labels_are_rejected_even_with_matching_original_commands(self):
+        rows, *rest = window_case()
+        controls.mutation('lifecycle-swapped-held-phases', rows)
+        with self.assertRaisesRegex(ValueError, 'outside phase window'):
+            check_windows(rows, *rest)
+
+    def test_missing_duplicate_or_unmatched_observations_do_not_pass_as_proof(self):
+        for mutation in ('missing-command', 'missing-observation', 'duplicate-command', 'duplicate-observation', 'unmatched'):
+            rows, *rest = window_case()
+            if mutation == 'unmatched':
+                controls.mutation('lifecycle-unmatched-observation', rows)
+            else:
+                event = 'operator_command' if mutation.endswith('command') else 'worker_event'
+                selected = next(row for row in rows if row['event'] == event)
+                if mutation.startswith('missing'):
+                    rows.remove(selected)
+                else:
+                    rows.append(copy.deepcopy(selected))
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                check_windows(rows, *rest)
+
+    def test_each_poll_index_starts_at_zero_and_cannot_skip_or_reorder(self):
+        for label in ('body-held-1', 'body-held-00', 'body-held-100', 'unknown-0'):
+            rows, *rest = window_case()
+            for row in rows:
+                if row['event'] == 'operator_command' and oracle.parse(oracle.raw(row, 'raw')).get('id') == 'body-held-0':
+                    controls.worker(row, lambda value: value.update(id=label))
+                elif row['event'] == 'worker_event' and oracle.parse(oracle.raw(row, 'raw'))['fields']['id'] == 'body-held-0':
+                    controls.worker(row, lambda value: value['fields'].update(id=label))
+            with self.subTest(label=label), self.assertRaises(ValueError):
+                check_windows(rows, *rest)
+
+    def test_observation_cannot_precede_its_command_or_borrow_a_later_release_window(self):
+        for phase, too_early, too_late in (('body-held', 10, 40), ('body-released', 50, 90),
+                ('after-http-timeout', 110, 150), ('worker-released', 160, 190),
+                ('slow-response', 210, 250), ('response-released', 250, 290), ('final', 310, 350)):
+            for boundary in ('early', 'late', 'before-command'):
+                rows, *rest = window_case()
+                command = next(row for row in rows if row['event'] == 'operator_command'
+                               and oracle.parse(oracle.raw(row, 'raw')).get('id') == phase + '-0')
+                observation = next(row for row in rows if row['event'] == 'worker_event'
+                                   and oracle.parse(oracle.raw(row, 'raw'))['fields']['id'] == phase + '-0')
+                if boundary == 'early':
+                    command['monotonic_ns'] = too_early
+                elif boundary == 'late':
+                    observation['monotonic_ns'] = too_late
+                else:
+                    observation['monotonic_ns'] = command['monotonic_ns']
+                with self.subTest(phase=phase, boundary=boundary), self.assertRaisesRegex(ValueError, 'outside phase window'):
+                    check_windows(rows, *rest)
+
+    def test_intermediate_polls_keep_their_real_quota_snapshot_without_forcing_an_atomic_read(self):
+        rows, *rest = window_case()
+        for row in rows:
+            if row['event'] == 'operator_command' and oracle.parse(oracle.raw(row, 'raw')).get('id') == 'body-released-0':
+                extra = copy.deepcopy(row)
+                controls.worker(extra, lambda value: value.update(id='body-released-1'))
+                extra['monotonic_ns'] += 2
+                rows.append(extra)
+                break
+        observation = next(row for row in rows if row['event'] == 'worker_event'
+                           and oracle.parse(oracle.raw(row, 'raw'))['fields']['id'] == 'body-released-0')
+        extra = copy.deepcopy(observation)
+        controls.worker(extra, lambda value: value['fields'].update(id='body-released-1'))
+        extra['monotonic_ns'] += 2
+        rows.append(extra)
+        rows.sort(key=lambda row: row['monotonic_ns'])
+        check_windows(rows, *rest)
+
     @staticmethod
     def startup_events():
         listening = b'{"event":"listening","fields":{"address":"127.0.0.1:1"}}'

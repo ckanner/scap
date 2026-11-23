@@ -108,6 +108,312 @@ fn encoded_job(
     (job, receiver)
 }
 
+fn diagnostic_intake(
+    registry: &Arc<crate::lifecycle::Registry>,
+    class: crate::intake::Class,
+    lane: crate::lifecycle::Lane,
+) -> Arc<crate::intake::Intake> {
+    Arc::new(
+        crate::intake::Intake::new(class, 8, 4096, None)
+            .unwrap()
+            .with_lifecycle(registry.clone(), lane)
+            .unwrap(),
+    )
+}
+
+fn diagnostic_lease(intake: &Arc<crate::intake::Intake>) -> Arc<crate::intake::Lease> {
+    let lease = intake.acquire(&principal()).unwrap();
+    lease.shrink_body(0).unwrap();
+    lease
+}
+
+#[test]
+fn lifecycle_tracks_the_original_enqueue_and_invocation_in_all_scheduler_lanes() {
+    use crate::intake::Class;
+    use crate::lifecycle::{Lane, Registry};
+    use crate::output::{tests::small_pool, BASE_BYTES};
+
+    struct BudgetEcho;
+    impl Worker for BudgetEcho {
+        fn execute(&mut self, _: &Principal, _: Call, _: Instant) -> Result<Value, Failure> {
+            unreachable!("the original output context must be retained")
+        }
+        fn execute_budgeted(
+            &mut self,
+            _: &Principal,
+            _: Call,
+            _: Instant,
+            _: &mut crate::output::OutputContext,
+        ) -> Result<Value, Failure> {
+            Ok(json!(true))
+        }
+    }
+    let registry = Arc::new(Registry::new());
+    let intake = diagnostic_intake(&registry, Class::Data, Lane::Data);
+    let controls = diagnostic_intake(&registry, Class::Control, Lane::Control);
+    let output = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
+    let scheduler = Scheduler::with_read_pool(
+        limits(),
+        Some(ReadPool {
+            workers: 1,
+            active_per_tenant: 1,
+            active_per_database: 1,
+        }),
+        Arc::new(|_| Ok(Box::new(BudgetEcho))),
+    )
+    .unwrap();
+    for call in [
+        data(10, Action::Create { nonce: Decimal(1) }),
+        data(10, Action::Create { nonce: Decimal(2) }),
+        data(
+            10,
+            Action::Status {
+                expected_worker_instance: None,
+            },
+        ),
+        query(10),
+    ] {
+        let control = call.action.admission() == "control";
+        let lease = diagnostic_lease(if control { &controls } else { &intake });
+        let reply = scheduler
+            .submit_encoded(
+                principal(),
+                call,
+                until(),
+                lease,
+                output.acquire(&principal(), control).unwrap(),
+            )
+            .unwrap()
+            .blocking_recv()
+            .unwrap();
+        assert_eq!(reply.status, axum::http::StatusCode::OK);
+    }
+    drop(scheduler);
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    for (index, count) in [(0, 3), (1, 1)] {
+        let lane = snapshot.lanes[index];
+        assert_eq!(
+            (lane.acquired.0, lane.released.0, lane.active.0),
+            (count, count, 0)
+        );
+        for interval in [0, 1, 2, 3, 4, 5, 7] {
+            assert_eq!(lane.intervals[interval].distribution.completed.0, count);
+        }
+        assert_eq!(lane.intervals[6].distribution.not_reached.0, count);
+    }
+}
+
+#[test]
+fn lifecycle_does_not_turn_claim_or_rejected_admission_into_enqueue() {
+    use crate::intake::Class;
+    use crate::lifecycle::{Lane, Registry};
+    use crate::output::{tests::small_pool, BASE_BYTES};
+    let registry = Arc::new(Registry::new());
+    let intake = diagnostic_intake(&registry, Class::Data, Lane::Data);
+    let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
+    let scheduler = Scheduler::new(limits(), factory()).unwrap();
+    for (deadline, wrong_output, closed, expected) in [
+        (until(), true, false, "DENIED"),
+        (Instant::now(), false, false, "DEADLINE"),
+        (until(), false, true, "UNAVAILABLE"),
+    ] {
+        if closed {
+            scheduler.shared.close();
+        }
+        let error = scheduler
+            .submit_encoded(
+                principal(),
+                query(3),
+                deadline,
+                diagnostic_lease(&intake),
+                pool.acquire(&principal(), wrong_output).unwrap(),
+            )
+            .err()
+            .unwrap();
+        assert_eq!(error.code, expected);
+    }
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    let lane = snapshot.lanes[0];
+    assert_eq!((lane.acquired.0, lane.released.0, lane.active.0), (3, 3, 0));
+    assert_eq!(lane.intervals[1].distribution.censored.0, 3);
+    for interval in [2, 3, 4, 5, 6] {
+        assert_eq!(lane.intervals[interval].distribution.not_reached.0, 3);
+    }
+}
+
+#[test]
+fn lifecycle_keeps_skipped_invocations_separate_from_failure_encoding() {
+    use crate::intake::Class;
+    use crate::lifecycle::{Lane, Registry};
+    use crate::output::{tests::small_pool, BASE_BYTES};
+    let registry = Arc::new(Registry::new());
+    let intake = diagnostic_intake(&registry, Class::Data, Lane::Data);
+    let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
+    let mut worker = SingleWorker::new(Box::new(Echo::new(0)));
+    for kind in ["disconnected", "expired", "closed"] {
+        let (mut job, receiver) = encoded_job(&pool, until());
+        job._reservation = Some(diagnostic_lease(&intake));
+        job.enqueued();
+        match kind {
+            "disconnected" => {
+                drop(receiver);
+                worker.execute(job);
+            }
+            "expired" => {
+                job.deadline = Instant::now();
+                worker.execute(job);
+                assert!(receiver.blocking_recv().is_err());
+            }
+            _ => {
+                job.fail(Failure::new("UNAVAILABLE"));
+                assert_eq!(
+                    receiver.blocking_recv().unwrap().status,
+                    axum::http::StatusCode::SERVICE_UNAVAILABLE
+                );
+            }
+        }
+    }
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    let lane = snapshot.lanes[0];
+    assert_eq!(lane.released.0, 3);
+    assert_eq!(lane.intervals[2].distribution.censored.0, 3);
+    assert_eq!(lane.intervals[3].distribution.not_reached.0, 3);
+    assert_eq!(lane.intervals[4].distribution.completed.0, 2);
+    assert_eq!(lane.intervals[4].distribution.not_reached.0, 1);
+    assert_eq!(lane.intervals[5].distribution.completed.0, 2);
+}
+
+#[test]
+fn lifecycle_records_the_actual_encoding_return_for_limit_cbu_and_no_reply() {
+    use crate::intake::Class;
+    use crate::lifecycle::{Lane, Registry};
+    use crate::output::{
+        tests::{receipt, small_pool},
+        BASE_BYTES,
+    };
+    let registry = Arc::new(Registry::new());
+    let intake = diagnostic_intake(&registry, Class::Data, Lane::Data);
+    let pool = small_pool(2 * BASE_BYTES, BASE_BYTES);
+    for (committed, expired) in [(false, false), (true, false), (false, true)] {
+        let lease = diagnostic_lease(&intake);
+        let mut context = pool.acquire(&principal(), false).unwrap();
+        if committed {
+            context.committed(receipt());
+        }
+        let value = crate::output::OwnedValue::new(Ok(json!("x".repeat(4 * BASE_BYTES))), context);
+        let (sender, receiver) = oneshot::channel();
+        finish_encoded(
+            sender,
+            value,
+            if expired { Instant::now() } else { until() },
+            Some(&lease),
+        );
+        if expired {
+            assert!(receiver.blocking_recv().is_err());
+        } else {
+            let reply = receiver.blocking_recv().unwrap();
+            let envelope: Value = serde_json::from_slice(&reply.bytes).unwrap();
+            assert_eq!(
+                envelope["error"]["code"],
+                if committed {
+                    "COMMITTED_BUT_UNAVAILABLE"
+                } else {
+                    "LIMIT"
+                }
+            );
+        }
+        drop(lease);
+    }
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    let lane = snapshot.lanes[0];
+    assert_eq!(lane.intervals[3].distribution.not_reached.0, 3);
+    assert_eq!(lane.intervals[4].distribution.completed.0, 3);
+    assert_eq!(lane.intervals[5].distribution.completed.0, 3);
+    assert_eq!(lane.active.0, 0);
+}
+
+#[test]
+fn shutdown_releases_queue_locks_before_the_last_lease_aggregates() {
+    use crate::intake::Class;
+    use crate::lifecycle::{Lane, Registry};
+    for lane in ["actor", "control", "reader", "all"] {
+        let registry = Arc::new(Registry::new());
+        let intake = diagnostic_intake(&registry, Class::Data, Lane::Data);
+        let (mut pending, receiver) = job(2, 3, 1, false);
+        pending._reservation = Some(diagnostic_lease(&intake));
+        pending.enqueued();
+        let key = pending.key.clone();
+        let mut state = State {
+            closed: false,
+            actors: BTreeMap::new(),
+            controls: vec![Control::default()],
+            readers: Readers {
+                live: 1,
+                ..Readers::default()
+            },
+            usage: Usage::default(),
+        };
+        state.usage.add(&pending);
+        match lane {
+            "actor" | "all" => {
+                let mut jobs = DatabaseQueue::default();
+                jobs.push(pending);
+                state.actors.insert(
+                    key.clone(),
+                    Actor {
+                        slot: 0,
+                        tenant: (1, 2),
+                        phase: Phase::Running,
+                        jobs,
+                        changed: Arc::new(Condvar::new()),
+                        thread: None,
+                    },
+                );
+            }
+            "control" => state.controls[0].queue.push(pending),
+            _ => state.readers.queue.push(pending),
+        }
+        let shared = Arc::new(Shared {
+            state: Mutex::new(state),
+            reaping: Condvar::new(),
+        });
+        let guard = crate::lifecycle::tests::hold_aggregation(&registry);
+        let closing = shared.clone();
+        let thread = std::thread::spawn(move || match lane {
+            "actor" => closing.close_actor(&key),
+            "control" => closing.close_control(0),
+            "reader" => closing.close_reader(),
+            _ => closing.close(),
+        });
+        let result = receiver.blocking_recv().unwrap();
+        let observed = shared
+            .state
+            .try_lock()
+            .map(|state| {
+                let closed = match lane {
+                    "actor" => state.actors.values().next().unwrap().phase == Phase::Draining,
+                    "control" => state.controls[0].closed,
+                    "reader" => state.readers.closed,
+                    _ => state.closed,
+                };
+                (closed, state.usage.all.total)
+            })
+            .ok();
+        // Unblock aggregation before assertions so a regression cannot leave
+        // a thread stranded while the test unwinds.
+        drop(guard);
+        thread.join().unwrap();
+        assert_eq!(result.unwrap_err().code, "UNAVAILABLE");
+        assert_eq!(observed, Some((true, 0)), "{lane}");
+        assert_eq!(intake.available_permits(), 8);
+        assert_eq!(registry.snapshot().lanes[0].released.0, 1);
+    }
+}
+
 #[test]
 fn encoded_jobs_validate_identity_and_never_fall_back_to_an_unbudgeted_worker() {
     use crate::intake::{Class, Intake};
@@ -821,6 +1127,7 @@ fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_la
 
     for (lane, index) in [("actor", 0), ("control", 2), ("reader", 3)] {
         for disconnected in [false, true] {
+            let registry = Arc::new(crate::lifecycle::Registry::new());
             let (entered, started) = mpsc::sync_channel(1);
             let (panic_now, panic_receiver) = mpsc::sync_channel(1);
             let (dropping, drop_started) = mpsc::sync_channel(1);
@@ -857,6 +1164,15 @@ fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_la
                     4096,
                     None,
                 )
+                .unwrap()
+                .with_lifecycle(
+                    registry.clone(),
+                    if control {
+                        crate::lifecycle::Lane::Control
+                    } else {
+                        crate::lifecycle::Lane::Data
+                    },
+                )
                 .unwrap(),
             );
             let pool = small_pool(4 * BASE_BYTES, 4 * BASE_BYTES);
@@ -875,7 +1191,7 @@ fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_la
                     principal(),
                     call,
                     until(),
-                    intake.acquire(&principal()).unwrap(),
+                    diagnostic_lease(&intake),
                     pool.acquire(&principal(), control).unwrap(),
                 )
                 .unwrap();
@@ -891,6 +1207,7 @@ fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_la
             let permits_during_cleanup = intake.available_permits();
             let output_during_cleanup = usage(&pool);
             let read_credits_during_cleanup = lock(&scheduler.shared.state).readers.tenants.len();
+            let diagnostic_during_cleanup = registry.snapshot();
             cleanup.send(()).unwrap();
             drop(scheduler);
             if let Some(receiver) = receiver {
@@ -908,6 +1225,17 @@ fn single_request_panic_keeps_intake_and_output_until_worker_cleanup_in_every_la
             assert_eq!(read_credits_during_cleanup, usize::from(lane == "reader"));
             assert_eq!(intake.available_permits(), 1);
             assert_eq!(usage(&pool), (0, 0, 0));
+            let lane_index = usize::from(control);
+            assert_eq!(diagnostic_during_cleanup.lanes[lane_index].active.0, 1);
+            assert_eq!(diagnostic_during_cleanup.lanes[lane_index].released.0, 0);
+            let snapshot = registry.snapshot();
+            assert!(snapshot.valid);
+            let observed = snapshot.lanes[lane_index];
+            assert_eq!((observed.active.0, observed.released.0), (0, 1));
+            assert_eq!(observed.intervals[2].distribution.completed.0, 1);
+            assert_eq!(observed.intervals[3].distribution.censored.0, 1);
+            assert_eq!(observed.intervals[4].distribution.not_reached.0, 1);
+            assert_eq!(observed.intervals[5].distribution.not_reached.0, 1);
         }
     }
 }

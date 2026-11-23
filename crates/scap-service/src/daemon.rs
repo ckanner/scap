@@ -14,11 +14,15 @@ use crate::{
     engine::{Collector, Engine},
     http::{self, CatalogueState, HttpState, RestoreState},
     intake::{Class, Intake},
+    lifecycle::Lane,
+    lifecycle_export::Diagnostics,
     scheduler::{Factory, Scheduler},
     Failure,
 };
 
 pub type Shutdown = std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
+
+type IntakeObserver = fn(Intake, &Option<Arc<Diagnostics>>, Lane) -> Result<Intake, Failure>;
 
 /// Resolved identity and service state. Claim success is not listener readiness
 /// or database ownership; callers still bind the listener and perform owner
@@ -75,12 +79,14 @@ pub fn assemble_identified(
         garbage,
         crate::catalogue_scheduler::Scheduler::new,
         PreparedDiscovery::bind,
+        observe_intake,
     )
 }
 
 /// Keep validation and durable claim ordering unchanged when testing a
-/// post-claim thread creation failure. Only the catalogue construction effect
-/// varies; public assembly always uses the real constructor.
+/// post-claim thread creation failure or pre-claim observer setup failure.
+/// Public assembly always supplies the real constructors; these ports let
+/// tests verify that each pool failure consumes no permanent identity.
 fn assemble_using(
     prepared: ServiceConfig,
     objects: Arc<dyn Objects>,
@@ -94,8 +100,13 @@ fn assemble_using(
         PreparedDiscovery,
         u64,
     ) -> Result<Arc<crate::discovery_cursor::CursorCodec>, Failure>,
+    observe_intake: IntakeObserver,
 ) -> Result<Assembly, Failure> {
     prepared.transport.checked()?;
+    let lifecycle_diagnostics = match &prepared.lifecycle_diagnostics {
+        Some(profile) => Some(Arc::new(Diagnostics::new(profile)?)),
+        None => None,
+    };
     crate::resource_envelope::admit(
         prepared.resource_envelope.as_ref(),
         &prepared.cache_directory,
@@ -108,7 +119,9 @@ fn assemble_using(
             if prepared.catalogue.is_none() {
                 return Err(Failure::new("CONFIG"));
             }
-            Some(restore.prepare()?)
+            let mut profile = restore.prepare()?;
+            profile.intake = observe_intake(profile.intake, &lifecycle_diagnostics, Lane::Restore)?;
+            Some(profile)
         }
         None => None,
     };
@@ -135,28 +148,44 @@ fn assemble_using(
     }
     scap_object_sqlite::validate_cache_directory(&prepared.cache_directory)
         .map_err(|_| Failure::new("CACHE_IO"))?;
-    let intake = Arc::new(Intake::new(
-        Class::Data,
-        admission.data_intake,
-        admission.max_body_bytes,
-        admission.data_profile,
+    let intake = Arc::new(observe_intake(
+        Intake::new(
+            Class::Data,
+            admission.data_intake,
+            admission.max_body_bytes,
+            admission.data_profile,
+        )?,
+        &lifecycle_diagnostics,
+        Lane::Data,
     )?);
-    let control_intake = Arc::new(Intake::new(
-        Class::Control,
-        admission.control_intake,
-        admission.max_body_bytes,
-        admission.control_profile,
+    let control_intake = Arc::new(observe_intake(
+        Intake::new(
+            Class::Control,
+            admission.control_intake,
+            admission.max_body_bytes,
+            admission.control_profile,
+        )?,
+        &lifecycle_diagnostics,
+        Lane::Control,
     )?);
-    let recovery_intake = Arc::new(Intake::new(
-        Class::Recovery,
-        admission.recovery_intake,
-        admission.max_body_bytes,
-        admission.recovery_profile,
+    let recovery_intake = Arc::new(observe_intake(
+        Intake::new(
+            Class::Recovery,
+            admission.recovery_intake,
+            admission.max_body_bytes,
+            admission.recovery_profile,
+        )?,
+        &lifecycle_diagnostics,
+        Lane::Recovery,
     )?);
     let catalogue_intake = match &prepared.catalogue {
         Some(admission) => {
             admission.limits().validate()?;
-            Some(Arc::new(admission.build_intake()?))
+            Some(Arc::new(observe_intake(
+                admission.build_intake()?,
+                &lifecycle_diagnostics,
+                Lane::Catalogue,
+            )?))
         }
         None => None,
     };
@@ -297,6 +326,7 @@ fn assemble_using(
             scheduler,
             output,
             resource_diagnostics: prepared.resource_diagnostics,
+            lifecycle_diagnostics,
             catalogue,
             restore,
             discovery,
@@ -308,6 +338,17 @@ fn assemble_using(
             recovery_intake,
         }),
     })
+}
+
+fn observe_intake(
+    intake: Intake,
+    diagnostics: &Option<Arc<Diagnostics>>,
+    lane: Lane,
+) -> Result<Intake, Failure> {
+    match diagnostics {
+        Some(diagnostics) => intake.with_lifecycle(diagnostics.registry.clone(), lane),
+        None => Ok(intake),
+    }
 }
 
 pub fn serve(prepared: Prepared, shutdown: Shutdown) -> Result<(), Failure> {

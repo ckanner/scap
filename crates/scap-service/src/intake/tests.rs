@@ -384,3 +384,177 @@ fn simultaneous_authenticated_intake_never_exceeds_the_global_reservation() {
     assert_eq!(pool.available_permits(), 4);
     assert!(pool.usage.lock().unwrap().tenants.is_empty());
 }
+
+#[test]
+fn lifecycle_is_optional_and_only_the_existing_class_can_select_its_fixed_lane() {
+    let registry = Arc::new(Registry::new());
+    let disabled = pool(2, 2, 2048, 2048);
+    let lease = disabled.acquire(&principal()).unwrap();
+    assert!(lease.trace().is_none());
+    lease.http_response_ready();
+    drop(lease);
+    for class in [
+        Class::Data,
+        Class::Control,
+        Class::Recovery,
+        Class::Catalogue,
+    ] {
+        for lane in [
+            Lane::Data,
+            Lane::Control,
+            Lane::Recovery,
+            Lane::Catalogue,
+            Lane::Restore,
+        ] {
+            let expected = matches!(
+                (class, lane),
+                (Class::Data, Lane::Data)
+                    | (Class::Control, Lane::Control)
+                    | (Class::Recovery, Lane::Recovery | Lane::Restore)
+                    | (Class::Catalogue, Lane::Catalogue)
+            );
+            let configured = Intake::new(class, 1, 1024, None)
+                .unwrap()
+                .with_lifecycle(registry.clone(), lane);
+            assert_eq!(configured.is_ok(), expected);
+            if let Ok(configured) = configured {
+                let pool = Arc::new(configured);
+                let lease = pool.acquire(&principal()).unwrap();
+                assert!(lease.trace().is_some());
+                drop(lease);
+            } else {
+                assert_eq!(configured.err().unwrap().code, "CONFIG");
+            }
+        }
+    }
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    for lane in snapshot.lanes {
+        assert_eq!(lane.acquired.0, 1);
+        assert_eq!(lane.released.0, 1);
+        assert_eq!(lane.active.0, 0);
+    }
+}
+
+#[test]
+fn trace_observes_only_successful_acquires_and_final_original_lease_ownership() {
+    let registry = Arc::new(Registry::new());
+    let pool = Arc::new(
+        Intake::new(Class::Data, 1, 1024, None)
+            .unwrap()
+            .with_lifecycle(registry.clone(), Lane::Data)
+            .unwrap(),
+    );
+    let lease = pool.acquire(&principal()).unwrap();
+    assert_eq!(Arc::strong_count(&lease), 1);
+    assert_eq!(
+        pool.acquire(&principal()).err().unwrap().code,
+        "BACKPRESSURE"
+    );
+    assert_eq!(lease.shrink_body(1025).unwrap_err().code, "LIMIT");
+    lease.shrink_body(17).unwrap();
+    lease.claim(&principal(), "data").unwrap();
+    assert_eq!(
+        lease.claim(&principal(), "data").unwrap_err().code,
+        "INVALID"
+    );
+    lease.http_response_ready();
+    let original_owner_clone = lease.clone();
+    assert_eq!(Arc::strong_count(&lease), 2);
+    drop(lease);
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    assert_eq!(snapshot.lanes[0].acquired.0, 1);
+    assert_eq!(snapshot.lanes[0].released.0, 0);
+    assert_eq!(snapshot.lanes[0].active.0, 1);
+    assert_eq!(snapshot.lanes[0].intervals[0].distribution.completed.0, 0);
+    assert_eq!(pool.available_permits(), 0);
+    drop(original_owner_clone);
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    assert_eq!(snapshot.lanes[0].acquired.0, 1);
+    assert_eq!(snapshot.lanes[0].released.0, 1);
+    assert_eq!(snapshot.lanes[0].active.0, 0);
+    assert_eq!(snapshot.lanes[0].intervals[0].distribution.completed.0, 1);
+    // Successful claim did not invent a queue boundary.
+    assert_eq!(snapshot.lanes[0].intervals[1].distribution.censored.0, 1);
+    assert_eq!(snapshot.lanes[0].intervals[2].distribution.not_reached.0, 1);
+    assert_eq!(snapshot.lanes[0].intervals[6].distribution.completed.0, 1);
+    assert_eq!(snapshot.lanes[0].intervals[7].distribution.completed.0, 1);
+    assert_eq!(pool.available_permits(), 1);
+}
+
+#[test]
+fn duplicate_successful_shrink_invalidates_diagnostics_without_changing_refund_semantics() {
+    let registry = Arc::new(Registry::new());
+    let pool = Arc::new(
+        Intake::new(Class::Data, 1, 1024, None)
+            .unwrap()
+            .with_lifecycle(registry.clone(), Lane::Data)
+            .unwrap(),
+    );
+    let lease = pool.acquire(&principal()).unwrap();
+    lease.shrink_body(100).unwrap();
+    lease.shrink_body(0).unwrap();
+    assert_eq!(pool.usage.lock().unwrap().all.bytes, 0);
+    assert!(!registry.snapshot().valid);
+    drop(lease);
+    assert_eq!(pool.available_permits(), 1);
+    assert!(!registry.snapshot().valid);
+}
+
+fn wait_for_original_count(pool: &Intake, requests: usize) {
+    let end = Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if let Ok(usage) = pool.usage.try_lock() {
+            if usage.all.requests == requests {
+                return;
+            }
+        }
+        assert!(
+            Instant::now() < end,
+            "resource lock remained held while diagnostic aggregation blocked"
+        );
+        std::thread::yield_now();
+    }
+}
+
+#[test]
+fn successful_acquire_and_last_refund_unlock_the_original_budget_before_aggregation() {
+    let registry = Arc::new(Registry::new());
+    let pool = Arc::new(
+        Intake::new(Class::Data, 1, 1024, None)
+            .unwrap()
+            .with_lifecycle(registry.clone(), Lane::Data)
+            .unwrap(),
+    );
+    let aggregation = crate::lifecycle::tests::hold_aggregation(&registry);
+    let worker_pool = pool.clone();
+    let acquired = std::thread::spawn(move || worker_pool.acquire(&principal()).unwrap());
+    wait_for_original_count(&pool, 1);
+    assert_eq!(pool.available_permits(), 0);
+    drop(aggregation);
+    let lease = acquired.join().unwrap();
+    assert_eq!(registry.snapshot().lanes[0].active.0, 1);
+    let aggregation = crate::lifecycle::tests::hold_aggregation(&registry);
+    let (returned_tx, returned_rx) = std::sync::mpsc::channel();
+    let dropping = std::thread::spawn(move || {
+        drop(lease);
+        returned_tx.send(()).unwrap();
+    });
+    wait_for_original_count(&pool, 0);
+    assert_eq!(pool.available_permits(), 1);
+    assert_eq!(
+        returned_rx.try_recv(),
+        Err(std::sync::mpsc::TryRecvError::Empty)
+    );
+    drop(aggregation);
+    returned_rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    dropping.join().unwrap();
+    let snapshot = registry.snapshot();
+    assert!(snapshot.valid);
+    assert_eq!(snapshot.lanes[0].released.0, 1);
+    assert_eq!(snapshot.lanes[0].active.0, 0);
+}
