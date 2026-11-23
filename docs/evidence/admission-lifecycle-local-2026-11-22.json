@@ -23031,7 +23031,426 @@
     "Net instrumentation overhead requires an appropriate additional control; this run cannot establish it."
   ],
   "object_overload_clock_repair": {
+    "controls": {
+      "negative_controls": [
+        {
+          "case": "missing_offer",
+          "rejected_by": "offered-denominator"
+        },
+        {
+          "case": "shifted_schedule",
+          "rejected_by": "fixed-arrival-schedule"
+        },
+        {
+          "case": "missing_slow_call",
+          "rejected_by": "http-denominator"
+        },
+        {
+          "case": "fabricated_success",
+          "rejected_by": "sdk-success"
+        },
+        {
+          "case": "progress_after_window",
+          "rejected_by": "tenant-window-progress"
+        },
+        {
+          "case": "request_identity_changed",
+          "rejected_by": "original-http-input"
+        },
+        {
+          "case": "original_receipt_changed",
+          "rejected_by": "committed-wire"
+        },
+        {
+          "case": "final_payload_changed",
+          "rejected_by": "complete-business-values"
+        },
+        {
+          "case": "publication_exchange_missing",
+          "rejected_by": "s3-proxy-error"
+        },
+        {
+          "case": "whole_tail_exchange_missing",
+          "rejected_by": "s3-denominator"
+        },
+        {
+          "case": "readback_after_publication",
+          "rejected_by": "closure-before-head"
+        },
+        {
+          "case": "worker_unconditional_create",
+          "rejected_by": "worker-claim-create-only"
+        },
+        {
+          "case": "wrong_binary",
+          "rejected_by": "runtime-binary"
+        },
+        {
+          "case": "wrong_owned_process",
+          "rejected_by": "resource-process-identity"
+        },
+        {
+          "case": "missing_resource_samples",
+          "rejected_by": "resource-samples"
+        },
+        {
+          "case": "unreaped_service",
+          "rejected_by": "owned-service-exit"
+        },
+        {
+          "case": "private_directory_not_removed",
+          "rejected_by": "private-cleanup"
+        },
+        {
+          "case": "batch_as_independent_transactions",
+          "rejected_by": "fixed-plan"
+        }
+      ],
+      "positive_controls": 1,
+      "status": "PASSED"
+    },
+    "controls_sha256": "b0e9de6921cd20acbdc383e9b1459d52c6f7f4912a1cb955840c97fcbf04716f",
+    "equal_seed_inputs_unchanged": 25,
     "node_tests": 8,
+    "oracle": {
+      "all_outcomes": {
+        "rejected": 697,
+        "success": 3643
+      },
+      "aws_standard": "NOT_RUN",
+      "http_posts": 4340,
+      "measured": {
+        "batch": {
+          "call_latency_ms": {
+            "maximum": 128.080717,
+            "p50": 91.016734,
+            "p95": 128.080717,
+            "p99": 128.080717,
+            "samples": 8
+          },
+          "elapsed_seconds_with_drain": 0.768881716,
+          "latency_from_planned_arrival_ms": {
+            "maximum": 128.837863,
+            "p50": 91.047017,
+            "p95": 128.837863,
+            "p99": 128.837863,
+            "samples": 8
+          },
+          "offered": 8,
+          "outcomes": {
+            "success": 8
+          },
+          "s3_methods": {
+            "GET": 96,
+            "PUT": 48
+          },
+          "s3_request_body_bytes": 208625,
+          "s3_requests": 144,
+          "s3_response_body_bytes": 376603,
+          "successful_logical_operations": 64,
+          "successful_logical_operations_per_second": 83.23777073663695,
+          "successful_transactions": 8,
+          "successful_transactions_per_second": 10.404721342079618
+        },
+        "overload": {
+          "call_latency_ms": {
+            "maximum": 762.234903,
+            "p50": 9.967792,
+            "p95": 624.205627,
+            "p99": 664.227567,
+            "samples": 1140
+          },
+          "elapsed_seconds_with_drain": 30.405884057,
+          "latency_from_planned_arrival_ms": {
+            "maximum": 767.379246,
+            "p50": 12.531245,
+            "p95": 627.432648,
+            "p99": 666.504737,
+            "samples": 1140
+          },
+          "offered": 1140,
+          "outcomes": {
+            "rejected": 697,
+            "success": 443
+          },
+          "s3_methods": {
+            "GET": 3610,
+            "PUT": 1717
+          },
+          "s3_request_body_bytes": 18254763,
+          "s3_requests": 5327,
+          "s3_response_body_bytes": 38373521,
+          "successful_logical_operations": 263,
+          "successful_logical_operations_per_second": 8.64964161235932,
+          "successful_transactions": 263,
+          "successful_transactions_per_second": 8.64964161235932
+        },
+        "single": {
+          "call_latency_ms": {
+            "maximum": 224.352494,
+            "p50": 94.030156,
+            "p95": 135.892264,
+            "p99": 224.352494,
+            "samples": 64
+          },
+          "elapsed_seconds_with_drain": 6.467389134,
+          "latency_from_planned_arrival_ms": {
+            "maximum": 224.374714,
+            "p50": 94.046739,
+            "p95": 137.863139,
+            "p99": 224.374714,
+            "samples": 64
+          },
+          "offered": 64,
+          "outcomes": {
+            "success": 64
+          },
+          "s3_methods": {
+            "GET": 768,
+            "PUT": 384
+          },
+          "s3_request_body_bytes": 1858901,
+          "s3_requests": 1152,
+          "s3_response_body_bytes": 4140308,
+          "successful_logical_operations": 64,
+          "successful_logical_operations_per_second": 9.895801640192445,
+          "successful_transactions": 64,
+          "successful_transactions_per_second": 9.895801640192445
+        }
+      },
+      "open_loop": {
+        "duration_ms": 30000,
+        "generator_rejected": 0,
+        "offer_lag_ms": {
+          "maximum": 107.342416,
+          "p50": 1.676963,
+          "p95": 11.37716,
+          "p99": 24.640594,
+          "samples": 1140
+        },
+        "offered": 1140,
+        "progress_windows": [
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 48,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 108,
+                  "success": 52
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 0
+          },
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 44,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 112,
+                  "success": 48
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 5000
+          },
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 39,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 116,
+                  "success": 44
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 10000
+          },
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 35,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 120,
+                  "success": 40
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 15000
+          },
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 34,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 121,
+                  "success": 39
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 20000
+          },
+          {
+            "lanes": {
+              "control": {
+                "completed_successfully_in_window": 10,
+                "offered": 10,
+                "outcomes": {
+                  "success": 10
+                }
+              },
+              "hot": {
+                "completed_successfully_in_window": 35,
+                "offered": 160,
+                "outcomes": {
+                  "rejected": 120,
+                  "success": 40
+                }
+              },
+              "quiet": {
+                "completed_successfully_in_window": 20,
+                "offered": 20,
+                "outcomes": {
+                  "success": 20
+                }
+              }
+            },
+            "offset_ms": 25000
+          }
+        ],
+        "scheduled_per_second": 38.0
+      },
+      "production_slo_passed": false,
+      "publication_closures": {
+        "all_required_immutable_readbacks_before_publication": true,
+        "distinct_dependencies": 3245,
+        "head_publications": 1044
+      },
+      "resources": {
+        "first_sample_delay_ms": 1.794399,
+        "hard_peak_or_limit_proved": false,
+        "kernel_lifetime_maxrss_bytes": 173633536,
+        "last_sample_to_exit_ms": 32.440638,
+        "maximum_sample_gap_ms": 194.013774,
+        "observed_hwm_decreases": 52,
+        "raw_evidence_unique_bytes": 41157694,
+        "sampled_backend_allocated_peak_bytes": 44376064,
+        "sampled_cache_allocated_peak_bytes": 290816,
+        "sampled_fd_peak": 37,
+        "sampled_hwm_max_bytes": 14209024,
+        "sampled_rss_peak_bytes": 14209024,
+        "sampled_thread_peak": 11,
+        "samples": 1204
+      },
+      "results": {
+        "ack_observations": 1356,
+        "final_states": {
+          "cancelled": 697,
+          "committed": 339
+        },
+        "original_executes": 1036,
+        "verified_rows": {
+          "batch": 64,
+          "hot": 263,
+          "quiet": 0,
+          "single": 64
+        }
+      },
+      "s3_authority": {
+        "accepted_versions": 4290,
+        "ambiguous_http_intervals": 0,
+        "blackholed_before_forward": 0,
+        "causal_constraints": 22482,
+        "conditional_put_responses": 4291,
+        "exact_get_body_etag_pairs": 18152,
+        "http_interval_binding": "NOT_REQUESTED"
+      },
+      "s3_requests": 22443,
+      "sampled_resource_peak_is_hard_bound": false,
+      "status": "PASSED",
+      "worker_claims": {
+        "included_in_s3_denominator": true,
+        "object_requests": 2,
+        "worker_instance": "6101"
+      }
+    },
+    "oracle_sha256": "fc07cc19a4f662c908c922b0acf1c24af4e0a5902d730d1e445da8d06270d2d2",
+    "original_evidence_reaudit": "PASSED",
     "original_failure": {
       "artifact": 14788621463,
       "artifact_sha256": "1a1291fbe10b63fbebb9b020d40b1c601e1eb67752684005f8fe5c56b8e9f7f6",
@@ -23043,8 +23462,13 @@
       "posts": 1133,
       "pr_head": "bd8ccce8224520283454e28d8f479d659471b3ed"
     },
+    "production_build_inputs_unchanged": 328,
     "python_tests": 29,
-    "status": "ACTUAL_NOT_RUN"
+    "source_commit": "5e4e6e2ed8c28a2291ffadb72042216e5c04bba6",
+    "source_manifest_files": 940,
+    "source_tree": "7ab3b1373ae93ca1e4f8649a3140b9309865e50b",
+    "source_unchanged_after": "PASSED",
+    "status": "PASSED"
   },
   "observer_cpu_clock": {
     "clock_ticks_per_second": 100,

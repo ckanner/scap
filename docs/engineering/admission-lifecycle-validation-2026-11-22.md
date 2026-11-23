@@ -1,7 +1,8 @@
 # 生命周期诊断与相同 seed 对照：验证台账
 
-状态：**生产诊断与本地八轮 equal-seed 完整验收已通过；旧过载生成器修复尚待真实验收，
-PR 保持 Draft**。四个预登记性能配对仅一个满足全部改善条件，不建议默认开启组提交。
+状态：**生产诊断、八轮 equal-seed 与到达时钟修复的本地完整验收均已通过**。
+四个预登记性能配对仅一个满足全部改善条件，不建议默认开启组提交。PR合并与远端
+检查的最终状态见 [#71](https://github.com/ckanner/scap/pull/71)，本台账不将本地通过冒称为当前CI全绿。
 本文件保留精确来源、原始失败与派生结论，不将历史结果改记为新候选已运行。
 
 [PR #71](https://github.com/ckanner/scap/pull/71) 已先以 `183e925d3e9bcf0a62819bf456e42fd55be05a53`
@@ -48,7 +49,7 @@ SHA-256 为 `ab0981f53ac70eeafa604624f6ee4fdff0754f8b9195c713be35e138a85ba3f5`�
 | 原组提交真实故障与恢复 | PASSED：28原提交、20接受HEAD、1拒绝组CAS、28份冷恢复lookup；40负控 |
 | equal-seed-v1八cell实际/独立oracle/负控 | PASSED：bd8ccce，5632 measured INSERT、2048 seed INSERT，1正控/22负控；前两次失败保留 |
 | equal-seed预登记性能改善 | NOT_MET：四对仅12-off-1/on-1满足全部条件 |
-| 旧object-overload到达时钟修复 | 原bd8远端失败保留；新时钟Node8/Python29自测PASSED，新实际/18负控NOT_RUN |
+| 旧object-overload到达时钟修复 | PASSED：5e4e6e2，Node8/Python29；1140/1140原POST、0生成器拒绝；原oracle、18负控/1正控和最终原件复核 |
 | AWS Standard/跨AZ/生产SLO/长期工作集 | NOT_RUN |
 
 ## 保留的实际失败
@@ -119,7 +120,40 @@ Node22.16.0上的确定性回归证明：旧时钟在6个过期到达、cap2、�
 发2拒4；新时钟发6拒0，全部原scheduled值保持。另一反例让71个到达中的前64个调用
 直到arrivalsFinished才释放，新时钟仍发64拒7，证明没有改为等待响应的闭环。两个测试
 有5秒超时；原观察失败仍传播。全部8个Node与29个Python合同自测通过。该机制证明不能
-回填历史七次失败；修订仍需新冻结、新目录完整实际、原oracle/18负控和原件复核。
+回填历史七次失败；后续实际来源与结果如下，原失败不覆盖。
+
+### 到达时钟修订的完整实际验收
+
+修订先固定在独立验证分支，对应 `5e4e6e2ed8c28a2291ffadb72042216e5c04bba6`，tree为
+`7ab3b1373ae93ca1e4f8649a3140b9309865e50b`；避免新推送取消旧bd8仍在执行的质量作业。
+940个源码文件在完整运行前后保持一致，原32/s hot、4/s quiet、2/s control、30秒窗口、
+64客户端并发、1秒lag门槛、1140分母和全部验收规则都不变。生产328个构建输入、本地
+release与b7相同，已通过bd8的25个equal-seed输入逐字节不变，各自保留原执行身份。
+本合同的data_intake为16，queue为32/16/8、control reserve为4，与equal-seed的tenant40
+是不同profile；这些原配置没有变化。旧overload probe不保留x-scap-rejection，不能把
+其697个BP进一步归因到某个具体intake或queue计数器。
+
+实际1140个planned/offered全部成为原POST，generator_rejected=0；实际6个5秒窗口中，
+hot在本窗到达且本窗完成的成功数分别48、44、39、35、34、35，quiet每窗20、control每窗10。
+全部hot最终原结果为263 success与697 BACKPRESSURE；120个quiet和60个control全部成功，
+原overload共443 success/697 rejected，其中成功写ACK为263。生成器的最大原调用启动lag
+为107.342ms，低于原1秒门槛。overload三个lane最后一个call_finished减第一个call_started
+为30.405884秒，包含负载及drain；该口径与后文equal-seed的业务drain公式分别记账。
+原数据不证明未来任意负载永不达到64上限。
+
+完整合同还包括64个单语句事务和8个八语句SQL batch、每个原execute的查证/取消、排空
+查证后的四库强读。合计4340个HTTP POST、22443次S3请求；1036个原execute最终339 committed、
+697 cancelled，原结果、随机witness、完整行及1044个HEAD publication闭包均通过独立验证。
+这里的SQL batch是每次一次多语句事务，不是服务器group commit，也不拿其逻辑操作/s
+与独立事务/s混比。本轮三阶段与旧远端的工作环境、生成器版本不同，不将其成功数之差
+称为产品性能改善；能确认的是新生成器在这次完整固定合同下交付了全部原计划。
+
+服务正常退出、cleanup_errors=[]、private_removed=true。1204个owned service采样，
+最大间隔194.014ms；RSS采样和wait4生命周期峰值保持独立口径，不作为内核硬上限。
+独立oracle、修改summary的正控、18个精确规则负控以及最后原件复核全部PASSED；
+最后完整source_manifest核对通过。Oracle JSON SHA-256为
+`fc07cc19a4f662c908c922b0acf1c24af4e0a5902d730d1e445da8d06270d2d2`，controls为
+`b0e9de6921cd20acbdc383e9b1459d52c6f7f4912a1cb955840c97fcbf04716f`。
 
 ## 第三次完整矩阵：来源与结果
 
@@ -333,7 +367,8 @@ Scan跨度包含锁等待和进程/文件系统观察，不含completed_ns之后
 为184787013字节，SHA-256
 `d39038aeb3a2f2313864af03473d882f092e33611e87ce474abe6dc6b142d093`。
 旧8198远端同合同也成功，而其本地第六轮退出竞争失败，两份结果都保留。
-当前CI的旧overload失败仍须按上节单独处理，不能写“当前CI全绿”。
+bd8这次CI的旧overload失败仍须按上节单独处理；后续5e4的本地完整通过不修改该次
+远端失败。其余远端检查按各自原checkout与job日志记账，不改记成本地运行。
 
 ## 后续判定
 
